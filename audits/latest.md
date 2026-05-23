@@ -1,9 +1,9 @@
-# Independent Audit - 2026-05-23T08:06:51Z
+# Independent Audit - 2026-05-23T08:09:36Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
 lane-status summaries needed to check alignment, recent Git history through
-`0d905966`, dirty-tree status, active process/test state, and PHP shell-out
+`0d05da47`, dirty-tree status, active process/test state, and PHP shell-out
 surface.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
@@ -40,9 +40,9 @@ it as temporary fixture/oracle evidence.
      `2018812` dashboard freshness gate,
      `2399239 claude ... run-dashboard-updater-loop.sh`, and
      `2424048 claude ... run-evaluator-loop.sh`.
-   - Evidence: latest samples reported `968` default `git status --short`
-     entries, `94` tracked changed files, and `94 files changed, 23112
-     insertions(+), 663 deletions(-)` at `HEAD` `0d905966`.
+   - Evidence: latest samples reported `956` default `git status --short`
+     entries, `80` tracked changed files, and `80 files changed, 21403
+     insertions(+), 668 deletions(-)` at `HEAD` `0d05da47`.
    - Audit judgment: freeze active writers and status publishers before
      accepting any root run, dashboard, lane-status, manifest percentage, or
      progress estimate.
@@ -63,14 +63,14 @@ it as temporary fixture/oracle evidence.
      work, blocker, and commit.
    - Evidence: `porting.html:32`-`36` advertises generated time
      `2026-05-23 04:57:16 UTC` and source commit `bda83c6b93d4`, while the
-     reviewed `HEAD` is `0d905966`.
+     reviewed `HEAD` is `0d05da47`.
    - Evidence: `porting.html:41`-`50` still has compound `Benchmark` and
      `Mapped` columns instead of separate benchmark source, upstream
      denominator, mapped tests, and PHP pass/fail columns.
    - Evidence: dashboard rows disagree with current manifests: Difftastic
-     `160 / 417` versus `205 / 559`; Dolt `242 / 613` versus `342 / 613`;
-     esbuild `164 / 2567` versus `190 / 2567`; Gitoxide `1432 / 2877` versus
-     `1639 / 2877`; libsqlite `149 / 1454` versus `185 / 1454`;
+     `160 / 417` versus `205 / 559`; Dolt `242 / 613` versus `348 / 613`;
+     esbuild `164 / 2567` versus `192 / 2567`; Gitoxide `1432 / 2877` versus
+     `1641 / 2877`; libsqlite `149 / 1454` versus `185 / 1454`;
      LightningCSS `773 / 3532` versus `886 / 3532`; markerPDF `159 / 78`
      versus `182 / 241`; Pandoc `426 / 2028` versus `521 / 2276`; rclone
      `291 / 327` versus `373 / 2553`; Readability `1031 / 1984` versus
@@ -102,11 +102,12 @@ it as temporary fixture/oracle evidence.
      Rclone records an aggregate root failure in Readability. Dolt, libsqlite,
      LightningCSS, Quadrable, and Readability record root verification as
      pending because duplicate-root gates found active root runners.
-   - Evidence: this audit observed an exact root process
+   - Evidence: this audit observed exact root processes, first
      `2017973 php tools/run-tests.php` with owner evidence
-     `2017973 claude 1983296 00:09 Rs php tools/run-tests.php`; a later exact
-     gate was clear, but active writers and `HEAD` movement still made a new
-     root run untrustworthy.
+     `2017973 claude 1983296 00:09 Rs php tools/run-tests.php`, and later
+     `2059800 php tools/run-tests.php` with owner evidence
+     `2059800 claude 2059799 00:08 R php tools/run-tests.php`. Active writers
+     and `HEAD` movement made another root run untrustworthy.
    - Audit judgment: collapse root status to one repo-level integration record
      from a frozen tree, then regenerate lane statuses from that single record.
 
@@ -135,7 +136,7 @@ it as temporary fixture/oracle evidence.
      PHP green run inside upstream runner status, which blends upstream parity
      and local PHP verification.
    - Evidence: manifest-level PHP behavior counts are inconsistent or absent:
-     Dolt has `mapped: 342` and `phpBehaviorTests: 221`; markerPDF has
+     Dolt has `mapped: 348` and `phpBehaviorTests: 221`; markerPDF has
      `mapped: 182` and `phpBehaviorTests: 291`; rclone has both `mapped: 373`
      and `phpBehaviorTests: 373`; Readability has `mapped: 1264` and
      `phpBehaviorTests: 121`; several other manifests rely on lane-status
@@ -208,26 +209,26 @@ pgrep -af '^php tools/run-tests\.php( |$)'
 Result:
 
 ```text
-2017973 php tools/run-tests.php
+2059800 php tools/run-tests.php
 ```
 
 Owner evidence:
 
 ```text
-2017973 claude 1983296 00:09 Rs php tools/run-tests.php
+2059800 claude 2059799 00:08 R php tools/run-tests.php
 ```
 
-A later exact duplicate-root sample was clear, but no duplicate root run was
-started. The tree was also not stable enough for a trustworthy aggregate run
-because active writer/update loops were present, `HEAD` moved during the audit,
-and the worktree remained a large dirty aggregate.
+No duplicate root run was started. The tree was also not stable enough for a
+trustworthy aggregate run because active writer/update loops were present,
+`HEAD` moved during the audit, and the worktree remained a large dirty
+aggregate.
 
 Latest dirty-tree samples:
 
 ```text
-git status --short: 968 entries
-git status --short --untracked-files=no: 94 entries
-git diff --shortstat: 94 files changed, 23112 insertions(+), 663 deletions(-)
+git status --short: 956 entries
+git status --short --untracked-files=no: 80 entries
+git diff --shortstat: 80 files changed, 21403 insertions(+), 668 deletions(-)
 ```
 
 Active process evidence:
@@ -255,6 +256,12 @@ Active process evidence:
 Recent commits reviewed:
 
 ```text
+0d05da47 Record pandoc backslash slice status
+dabc8d3a Refresh independent audit status
+548abf86 Port pandoc backslash escape markdown slice
+2a2e891d Record lightningcss keyframes status
+a0d51832 Port lightningcss keyframes minifier slice
+8e9501c4 Advance libsqlite index split planning
 0d905966 Record syncthing lane status
 f0e5a196 Port syncthing scanner error cancellation
 3f420eb9 difftastic map tree-sitter error ANSI styling
@@ -268,17 +275,4 @@ f4d7e836 Update syncthing lane status
 6804a824 Port syncthing scanner Windows exec bits
 fddbb567 difftastic map ansi syntax highlight controls
 463189ff readability: map Atlas Obscura article body fixture
-d91836c9 Refresh independent audit status
-4f597d6f Refresh independent audit status
-119d9916 Update Syncthing lane status commit pointer
-25e8b8b8 Add Syncthing scanner progress events
-3446f9fc pandoc record raw html list status
-52ce98b3 pandoc map raw html list item slice
-baddfe23 difftastic map guarded json display command
-9764081e Refresh independent audit status
-fcb1c75b Refresh independent audit status
-68f04dbf Record syncthing normalization lane status
-8a8bf56e Port syncthing scanner normalization slice
-37c9d3bf readability: map additional Mozilla fixtures
-9ef2cca7 Port libsqlite index leaf split insert planning
 ```
