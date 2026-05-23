@@ -3357,3 +3357,321 @@ script ran successfully, reporting updated page images
 new interior pages with three cells each, split destination composite leaves,
 and the rewritten option reachable through
 `wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+
+## Focused Native Mapping: Non-Root Table Parent Replacement Split
+
+For the bounded table b-tree replacement split below a non-root parent on
+2026-05-23, the focused upstream runner passed `update.test`, `insert.test`,
+and `btree01.test` with 0 errors out of 813 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test insert.test btree01.test
+```
+
+This maps SQLite UPDATE row rewrite behavior, rowid table INSERT persistence,
+`sqlite3BtreeInsert`/`balance_nonroot` behavior when a non-root table parent
+can absorb a new divider, and b-tree cell/page assembly boundaries used by
+the native bounded `wp_options` replacement planner.
+
+The direct libsqlite harness passed 193 PHP tests with 1357 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-nonroot-table-split-option-replacement-plan.php` script
+ran successfully, reporting updated page images `[1,3,5,7]`, an unchanged
+table root page 2, lower parent separators `(4,2)` and `(5,3)`, new rightmost
+leaf page 7, and the rewritten `blogname` option with `autoload='no'`.
+
+## Focused Native Mapping: Table Root Parent Replacement Split
+
+For the bounded table b-tree replacement split that overflows a full
+table-interior root on 2026-05-23, the focused upstream runner passed
+`update.test`, `insert.test`, and `btree01.test` with 0 errors out of 813
+tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test insert.test btree01.test
+```
+
+This maps SQLite UPDATE row rewrite behavior, rowid table INSERT persistence,
+root table-interior growth after a child leaf split overflows its parent, and
+b-tree cell/page assembly boundaries used by the native bounded `wp_options`
+replacement planner.
+
+The direct libsqlite harness passed 194 PHP tests with 1379 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-table-parent-root-split-option-replacement-plan.php`
+script ran successfully, reporting updated page images `[1,2,36,37,38,39]`,
+a grown one-cell table-interior root, two new lower table-interior pages with
+16 and 17 cells, a split target leaf pair, and the rewritten `blogname`
+option with `autoload='no'`.
+
+## Strengthened Static Inventory And Non-Root Parent Overflow Slice
+
+On 2026-05-23 this lane rechecked the hydrated blobless upstream cache without
+hydrating unrelated paths. The checkout remained clean at
+`8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`. The strengthened static
+inventory counted 2131 hydrated `src`, `test`, `tool`, `ext`, and `mptest`
+paths, including 1189 `test/*.test` Tcl scripts, 278 `ext/**/*.test` Tcl
+scripts, 32 `test/*.tcl` harness files, 33 `test` C programs, 47
+`src/test*.(c|h)` helper files, 6 `mptest` files, and 76 tool-side
+test-like C/Tcl/test files. A bounded static Tcl scan counted 68575
+test-command-looking lines, including 51981 common `do_*` command lines and
+21198 `do_*_test` family command lines. These counts supplement the completed
+`veryquick` runner; SQLite `all` and `release` permutations remain unrun.
+
+For the bounded table b-tree replacement slice where a target leaf split also
+overflows a full non-root table-interior parent, the focused upstream runner
+passed again:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test insert.test btree01.test
+```
+
+Result: 0 errors out of 813 tests in 00:00.
+
+This maps SQLite UPDATE row rewrite behavior, rowid table INSERT persistence,
+`balance_nonroot` propagation when a full non-root table-interior parent
+splits, and b-tree page/cell assembly boundaries. The native PHP planner now
+threads table-parent ancestry during writable `wp_options` replacement
+planning, rewrites the split target leaf, splits the full non-root parent into
+left/right table-interior pages, and promotes the divider into the root when
+the root can absorb it. Non-root index parent overflow propagation remains a
+future slice.
+
+The direct libsqlite harness passed 195 PHP tests with 1401 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-nonroot-table-parent-split-option-replacement-plan.php`
+script ran successfully, reporting updated page images `[1,2,3,37,39,40]`, a
+two-cell table-interior root, two split non-root parent pages with 16 and 17
+cells, split target leaves, and the rewritten `blogname` option with
+`autoload='no'`.
+
+## Focused Native Mapping: Non-Root Index Parent Split
+
+For the bounded secondary-index insert slice where a target index leaf split
+also overflows a full non-root index-interior parent, the focused upstream
+runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test index.test btree01.test
+```
+
+Result: 0 errors out of 809 tests in 00:00.
+
+This maps SQLite rowid INSERT persistence, index b-tree key ordering,
+`balance_nonroot` propagation when a full non-root index-interior parent
+splits, and b-tree page/cell assembly boundaries. The native PHP planner now
+threads index-parent ancestry during writable `wp_options` insert planning,
+rewrites the split target leaf, splits the full non-root index parent into
+left/right index-interior pages, and promotes the divider into the root when
+the root can absorb it. Replacement source-leaf rebalancing and broader
+non-root index replacement propagation remain future slices.
+
+The direct libsqlite harness passed 196 PHP tests with 1421 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-nonroot-index-parent-split-option-insert-plan.php` script
+ran successfully, reporting updated page images `[1,2,3,4,11,13,14]`, a
+two-cell index-interior root, split non-root parent pages with three cells
+each, split target leaves with three cells each, and the inserted option
+reachable through `wordpressOptionByIndexedAutoloadAndName('yes',
+$optionName)`.
+
+Before starting a root harness for this slice, the required duplicate-root
+preflight found an active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 2694170 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 2694170
+# 2694170 claude 00:16 php tools/run-tests.php
+```
+
+Per lane instructions, this worker did not start a duplicate root harness. The
+aggregate result is pending supervisor/integrator acceptance of the active
+run.
+
+## Focused Native Mapping: Composite Index Root Collapse Replacement
+
+For the bounded composite `autoload, option_name` replacement slice where
+changing `autoload` removes the only entry from one child leaf below a
+two-child index root, the focused upstream runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test btree01.test
+```
+
+Result: 0 errors out of 761 tests in 00:00.
+
+This maps SQLite UPDATE row rewrite behavior, index b-tree key ordering,
+`balance_nonroot` sibling collapse, `balance_shallower` root-depth reduction,
+freePage2-style obsolete child page release, and b-tree page/cell assembly
+boundaries. The native PHP planner now handles the bounded WordPress case
+where an autoload rewrite moves an index entry from one root child leaf into
+its sibling, the source leaf becomes empty, the root can be rebuilt as an
+index leaf containing the remaining keys, and the obsolete child pages are
+returned to freelist metadata. Broader underfilled-leaf redistribution,
+multi-sibling collapse, non-root index replacement propagation, pointer-map
+updates, journaling, and WAL remain future slices.
+
+The direct libsqlite harness passed 197 PHP tests with 1433 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-index-root-collapse-option-replacement-plan.php` script
+ran successfully, reporting updated page images `[1,2,3,4]`, an index root
+rewritten from `index-interior` to `index-leaf`, obsolete child pages `[4,5]`
+on the freelist, and the rewritten `siteurl` option reachable through
+`wordpressOptionByIndexedAutoloadAndName('no', 'siteurl')`.
+
+## Focused Native Mapping: Auto-Vacuum Pointer Maps
+
+For the auto-vacuum pointer-map metadata slice, the focused upstream runner
+passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  autovacuum.test autovacuum2.test incrvacuum.test incrvacuum2.test incrvacuum3.test
+```
+
+Result: 5 Tcl scripts, 0 errors out of 587 tests in 00:01.
+
+The static focused inventory for those files contains 172 `do_test`/
+`do_execsql_test`/`do_catchsql_test` command lines. This maps SQLite
+`auto_vacuum` and `incremental_vacuum` header state, pointer-map page
+placement from `ptrmapPageno()`, 5-byte pointer-map entries, and the
+root/free/btree/first-overflow/overflow-continuation entry types documented in
+`src/btreeInt.h`. The native PHP reader now parses the largest-root and
+incremental-vacuum header fields, computes pointer-map page/offset locations,
+identifies pointer-map pages, and reads validated pointer-map entries.
+
+The direct libsqlite harness passed 198 PHP tests with 1456 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-pointer-map-diagnostics.php` script ran
+successfully. It reports an auto-vacuum WordPress-shaped database with page 2
+as the pointer-map page, page 3 as the `wp_options` root, page 4 as a b-tree
+child, pages 5 and 6 as an overflow chain, page 7 as a free page, and the
+readable `siteurl` option. Pointer-map mutation during page moves, journaling,
+and WAL remain future slices.
+
+## Focused Native Mapping: Multi-Sibling Index Leaf Redistribution Replacement
+
+For the bounded composite `autoload, option_name` replacement slice where an
+autoload rewrite removes one entry from a source leaf below a multi-sibling
+index root, the focused upstream runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test btree01.test
+```
+
+Result: 3 Tcl scripts, 0 errors out of 761 tests in 00:00. A bounded static
+scan of those files counted 254 `do_*` test command lines.
+
+This maps SQLite UPDATE row rewrite behavior, index b-tree key ordering,
+delete-triggered `balance_nonroot` redistribution when a leaf has more than
+two-thirds free space, and b-tree page/cell assembly boundaries. The native
+PHP planner now detects a non-empty underfilled source index leaf after moving
+a composite `wp_options` entry, redistributes it with an adjacent sibling when
+the parent has multiple children, rewrites the parent divider, and then inserts
+the replacement key into the updated tree.
+
+The direct libsqlite harness passed 199 PHP tests with 1470 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-index-redistribute-option-replacement-plan.php` script ran
+successfully, reporting updated page images `[2,3,4,5,6]`, a two-cell
+`index-interior` root, redistributed source/sibling leaves with three cells
+each, a destination leaf with four cells, and the rewritten option reachable
+through `wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+
+## Focused Native Mapping: Root-Parent Index Leaf Merge Replacement
+
+For the bounded composite `autoload, option_name` replacement slice where an
+autoload rewrite underfills a source leaf and the remaining source/sibling
+cells cannot be redistributed into two legal leaf pages, the focused upstream
+runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test btree01.test delete2.test delete3.test delete4.test
+```
+
+Result: 6 named Tcl scripts / 9 runner script-permutation runs, 0 errors out
+of 804 tests in 00:00. A bounded static scan of those six files counted 313
+`do_*` test command lines. A targeted static scan of `src/btree.c` counted 73
+`balance_nonroot`/`balance_shallower`/`freePage2`/related merge-balance lines.
+
+This maps SQLite UPDATE row rewrite behavior, index b-tree key ordering,
+delete-triggered `balance_nonroot` sibling-count reduction, parent divider
+removal, obsolete-page release through free-list metadata, and b-tree
+page/cell assembly boundaries. The native PHP planner now falls back from
+redistribution to a root-parent leaf merge: it moves the parent divider into
+the merged leaf, removes the divider from the root parent, rewires the root's
+child pointer/right-most pointer, frees the obsolete index leaf page, and then
+inserts the replacement key into the updated tree.
+
+The direct libsqlite harness passed 200 PHP tests with 1487 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-index-merge-option-replacement-plan.php` script
+ran successfully, reporting updated page images `[1,2,3,4,5,6]`, a one-cell
+`index-interior` root, merged source/sibling index leaves with page 6 moved
+onto the freelist, and the rewritten option reachable through
+`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+
+Remaining boundaries: non-root index replacement propagation, auto-vacuum
+pointer-map mutation updates, journaling, and WAL remain future slices.

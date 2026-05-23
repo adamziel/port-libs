@@ -19,6 +19,7 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJson5Parser;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
+use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
@@ -266,7 +267,9 @@ return [
         $t->same(2, $parsed->databaseSizePages);
         $t->same(0, $parsed->firstFreelistTrunkPage);
         $t->same(0, $parsed->freelistPageCount);
+        $t->same(0, $parsed->largestRootBtreePage);
         $t->same(1, $parsed->textEncoding);
+        $t->same(0, $parsed->incrementalVacuum);
     },
     'parses sqlite database freelist header fields' => static function (TestRunner $t): void {
         $header = str_repeat("\0", 100);
@@ -283,6 +286,95 @@ return [
 
         $t->same(5, $parsed->firstFreelistTrunkPage);
         $t->same(4, $parsed->freelistPageCount);
+    },
+    'parses sqlite auto-vacuum pointer map entries for wordpress pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $overflowPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            $schemaCell([
+                'table',
+                'wp_options',
+                'wp_options',
+                3,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ], 1),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 7));
+        $schemaPage = substr_replace($schemaPage, pack('N', 3), 52, 4);
+        $schemaPage = substr_replace($schemaPage, pack('N', 1), 64, 4);
+
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            5 => [SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 4],
+            6 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 5],
+            7 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $offset = 5 * ($pageNumber - 3);
+            $pointerMapPage = substr_replace($pointerMapPage, chr($type) . pack('N', $parentPageNumber), $offset, 5);
+        }
+
+        $rootPage = $tableLeafPage([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+        $childPage = $tableLeafPage([
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'blogname', 'Ported SQLite', 'yes'])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $pointerMapPage
+            . $rootPage
+            . $childPage
+            . $overflowPage('autoload payload chunk', 6, $pageSize)
+            . $overflowPage('tail', 0, $pageSize)
+            . str_repeat("\0", $pageSize),
+        );
+
+        $entries = $database->pointerMapEntries();
+        $btreeEntry = $database->pointerMapEntryForPage(4);
+        $overflowEntry = $database->pointerMapEntryForPage(6);
+        $options = $database->wordpressOptions();
+
+        $t->true($database->isAutoVacuum());
+        $t->true($database->isIncrementalVacuum());
+        $t->same(102, $database->pointerMapEntriesPerPage());
+        $t->same(103, $database->pagesPerPointerMapStride());
+        $t->same(2, $database->pointerMapPageFor(3));
+        $t->same(105, $database->pointerMapPageFor(105));
+        $t->same(null, $database->pointerMapPageFor(1));
+        $t->same(0, $database->pointerMapOffsetFor(3));
+        $t->same(5, $database->pointerMapOffsetFor(4));
+        $t->true($database->isPointerMapPage(2));
+        $t->same([3, 4, 5, 6, 7], array_keys($entries));
+        $t->same('btree-page', $btreeEntry->typeName());
+        $t->same(3, $btreeEntry->parentPageNumber);
+        $t->same('overflow-page', $overflowEntry->typeName());
+        $t->same(5, $overflowEntry->parentPageNumber);
+        $t->same([
+            'page_number' => 5,
+            'pointer_map_page' => 2,
+            'offset' => 10,
+            'type' => SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE,
+            'type_name' => 'first-overflow-page',
+            'parent_page_number' => 4,
+        ], $entries[5]->toArray());
+        $t->same(['siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->pointerMapEntryForPage(2));
+
+        $plainDatabase = SQLiteDatabase::fromBytes($makeFirstPage($pageSize, 1));
+        $t->same([], $plainDatabase->pointerMapEntries());
+        $t->throws(InvalidArgumentException::class, static fn () => $plainDatabase->pointerMapEntryForPage(2));
+
+        $badPointerMapPage = substr_replace($pointerMapPage, "\0\0\0\0\0", 0, 5);
+        $badDatabase = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $badPointerMapPage
+            . $rootPage
+            . $childPage
+            . $overflowPage('autoload payload chunk', 6, $pageSize)
+            . $overflowPage('tail', 0, $pageSize)
+            . str_repeat("\0", $pageSize),
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $badDatabase->pointerMapEntryForPage(3));
     },
     'sqlite varints decode one and multi byte values' => static function (TestRunner $t): void {
         $t->same([127, 1], SQLiteVarint::decode("\x7f"));
@@ -5459,6 +5551,136 @@ return [
             static fn () => $database->planWordPressOptionInsert(2, $insertedName, 'composite-parent-grown-value', 'yes', false),
         );
     },
+    'plans wordpress indexed insert by splitting an overflowing non-root index parent' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $nameLength = 64;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_autoload_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 12));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+
+        $indexRootPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(
+                SQLiteRecord::encode(['yes', str_repeat('{', $nameLength), 900]),
+                $pageSize,
+                null,
+                4,
+            ),
+        ], 12, $pageSize);
+
+        $lowerParentCells = [];
+        foreach (['g', 'i', 'k', 'm', 'o', 'q'] as $index => $prefix) {
+            $lowerParentCells[] = SQLiteIndexCell::encode(
+                SQLiteRecord::encode(['yes', str_repeat($prefix, $nameLength), 100 + $index]),
+                $pageSize,
+                null,
+                5 + $index,
+            );
+        }
+        $lowerParentPage = SQLiteIndexInteriorPage::assemble($lowerParentCells, 11, $pageSize);
+
+        $leafPages = [];
+        foreach (['a', 'h', 'j', 'l', 'n', 'p'] as $index => $prefix) {
+            $leafPages[] = SQLiteIndexLeafPage::assemble([
+                SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat($prefix, $nameLength), 50 + $index])),
+            ], $pageSize);
+        }
+        $targetLeafEntries = [];
+        foreach (['r', 's', 't', 'u', 'v', 'w'] as $index => $prefix) {
+            $targetLeafEntries[] = SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat($prefix, $nameLength), 200 + $index]));
+        }
+        $rightRootLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat('~', $nameLength), 901])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $indexRootPage
+            . $lowerParentPage
+            . implode('', $leafPages)
+            . SQLiteIndexLeafPage::assemble($targetLeafEntries, $pageSize)
+            . $rightRootLeafPage,
+        );
+
+        $insertedName = str_repeat('z', $nameLength);
+        $plan = $database->planWordPressOptionInsert(2, $insertedName, 'nonroot-parent-grown-value', 'yes');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+        $insertedOption = $postDatabase->wordpressOptionByIndexedAutoloadAndName('yes', $insertedName);
+
+        $t->same([1, 2, 3, 4, 11, 13, 14], array_keys($plan->pageImages()));
+        $t->same(14, $plan->databasePageCount);
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(2, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(12, $postDatabase->pageHeader(3)->rightMostPointer);
+        $t->same('index-interior', $postDatabase->pageHeader(4)->pageType);
+        $t->same(3, $postDatabase->pageHeader(4)->cellCount);
+        $t->same(8, $postDatabase->pageHeader(4)->rightMostPointer);
+        $t->same('index-interior', $postDatabase->pageHeader(14)->pageType);
+        $t->same(3, $postDatabase->pageHeader(14)->cellCount);
+        $t->same(13, $postDatabase->pageHeader(14)->rightMostPointer);
+        $t->same(3, $postDatabase->pageHeader(11)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(13)->cellCount);
+        $t->same([
+            ['yes', str_repeat('a', $nameLength), 50],
+            ['yes', str_repeat('g', $nameLength), 100],
+            ['yes', str_repeat('h', $nameLength), 51],
+            ['yes', str_repeat('i', $nameLength), 101],
+            ['yes', str_repeat('j', $nameLength), 52],
+            ['yes', str_repeat('k', $nameLength), 102],
+            ['yes', str_repeat('l', $nameLength), 53],
+            ['yes', str_repeat('m', $nameLength), 103],
+            ['yes', str_repeat('n', $nameLength), 54],
+            ['yes', str_repeat('o', $nameLength), 104],
+            ['yes', str_repeat('p', $nameLength), 55],
+            ['yes', str_repeat('q', $nameLength), 105],
+            ['yes', str_repeat('r', $nameLength), 200],
+            ['yes', str_repeat('s', $nameLength), 201],
+            ['yes', str_repeat('t', $nameLength), 202],
+            ['yes', str_repeat('u', $nameLength), 203],
+            ['yes', str_repeat('v', $nameLength), 204],
+            ['yes', str_repeat('w', $nameLength), 205],
+            ['yes', $insertedName, 2],
+            ['yes', str_repeat('{', $nameLength), 900],
+            ['yes', str_repeat('~', $nameLength), 901],
+        ], $indexRecords);
+        $t->true($insertedOption instanceof SQLiteWordPressOption);
+        $t->same(2, $insertedOption->rowId);
+        $t->same($insertedName, $insertedOption->optionName);
+        $t->same('nonroot-parent-grown-value', $insertedOption->optionValue);
+        $t->same('yes', $insertedOption->autoload);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionInsert(2, $insertedName, 'nonroot-parent-grown-value', 'yes', false),
+        );
+    },
     'plans wordpress wp_options replacement while freeing obsolete overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $emptyPage = str_repeat("\0", $pageSize);
@@ -5817,6 +6039,291 @@ return [
         $t->same(3, $option->rowId);
         $t->same('https://fixed.example', $option->optionValue);
         $t->same('no', $option->autoload);
+    },
+    'plans wordpress replacement by redistributing an underfilled multi-sibling composite index leaf' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $nameLength = 64;
+        $optionName = str_repeat('z', $nameLength);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_autoload_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 6));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, $optionName, 'stale-cache', 'yes'])),
+        ], $pageSize);
+        $indexRootPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat('g', $nameLength), 100]), $pageSize, null, 4),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat('m', $nameLength), 101]), $pageSize, null, 5),
+        ], 6, $pageSize);
+
+        $leftIndexEntries = [];
+        foreach (['a', 'b', 'c'] as $index => $prefix) {
+            $leftIndexEntries[] = SQLiteIndexCell::encode(SQLiteRecord::encode(['no', str_repeat($prefix, $nameLength), 50 + $index]));
+        }
+        $middleIndexEntries = [];
+        foreach (['h', 'i', 'j', 'k', 'l'] as $index => $prefix) {
+            $middleIndexEntries[] = SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat($prefix, $nameLength), 60 + $index]));
+        }
+        $rightIndexEntries = [
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'siteurl', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', $optionName, 3])),
+        ];
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $indexRootPage
+            . SQLiteIndexLeafPage::assemble($leftIndexEntries, $pageSize)
+            . SQLiteIndexLeafPage::assemble($middleIndexEntries, $pageSize)
+            . SQLiteIndexLeafPage::assemble($rightIndexEntries, $pageSize),
+        );
+
+        $plan = $database->planWordPressOptionReplace($optionName, 'fixed-cache', 'no');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $option = $postDatabase->wordpressOptionByIndexedAutoloadAndName('no', $optionName);
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+
+        $t->same([2, 3, 4, 5, 6], array_keys($plan->pageImages()));
+        $t->same(6, $plan->databasePageCount);
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(2, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(4, $postDatabase->pageHeader(4)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(5)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(6)->cellCount);
+        $t->same([
+            ['no', str_repeat('a', $nameLength), 50],
+            ['no', str_repeat('b', $nameLength), 51],
+            ['no', str_repeat('c', $nameLength), 52],
+            ['no', $optionName, 3],
+            ['yes', str_repeat('g', $nameLength), 100],
+            ['yes', str_repeat('h', $nameLength), 60],
+            ['yes', str_repeat('i', $nameLength), 61],
+            ['yes', str_repeat('j', $nameLength), 62],
+            ['yes', str_repeat('k', $nameLength), 63],
+            ['yes', str_repeat('l', $nameLength), 64],
+            ['yes', str_repeat('m', $nameLength), 101],
+            ['yes', 'siteurl', 2],
+        ], $indexRecords);
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(3, $option->rowId);
+        $t->same($optionName, $option->optionName);
+        $t->same('fixed-cache', $option->optionValue);
+        $t->same('no', $option->autoload);
+        $t->same([
+            'table_root_page' => 2,
+            'rowid' => 3,
+            'option_name' => $optionName,
+            'autoload' => 'no',
+            'overflow_page_numbers' => [],
+            'obsolete_overflow_page_numbers' => [],
+            'local_payload_length' => strlen(SQLiteRecord::encode([null, $optionName, 'fixed-cache', 'no'])),
+            'database_page_count' => 6,
+            'updated_page_numbers' => [2, 3, 4, 5, 6],
+        ], $plan->toArray());
+    },
+    'plans wordpress replacement by merging an underfilled composite index leaf when redistribution cannot fit' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $nameLength = 64;
+        $optionName = str_repeat('z', $nameLength);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_autoload_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 6));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, $optionName, 'stale-cache', 'yes'])),
+        ], $pageSize);
+        $indexRootPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat('g', $nameLength), 100]), $pageSize, null, 4),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat('m', $nameLength), 101]), $pageSize, null, 5),
+        ], 6, $pageSize);
+        $leftIndexLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['no', str_repeat('a', $nameLength), 50])),
+        ], $pageSize);
+        $middleIndexLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat('h', $nameLength), 60])),
+        ], $pageSize);
+        $rightIndexLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'siteurl', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', $optionName, 3])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $indexRootPage
+            . $leftIndexLeafPage
+            . $middleIndexLeafPage
+            . $rightIndexLeafPage,
+        );
+
+        $plan = $database->planWordPressOptionReplace($optionName, 'fixed-cache', 'no');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $option = $postDatabase->wordpressOptionByIndexedAutoloadAndName('no', $optionName);
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+        $freelistTrunks = $postDatabase->freelistTrunkPages();
+
+        $t->same([1, 2, 3, 4, 5, 6], array_keys($plan->pageImages()));
+        $t->same(6, $plan->databasePageCount);
+        $t->same(6, SQLiteHeader::parse($plan->pageImages()[1])->firstFreelistTrunkPage);
+        $t->same(1, SQLiteHeader::parse($plan->pageImages()[1])->freelistPageCount);
+        $t->same(1, count($freelistTrunks));
+        $t->same(6, $freelistTrunks[0]->pageNumber);
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(1, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(2, $postDatabase->pageHeader(4)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(5)->cellCount);
+        $t->same([
+            ['no', str_repeat('a', $nameLength), 50],
+            ['no', $optionName, 3],
+            ['yes', str_repeat('g', $nameLength), 100],
+            ['yes', str_repeat('h', $nameLength), 60],
+            ['yes', str_repeat('m', $nameLength), 101],
+            ['yes', 'siteurl', 2],
+        ], $indexRecords);
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(3, $option->rowId);
+        $t->same($optionName, $option->optionName);
+        $t->same('fixed-cache', $option->optionValue);
+        $t->same('no', $option->autoload);
+        $t->same([
+            'table_root_page' => 2,
+            'rowid' => 3,
+            'option_name' => $optionName,
+            'autoload' => 'no',
+            'overflow_page_numbers' => [],
+            'obsolete_overflow_page_numbers' => [],
+            'local_payload_length' => strlen(SQLiteRecord::encode([null, $optionName, 'fixed-cache', 'no'])),
+            'database_page_count' => 6,
+            'updated_page_numbers' => [1, 2, 3, 4, 5, 6],
+        ], $plan->toArray());
+    },
+    'plans wordpress replacement by collapsing an emptied composite index root' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_autoload_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 5));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'cron_lock', '1', 'no'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ], $pageSize);
+        $indexRootPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'home', 3]), $pageSize, null, 4),
+        ], 5, $pageSize);
+        $leftIndexLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['no', 'cron_lock', 1])),
+        ], $pageSize);
+        $rightIndexLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'siteurl', 2])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $indexRootPage
+            . $leftIndexLeafPage
+            . $rightIndexLeafPage,
+        );
+
+        $plan = $database->planWordPressOptionReplace('siteurl', 'https://fixed.example', 'no');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $option = $postDatabase->wordpressOptionByIndexedAutoloadAndName('no', 'siteurl');
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+
+        $t->same([1, 2, 3, 4], array_keys($plan->pageImages()));
+        $t->same(5, $plan->databasePageCount);
+        $t->same('index-leaf', $postDatabase->pageHeader(3)->pageType);
+        $t->same(3, $postDatabase->pageHeader(3)->cellCount);
+        $t->same([4, 5], $postDatabase->freelistPageNumbers());
+        $t->same([5, 4], $postDatabase->freelistAllocationOrder());
+        $t->same([
+            ['no', 'cron_lock', 1],
+            ['no', 'siteurl', 2],
+            ['yes', 'home', 3],
+        ], $indexRecords);
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(2, $option->rowId);
+        $t->same('https://fixed.example', $option->optionValue);
+        $t->same('no', $option->autoload);
+        $t->same([
+            'table_root_page' => 2,
+            'rowid' => 2,
+            'option_name' => 'siteurl',
+            'autoload' => 'no',
+            'overflow_page_numbers' => [],
+            'obsolete_overflow_page_numbers' => [],
+            'local_payload_length' => strlen(SQLiteRecord::encode([null, 'siteurl', 'https://fixed.example', 'no'])),
+            'database_page_count' => 5,
+            'updated_page_numbers' => [1, 2, 3, 4],
+        ], $plan->toArray());
     },
     'plans wordpress replacement by splitting a same-depth composite index leaf' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
@@ -6191,6 +6698,269 @@ return [
             InvalidArgumentException::class,
             static fn () => $database->planWordPressOptionReplace('blogname', $replacementValue, 'no', false),
         );
+    },
+    'plans wordpress replacement by splitting a table leaf below a non-root interior parent' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 6));
+        $tableRootPage = $tableInteriorPage([[3, 4]], 6, $pageSize);
+        $lowerInteriorPage = $tableInteriorPage([[4, 2]], 5, $pageSize);
+        $leftTableLeafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ], $pageSize);
+        $targetTableLeafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'blogname', 'Stale Site', 'yes'])),
+            SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, '_transient_migration_lock', 'old-lock', 'no'])),
+        ], $pageSize);
+        $rightTableLeafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(5, SQLiteRecord::encode([null, 'template', 'twentytwentyfive', 'yes'])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tableRootPage
+            . $lowerInteriorPage
+            . $leftTableLeafPage
+            . $targetTableLeafPage
+            . $rightTableLeafPage,
+        );
+
+        $replacementValue = str_repeat('x', 450);
+        $plan = $database->planWordPressOptionReplace('blogname', $replacementValue, 'no');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $options = $postDatabase->wordpressOptions();
+        $rootCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
+        $lowerCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(3), $postDatabase->pageHeader(3));
+        $oldLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(5), $postDatabase->pageHeader(5), $pageSize);
+        $newLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(7), $postDatabase->pageHeader(7), $pageSize);
+
+        $t->same([1, 3, 5, 7], array_keys($plan->pageImages()));
+        $t->same(7, $plan->databasePageCount);
+        $t->same($database->page(2), $postDatabase->page(2));
+        $t->same('table-interior', $postDatabase->pageHeader(2)->pageType);
+        $t->same([3], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $rootCells));
+        $t->same([4], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $rootCells));
+        $t->same(6, $postDatabase->pageHeader(2)->rightMostPointer);
+        $t->same('table-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same([4, 5], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $lowerCells));
+        $t->same([2, 3], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $lowerCells));
+        $t->same(7, $postDatabase->pageHeader(3)->rightMostPointer);
+        $t->same([3], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $oldLeafCells));
+        $t->same([4], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $newLeafCells));
+        $t->same(['siteurl', 'home', 'blogname', '_transient_migration_lock', 'template'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same($replacementValue, $options[2]->optionValue);
+        $t->same('no', $options[2]->autoload);
+        $t->same([
+            'table_root_page' => 2,
+            'rowid' => 3,
+            'option_name' => 'blogname',
+            'autoload' => 'no',
+            'overflow_page_numbers' => [],
+            'obsolete_overflow_page_numbers' => [],
+            'local_payload_length' => strlen(SQLiteRecord::encode([null, 'blogname', $replacementValue, 'no'])),
+            'database_page_count' => 7,
+            'updated_page_numbers' => [1, 3, 5, 7],
+        ], $plan->toArray());
+    },
+    'plans wordpress replacement by splitting an overflowing non-root table parent' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $largeRowIdBase = 72057594037927936;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 38));
+
+        $lowerParentCells = [];
+        $leafPages = [];
+        for ($index = 0; $index < 33; $index++) {
+            $rowId = $largeRowIdBase + ($index * 10);
+            $pageNumber = 4 + $index;
+            $lowerParentCells[] = SQLiteTableInteriorCell::encode($pageNumber, $rowId);
+            $leafPages[$pageNumber] = SQLiteTableLeafPage::assemble([
+                SQLiteTableLeafCell::encode($rowId, SQLiteRecord::encode([null, 'filler_' . $index, 'value_' . $index, 'no'])),
+            ], $pageSize);
+        }
+
+        $targetRowId = $largeRowIdBase + 330;
+        $nextRowId = $largeRowIdBase + 340;
+        $rightRootRowId = $largeRowIdBase + 350;
+        $targetLeafPage = 37;
+        $rightRootLeafPage = 38;
+        $tableRootPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(3, $nextRowId),
+        ], $rightRootLeafPage, $pageSize);
+        $lowerInteriorPage = SQLiteTableInteriorPage::assemble($lowerParentCells, $targetLeafPage, $pageSize);
+        $leafPages[$targetLeafPage] = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode($targetRowId, SQLiteRecord::encode([null, 'blogname', 'Stale Site', 'yes'])),
+            SQLiteTableLeafCell::encode($nextRowId, SQLiteRecord::encode([null, 'template', 'twentytwentyfive', 'yes'])),
+        ], $pageSize);
+        $leafPages[$rightRootLeafPage] = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode($rightRootRowId, SQLiteRecord::encode([null, 'stylesheet', 'twentytwentysix', 'yes'])),
+        ], $pageSize);
+        ksort($leafPages);
+
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tableRootPage . $lowerInteriorPage . implode('', $leafPages));
+        $replacementValue = str_repeat('x', 450);
+        $plan = $database->planWordPressOptionReplace('blogname', $replacementValue, 'no');
+
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $rootCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
+        $leftParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(3), $postDatabase->pageHeader(3));
+        $rightParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(40), $postDatabase->pageHeader(40));
+        $oldLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(37), $postDatabase->pageHeader(37), $pageSize);
+        $newLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(39), $postDatabase->pageHeader(39), $pageSize);
+        $targetOptions = $postDatabase->wordpressOptionsByRowIdRange($targetRowId, $targetRowId, 1, true);
+
+        $t->same([1, 2, 3, 37, 39, 40], array_keys($plan->pageImages()));
+        $t->same(40, $plan->databasePageCount);
+        $t->same('table-interior', $postDatabase->pageHeader(2)->pageType);
+        $t->same(2, $postDatabase->pageHeader(2)->cellCount);
+        $t->same($rightRootLeafPage, $postDatabase->pageHeader(2)->rightMostPointer);
+        $t->same([3, 40], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $rootCells));
+        $t->same([$largeRowIdBase + 160, $nextRowId], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $rootCells));
+        $t->same(16, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(17, $postDatabase->pageHeader(40)->cellCount);
+        $t->same(20, $postDatabase->pageHeader(3)->rightMostPointer);
+        $t->same(39, $postDatabase->pageHeader(40)->rightMostPointer);
+        $t->same(4, $leftParentCells[0]->leftChildPage);
+        $t->same($largeRowIdBase, $leftParentCells[0]->key);
+        $t->same(21, $rightParentCells[0]->leftChildPage);
+        $t->same($largeRowIdBase + 170, $rightParentCells[0]->key);
+        $t->same([$targetRowId], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $oldLeafCells));
+        $t->same([$nextRowId], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $newLeafCells));
+        $t->same(1, count($targetOptions));
+        $t->same('blogname', $targetOptions[0]->optionName);
+        $t->same($replacementValue, $targetOptions[0]->optionValue);
+        $t->same('no', $targetOptions[0]->autoload);
+        $t->same([
+            'table_root_page' => 2,
+            'rowid' => $targetRowId,
+            'option_name' => 'blogname',
+            'autoload' => 'no',
+            'overflow_page_numbers' => [],
+            'obsolete_overflow_page_numbers' => [],
+            'local_payload_length' => strlen(SQLiteRecord::encode([null, 'blogname', $replacementValue, 'no'])),
+            'database_page_count' => 40,
+            'updated_page_numbers' => [1, 2, 3, 37, 39, 40],
+        ], $plan->toArray());
+    },
+    'plans wordpress replacement by splitting a table leaf and growing a full table root parent' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $largeRowIdBase = 72057594037927936;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 36));
+
+        $rootCells = [];
+        $leafPages = [];
+        for ($index = 0; $index < 33; $index++) {
+            $rowId = $largeRowIdBase + ($index * 10);
+            $pageNumber = 3 + $index;
+            $rootCells[] = SQLiteTableInteriorCell::encode($pageNumber, $rowId);
+            $leafPages[$pageNumber] = SQLiteTableLeafPage::assemble([
+                SQLiteTableLeafCell::encode($rowId, SQLiteRecord::encode([null, 'filler_' . $index, 'value_' . $index, 'no'])),
+            ], $pageSize);
+        }
+
+        $targetRowId = $largeRowIdBase + 330;
+        $nextRowId = $largeRowIdBase + 340;
+        $targetLeafPage = 36;
+        $tableRootPage = SQLiteTableInteriorPage::assemble($rootCells, $targetLeafPage, $pageSize);
+        $leafPages[$targetLeafPage] = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode($targetRowId, SQLiteRecord::encode([null, 'blogname', 'Stale Site', 'yes'])),
+            SQLiteTableLeafCell::encode($nextRowId, SQLiteRecord::encode([null, 'template', 'twentytwentyfive', 'yes'])),
+        ], $pageSize);
+        ksort($leafPages);
+
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tableRootPage . implode('', $leafPages));
+        $replacementValue = str_repeat('root-parent-split-', 24);
+        $plan = $database->planWordPressOptionReplace('blogname', $replacementValue, 'no');
+
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $rootCellsAfter = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
+        $leftParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(38), $postDatabase->pageHeader(38));
+        $rightParentCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(39), $postDatabase->pageHeader(39));
+        $oldLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(36), $postDatabase->pageHeader(36), $pageSize);
+        $newLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(37), $postDatabase->pageHeader(37), $pageSize);
+        $targetOptions = $postDatabase->wordpressOptionsByRowIdRange($targetRowId, $targetRowId, 1, true);
+
+        $t->same([1, 2, 36, 37, 38, 39], array_keys($plan->pageImages()));
+        $t->same(39, $plan->databasePageCount);
+        $t->same('table-interior', $postDatabase->pageHeader(2)->pageType);
+        $t->same(1, $postDatabase->pageHeader(2)->cellCount);
+        $t->same(39, $postDatabase->pageHeader(2)->rightMostPointer);
+        $t->same(38, $rootCellsAfter[0]->leftChildPage);
+        $t->same($largeRowIdBase + 160, $rootCellsAfter[0]->key);
+        $t->same(16, $postDatabase->pageHeader(38)->cellCount);
+        $t->same(17, $postDatabase->pageHeader(39)->cellCount);
+        $t->same(19, $postDatabase->pageHeader(38)->rightMostPointer);
+        $t->same(37, $postDatabase->pageHeader(39)->rightMostPointer);
+        $t->same(3, $leftParentCells[0]->leftChildPage);
+        $t->same($largeRowIdBase, $leftParentCells[0]->key);
+        $t->same(20, $rightParentCells[0]->leftChildPage);
+        $t->same($largeRowIdBase + 170, $rightParentCells[0]->key);
+        $t->same([$targetRowId], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $oldLeafCells));
+        $t->same([$nextRowId], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $newLeafCells));
+        $t->same(1, count($targetOptions));
+        $t->same('blogname', $targetOptions[0]->optionName);
+        $t->same($replacementValue, $targetOptions[0]->optionValue);
+        $t->same('no', $targetOptions[0]->autoload);
+        $t->same([
+            'table_root_page' => 2,
+            'rowid' => $targetRowId,
+            'option_name' => 'blogname',
+            'autoload' => 'no',
+            'overflow_page_numbers' => [],
+            'obsolete_overflow_page_numbers' => [],
+            'local_payload_length' => strlen(SQLiteRecord::encode([null, 'blogname', $replacementValue, 'no'])),
+            'database_page_count' => 39,
+            'updated_page_numbers' => [1, 2, 36, 37, 38, 39],
+        ], $plan->toArray());
     },
     'plans wordpress replacement by growing a table leaf root' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

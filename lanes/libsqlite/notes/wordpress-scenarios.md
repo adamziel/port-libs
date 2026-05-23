@@ -63,15 +63,21 @@ divider. Inferred `sqlite_autoindex_*` UNIQUE/PRIMARY KEY indexes whose
 columns match `option_name` or `autoload, option_name` remain supported for
 the bounded single-leaf write shapes. The planner still rejects unsupported
 index shapes, unsafe partial predicates, expression indexes, unsupported
-automatic indexes, non-root parent-page splits, source-leaf rebalancing, or
-index-overflow cases beyond bounded root growth instead of leaving stale
-secondary indexes behind.
+automatic indexes, overflowing non-root parent-page splits, source-leaf
+rebalancing, or index-overflow cases beyond bounded root growth instead of
+leaving stale secondary indexes behind.
 Replacement planning can now also locate a target `wp_options` row below a
 table-interior root, rewrite only the table leaf that contains the option, and
 leave the interior table page unchanged when the replacement cell fits within
 the existing leaf. This maps larger WordPress SQLite images where repair tools
 need to update a single option in a multi-page table before the lane supports
 general table-leaf splits, rebalancing, journaling, or WAL.
+When the larger replacement makes a table leaf split, the planner now handles
+both root-level table-interior parents and one-level-deeper non-root
+table-interior parents that have room for the new divider. The root page is
+left unchanged for the non-root case while the lower parent receives the old
+leaf's new max rowid and a new right-most child pointer. Overflowing non-root
+parent pages still remain outside this bounded slice.
 Explicit
 `CREATE INDEX ... ON wp_options(option_name)` b-trees can now be parsed and
 used to fetch a single option by indexed name, then resolve the stored rowid
@@ -222,6 +228,15 @@ the stored JSON expression key, with SQLite-style boolean scalars mapped to
 `1`/`0`, without treating the expression index as a normal `option_value`
 column index. This slice accepts only simple object-member paths and safe
 `option_value IS NOT NULL` partial predicates.
+
+Large `wp_options` replacement preflights now include the bounded case where a
+target table leaf split overflows a full non-root table-interior parent while
+the root can still absorb the promoted divider. This maps larger WordPress
+SQLite database images with a deeper options table: repair tooling can rewrite
+one expanded option row, split the target leaf, split the full lower parent,
+update the root separators, and inspect the resulting page images without the
+SQLite extension. The focused example is
+`examples/wordpress-nonroot-table-parent-split-option-replacement-plan.php`.
 The same JSON-expression path now supports bounded `IN (...)` reads for
 multiple scalar buckets. Recovery and preload tools can request values such as
 `enabled,disabled`, honor `COLLATE NOCASE`, ignore `NULL` RHS values for
@@ -863,6 +878,18 @@ composite index still resolves the row through
 preload-oriented WordPress SQLite images where repair tooling must add a
 generated option without stale composite indexes or the SQLite extension.
 
+`examples/wordpress-nonroot-index-parent-split-option-insert-plan.php` starts
+from a larger `wp_options` table with a three-level `autoload, option_name`
+secondary index. It asks `planWordPressOptionInsert()` for a generated
+autoloaded option row whose target leaf is full and whose non-root
+index-interior parent is also full. The example applies the returned
+header/table/root/parent/leaf/new-parent page images and verifies that the
+root absorbs the promoted parent divider while the inserted option remains
+reachable through `wordpressOptionByIndexedAutoloadAndName('yes',
+$optionName)`. This maps large WordPress SQLite fallback databases where a
+repair preflight must add a generated option without stale composite indexes
+and without invoking the SQLite extension.
+
 `examples/wordpress-index-split-option-replacement-plan.php` starts from a
 `wp_options` table with a two-level `autoload, option_name` secondary index
 whose target `autoload='no'` leaf is full. It asks
@@ -885,6 +912,27 @@ images and verifies that the rewritten option is reachable through
 preload repair tools that must turn off autoload for a heavy option in a
 larger SQLite-backed WordPress database without leaving the composite index
 stale and without invoking the SQLite extension.
+
+`examples/wordpress-index-root-collapse-option-replacement-plan.php` starts
+from a `wp_options` table whose `autoload, option_name` secondary index root
+has two leaf children. It rewrites `siteurl` from `autoload='yes'` to
+`autoload='no'`, moving the entry into the sibling leaf and emptying the
+source leaf. The planner rebuilds the root as an `index-leaf`, returns the
+obsolete child pages to SQLite freelist metadata, and verifies that the
+rewritten option remains reachable through the composite index. This maps
+WordPress repair tooling that disables autoload for a heavy option in a small
+two-level secondary index without leaving orphaned b-tree child pages.
+
+`examples/wordpress-index-redistribute-option-replacement-plan.php` starts
+from a `wp_options` table whose `autoload, option_name` secondary index root
+has three child leaves. It rewrites a long cached option from
+`autoload='yes'` to `autoload='no'`, leaving the old source leaf underfilled
+but non-empty. The planner redistributes that source leaf with its adjacent
+sibling, updates the parent divider, inserts the moved key into the updated
+destination leaf, and verifies that the rewritten option remains reachable
+through the composite index. This maps larger WordPress repair tooling that
+disables autoload for heavy options without leaving a sparsely filled
+secondary-index page behind.
 
 `examples/wordpress-multipage-table-option-replacement-plan.php` starts from
 a `wp_options` table whose root is a table-interior page over two table leaf
@@ -914,6 +962,25 @@ maps WordPress repair tooling that must expand a stored option below a
 multi-page table root without the SQLite extension and without silently
 corrupting table b-tree separators.
 
+`examples/wordpress-nonroot-table-split-option-replacement-plan.php` starts
+from a three-level `wp_options` table b-tree. It replaces `blogname` with a
+larger value that splits a leaf under a non-root table-interior parent,
+applies the returned header/lower-parent/old-leaf/new-leaf page images, and
+verifies that the root separator remains unchanged while the lower parent now
+points at the split leaves. This maps larger WordPress SQLite fallback
+databases where repair preflight must update one option without forcing a
+whole table rewrite.
+
+`examples/wordpress-table-parent-root-split-option-replacement-plan.php`
+starts from a `wp_options` table whose table-interior root is full. It
+replaces `blogname` with a larger value that splits the right-most leaf and
+then grows the full root into two lower table-interior parent pages under a
+new one-cell root. The example applies the returned header/root/old-leaf/
+new-leaf/new-parent page images and verifies that the rewritten option remains
+readable by rowid. This maps large WordPress SQLite fallback databases where
+a repair preflight crosses a deeper table b-tree balance boundary without
+requiring the SQLite extension.
+
 `examples/wordpress-replace-obsolete-overflow-option.php` starts from a
 large `wp_options` value stored across overflow pages, asks
 `planWordPressOptionReplace()` for a bounded same-row replacement, applies the
@@ -931,7 +998,27 @@ preload repair tools that need to rewrite large serialized/JSON option
 payloads without the SQLite extension while preserving SQLite's allocate-new,
 free-old update order.
 
+`examples/wordpress-pointer-map-diagnostics.php` starts from a WordPress-shaped
+auto-vacuum SQLite database with a pointer-map page, a `wp_options` root page,
+a child b-tree page, an overflow chain, and a free page. It prints the
+root/free/btree/overflow pointer-map entries while still reading the
+`siteurl` option through the native table reader. This maps repair preflights
+that must recognize auto-vacuum metadata before moving, freeing, or reusing
+pages in a WordPress SQLite fallback database.
+
+`examples/wordpress-index-merge-option-replacement-plan.php` starts from a
+multi-page `wp_options(autoload, option_name)` secondary index where changing a
+large cached option from `autoload='yes'` to `autoload='no'` underfills the old
+source leaf and leaves too few cells for a legal two-leaf redistribution. It
+asks `planWordPressOptionReplace()` for the rewrite, applies the returned
+header/table/root/leaf/freelist page images, and verifies that the obsolete
+index leaf is now page 6 on the freelist while the rewritten option is
+reachable through the composite index. This maps WordPress cache or migration
+repair tools that need to change autoload state without leaving an invalid
+sparse secondary-index page behind.
+
 ## Next Task
 
-Add non-root table/index parent split propagation or replacement source-leaf
-rebalancing before pointer-map/auto-vacuum, journaling, or WAL work.
+Broaden replacement source-leaf merge/rebalance to non-root index parents,
+then add auto-vacuum pointer-map mutation updates before journaling or WAL
+work.
