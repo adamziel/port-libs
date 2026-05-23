@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-23: upstream C++ `make -r test` passes all 34 scenarios. Quadrable-only PHP tests pass with 105 behavior tests, 2601 assertions, and 0 failures. Focused portable dump/restore coverage verifies mixed full, named proof-backed, detached proof-backed, and noTrackKeys raw LMDB cursor entries after restore. Required repo-wide `php tools/run-tests.php` passes with 178 test files, 17211 assertions, and 0 failures.",
     "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStore`; latest work adds `exportPortableDump()` and `restorePortableDump()` so WordPress backup/migration tooling can restore JSON-backed state and prove the restored upstream-shaped raw LMDB cursor bytes match the dump.",
     "blocker": "No current quadrable-specific upstream runner, quadrable-only PHP, or repo-wide PHP harness blocker. Remaining quadrable gap: upstream-backed byte-for-byte dump/restore oracle evidence against a larger real C++ LMDB database beyond the native portable dump verifier.",
-    "latestCommit": "pending lane commit after portable dump/restore batch; quadrable-only PHP tests, upstream C++ runner, and root PHP harness passed",
+    "latestCommit": "3ec36a4 portable dump/restore implementation; quadrable-only PHP tests, upstream C++ runner, and root PHP harness passed",
     "nextTask": "Capture an upstream C++ LMDB dump/restore oracle for a larger mixed tracked, noTrackKeys, named proof, and detached proof store."
 }
