@@ -1304,6 +1304,40 @@ return [
             $t->same(false, str_contains($blocks, $fragment), 'The Verge action/ad/rail chrome should not enter WordPress blocks: ' . $fragment);
         }
     },
+    'maps Mozilla engadget fixture with review gallery and buy chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $iframeSources, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/engadget';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $url = 'https://www.engadget.com/2017/11/03/xbox-one-x-review/';
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, $url, true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, $url));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same($iframeSources($expected), $iframeSources($article->contentHtml));
+        $t->same(32, substr_count($blocks, '<!-- wp:paragraph -->'), 'Engadget review paragraphs, score summary, gallery wrappers, and iframe paragraph should serialize without buy chrome');
+        $t->same(6, substr_count($blocks, '<!-- wp:heading'), 'Engadget section and gallery headings should remain reviewable');
+        $t->same(5, substr_count($blocks, '<!-- wp:image -->'), 'Engadget figure breakout media should serialize as image blocks while inline gallery images remain reviewable');
+        $t->contains('$610.00', $blocks);
+        $t->contains('www.youtube.com/embed/c8aFcHFu8QM', $blocks);
+        foreach (['+10', '+6', 'Buy Now', 'data-index="grid"', 'thumbnail=130%2C87', '/products/microsoft/xbox/one/x'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'Engadget gallery/product chrome should not enter article HTML: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'Engadget gallery/product chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
     'preserves requested WordPress caption classes without keeping theme classes' => static function (TestRunner $t): void {
         $source = '<html><head><meta property="og:title" content="Caption Class Import"></head><body><article>'
             . '<h1>Caption Class Import</h1>'
@@ -1916,6 +1950,79 @@ return [
         foreach (['Older Article', '2 comments', 'Read more articles by Nikhil Marathe', 'Except where otherwise noted'] as $fragment) {
             $t->same(false, str_contains($article->text, $fragment), 'Mozilla Hacks navigation/comment/sidebar chrome should not enter article text: ' . $fragment);
             $t->same(false, str_contains($blocks, $fragment), 'Mozilla Hacks navigation/comment/sidebar chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
+    'maps Mozilla google-sre-book-1 fixture by promoting the chapter main root' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/google-sre-book-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(['maia-main'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/section/@id'));
+        $t->same(['main'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/section/@role'));
+        $t->same(['chapter'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/section/@data-type'));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(count($attributeValues($expected, '//h2')), count($attributeValues($article->contentHtml, '//h2')));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same(1, count($attributeValues($article->contentHtml, '//table')));
+        $t->same([], $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same(53, substr_count($blocks, '<!-- wp:paragraph -->'), 'Google SRE chapter prose should serialize without book navigation paragraphs');
+        $t->same(10, substr_count($blocks, '<!-- wp:heading'), 'Google SRE chapter section headings should remain reviewable');
+        $t->same(1, substr_count($blocks, '<!-- wp:table -->'), 'Google SRE symptom/cause table should become a WordPress table block');
+        $t->contains('The Four Golden Signals', $blocks);
+        $t->contains('Private content is world-readable', $blocks);
+        foreach (['Table of Contents', 'Part I - Introduction', 'Chapter 6 - Monitoring Distributed Systems', 'lh3.googleusercontent.com'] as $fragment) {
+            $t->same(false, str_contains($article->text, $fragment), 'Google SRE book navigation/header chrome should not enter article text: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'Google SRE book navigation/header chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
+    'maps Mozilla wikipedia-4 fixture with list table and category chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/wikipedia-4';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(count($attributeValues($expected, '//h2')), count($attributeValues($article->contentHtml, '//h2')));
+        $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same([], $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same(6, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia lead copy, see-also list, references list, and table cell paragraphs should remain reviewable');
+        $t->same(2, substr_count($blocks, '<!-- wp:heading'), 'Wikipedia See also and References headings should remain reviewable');
+        $t->same(1, substr_count($blocks, '<!-- wp:table -->'), 'Wikipedia sortable film list should become one WordPress table block');
+        $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'Wikipedia tracking pixels and portal icons should not become image blocks');
+        $t->contains('List of films featuring time loops', $article->title);
+        $t->contains('The list provides the names and brief synopses of films', $article->text);
+        $t->contains('Groundhog Day', $blocks);
+        foreach (['dynamic list', 'Special:CentralAutoLogin', 'Categories:', 'Time loop films', 'Film portal'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'Wikipedia maintenance/category chrome should not enter article HTML: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'Wikipedia maintenance/category chrome should not enter WordPress blocks: ' . $fragment);
         }
     },
     'extracts WordPress itemprop body bylines without importing byline blocks' => static function (TestRunner $t): void {

@@ -156,6 +156,7 @@ final class ArticleExtractor
         if ($best instanceof \DOMElement) {
             $best = $this->promotePublisherArticleRoot($best);
             $best = $this->promoteMozillaHacksContentRoot($best);
+            $best = $this->promoteGoogleSreBookChapterRoot($best);
         }
         $articleDir = $best instanceof \DOMElement ? $this->articleDirection($best) : null;
         if ($best instanceof \DOMElement) {
@@ -1650,6 +1651,55 @@ final class ArticleExtractor
         return $parent->getElementsByTagName('article')->length === 1 ? $parent : $candidate;
     }
 
+    private function promoteGoogleSreBookChapterRoot(\DOMElement $candidate): \DOMElement
+    {
+        $main = null;
+        if (strtolower($candidate->tagName) === 'div'
+            && trim($candidate->getAttribute('id')) === 'maia-main'
+            && strtolower(trim($candidate->getAttribute('role'))) === 'main') {
+            $main = $candidate;
+        } else {
+            $document = $candidate->ownerDocument;
+            if (!$document instanceof \DOMDocument) {
+                return $candidate;
+            }
+
+            $xpath = new \DOMXPath($document);
+            $node = $xpath->query(
+                './/*[@id="maia-main" and translate(@role, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz") = "main"]',
+                $candidate,
+            )?->item(0);
+            if ($node instanceof \DOMElement) {
+                $main = $node;
+            }
+        }
+
+        if (!$main instanceof \DOMElement) {
+            return $candidate;
+        }
+
+        $document = $main->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return $candidate;
+        }
+
+        $chapters = [];
+        foreach ((new \DOMXPath($document))->query('.//section[@data-type="chapter"]', $main) ?: [] as $chapter) {
+            if ($chapter instanceof \DOMElement) {
+                $chapters[] = $chapter;
+            }
+        }
+
+        if (count($chapters) !== 1 || mb_strlen($this->normalizeWhitespace($chapters[0]->textContent)) < 500) {
+            return $candidate;
+        }
+
+        $chapters[0]->setAttribute('id', $main->getAttribute('id'));
+        $chapters[0]->setAttribute('role', $main->getAttribute('role'));
+
+        return $chapters[0];
+    }
+
     private function containsSingleArticle(\DOMElement $scope): bool
     {
         $articles = $scope->getElementsByTagName('article');
@@ -1816,6 +1866,40 @@ final class ArticleExtractor
             }
         }
 
+        foreach ($xpath->query(
+            './/*[@id="catlinks" or contains(concat(" ", normalize-space(@class), " "), " catlinks ")]'
+            . '|.//*[@role="note" and contains(concat(" ", normalize-space(@class), " "), " navigation-not-searchable ")]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//img[@src]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement && $this->isTrackingPixelImage($node)) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[@data-engadget-slideshow-id]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $this->removeEngadgetGalleryChrome($node, $remove);
+            }
+        }
+
+        foreach ($xpath->query('.//a[contains(@href, "/buylink/")]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " table-cell ")]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement && $this->isEngadgetReviewProductIdentityCell($node)) {
+                $remove[] = $node;
+            }
+        }
+
         foreach ($xpath->query('.//ul[.//a]|.//ol[.//a]', $scope) ?: [] as $node) {
             if ($node instanceof \DOMElement && $this->isAuthorFeedList($node)) {
                 $remove[] = $node;
@@ -1825,6 +1909,65 @@ final class ArticleExtractor
         foreach (array_reverse($this->uniqueElements($remove)) as $node) {
             $node->parentNode?->removeChild($node);
         }
+    }
+
+    private function isTrackingPixelImage(\DOMElement $image): bool
+    {
+        $src = strtolower(trim($image->getAttribute('src')));
+        if (str_contains($src, '/special:centralautologin/start')) {
+            return true;
+        }
+
+        return trim($image->getAttribute('alt')) === ''
+            && trim($image->getAttribute('width')) === '1'
+            && trim($image->getAttribute('height')) === '1';
+    }
+
+    /**
+     * @param list<\DOMElement> $remove
+     */
+    private function removeEngadgetGalleryChrome(\DOMElement $gallery, array &$remove): void
+    {
+        foreach ($this->elementChildren($gallery) as $child) {
+            $tagName = strtolower($child->tagName);
+            if ($tagName === 'ul') {
+                $remove[] = $child;
+                continue;
+            }
+
+            if ($tagName === 'div' && preg_match('/^\d+$/', $this->normalizeWhitespace($child->textContent)) === 1) {
+                $remove[] = $child;
+            }
+        }
+    }
+
+    private function isEngadgetReviewProductIdentityCell(\DOMElement $node): bool
+    {
+        if ($this->normalizeWhitespace($node->textContent) === ''
+            || mb_strlen($this->normalizeWhitespace($node->textContent)) > 80
+            || $node->getElementsByTagName('img')->length > 0) {
+            return false;
+        }
+
+        $productLinks = 0;
+        foreach ($node->getElementsByTagName('a') as $link) {
+            if (!$link instanceof \DOMElement) {
+                continue;
+            }
+
+            $href = strtolower(trim($link->getAttribute('href')));
+            if ($href === '') {
+                continue;
+            }
+
+            if (!str_contains($href, '/products/')) {
+                return false;
+            }
+
+            $productLinks++;
+        }
+
+        return $productLinks > 0;
     }
 
     private function isAuthorFeedList(\DOMElement $list): bool
@@ -2513,7 +2656,7 @@ final class ArticleExtractor
             return false;
         }
 
-        if (!$this->nodeHasVisibleText($left) || !$this->nodeHasVisibleText($right)) {
+        if (!$this->nodeHasTextOrMediaBoundary($left) || !$this->nodeHasTextOrMediaBoundary($right)) {
             return false;
         }
 
@@ -2534,6 +2677,12 @@ final class ArticleExtractor
     private function nodeHasVisibleText(\DOMNode $node): bool
     {
         return preg_match('/[^\s\x{00a0}]/u', $node->textContent ?? '') === 1;
+    }
+
+    private function nodeHasTextOrMediaBoundary(\DOMNode $node): bool
+    {
+        return $this->nodeHasVisibleText($node)
+            || ($node instanceof \DOMElement && $this->hasMediaPayload($node));
     }
 
     private function replaceBreakChains(\DOMNode $scope): void
@@ -4079,6 +4228,12 @@ final class ArticleExtractor
         if (strtolower($node->tagName) === 'main'
             && trim($node->getAttribute('id')) === 'content-main'
             && $node->getElementsByTagName('article')->length === 1) {
+            return true;
+        }
+
+        if (strtolower($node->tagName) === 'section'
+            && trim($node->getAttribute('id')) === 'maia-main'
+            && strtolower(trim($node->getAttribute('role'))) === 'main') {
             return true;
         }
 
