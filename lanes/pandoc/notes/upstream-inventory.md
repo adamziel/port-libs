@@ -607,11 +607,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `src`/`title`/`alt` metadata, standalone image-only paragraphs retain
   Pandoc's paragraph-image AST shape, and inline image paragraphs keep the
   image between ordinary text nodes.
+- The HTML-reader Footnotes shape from `test/html-reader.html` is now mapped
+  for a narrow HTML reader slice: the 12-line upstream section and 249-line
+  native AST slice preserve four footnote-style anchors as ordinary `Link`
+  nodes, keep the invalid space-containing footnote marker as literal text,
+  leave footnote-body paragraphs and the pre/code continuation as normal
+  paragraph/code blocks, and move leading/trailing whitespace around emphasis
+  wrappers outside the emphasis node like Pandoc's native output.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 140 behavior tests, 1,276 assertions, and 0 failures after this slice. The
+with 142 behavior tests, 1,322 assertions, and 0 failures after this slice. The
 required repo-wide `php tools/run-tests.php` command was run after this slice
-and passed with 161 test files, 14,699 assertions, and 0 failures.
+and passed with 162 test files, 14,874 assertions, and 0 failures.

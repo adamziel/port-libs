@@ -223,6 +223,14 @@ HTML reader source contact (importer [at] example.test)<p><a href="">Empty legac
 <p><img src="https://example.test/uploads/html-legacy-frame.jpg" title="Legacy frame title" alt="Legacy frame"></p>
 <p>Inline HTML media <img src="https://example.test/uploads/html-inline-icon.jpg" alt="inline icon"> stays inside reviewer copy.</p>
 
+<h2>HTML reader footnote link import</h2>
+<p>Legacy source note<a href="#note_editor">(editor)</a> stays linked, while this <em>not</em> marker stays inline.</p>
+<p><a href="#ref_editor">(editor)</a> Review the source annotation before publishing.</p>
+<pre><code>  wp_insert_post($review_post);
+</code></pre>
+<p>Reviewer<em> Leading space</em></p>
+<p><em>Trailing space </em>reviewer</p>
+
 Empty import audit table:
 
 <table>

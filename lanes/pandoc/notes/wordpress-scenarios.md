@@ -164,6 +164,12 @@ become native image inline nodes with source/title/alt metadata, standalone
 image-only paragraphs keep Pandoc's paragraph-image AST shape, and WordPress
 output promotes those standalone images into image blocks while preserving
 inline images inside paragraph copy.
+The bounded HTML-reader Footnotes slice is now represented too:
+footnote-looking HTML anchors remain ordinary `link` nodes, note/back-reference
+paragraphs and pre/code continuation blocks stay as normal blocks, invalid
+space-containing footnote markers remain literal text, and leading/trailing
+spaces around HTML emphasis wrappers move outside the emphasis node to match
+Pandoc's native AST shape.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -412,6 +418,11 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   text, while inline `<img>` nodes remain inside normal paragraph copy for
   reviewer context. This maps the upstream HTML-reader Images fixture without
   invoking Pandoc or treating imported HTML as Markdown image syntax.
+- HTML reader footnote exports render footnote-looking anchors as ordinary
+  WordPress links, not native Markdown notes, matching the upstream HTML reader
+  fixture. Continuation pre/code blocks remain code blocks, and boundary spaces
+  around emphasis are normalized outside `<em>` so reviewer copy round-trips
+  like Pandoc's native AST.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -464,6 +475,7 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded HTML-reader Footnotes slice from
-`test/html-reader.html/native`, starting with note/back-reference anchors and
-paragraph/code continuation shapes.
+Map the next unmapped bounded HTML-reader table or inline fixture shard from
+`test/html-reader.html/native`, starting with any remaining table
+caption/column metadata or inline attribute cases not covered by the current
+slices.

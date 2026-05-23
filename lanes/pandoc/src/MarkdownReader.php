@@ -2528,25 +2528,25 @@ final class MarkdownReader
         $children = $this->parseHtmlInlineChildren($node);
 
         if (in_array($name, ['strong', 'b'], true)) {
-            return [new AstNode('strong', [], $children)];
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('strong', [], $children);
         }
         if (in_array($name, ['em', 'i'], true)) {
-            return [new AstNode('emph', [], $children)];
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('emph', [], $children);
         }
         if ($name === 'sup') {
-            return [new AstNode('superscript', [], $children)];
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('superscript', [], $children);
         }
         if ($name === 'sub') {
-            return [new AstNode('subscript', [], $children)];
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('subscript', [], $children);
         }
         if ($name === 'span' && $this->htmlElementHasSmallCapsStyle($node)) {
-            return [new AstNode('small_caps', [], $children)];
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('small_caps', [], $children);
         }
         if (in_array($name, ['u', 'ins'], true)) {
-            return [new AstNode('underline', [], $children)];
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('underline', [], $children);
         }
         if (in_array($name, ['s', 'strike', 'del'], true)) {
-            return [new AstNode('strikeout', [], $children)];
+            return $this->wrapHtmlInlineWithBoundaryWhitespace('strikeout', [], $children);
         }
         if (in_array($name, ['code', 'kbd', 'samp'], true)) {
             return [new AstNode('code', ['text' => trim(preg_replace('/\s+/', ' ', $node->textContent) ?? $node->textContent)])];
@@ -2582,6 +2582,63 @@ final class MarkdownReader
         }
 
         return $children;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<AstNode> $children
+     * @return list<AstNode>
+     */
+    private function wrapHtmlInlineWithBoundaryWhitespace(string $type, array $attrs, array $children): array
+    {
+        $prefix = '';
+        $suffix = '';
+        $firstKey = array_key_first($children);
+        if ($firstKey !== null) {
+            $first = $children[$firstKey];
+            if ($first->type === 'text') {
+                $text = (string) $first->attr('text', '');
+                if (preg_match('/^\s/u', $text) === 1) {
+                    $prefix = ' ';
+                    $text = ltrim($text);
+                    if ($text === '') {
+                        unset($children[$firstKey]);
+                    } else {
+                        $children[$firstKey] = new AstNode('text', ['text' => $text]);
+                    }
+                }
+            }
+        }
+
+        $lastKey = array_key_last($children);
+        if ($lastKey !== null) {
+            $last = $children[$lastKey];
+            if ($last->type === 'text') {
+                $text = (string) $last->attr('text', '');
+                if (preg_match('/\s$/u', $text) === 1) {
+                    $suffix = ' ';
+                    $text = rtrim($text);
+                    if ($text === '') {
+                        unset($children[$lastKey]);
+                    } else {
+                        $children[$lastKey] = new AstNode('text', ['text' => $text]);
+                    }
+                }
+            }
+        }
+
+        $wrapped = [];
+        if ($prefix !== '') {
+            $wrapped[] = new AstNode('text', ['text' => $prefix]);
+        }
+
+        $wrapped[] = new AstNode($type, $attrs, array_values($children));
+
+        if ($suffix !== '') {
+            $wrapped[] = new AstNode('text', ['text' => $suffix]);
+        }
+
+        return $wrapped;
     }
 
     private function buildHtmlImageNode(\DOMElement $image): AstNode

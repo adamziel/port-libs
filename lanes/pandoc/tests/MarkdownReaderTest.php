@@ -507,6 +507,60 @@ return [
         $t->same(' icon.', $inlineParagraph->children[2]->attr('text'));
         $t->same('horizontal_rule', $document->children[4]->type);
     },
+    'maps upstream html reader footnote anchors and emphasis spacing as html links' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '<h1>Footnotes</h1>',
+            '<p>Here is a footnote reference<a href="#note_1">(1)</a>, and another<a href="#note_longnote">(longnote)</a>. This should <em>not</em> be a footnote reference, because it contains a space^(my note).</p>',
+            '<p><a href="#ref_1">(1)</a> Here is the footnote. It can go anywhere in the document, not just at the end.</p>',
+            '<p><a href="#ref_longnote">(longnote)</a> Here\'s the other note. This one contains multiple blocks.</p>',
+            '<p>Caret characters are used to indicate that the blocks all belong to a single footnote (as with block quotes).</p>',
+            '<pre><code>  { &lt;code> }',
+            '</code></pre>',
+            '<p>If you want, you can use a caret at the beginning of every line, as with blockquotes, but all that you need is a caret at the beginning of the first line of the block and any preceding blank lines.</p>',
+            '<p>text<em> Leading space</em></p>',
+            '<p><em>Trailing space </em>text</p>',
+            '<p>text<em>   Leading spaces</em></p>',
+            '<p><em>Trailing spaces    </em>text</p>',
+        ]));
+        $referenceParagraph = $document->children[1];
+        $shortBackref = $document->children[2]->children[0];
+        $longBackref = $document->children[3]->children[0];
+        $leadingSpace = $document->children[7];
+        $trailingSpace = $document->children[8];
+        $leadingSpaces = $document->children[9];
+        $trailingSpaces = $document->children[10];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(11, count($document->children));
+        $t->same('footnotes', $document->children[0]->attr('id'));
+        $t->same('link', $referenceParagraph->children[1]->type);
+        $t->same('#note_1', $referenceParagraph->children[1]->attr('url'));
+        $t->same('link', $referenceParagraph->children[3]->type);
+        $t->same('#note_longnote', $referenceParagraph->children[3]->attr('url'));
+        $t->same('emph', $referenceParagraph->children[5]->type);
+        $t->contains('space^(my note).', $referenceParagraph->children[6]->attr('text'));
+        $t->same('link', $shortBackref->type);
+        $t->same('#ref_1', $shortBackref->attr('url'));
+        $t->same('link', $longBackref->type);
+        $t->same('#ref_longnote', $longBackref->attr('url'));
+        $t->same('code_block', $document->children[5]->type);
+        $t->same('  { <code> }', $document->children[5]->attr('text'));
+        $t->same(['text', 'text', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $leadingSpace->children));
+        $t->same(' ', $leadingSpace->children[1]->attr('text'));
+        $t->same('Leading space', $leadingSpace->children[2]->children[0]->attr('text'));
+        $t->same(['emph', 'text', 'text'], array_map(static fn (AstNode $node): string => $node->type, $trailingSpace->children));
+        $t->same('Trailing space', $trailingSpace->children[0]->children[0]->attr('text'));
+        $t->same(' ', $trailingSpace->children[1]->attr('text'));
+        $t->same(' ', $leadingSpaces->children[1]->attr('text'));
+        $t->same('Leading spaces', $leadingSpaces->children[2]->children[0]->attr('text'));
+        $t->same('Trailing spaces', $trailingSpaces->children[0]->children[0]->attr('text'));
+        $t->same(' ', $trailingSpaces->children[1]->attr('text'));
+        $t->contains('<a href="#note_1">(1)</a>', $blocks);
+        $t->contains('<a href="#ref_longnote">(longnote)</a> Here&#039;s the other note.', $blocks);
+        $t->contains('<pre class="wp-block-code"><code>  { &lt;code&gt; }</code></pre>', $blocks);
+        $t->contains('<p>text <em>Leading space</em></p>', $blocks);
+        $t->contains('<p><em>Trailing space</em> text</p>', $blocks);
+    },
     'maps upstream testsuite footnote references inline notes quotes and lists' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '# Footnotes',
@@ -3770,6 +3824,42 @@ XML;
         $t->contains('<h2 id="html-reader-image-import">HTML reader image import</h2>', $blocks);
         $t->contains('<figure class="wp-block-image"><img src="https://example.test/uploads/html-legacy-frame.jpg" alt="Legacy frame" title="Legacy frame title"/><figcaption>Legacy frame</figcaption></figure>', $blocks);
         $t->contains('<p>Inline HTML media <img src="https://example.test/uploads/html-inline-icon.jpg" alt="inline icon"/> stays inside reviewer copy.</p>', $blocks);
+    },
+    'writes wordpress html reader footnote link imports without native note conversion' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $footnoteHeading = null;
+        $referenceParagraph = null;
+        $backReferenceParagraph = null;
+        $codeBlock = null;
+        foreach ($document->children as $index => $node) {
+            if ($node->type === 'heading' && $node->attr('text') === 'HTML reader footnote link import') {
+                $footnoteHeading = $node;
+                $referenceParagraph = $document->children[$index + 1] ?? null;
+                $backReferenceParagraph = $document->children[$index + 2] ?? null;
+                $codeBlock = $document->children[$index + 3] ?? null;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($footnoteHeading !== null, 'HTML reader footnote heading should stay on the native HTML path');
+        $t->true($referenceParagraph instanceof AstNode && $referenceParagraph->type === 'paragraph', 'HTML reader note anchors stay as paragraph links');
+        $t->true($backReferenceParagraph instanceof AstNode && $backReferenceParagraph->type === 'paragraph', 'HTML reader back-reference anchors stay as paragraph links');
+        $t->true($codeBlock instanceof AstNode && $codeBlock->type === 'code_block', 'HTML reader footnote continuation code stays a code block');
+        $t->same('html-reader-footnote-link-import', $footnoteHeading->attr('id'));
+        $t->same('link', $referenceParagraph->children[1]->type);
+        $t->same('#note_editor', $referenceParagraph->children[1]->attr('url'));
+        $t->same('emph', $referenceParagraph->children[3]->type);
+        $t->same('link', $backReferenceParagraph->children[0]->type);
+        $t->same('#ref_editor', $backReferenceParagraph->children[0]->attr('url'));
+        $t->same('  wp_insert_post($review_post);', $codeBlock->attr('text'));
+        $t->contains('<h2 id="html-reader-footnote-link-import">HTML reader footnote link import</h2>', $blocks);
+        $t->contains('<p>Legacy source note<a href="#note_editor">(editor)</a> stays linked, while this <em>not</em> marker stays inline.</p>', $blocks);
+        $t->contains('<p><a href="#ref_editor">(editor)</a> Review the source annotation before publishing.</p>', $blocks);
+        $t->contains('<pre class="wp-block-code"><code>  wp_insert_post($review_post);</code></pre>', $blocks);
+        $t->contains('<p>Reviewer <em>Leading space</em></p>', $blocks);
+        $t->contains('<p><em>Trailing space</em> reviewer</p>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
