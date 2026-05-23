@@ -1090,8 +1090,20 @@ composite index. This maps larger WordPress SQLite fallback databases where
 autoload repair crosses one more b-tree balancing boundary but still does not
 require a general SQL engine.
 
+`examples/wordpress-index-parent-merge-option-replacement-plan.php` starts
+from a deeper `wp_options(autoload, option_name)` secondary index where the
+root has more than two child parents. It changes an option from
+`autoload='yes'` to `autoload='no'`, merges the old source leaf with its
+sibling, merges the now-underfilled lower parent with an adjacent interior
+sibling, removes the root divider while keeping the root at the same height,
+frees the obsolete leaf and interior parent, and verifies that the rewritten
+option is still reachable through the composite index. This maps larger
+WordPress SQLite fallback databases where autoload repair crosses a non-root
+parent underflow boundary but the index still has sibling parent pages that
+can absorb the merge without requiring a full SQL engine.
+
 ## Next Task
 
-Broaden non-root parent underflow handling beyond the current two-child-root
-collapse case, then broaden cell-level FAST secure-delete, journaling, and WAL
-behavior beyond page-image preflight.
+Broaden non-root composite-index parent redistribution when adjacent
+interior-parent merge does not fit, then broaden cell-level FAST secure-delete,
+journaling, and WAL behavior beyond page-image preflight.

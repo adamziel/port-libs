@@ -799,3 +799,49 @@ php tools/run-tests.php
 ```
 
 Result: 223 test files, 25567 assertions, 0 failures.
+
+## Multi-Child Root Composite Index Parent Merge Slice
+
+Focused lane verification for the multi-child-root composite-index parent
+merge slice passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1617 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+```
+
+It reported updated page images `[1,2,3,4,5,6,7]`, an `index-interior` root
+at page 3 with left child `[4]` and right-most pointer 11, merged lower parent
+page 4 with left children `[5,6,9]`, obsolete pages `[7,8]` on the freelist,
+and a readable rewritten option.
+
+The focused upstream SQLite runner also passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test btree01.test delete2.test delete3.test delete4.test
+```
+
+Result: 0 errors out of 804 tests.
+
+The required duplicate-root preflight was run before the aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It returned no active exact root process, so this worker ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result: 224 test files, 25764 assertions, 0 failures.

@@ -3962,3 +3962,52 @@ and a readable rewritten option through the composite index.
 Remaining boundaries: non-root parent underflow beyond the current two-child
 root collapse shape, cell-level FAST secure-delete freeblock clearing,
 journaling, WAL, and general SQL execution remain future slices.
+
+## Focused Native Mapping: Multi-Child Root Composite Index Parent Merge
+
+For the bounded `wp_options(autoload, option_name)` replacement slice where
+the source-leaf merge leaves its non-root index-interior parent underfilled
+below a root that still has more than two child parents, the focused upstream
+runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test btree01.test delete2.test delete3.test delete4.test
+```
+
+Result: 6 named Tcl scripts / 9 runner script-permutation runs, 0 errors out
+of 804 tests in 00:00. The mapped static boundary is the same bounded
+`balance_nonroot`, `balance_shallower`, `dropCell()`, `insertCell()`,
+`editPage()`, and `freePage2()` source contract used by the preceding parent
+collapse slice: 293 `do_*` Tcl command lines and 36 targeted source contract
+lines in `src/btree.c`.
+
+This maps SQLite's UPDATE row rewrite behavior, composite index key ordering,
+delete-triggered `balance_nonroot()` leaf merge that underfills a non-root
+parent, root divider removal without reducing root height, adjacent
+index-interior parent merge, and obsolete leaf/interior-page release through
+`freePage2()`.
+
+The native PHP slice now lets a replacement autoload change merge the
+underfilled lower index parent with an adjacent sibling parent under a
+multi-child root, leaving the root at the same height with one fewer divider.
+The direct libsqlite harness passed 210 PHP tests with 1617 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-index-parent-merge-option-replacement-plan.php` script ran
+successfully, reporting updated page images `[1,2,3,4,5,6,7]`, an index root
+at page 3 with left child `[4]` and right-most pointer 11, merged lower parent
+page 4 with left children `[5,6,9]` and right-most pointer 10, obsolete pages
+`[7,8]` on the freelist, and a readable rewritten option through the composite
+index.
+
+Remaining boundaries: non-root composite-index parent redistribution when the
+adjacent interior-parent merge does not fit, cell-level FAST secure-delete
+freeblock clearing, journaling, WAL, and general SQL execution remain future
+slices.
