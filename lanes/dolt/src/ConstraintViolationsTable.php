@@ -128,6 +128,55 @@ final class ConstraintViolationsTable
     }
 
     /**
+     * Delete rows from a projected `dolt_constraint_violations_<table>` view.
+     *
+     * Upstream deletes one artifact for each projected row matched by the SQL
+     * DELETE predicate. For rows with multiple violations, the `violation_info`
+     * hash is part of the artifact key, so a predicate that includes one
+     * violation-info field removes only that violation while a row-key-only
+     * predicate removes all violations on that row.
+     *
+     * Criteria keys are projected row column names such as `pk`,
+     * `dolt_row_hash`, `violation_type`, or `from_root_ish`. The
+     * `violation_info.<key>` shorthand models focused `JSON_EXTRACT` filters
+     * such as `JSON_EXTRACT(violation_info, '$.Name') = 'ua'`. An empty
+     * criteria array matches every violation row.
+     *
+     * @param list<array<string, mixed>> $violations
+     * @param array<string, mixed> $criteria
+     * @return array{rows_affected:int, deleted_rows:list<array<string, mixed>>, remaining_rows:list<array<string, mixed>>, remaining_violations:list<array<string, mixed>>}
+     */
+    public function deleteRowsForTable(
+        TableSchema $schema,
+        array $violations,
+        array $criteria = [],
+        ?string $fromRootIsh = null,
+    ): array {
+        $normalizedViolations = array_values($violations);
+        $projectedRows = $this->rowsForTable($schema, $normalizedViolations, $fromRootIsh);
+        $deletedRows = [];
+        $remainingRows = [];
+        $remainingViolations = [];
+
+        foreach ($projectedRows as $i => $row) {
+            if ($this->matchesDeleteCriteria($row, $criteria)) {
+                $deletedRows[] = $row;
+                continue;
+            }
+
+            $remainingRows[] = $row;
+            $remainingViolations[] = $normalizedViolations[$i];
+        }
+
+        return [
+            'rows_affected' => count($deletedRows),
+            'deleted_rows' => $deletedRows,
+            'remaining_rows' => $remainingRows,
+            'remaining_violations' => $remainingViolations,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $violation
      */
     private function violationType(array $violation): string
@@ -152,11 +201,60 @@ final class ConstraintViolationsTable
         }
 
         return match ($type) {
+            self::TYPE_FOREIGN_KEY => $this->foreignKeyInfo($violation),
             self::TYPE_CHECK_CONSTRAINT => $this->checkConstraintInfo($violation),
             self::TYPE_UNIQUE_INDEX => $this->uniqueIndexInfo($violation),
             self::TYPE_NOT_NULL => $this->notNullInfo($violation),
-            default => throw new \InvalidArgumentException("Dolt {$type} violations must include violation_info."),
         };
+    }
+
+    /**
+     * @param array<string, mixed> $violation
+     * @return array{Index:string, Table:string, Columns:list<string>, OnDelete:string, OnUpdate:string, ForeignKey:string, ReferencedIndex:string, ReferencedTable:string, ReferencedColumns:list<string>}
+     */
+    private function foreignKeyInfo(array $violation): array
+    {
+        $foreignKey = $this->requiredStringField(
+            $violation,
+            ['foreign_key', 'foreignKey', 'constraint_name', 'ForeignKey'],
+            'Dolt foreign key violations must include foreign_key or violation_info.'
+        );
+
+        return [
+            'Index' => $this->optionalStringField($violation, ['index_name', 'index', 'Index']) ?? $foreignKey,
+            'Table' => $this->requiredStringField(
+                $violation,
+                ['table', 'Table'],
+                'Dolt foreign key violations must include table or violation_info.'
+            ),
+            'Columns' => $this->stringList(
+                $this->firstPresent($violation, ['columns', 'Columns']),
+                'Dolt foreign key violation columns'
+            ),
+            'OnDelete' => $this->referentialAction(
+                $this->firstPresent($violation, ['on_delete', 'onDelete', 'OnDelete']),
+                'Dolt foreign key violation OnDelete'
+            ),
+            'OnUpdate' => $this->referentialAction(
+                $this->firstPresent($violation, ['on_update', 'onUpdate', 'OnUpdate']),
+                'Dolt foreign key violation OnUpdate'
+            ),
+            'ForeignKey' => $foreignKey,
+            'ReferencedIndex' => $this->optionalStringField(
+                $violation,
+                ['referenced_index', 'referencedIndex', 'ReferencedIndex'],
+                true
+            ) ?? '',
+            'ReferencedTable' => $this->requiredStringField(
+                $violation,
+                ['referenced_table', 'referencedTable', 'ReferencedTable'],
+                'Dolt foreign key violations must include referenced_table or violation_info.'
+            ),
+            'ReferencedColumns' => $this->stringList(
+                $this->firstPresent($violation, ['referenced_columns', 'referencedColumns', 'ReferencedColumns']),
+                'Dolt foreign key violation referenced columns'
+            ),
+        ];
     }
 
     /**
@@ -243,5 +341,166 @@ final class ConstraintViolationsTable
         }
 
         return $strings;
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     * @param list<string> $keys
+     */
+    private function firstPresent(array $items, array $keys): mixed
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $items)) {
+                return $items[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     * @param list<string> $keys
+     */
+    private function requiredStringField(array $items, array $keys, string $message): string
+    {
+        $value = $this->optionalStringField($items, $keys);
+        if ($value === null) {
+            throw new \InvalidArgumentException($message);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $items
+     * @param list<string> $keys
+     */
+    private function optionalStringField(array $items, array $keys, bool $allowEmpty = false): ?string
+    {
+        $value = $this->firstPresent($items, $keys);
+        if ($value === null) {
+            return null;
+        }
+        if (!is_string($value) || (!$allowEmpty && $value === '')) {
+            $keyList = implode(', ', $keys);
+            throw new \InvalidArgumentException("Dolt constraint violation field {$keyList} must be a string.");
+        }
+
+        return $value;
+    }
+
+    private function referentialAction(mixed $value, string $label): string
+    {
+        if ($value === null) {
+            return 'RESTRICT';
+        }
+        if (!is_string($value) || $value === '') {
+            throw new \InvalidArgumentException("{$label} must be a non-empty string.");
+        }
+
+        return strtoupper($value);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, mixed> $criteria
+     */
+    private function matchesDeleteCriteria(array $row, array $criteria): bool
+    {
+        foreach ($criteria as $field => $expected) {
+            if (!is_string($field) || $field === '') {
+                throw new \InvalidArgumentException('Dolt constraint violation delete criteria fields must be non-empty strings.');
+            }
+
+            if ($field === 'row') {
+                if (!is_array($expected)) {
+                    throw new \InvalidArgumentException('Dolt constraint violation row delete criteria must be an array.');
+                }
+                foreach ($expected as $rowField => $rowExpected) {
+                    if (!is_string($rowField) || $rowField === '') {
+                        throw new \InvalidArgumentException('Dolt constraint violation row delete criteria fields must be non-empty strings.');
+                    }
+                    if (!$this->rowFieldMatches($row, $rowField, $rowExpected)) {
+                        return false;
+                    }
+                }
+                continue;
+            }
+
+            if ($field === 'violation_info') {
+                if (!is_array($expected)) {
+                    throw new \InvalidArgumentException('Dolt constraint violation_info delete criteria must be an array.');
+                }
+                if (!$this->violationInfoMatches($row, $expected)) {
+                    return false;
+                }
+                continue;
+            }
+
+            if (str_starts_with($field, 'violation_info.')) {
+                $infoField = substr($field, strlen('violation_info.'));
+                if ($infoField === '') {
+                    throw new \InvalidArgumentException('Dolt constraint violation_info delete criteria fields must be non-empty strings.');
+                }
+                if (!$this->violationInfoMatches($row, [$infoField => $expected])) {
+                    return false;
+                }
+                continue;
+            }
+
+            if (!$this->rowFieldMatches($row, $field, $expected)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function rowFieldMatches(array $row, string $field, mixed $expected): bool
+    {
+        if (!array_key_exists($field, $row)) {
+            throw new \InvalidArgumentException("Dolt constraint violation delete criteria column {$field} is not present.");
+        }
+
+        return $this->valuesEqual($row[$field], $expected);
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, mixed> $expected
+     */
+    private function violationInfoMatches(array $row, array $expected): bool
+    {
+        $info = $row['violation_info'] ?? null;
+        if (!is_array($info)) {
+            throw new \InvalidArgumentException('Dolt constraint violation rows must include violation_info for violation_info delete criteria.');
+        }
+
+        foreach ($expected as $field => $value) {
+            if (!is_string($field) || $field === '') {
+                throw new \InvalidArgumentException('Dolt constraint violation_info delete criteria fields must be non-empty strings.');
+            }
+            if (!array_key_exists($field, $info)) {
+                return false;
+            }
+            if (!$this->valuesEqual($info[$field], $value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function valuesEqual(mixed $actual, mixed $expected): bool
+    {
+        if (is_array($actual) || is_array($expected)) {
+            return $actual === $expected;
+        }
+
+        return $actual === $expected;
     }
 }

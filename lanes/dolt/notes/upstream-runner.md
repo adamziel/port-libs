@@ -5,6 +5,81 @@
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
 
+## Implementation Lane 2026-05-23 Constraint-Violation Delete Semantics
+
+- Upstream source/test boundary inspected:
+  - `go/libraries/doltcore/sqle/dtables/constraint_violations_prolly.go`: `prollyCVDeleter.Delete` builds artifact delete keys from row key columns / `dolt_row_hash`, `from_root_ish`, violation type, and a `ConstraintViolationInfoHash`, then also attempts the legacy no-info-hash key.
+  - `go/libraries/doltcore/sqle/enginetest/dolt_queries_merge.go`: focused scripts cover keyless unique/FK cleanup, duplicate keyless FK row representation, multiple violations on the same keyed row, and MySQL JSON-filtered single-violation deletion before row-key bulk deletion and commit.
+- Bounded upstream runner:
+  - Command from `.upstream-cache/dolt/go`: `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'TestDoltMerge/(keyless table merge with constraint violations|keyless table merge with constraint violation on duplicate rows|violation system table supports multiple violations per row|clearing constraint violations \(MySQL\): single delete, bulk delete, and commit)$' -count=1 -timeout 20m -v`.
+  - Result: exit `0`; `TestDoltMerge`, `TestDoltMergePrepared`, and `TestDoltMergeArtifacts` matched focused subtests and passed in `0.859s`.
+- Native PHP verification:
+  - Focused `ConstraintViolationsTableTest.php`: `9` behavior tests, `34` assertions, `0` failures.
+  - Dolt lane-only PHP: `19` test files, `193` behavior tests, `972` assertions, `0` failures.
+  - Required root `php tools/run-tests.php`: exit `0`; `183` test files, `18,198` assertions, `0` failures.
+- Boundary unchanged: this maps per-table constraint-violation cleanup semantics, not a general SQL DELETE engine or full upstream `go test ./...` / full BATS parity.
+
+## Implementation Lane 2026-05-23 Foreign-Key Constraint-Violation Metadata
+
+- Upstream oracle used without launching additional upstream runners:
+  - `go/libraries/doltcore/merge/violations_fk_prolly.go`: `FkCVMeta` exposes `Index`, `Table`, `Columns`, `OnDelete`, `OnUpdate`, `ForeignKey`, `ReferencedIndex`, `ReferencedTable`, and `ReferencedColumns`.
+  - `go/libraries/doltcore/sqle/dtables/constraint_violations_prolly.go`: `ArtifactTypeForeignKeyViol` unmarshals `FkCVMeta` into the final per-table `violation_info` cell.
+  - `rg -c 'foreign key,.*\{""Index""' .upstream-cache/dolt/integration-tests/bats/constraint-violations.bats`: `69` static FK metadata assertion lines covering restrict, cascade, set-null, chained, cyclic, and self-referential cases.
+- Native PHP verification:
+  - `php -l lanes/dolt/src/ConstraintViolationsTable.php`: pass.
+  - `php -l lanes/dolt/tests/ConstraintViolationsTableTest.php`: pass.
+  - `php -l lanes/dolt/fixtures/wp-foreign-key-constraint-violation-review.php`: pass.
+  - `php -l lanes/dolt/examples/wordpress-foreign-key-constraint-violation-review.php`: pass.
+  - Focused `ConstraintViolationsTableTest.php`: exit `0`; `7` behavior tests, `13` assertions, `0` failures.
+  - Dolt lane-only PHP: exit `0`; `19` test files, `191` behavior tests, `951` assertions, `0` failures.
+- Root PHP status:
+  - A separate root `php tools/run-tests.php` was active when checked (`pgrep -af "php tools/run-tests.php"` returned PID `3914252`), so this lane did not start a duplicate root run at that point.
+  - Final current-snapshot root check `php tools/run-tests.php > /tmp/dolt-fk-root-php.log 2>&1`: exit `1`; `183` test files, `17,925` assertions, `2` failures outside Dolt.
+  - Failing root tests: `lanes/quadrable/tests/QuadbStoreTest.php` tests `native quadb store restores full-head raw LMDB cursor dumps without portable state` and `native quadb store restores upstream full-head LMDB cursor slices and rejects proof witnesses`; both failed after `QuadbStore.php` reported missing `partialProofHeads` / `partialDetachedHead` state.
+
+## Runner Refresh 2026-05-23 04:11 UTC Constraint-Violation Merge/Verify Slice
+
+- Cache inspection before changing/building:
+  - `git -C .upstream-cache/dolt rev-parse HEAD`: `b2274926e0dcd84aab000ee242df5b5e75689eef`.
+  - `git -C .upstream-cache/dolt rev-parse --is-shallow-repository`: `true`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.promisor`: `true`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.partialclonefilter`: `blob:none`.
+  - `git -C .upstream-cache/dolt sparse-checkout list`: `go`, `integration-tests/bats`.
+  - `git -C .upstream-cache/dolt status --short --branch`: known sparse/no-checkout out-of-cone deletions plus runner-local `.gocache/`, `.gomodcache/`, `bats-home/`, `tmp/`, and `integration-tests/bats/status-local-fixed.bats`.
+  - No delete, reset, or wider sparse hydration was run.
+- Tooling check:
+  - `sudo -n dnf install -y golang bats expect libicu-devel`
+  - Result: all four packages were already installed; `Nothing to do.`
+  - Tool probes and RPMs: `go version go1.26.3-X:nodwarf5 linux/amd64`, `Bats 1.13.0`, `expect version 5.45.4`, `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, `expect-5.45.4-31.fc44.x86_64`, `libicu-devel-77.1-2.fc44.x86_64`.
+- Static inventory refresh:
+  - `git -C .upstream-cache/dolt ls-tree -r --name-only HEAD | rg '(constraint|violation|foreign-keys|merge).*(_test\.go|\.bats$)|constraint_violations|dolt_verify_constraints|dolt_queries_verify_constraints|dolt_queries_merge\.go|table_of_tables_with_violations\.go' | wc -l`: `28` focused upstream source/test paths.
+  - `rg -n "dolt_constraint_violations|DOLT_VERIFY_CONSTRAINTS|constraint-violations:|verify-constraints:" ... | wc -l`: `415` targeted references across constraint-violation BATS, verify-constraints BATS, focused merge/keyless-FK BATS, dtables, dprocedures, and enginetest files.
+- Cache-local build:
+  - `mkdir -p /home/claude/port-libs/.upstream-cache/dolt/tmp /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin /home/claude/port-libs/.upstream-cache/dolt/bats-tmp && env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOBIN=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go install -p 1 ./cmd/dolt ./store/cmd/noms ./utils/remotesrv && env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt version`
+  - Result: exit `0`; cache-local `dolt`, `noms`, and `remotesrv` rebuilt; `dolt version 2.0.5`.
+- Bounded Go evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'TestDoltVerifyConstraints$' -count=1 -timeout 20m -v`
+  - Result: exit `0`; full `TestDoltVerifyConstraints` passed in `0.773s`, covering no-FK violations, FK violations for named tables / all tables / output-only, NULL FK handling, unique violations, CHECK violations, working-set verification, and `dolt_constraint_violations` / `dolt_constraint_violations_<table>` rows.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'TestDoltMerge/(keyless table merge with constraint violations|keyless table merge with constraint violation on duplicate rows|Constraint violations are persisted|violation system table supports multiple violations per row|clearing constraint violations \(MySQL\): single delete, bulk delete, and commit|merge error lists all constraint violations when table has multiple violations|merge error includes row count for foreign key violations|merge error includes row count for null constraint violations|merge error includes row count for check constraint violations)$' -count=1 -timeout 20m -v`
+  - Result: exit `0`; the regex matched and passed focused `TestDoltMerge`, `TestDoltMergePrepared`, and `TestDoltMergeArtifacts` constraint-violation subtests in `1.109s`, covering keyless unique/FK violations, persisted FK violations, case-insensitive per-table system-table access, multi-violation rows, single/bulk delete cleanup, merge commit after cleanup, and merge-error row-count text for unique/FK/null/CHECK violations.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/merge ./libraries/doltcore/schema -run 'Test(FkIdxKeyDescs_FkColNotAtFront|ColConstraintsAreEqual)$' -count=1 -timeout 10m -v`
+  - Result: exit `0`; `merge` passed `TestFkIdxKeyDescs_FkColNotAtFront` in `1.497s`, and `schema` passed `TestColConstraintsAreEqual` in `0.045s`.
+- Bounded BATS evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp DOLT_DISABLE_VERSION_CHECK=1 SQL_ENGINE=local PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin timeout 30m bats verify-constraints.bats`
+  - Result: exit `0`, plan `1..9`; all 9 tests passed.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp DOLT_DISABLE_VERSION_CHECK=1 SQL_ENGINE=local PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin timeout 60m bats constraint-violations.bats`
+  - Result: exit `0`, plan `1..57`; all 57 tests passed across function blocking, forced commits, ancestor-present / ancestor-missing FK matrices for `restrict`, `cascade`, and `set null`, missing parent/child cases, chained/cyclic/self-referential FKs, unique-key violations, altered FK-over-PK behavior, and keyless constraint violations.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp DOLT_DISABLE_VERSION_CHECK=1 SQL_ENGINE=local PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin timeout 20m bats --filter 'merge: (non-violating merge succeeds when violations already exist|non-conflicting / non-violating merge succeeds when conflicts and violations already exist|conflicting merge should retain previous conflicts and constraint violations|violated check constraint)' merge.bats`
+  - Result: exit `0`, plan `1..4`; 3 runnable tests passed and 1 upstream-declared skip remained for `merge: violated check constraint`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp DOLT_DISABLE_VERSION_CHECK=1 SQL_ENGINE=local PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin timeout 20m bats --filter 'keyless-foreign-keys: (Resolve catches violations|child violation correctly detected|insert ignore into works correctly w/ FK violations)' keyless-foreign-keys.bats`
+  - Result: exit `0`, plan `1..3`; 2 runnable tests passed and 1 upstream-declared skip remained for `keyless-foreign-keys: Resolve catches violations`.
+- Required repository check after this metadata update:
+  - `php tools/run-tests.php`
+  - Result: exit `0` with `183` test files, `17,934` assertions, and `0` failures.
+  - Final post-recording rerun `jq empty lanes/dolt/UPSTREAM_TEST_MANIFEST.json && jq empty lanes/dolt/lane-status.json && php tools/run-tests.php > /tmp/dolt-root-after-latest-note.log 2>&1; status=$?; tail -40 /tmp/dolt-root-after-latest-note.log; exit $status`
+  - Result: exit `1` with `183` test files, `17,951` assertions, and `7` unrelated failures after Dolt tests had passed: six LightningCSS failures in `CssMinifierTest.php` / `NestingTransformerTest.php` and one Quadrable failure in `QuadbStoreTest.php`.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
+
 ## Runner Tooling Refresh 2026-05-23 03:54 UTC
 
 - Cache inspection before changing/building:

@@ -94,6 +94,181 @@ return [
             ],
         ], $rows);
     },
+    'constraint violations table builds foreign key metadata like upstream merge violations' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'bigint', 'primaryKey' => true],
+            ['name' => 'parent_id', 'tag' => 2, 'type' => 'bigint'],
+            ['name' => 'label', 'tag' => 3, 'type' => 'varchar(100)'],
+        ]);
+
+        $rows = (new ConstraintViolationsTable())->rowsForTable($schema, [
+            [
+                'violation_type' => ConstraintViolationsTable::TYPE_FOREIGN_KEY,
+                'row' => ['pk' => 7, 'parent_id' => 42, 'label' => 'dangling child'],
+                'foreign_key' => 'fk_child_parent',
+                'index_name' => 'fk_child_parent',
+                'table' => 'child',
+                'columns' => ['parent_id'],
+                'on_delete' => 'cascade',
+                'on_update' => 'restrict',
+                'referenced_index' => '',
+                'referenced_table' => 'parent',
+                'referenced_columns' => ['id'],
+            ],
+        ], 'their-root');
+
+        $t->same([
+            [
+                'from_root_ish' => 'their-root',
+                'violation_type' => 'foreign key',
+                'pk' => 7,
+                'parent_id' => 42,
+                'label' => 'dangling child',
+                'violation_info' => [
+                    'Index' => 'fk_child_parent',
+                    'Table' => 'child',
+                    'Columns' => ['parent_id'],
+                    'OnDelete' => 'CASCADE',
+                    'OnUpdate' => 'RESTRICT',
+                    'ForeignKey' => 'fk_child_parent',
+                    'ReferencedIndex' => '',
+                    'ReferencedTable' => 'parent',
+                    'ReferencedColumns' => ['id'],
+                ],
+            ],
+        ], $rows);
+    },
+    'constraint violation deletes can target one violation on a multi-violation row' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'a', 'tag' => 2, 'type' => 'int'],
+            ['name' => 'b', 'tag' => 3, 'type' => 'int'],
+        ]);
+        $table = new ConstraintViolationsTable();
+        $violations = [
+            [
+                'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                'row' => ['pk' => 1, 'a' => 0, 'b' => 0],
+                'violation_info' => ['Name' => 'ua', 'Columns' => ['a']],
+            ],
+            [
+                'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                'row' => ['pk' => 1, 'a' => 0, 'b' => 0],
+                'violation_info' => ['Name' => 'ub', 'Columns' => ['b']],
+            ],
+            [
+                'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                'row' => ['pk' => 2, 'a' => 0, 'b' => 0],
+                'violation_info' => ['Name' => 'ua', 'Columns' => ['a']],
+            ],
+            [
+                'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                'row' => ['pk' => 2, 'a' => 0, 'b' => 0],
+                'violation_info' => ['Name' => 'ub', 'Columns' => ['b']],
+            ],
+        ];
+
+        $singleDelete = $table->deleteRowsForTable($schema, $violations, [
+            'pk' => 1,
+            'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+            'violation_info.Name' => 'ua',
+        ], 'merge-root');
+
+        $t->same(1, $singleDelete['rows_affected']);
+        $t->same([
+            [
+                'from_root_ish' => 'merge-root',
+                'violation_type' => 'unique index',
+                'pk' => 1,
+                'a' => 0,
+                'b' => 0,
+                'violation_info' => ['Name' => 'ua', 'Columns' => ['a']],
+            ],
+        ], $singleDelete['deleted_rows']);
+        $t->same(3, count($singleDelete['remaining_rows']));
+        $t->same(1, count(array_filter(
+            $singleDelete['remaining_rows'],
+            static fn (array $row): bool => $row['pk'] === 1
+        )));
+
+        $rowDelete = $table->deleteRowsForTable($schema, $singleDelete['remaining_violations'], [
+            'row' => ['pk' => 1],
+        ], 'merge-root');
+
+        $t->same(1, $rowDelete['rows_affected']);
+        $t->same(2, count($rowDelete['remaining_rows']));
+        $t->same([], array_values(array_filter(
+            $rowDelete['remaining_rows'],
+            static fn (array $row): bool => $row['pk'] === 1
+        )));
+
+        $bulkDelete = $table->deleteRowsForTable($schema, $rowDelete['remaining_violations'], [
+            'pk' => 2,
+        ], 'merge-root');
+
+        $t->same(2, $bulkDelete['rows_affected']);
+        $t->same([], $bulkDelete['remaining_rows']);
+        $t->same([], $bulkDelete['remaining_violations']);
+    },
+    'constraint violation deletes handle keyless row hashes for unique and foreign key cleanup' => static function (TestRunner $t): void {
+        $schema = TableSchema::fromColumns([
+            ['name' => 'aColumn', 'tag' => 1, 'type' => 'int'],
+            ['name' => 'bColumn', 'tag' => 2, 'type' => 'int'],
+        ]);
+        $table = new ConstraintViolationsTable();
+        $violations = [
+            [
+                'violation_type' => ConstraintViolationsTable::TYPE_UNIQUE_INDEX,
+                'dolt_row_hash' => '5A1ED8633E1842FCA8EE529E4F1C5944',
+                'row' => ['aColumn' => 1, 'bColumn' => 2],
+                'violation_info' => ['Name' => 'aColumn_UNIQUE', 'Columns' => ['aColumn']],
+            ],
+            [
+                'violation_type' => ConstraintViolationsTable::TYPE_FOREIGN_KEY,
+                'dolt_row_hash' => '13F8480978D0556FA9AE6DF5745A7ACA',
+                'row' => ['aColumn' => 2, 'bColumn' => -1],
+                'foreign_key' => 'atable_ibfk_1',
+                'index_name' => 'bColumn',
+                'table' => 'aTable',
+                'columns' => ['bColumn'],
+                'referenced_index' => '',
+                'referenced_table' => 'parent',
+                'referenced_columns' => ['pk'],
+            ],
+        ];
+
+        $singleDelete = $table->deleteRowsForTable($schema, $violations, [
+            'dolt_row_hash' => '5A1ED8633E1842FCA8EE529E4F1C5944',
+        ], 'side-root');
+
+        $t->same(1, $singleDelete['rows_affected']);
+        $t->same('unique index', $singleDelete['deleted_rows'][0]['violation_type']);
+        $t->same([
+            [
+                'from_root_ish' => 'side-root',
+                'violation_type' => 'foreign key',
+                'dolt_row_hash' => '13F8480978D0556FA9AE6DF5745A7ACA',
+                'aColumn' => 2,
+                'bColumn' => -1,
+                'violation_info' => [
+                    'Index' => 'bColumn',
+                    'Table' => 'aTable',
+                    'Columns' => ['bColumn'],
+                    'OnDelete' => 'RESTRICT',
+                    'OnUpdate' => 'RESTRICT',
+                    'ForeignKey' => 'atable_ibfk_1',
+                    'ReferencedIndex' => '',
+                    'ReferencedTable' => 'parent',
+                    'ReferencedColumns' => ['pk'],
+                ],
+            ],
+        ], $singleDelete['remaining_rows']);
+
+        $bulkDelete = $table->deleteRowsForTable($schema, $singleDelete['remaining_violations'], [], 'side-root');
+
+        $t->same(1, $bulkDelete['rows_affected']);
+        $t->same([], $bulkDelete['remaining_rows']);
+    },
     'constraint violations table validates missing keys and unknown violation types' => static function (TestRunner $t): void {
         $schema = TableSchema::fromColumns([
             ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
@@ -133,5 +308,40 @@ return [
             ],
         ], $output['reviewRows']);
         $t->same(2, count($output['violationRows']));
+    },
+    'wordpress foreign key constraint violation example surfaces orphaned import relations' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-foreign-key-constraint-violation-review.php';
+        $output = require __DIR__ . '/../examples/wordpress-foreign-key-constraint-violation-review.php';
+
+        $t->same($fixture['expectedSummaryRows'], $output['summaryRows']);
+        $t->same($fixture['expectedViolationRows'], $output['violationRows']);
+        $t->same([
+            [
+                'table' => 'wp_postmeta',
+                'meta_id' => 8102,
+                'orphaned_post_id' => 99001,
+                'meta_key' => '_thumbnail_id',
+                'foreign_key' => 'fk_wp_postmeta_post',
+                'referenced_table' => 'wp_posts',
+                'resolution' => 'restore parent post or remove dangling postmeta before promotion',
+            ],
+            [
+                'table' => 'wp_postmeta',
+                'meta_id' => 8103,
+                'orphaned_post_id' => 99002,
+                'meta_key' => '_wp_attached_file',
+                'foreign_key' => 'fk_wp_postmeta_post',
+                'referenced_table' => 'wp_posts',
+                'resolution' => 'restore parent post or remove dangling postmeta before promotion',
+            ],
+        ], $output['reviewRows']);
+        $t->same(1, $output['singleDelete']['rows_affected']);
+        $t->same($fixture['expectedRemainingAfterSingleDelete'], $output['singleDelete']['remaining_rows']);
+        $t->same([
+            ['table' => 'wp_postmeta', 'num_violations' => 1],
+        ], $output['singleDelete']['remaining_summary']);
+        $t->same(1, $output['bulkDelete']['rows_affected']);
+        $t->same([], $output['bulkDelete']['remaining_rows']);
+        $t->same([], $output['bulkDelete']['remaining_summary']);
     },
 ];

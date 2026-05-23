@@ -33,7 +33,8 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_patch()` metadata-only column and existing-table check-constraint boundaries, including upstream's no-row behavior for default/generated/on-update/not-null changes without a type change and for add/modify/drop check constraints outside `CREATE TABLE`.
 - Native `dolt_patch()` auto-increment rendering for WordPress-style primary keys, including create-table `AUTO_INCREMENT` columns, metadata-only no-row boundaries, and primary-key type-change DDL replacement.
 - Native check-constraint validation and `information_schema` projection for migration schema review, including SQL-style `NULL` unknown pass behavior, skipped `NOT ENFORCED` checks, `CHECK_CONSTRAINTS` rows, and `TABLE_CONSTRAINTS` CHECK/PRIMARY/FOREIGN rows.
-- Native `dolt_constraint_violations` table-of-tables and `dolt_constraint_violations_<table>` row projection for merge/verify review, including `from_root_ish`, violation type, primary-key columns, row values, and CHECK/unique/not-null metadata.
+- Native `dolt_constraint_violations` table-of-tables and `dolt_constraint_violations_<table>` row projection for merge/verify review, including `from_root_ish`, violation type, primary-key columns, row values, and CHECK/foreign-key/unique/not-null metadata.
+- Native `dolt_constraint_violations_<table>` delete/cleanup semantics for merge resolution, including row-key bulk cleanup, violation-info targeted cleanup for multiple violations on the same row, and keyless unique/FK cleanup through `dolt_row_hash`.
 - Native `dolt schema show` CREATE TABLE rendering for schema-review UIs, including visible-table selection, requested-table lookup, hidden internal table skipping, and CHECK constraint preservation across focused schema edits.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
@@ -97,6 +98,8 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-check-constraint-information-schema.php` returns native `information_schema.CHECK_CONSTRAINTS` / `TABLE_CONSTRAINTS` rows plus check-violation rows, so a migration UI can surface schema guards and invalid plugin statuses before promotion.
 - `fixtures/wp-constraint-violation-review.php` models an import-branch merge where `wp_import_audit` rows violate CHECK guards after branch integration.
 - `examples/wordpress-constraint-violation-review.php` returns native `dolt_constraint_violations` summary rows plus per-table violation rows and compact review rows, so a migration UI can explain invalid imported audit records without shelling out to Dolt.
+- `fixtures/wp-foreign-key-constraint-violation-review.php` models an import-branch merge where `wp_postmeta` rows reference missing imported `wp_posts` parents.
+- `examples/wordpress-foreign-key-constraint-violation-review.php` returns native foreign-key `dolt_constraint_violations` summary rows, per-table violation rows, compact cleanup guidance, and single-row / bulk violation cleanup results for orphaned postmeta relations without shelling out to Dolt.
 - `fixtures/wp-schema-show-check-survival.php` models a renamed `wp_import_audit_review` table after migration-audit schema maintenance with status and failure-note CHECK guards intact.
 - `examples/wordpress-schema-show-check-survival.php` returns native `dolt schema show`-style CREATE TABLE text, so a migration UI can review preserved CHECK guards without shelling out to Dolt.
 - `fixtures/wp-patch-collation-review.php` models a `wp_options` review where legacy `utf8mb4_unicode_ci` comparison semantics are normalized to Dolt's default binary collation while the site URL changes.
@@ -139,4 +142,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: extend constraint-violation coverage into foreign-key and unique-index metadata produced by merge/verify workflows, then add resolution/delete semantics for `dolt_constraint_violations_<table>` rows.
+Next best slice: add merge-error summary text for unresolved constraint violations, including table row counts for unique, foreign-key, not-null, and CHECK violations.
