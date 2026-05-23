@@ -1,4 +1,4 @@
-# Independent Audit - 2026-05-23T16:36:45Z
+# Independent Audit - 2026-05-23T16:42:49Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, every
@@ -7,12 +7,12 @@ process state, and the required duplicate-root test gate.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 read secrets, inspect process environments, credential stores, provider configs,
-or auth files. Bridge code, generated fixtures, supplied fixtures, shell-outs,
-live-provider anecdotes, and plan-only workflow artifacts are treated as
-non-progress unless explicitly temporary oracle tooling.
+or auth files. Bridge code, generated fixtures, copied fixture oracles,
+shell-outs, live-provider anecdotes, and plan-only workflow artifacts are
+treated as non-progress unless explicitly temporary oracle tooling.
 
-Sampled `HEAD`: `18db7acbedf6` (`Refresh independent audit status`). Recent
-history remains audit-only: the latest 12 sampled commits all say `Refresh
+Sampled `HEAD`: `4c1a36b46165` (`Refresh independent audit status`). Recent
+history remains audit-only: the latest 30 sampled commits are all `Refresh
 independent audit status`.
 
 `jq empty lanes/*/UPSTREAM_TEST_MANIFEST.json lanes/*/lane-status.json
@@ -22,42 +22,41 @@ porting-summary.json` passed at this sample.
 
 | Lane | Manifest denominator | Manifest mapped | Status PHP pass/fail | Status estimate | Commit/status field |
 | --- | ---: | ---: | ---: | ---: | --- |
-| difftastic | 610 inspected artifacts | 303 | 303 / 0 | 96% | pending in shared dirty worktree |
-| dolt | 613 upstream executable test files | 585 | 314 / 0 | 95% | not committed |
-| esbuild | 2,567 upstream test entry points | 259 | 258 / 0 | 77% | uncommitted |
-| gitoxide | 2,877 | 2,165 | 4,045 / 0 | 98% | pending |
-| libsqlite | 1,589 | 248 | 248 / 0 | 98% | uncommitted |
+| difftastic | 612 inspected artifacts | 305 | 305 / 0 | 96% | pending in shared dirty worktree |
+| dolt | 613 executable test files | 585 | 314 / 0 | 95% | not committed |
+| esbuild | 2,567 upstream test entry points | 259 | 259 / 0 | 77% | uncommitted |
+| gitoxide | 2,877 | 2,167 | 4,065 / 0 | 98% | pending |
+| libsqlite | 1,589 | 250 | 250 / 0 | 98% | uncommitted |
 | lightningcss | 3,532 | 1,418 | 1,595 / 0 | 87% | uncommitted; says `HEAD d5ccd4b1` |
-| markerPDF | 291 static behavior/reference units | 239 | 366 / 0 | 96% | uncommitted |
-| pandoc | 2,276 inspected artifacts | 774 | 235 / 0 | 98% | pending |
-| quadrable | 55 tracked upstream paths plus prose runner notes | 55 | 155 / 0 | 99% | pending lane batch |
-| rclone | 1,601 static Go test/benchmark/example units | 535 | 535 / 0 | 98% | pending lane-local changes |
-| readability | 1,984 | 1,853 | 167 / 0 | 98% | uncommitted |
-| syncthing | 658 | 443 | 3,116 / 0 | 98% | pending |
+| markerPDF | 292 static behavior/reference units | 240 | 366 / 0 | 96% | uncommitted |
+| pandoc | 2,276 inspected artifacts | 780 | 236 / 0 | 98% | pending |
+| quadrable | 55 tracked paths plus prose runner notes | 55 | 156 / 0 | 99% | pending lane batch |
+| rclone | 1,601 Go test/benchmark/example units | 539 | 539 / 0 | 98% | pending lane-local changes |
+| readability | 1,984 | 1,866 | 168 / 0 | 98% | uncommitted; references `HEAD a737c8b1` |
+| syncthing | 658 | 445 | 3,134 / 0 | 98% | pending |
 
 ## Findings
 
 1. **Critical - there is still no stable integration snapshot suitable for an accepted root-test baseline.**
    - Paths: `progress.md:25`, `progress.md:31` through `progress.md:42`,
-     `progress.md:350` through `progress.md:355`,
+     `progress.md:353`, `progress.md:357`, `.tmux-team/prompts/*`,
      `scripts/run-team-watchdog.sh`, `scripts/run-dashboard-updater-loop.sh`,
      `scripts/run-evaluator-loop.sh`, `scripts/run-capacity-controller-loop.sh`,
-     `.tmux-team/prompts/*`, `lanes/*/lane-status.json`.
+     `lanes/*/lane-status.json`.
    - Goal requirement at risk: `goal.md` requires capped supervised lane work,
      current owner/session tracking, small committed slices with passing tests,
      periodic repo-wide tests, and honest failure recording.
-   - Evidence: `progress.md:25` still documents a target of two
-     implementation lanes plus one auditor, and `progress.md:31` through
-     `progress.md:42` reports every lane as `stopped`.
-   - Evidence: process sampling found 18 persistent matching repo worker rows:
-     dashboard updater PID `2222131`, lane watchdogs for esbuild, Dolt,
-     Quadrable, Readability, Pandoc, libsqlite, Syncthing, rclone, Gitoxide,
-     Difftastic, markerPDF, Dolt-runner, auditor, and integrator, plus team
-     watchdog PID `2347911`, evaluator PID `2424048`, and capacity controller
-     PID `2452997`.
-   - Evidence: the worktree is not quiescent. Latest samples reported `2,274`
-     all-status rows, `211` tracked dirty rows, and `211 files changed, 90179
-     insertions(+), 7294 deletions(-)`.
+   - Evidence: `progress.md:25` still documents a target of two implementation
+     lanes plus one auditor, and `progress.md:31` through `progress.md:42`
+     reports every lane as `stopped`.
+   - Evidence: process sampling found 17 active repo worker/status rows owned
+     by `claude`, including the dashboard updater, lane agents for Readability,
+     libsqlite, rclone, Gitoxide, Dolt runner, markerPDF, LightningCSS, Dolt,
+     esbuild, Pandoc, Quadrable, auditor, integrator, plus team watchdog,
+     evaluator, and capacity controller processes.
+   - Evidence: the worktree is not quiescent. Latest samples reported `212`
+     tracked dirty files and `212 files changed, 91272 insertions(+), 7311
+     deletions(-)`, before counting large untracked lane batches.
    - Evidence: the exact duplicate-root gate returned no rows at this sample,
      but a root run still would not describe one accepted snapshot while active
      writers, status publishers, broad dirty batches, and audit-only history
@@ -74,32 +73,34 @@ porting-summary.json` passed at this sample.
    - Evidence: `porting.html:32` and `porting-summary.json:2` still say
      generated `2026-05-23 04:57:16 UTC`; `porting.html:33`,
      `porting.html:36`, and `porting-summary.json:3` still identify source
-     snapshot `bda83c6b93d4`, while sampled `HEAD` is `18db7acbedf6`.
+     snapshot `bda83c6b93d4`, while sampled `HEAD` is `4c1a36b46165`.
    - Evidence: published rows disagree with current manifests/status files.
-     Difftastic is published as `160 / 417`, while current status is `303`
-     PHP pass and the manifest is `303 / 610`; Dolt is `242 / 613`, while
-     current is `585 / 613`; Gitoxide is `1432 / 2877`, while current is
-     `2165 / 2877`; markerPDF is `159 / 78`, while current is `239 / 291`;
-     Pandoc is `426 / 2028`, while current is `774 / 2276`; rclone is
-     `291 / 327`, while current is `535 / 1601`; Syncthing is `235 / 658`,
-     while current is `443 / 658`.
+     Difftastic is published as `160 / 417`, while current is `305 / 612`;
+     Dolt is `242 / 613`, while current is `585 / 613`; Gitoxide is
+     `1432 / 2877`, while current is `2167 / 2877`; libsqlite is `149 / 1454`,
+     while current is `250 / 1589`; markerPDF is `159 / 78`, while current is
+     `240 / 292`; Pandoc is `426 / 2028`, while current is `780 / 2276`;
+     rclone is `291 / 327`, while current is `539 / 1601`; Syncthing is
+     `235 / 658`, while current is `445 / 658`.
    - Evidence: `porting.html:41` through `porting.html:50` still combine
      benchmark source with denominator and PHP pass/fail with mapped tests, so
      upstream denominator and PHP pass/fail are not separately exposed as the
      goal requires.
 
 3. **High - `progress.md` does not describe the active system.**
-   - Paths: `progress.md:25`, `progress.md:31` through `progress.md:42`,
-     `progress.md:350` through `progress.md:355`, `lanes/*/lane-status.json:4`,
+   - Paths: `progress.md:14`, `progress.md:25`, `progress.md:31` through
+     `progress.md:42`, `progress.md:357`, `lanes/*/lane-status.json:4`,
      `lanes/*/lane-status.json:13`.
    - Goal requirement at risk: `goal.md` requires `progress.md` to include
      active lanes, current owner/session, next task per lane, percentage
      estimates, latest commit, and blockers.
-   - Evidence: the active-lane table still shows all sessions as `stopped`
-     with estimates from `5%` to `66%`, while current lane statuses report
-     estimates from `77%` to `99%` and process sampling shows active lane,
-     runner, auditor, integrator, dashboard, evaluator, watchdog, and capacity
-     processes.
+   - Evidence: `progress.md:31` through `progress.md:42` still shows all
+     sessions as `stopped` with estimates from `5%` to `66%`, while current
+     lane status files report estimates from `77%` to `99%` and active process
+     sampling shows many lane/status loops running.
+   - Evidence: `progress.md:14` still leaves the independent auditor loop
+     unchecked even though audit refresh commits continue and a `port-auditor`
+     watchdog process is active.
    - Evidence: the coordination table still contains stale next tasks such as
      Gitoxide SOCKS/proxy work, LightningCSS CSSOM/grid work, and Dolt idle
      deferral, while current lane statuses describe different pending batches.
@@ -118,16 +119,15 @@ porting-summary.json` passed at this sample.
      `lanes/syncthing/lane-status.json:13`, recent Git history.
    - Goal requirement at risk: `goal.md` requires small, reviewable slices with
      passing tests and latest commit tracking per lane.
-   - Evidence: every lane's latest-commit/status field says `pending`,
-     `not committed`, `uncommitted`, or dirty-worktree prose. LightningCSS
-     embeds stale `HEAD d5ccd4b1` while sampled `HEAD` is `18db7acbedf6`;
-     Readability still references observed `HEAD a737c8b1`.
-   - Evidence: the latest 12 sampled commits are audit-only refresh commits;
+   - Evidence: every lane's latest-commit/status field says `pending`, `not
+     committed`, `uncommitted`, or dirty-worktree prose. LightningCSS embeds
+     stale `HEAD d5ccd4b1`; Readability references observed `HEAD a737c8b1`;
+     sampled `HEAD` is `4c1a36b46165`.
+   - Evidence: the latest 30 sampled commits are audit-only refresh commits;
      none integrate the current lane batches described by status files.
 
 5. **High - near-complete percentages and "no blocker" language overstate accepted upstream parity.**
-   - Paths: `lanes/*/lane-status.json:4`,
-     `lanes/*/lane-status.json:12`,
+   - Paths: `lanes/*/lane-status.json:4`, `lanes/*/lane-status.json:12`,
      `lanes/*/UPSTREAM_TEST_MANIFEST.json`.
    - Goal requirement at risk: `goal.md` says upstream tests are the source of
      truth, passing tests are not enough, and hard features must be marked as
@@ -146,9 +146,8 @@ porting-summary.json` passed at this sample.
 6. **High - manifest/status count schemas are still not normalized or comparable.**
    - Paths: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:14`,
      `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:15`,
-     `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:14`,
-     `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:15`,
-     `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:14`,
+     `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:14`,
+     `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:15`,
      `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:14`,
      `lanes/readability/UPSTREAM_TEST_MANIFEST.json:14`,
      `lanes/readability/UPSTREAM_TEST_MANIFEST.json:15`,
@@ -161,37 +160,29 @@ porting-summary.json` passed at this sample.
      others. The mapped unit differs by lane: inspected artifacts, executable
      test files, static behavior units, upstream test functions, copied fixture
      checks, or local behavior checks.
-   - Evidence: PHP pass units are not comparable. Gitoxide maps `2165`
-     upstream units but reports `4045` PHP passes; Syncthing maps `443` but
-     reports `3116` PHP passes; Readability maps `1853` but reports only `167`
-     PHP passes; markerPDF maps `239` but status reports `366` PHP passes.
-   - Evidence: manifest/status counts disagree in places. Esbuild manifest maps
-     `259`, while status reports `258`; Dolt manifest warning still says
-     `305` focused lane behavior tests and `1,867` assertions, while status
-     reports `314` PHP pass and `1,930` assertions; Readability manifest
-     warning still says `165` local behavior tests, while lane status reports
-     `167`.
+   - Evidence: PHP pass units are not comparable. Gitoxide maps `2167`
+     upstream units but reports `4065` PHP passes; Syncthing maps `445` but
+     reports `3134` PHP passes; Readability maps `1866` but reports only `168`
+     PHP passes; markerPDF maps `240` but status reports `366` PHP passes.
 
 7. **Medium - progress accounting still blends non-native, copied, live-provider-skipped, and plan-only artifacts with native parity.**
-   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:14`,
-     `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:15`,
+   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:14` through
      `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:19`,
-     `lanes/readability/UPSTREAM_TEST_MANIFEST.json:14`,
-     `lanes/readability/UPSTREAM_TEST_MANIFEST.json:15`,
-     `lanes/readability/UPSTREAM_TEST_MANIFEST.json:36` through
+     `lanes/readability/UPSTREAM_TEST_MANIFEST.json:14` through
      `lanes/readability/UPSTREAM_TEST_MANIFEST.json:42`,
-     `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:14`,
-     `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:15`.
-   - Goal requirement at risk: `goal.md` says generated fixtures, bridge calls,
-     and shell-outs must not count as native implementation progress unless
-     explicitly temporary oracle tooling.
+     `lanes/rclone/lane-status.json:12`,
+     `lanes/gitoxide/lane-status.json:12`,
+     `lanes/syncthing/lane-status.json:12`.
+   - Goal requirement at risk: `goal.md` says generated fixtures, bridge
+     calls, and shell-outs must not count as native implementation progress
+     unless explicitly temporary oracle tooling.
    - Evidence: markerPDF counts workflow plans, package/lock metadata,
      dependency graph evidence, benchmark/Nougat plan-only subprocess metadata,
      Streamlit/FastAPI planning, remote polling plans, and supplied-document
      excerpts while live Python/model execution remains blocked.
    - Evidence: Readability count growth is dominated by copied Mozilla
-     fixture/oracle coverage: 111 copied fixture pages and 1853 mapped checks,
-     while native PHP behavior tests are 167. rclone explicitly leaves live
+     fixture/oracle coverage: 112 copied fixture pages and 1,866 mapped checks,
+     while native PHP behavior tests are 168. rclone explicitly leaves live
      provider/mount parity open while reporting `98%`.
 
 ## Test Gate
@@ -215,8 +206,8 @@ Validation commands run included:
 jq empty lanes/*/UPSTREAM_TEST_MANIFEST.json lanes/*/lane-status.json porting-summary.json
 jq summary reads over every lanes/*/UPSTREAM_TEST_MANIFEST.json
 jq summary reads over every lanes/*/lane-status.json
-sed, nl, and rg reads of goal.md, progress.md, porting.html, porting-summary.json, audits/latest.md
-git log --oneline --decorate -n 20
+sed and nl reads of goal.md, progress.md, porting.html, porting-summary.json, audits/latest.md
+git log --oneline --decorate -n 30
 git log --stat --oneline -n 8
 git status --short --untracked-files=no
 git status --short --untracked-files=all
@@ -224,6 +215,7 @@ git diff --shortstat
 git rev-parse --short=12 HEAD
 pgrep -af '^php tools/run-tests\.php( |$)'
 pgrep -af 'scripts/run-tmux-agent|scripts/run-dashboard-updater-loop|scripts/run-evaluator-loop|scripts/run-team-watchdog|scripts/run-capacity-controller-loop|scripts/run-integrator-loop|php tools/run-tests\.php'
+ps -o pid,user,ppid,etime,stat,args for sampled active repo worker/status processes
 ```
 
 ## Next Intervention
