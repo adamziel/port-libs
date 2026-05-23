@@ -33,6 +33,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_patch()` metadata-only column and existing-table check-constraint boundaries, including upstream's no-row behavior for default/generated/on-update/not-null changes without a type change and for add/modify/drop check constraints outside `CREATE TABLE`.
 - Native `dolt_patch()` auto-increment rendering for WordPress-style primary keys, including create-table `AUTO_INCREMENT` columns, metadata-only no-row boundaries, and primary-key type-change DDL replacement.
 - Native check-constraint validation and `information_schema` projection for migration schema review, including SQL-style `NULL` unknown pass behavior, skipped `NOT ENFORCED` checks, `CHECK_CONSTRAINTS` rows, and `TABLE_CONSTRAINTS` CHECK/PRIMARY/FOREIGN rows.
+- Native `dolt_constraint_violations` table-of-tables and `dolt_constraint_violations_<table>` row projection for merge/verify review, including `from_root_ish`, violation type, primary-key columns, row values, and CHECK/unique/not-null metadata.
 - Native `dolt schema show` CREATE TABLE rendering for schema-review UIs, including visible-table selection, requested-table lookup, hidden internal table skipping, and CHECK constraint preservation across focused schema edits.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
@@ -94,6 +95,8 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-patch-check-constraint-maintenance.php` returns an empty upstream-compatible patch statement list while exposing the classified check diff types, so a migration UI does not invent unsupported ALTER CHECK DDL.
 - `fixtures/wp-check-constraint-information-schema.php` models `wp_import_audit` status checks plus candidate import rows that violate status and failed-note guards.
 - `examples/wordpress-check-constraint-information-schema.php` returns native `information_schema.CHECK_CONSTRAINTS` / `TABLE_CONSTRAINTS` rows plus check-violation rows, so a migration UI can surface schema guards and invalid plugin statuses before promotion.
+- `fixtures/wp-constraint-violation-review.php` models an import-branch merge where `wp_import_audit` rows violate CHECK guards after branch integration.
+- `examples/wordpress-constraint-violation-review.php` returns native `dolt_constraint_violations` summary rows plus per-table violation rows and compact review rows, so a migration UI can explain invalid imported audit records without shelling out to Dolt.
 - `fixtures/wp-schema-show-check-survival.php` models a renamed `wp_import_audit_review` table after migration-audit schema maintenance with status and failure-note CHECK guards intact.
 - `examples/wordpress-schema-show-check-survival.php` returns native `dolt schema show`-style CREATE TABLE text, so a migration UI can review preserved CHECK guards without shelling out to Dolt.
 - `fixtures/wp-patch-collation-review.php` models a `wp_options` review where legacy `utf8mb4_unicode_ci` comparison semantics are normalized to Dolt's default binary collation while the site URL changes.
@@ -136,4 +139,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: continue into constraint-violation merge/reporting surfaces, starting with `dolt_constraint_violations` table-of-tables rows and per-table CHECK violation rows.
+Next best slice: extend constraint-violation coverage into foreign-key and unique-index metadata produced by merge/verify workflows, then add resolution/delete semantics for `dolt_constraint_violations_<table>` rows.

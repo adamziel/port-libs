@@ -39,7 +39,39 @@
   - Result: exit `0` with plan `1..419`; `394` runnable tests passed and `25` upstream-declared skips remained across diff/schema/rename/primary-key/diff-stat/query-diff/column-tag/sql-diff/merge/schema-conflict/conflict-detection/commit-diff/log/status/sql-status/branch/sql-branch/keyless behavior.
   - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
   - Result: exit `1` with plan `1..1`; pristine `status.bats` still truncates `fd1olangknu5apb3keg0kp0aa5mnb01o` to `angknu5apb3keg0kp0aa5mnb01o`, and `dolt reset` reports `branch not found`.
+- Required repository check after this metadata update:
+  - `php tools/run-tests.php`
+  - Result: exit `0` with `182` test files, `17,632` assertions, and `0` failures.
+- Final quota cleanup and repository check:
+  - Intermediate final rerun `php tools/run-tests.php`: exit `1` with `182` test files, `16,857` assertions, and `87` failures after MarkerPDF tests hit `Disk quota exceeded` while writing `/tmp/markerpdf-supplied-document-*`; Dolt tests reached by the run passed.
+  - Inspected disk pressure with `df -h . /tmp /home/claude/port-libs/.upstream-cache/dolt`, `du -sh .upstream-cache/dolt/tmp .upstream-cache/dolt/bats-tmp .upstream-cache/dolt/.gocache .upstream-cache/dolt/.gomodcache .upstream-cache/dolt/bats-home`, and `/tmp` temp scans; identified stale `/tmp/dolt-runner-fMpBoFL9` at `1.9G`.
+  - `rm -rf /tmp/dolt-runner-fMpBoFL9 && df -h /tmp`: removed only the stale Dolt runner temp checkout/cache, not `.upstream-cache/dolt`; `/tmp` free space rose to `5.7G`.
+  - Final rerun `php tools/run-tests.php`: exit `0` with `182` test files, `17,666` assertions, and `0` failures.
 - Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
+
+## Runner Refresh 2026-05-23 Constraint Violations System Table Slice
+
+- Focused upstream source/test inspection:
+  - `go/libraries/doltcore/sqle/dtables/table_of_tables_with_violations.go`: `dolt_constraint_violations` exposes `table` and `num_violations` rows for tables that currently carry constraint violation artifacts.
+  - `go/libraries/doltcore/sqle/dtables/constraint_violations_prolly.go`: per-table `dolt_constraint_violations_<table>` rows emit `from_root_ish`, `violation_type`, primary-key columns or keyless `dolt_row_hash`, non-primary-key columns, and `violation_info`.
+  - `go/libraries/doltcore/merge/violations_unique_prolly.go` and `go/libraries/doltcore/merge/violations_fk_prolly.go`: focused metadata shapes are `{"Name","Columns"}` for unique indexes, `{"Columns"}` for not-null, `{"Name","Expression"}` for CHECK, and the foreign-key table/index/referenced-table fields for FK violations.
+  - `go/libraries/doltcore/sqle/enginetest/dolt_queries_verify_constraints.go`: focused CHECK verify assertions select `violation_type`, primary key, row columns, and JSON `violation_info` from `dolt_constraint_violations_t`.
+- Static inventory refresh:
+  - `git -C .upstream-cache/dolt ls-tree -r --name-only HEAD | rg '(constraint.*viol|verify-constraints|violations).*(_test\.go|\.bats$)|constraint_violations|table_of_tables_with_violations|violations_(unique|fk|prolly)' | wc -l`: `11` focused upstream source/test paths.
+  - `rg -n "dolt_constraint_violations|CheckCVMeta|UniqCVMeta|FkCVMeta|NullViolationMeta|table,num_violations|constraint violations" ... | wc -l`: `376` targeted references inspected without widening sparse checkout.
+- Focused upstream runner:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'TestDoltVerifyConstraints/verify-constraints: check violations: working set$' -count=1 -timeout 10m -v`
+  - Result: exit `0`; focused `TestDoltVerifyConstraints/verify-constraints:_check_violations:_working_set` passed in `0.351s`, including `select * from dolt_constraint_violations` and per-table CHECK violation-info assertions.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp DOLT_DISABLE_VERSION_CHECK=1 SQL_ENGINE=local PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin timeout 10m bats --filter 'constraint-violations: functions blocked with violations' constraint-violations.bats`
+  - Result: exit `0`, plan `1..1`; confirmed `dolt_constraint_violations` reports `test,2` for a unique-index merge violation and that the per-table table can be deleted before committing.
+- Direct cache-local CLI probe:
+  - A throwaway repo created a unique-index conflict and ran `SELECT * FROM dolt_constraint_violations_test -r=csv`; output columns were `from_root_ish,violation_type,pk,v1,violation_info`, with two `unique index` rows and `{"Name": "v1", "Columns": ["v1"]}` metadata.
+- Native PHP verification after this slice:
+  - Dolt lane-only PHP: `19` Dolt test files, `189` behavior tests, `947` assertions, and `0` failures.
+- Required repository check after this slice:
+  - `php tools/run-tests.php`
+  - Result: exit `0` with `183` test files, `17,837` assertions, and `0` failures.
+- Boundary unchanged: this maps bounded constraint-violation system table row projection. It does not claim full constraint validation, full merge artifact storage, per-table deletion/root update semantics, full BATS, or full `go test ./...` parity.
 
 ## Runner Refresh 2026-05-23 Schema Show Check Preservation Slice
 
