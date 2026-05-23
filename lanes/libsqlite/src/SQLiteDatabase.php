@@ -294,6 +294,25 @@ final class SQLiteDatabase
     /**
      * @param list<mixed> $values
      */
+    public function indexRootPageForLowercaseInLookupWithCollation(
+        string $tableName,
+        string $columnName,
+        string $collationName,
+        array $values,
+    ): ?int {
+        $lookup = $this->indexLookupForLowerExpressionColumnInListWithCollation(
+            $tableName,
+            $columnName,
+            $collationName,
+            $values,
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
     public function indexRootPageForUppercaseInLookup(string $tableName, string $columnName, array $values): ?int
     {
         $lookup = $this->indexLookupForUpperExpressionColumnInList($tableName, $columnName, $values);
@@ -556,6 +575,26 @@ final class SQLiteDatabase
         $lookup = $this->indexLookupForLowerExpressionColumnRange(
             $tableName,
             $columnName,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+        );
+
+        return $lookup['rootPage'] ?? null;
+    }
+
+    public function indexRootPageForLowercaseRangeLookupWithCollation(
+        string $tableName,
+        string $columnName,
+        string $collationName,
+        ?string $lowerInclusive = null,
+        ?string $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?int {
+        $lookup = $this->indexLookupForLowerExpressionColumnRangeWithCollation(
+            $tableName,
+            $columnName,
+            $collationName,
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
@@ -965,6 +1004,60 @@ final class SQLiteDatabase
      * @param list<mixed> $values
      * @return null|array{rootPage:int,collation:string,descending:bool}
      */
+    private function indexLookupForLowerExpressionColumnInListWithCollation(
+        string $tableName,
+        string $columnName,
+        string $collationName,
+        array $values,
+    ): ?array {
+        if ($collationName === '') {
+            throw new \InvalidArgumentException('SQLite custom collation name cannot be empty');
+        }
+        if (!self::containsNonNullValue($values)) {
+            return null;
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstLowerExpression($record->sql);
+            if (
+                $firstExpression === null
+                || strcasecmp($firstExpression->columnName, $columnName) !== 0
+                || strcasecmp($firstExpression->collation, $collationName) !== 0
+            ) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
     private function indexLookupForUpperExpressionColumnInList(string $tableName, string $columnName, array $values): ?array
     {
         $hasNonNullValue = false;
@@ -1038,6 +1131,113 @@ final class SQLiteDatabase
                         [$columnName => $pointLookupValue],
                         [],
                         true,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForLowerExpressionColumnWithCollation(
+        string $tableName,
+        string $columnName,
+        string $collationName,
+        string $pointLookupValue,
+    ): ?array {
+        if ($collationName === '') {
+            throw new \InvalidArgumentException('SQLite custom collation name cannot be empty');
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstLowerExpression($record->sql);
+            if (
+                $firstExpression === null
+                || strcasecmp($firstExpression->columnName, $columnName) !== 0
+                || strcasecmp($firstExpression->collation, $collationName) !== 0
+            ) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::partialPredicateIsImpliedByConstraints(
+                        $firstExpression->partialPredicate,
+                        [$columnName => $pointLookupValue],
+                        [],
+                        true,
+                    )
+                )
+            ) {
+                continue;
+            }
+
+            return [
+                'rootPage' => $record->rootPage,
+                'collation' => $firstExpression->collation,
+                'descending' => $firstExpression->descending,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{rootPage:int,collation:string,descending:bool}
+     */
+    private function indexLookupForLowerExpressionColumnRangeWithCollation(
+        string $tableName,
+        string $columnName,
+        string $collationName,
+        ?string $lowerInclusive = null,
+        ?string $upperBound = null,
+        bool $upperInclusive = false,
+    ): ?array {
+        if ($collationName === '') {
+            throw new \InvalidArgumentException('SQLite custom collation name cannot be empty');
+        }
+        if ($lowerInclusive === null && $upperBound === null) {
+            throw new \InvalidArgumentException('SQLite custom-collation lower expression index range lookup requires at least one bound');
+        }
+
+        foreach ($this->indexRecordsForTable($tableName) as $record) {
+            if ($record->sql === null) {
+                continue;
+            }
+
+            $firstExpression = SQLiteCreateIndex::firstLowerExpression($record->sql);
+            if (
+                $firstExpression === null
+                || strcasecmp($firstExpression->columnName, $columnName) !== 0
+                || strcasecmp($firstExpression->collation, $collationName) !== 0
+            ) {
+                continue;
+            }
+
+            if (
+                $firstExpression->partial
+                && (
+                    $firstExpression->partialPredicate === null
+                    || !self::lowerExpressionRangeImpliesPartialPredicate(
+                        $firstExpression->partialPredicate,
+                        $columnName,
                     )
                 )
             ) {
@@ -2210,6 +2410,218 @@ final class SQLiteDatabase
         }
 
         return null;
+    }
+
+    /**
+     * @param callable(string, string): int $compare
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedLowercaseNameWithCollation(
+        string $optionName,
+        string $collationName,
+        callable $compare,
+        ?int $limit = null,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation lower expression lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForLowerExpressionColumnWithCollation(
+            'wp_options',
+            'option_name',
+            $collationName,
+            $optionName,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException("SQLite wp_options lower(option_name) expression index with collation {$collationName} is not present");
+        }
+
+        $lookupValue = self::asciiLower($optionName);
+        $options = [];
+        foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
+            $record = $indexCell->record($this->header->textEncoding);
+            if ($record->values === []) {
+                throw new \InvalidArgumentException('SQLite expression index record must contain at least one key column');
+            }
+            if (self::compareSQLiteScalarWithCustomTextCollation($record->values[0], $lookupValue, $compare) !== 0) {
+                continue;
+            }
+
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (self::compareSQLiteScalarWithCustomTextCollation(self::asciiLower($option->optionName), $lookupValue, $compare) !== 0) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<?string> $optionNames
+     * @param callable(string, string): int $compare
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedLowercaseNamesWithCollation(
+        array $optionNames,
+        string $collationName,
+        callable $compare,
+        ?int $limit = null,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation lower expression IN-list lookup limit cannot be negative');
+        }
+        if ($limit === 0 || $optionNames === []) {
+            return [];
+        }
+
+        $lookupValues = [];
+        foreach ($optionNames as $optionName) {
+            if ($optionName !== null && !is_string($optionName)) {
+                throw new \InvalidArgumentException('SQLite wp_options custom-collation lower expression IN-list names must be strings or null');
+            }
+            $lookupValues[] = $optionName === null ? null : self::asciiLower($optionName);
+        }
+        if (!self::containsNonNullValue($lookupValues)) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForLowerExpressionColumnInListWithCollation(
+            'wp_options',
+            'option_name',
+            $collationName,
+            $lookupValues,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException("SQLite wp_options lower(option_name) expression IN-list index with collation {$collationName} is not present");
+        }
+
+        $options = [];
+        foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
+            $record = $indexCell->record($this->header->textEncoding);
+            if ($record->values === []) {
+                throw new \InvalidArgumentException('SQLite expression index record must contain at least one key column');
+            }
+            if (!self::inListContainsSQLiteScalarWithCustomTextCollation($lookupValues, $record->values[0], $compare)) {
+                continue;
+            }
+
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (!self::inListContainsSQLiteScalarWithCustomTextCollation($lookupValues, self::asciiLower($option->optionName), $compare)) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param callable(string, string): int $compare
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedLowercaseNameRangeWithCollation(
+        ?string $lowerInclusive,
+        ?string $upperBound,
+        string $collationName,
+        callable $compare,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options custom-collation lower expression range lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $tableRootPage = $this->tableRootPage('wp_options');
+        if ($tableRootPage === null) {
+            return [];
+        }
+
+        $indexLookup = $this->indexLookupForLowerExpressionColumnRangeWithCollation(
+            'wp_options',
+            'option_name',
+            $collationName,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+        );
+        if ($indexLookup === null) {
+            throw new \InvalidArgumentException("SQLite wp_options lower(option_name) expression range index with collation {$collationName} is not present");
+        }
+
+        $lowerKey = $lowerInclusive === null ? null : self::asciiLower($lowerInclusive);
+        $upperKey = $upperBound === null ? null : self::asciiLower($upperBound);
+        if ($lowerKey !== null && $upperKey !== null) {
+            $boundaryComparison = self::compareSQLiteScalarWithCustomTextCollation($lowerKey, $upperKey, $compare);
+            if ($boundaryComparison > 0 || ($boundaryComparison === 0 && !$upperInclusive)) {
+                return [];
+            }
+        }
+
+        $options = [];
+        foreach ($this->indexCells($indexLookup['rootPage']) as $indexCell) {
+            $record = $indexCell->record($this->header->textEncoding);
+            if ($record->values === []) {
+                throw new \InvalidArgumentException('SQLite expression index record must contain at least one key column');
+            }
+            if (!self::customFirstValueIsInRange($record->values[0], $lowerKey, $upperKey, $upperInclusive, $compare)) {
+                continue;
+            }
+
+            $rowId = $this->rowIdFromIndexCell($indexCell);
+            $row = $this->tableRowByRowId($tableRootPage, $rowId);
+            if ($row === null) {
+                throw new \InvalidArgumentException("SQLite wp_options expression index points to missing rowid {$rowId}");
+            }
+
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (!self::customFirstValueIsInRange(self::asciiLower($option->optionName), $lowerKey, $upperKey, $upperInclusive, $compare)) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
     }
 
     public function wordpressOptionByIndexedUppercaseName(string $optionName): ?SQLiteWordPressOption
@@ -5351,6 +5763,31 @@ final class SQLiteDatabase
     {
         foreach ($values as $value) {
             if ($value !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @param callable(string, string): int $compare
+     */
+    private static function inListContainsSQLiteScalarWithCustomTextCollation(
+        array $values,
+        mixed $needle,
+        callable $compare,
+    ): bool {
+        if ($needle === null) {
+            return false;
+        }
+
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (self::compareSQLiteScalarWithCustomTextCollation($needle, $value, $compare) === 0) {
                 return true;
             }
         }

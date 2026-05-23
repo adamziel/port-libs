@@ -1182,6 +1182,90 @@ return [
         $t->same(null, $missing);
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedName('SITEURL'));
     },
+    'uses supplied custom collation callback for lower expression wordpress option_name lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_lower_slug', 'wp_options', 3, 'CREATE INDEX wp_options_lower_slug ON wp_options(lower(option_name) COLLATE WPSLUG) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'Plugin_Mode', 'underscore payload', 'yes'], 1),
+            $schemaCell([null, 'plugin-mode', 'dash payload', 'yes'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['plugin_mode', 1]),
+            $indexCell(['plugin-mode', 2]),
+            $indexCell(['siteurl', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $normalizeSlug = static function (string $value): string {
+            $value = strtolower($value);
+
+            return str_replace('_', '-', $value);
+        };
+        $wpslug = static function (string $left, string $right) use ($normalizeSlug): int {
+            return strcmp($normalizeSlug($left), $normalizeSlug($right));
+        };
+
+        $options = $database->wordpressOptionsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', 'WPSLUG', $wpslug);
+        $limited = $database->wordpressOptionsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', 'WPSLUG', $wpslug, 1);
+        $missing = $database->wordpressOptionsByIndexedLowercaseNameWithCollation('theme-mode', 'WPSLUG', $wpslug);
+
+        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['underscore payload', 'dash payload'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->same(['Plugin_Mode'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $missing);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionByIndexedLowercaseName('PLUGIN-MODE'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedLowercaseNameWithCollation('PLUGIN-MODE', '', $wpslug));
+    },
+    'uses supplied custom collation callback for lower expression IN-list and range lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_lower_slug', 'wp_options', 3, 'CREATE INDEX wp_options_lower_slug ON wp_options(lower(option_name) COLLATE WPSLUG) WHERE option_name IS NOT NULL'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'Plugin_Mode', 'underscore payload', 'yes'], 1),
+            $schemaCell([null, 'plugin-mode', 'dash payload', 'yes'], 2),
+            $schemaCell([null, 'theme-mode', 'theme payload', 'no'], 3),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 4),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['plugin_mode', 1]),
+            $indexCell(['plugin-mode', 2]),
+            $indexCell(['siteurl', 4]),
+            $indexCell(['theme-mode', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $normalizeSlug = static function (string $value): string {
+            $value = strtolower($value);
+
+            return str_replace('_', '-', $value);
+        };
+        $wpslug = static function (string $left, string $right) use ($normalizeSlug): int {
+            return strcmp($normalizeSlug($left), $normalizeSlug($right));
+        };
+
+        $inList = $database->wordpressOptionsByIndexedLowercaseNamesWithCollation(['PLUGIN-MODE', 'plugin_mode', null], 'WPSLUG', $wpslug);
+        $limited = $database->wordpressOptionsByIndexedLowercaseNamesWithCollation(['PLUGIN-MODE', 'theme-mode'], 'WPSLUG', $wpslug, 1);
+        $nullOnly = $database->wordpressOptionsByIndexedLowercaseNamesWithCollation([null], 'WPSLUG', $wpslug);
+        $range = $database->wordpressOptionsByIndexedLowercaseNameRangeWithCollation('PLUGIN-', 'PLUGIN.', 'WPSLUG', $wpslug);
+        $inclusive = $database->wordpressOptionsByIndexedLowercaseNameRangeWithCollation('THEME-MODE', 'THEME-MODE', 'WPSLUG', $wpslug, null, true);
+        $emptyRange = $database->wordpressOptionsByIndexedLowercaseNameRangeWithCollation('THEME.', 'PLUGIN-', 'WPSLUG', $wpslug);
+
+        $t->same(3, $database->indexRootPageForLowercaseInLookupWithCollation('wp_options', 'option_name', 'WPSLUG', ['PLUGIN-MODE']));
+        $t->same(3, $database->indexRootPageForLowercaseRangeLookupWithCollation('wp_options', 'option_name', 'WPSLUG', 'PLUGIN-', 'PLUGIN.'));
+        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inList));
+        $t->same(['underscore payload', 'dash payload'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $inList));
+        $t->same(['Plugin_Mode'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $limited));
+        $t->same([], $nullOnly);
+        $t->same(['Plugin_Mode', 'plugin-mode'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $range));
+        $t->same(['theme-mode'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $inclusive));
+        $t->same([], $emptyRange);
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedLowercaseNamesWithCollation([123], 'WPSLUG', $wpslug));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedLowercaseNameRangeWithCollation(null, null, 'WPSLUG', $wpslug));
+    },
     'uses lower expression index for case folded wordpress option_name IN-list lookups' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

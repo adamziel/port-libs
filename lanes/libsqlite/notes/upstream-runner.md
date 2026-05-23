@@ -354,6 +354,49 @@ rejecting constant and unrelated expression indexes; preserving plain
 case-folded option recovery lookups through
 `CREATE INDEX ... ON wp_options(lower(option_name))`.
 
+## Focused Native Mapping: Lower Expression Custom Collations
+
+This slice extends the `lower(option_name)` expression-index lookup path to
+indexes that declare an application-defined collation. Native lookup remains
+explicit: callers must name the collation and supply the matching PHP
+comparator, so ordinary built-in lookup paths continue to reject unsupported
+collations instead of returning misleading rows.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  indexexpr1.test indexexpr2.test collate1.test collate2.test
+```
+
+Result: 4 Tcl scripts, 0 errors out of 427 tests in 00:00. Re-run on
+2026-05-23 for the IN-list/range extension with the same 0 errors out of 427
+tests.
+
+Focused upstream fixture boundary:
+
+- `test/indexexpr1.test` and `test/indexexpr2.test` verify expression-index
+  collation metadata and use only for matching expression predicates.
+- `test/collate1.test` and `test/collate2.test` verify application-defined
+  collation callbacks such as numeric, HEX, and BACKWARDS ordering.
+
+The native PHP tests cover WordPress-shaped
+`CREATE INDEX ... ON wp_options(lower(option_name) COLLATE WPSLUG)` fixture
+where a supplied comparator treats underscores and hyphens as the same slug
+separator. Point, `IN (...)`, and bounded range recovery paths all recheck the
+recovered table row against the folded custom-collation key; IN-list recovery
+suppresses duplicate RHS-equivalent rows and ignores `NULL` RHS terms, while
+range recovery handles open/exclusive or inclusive upper bounds and inverted
+ranges under the supplied comparator. The ordinary
+`wordpressOptionByIndexedLowercaseName()` path still rejects the unsupported
+custom collation.
+`examples/wordpress-lowercase-custom-collation-option-lookup.php` maps the
+point recovery pattern for plugin/theme option names, and
+`examples/wordpress-lowercase-custom-collation-option-name-range.php` maps
+custom-collation lower-expression range recovery on hosts without the PHP
+SQLite extension.
+
 ## Focused Native Mapping: Lower Expression Range Seek Bounds
 
 This slice extends the bounded `lower(option_name)` expression-index reader
@@ -388,8 +431,8 @@ seek fixture where an out-of-range index branch is intentionally unreadable.
 `examples/wordpress-lowercase-option-name-range.php` maps case-folded transient
 recovery on hosts without the PHP SQLite extension. Remaining expression-index
 work includes arbitrary expressions beyond `lower(column)`, expression
-prefixes after ordinary indexed columns, custom collations, and expression
-`IN (...)` lookups.
+prefixes after ordinary indexed columns, custom-collation IN-list/range
+variants, and broader expression `IN (...)` lookups.
 
 ## Focused Native Mapping: IS NOT NULL Partial Index Point Lookup
 

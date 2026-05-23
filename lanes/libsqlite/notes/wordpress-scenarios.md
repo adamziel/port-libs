@@ -76,6 +76,17 @@ through `wp_options(lower(option_name))`, avoid duplicate rows for duplicate
 RHS names, ignore `NULL` RHS terms, and skip out-of-range index branches before
 page decoding when a large or partially damaged options database contains
 unrelated lower-key subtrees.
+If a `lower(option_name)` index declares an application-defined collation, a
+caller can now supply the matching PHP comparator explicitly. This maps
+slug-like WordPress option names where separators such as underscores and
+hyphens compare equal under a site-defined collation while the ordinary
+built-in lower-expression path still rejects unsupported collations.
+The custom-collation lower-expression path now also supports `IN (...)` lists
+and bounded ranges. Recovery tools can request several slug-equivalent
+mixed-case option names without duplicate RHS rows, ignore `NULL` RHS terms,
+or scan plugin option-name bands such as `plugin-` through `plugin.` using the
+site's comparator while rechecking the table row against the callback before
+returning it.
 First-term `upper(option_name)` expression indexes are now parsed for
 ASCII-folded point, `IN (...)`, and bounded range reads. This maps databases or
 recovery tools that stored an uppercase expression index instead of a lowercase
@@ -343,6 +354,14 @@ by case-folded name. This maps recovery workflows that need case-insensitive
 option inspection from a database image but must not treat expression indexes
 as ordinary column indexes.
 
+`examples/wordpress-lowercase-custom-collation-option-lookup.php` reads a
+WordPress-oriented SQLite database file, resolves a first-term
+`wp_options(lower(option_name) COLLATE WPSLUG)` expression index, and returns
+matching options only when the caller supplies the matching PHP collation
+callback. This maps plugin/theme settings whose option-name slugs differ by
+case, underscores, or hyphens while keeping unsupported custom collations out
+of the ordinary lower-expression lookup path.
+
 `examples/wordpress-lowercase-option-name-range.php` reads a
 WordPress-oriented SQLite database file, resolves a first-term
 `wp_options(lower(option_name))` expression index, and returns options whose
@@ -575,6 +594,6 @@ named `json_extract(column,path)`, `column ->> path`, and `column -> path`
 JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
 mutation at `[#]`, broader JSONB output/edit behavior beyond the current
 value encoder, and full JSON5 numeric/string edge parity; custom collation
-coverage beyond explicit first-column and autoload equality-prefix
-`option_name` range recovery; and
+coverage beyond explicit first-column, `lower(option_name)` point lookup, and
+autoload equality-prefix `option_name` range recovery; and
 composite planner shapes outside equality-prefix plus one range column.
