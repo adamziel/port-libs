@@ -7,17 +7,21 @@ namespace PortLibs\Syncthing;
 final class FileInfoScanner
 {
     private const DEFAULT_TEMP_LIFETIME_SECONDS = 86400;
+    public const WALK_FAILURE_EVENT = 'Failure';
+    public const WALK_FAILURE_EVENT_DESCRIPTION = 'Unexpected error while walking the filesystem during scan';
 
     private string $rootPath;
     private ?\Closure $xattrFilter;
     private ?\Closure $xattrLister;
     private ?\Closure $xattrGetter;
+    private ?\Closure $directoryLister;
     private BlockList $blockList;
 
     /**
      * @param null|callable(string): bool $xattrFilter
      * @param null|callable(string): list<string> $xattrLister
      * @param null|callable(string, string): (?string) $xattrGetter
+     * @param null|callable(string): list<string> $directoryLister
      */
     public function __construct(
         string $rootPath,
@@ -35,6 +39,7 @@ final class FileInfoScanner
         private readonly bool $autoNormalize = false,
         ?string $platformFamily = null,
         private readonly int $tempLifetimeSeconds = self::DEFAULT_TEMP_LIFETIME_SECONDS,
+        ?callable $directoryLister = null,
     ) {
         $realRoot = realpath($rootPath);
         if ($realRoot === false || !is_dir($realRoot)) {
@@ -54,6 +59,7 @@ final class FileInfoScanner
         $this->xattrFilter = $xattrFilter === null ? null : \Closure::fromCallable($xattrFilter);
         $this->xattrLister = $xattrLister === null ? null : \Closure::fromCallable($xattrLister);
         $this->xattrGetter = $xattrGetter === null ? null : \Closure::fromCallable($xattrGetter);
+        $this->directoryLister = $directoryLister === null ? null : \Closure::fromCallable($directoryLister);
         $this->blockList = $blockList ?? new BlockList();
         $this->platformFamily = strtoupper($platformFamily ?? PHP_OS_FAMILY);
     }
@@ -207,6 +213,7 @@ final class FileInfoScanner
      * @param null|callable(FolderScanProgress): void $progressLogger
      * @param null|callable(string, \Throwable, string): void $errorLogger
      * @param null|callable(?string): bool $shouldCancel
+     * @param null|callable(string, array{description:string, sub:string, error:string}): void $failureLogger
      * @return list<FileInfo>
      */
     public function walk(
@@ -219,9 +226,11 @@ final class FileInfoScanner
         string $folder = '',
         ?callable $errorLogger = null,
         ?callable $shouldCancel = null,
+        ?callable $failureLogger = null,
     ): array {
         $errorLoggerClosure = $errorLogger === null ? null : \Closure::fromCallable($errorLogger);
         $shouldCancelClosure = $shouldCancel === null ? null : \Closure::fromCallable($shouldCancel);
+        $failureLoggerClosure = $failureLogger === null ? null : \Closure::fromCallable($failureLogger);
 
         if ($hashBlocks && $progressLogger !== null) {
             return $this->walkWithHashProgress(
@@ -233,6 +242,7 @@ final class FileInfoScanner
                 $folder,
                 $errorLoggerClosure,
                 $shouldCancelClosure,
+                $failureLoggerClosure,
             );
         }
 
@@ -260,15 +270,25 @@ final class FileInfoScanner
             $path = $name === '' ? $this->rootPath : $this->absolutePath($name);
 
             if ($name === '') {
-                foreach ($this->directoryEntries($path) as $entry) {
-                    if (!$this->walkPath($entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure, $scanNow)) {
-                        break 2;
-                    }
+                try {
+                    $continue = $this->walkDirectoryChildren('', $path, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure, $failureLoggerClosure, $scanNow);
+                } catch (\Throwable $throwable) {
+                    self::reportWalkFailure($failureLoggerClosure, '', $throwable);
+                    throw $throwable;
+                }
+                if (!$continue) {
+                    break;
                 }
                 continue;
             }
 
-            if (!$this->walkPath($name, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure, $scanNow)) {
+            try {
+                $continue = $this->walkPath($name, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLoggerClosure, $shouldCancelClosure, $failureLoggerClosure, $scanNow);
+            } catch (\Throwable $throwable) {
+                self::reportWalkFailure($failureLoggerClosure, $name, $throwable);
+                throw $throwable;
+            }
+            if (!$continue) {
                 break;
             }
         }
@@ -281,6 +301,7 @@ final class FileInfoScanner
      * @param null|callable(FolderScanProgress): void $progressLogger
      * @param null|callable(string, \Throwable, string): void $errorLogger
      * @param null|callable(?string): bool $shouldCancel
+     * @param null|callable(string, array{description:string, sub:string, error:string}): void $failureLogger
      */
     public function walkWithCheckpoint(
         array $subs = [],
@@ -292,11 +313,16 @@ final class FileInfoScanner
         string $folder = '',
         ?callable $errorLogger = null,
         ?callable $shouldCancel = null,
+        ?callable $failureLogger = null,
+        ?FolderScanEventCollector $eventCollector = null,
     ): FileInfoScanResult {
         $cancelled = false;
         $cancelledAt = null;
         $userShouldCancel = $shouldCancel === null ? null : \Closure::fromCallable($shouldCancel);
         $checkpointSubs = self::checkpointSubs($subs);
+        $progressLogger = self::chainProgressLogger($eventCollector, $progressLogger);
+        $errorLogger = self::chainErrorLogger($eventCollector, $errorLogger);
+        $failureLogger = self::chainFailureLogger($eventCollector, $failureLogger);
 
         $trackingCancel = $userShouldCancel === null
             ? null
@@ -320,9 +346,70 @@ final class FileInfoScanner
             $folder,
             $errorLogger,
             $trackingCancel,
+            $failureLogger,
         );
 
-        return new FileInfoScanResult($files, $cancelled, $cancelledAt, $checkpointSubs);
+        return new FileInfoScanResult($files, $cancelled, $cancelledAt, $checkpointSubs, $eventCollector);
+    }
+
+    /**
+     * @param null|callable(FolderScanProgress): void $progressLogger
+     * @return null|\Closure(FolderScanProgress): void
+     */
+    private static function chainProgressLogger(?FolderScanEventCollector $eventCollector, ?callable $progressLogger): ?\Closure
+    {
+        if ($eventCollector === null) {
+            return $progressLogger === null ? null : \Closure::fromCallable($progressLogger);
+        }
+
+        $userLogger = $progressLogger === null ? null : \Closure::fromCallable($progressLogger);
+
+        return static function (FolderScanProgress $progress) use ($eventCollector, $userLogger): void {
+            $eventCollector->recordProgress($progress);
+            if ($userLogger !== null) {
+                $userLogger($progress);
+            }
+        };
+    }
+
+    /**
+     * @param null|callable(string, \Throwable, string): void $errorLogger
+     * @return null|\Closure(string, \Throwable, string): void
+     */
+    private static function chainErrorLogger(?FolderScanEventCollector $eventCollector, ?callable $errorLogger): ?\Closure
+    {
+        if ($eventCollector === null) {
+            return $errorLogger === null ? null : \Closure::fromCallable($errorLogger);
+        }
+
+        $userLogger = $errorLogger === null ? null : \Closure::fromCallable($errorLogger);
+
+        return static function (string $path, \Throwable $error, string $phase) use ($eventCollector, $userLogger): void {
+            $eventCollector->recordScanError($path, $error, $phase);
+            if ($userLogger !== null) {
+                $userLogger($path, $error, $phase);
+            }
+        };
+    }
+
+    /**
+     * @param null|callable(string, array{description:string, sub:string, error:string}): void $failureLogger
+     * @return null|\Closure(string, array{description:string, sub:string, error:string}): void
+     */
+    private static function chainFailureLogger(?FolderScanEventCollector $eventCollector, ?callable $failureLogger): ?\Closure
+    {
+        if ($eventCollector === null) {
+            return $failureLogger === null ? null : \Closure::fromCallable($failureLogger);
+        }
+
+        $userLogger = $failureLogger === null ? null : \Closure::fromCallable($failureLogger);
+
+        return static function (string $type, array $data) use ($eventCollector, $userLogger): void {
+            $eventCollector->recordFailure($type, $data);
+            if ($userLogger !== null) {
+                $userLogger($type, $data);
+            }
+        };
     }
 
     /**
@@ -338,6 +425,7 @@ final class FileInfoScanner
         string $folder,
         ?\Closure $errorLogger,
         ?\Closure $shouldCancel,
+        ?\Closure $failureLogger,
     ): array {
         $results = $this->walk(
             $subs,
@@ -349,6 +437,7 @@ final class FileInfoScanner
             '',
             $errorLogger,
             $shouldCancel,
+            $failureLogger,
         );
         $fileIndexes = [];
         $total = 1;
@@ -406,6 +495,28 @@ final class FileInfoScanner
         }
 
         $errorLogger($name, $throwable, $phase);
+    }
+
+    private static function reportWalkFailure(?\Closure $failureLogger, string $sub, \Throwable $throwable): void
+    {
+        if ($failureLogger === null || !self::isWarnableWalkFailure($throwable)) {
+            return;
+        }
+
+        $failureLogger(self::WALK_FAILURE_EVENT, [
+            'description' => self::WALK_FAILURE_EVENT_DESCRIPTION,
+            'sub' => $sub === '' ? '.' : $sub,
+            'error' => $throwable->getMessage(),
+        ]);
+    }
+
+    public static function isWarnableWalkFailure(?\Throwable $throwable): bool
+    {
+        if ($throwable === null) {
+            return false;
+        }
+
+        return !in_array($throwable->getMessage(), ['context canceled', 'context deadline exceeded'], true);
     }
 
     private static function phaseForThrowable(\Throwable $throwable): string
@@ -620,6 +731,7 @@ final class FileInfoScanner
         array &$results,
         ?\Closure $errorLogger,
         ?\Closure $shouldCancel,
+        ?\Closure $failureLogger,
         int $scanNow,
     ): bool {
         if (self::isCancelled($shouldCancel, $name)) {
@@ -673,11 +785,7 @@ final class FileInfoScanner
                         $highestIgnoredParent = $name;
                     }
 
-                    foreach ($this->directoryEntries($path) as $entry) {
-                        if (!$this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, $highestIgnoredParent, $seen, $results, $errorLogger, $shouldCancel, $scanNow)) {
-                            return false;
-                        }
-                    }
+                    return $this->walkDirectoryChildren($name, $path, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, $highestIgnoredParent, $seen, $results, $errorLogger, $shouldCancel, $failureLogger, $scanNow);
                 }
 
                 return true;
@@ -693,10 +801,48 @@ final class FileInfoScanner
         }
 
         if ($isDirectory) {
-            foreach ($this->directoryEntries($path) as $entry) {
-                if (!$this->walkPath($name . '/' . $entry, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLogger, $shouldCancel, $scanNow)) {
-                    return false;
-                }
+            return $this->walkDirectoryChildren($name, $path, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, null, $seen, $results, $errorLogger, $shouldCancel, $failureLogger, $scanNow);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, true> $seen
+     * @param list<FileInfo> $results
+     */
+    private function walkDirectoryChildren(
+        string $directoryName,
+        string $path,
+        ?IgnoreMatcher $ignoreMatcher,
+        bool $hashBlocks,
+        ?int $blockSize,
+        array $currentByName,
+        ?string $ignoredParent,
+        array &$seen,
+        array &$results,
+        ?\Closure $errorLogger,
+        ?\Closure $shouldCancel,
+        ?\Closure $failureLogger,
+        int $scanNow,
+    ): bool {
+        try {
+            $entries = $this->directoryEntries($path);
+        } catch (\Throwable $throwable) {
+            self::reportWalkError($errorLogger, $directoryName === '' ? '.' : $directoryName, $throwable, 'scan');
+            return true;
+        }
+
+        foreach ($entries as $entry) {
+            $name = $directoryName === '' ? $entry : $directoryName . '/' . $entry;
+            try {
+                $continue = $this->walkPath($name, $ignoreMatcher, $hashBlocks, $blockSize, $currentByName, $ignoredParent, $seen, $results, $errorLogger, $shouldCancel, $failureLogger, $scanNow);
+            } catch (\Throwable $throwable) {
+                self::reportWalkFailure($failureLogger, $name, $throwable);
+                throw $throwable;
+            }
+            if (!$continue) {
+                return false;
             }
         }
 
@@ -815,8 +961,33 @@ final class FileInfoScanner
      */
     private function directoryEntries(string $path): array
     {
+        if ($this->directoryLister !== null) {
+            $entries = ($this->directoryLister)($path);
+            if (!is_array($entries)) {
+                throw new \UnexpectedValueException('directory lister must return an array');
+            }
+
+            foreach ($entries as $entry) {
+                if (!is_string($entry)) {
+                    throw new \UnexpectedValueException('directory lister entries must be strings');
+                }
+            }
+
+            $entries = array_values(array_filter(
+                $entries,
+                static fn (string $entry): bool => $entry !== '.' && $entry !== '..',
+            ));
+            sort($entries, SORT_STRING);
+            return $entries;
+        }
+
+        $rawEntries = @scandir($path);
+        if ($rawEntries === false) {
+            throw new \RuntimeException('reading directory entries failed');
+        }
+
         $entries = [];
-        foreach (scandir($path) ?: [] as $entry) {
+        foreach ($rawEntries as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }

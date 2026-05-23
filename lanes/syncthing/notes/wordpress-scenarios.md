@@ -1326,7 +1326,181 @@ Verification for this batch:
   returned no active root harness, so this worker ran `php tools/run-tests.php`;
   it passed 199 files, 22555 assertions, and 0 failures.
 
+## 2026-05-23 Scanner Walk Failure Boundary
+
+Targeted upstream reads covered `lib/scanner/walk.go` `scan`,
+`walkFailureEventDesc`, `isWarnableError`, `handleError`, configured-sub
+`Filesystem.Walk` calls, and the scanner tests `TestNotExistingError`,
+`TestIssue4799`, `TestWalkSub`, `TestStopWalk`, and `TestIncludedSubdir`.
+Focused upstream `go test ./lib/scanner -run
+'TestNotExistingError|TestIssue4799|TestWalkSub|TestStopWalk|TestIncludedSubdir'
+-count=1` passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
+`ok github.com/syncthing/syncthing/lib/scanner 0.152s`.
+
+Native PHP `FileInfoScanner` now treats directory listing failures as
+path-level scan errors instead of silently converting them to empty directories.
+This keeps siblings walkable and keeps these per-path scan failures separate
+from Syncthing's global `Failure` event boundary for warnable whole-walk
+aborts. The scanner also exposes the upstream Failure event description and an
+`isWarnableWalkFailure()` helper for the context-cancellation boundary. The
+WordPress example `wordpress-scanner-error-cancel.php` now shows a media-library
+scan with both a retryable metadata error and a blocked private-cache directory
+listing error, while reporting no global Failure event for those path-level
+scan errors.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FileInfoScanner.php` passed.
+- `php -l lanes/syncthing/tests/FileInfoScannerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-scanner-error-cancel.php` passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php`
+  passed 1 file, 160 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2162
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-scanner-error-cancel.php` ran and
+  reported metadata and private-cache scan errors plus an empty
+  `walkFailureEvents` list.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned active root harness PID `2609498`; owner evidence from
+  `ps -o pid,user,ppid,etime,stat,args -p 2609498` showed
+  `2609498 claude 2609497 00:17 R php tools/run-tests.php`. No duplicate root
+  run was started; root result remains pending for the supervisor/integrator.
+
+## 2026-05-23 Scanner Failure Event Collector
+
+Targeted upstream reads covered `lib/scanner/walk.go` `EventLogger.Log`,
+`events.Failure`, `walkFailureEventDesc`, root and configured-sub
+`Filesystem.Walk` abort handling, and the existing scanner tests
+`TestNotExistingError`, `TestIssue4799`, `TestWalkSub`, `TestStopWalk`, and
+`TestIncludedSubdir`. Refreshed focused upstream evidence passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`:
+`go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub|TestStopWalk|TestIncludedSubdir' -count=1`
+with `ok github.com/syncthing/syncthing/lib/scanner 0.188s`.
+
+Native PHP now adds `FolderScanEventCollector`, a folder-scoped event sink that
+can be passed directly to `FileInfoScanner` as progress, path-error, and
+Failure-event callbacks. Whole-walk root aborts now emit the upstream `Failure`
+event through that callback before rethrowing, while context cancellation and
+deadline errors remain suppressed by the existing `isWarnableWalkFailure()`
+boundary. Path-level scan errors remain separate from global Failure events.
+The WordPress example `wordpress-scanner-failure-events.php` shows a media
+folder scan abort caused by an unavailable volume and records the resulting
+folder-scoped Failure event for UI or REST status reporting.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FileInfoScanner.php` passed.
+- `php -l lanes/syncthing/src/FolderScanEventCollector.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanEventCollectorTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-scanner-failure-events.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanEventCollectorTest.php`
+  passed 1 file, 13 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php`
+  passed 1 file, 160 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderErrorTrackerTest.php`
+  passed 1 file, 43 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 40 files, 2175
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-scanner-failure-events.php` ran and
+  reported one folder-scoped `Failure` event and no path-level scan errors.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active exact root harness. The root harness then waited on the
+  root lock and completed red with 201 files, 23071 assertions, and 1 failure:
+  the unrelated readability test `maps Mozilla wordpress fixture articleBody
+  images and Jetpack cleanup` expected `NULL` and got `Sarah Gooding`.
+
+## 2026-05-23 Scanner Checkpoint Event Result
+
+Targeted upstream reads covered `lib/scanner/walk.go` `EventLogger.Log` for
+`FolderScanProgress`, path-level `ScanResult` errors emitted by `handleError`,
+`events.Failure`, `walkFailureEventDesc`, `isWarnableError`, and scanner tests
+`TestNotExistingError`, `TestIssue4799`, `TestWalkSub`, `TestStopWalk`, and
+`TestIncludedSubdir`. Refreshed focused upstream evidence passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`:
+`go test ./lib/scanner -run 'TestNotExistingError|TestIssue4799|TestWalkSub|TestStopWalk|TestIncludedSubdir' -count=1`
+with `ok github.com/syncthing/syncthing/lib/scanner 0.180s`.
+
+Native PHP now lets `FileInfoScanResult` carry a `FolderScanEventCollector`.
+`FileInfoScanner::walkWithCheckpoint()` can compose collector progress,
+path-error, and Failure callbacks with any caller callbacks, so resumable scan
+results persist completed paths, checkpoint subs, `FolderScanProgress` events,
+path scan errors, and global Failure events together. Existing callers without
+a collector keep the previous checkpoint `toArray()` shape. The WordPress
+example `wordpress-scanner-checkpoint-events.php` shows a media scan whose
+checkpoint includes completed uploads, progress events, a private-cache
+directory listing error, and no global Failure event.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FileInfoScanResult.php` passed.
+- `php -l lanes/syncthing/src/FileInfoScanner.php` passed.
+- `php -l lanes/syncthing/src/FolderScanEventCollector.php` passed.
+- `php -l lanes/syncthing/tests/FileInfoScannerTest.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanEventCollectorTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-scanner-checkpoint-events.php`
+  passed.
+- `php -l lanes/syncthing/examples/wordpress-scanner-failure-events.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php lanes/syncthing/tests/FolderScanEventCollectorTest.php`
+  passed 2 files, 181 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 40 files, 2183
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-scanner-checkpoint-events.php` ran
+  and reported completed files, two `FolderScanProgress` events, one
+  private-cache scan error, and no Failure events.
+- `php lanes/syncthing/examples/wordpress-scanner-failure-events.php` ran and
+  reported one folder-scoped `Failure` event and no path-level scan errors.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active exact root harness, so this worker ran
+  `php tools/run-tests.php`; it completed red with 202 files, 23312
+  assertions, and 3 unrelated aggregate failures visible in the readability
+  lane output. No lane commit was made.
+
+## 2026-05-23 Scanner Checkpoint Status Payload
+
+Targeted upstream reads covered `lib/scanner/walk.go` `CurrentFiler`,
+`ScanResult`, `FolderScanProgress`, `handleError`, and the unchanged-file
+checks in `walkRegular`, `walkDir`, and `walkSymlink`, plus
+`lib/scanner/walk_test.go` `TestWalkReceiveOnly`, `TestStopWalk`,
+`TestNotExistingError`, `TestIncludedSubdir`, and `fakeCurrentFiler`. Refreshed
+focused upstream evidence passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`:
+`go test ./lib/scanner -run '^(TestWalkReceiveOnly|TestStopWalk|TestNotExistingError|TestIncludedSubdir)$' -count=1`
+with `ok github.com/syncthing/syncthing/lib/scanner 0.115s`.
+
+Native PHP now adds `FolderScanCheckpoint`, a durable folder-scan status value
+object. It merges repeated `FileInfoScanResult` attempts by keeping the latest
+`FileInfo` per path for CurrentFiler-style resume scans, appending progress,
+path-error, and Failure events, preserving cancellation state only while the
+latest attempt is cancelled, and emitting a WordPress REST-friendly status
+payload. The WordPress example
+`wordpress-folder-scan-status-payload.php` shows a media scan cancelled after
+one hashed upload, resumed with checkpoint current files, and published as a
+merged status payload with attempts, completed upload paths, latest progress,
+and scan/failure counts.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanCheckpoint.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanCheckpointTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-status-payload.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanCheckpointTest.php`
+  passed 1 file, 33 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php lanes/syncthing/tests/FolderScanEventCollectorTest.php lanes/syncthing/tests/FolderScanCheckpointTest.php`
+  passed 3 files, 214 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 41 files, 2216
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-folder-scan-status-payload.php` ran
+  successfully and reported a complete two-attempt REST-style folder status.
+- The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+  returned no active exact root harness, so this worker ran
+  `php tools/run-tests.php`; it passed 204 files, 23532 assertions, and 0
+  failures.
+
 ## Next Task
 
-Map scanner sub-walk permission and unexpected filesystem errors against
-upstream `isWarnableError` and scan failure event boundaries.
+Persist `FolderScanCheckpoint` snapshots through a bounded folder-scan service,
+including expiry/cleanup and conflict-safe storage update semantics.

@@ -6,6 +6,7 @@ use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\FileInfoComparison;
 use PortLibs\Syncthing\FileInfoScanner;
+use PortLibs\Syncthing\FolderScanEventCollector;
 use PortLibs\Syncthing\FolderScanProgress;
 use PortLibs\Syncthing\IgnoreMatcher;
 use PortLibs\Syncthing\RequestServer;
@@ -555,6 +556,58 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'walk reports directory listing errors as scan errors without Failure events' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            $blockedDir = $dir . '/private-cache';
+            syncthing_scanner_write($root, $dir . '/good.jpg', 'publishable media');
+            syncthing_scanner_write($root, $dir . '/after.jpg', 'later sibling');
+            syncthing_scanner_write($root, $blockedDir . '/secret.zip', 'private export');
+
+            $errors = [];
+            $failureEvents = [];
+            $scanner = new FileInfoScanner(
+                $root,
+                directoryLister: static function (string $path) use ($root, $blockedDir): array {
+                    if ($path === syncthing_scanner_path($root, $blockedDir)) {
+                        throw new RuntimeException('permission denied');
+                    }
+
+                    return syncthing_scanner_entries($path);
+                },
+            );
+
+            $files = $scanner->walk(
+                [$dir],
+                errorLogger: static function (string $path, Throwable $error, string $phase) use (&$errors): void {
+                    $errors[] = [$path, $phase, $error->getMessage()];
+                },
+                failureLogger: static function (string $type, array $data) use (&$failureEvents): void {
+                    $failureEvents[] = [$type, $data];
+                },
+            );
+
+            $t->same([
+                $dir,
+                $dir . '/after.jpg',
+                $dir . '/good.jpg',
+                $blockedDir,
+            ], array_map(static fn (FileInfo $file): string => $file->name, $files));
+            $t->same([[$blockedDir, 'scan', 'permission denied']], $errors);
+            $t->same([], $failureEvents);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'maps upstream scanner walk failure warnability boundary' => static function (TestRunner $t): void {
+        $t->same('Failure', FileInfoScanner::WALK_FAILURE_EVENT);
+        $t->same('Unexpected error while walking the filesystem during scan', FileInfoScanner::WALK_FAILURE_EVENT_DESCRIPTION);
+        $t->true(!FileInfoScanner::isWarnableWalkFailure(null));
+        $t->true(!FileInfoScanner::isWarnableWalkFailure(new RuntimeException('context canceled')));
+        $t->true(!FileInfoScanner::isWarnableWalkFailure(new RuntimeException('context deadline exceeded')));
+        $t->true(FileInfoScanner::isWarnableWalkFailure(new RuntimeException('stale filesystem handle')));
+    },
     'walk progress cancellation stops before hashing another queued file' => static function (TestRunner $t): void {
         $root = syncthing_scanner_root();
         try {
@@ -647,6 +700,82 @@ return [
             $t->same([$dir . '/thumb.jpg'], $resumed->completedPaths());
             $t->same(hash('sha256', '1234'), $resumed->files[0]->blocks[0]->hashHex);
             $t->same([['folder' => 'wordpress-media', 'current' => 5, 'total' => 6, 'rate' => 0.0]], $resumeProgress);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk checkpoint carries folder scan progress and path errors together' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            $blockedDir = $dir . '/private-cache';
+            syncthing_scanner_write($root, $dir . '/after.jpg', 'after!');
+            syncthing_scanner_write($root, $dir . '/good.jpg', 'good');
+            syncthing_scanner_write($root, $blockedDir . '/secret.zip', 'private export');
+
+            $userErrors = [];
+            $collector = new FolderScanEventCollector('wordpress-media');
+            $scanner = new FileInfoScanner(
+                $root,
+                directoryLister: static function (string $path) use ($root, $blockedDir): array {
+                    if ($path === syncthing_scanner_path($root, $blockedDir)) {
+                        throw new RuntimeException('permission denied');
+                    }
+
+                    return syncthing_scanner_entries($path);
+                },
+            );
+
+            $result = $scanner->walkWithCheckpoint(
+                [$dir],
+                hashBlocks: true,
+                blockSize: 4,
+                folder: 'wordpress-media',
+                errorLogger: static function (string $path, Throwable $error, string $phase) use (&$userErrors): void {
+                    $userErrors[] = [$path, $phase, $error->getMessage()];
+                },
+                eventCollector: $collector,
+            );
+
+            $t->same([
+                $dir,
+                $dir . '/after.jpg',
+                $dir . '/good.jpg',
+                $blockedDir,
+            ], $result->completedPaths());
+            $t->same([
+                [
+                    'path' => $blockedDir,
+                    'phase' => 'scan',
+                    'error' => 'permission denied',
+                ],
+            ], $result->scanErrors());
+            $t->same([[$blockedDir, 'scan', 'permission denied']], $userErrors);
+            $t->same([], $result->failureEvents());
+            $t->same([
+                [
+                    'type' => 'FolderScanProgress',
+                    'data' => [
+                        'folder' => 'wordpress-media',
+                        'current' => 6,
+                        'total' => 11,
+                        'rate' => 0.0,
+                    ],
+                ],
+                [
+                    'type' => 'FolderScanProgress',
+                    'data' => [
+                        'folder' => 'wordpress-media',
+                        'current' => 10,
+                        'total' => 11,
+                        'rate' => 0.0,
+                    ],
+                ],
+            ], $result->scanEvents());
+            $summary = $result->toArray();
+            $t->same('wordpress-media', $summary['folderScan']['folder']);
+            $t->same($result->scanEvents(), $summary['folderScan']['events']);
+            $t->same($result->scanErrors(), $summary['folderScan']['scanErrors']);
         } finally {
             syncthing_scanner_rm($root);
         }
@@ -924,6 +1053,22 @@ function syncthing_scanner_write(string $root, string $name, string $bytes): str
     }
 
     return $path;
+}
+
+/**
+ * @return list<string>
+ */
+function syncthing_scanner_entries(string $path): array
+{
+    $entries = scandir($path);
+    if (!is_array($entries)) {
+        throw new RuntimeException('failed to list scanner test directory');
+    }
+
+    return array_values(array_filter(
+        $entries,
+        static fn (string $entry): bool => $entry !== '.' && $entry !== '..',
+    ));
 }
 
 function syncthing_scanner_rm(string $path): void

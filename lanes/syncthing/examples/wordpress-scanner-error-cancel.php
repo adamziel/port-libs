@@ -15,8 +15,10 @@ try {
     wordpress_scanner_error_cancel_write($root, $dir . '/hero.jpg', 'abcdefgh');
     wordpress_scanner_error_cancel_write($root, $dir . '/thumb.jpg', '12345');
     wordpress_scanner_error_cancel_write($root, $dir . '/metadata-error.jpg', 'metadata read fails');
+    wordpress_scanner_error_cancel_write($root, $dir . '/private-cache/export.zip', 'private export');
 
     $errors = [];
+    $failureEvents = [];
     $progress = [];
     $stopAfterFirstHash = false;
 
@@ -29,6 +31,13 @@ try {
             }
 
             return [];
+        },
+        directoryLister: static function (string $path) use ($root, $dir): array {
+            if ($path === $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir . '/private-cache')) {
+                throw new RuntimeException('permission denied');
+            }
+
+            return wordpress_scanner_error_cancel_entries($path);
         },
     );
 
@@ -51,6 +60,9 @@ try {
         shouldCancel: static function (?string $path) use (&$stopAfterFirstHash): bool {
             return $stopAfterFirstHash && $path !== null;
         },
+        failureLogger: static function (string $type, array $data) use (&$failureEvents): void {
+            $failureEvents[] = ['type' => $type, 'data' => $data];
+        },
     );
 
     echo json_encode([
@@ -66,6 +78,7 @@ try {
         ),
         'scanProgress' => $progress,
         'scanErrors' => $errors,
+        'walkFailureEvents' => $failureEvents,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } finally {
     wordpress_scanner_error_cancel_rm($root);
@@ -81,6 +94,22 @@ function wordpress_scanner_error_cancel_write(string $root, string $name, string
     if (file_put_contents($path, $bytes) === false) {
         throw new RuntimeException('Failed to write scanner error/cancel example file');
     }
+}
+
+/**
+ * @return list<string>
+ */
+function wordpress_scanner_error_cancel_entries(string $path): array
+{
+    $entries = scandir($path);
+    if (!is_array($entries)) {
+        throw new RuntimeException('Failed to list scanner error/cancel example directory');
+    }
+
+    return array_values(array_filter(
+        $entries,
+        static fn (string $entry): bool => $entry !== '.' && $entry !== '..',
+    ));
 }
 
 function wordpress_scanner_error_cancel_rm(string $path): void
