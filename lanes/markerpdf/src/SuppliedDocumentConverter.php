@@ -55,6 +55,7 @@ final class SuppliedDocumentConverter
      *     order_images?: list<mixed>,
      *     order_results?: list<array<string, mixed>>,
      *     bad_span_ids?: list<string>,
+     *     ocr_stats?: array<string, mixed>|null,
      *     markdown_tables?: list<string>,
      *     recognized_tables?: list<array<string, mixed>>,
      *     table_text_lines?: list<mixed>,
@@ -122,11 +123,22 @@ final class SuppliedDocumentConverter
         $metadata = [
             'page_range' => $extracted['page_range'],
             'pdftext' => $extracted['metadata'],
+            'ocr_stats' => $this->ocrStatsOption($options),
             'block_stats' => [
                 'table' => 0,
             ],
             'supplied_boundaries' => [],
         ];
+
+        if (!$this->hasBlocks($pages)) {
+            $metadata['empty_text_blocks'] = true;
+
+            return [
+                'text' => '',
+                'images' => [],
+                'metadata' => $metadata,
+            ];
+        }
 
         $layoutResults = $this->listOption($options, 'layout_results');
         if ($layoutResults !== []) {
@@ -216,6 +228,22 @@ final class SuppliedDocumentConverter
     }
 
     /**
+     * @param list<array<string, mixed>> $pages
+     */
+    private function hasBlocks(array $pages): bool
+    {
+        foreach ($pages as $page) {
+            foreach (($page['blocks'] ?? []) as $block) {
+                if (is_array($block)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array<string, mixed> $tablePlan
      * @return array<string, mixed>
      */
@@ -260,6 +288,34 @@ final class SuppliedDocumentConverter
         }
 
         return $options[$key];
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array{ocr_pages: int, ocr_failed: int, ocr_success: int, ocr_engine: string}
+     */
+    private function ocrStatsOption(array $options): array
+    {
+        if (!array_key_exists('ocr_stats', $options) || $options['ocr_stats'] === null) {
+            return [
+                'ocr_pages' => 0,
+                'ocr_failed' => 0,
+                'ocr_success' => 0,
+                'ocr_engine' => 'none',
+            ];
+        }
+        if (!is_array($options['ocr_stats'])) {
+            throw new InvalidArgumentException('markerPDF supplied document option ocr_stats must be an array.');
+        }
+
+        $stats = $options['ocr_stats'];
+
+        return [
+            'ocr_pages' => (int) ($stats['ocr_pages'] ?? 0),
+            'ocr_failed' => (int) ($stats['ocr_failed'] ?? 0),
+            'ocr_success' => (int) ($stats['ocr_success'] ?? 0),
+            'ocr_engine' => (string) ($stats['ocr_engine'] ?? 'none'),
+        ];
     }
 
     /**

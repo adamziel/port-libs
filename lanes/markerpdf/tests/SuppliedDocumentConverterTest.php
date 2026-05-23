@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\MarkerPDF\BenchmarkReportVerifier;
 use PortLibs\MarkerPDF\BenchmarkRunner;
+use PortLibs\MarkerPDF\BenchmarkScorer;
 use PortLibs\MarkerPDF\MarkerSettings;
 use PortLibs\MarkerPDF\SuppliedDocumentConverter;
 
@@ -155,6 +156,129 @@ return [
             unlink($path);
         }
     },
+    'converts a fuller multicolcnn supplied dictionary excerpt with upstream finalization metadata' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-multicolcnn-supplied-document.php';
+        $path = sys_get_temp_dir() . '/markerpdf-multicolcnn-supplied-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% multicolcnn supplied dictionary fixture\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                $fixture['pdftextPages'],
+                $fixture['options'],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $score = (new BenchmarkScorer())->scoreText(
+                $result['text'],
+                $fixture['referenceExcerpt'],
+                $fixture['chunkLength']
+            );
+
+            $t->same($fixture['expectedMarkdown'], $result['text']);
+            $t->contains('Perspective-Free Counting', $result['text']);
+            $t->true($score > $fixture['scoreThreshold']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same([
+                'ocr_pages' => 0,
+                'ocr_failed' => 0,
+                'ocr_success' => 0,
+                'ocr_engine' => 'none',
+            ], $result['metadata']['ocr_stats']);
+            $t->same(0, $result['metadata']['block_stats']['table']);
+            $t->same(0, $result['metadata']['block_stats']['code']);
+            $t->same(0, $result['metadata']['block_stats']['header_footer']);
+            $t->same([0], $result['metadata']['page_range']);
+            $t->same(1, $result['metadata']['context']['lowres_image_count']);
+            $t->same('Abstract', $result['metadata']['pdf_toc'][0]['title']);
+            $t->same('An Aggregated Multicolumn Dilated Convolution Network For Perspective-Free Counting', $result['metadata']['computed_toc'][0]['title']);
+        } finally {
+            unlink($path);
+        }
+    },
+    'converts a fuller switch transformer supplied dictionary excerpt with styled spans' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-switch-transformers-supplied-document.php';
+        $path = sys_get_temp_dir() . '/markerpdf-switch-transformers-supplied-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% switch transformer supplied dictionary fixture\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                $fixture['pdftextPages'],
+                $fixture['options'],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $score = (new BenchmarkScorer())->scoreText(
+                $result['text'],
+                $fixture['referenceExcerpt'],
+                $fixture['chunkLength']
+            );
+
+            $t->same($fixture['expectedMarkdown'], $result['text']);
+            $t->contains('select *different* parameters', $result['text']);
+            $t->true($score > $fixture['scoreThreshold']);
+            $t->same(['layout', 'order'], $result['metadata']['supplied_boundaries']);
+            $t->same([
+                'ocr_pages' => 0,
+                'ocr_failed' => 0,
+                'ocr_success' => 0,
+                'ocr_engine' => 'none',
+            ], $result['metadata']['ocr_stats']);
+            $t->same([0], $result['metadata']['page_range']);
+            $t->same(1, $result['metadata']['context']['lowres_image_count']);
+            $t->same('Abstract', $result['metadata']['pdf_toc'][0]['title']);
+            $t->same('Switch Transformers: Scaling To Trillion Parameter Models With Simple And Efficient Sparsity', $result['metadata']['computed_toc'][0]['title']);
+        } finally {
+            unlink($path);
+        }
+    },
+    'short-circuits supplied documents with no extracted blocks like convert_single_pdf' => static function (TestRunner $t): void {
+        $path = sys_get_temp_dir() . '/markerpdf-empty-supplied-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% empty supplied dictionary fixture\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [[
+                    'page' => 0,
+                    'bbox' => [0.0, 0.0, 612.0, 792.0],
+                    'rotation' => 0,
+                    'blocks' => [],
+                ]],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [[
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['label' => 'Text', 'bbox' => [72.0, 72.0, 540.0, 120.0]],
+                        ],
+                    ]],
+                    'order_results' => [[
+                        'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                        'bboxes' => [
+                            ['position' => 0, 'bbox' => [72.0, 72.0, 540.0, 120.0]],
+                        ],
+                    ]],
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->same('', $result['text']);
+            $t->same([], $result['images']);
+            $t->same(true, $result['metadata']['empty_text_blocks']);
+            $t->same([], $result['metadata']['supplied_boundaries']);
+            $t->same([
+                'ocr_pages' => 0,
+                'ocr_failed' => 0,
+                'ocr_success' => 0,
+                'ocr_engine' => 'none',
+            ], $result['metadata']['ocr_stats']);
+            $t->same([0], $result['metadata']['page_range']);
+        } finally {
+            unlink($path);
+        }
+    },
     'threads supplied page images through the upstream extract_images boundary after bad span filtering' => static function (TestRunner $t) use ($pdftextPage): void {
         $path = sys_get_temp_dir() . '/markerpdf-supplied-images-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% supplied image pipeline\n%%EOF");
@@ -248,17 +372,24 @@ return [
         file_put_contents($path, "%PDF-1.4\n%%EOF");
         try {
             $converter = new SuppliedDocumentConverter();
+            $page = $pdftextPage(0, [
+                ['text' => 'Option validation source text.', 'bbox' => [72.0, 72.0, 360.0, 84.0]],
+            ]);
             $t->throws(
                 InvalidArgumentException::class,
-                static fn (): array => $converter->convert($path, [$pdftextPage(0, [])], ['layout_results' => ['not' => 'a-list']])
+                static fn (): array => $converter->convert($path, [$page], ['layout_results' => ['not' => 'a-list']])
             );
             $t->throws(
                 InvalidArgumentException::class,
-                static fn (): array => $converter->convert($path, [$pdftextPage(0, [])], ['batch_multiplier' => 'fast'])
+                static fn (): array => $converter->convert($path, [$page], ['batch_multiplier' => 'fast'])
             );
             $t->throws(
                 InvalidArgumentException::class,
-                static fn (): array => $converter->convert($path, [$pdftextPage(0, [])], ['image_payloads' => ['not-a-page-list']])
+                static fn (): array => $converter->convert($path, [$page], ['image_payloads' => ['not-a-page-list']])
+            );
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $converter->convert($path, [$page], ['ocr_stats' => 'none'])
             );
         } finally {
             unlink($path);

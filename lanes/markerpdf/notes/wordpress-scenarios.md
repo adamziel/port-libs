@@ -46,7 +46,7 @@ The lane now also maps `marker/logger.py`, `run_marker_app.py`, and `marker_app.
 
 The lane now also maps the early `marker/convert.py::convert_single_pdf` orchestration boundary. `CorePdfConverter` applies metadata language override, engine-specific OCR language normalization, OCR-all-pages folding, filetype metadata, unsupported-filetype short-circuiting, supplied page/TOC metadata, and low-resolution image render planning before handing supplied pages to a native downstream pipeline.
 
-The lane now also maps a document-level supplied-boundary conversion path for `marker/convert.py::convert_single_pdf`. `SuppliedDocumentConverter` composes supplied pdftext page dictionaries, layout predictions, ordering predictions, recognized table dictionaries, table Markdown insertion, supplied image payloads, and the late finalizer into a BenchmarkRunner-ready native callback without loading pdftext, pypdfium2, Surya, tabled, Texify, Torch, or Nougat.
+The lane now also maps a document-level supplied-boundary conversion path for `marker/convert.py::convert_single_pdf`. `SuppliedDocumentConverter` composes supplied pdftext page dictionaries, layout predictions, ordering predictions, recognized table dictionaries, table Markdown insertion, supplied image payloads, upstream-shaped no-OCR `ocr_stats`, the upstream zero-extracted-block short-circuit after OCR, and the late finalizer into a BenchmarkRunner-ready native callback without loading pdftext, pypdfium2, Surya, tabled, Texify, Torch, or Nougat.
 
 The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and `#` escaping. That gives the WordPress import path a native cleanup step before block rendering.
 
@@ -67,6 +67,10 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-benchmark-runner.php` uses the native `BenchmarkRunner` port of the outer `benchmarks/overall.py` loop. It stages supplied PDF/reference pairs from the actual CI benchmark excerpts, runs a supplied native marker conversion callback, writes upstream-style `marker_*.md` outputs, and verifies the upstream marker thresholds before a WordPress import batch reaches editorial review.
 
 `examples/wordpress-supplied-document-benchmark.php` maps the new document-level supplied-boundary path into a WordPress quality gate. It converts supplied pdftext/layout/order/table/image dictionaries into block-ready Markdown, runs that Markdown through the upstream benchmark report shape, and reports the supplied model boundaries, table count, and image count that a WordPress import UI can store as review metadata.
+
+`examples/wordpress-multicolcnn-supplied-benchmark.php` maps a fuller upstream `multicolcnn.pdf` supplied-dictionary excerpt into a WordPress Data Liberation quality gate. It imports supplied pdftext/layout/order payloads for the title, authors, abstract, and introduction, preserves no-OCR `ocr_stats`, keeps Python-style hyphen title casing for `Perspective-Free`, and reports a `0.9778095238095238` score against the committed surrogate threshold.
+
+`examples/wordpress-switch-transformers-supplied-benchmark.php` maps a fuller upstream `switch_trans.pdf` supplied-dictionary excerpt into a WordPress Data Liberation quality gate. It imports supplied pdftext/layout/order payloads for the title, authors, abstract, and introduction, preserves styled emphasis from pdftext spans, and reports a `0.8827096774193548` score against the committed surrogate threshold.
 
 `examples/upstream-surrogate-score.php` scores small README-linked surrogate pairs sampled from Marker's committed `data/examples/marker` and `data/examples/nougat` outputs. These remain useful comparison fixtures alongside the now-inspected external CI benchmark archive.
 
@@ -180,4 +184,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Next bounded task: feed `SuppliedDocumentConverter` fuller `multicolcnn.pdf` or `switch_trans.pdf` supplied dictionaries/excerpts to increase document-level benchmark parity.
+Next bounded task: extend `SuppliedDocumentConverter` with supplied equation dictionaries for a benchmark excerpt that includes formula regions, or add a table-of-contents/table-heavy `switch_trans.pdf` page slice if equation fixtures remain model-boundary-only.

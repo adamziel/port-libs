@@ -31,6 +31,10 @@ return [
         $processor = new MarkdownPostProcessor();
 
         $t->same("\n## Data Liberation Notes\n", $processor->surroundBlock('data liberation notes', 'Section-header', 2));
+        $t->same(
+            '# Perspective-Free Counting' . "\n",
+            $processor->surroundBlock('Perspective-Free Counting', 'Title')
+        );
         $t->same('Use \#tags in imported captions', $processor->surroundBlock('Use #tags in imported captions', 'Text'));
         $t->same("Item with \\#anchor\n", $processor->surroundBlock('Item with #anchor', 'List-item'));
     },

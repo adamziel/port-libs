@@ -519,6 +519,6 @@ final class MarkdownPostProcessor
 
     private function titleCase(string $text): string
     {
-        return ucwords(strtolower($text));
+        return ucwords(strtolower($text), " \t\r\n\f\v-");
     }
 }
