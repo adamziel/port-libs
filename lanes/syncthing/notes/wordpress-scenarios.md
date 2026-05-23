@@ -1172,5 +1172,35 @@ harness, so this worker ran `php tools/run-tests.php`; it passed 198 files,
 
 ## Next Task
 
-Extend scanner cancellation into resumable scan checkpoints, or map stale
-temporary-file lifetime cleanup during scanner walks.
+Map stale temporary-file lifetime cleanup during scanner walks.
+
+## 2026-05-23 Scanner Resume Checkpoints
+
+Targeted upstream reads covered `lib/scanner/walk.go` context cancellation and
+progress buffering, `lib/scanner/blockqueue.go` hasher cancellation, and
+upstream `TestStopWalk`. The refreshed focused upstream command
+`go test ./lib/scanner -run '^TestStopWalk$' -count=1` passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
+`ok github.com/syncthing/syncthing/lib/scanner 0.131s`.
+
+Native PHP now exposes `FileInfoScanner::walkWithCheckpoint()`, which preserves
+the existing `walk()` behavior while returning completed `FileInfo` entries,
+the first cancelled path, and normalized resume subs. A later scan can pass the
+checkpoint files as current state and hash only the remaining queued media item.
+`wordpress-scanner-resume-checkpoint.php` demonstrates a WordPress media scan
+cancelled after `hero.jpg`, then resumed to hash only `thumb.jpg`.
+
+Verification for this batch:
+
+- `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php`
+  passed 1 file, 124 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2126
+  assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-scanner-resume-checkpoint.php` ran
+  successfully and reported cancellation at
+  `wp-content/uploads/2026/05/thumb.jpg` plus a resumed thumbnail-only scan.
+- The required pre-root gate first saw transient PID 2226546
+  (`php tools/run-tests.php lanes/readability/tests`), which exited before owner
+  sampling; a second exact gate was clear, so this worker ran
+  `php tools/run-tests.php`, which passed 198 files, 22059 assertions, and 0
+  failures.

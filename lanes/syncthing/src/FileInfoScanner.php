@@ -269,6 +269,55 @@ final class FileInfoScanner
 
     /**
      * @param list<string> $subs
+     * @param null|callable(FolderScanProgress): void $progressLogger
+     * @param null|callable(string, \Throwable, string): void $errorLogger
+     * @param null|callable(?string): bool $shouldCancel
+     */
+    public function walkWithCheckpoint(
+        array $subs = [],
+        ?IgnoreMatcher $ignoreMatcher = null,
+        bool $hashBlocks = false,
+        ?int $blockSize = null,
+        iterable $currentFiles = [],
+        ?callable $progressLogger = null,
+        string $folder = '',
+        ?callable $errorLogger = null,
+        ?callable $shouldCancel = null,
+    ): FileInfoScanResult {
+        $cancelled = false;
+        $cancelledAt = null;
+        $userShouldCancel = $shouldCancel === null ? null : \Closure::fromCallable($shouldCancel);
+        $checkpointSubs = self::checkpointSubs($subs);
+
+        $trackingCancel = $userShouldCancel === null
+            ? null
+            : static function (?string $path) use (&$cancelled, &$cancelledAt, $userShouldCancel): bool {
+                $isCancelled = (bool) $userShouldCancel($path);
+                if ($isCancelled && !$cancelled) {
+                    $cancelled = true;
+                    $cancelledAt = $path;
+                }
+
+                return $isCancelled;
+            };
+
+        $files = $this->walk(
+            $subs,
+            $ignoreMatcher,
+            $hashBlocks,
+            $blockSize,
+            $currentFiles,
+            $progressLogger,
+            $folder,
+            $errorLogger,
+            $trackingCancel,
+        );
+
+        return new FileInfoScanResult($files, $cancelled, $cancelledAt, $checkpointSubs);
+    }
+
+    /**
+     * @param list<string> $subs
      * @return list<FileInfo>
      */
     private function walkWithHashProgress(
@@ -850,6 +899,24 @@ final class FileInfoScanner
         }
 
         return $normalized;
+    }
+
+    /**
+     * @param list<string> $subs
+     * @return list<string>
+     */
+    private static function checkpointSubs(array $subs): array
+    {
+        $checkpointSubs = [];
+        foreach ($subs as $sub) {
+            if (!is_string($sub)) {
+                throw new \InvalidArgumentException('Scanner walk subs must be strings');
+            }
+
+            $checkpointSubs[] = self::normalizeWalkSub($sub);
+        }
+
+        return array_values(array_unique($checkpointSubs));
     }
 
     private static function isParentPath(string $name, string $parent): bool

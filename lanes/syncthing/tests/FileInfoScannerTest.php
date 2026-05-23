@@ -450,6 +450,64 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'walk checkpoint resumes after upstream cancellation boundary' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            syncthing_scanner_write($root, $dir . '/hero.jpg', 'abcdefgh');
+            syncthing_scanner_write($root, $dir . '/thumb.jpg', '12345');
+
+            $progress = [];
+            $cancelAfterFirstHash = false;
+            $scanner = new FileInfoScanner($root);
+            $first = $scanner->walkWithCheckpoint(
+                [$dir],
+                hashBlocks: true,
+                blockSize: 4,
+                progressLogger: static function (FolderScanProgress $event) use (&$progress, &$cancelAfterFirstHash): void {
+                    $progress[] = $event->toArray();
+                    $cancelAfterFirstHash = true;
+                },
+                folder: 'wordpress-media',
+                shouldCancel: static function (?string $path) use (&$cancelAfterFirstHash): bool {
+                    return $cancelAfterFirstHash && $path !== null;
+                },
+            );
+
+            $t->true($first->cancelled);
+            $t->same($dir . '/thumb.jpg', $first->cancelledAt);
+            $t->same([$dir, $dir . '/hero.jpg'], $first->completedPaths());
+            $t->same([$dir], $first->resumeSubs);
+            $t->same([['folder' => 'wordpress-media', 'current' => 8, 'total' => 14, 'rate' => 0.0]], $progress);
+            $t->same([
+                'cancelled' => true,
+                'cancelledAt' => $dir . '/thumb.jpg',
+                'resumeSubs' => [$dir],
+                'completedPaths' => [$dir, $dir . '/hero.jpg'],
+                'fileCount' => 2,
+            ], $first->toArray());
+
+            $resumeProgress = [];
+            $resumed = $scanner->walkWithCheckpoint(
+                $first->resumeSubs,
+                hashBlocks: true,
+                blockSize: 4,
+                currentFiles: $first->resumeCurrentFiles(),
+                progressLogger: static function (FolderScanProgress $event) use (&$resumeProgress): void {
+                    $resumeProgress[] = $event->toArray();
+                },
+                folder: 'wordpress-media',
+            );
+
+            $t->true(!$resumed->cancelled);
+            $t->same(null, $resumed->cancelledAt);
+            $t->same([$dir . '/thumb.jpg'], $resumed->completedPaths());
+            $t->same(hash('sha256', '1234'), $resumed->files[0]->blocks[0]->hashHex);
+            $t->same([['folder' => 'wordpress-media', 'current' => 5, 'total' => 6, 'rate' => 0.0]], $resumeProgress);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
     'walk retains current file block size within upstream hysteresis window' => static function (TestRunner $t): void {
         $root = syncthing_scanner_root();
         try {
