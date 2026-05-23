@@ -1,10 +1,10 @@
-# Independent Audit - 2026-05-23T04:20:57Z
+# Independent Audit - 2026-05-23T04:24:36Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, selected
 `lanes/*/lane-status.json` files needed to verify status drift, PHP shell-out
-usage in `lanes/`, `tools/`, and `scripts/`, and recent Git history through
-`c2906a96`.
+usage in `lanes/`, `tools/`, and `scripts/`, and recent Git history observed
+through `7b04576d`.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 or count bridge/generated/oracle tooling as native implementation progress.
@@ -20,14 +20,18 @@ or count bridge/generated/oracle tooling as native implementation progress.
    - Requirement at risk: `goal.md:3`, `goal.md:44`, `goal.md:45`, and
      `goal.md:49` require current progress coordination, visible dashboard
      status, and honest repo-wide test recording.
-   - Evidence: the current required command, run during this audit, exits `0`
-     with `183 test files, 17966 assertions, 0 failures`. But
+   - Evidence: the latest completed required command, rerun during this audit
+     after additional commits landed, exits `0` with
+     `183 test files, 18012 assertions, 0 failures`. A later LightningCSS
+     implementation/status commit landed after that run, so this remains a
+     moving-tree sample. Also,
      `porting.html` and `porting-summary.json` still publish the
      `2026-05-23 03:09:50 UTC` snapshot from `3f4ea3cda693`, while current
-     `HEAD` is `c2906a96f11c`. `progress.md` still carries stale lane phases
-     and the previous red-audit next step. Several lane statuses also carry
-     older root outcomes; for example Syncthing says root is red with 7
-     unrelated failures, while this audit's exact root run is green.
+     observed implementation history has advanced through `7b04576d`.
+     `progress.md` still carries stale lane phases.
+     Several lane statuses also carry older root outcomes; for example
+     Syncthing says root is red with 7 unrelated failures, while this audit's
+     exact root run is green.
    - Audit judgment: do not publish the dashboard or treat lane status root
      samples as authoritative until the supervisor regenerates all status files
      from one accepted green snapshot.
@@ -40,10 +44,11 @@ or count bridge/generated/oracle tooling as native implementation progress.
    - Requirement at risk: `goal.md:29`, `goal.md:31`, `goal.md:48`, and
      `goal.md:49` require small reviewable slices, precise blockers, verified
      agent integration, and recorded repo-wide tests.
-   - Evidence: after the green root run, `git status --short` reports `504`
-     entries, tracked-only status reports `74` entries, and
+   - Evidence: after the green root run and later moving-tree commits,
+     `git status --short` reports `502` entries, tracked-only status reports
+     `64` entries, and
      `git diff --shortstat` reports
-     `74 files changed, 11694 insertions(+), 531 deletions(-)`. Multiple
+     `64 files changed, 11883 insertions(+), 395 deletions(-)`. Multiple
      `latestCommit` fields are prose or dirty-batch labels rather than accepted
      SHAs, including "current lane batch", "uncommitted", "pending", and
      "root harness red" labels. `porting.html` still displays older SHAs and
@@ -141,11 +146,11 @@ Exact result for this audit:
 
 ```text
 exit status: 0
-183 test files, 17966 assertions, 0 failures
+183 test files, 18012 assertions, 0 failures
 ```
 
 This is a green dirty-worktree sample, not an accepted integration checkpoint,
-because the tree has 74 modified tracked files and hundreds of untracked
+because the tree has 64 modified tracked entries and hundreds of untracked
 coordination/evidence artifacts.
 
 ## Recommended Next Intervention
