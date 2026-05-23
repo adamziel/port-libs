@@ -1542,6 +1542,45 @@ return [
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('Review Notes', $blocks);
     },
+    'maps Mozilla medium-2 trailing syndication footer cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $imageAttributeRows, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/medium-2';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same($imageAttributeRows($expected), $imageAttributeRows($article->contentHtml));
+        $t->same([], $attributeValues($article->contentHtml, '//*[contains(., "Originally published at")]'));
+        $t->same([], $attributeValues($article->contentHtml, '//section'));
+    },
+    'removes trailing WordPress syndication source notes before block output' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Syndicated Review"></head><body><article>'
+            . '<div class="entry-content">'
+            . '<p>' . str_repeat('The importer should retain the syndicated article body while dropping source-platform footer notes. ', 3) . '</p>'
+            . '<p>' . str_repeat('This keeps the migrated post focused on editorial content and avoids adding a stale original-source note as a paragraph block. ', 2) . '</p>'
+            . '<section class="medium-source-note"><p><em>Originally published at <a href="https://old.example/post">old.example</a> on November 18, 2011. Help the word out. Recommend this article to your readers.</em></p></section>'
+            . '</div></article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://example.com/imported/syndicated-review');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Syndicated Review', $article->title);
+        $t->contains('retain the syndicated article body', $blocks);
+        $t->same(false, str_contains($article->text, 'Originally published at'), 'source-platform syndication footer should not survive extraction');
+        $t->same(false, str_contains($blocks, 'old.example'), 'source-platform syndication links should not become WordPress paragraph blocks');
+    },
     'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
         $source = (string) file_get_contents($fixture . '/source.html');

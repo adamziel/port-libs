@@ -1465,10 +1465,34 @@ final class ArticleExtractor
 
     private function removeTrailingArticleChrome(\DOMElement $scope): void
     {
-        while (($node = $this->lastElementChild($scope)) instanceof \DOMElement
-            && $this->isTrailingArticleChrome($node)) {
-            $node->parentNode?->removeChild($node);
-        }
+        do {
+            $changed = false;
+            while (($node = $this->lastElementChild($scope)) instanceof \DOMElement
+                && $this->isTrailingArticleChrome($node)) {
+                $node->parentNode?->removeChild($node);
+                $changed = true;
+            }
+
+            $xpath = new \DOMXPath($scope->ownerDocument);
+            $candidates = [];
+            foreach ($xpath->query('.//*[self::center or self::div or self::nav or self::p or self::section]', $scope) ?: [] as $node) {
+                if ($node instanceof \DOMElement) {
+                    $candidates[] = $node;
+                }
+            }
+
+            foreach (array_reverse($candidates) as $node) {
+                if (!$node->parentNode instanceof \DOMElement
+                    || !$this->isLastMeaningfulChild($node)
+                    || !$this->isTrailingArticleChrome($node)) {
+                    continue;
+                }
+
+                $node->parentNode->removeChild($node);
+                $changed = true;
+                break;
+            }
+        } while ($changed);
     }
 
     private function isTrailingArticleChrome(\DOMElement $node): bool
@@ -1483,6 +1507,10 @@ final class ArticleExtractor
         }
 
         $text = $this->normalizeWhitespace($node->textContent);
+        if ($this->isTrailingSyndicationSourceNote($text)) {
+            return true;
+        }
+
         if (mb_strlen($text) > 180) {
             return false;
         }
@@ -1499,6 +1527,30 @@ final class ArticleExtractor
         }
 
         return $imageCount > 0 && $this->linkDensity($node) >= 0.5 && ($linkCount >= 2 || $imageCount >= 2);
+    }
+
+    private function isTrailingSyndicationSourceNote(string $text): bool
+    {
+        if (mb_strlen($text) > 280) {
+            return false;
+        }
+
+        return preg_match('/^Originally published at\b/i', $text) === 1;
+    }
+
+    private function isLastMeaningfulChild(\DOMElement $node): bool
+    {
+        for ($sibling = $node->nextSibling; $sibling instanceof \DOMNode; $sibling = $sibling->nextSibling) {
+            if ($sibling instanceof \DOMText && !$this->isWhitespaceTextNode($sibling)) {
+                return false;
+            }
+
+            if ($sibling instanceof \DOMElement && !$this->isElementWithoutContent($sibling)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function hasSubstantialPreviousSibling(\DOMElement $node): bool
