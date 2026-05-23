@@ -1338,8 +1338,11 @@ final class ArticleExtractor
 
         $scopeText = mb_strlen($this->normalizeWhitespace($scope->textContent));
         $articleText = mb_strlen($this->normalizeWhitespace($article->textContent));
+        $articleParagraphs = $article->getElementsByTagName('p')->length;
         if ($articleText < 140 || ($scopeText > 0 && ($articleText / $scopeText) < 0.5)) {
-            return $scope;
+            if ($articleText < 500 || $articleParagraphs < 3) {
+                return $scope;
+            }
         }
 
         return $article;
@@ -1606,6 +1609,11 @@ final class ArticleExtractor
             . $node->getAttribute('data-testid') . ' '
             . $text
         );
+        if (preg_match('/\b(?:date|datum|timestamp|published|updated)\b/', $matchString) === 1
+            && mb_strlen($text) <= 80) {
+            return true;
+        }
+
         if (preg_match('/\b(byline|author|dateline|writtenby|p-author)\b/', $matchString) === 1) {
             return true;
         }
@@ -1616,6 +1624,10 @@ final class ArticleExtractor
         }
 
         if (preg_match('/\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2},\s+\d{4}\b/i', $text) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^\d{1,2}\.\d{1,2}\.\d{4}(?:\s+\d{1,2}:\d{2})?$/', $text) === 1) {
             return true;
         }
 
