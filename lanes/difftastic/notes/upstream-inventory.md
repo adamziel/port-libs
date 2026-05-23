@@ -142,10 +142,10 @@ The required root test runner was run after this JSON display highlight slice:
 php tools/run-tests.php
 ```
 
-The latest exact required root run for this batch is green on rerun after one transient shared-worktree failure:
+The latest exact required root run for this batch is green:
 
 ```text
-161 test files, 14617 assertions, 0 failures
+161 test files, 14646 assertions, 0 failures
 ```
 
 The difftastic-focused test file remains green with 111 tests, 582 assertions, and 0 failures via a direct `TestRunner` invocation.
