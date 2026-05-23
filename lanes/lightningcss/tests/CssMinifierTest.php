@@ -38,6 +38,30 @@ return [
             $minifier->minify('.scope { .parent & { color: red; } :not(&) { color: blue; } }')
         );
     },
+    'css minifier canonicalizes upstream no-target implicit nested selectors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{color:#00f;& .bar{color:red}}',
+            $minifier->minify('.foo { color: blue; .bar { color: red; } }')
+        );
+        $t->same(
+            '.foo{color:red;& .bar{color:green}color:#00f;& .baz{color:pink}}',
+            $minifier->minify('.foo { color: red; .bar { color: green; } color: blue; .baz { color: pink; } }')
+        );
+        $t->same(
+            '.wp-block-query{& .wp-block-post-title,& .wp-block-post-excerpt{margin-block-start:0}}',
+            $minifier->minify('.wp-block-query { .wp-block-post-title, .wp-block-post-excerpt { margin-block-start: 0; } }')
+        );
+    },
+    'css minifier preserves upstream no-target attached nested selectors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{color:#00f;&div{color:red}&span{color:purple}}',
+            $minifier->minify('.foo { color: blue; &div { color: red; } &span { color: purple; } }')
+        );
+    },
     'css minifier maps upstream legacy pseudo-element colon compaction' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -57,6 +81,63 @@ return [
     'css minifier shortens upstream color keywords in declaration values' => static function (TestRunner $t): void {
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
+    },
+    'css minifier maps upstream font-family string serialization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{font-family:"sans-serif"}', $minifier->minify(".foo { font-family: 'sans-serif'; }"));
+        $t->same('.foo{font-family:sans-serif}', $minifier->minify('.foo { font-family: sans-serif; }'));
+        $t->same('.foo{font-family:"default"}', $minifier->minify(".foo { font-family: 'default'; }"));
+        $t->same('.foo{font-family:default}', $minifier->minify('.foo { font-family: default; }'));
+        $t->same('.foo{font-family:"inherit"}', $minifier->minify(".foo { font-family: 'inherit'; }"));
+        $t->same('.foo{font-family:inherit}', $minifier->minify('.foo { font-family: inherit; }'));
+        $t->same('.foo{font-family:inherit test}', $minifier->minify('.foo { font-family: inherit test; }'));
+        $t->same('.foo{font-family:inherit test}', $minifier->minify(".foo { font-family: 'inherit test'; }"));
+        $t->same('.foo{font-family:revert}', $minifier->minify('.foo { font-family: revert; }'));
+        $t->same('.foo{font-family:"revert"}', $minifier->minify(".foo { font-family: 'revert'; }"));
+        $t->same('.foo{font-family:revert-layer}', $minifier->minify('.foo { font-family: revert-layer; }'));
+        $t->same('.foo{font-family:revert-layer,serif}', $minifier->minify('.foo { font-family: revert-layer, serif; }'));
+        $t->same('.foo{font-family:"revert",sans-serif}', $minifier->minify(".foo { font-family: 'revert', sans-serif; }"));
+        $t->same('.foo{font-family:"revert",foo,sans-serif}', $minifier->minify(".foo { font-family: 'revert', foo, sans-serif; }"));
+        $t->same('.foo{font-family:""}', $minifier->minify(".foo { font-family: ''; }"));
+        $t->same('@font-face{font-family:"revert"}', $minifier->minify("@font-face { font-family: 'revert'; }"));
+        $t->same('@font-face{font-family:"revert-layer"}', $minifier->minify("@font-face { font-family: 'revert-layer'; }"));
+        $t->same(
+            '.foo{font-family:Helvetica,Times New Roman,sans-serif;font-size:12px;font-stretch:125%}',
+            $minifier->minify('.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-stretch: expanded; }')
+        );
+    },
+    'css minifier maps upstream font shorthand composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{font:italic small-caps 700 125% 12px/1.2em Helvetica,Times New Roman,sans-serif}',
+            $minifier->minify(
+                '.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-weight: bold; font-style: italic; font-stretch: expanded; font-variant-caps: small-caps; line-height: 1.2em; }'
+            )
+        );
+        $t->same(
+            '.foo{font:italic 700 125% 12px/1.2em Helvetica,Times New Roman,sans-serif;font-variant-caps:all-small-caps}',
+            $minifier->minify(
+                '.foo { font-family: "Helvetica", "Times New Roman", sans-serif; font-size: 12px; font-weight: bold; font-style: italic; font-stretch: expanded; font-variant-caps: all-small-caps; line-height: 1.2em; }'
+            )
+        );
+        $t->same(
+            '.foo{font:12px/1.2em Helvetica,Times New Roman,sans-serif}',
+            $minifier->minify('.foo { font: 12px "Helvetica", "Times New Roman", sans-serif; line-height: 1.2em; }')
+        );
+        $t->same(
+            '.foo{font:12px Helvetica,Times New Roman,sans-serif;line-height:var(--lh)}',
+            $minifier->minify('.foo { font: 12px "Helvetica", "Times New Roman", sans-serif; line-height: var(--lh); }')
+        );
+    },
+    'css minifier maps upstream font shorthand default omission' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{font:600 9px Charcoal}', $minifier->minify('.foo { font: normal normal 600 9px/normal Charcoal; }'));
+        $t->same('.foo{font:500 medium Charcoal}', $minifier->minify('.foo { font: normal normal 500 medium/normal Charcoal; }'));
+        $t->same('.foo{font:400 medium Charcoal}', $minifier->minify('.foo { font: normal normal 400 medium Charcoal; }'));
+        $t->same('.foo{font:500 medium/10px Charcoal}', $minifier->minify('.foo { font: normal normal 500 medium/10px Charcoal; }'));
     },
     'css minifier maps upstream import rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -1209,6 +1290,24 @@ CSS;
 
         $t->same(
             '.wp-block-query-pagination a{transition:opacity 90ms ease-in-out .5s,transform .2s}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress theme font stacks serialize without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-post-title {
+  font-family: "Inter", "Helvetica Neue", sans-serif;
+  font-stretch: expanded;
+}
+
+@font-face {
+  font-family: "revert";
+  src: url("./fonts/revert.woff2") format("woff2");
+}
+CSS;
+
+        $t->same(
+            '.wp-block-post-title{font-family:Inter,Helvetica Neue,sans-serif;font-stretch:125%}@font-face{font-family:"revert";src:url("./fonts/revert.woff2") format("woff2")}',
             (new CssMinifier())->minify($css)
         );
     },

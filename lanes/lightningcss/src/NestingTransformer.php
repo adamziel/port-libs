@@ -14,6 +14,25 @@ final class NestingTransformer
     }
 
     /**
+     * @param array{browsers?:array<string, int|float|string>,include?:mixed,exclude?:mixed} $targets
+     */
+    public function transformForTargets(string $css, array $targets = []): string
+    {
+        if ($this->featureListContains($targets['exclude'] ?? [], 'nesting')) {
+            return (new CssMinifier())->minify($css);
+        }
+
+        if (
+            $this->featureListContains($targets['include'] ?? [], 'nesting')
+            || $this->targetsRequireNestingLowering($targets['browsers'] ?? [])
+        ) {
+            return $this->lower($css);
+        }
+
+        return (new CssMinifier())->minify($css);
+    }
+
+    /**
      * @param list<string>|null $parentSelectors
      */
     private function lowerRuleList(string $css, ?array $parentSelectors): string
@@ -197,6 +216,12 @@ final class NestingTransformer
                     $nested = '& ' . $nested;
                 }
 
+                $distributed = $this->distributeAttachedParentReference($parentSelectors, $nested);
+                if ($distributed !== null) {
+                    array_push($resolved, ...$distributed);
+                    continue;
+                }
+
                 $resolved[] = $this->resolveParentReferences($nested, $parentSelectors);
                 continue;
             }
@@ -209,6 +234,76 @@ final class NestingTransformer
         }
 
         return $resolved;
+    }
+
+    /**
+     * @param list<string> $parentSelectors
+     * @return list<string>|null
+     */
+    private function distributeAttachedParentReference(array $parentSelectors, string $selector): ?array
+    {
+        if (count($parentSelectors) < 2 || substr_count($selector, '&') !== 1) {
+            return null;
+        }
+
+        $selector = trim($selector);
+        if (preg_match('/^&(?=[.#:\[])(.+)$/s', $selector, $matches) !== 1) {
+            return null;
+        }
+
+        $suffix = $matches[1];
+        if (
+            $suffix === ''
+            || str_contains($suffix, '&')
+            || count($this->splitTopLevel($suffix, ',')) !== 1
+            || $this->hasTopLevelCombinator($suffix)
+        ) {
+            return null;
+        }
+
+        $sharedKey = null;
+        foreach ($parentSelectors as $parentSelector) {
+            $parentSelector = trim($parentSelector);
+            if (
+                $parentSelector === ''
+                || str_contains($parentSelector, ':is(')
+                || count($this->splitTopLevel($parentSelector, ',')) !== 1
+                || $this->hasTopLevelCombinator($parentSelector)
+            ) {
+                return null;
+            }
+
+            $key = $this->leadingSimpleSelectorKey($parentSelector);
+            if ($key === null) {
+                return null;
+            }
+
+            $sharedKey ??= $key;
+            if ($key !== $sharedKey) {
+                return null;
+            }
+        }
+
+        return array_map(
+            static fn (string $parentSelector): string => trim($parentSelector) . $suffix,
+            $parentSelectors
+        );
+    }
+
+    private function leadingSimpleSelectorKey(string $selector): ?string
+    {
+        $selector = trim($selector);
+        if ($selector === '') {
+            return null;
+        }
+
+        $pattern = '/^(?:[#.][-_a-zA-Z0-9]+|[A-Za-z_][-_a-zA-Z0-9]*|\|[A-Za-z_][-_a-zA-Z0-9]*'
+            . '|\*\|[A-Za-z_][-_a-zA-Z0-9]*|[A-Za-z_][-_a-zA-Z0-9]*\|[A-Za-z_][-_a-zA-Z0-9]*)/';
+        if (preg_match($pattern, $selector, $matches) !== 1) {
+            return null;
+        }
+
+        return strtolower($matches[0]);
     }
 
     /**
@@ -375,6 +470,71 @@ final class NestingTransformer
         $selector = ltrim($selector);
 
         return $selector !== '' && in_array($selector[0], ['>', '+', '~'], true);
+    }
+
+    private function featureListContains(mixed $features, string $feature): bool
+    {
+        $feature = strtolower($feature);
+        if (is_string($features)) {
+            return strtolower($features) === $feature;
+        }
+
+        if (!is_array($features)) {
+            return false;
+        }
+
+        foreach ($features as $name => $enabled) {
+            if (is_string($name) && strtolower($name) === $feature) {
+                return (bool) $enabled;
+            }
+
+            if (is_string($enabled) && strtolower($enabled) === $feature) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function targetsRequireNestingLowering(mixed $browsers): bool
+    {
+        if (!is_array($browsers)) {
+            return false;
+        }
+
+        $support = [
+            'chrome' => 112.0,
+            'edge' => 112.0,
+            'firefox' => 117.0,
+            'ios' => 16.5,
+            'ios-safari' => 16.5,
+            'ios_saf' => 16.5,
+            'safari' => 16.5,
+        ];
+
+        foreach ($browsers as $browser => $version) {
+            $name = strtolower(str_replace(' ', '-', (string) $browser));
+            if (in_array($name, ['ie', 'internet-explorer'], true)) {
+                return true;
+            }
+
+            if (!isset($support[$name])) {
+                continue;
+            }
+
+            if ($this->targetMajorVersion($version) < $support[$name]) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function targetMajorVersion(int|float|string $version): float
+    {
+        $numeric = (float) $version;
+
+        return $numeric >= 65536 ? (float) (((int) $numeric) >> 16) : $numeric;
     }
 
     private function hasTopLevelCombinator(string $selector): bool

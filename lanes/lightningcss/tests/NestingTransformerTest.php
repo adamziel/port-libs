@@ -36,6 +36,23 @@ CSS;
             (new NestingTransformer())->lower($css)
         );
     },
+    'nesting transformer maps upstream nested attached selector list lowering' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.a {
+  &.b,
+  &.c {
+    &.d {
+      color: red;
+    }
+  }
+}
+CSS;
+
+        $t->same(
+            '.a.b.d,.a.c.d{color:red}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
     'nesting transformer maps upstream implicit descendant and recursive nesting' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 figure {
@@ -213,6 +230,59 @@ CSS;
             (new NestingTransformer())->lower($css)
         );
     },
+    'nesting transformer recovers upstream styled-jsx placeholder declaration values' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.container {
+  --local-var: --styled-jsx-placeholder-0__;
+  color: var(--text-color);
+  background: linear-gradient(to right, --styled-jsx-placeholder-1__, --styled-jsx-placeholder-2__);
+
+  .item {
+    transform: translate(calc(var(--x) + --styled-jsx-placeholder-3__px), calc(var(--y) + --styled-jsx-placeholder-4__px));
+  }
+
+  div {
+    margin: calc(10px + --styled-jsx-placeholder-5__px);
+  }
+}
+CSS;
+
+        $t->same(
+            '.container{--local-var:--styled-jsx-placeholder-0__;color:var(--text-color);background:linear-gradient(to right,--styled-jsx-placeholder-1__,--styled-jsx-placeholder-2__)}.container .item{transform:translate(calc(var(--x) + --styled-jsx-placeholder-3__px),calc(var(--y) + --styled-jsx-placeholder-4__px))}.container div{margin:calc(10px + --styled-jsx-placeholder-5__px)}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
+    'nesting transformer honors explicit nesting include and exclude targets' => static function (TestRunner $t): void {
+        $transformer = new NestingTransformer();
+        $css = '.foo { color: blue; & > .bar { color: red; } }';
+
+        $t->same(
+            '.foo{color:#00f}.foo>.bar{color:red}',
+            $transformer->transformForTargets($css, [
+                'browsers' => ['chrome' => 112],
+                'include' => ['nesting'],
+            ])
+        );
+        $t->same(
+            '.foo{color:#00f;&>.bar{color:red}}',
+            $transformer->transformForTargets($css, [
+                'browsers' => ['chrome' => 50],
+                'exclude' => ['nesting'],
+            ])
+        );
+        $t->same(
+            '.foo{color:#00f;&>.bar{color:red}}',
+            $transformer->transformForTargets($css)
+        );
+        $t->same(
+            '.foo{color:#00f;&>.bar{color:red}}',
+            $transformer->transformForTargets($css, ['browsers' => ['chrome' => 112]])
+        );
+        $t->same(
+            '.foo{color:#00f}.foo>.bar{color:red}',
+            $transformer->transformForTargets($css, ['browsers' => ['chrome' => 95]])
+        );
+    },
     'nesting transformer maps upstream nested scope boundary lowering' => static function (TestRunner $t): void {
         $transformer = new NestingTransformer();
 
@@ -289,6 +359,29 @@ CSS;
 
         $t->same(
             '@layer theme.blocks{.wp-block-query .wp-block-post-title{color:#ff0}}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
+    'wordpress styled-jsx placeholders recover inside nested block CSS' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover {
+  --wp--custom--cover-offset: --styled-jsx-placeholder-0__;
+  background: linear-gradient(to bottom, --styled-jsx-placeholder-1__, var(--wp--preset--color--base));
+
+  .wp-block-cover__inner-container {
+    transform: translateY(calc(var(--wp--style--block-gap) + --styled-jsx-placeholder-2__px));
+  }
+
+  @media (max-width: --styled-jsx-placeholder-3__) {
+    .wp-block-heading {
+      margin-block-start: calc(10px + --styled-jsx-placeholder-4__px);
+    }
+  }
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover{--wp--custom--cover-offset:--styled-jsx-placeholder-0__;background:linear-gradient(to bottom,--styled-jsx-placeholder-1__,var(--wp--preset--color--base))}.wp-block-cover .wp-block-cover__inner-container{transform:translateY(calc(var(--wp--style--block-gap) + --styled-jsx-placeholder-2__px))}@media (width<=--styled-jsx-placeholder-3__){.wp-block-cover .wp-block-heading{margin-block-start:calc(10px + --styled-jsx-placeholder-4__px)}}',
             (new NestingTransformer())->lower($css)
         );
     },

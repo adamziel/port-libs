@@ -77,10 +77,12 @@ final class CssMinifier
         }
 
         $css = $this->minifyContainerQueries($this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output)))));
+        $css = $this->canonicalizeImplicitNestedSelectors($css);
         $css = $this->minifyImportRules($css);
         $css = $this->minifySupportsRules($css);
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
+        $css = $this->composeFontDeclarationBlocks($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
@@ -693,6 +695,85 @@ final class CssMinifier
         return $output;
     }
 
+    private function canonicalizeImplicitNestedSelectors(string $css): string
+    {
+        return $this->canonicalizeImplicitNestedSelectorsInRuleList($css, false);
+    }
+
+    private function canonicalizeImplicitNestedSelectorsInRuleList(string $css, bool $insideStyleRule): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $preludePrefix = substr($css, $cursor, $open - $cursor);
+            $statementBoundary = $this->lastTopLevelSemicolon($preludePrefix);
+            $statementPrefix = '';
+            if ($statementBoundary !== null) {
+                $statementPrefix = substr($preludePrefix, 0, $statementBoundary + 1);
+                $preludePrefix = substr($preludePrefix, $statementBoundary + 1);
+            }
+
+            $prelude = trim($preludePrefix);
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $isAtRule = str_starts_with($prelude, '@');
+            $body = $this->canonicalizeImplicitNestedSelectorsInRuleList(
+                substr($css, $open + 1, $close - $open - 1),
+                $isAtRule ? $insideStyleRule : true
+            );
+
+            if ($insideStyleRule) {
+                $prelude = $this->canonicalizeNestedStylePrelude($prelude);
+            }
+
+            $output .= $statementPrefix . $prelude . '{' . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function canonicalizeNestedStylePrelude(string $prelude): string
+    {
+        if ($prelude === '' || str_starts_with($prelude, '@') || str_starts_with($prelude, '--')) {
+            return $prelude;
+        }
+
+        return implode(
+            ',',
+            array_map(
+                fn (string $selector): string => $this->canonicalizeImplicitNestedSelector($selector),
+                $this->splitTopLevel($prelude, ',')
+            )
+        );
+    }
+
+    private function canonicalizeImplicitNestedSelector(string $selector): string
+    {
+        $selector = trim($selector);
+        if ($selector === '' || str_contains($selector, '&')) {
+            return $selector;
+        }
+
+        return $this->startsWithSelectorCombinator($selector)
+            ? '&' . $selector
+            : '& ' . $selector;
+    }
+
+    private function startsWithSelectorCombinator(string $selector): bool
+    {
+        $selector = ltrim($selector);
+
+        return $selector !== '' && in_array($selector[0], ['>', '+', '~'], true);
+    }
+
     private function minifyMediaQueries(string $css): string
     {
         $output = '';
@@ -1242,8 +1323,13 @@ final class CssMinifier
     private function currentPropertyCandidate(string $output): string
     {
         $block = strrpos($output, '{');
+        $closeBlock = strrpos($output, '}');
         $semicolon = strrpos($output, ';');
-        $start = max($block === false ? -1 : $block, $semicolon === false ? -1 : $semicolon) + 1;
+        $start = max(
+            $block === false ? -1 : $block,
+            $closeBlock === false ? -1 : $closeBlock,
+            $semicolon === false ? -1 : $semicolon
+        ) + 1;
 
         return trim(substr($output, $start));
     }
@@ -1310,12 +1396,404 @@ final class CssMinifier
         $value = $this->minifyCaretValue($property, $value);
         $value = $this->minifyListStyleValue($property, $value);
         $value = $this->minifyContainerDeclarationValue($property, $value);
+        $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
-        if (!str_starts_with($property, '--')) {
+        if (!str_starts_with($property, '--') && !$this->isFontFamilySensitiveProperty($property)) {
             $value = $this->minifyColorKeywords($value);
         }
 
         return $value;
+    }
+
+    private function minifyFontValue(string $property, string $value): string
+    {
+        return match (strtolower($property)) {
+            'font' => $this->minifyFontShorthandValue($value),
+            'font-family' => $this->minifyFontFamilyList($value),
+            'font-style' => $this->minifyFontStyleValue($value),
+            'font-stretch' => $this->minifyFontStretchValue($value),
+            'font-variant-caps' => strtolower(trim($value)),
+            'font-weight' => $this->minifyFontWeightValue($value),
+            default => $value,
+        };
+    }
+
+    private function minifyFontShorthandValue(string $value): string
+    {
+        $components = $this->parseFontShorthandComponents($value);
+
+        return $components === null ? trim($value) : $this->serializeFontShorthandComponents($components);
+    }
+
+    /**
+     * @return array{style:string,variant:string,weight:string,stretch:string,size:string,lineHeight:string,family:string,explicitWeight:bool}|null
+     */
+    private function parseFontShorthandComponents(string $value): ?array
+    {
+        if (stripos($value, 'var(') !== false) {
+            return null;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $components = [
+            'style' => 'normal',
+            'variant' => 'normal',
+            'weight' => 'normal',
+            'stretch' => 'normal',
+            'size' => '',
+            'lineHeight' => 'normal',
+            'family' => '',
+            'explicitWeight' => false,
+        ];
+
+        foreach ($tokens as $index => $token) {
+            $sizeAndLineHeight = $this->splitTopLevel($token, '/');
+            if (count($sizeAndLineHeight) > 2) {
+                return null;
+            }
+
+            $size = $sizeAndLineHeight[0];
+            if ($this->isFontSizeToken($size)) {
+                $components['size'] = $this->minifyFontSizeValue($size);
+                if (count($sizeAndLineHeight) === 2) {
+                    if ($sizeAndLineHeight[1] === '') {
+                        return null;
+                    }
+                    $components['lineHeight'] = $this->minifyFontLineHeightValue($sizeAndLineHeight[1]);
+                }
+
+                $family = trim(implode(' ', array_slice($tokens, $index + 1)));
+                if ($family === '') {
+                    return null;
+                }
+
+                $components['family'] = $this->minifyFontFamilyList($family);
+
+                return $components;
+            }
+
+            if (!$this->applyFontPreSizeToken($components, $token)) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{style:string,variant:string,weight:string,stretch:string,size:string,lineHeight:string,family:string,explicitWeight:bool} $components
+     */
+    private function serializeFontShorthandComponents(array $components): string
+    {
+        $parts = [];
+        if ($components['style'] !== 'normal') {
+            $parts[] = $components['style'];
+        }
+        if ($components['variant'] === 'small-caps') {
+            $parts[] = $components['variant'];
+        }
+        if ($components['weight'] !== 'normal' && ($components['weight'] !== '400' || $components['explicitWeight'])) {
+            $parts[] = $components['weight'];
+        }
+        if ($components['stretch'] !== 'normal') {
+            $parts[] = $components['stretch'];
+        }
+
+        $size = $components['size'];
+        if ($components['lineHeight'] !== 'normal') {
+            $size .= '/' . $components['lineHeight'];
+        }
+
+        $parts[] = $size;
+        $parts[] = $components['family'];
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @param array{style:string,variant:string,weight:string,stretch:string,size:string,lineHeight:string,family:string,explicitWeight:bool} $components
+     */
+    private function applyFontPreSizeToken(array &$components, string $token): bool
+    {
+        $lower = strtolower(trim($token));
+        if ($lower === '') {
+            return true;
+        }
+
+        if ($lower === 'normal') {
+            return true;
+        }
+
+        if (in_array($lower, ['italic', 'oblique'], true)) {
+            $components['style'] = $lower;
+
+            return true;
+        }
+
+        if ($lower === 'small-caps') {
+            $components['variant'] = $lower;
+
+            return true;
+        }
+
+        if ($this->isFontWeightToken($lower)) {
+            $components['weight'] = $this->minifyFontWeightValue($lower);
+            $components['explicitWeight'] = true;
+
+            return true;
+        }
+
+        if ($this->isFontStretchToken($lower)) {
+            $components['stretch'] = $this->minifyFontStretchValue($lower);
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function isFontSizeToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+        if (in_array($lower, [
+            'xx-small',
+            'x-small',
+            'small',
+            'medium',
+            'large',
+            'x-large',
+            'xx-large',
+            'xxx-large',
+            'larger',
+            'smaller',
+        ], true)) {
+            return true;
+        }
+
+        return preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-z]+|%))$/i', $lower) === 1
+            || preg_match('/^(?:calc|min|max|clamp)\(/i', $lower) === 1;
+    }
+
+    private function minifyFontSizeValue(string $value): string
+    {
+        return $this->minifyNumericDimensionToken(strtolower(trim($value)));
+    }
+
+    private function minifyFontLineHeightValue(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if ($value === 'normal') {
+            return 'normal';
+        }
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1) {
+            return $this->minifyNumber((float) $value);
+        }
+
+        return $this->minifyNumericDimensionToken($value);
+    }
+
+    private function minifyNumericDimensionToken(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(?:([a-z]+)|(%))$/i', $value, $matches) !== 1) {
+            return $value;
+        }
+
+        $unit = strtolower(($matches[2] ?? '') !== '' ? $matches[2] : '%');
+
+        return $this->minifyNumber((float) $matches[1]) . $unit;
+    }
+
+    private function isFontFamilySensitiveProperty(string $property): bool
+    {
+        return in_array(strtolower($property), ['font', 'font-family'], true);
+    }
+
+    private function minifyFontFamilyList(string $value): string
+    {
+        return implode(',', array_map(
+            fn (string $family): string => $this->minifyFontFamilyName($family),
+            $this->splitTopLevel($value, ',')
+        ));
+    }
+
+    private function minifyFontFamilyName(string $family): string
+    {
+        $family = trim($family);
+        if ($family === '') {
+            return $family;
+        }
+
+        $unquoted = $this->unquoteCssString($family);
+        if ($unquoted === null) {
+            return $family;
+        }
+
+        $normalized = trim(preg_replace('/\s+/', ' ', $unquoted) ?? $unquoted);
+        if ($normalized !== '' && $this->canSerializeUnquotedFontFamily($normalized)) {
+            return $normalized;
+        }
+
+        return $this->quoteCssString($normalized);
+    }
+
+    private function minifyFontStretchValue(string $value): string
+    {
+        $parts = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($parts) === 2 && strcasecmp($parts[0], $parts[1]) === 0) {
+            return $this->minifyFontStretchValue($parts[0]);
+        }
+
+        $stretch = [
+            'normal' => 'normal',
+            'ultra-condensed' => '50%',
+            'extra-condensed' => '62.5%',
+            'condensed' => '75%',
+            'semi-condensed' => '87.5%',
+            'semi-expanded' => '112.5%',
+            'expanded' => '125%',
+            'extra-expanded' => '150%',
+            'ultra-expanded' => '200%',
+        ];
+
+        return $stretch[strtolower(trim($value))] ?? $value;
+    }
+
+    private function isFontStretchToken(string $value): bool
+    {
+        return in_array(strtolower(trim($value)), [
+            'normal',
+            'ultra-condensed',
+            'extra-condensed',
+            'condensed',
+            'semi-condensed',
+            'semi-expanded',
+            'expanded',
+            'extra-expanded',
+            'ultra-expanded',
+        ], true) || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)%)$/', trim($value)) === 1;
+    }
+
+    private function minifyFontWeightValue(string $value): string
+    {
+        $parts = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($parts) === 2 && strcasecmp($parts[0], $parts[1]) === 0) {
+            return $this->minifyFontWeightValue($parts[0]);
+        }
+
+        if (count($parts) > 1) {
+            return implode(' ', array_map(fn (string $part): string => $this->minifyFontWeightValue($part), $parts));
+        }
+
+        $lower = strtolower(trim($value));
+
+        return match ($lower) {
+            'bold' => '700',
+            'normal' => '400',
+            default => preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $lower) === 1
+                ? $this->minifyNumber((float) $lower)
+                : trim($value),
+        };
+    }
+
+    private function isFontWeightToken(string $value): bool
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['bold', 'bolder', 'lighter'], true)
+            || preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1;
+    }
+
+    private function minifyFontStyleValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if ($tokens === []) {
+            return trim($value);
+        }
+        if ($tokens[0] !== 'oblique') {
+            return implode(' ', $tokens);
+        }
+        if (count($tokens) === 3 && $tokens[1] === $tokens[2]) {
+            return $tokens[1] === '0deg' ? 'oblique' : 'oblique ' . $tokens[1];
+        }
+        if (count($tokens) === 2 && $tokens[1] === '0deg') {
+            return 'oblique';
+        }
+
+        return implode(' ', $tokens);
+    }
+
+    private function canSerializeUnquotedFontFamily(string $family): bool
+    {
+        $tokens = preg_split('/\s+/', $family) ?: [];
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        if ($tokens === []) {
+            return false;
+        }
+
+        foreach ($tokens as $token) {
+            if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $token) !== 1) {
+                return false;
+            }
+        }
+
+        if (count($tokens) === 1) {
+            return !in_array(strtolower($tokens[0]), $this->reservedQuotedFontFamilyNames(), true);
+        }
+
+        return true;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function reservedQuotedFontFamilyNames(): array
+    {
+        return [
+            'cursive',
+            'default',
+            'emoji',
+            'fangsong',
+            'fantasy',
+            'inherit',
+            'initial',
+            'math',
+            'monospace',
+            'revert',
+            'revert-layer',
+            'sans-serif',
+            'serif',
+            'system-ui',
+            'ui-monospace',
+            'ui-rounded',
+            'ui-sans-serif',
+            'ui-serif',
+            'unset',
+        ];
+    }
+
+    private function unquoteCssString(string $value): ?string
+    {
+        $quote = $value[0] ?? '';
+        if (($quote !== '"' && $quote !== "'") || substr($value, -1) !== $quote) {
+            return null;
+        }
+
+        $inner = substr($value, 1, -1);
+        if (str_contains($inner, '\\')) {
+            return null;
+        }
+
+        return $inner;
+    }
+
+    private function quoteCssString(string $value): string
+    {
+        return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $value) . '"';
     }
 
     private function minifyTransformValue(string $property, string $value): string
@@ -4211,6 +4689,48 @@ final class CssMinifier
         return $output;
     }
 
+    private function composeFontDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeFontDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeFontDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeFontDeclarationList(string $body): string
+    {
+        if (stripos($body, 'font') === false && stripos($body, 'line-height') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteFontGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
     private function composeContainerDeclarationList(string $body): string
     {
         if (stripos($body, 'container') === false) {
@@ -4266,6 +4786,144 @@ final class CssMinifier
                 $entries[$latest['name']]['value'],
                 $entries[$latest['type']]['value']
             ),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteFontGroup(array &$entries): void
+    {
+        $properties = [
+            'font' => 'font',
+            'family' => 'font-family',
+            'size' => 'font-size',
+            'weight' => 'font-weight',
+            'style' => 'font-style',
+            'stretch' => 'font-stretch',
+            'variant' => 'font-variant-caps',
+            'lineHeight' => 'line-height',
+        ];
+        $relevantNames = array_flip($properties);
+        $relevantIndices = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !isset($relevantNames[$entry['property']])) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            $relevantIndices[] = $index;
+            if ($entry['property'] === 'font') {
+                $lastShorthand = $index;
+            }
+        }
+
+        if ($relevantIndices === []) {
+            return;
+        }
+
+        if ($lastShorthand !== null) {
+            foreach ($relevantIndices as $index) {
+                if ($index < $lastShorthand) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+
+            $state = $this->parseFontShorthandComponents($entries[$lastShorthand]['value']);
+            if ($state === null) {
+                return;
+            }
+
+            $changed = false;
+            foreach ($relevantIndices as $index) {
+                if ($index <= $lastShorthand || $entries[$index]['drop']) {
+                    continue;
+                }
+
+                $component = $relevantNames[$entries[$index]['property']];
+                if ($component !== 'lineHeight' || $this->containsCustomPropertyReference($entries[$index]['value'])) {
+                    continue;
+                }
+
+                $state['lineHeight'] = $this->minifyFontLineHeightValue($entries[$index]['value']);
+                $entries[$index]['drop'] = true;
+                $changed = true;
+            }
+
+            if ($changed) {
+                $entries[$lastShorthand]['value'] = $this->serializeFontShorthandComponents($state);
+            }
+
+            return;
+        }
+
+        $latest = [];
+        foreach ($relevantIndices as $index) {
+            $component = $relevantNames[$entries[$index]['property']];
+            if ($component !== 'font') {
+                $latest[$component] = $index;
+            }
+        }
+
+        foreach (['family', 'size', 'weight', 'style', 'stretch', 'lineHeight'] as $required) {
+            if (!isset($latest[$required])) {
+                return;
+            }
+        }
+
+        foreach (['family', 'size', 'lineHeight'] as $guarded) {
+            if ($this->containsCustomPropertyReference($entries[$latest[$guarded]]['value'])) {
+                return;
+            }
+        }
+
+        $variant = 'normal';
+        $preserveVariant = null;
+        if (isset($latest['variant'])) {
+            $variant = strtolower(trim($entries[$latest['variant']]['value']));
+            if (!in_array($variant, ['normal', 'small-caps'], true)) {
+                $preserveVariant = $latest['variant'];
+                $variant = 'normal';
+            }
+        }
+
+        $included = [
+            $latest['family'],
+            $latest['size'],
+            $latest['weight'],
+            $latest['style'],
+            $latest['stretch'],
+            $latest['lineHeight'],
+        ];
+        if (isset($latest['variant']) && $preserveVariant === null) {
+            $included[] = $latest['variant'];
+        }
+
+        $replaceAt = min($included);
+        foreach ($relevantIndices as $index) {
+            if (in_array($index, $included, true)) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'font',
+            'name' => 'font',
+            'value' => $this->serializeFontShorthandComponents([
+                'style' => $this->minifyFontStyleValue($entries[$latest['style']]['value']),
+                'variant' => $variant,
+                'weight' => $this->minifyFontWeightValue($entries[$latest['weight']]['value']),
+                'stretch' => $this->minifyFontStretchValue($entries[$latest['stretch']]['value']),
+                'size' => $this->minifyFontSizeValue($entries[$latest['size']]['value']),
+                'lineHeight' => $this->minifyFontLineHeightValue($entries[$latest['lineHeight']]['value']),
+                'family' => $this->minifyFontFamilyList($entries[$latest['family']]['value']),
+                'explicitWeight' => true,
+            ]),
             'important' => false,
             'drop' => false,
         ];
