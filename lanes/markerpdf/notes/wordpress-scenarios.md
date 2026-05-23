@@ -12,6 +12,8 @@ The lane now also maps the supplied-data boundary of `marker/pdf/extract_text.py
 
 The lane now also maps `marker/schema/page.py` page helper properties. `PageInspector` flattens page lines, filters nonblank lines and spans, extracts font-size and line-height distributions, and exposes Marker's `prelim_text` view for WordPress review metadata before editorial handoff.
 
+The lane now also maps focused `marker/schema/block.py` block-structure helpers. `BlockStructure` computes line-derived block bboxes, splits a PDF text block at an upstream-style line index boundary, and reports the first-span x-coordinate needed by import review tooling.
+
 The lane now also maps `marker/pdf/utils.py::find_filetype`. `FiletypeDetector` uses magic-MIME style detection to accept PDF uploads, reject extension-spoofed non-PDF payloads as `other`, and preserve the upstream settings-backed MIME mapping branch.
 
 The lane now also maps top-level `convert.py` batch processing. `BatchConverter` plans folder conversions with upstream chunk sizing, loads `--metadata_file` JSON keyed by basename, applies existing-output skips, min-length preflight, empty-output skips, nonfatal error reporting, and Marker-style output artifact persistence around a supplied native conversion callback.
@@ -35,6 +37,8 @@ The lane now also maps `marker_app.py::img_to_html` and `marker_app.py::markdown
 The lane now also maps `marker_server.py` API/upload behavior. `MarkerServerAdapter` normalizes FastAPI-style request params, validates uploaded PDFs, writes and removes the temporary upload path, returns Marker's local success/error response shape with base64 image payloads, and models Datalab remote polling through a supplied callback rather than running FastAPI, Uvicorn, requests, or Python models.
 
 The lane now also maps `marker/models.py` and `marker/utils.py` at the model-loading preflight boundary. `ModelPipelinePlanner` records the upstream `PYTORCH_ENABLE_MPS_FALLBACK` environment flag, setup helper loader and processor attachment semantics, `load_all_models` load order versus the returned `model_lst` order consumed by `convert_single_pdf`, explicit device/dtype propagation, and CUDA-only cache cleanup without importing Python, Torch, Surya, Texify, or tabled models.
+
+The lane now also maps the early `marker/convert.py::convert_single_pdf` orchestration boundary. `CorePdfConverter` applies metadata language override, engine-specific OCR language normalization, OCR-all-pages folding, filetype metadata, unsupported-filetype short-circuiting, supplied page/TOC metadata, and low-resolution image render planning before handing supplied pages to a native downstream pipeline.
 
 The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and `#` escaping. That gives the WordPress import path a native cleanup step before block rendering.
 
@@ -78,6 +82,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-reading-order-import.php` maps Marker's upstream layout ordering path into a two-column Gutenberg import. It applies model order positions by maximum bounding-box overlap, uses Marker's vertical-bucket/horizontal tie sorting, keeps page headers before body content and footers after it, then emits the body text as paragraph blocks in reading order.
 
+`examples/wordpress-order-detection-preflight.php` maps the supplied-output half of `marker/layout/order.py::surya_order` into a WordPress import preflight. It records the bounded layout bboxes that would be sent to Surya ordering, attaches supplied ordering predictions with upstream `zip` semantics, then feeds the existing reading-order sorter before emitting Gutenberg-ready paragraphs without loading the Surya model.
+
 `examples/wordpress-layout-annotation-import.php` maps Marker's upstream layout annotation path into a Gutenberg import preflight. It assigns Title/Text/Picture labels from supplied layout boxes, merges title fragments that came from the same layout region, applies Marker's bad-span type filtering for Picture text, and emits clean heading plus paragraph blocks without calling Surya.
 
 `examples/wordpress-layout-detection-preflight.php` maps Marker's upstream `surya_layout` assignment boundary into a Gutenberg import preflight. It accepts supplied Surya layout predictions, records the layout batch plan and assigned labels, then emits heading and paragraph blocks through the native annotation path without loading the Surya model.
@@ -96,7 +102,11 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-empty-line-filter-import.php` maps the upstream empty-line compaction inside `Block.filter_spans` and `filter_bad_span_types` into a WordPress paragraph import. It starts with extracted lines whose span lists are already empty, keeps the one live text line, and emits a single core paragraph plus review metadata showing the source/kept line counts.
 
+`examples/wordpress-block-line-split-import.php` maps upstream `split_block_lines` into a WordPress import review path. It splits a mixed extracted PDF block into a Gutenberg heading and paragraph with recomputed Marker-style bboxes while preserving the native no-Python conversion boundary.
+
 `examples/wordpress-conversion-finalizer-import.php` maps the late `convert_single_pdf` cleanup and assembly order into a WordPress import handoff. It accepts supplied native pages after earlier OCR/layout/table/equation boundaries, removes bad header spans, marks bold body spans, computes TOC and image metadata, normalizes bullet list markers, and emits heading/paragraph/list blocks without loading the upstream Python model stack.
+
+`examples/wordpress-core-convert-preflight.php` maps the early `convert_single_pdf` boundary into a WordPress import preflight. It carries language, filetype, PDF TOC, selected-page count, and low-resolution render metadata into the supplied native finalizer before emitting a core paragraph block without loading the upstream Python model stack.
 
 `examples/wordpress-finalizer-code-block-import.php` maps the integrated `identify_code_blocks` and `indent_blocks` finalizer step into a WordPress import handoff. It keeps ordinary PDF prose as paragraph content, records `block_stats.code`, and emits a Gutenberg code block from supplied PDF line geometry without loading the upstream Python model stack.
 
