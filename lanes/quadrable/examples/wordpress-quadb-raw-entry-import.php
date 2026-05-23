@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use PortLibs\Quadrable\Proof;
 use PortLibs\Quadrable\QuadbStore;
+use PortLibs\Quadrable\SparseTree;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -99,6 +101,12 @@ try {
     $detachedDelegatedPost = $upstream->get($binaryKey);
     $upstream->checkout('binary-proof');
     $namedDelegatedPost = $upstream->get($binaryKey);
+    $updatedDelegatedPost = "Raw-restored preview edit\0serialized";
+    $rootBeforeDelegatedEdit = $upstream->status()['rootHash'];
+    $upstream->put($binaryKey, $updatedDelegatedPost);
+    $rootAfterDelegatedEdit = $upstream->status()['rootHash'];
+    $delegatedProof = Proof::decode($upstream->exportProofBytes([$binaryKey], Proof::ENCODING_FULL_KEYS));
+    $authenticatedUpdatedDelegated = SparseTree::importProof($delegatedProof, $rootAfterDelegatedEdit)->get($binaryKey);
     $upstream->checkout('private-proof');
     $privateDelegatedOption = $upstream->get('wp_options:private');
 
@@ -121,6 +129,9 @@ try {
             'rawEntriesMatchAfterImport' => $upstreamRawEntriesMatchAfterImport,
             'detachedDelegatedPostHex' => bin2hex($detachedDelegatedPost),
             'namedDelegatedPostHex' => bin2hex($namedDelegatedPost),
+            'updatedDelegatedPostHex' => bin2hex($updatedDelegatedPost),
+            'updatedProofAuthenticates' => $authenticatedUpdatedDelegated === $updatedDelegatedPost,
+            'rootChangedAfterDelegatedEdit' => $rootAfterDelegatedEdit !== $rootBeforeDelegatedEdit,
             'privateDelegatedOptionHex' => bin2hex($privateDelegatedOption),
         ],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

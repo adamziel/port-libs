@@ -1647,7 +1647,20 @@ return [
 
             $mixed->checkout('binary-proof');
             $t->same($delegatedValue, $mixed->get($binaryKey));
-            $t->throws(RuntimeException::class, static fn () => $mixed->put($binaryKey, 'blocked'));
+            $rootBeforeRawUpdate = $mixed->status()['rootHash'];
+            $updatedDelegatedValue = "Delegated raw restore edit\0serialized";
+            $mixed->put($binaryKey, $updatedDelegatedValue);
+            $updatedRoot = $mixed->status()['rootHash'];
+            $t->true($updatedRoot !== $rootBeforeRawUpdate);
+            $t->same($updatedDelegatedValue, $mixed->get($binaryKey));
+
+            $reopenedMixed = QuadbStore::open($mixedRestoreDir);
+            $t->same('binary-proof', $reopenedMixed->currentHeadName());
+            $t->same($updatedRoot, $reopenedMixed->status()['rootHash']);
+            $t->same($updatedDelegatedValue, $reopenedMixed->get($binaryKey));
+            $updatedProof = Proof::decode($reopenedMixed->exportProofBytes([$binaryKey], Proof::ENCODING_FULL_KEYS));
+            $updatedPartial = SparseTree::importProof($updatedProof, $updatedRoot);
+            $t->same($updatedDelegatedValue, $updatedPartial->get($binaryKey));
 
             $mixed->checkout('private-proof');
             $t->same($privateDelegatedValue, $mixed->get('wp_options:private'));

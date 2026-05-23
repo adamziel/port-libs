@@ -467,8 +467,8 @@ final class QuadbStore
     /**
      * Restores a store from upstream-shaped LMDB cursor entries alone. Full
      * heads are restored into the tracked node store. Proof-backed heads are
-     * restored as immutable partial projections, preserving raw witness bucket
-     * bytes even though the original proof event history is unavailable.
+     * restored as raw partial projections, preserving witness bucket bytes
+     * until the head is edited.
      *
      * @param array<string, list<array{keyHex: string, valueHex: string}>> $rawEntries
      */
@@ -3170,6 +3170,83 @@ final class QuadbStore
     }
 
     /**
+     * Reprojects a raw-entry-restored partial tree after a write. Existing raw
+     * projection nodes are seeded first so untouched leaves, witnesses, and
+     * orphan proof-import records keep their upstream LMDB ids until GC.
+     *
+     * @param array<string, mixed> $state
+     *
+     * @return array{rootNodeId: int, nodes: array<string, array<string, mixed>>}
+     */
+    private function rawProjectionAfterPartialMutation(array $state, SparseTree $partial): array
+    {
+        if (($state['rawProjection'] ?? false) !== true
+            || !isset($state['proofStoragePrunedProjection'])
+            || !is_array($state['proofStoragePrunedProjection'])
+        ) {
+            throw new \RuntimeException('raw projection state is malformed');
+        }
+
+        $leaves = [];
+        $leafKeys = [];
+        $branches = [];
+        $projectedNodes = [];
+        $nextLeafNodeId = 1;
+        $nextInteriorNodeId = TrackedNodeStore::FIRST_INTERIOR_NODE_ID;
+
+        $this->applyPrunedPartialProjectionLmdbNodes(
+            $state['proofStoragePrunedProjection'],
+            $leaves,
+            $leafKeys,
+            $branches,
+            $nextLeafNodeId,
+            $nextInteriorNodeId,
+            $projectedNodes
+        );
+
+        $reuseNodeIds = [];
+        foreach (array_keys($projectedNodes) as $nodeId) {
+            $reuseNodeIds[(int) $nodeId] = (int) $nodeId;
+        }
+
+        $rootNodeId = $this->projectPartialTreeLmdbNodes(
+            $partial,
+            $leaves,
+            $leafKeys,
+            $branches,
+            $nextLeafNodeId,
+            $nextInteriorNodeId,
+            $projectedNodes,
+            $reuseNodeIds
+        );
+
+        return $this->allProjectedPartialProjection($rootNodeId, $projectedNodes, $leafKeys);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $projectedNodes
+     * @param array<int, string> $leafKeys
+     *
+     * @return array{rootNodeId: int, nodes: array<string, array<string, mixed>>}
+     */
+    private function allProjectedPartialProjection(int $rootNodeId, array $projectedNodes, array $leafKeys): array
+    {
+        $nodes = [];
+        foreach ($projectedNodes as $nodeId => $node) {
+            $nodes[(string) $nodeId] = self::encodePrunedProjectedNode(
+                $node,
+                $leafKeys[$nodeId] ?? null
+            );
+        }
+        ksort($nodes, SORT_NUMERIC);
+
+        return [
+            'rootNodeId' => $rootNodeId,
+            'nodes' => $nodes,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function currentPartialProofState(): ?array
@@ -3296,9 +3373,7 @@ final class QuadbStore
         if ($state === null) {
             throw new \RuntimeException('current head is not a proof-backed partial tree');
         }
-        if (($state['rawProjection'] ?? false) === true) {
-            throw new \RuntimeException('raw-entry-restored proof-backed heads cannot be updated without proof event history');
-        }
+        $rawProjection = ($state['rawProjection'] ?? false) === true;
 
         $keyHash = $this->keyHash($key);
         $partial = $this->partialTreeFromState($state);
@@ -3311,8 +3386,6 @@ final class QuadbStore
         ]);
 
         $state['rootHash'] = $partial->rootHash();
-        $state['proofStoragePruned'] = false;
-        unset($state['proofStoragePrunedProjection']);
         $update = [
             'delete' => $delete,
             'keyHash' => $keyHash,
@@ -3322,10 +3395,20 @@ final class QuadbStore
             $update['key'] = $key;
         }
 
-        $state['updates'][] = $update;
-        $state['events'][] = [
-            'type' => 'update',
-        ] + $update;
+        if ($rawProjection) {
+            $state['proofStoragePruned'] = true;
+            $state['proofStoragePrunedProjection'] = $this->rawProjectionAfterPartialMutation($state, $partial);
+            $state['proofs'] = [];
+            $state['updates'] = [];
+            $state['events'] = [];
+        } else {
+            $state['proofStoragePruned'] = false;
+            unset($state['proofStoragePrunedProjection']);
+            $state['updates'][] = $update;
+            $state['events'][] = [
+                'type' => 'update',
+            ] + $update;
+        }
         if (!$delete) {
             $this->recordStringKeyWrite($key);
         }
@@ -3343,9 +3426,7 @@ final class QuadbStore
         if ($state === null) {
             throw new \RuntimeException('current head is not a proof-backed partial tree');
         }
-        if (($state['rawProjection'] ?? false) === true) {
-            throw new \RuntimeException('raw-entry-restored proof-backed heads cannot be updated without proof event history');
-        }
+        $rawProjection = ($state['rawProjection'] ?? false) === true;
 
         ksort($updates, SORT_STRING);
 
@@ -3353,16 +3434,24 @@ final class QuadbStore
         $partial->applyRawUpdates($updates);
 
         $state['rootHash'] = $partial->rootHash();
-        $state['proofStoragePruned'] = false;
-        unset($state['proofStoragePrunedProjection']);
-        foreach ($updates as $keyHash => $update) {
-            $record = [
-                'delete' => $update['delete'],
-                'keyHash' => $keyHash,
-                'value' => $update['value'],
-            ];
-            $state['updates'][] = $record;
-            $state['events'][] = ['type' => 'update'] + $record;
+        if ($rawProjection) {
+            $state['proofStoragePruned'] = true;
+            $state['proofStoragePrunedProjection'] = $this->rawProjectionAfterPartialMutation($state, $partial);
+            $state['proofs'] = [];
+            $state['updates'] = [];
+            $state['events'] = [];
+        } else {
+            $state['proofStoragePruned'] = false;
+            unset($state['proofStoragePrunedProjection']);
+            foreach ($updates as $keyHash => $update) {
+                $record = [
+                    'delete' => $update['delete'],
+                    'keyHash' => $keyHash,
+                    'value' => $update['value'],
+                ];
+                $state['updates'][] = $record;
+                $state['events'][] = ['type' => 'update'] + $record;
+            }
         }
 
         $this->storeCurrentPartialProofState($state);
