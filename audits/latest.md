@@ -5,9 +5,9 @@ Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 lane status files needed to verify dashboard/status drift, PHP shell-out usage
 in `lanes/`, `tools/`, and `scripts/`, and recent Git history.
 
-Recent history observed: `3d44b22`, `ba89649`, `bb65b26`, `a27fb2e`,
-`3f4ea3c`, `f53ab46`, `dcf3a7d`, `af649df`, `5cc43f3`, `4b40102`,
-`d31c1aa`, and `eea5621`. I did not edit lane implementation files, launch
+Recent history observed: `8c21737`, `81d14bf`, `e4a7484`, `3d44b22`,
+`ba89649`, `bb65b26`, `a27fb2e`, `3f4ea3c`, `f53ab46`, `dcf3a7d`,
+`af649df`, and `5cc43f3`. I did not edit lane implementation files, launch
 agents or tmux sessions, or push.
 
 ## Findings
@@ -16,11 +16,11 @@ agents or tmux sessions, or push.
    - Paths: worktree-wide; `progress.md:237`-`245`; `goal.md:29`,
      `goal.md:44`, `goal.md:48`-`49`.
    - Evidence: current `HEAD` is
-     `3d44b22 quadrable: add noTrackKeys LMDB cursor oracle`. After the
-     required root test run, `git status --short` reported `424` entries,
-     tracked-only status reported `81` modified entries, and
+     `8c21737 Stamp Pandoc grid table span status`. After the required root
+     test run and latest status refresh, `git status --short` reported `428`
+     entries, tracked-only status reported `75` modified entries, and
      `git diff --shortstat` reported
-     `81 files changed, 10808 insertions(+), 552 deletions(-)`.
+     `75 files changed, 9983 insertions(+), 415 deletions(-)`.
    - The required harness is green (`php tools/run-tests.php` exited `0` with
      `177` test files, `16997` assertions, and `0` failures), but this is only
      a sample from a broad dirty worktree.
@@ -37,11 +37,12 @@ agents or tmux sessions, or push.
      `porting-summary.json:168`-`171`, `porting-summary.json:185`-`188`,
      `porting-summary.json:202`-`205`.
    - Evidence: the dashboard claims a verified snapshot of source commit
-     `3f4ea3cda693`, while current `HEAD` is `3d44b22` and the worktree is
+     `3f4ea3cda693`, while current `HEAD` is `8c21737` and the worktree is
      dirty. Stale count examples: Difftastic dashboard `139 / 417` while its
      manifest says `143`; Gitoxide dashboard `1358 / 2877` and `2511 pass`
      while status/manifest say `1361` mapped and `2529 pass`; libsqlite
      dashboard `129 / 1454` and `129 pass` while manifest/status say `133`;
+     Esbuild dashboard `150 pass` while status says `156`;
      LightningCSS dashboard `703 / 3532` and `827 pass` while status/manifest
      say `710` mapped and `839 pass`; markerPDF dashboard `254 pass` while
      status says `255`; Pandoc dashboard `397` mapped and `154 pass` while

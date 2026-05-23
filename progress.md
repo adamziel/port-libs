@@ -237,7 +237,7 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor/session status: latest independent audit is recorded in `audits/latest.md`, did not launch agents or tmux sessions, and recorded the required `php tools/run-tests.php` result against the dirty worktree: exit `0`, `177` test files, `16997` assertions, `0` failures. The latest sample reported `424` `git status --short` entries, `81` tracked modified files, and `git diff --shortstat` reported `81 files changed, 10808 insertions(+), 552 deletions(-)`. Treat this as a green sample from a moving dirty aggregate, not a stable integration checkpoint.
+- Auditor/session status: latest independent audit is recorded in `audits/latest.md`, did not launch agents or tmux sessions, and recorded the required `php tools/run-tests.php` result against the dirty worktree: exit `0`, `177` test files, `16997` assertions, `0` failures. The latest sample reported `428` `git status --short` entries, `75` tracked modified files, and `git diff --shortstat` reported `75 files changed, 9983 insertions(+), 415 deletions(-)`. Treat this as a green sample from a moving dirty aggregate, not a stable integration checkpoint.
 - Worker sessions: not modified by this audit. Coordinate active writers before treating `progress.md`, `porting.html`, lane statuses, or any root test result as a stable integration snapshot.
 
 ## Next Best Step
