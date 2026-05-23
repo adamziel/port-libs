@@ -10,6 +10,6 @@
     "audit": "verified 2026-05-23: bounded upstream Go runner evidence remains a clean 299-package non-mount/provider-integration-skipped run; rclone-only PHP coverage passes 22 test files, 265 behavior tests, and 2376 assertions with 0 failures. Current required root `php tools/run-tests.php` rerun passes 174 test files, 16519 assertions, and 0 failures in the shared dirty worktree. This remains bounded evidence, not full upstream provider/mount parity.",
     "currentWork": "walkR over direct ListR DirTree now maps upstream fs/walk callback traversal: sorted directory callback order, ErrorSkipDir descendant-prefix suppression, same-prefix sibling preservation, and NewDirTree level-one fallback to provider List. The WordPress example builds a direct walkR restore manifest while skipping cache descendants and preserving upload sibling directories.",
     "blocker": "No rclone-local PHP blocker after this slice; rclone-only and current required root verification pass. Full rclone provider/mount parity remains open because live provider TestIntegration cases, FUSE mount packages, Docker-backed serve/docker coverage, and fstest/test_all provider remotes are intentionally excluded from the bounded upstream pass.",
-    "latestCommit": "pending commit for current walkR direct ListR DirTree slice",
+    "latestCommit": "4e7d6c2 (implementation commit)",
     "nextTask": "Map fs/walk GetAll over direct ListR and Walk fallback outputs, including object/dir separation, maxLevel boundaries, and provider error propagation."
 }
