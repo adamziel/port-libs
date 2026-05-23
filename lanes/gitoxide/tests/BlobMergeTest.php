@@ -73,6 +73,44 @@ return [
 
         $t->same("<<<<<<< ours\ntheme: ours\n||||||| ancestor\ntheme: base\n=======\ntheme: theirs\n>>>>>>> theirs\n", $result->content);
     },
+    'text merge supports upstream unlabeled conflict markers' => static function (TestRunner $t): void {
+        $result = BlobMerge::mergeText(
+            "theme: base\n",
+            "theme: ours\n",
+            "theme: theirs\n",
+            BlobMerge::STYLE_DIFF3,
+            null,
+            null,
+            null,
+        );
+
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $result->resolution);
+        $t->same("<<<<<<<\ntheme: ours\n|||||||\ntheme: base\n=======\ntheme: theirs\n>>>>>>>\n", $result->content);
+    },
+    'text merge marker size follows upstream u8 marker boundary' => static function (TestRunner $t): void {
+        $result = BlobMerge::mergeText(
+            "theme: base\n",
+            "theme: ours\n",
+            "theme: theirs\n",
+            BlobMerge::STYLE_MERGE,
+            null,
+            null,
+            null,
+            3,
+        );
+
+        $t->same("<<<\ntheme: ours\n===\ntheme: theirs\n>>>\n", $result->content);
+        $t->throws(\InvalidArgumentException::class, static fn () => BlobMerge::mergeText(
+            "theme: base\n",
+            "theme: ours\n",
+            "theme: theirs\n",
+            BlobMerge::STYLE_MERGE,
+            null,
+            null,
+            null,
+            256,
+        ));
+    },
     'text merge supports union driver resolution' => static function (TestRunner $t): void {
         $result = BlobMerge::mergeText(
             "original\n1\n2\n3\n4\n5\n",
@@ -247,6 +285,15 @@ return [
             'ours/post.html',
             'theirs/post.html',
         );
+        $anonymousPreview = BlobMerge::mergeText(
+            $fixture['anonymousPreview']['base'],
+            $fixture['anonymousPreview']['ours'],
+            $fixture['anonymousPreview']['theirs'],
+            BlobMerge::STYLE_DIFF3,
+            null,
+            null,
+            null,
+        );
         $configuredZdiff3 = BlobMerge::mergeText(
             $fixture['themeSharedDecision']['base'],
             $fixture['themeSharedDecision']['ours'],
@@ -274,6 +321,8 @@ return [
         $t->same($fixture['mixedLineEndings']['expected'], $mixedLineEndings->content);
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $sharedBlockRefactor->resolution);
         $t->same($fixture['sharedBlockRefactor']['expected'], $sharedBlockRefactor->content);
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $anonymousPreview->resolution);
+        $t->same($fixture['anonymousPreview']['expectedDiff3'], $anonymousPreview->content);
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $configuredZdiff3->resolution);
         $t->same($fixture['themeSharedDecision']['expectedZealousDiff3'], $configuredZdiff3->content);
     },

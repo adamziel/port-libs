@@ -45,6 +45,12 @@ return [
         'theirs' => "<!-- wp:group {\"className\":\"featured\"} -->\n<!-- wp:paragraph -->\nShared headline\n<!-- /wp:heading -->\n<!-- /wp:group -->\n",
         'expected' => "<!-- wp:group {\"className\":\"featured\"} -->\n<<<<<<< ours/post.html\n<!-- wp:heading -->\n=======\n<!-- wp:paragraph -->\n>>>>>>> theirs/post.html\nShared headline\n<!-- /wp:heading -->\n<!-- /wp:group -->\n",
     ],
+    'anonymousPreview' => [
+        'base' => "<!-- wp:paragraph -->\nBase copy\n<!-- /wp:paragraph -->\n",
+        'ours' => "<!-- wp:paragraph -->\nLocal editor copy\n<!-- /wp:paragraph -->\n",
+        'theirs' => "<!-- wp:paragraph -->\nRemote editor copy\n<!-- /wp:paragraph -->\n",
+        'expectedDiff3' => "<!-- wp:paragraph -->\n<<<<<<<\nLocal editor copy\n|||||||\nBase copy\n=======\nRemote editor copy\n>>>>>>>\n<!-- /wp:paragraph -->\n",
+    ],
     'theme' => [
         'base' => "{\n  \"version\": 2,\n  \"settings\": {\n    \"color\": \"base\"\n  }\n}\n",
         'ours' => "{\n  \"version\": 2,\n  \"settings\": {\n    \"color\": \"blue\"\n  }\n}\n",

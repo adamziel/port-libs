@@ -62,6 +62,15 @@ $sharedBlockRefactor = BlobMerge::mergeText(
     'ours/post.html',
     'theirs/post.html',
 );
+$anonymousPreview = BlobMerge::mergeText(
+    $fixture['anonymousPreview']['base'],
+    $fixture['anonymousPreview']['ours'],
+    $fixture['anonymousPreview']['theirs'],
+    BlobMerge::STYLE_DIFF3,
+    null,
+    null,
+    null,
+);
 $configuredZdiff3 = BlobMerge::mergeText(
     $fixture['themeSharedDecision']['base'],
     $fixture['themeSharedDecision']['ours'],
@@ -88,5 +97,7 @@ echo 'mixed-line-endings=' . $mixedLineEndings->resolution . "\n";
 echo 'mixed-line-endings-content=' . str_replace(["\r", "\n"], ['\\r', '|'], $mixedLineEndings->content) . "\n";
 echo 'shared-block-refactor=' . $sharedBlockRefactor->resolution . "\n";
 echo 'shared-block-refactor-content=' . str_replace("\n", '|', trim($sharedBlockRefactor->content)) . "\n";
+echo 'anonymous-preview=' . $anonymousPreview->resolution . "\n";
+echo 'anonymous-preview-content=' . str_replace("\n", '|', trim($anonymousPreview->content)) . "\n";
 echo 'configured-zdiff3=' . $configuredZdiff3->resolution . "\n";
 echo 'configured-zdiff3-content=' . str_replace("\n", '|', trim($configuredZdiff3->content)) . "\n";

@@ -22,9 +22,9 @@ final class BlobMerge
         string $ours,
         string $theirs,
         string $style = self::STYLE_MERGE,
-        string $baseLabel = 'base',
-        string $oursLabel = 'ours',
-        string $theirsLabel = 'theirs',
+        ?string $baseLabel = 'base',
+        ?string $oursLabel = 'ours',
+        ?string $theirsLabel = 'theirs',
         int $markerSize = 7,
     ): BlobMergeResult {
         if ($style === self::STYLE_ZDIFF3) {
@@ -35,6 +35,9 @@ final class BlobMerge
         }
         if ($markerSize < 1) {
             throw new \InvalidArgumentException('Conflict marker size must be positive');
+        }
+        if ($markerSize > 255) {
+            throw new \InvalidArgumentException('Conflict marker size must fit in one byte');
         }
 
         if ($ours === $theirs) {
@@ -193,19 +196,19 @@ final class BlobMerge
             }
 
             self::assureEndsWithNewline($merged, $conflictNewline);
-            $merged[] = str_repeat('<', $markerSize) . ' ' . $oursLabel . $conflictNewline;
+            $merged[] = self::conflictMarker('<', $markerSize, $oursLabel, $conflictNewline);
             array_push($merged, ...$ourConflictLines);
             if ($style === self::STYLE_DIFF3 || $style === self::STYLE_ZEALOUS_DIFF3) {
                 $ancestorNewline = self::detectLineEndingFromLines(array_slice($baseLines, $start, max(0, $end - $start))) ?? $conflictNewline;
                 self::assureEndsWithNewline($merged, $ancestorNewline);
-                $merged[] = str_repeat('|', $markerSize) . ' ' . $baseLabel . $ancestorNewline;
+                $merged[] = self::conflictMarker('|', $markerSize, $baseLabel, $ancestorNewline);
                 self::appendBase($merged, $baseLines, $start, $end);
             }
             self::assureEndsWithNewline($merged, $conflictNewline);
             $merged[] = str_repeat('=', $markerSize) . $conflictNewline;
             array_push($merged, ...$theirConflictLines);
             self::assureEndsWithNewline($merged, $conflictNewline);
-            $merged[] = str_repeat('>', $markerSize) . ' ' . $theirsLabel . $conflictNewline;
+            $merged[] = self::conflictMarker('>', $markerSize, $theirsLabel, $conflictNewline);
             array_push($merged, ...$suffixLines);
             $basePosition = $end;
             $conflicts++;
@@ -252,6 +255,11 @@ final class BlobMerge
             'right' => array_slice($right, $prefixLength, $rightEnd - $prefixLength),
             'suffix' => $suffix,
         ];
+    }
+
+    private static function conflictMarker(string $marker, int $markerSize, ?string $label, string $newline): string
+    {
+        return str_repeat($marker, $markerSize) . ($label === null ? '' : ' ' . $label) . $newline;
     }
 
     public static function mergeBinary(string $base, string $ours, string $theirs, ?string $resolveWith = null): BlobMergeResult
