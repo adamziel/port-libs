@@ -22,6 +22,10 @@ Plain-text line splitting now maps upstream `src/lines.rs` `split_on_newlines` t
 
 The WordPress import-log no-EOL fixture applies that to migration output under `wp-content/uploads/migration/import.log`. Compact JSON output preserves a final appended import record even when neither side ends with a newline.
 
+Makefile mode now maps the upstream CLI `makefile_text_as_atom` boundary. Native syntax-list output treats Makefile assignment text as review atoms under `$make.text[...]`, so one-line build flag changes do not disappear as an empty delimiter diff.
+
+The WordPress plugin build Makefile fixture applies that to shared-hosting build metadata. It reports `CCFLAGS` hardening changes and inserted block asset entries such as `build/view.js` while keeping the mode distinct from generic `$text.line[...]` fallback output.
+
 Rust mode now adds a targeted upstream `slider_*.rs` mapping for method and statement sliders. It splits block items at method boundaries and semicolon-terminated statements so code-review excerpts keep retained methods and follow-up statements stable while reporting inserted setup calls and fields as focused additions.
 
 Python mode now adds a targeted upstream `if_*.py` mapping for indentation-sensitive blocks. It keeps a stable `if` header and retained body lines aligned when a statement moves out of the indented body, reporting the moved statement separately under `$py.if[...]` and `$py.root[...]` paths.
@@ -156,6 +160,7 @@ php lanes/difftastic/examples/wordpress-plugin-readme-text-diff.php
 php lanes/difftastic/examples/wordpress-plugin-readme-blank-display.php
 php lanes/difftastic/examples/wordpress-readme-footer-alignment-display.php
 php lanes/difftastic/examples/wordpress-import-log-no-eol-display.php
+php lanes/difftastic/examples/wordpress-plugin-build-makefile-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
 php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
@@ -203,4 +208,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map the upstream CLI `changes_at_end` text fixture into explicit PHP display expectations, or map the CLI Makefile text-as-atom case.
+Map the upstream CLI `changes_at_end` text fixture into explicit PHP display expectations, especially the final changed block and retained trailing context behavior.

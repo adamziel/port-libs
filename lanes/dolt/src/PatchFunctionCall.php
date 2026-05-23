@@ -42,9 +42,10 @@ final class PatchFunctionCall
      *   databaseTables?:list<string>,
      *   selectPrivileges?:list<string>
      * } $options
+     * @param list<array{code:int, message:string}> $warnings
      * @return list<array{statement_order:int, from_commit_hash:string, to_commit_hash:string, table_name:string, diff_type:string, statement:string}>
      */
-    public function rows(array $tables, array $arguments, array $options = []): array
+    public function rows(array $tables, array $arguments, array $options = [], array &$warnings = []): array
     {
         [$fromSpec, $toSpec, $tableName] = $this->parseArguments($arguments, $options);
         [$fromCommit, $toCommit] = $this->resolvePatchRevisions($fromSpec, $toSpec, $options);
@@ -81,7 +82,7 @@ final class PatchFunctionCall
             'fromCommit' => $fromCommit,
             'toCommit' => $toCommit,
             'filter' => $options['filter'] ?? null,
-        ]);
+        ], $warnings);
     }
 
     /**

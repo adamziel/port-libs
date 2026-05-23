@@ -311,6 +311,10 @@ final class TokenDiffer
             if ($fallbackReason !== null) {
                 return $this->diffTextFallback($old, $new, $fallbackReason);
             }
+
+            if ($this->isMakefileLanguage($options)) {
+                return $this->diffMakefileTextAtoms($old, $new);
+            }
         }
 
         $delimiterPairs = $this->delimiterPairs($options);
@@ -585,10 +589,22 @@ final class TokenDiffer
     }
 
     /**
+     * Upstream tree-sitter-make treats `text` and `shell_text` nodes as
+     * difftastic atoms. This gives Makefile assignment lines a visible
+     * syntax-list change instead of returning an empty delimiter diff.
+     *
+     * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
+     */
+    private function diffMakefileTextAtoms(string $old, string $new): array
+    {
+        return $this->diffLineChanges($old, $new, [], '$make.text');
+    }
+
+    /**
      * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
      * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
      */
-    private function diffLineChanges(string $old, string $new, array $changes = []): array
+    private function diffLineChanges(string $old, string $new, array $changes = [], string $linePathPrefix = '$text.line'): array
     {
         $oldLines = $this->fallbackLines($old);
         $newLines = $this->fallbackLines($new);
@@ -600,7 +616,7 @@ final class TokenDiffer
 
         while ($i < count($oldLines) && $j < count($newLines)) {
             if ($oldLines[$i] === $newLines[$j]) {
-                $this->flushFallbackLineChanges($changes, $deleted, $inserted);
+                $this->flushFallbackLineChanges($changes, $deleted, $inserted, $linePathPrefix);
                 $i++;
                 $j++;
                 continue;
@@ -624,7 +640,7 @@ final class TokenDiffer
             $j++;
         }
 
-        $this->flushFallbackLineChanges($changes, $deleted, $inserted);
+        $this->flushFallbackLineChanges($changes, $deleted, $inserted, $linePathPrefix);
 
         return $changes;
     }
@@ -647,13 +663,13 @@ final class TokenDiffer
      * @param list<array{index:int, text:string}> $deleted
      * @param list<array{index:int, text:string}> $inserted
      */
-    private function flushFallbackLineChanges(array &$changes, array &$deleted, array &$inserted): void
+    private function flushFallbackLineChanges(array &$changes, array &$deleted, array &$inserted, string $linePathPrefix): void
     {
         $pairs = min(count($deleted), count($inserted));
         for ($index = 0; $index < $pairs; $index++) {
             $changes[] = [
                 'op' => '~',
-                'path' => '$text.line[' . $deleted[$index]['index'] . ']',
+                'path' => $linePathPrefix . '[' . $deleted[$index]['index'] . ']',
                 'old' => $deleted[$index]['text'],
                 'new' => $inserted[$index]['text'],
             ];
@@ -662,14 +678,14 @@ final class TokenDiffer
         for ($index = $pairs; $index < count($deleted); $index++) {
             $changes[] = [
                 'op' => '-',
-                'path' => '$text.line[' . $deleted[$index]['index'] . ']',
+                'path' => $linePathPrefix . '[' . $deleted[$index]['index'] . ']',
                 'text' => $deleted[$index]['text'],
             ];
         }
         for ($index = $pairs; $index < count($inserted); $index++) {
             $changes[] = [
                 'op' => '+',
-                'path' => '$text.line[' . $inserted[$index]['index'] . ']',
+                'path' => $linePathPrefix . '[' . $inserted[$index]['index'] . ']',
                 'text' => $inserted[$index]['text'],
             ];
         }
@@ -718,6 +734,14 @@ final class TokenDiffer
     private function isPlainTextLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['plain', 'plain-text', 'plaintext', 'text'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isMakefileLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['make', 'makefile', 'mk'], true);
     }
 
     private function formatBinarySize(int $bytes): string

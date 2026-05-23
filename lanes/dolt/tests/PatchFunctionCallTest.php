@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Dolt\PatchFunctionArgument;
 use PortLibs\Dolt\PatchFunctionCall;
+use PortLibs\Dolt\PatchRenderer;
 use PortLibs\Dolt\TableSchema;
 
 $patchTables = static function (): array {
@@ -260,6 +261,70 @@ return [
             'knownTables' => ['t', 'unchanged'],
         ])));
     },
+    'dolt patch function call collects staged worktree primary key warnings' => static function (TestRunner $t): void {
+        $headSchema = TableSchema::fromColumns([
+            ['name' => 'meta_id', 'tag' => 1, 'type' => 'bigint', 'primaryKey' => true],
+            ['name' => 'post_id', 'tag' => 2, 'type' => 'bigint'],
+            ['name' => 'meta_key', 'tag' => 3, 'type' => 'varchar(255)'],
+            ['name' => 'meta_value', 'tag' => 4, 'type' => 'longtext'],
+        ]);
+        $workingSchema = TableSchema::fromColumns([
+            ['name' => 'meta_id', 'tag' => 1, 'type' => 'bigint'],
+            ['name' => 'post_id', 'tag' => 2, 'type' => 'bigint', 'primaryKey' => true],
+            ['name' => 'meta_key', 'tag' => 3, 'type' => 'varchar(255)', 'primaryKey' => true],
+            ['name' => 'meta_value', 'tag' => 4, 'type' => 'longtext'],
+        ]);
+        $options = [
+            'revisionSnapshots' => [
+                'STAGED' => [
+                    [
+                        'name' => 'wp_postmeta',
+                        'schema' => $headSchema,
+                        'rows' => [
+                            ['meta_id' => 1, 'post_id' => 501, 'meta_key' => '_thumbnail_id', 'meta_value' => '7001'],
+                        ],
+                    ],
+                ],
+                'WORKING' => [
+                    [
+                        'name' => 'wp_postmeta',
+                        'schema' => $workingSchema,
+                        'rows' => [
+                            ['meta_id' => 1, 'post_id' => 501, 'meta_key' => '_thumbnail_id', 'meta_value' => '7002'],
+                        ],
+                    ],
+                ],
+            ],
+            'knownTables' => ['wp_postmeta'],
+        ];
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], ['STAGED', 'WORKING', 'wp_postmeta'], $options, $warnings);
+
+        $t->same(['schema', 'schema'], array_column($rows, 'diff_type'));
+        $t->contains('DROP PRIMARY KEY', $rows[0]['statement']);
+        $t->contains('ADD PRIMARY KEY', $rows[1]['statement']);
+        $t->same(1, count($warnings));
+        $t->same(PatchRenderer::PRIMARY_KEY_CHANGE_WARNING_CODE, $warnings[0]['code']);
+        $t->same("Primary key sets differ between revisions for table 'wp_postmeta', skipping data diff", $warnings[0]['message']);
+    },
+    'dolt patch function call materializes staged index and foreign key snapshot deltas' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-foreign-key-review.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same([
+            'ALTER TABLE `wp_postmeta` ADD INDEX `fk_post_id`(`post_id`);',
+            'ALTER TABLE `wp_postmeta` ADD CONSTRAINT `fk_post_id` FOREIGN KEY (`post_id`) REFERENCES `wp_posts` (`ID`);',
+            'ALTER TABLE `wp_posts` DROP PRIMARY KEY;',
+            'ALTER TABLE `wp_posts` ADD PRIMARY KEY (ID,import_site_id);',
+        ], array_column($rows, 'statement'));
+        $t->same(['schema', 'schema', 'schema', 'schema'], array_column($rows, 'diff_type'));
+        $t->same(1, count($warnings));
+        $t->same(PatchRenderer::PRIMARY_KEY_CHANGE_WARNING_CODE, $warnings[0]['code']);
+        $t->contains('wp_posts', $warnings[0]['message']);
+    },
     'dolt patch function call rejects upstream invalid argument boundaries' => static function (TestRunner $t) use ($patchTables): void {
         $call = new PatchFunctionCall();
 
@@ -368,5 +433,27 @@ return [
         $t->contains('ADD `import_batch`', $output['worktreePostPatch'][2]['statement']);
         $t->contains('INSERT INTO `wp_posts`', $output['worktreePostPatch'][5]['statement']);
         $t->same([], $output['sameWorkingPatch']);
+    },
+    'wordpress patch primary key warning example skips unsafe postmeta data patch' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-patch-primary-key-warning.php';
+
+        $t->same(['schema', 'schema'], array_column($output['rows'], 'diff_type'));
+        $t->contains('DROP PRIMARY KEY', $output['statements'][0]);
+        $t->contains('ADD PRIMARY KEY', $output['statements'][1]);
+        $t->same(1, count($output['warnings']));
+        $t->same(PatchRenderer::PRIMARY_KEY_CHANGE_WARNING_CODE, $output['warnings'][0]['code']);
+        $t->contains('wp_postmeta', $output['warnings'][0]['message']);
+    },
+    'wordpress patch foreign key review example orders staged ddl safely' => static function (TestRunner $t): void {
+        $output = require __DIR__ . '/../examples/wordpress-patch-foreign-key-review.php';
+
+        $t->same([
+            'ALTER TABLE `wp_postmeta` ADD INDEX `fk_post_id`(`post_id`);',
+            'ALTER TABLE `wp_postmeta` ADD CONSTRAINT `fk_post_id` FOREIGN KEY (`post_id`) REFERENCES `wp_posts` (`ID`);',
+            'ALTER TABLE `wp_posts` DROP PRIMARY KEY;',
+            'ALTER TABLE `wp_posts` ADD PRIMARY KEY (ID,import_site_id);',
+        ], $output['statements']);
+        $t->same(1, count($output['warnings']));
+        $t->contains('wp_posts', $output['warnings'][0]['message']);
     },
 ];

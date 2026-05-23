@@ -8,6 +8,8 @@ final class PatchRenderer
 {
     public const DIFF_SCHEMA = 'schema';
     public const DIFF_DATA = 'data';
+    public const PRIMARY_KEY_CHANGE_WARNING_CODE = 1235;
+    public const PRIMARY_KEY_CHANGE_WARNING = "Primary key sets differ between revisions for table '%s', skipping data diff";
 
     /**
      * Render native rows matching upstream `dolt_patch()` output:
@@ -29,9 +31,10 @@ final class PatchRenderer
      *   keyless?:bool
      * }> $tables
      * @param array{fromCommit?:string, toCommit?:string, filter?:string|null} $options
+     * @param list<array{code:int, message:string}> $warnings
      * @return list<array{statement_order:int, from_commit_hash:string, to_commit_hash:string, table_name:string, diff_type:string, statement:string}>
      */
-    public function rows(array $tables, array $options = []): array
+    public function rows(array $tables, array $options = [], array &$warnings = []): array
     {
         $fromCommit = $this->commitName($options['fromCommit'] ?? 'FROM', 'fromCommit');
         $toCommit = $this->commitName($options['toCommit'] ?? 'TO', 'toCommit');
@@ -58,7 +61,7 @@ final class PatchRenderer
             }
 
             if ($includeData && $toSchema !== null) {
-                foreach ($this->dataStatements($table, $displayTableName, $toSchema, $fromCommit, $toCommit) as $statement) {
+                foreach ($this->dataStatements($table, $displayTableName, $fromSchema, $toSchema, $fromCommit, $toCommit, $warnings) as $statement) {
                     $rows[] = $this->row($statementOrder++, $fromCommit, $toCommit, $displayTableName, self::DIFF_DATA, $statement);
                 }
             }
@@ -223,7 +226,37 @@ final class PatchRenderer
             $toPrimaryKeys = $this->primaryKeyNames($toSchema);
             if ($toPrimaryKeys !== []) {
                 $statements[] = 'ALTER TABLE ' . $this->quoteIdentifier($toTableName)
-                    . ' ADD PRIMARY KEY (' . implode(',', array_map([$this, 'quoteIdentifier'], $toPrimaryKeys)) . ');';
+                    . ' ADD PRIMARY KEY (' . implode(',', $toPrimaryKeys) . ');';
+            }
+        }
+
+        foreach ($this->diffIndexes($fromSchema, $toSchema) as $diff) {
+            if ($diff['diff_type'] === TableSchema::DIFF_ADDED) {
+                $statements[] = $this->alterTableAddIndexStatement($toTableName, $diff['to']);
+                continue;
+            }
+            if ($diff['diff_type'] === TableSchema::DIFF_REMOVED) {
+                $statements[] = $this->alterTableDropIndexStatement($fromTableName, $diff['from']);
+                continue;
+            }
+            if ($diff['diff_type'] === TableSchema::DIFF_MODIFIED) {
+                $statements[] = $this->alterTableDropIndexStatement($fromTableName, $diff['from']);
+                $statements[] = $this->alterTableAddIndexStatement($toTableName, $diff['to']);
+            }
+        }
+
+        foreach ($this->diffForeignKeys($fromSchema, $toSchema) as $diff) {
+            if ($diff['diff_type'] === TableSchema::DIFF_ADDED) {
+                $statements[] = $this->alterTableAddForeignKeyStatement($toTableName, $diff['to']);
+                continue;
+            }
+            if ($diff['diff_type'] === TableSchema::DIFF_REMOVED) {
+                $statements[] = $this->alterTableDropForeignKeyStatement($fromTableName, $diff['from']);
+                continue;
+            }
+            if ($diff['diff_type'] === TableSchema::DIFF_MODIFIED) {
+                $statements[] = $this->alterTableDropForeignKeyStatement($fromTableName, $diff['from']);
+                $statements[] = $this->alterTableAddForeignKeyStatement($toTableName, $diff['to']);
             }
         }
 
@@ -261,6 +294,14 @@ final class PatchRenderer
             $lines[] = '  PRIMARY KEY (' . implode(',', array_map([$this, 'quoteIdentifier'], $primaryKeys)) . ')';
         }
 
+        foreach ($schema->indexes() as $index) {
+            $lines[] = '  ' . $this->createTableIndexDefinition($index);
+        }
+
+        foreach ($schema->foreignKeys() as $foreignKey) {
+            $lines[] = '  ' . $this->createTableForeignKeyDefinition($foreignKey);
+        }
+
         return 'CREATE TABLE ' . $this->quoteIdentifier($tableName) . " (\n"
             . implode(",\n", $lines)
             . "\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;";
@@ -275,11 +316,174 @@ final class PatchRenderer
     }
 
     /**
+     * @return list<array{diff_type:string, from:array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}|null, to:array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}|null}>
+     */
+    private function diffIndexes(TableSchema $fromSchema, TableSchema $toSchema): array
+    {
+        return $this->diffNamedObjects($fromSchema->indexes(), $toSchema->indexes());
+    }
+
+    /**
+     * @return list<array{diff_type:string, from:array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null}|null, to:array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null}|null}>
+     */
+    private function diffForeignKeys(TableSchema $fromSchema, TableSchema $toSchema): array
+    {
+        return $this->diffNamedObjects($fromSchema->foreignKeys(), $toSchema->foreignKeys());
+    }
+
+    /**
+     * @template T of array{name:non-empty-string}
+     * @param list<T> $from
+     * @param list<T> $to
+     * @return list<array{diff_type:string, from:T|null, to:T|null}>
+     */
+    private function diffNamedObjects(array $from, array $to): array
+    {
+        $fromByName = $this->namedObjectsByLowerName($from);
+        $toByName = $this->namedObjectsByLowerName($to);
+        $names = array_keys($fromByName + $toByName);
+        sort($names, SORT_STRING);
+
+        $diffs = [];
+        foreach ($names as $name) {
+            $fromObject = $fromByName[$name] ?? null;
+            $toObject = $toByName[$name] ?? null;
+            if ($fromObject === null) {
+                $diffType = TableSchema::DIFF_ADDED;
+            } elseif ($toObject === null) {
+                $diffType = TableSchema::DIFF_REMOVED;
+            } elseif ($fromObject !== $toObject) {
+                $diffType = TableSchema::DIFF_MODIFIED;
+            } else {
+                $diffType = TableSchema::DIFF_NONE;
+            }
+            if ($diffType === TableSchema::DIFF_NONE) {
+                continue;
+            }
+
+            $diffs[] = [
+                'diff_type' => $diffType,
+                'from' => $fromObject,
+                'to' => $toObject,
+            ];
+        }
+
+        return $diffs;
+    }
+
+    /**
+     * @template T of array{name:non-empty-string}
+     * @param list<T> $objects
+     * @return array<string, T>
+     */
+    private function namedObjectsByLowerName(array $objects): array
+    {
+        $byName = [];
+        foreach ($objects as $object) {
+            $byName[strtolower($object['name'])] = $object;
+        }
+
+        return $byName;
+    }
+
+    /**
+     * @param array{name:non-empty-string, columns:list<non-empty-string>, unique:bool} $index
+     */
+    private function createTableIndexDefinition(array $index): string
+    {
+        return ($index['unique'] ? 'UNIQUE KEY ' : 'KEY ')
+            . $this->quoteIdentifier($index['name'])
+            . ' (' . implode(',', array_map([$this, 'quoteIdentifier'], $index['columns'])) . ')';
+    }
+
+    /**
+     * @param array{name:non-empty-string, columns:list<non-empty-string>, unique:bool} $index
+     */
+    private function alterTableAddIndexStatement(string $tableName, array $index): string
+    {
+        return 'ALTER TABLE ' . $this->quoteIdentifier($tableName)
+            . ($index['unique'] ? ' ADD UNIQUE INDEX ' : ' ADD INDEX ')
+            . $this->quoteIdentifier($index['name'])
+            . '(' . implode(',', array_map([$this, 'quoteIdentifier'], $index['columns'])) . ');';
+    }
+
+    /**
+     * @param array{name:non-empty-string, columns:list<non-empty-string>, unique:bool} $index
+     */
+    private function alterTableDropIndexStatement(string $tableName, array $index): string
+    {
+        return 'ALTER TABLE ' . $this->quoteIdentifier($tableName)
+            . ' DROP INDEX ' . $this->quoteIdentifier($index['name']) . ';';
+    }
+
+    /**
+     * @param array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null} $foreignKey
+     */
+    private function createTableForeignKeyDefinition(array $foreignKey): string
+    {
+        return 'CONSTRAINT ' . $this->quoteIdentifier($foreignKey['name'])
+            . ' FOREIGN KEY (' . implode(',', array_map([$this, 'quoteIdentifier'], $foreignKey['columns'])) . ')'
+            . ' REFERENCES ' . $this->quoteIdentifier($foreignKey['referencedTable'])
+            . ' (' . implode(',', array_map([$this, 'quoteIdentifier'], $foreignKey['referencedColumns'])) . ')'
+            . $this->foreignKeyActions($foreignKey);
+    }
+
+    /**
+     * @param array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null} $foreignKey
+     */
+    private function alterTableAddForeignKeyStatement(string $tableName, array $foreignKey): string
+    {
+        return 'ALTER TABLE ' . $this->quoteIdentifier($tableName)
+            . ' ADD ' . $this->createTableForeignKeyDefinition($foreignKey) . ';';
+    }
+
+    /**
+     * @param array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null} $foreignKey
+     */
+    private function alterTableDropForeignKeyStatement(string $tableName, array $foreignKey): string
+    {
+        return 'ALTER TABLE ' . $this->quoteIdentifier($tableName)
+            . ' DROP FOREIGN KEY ' . $this->quoteIdentifier($foreignKey['name']) . ';';
+    }
+
+    /**
+     * @param array{onDelete:string|null, onUpdate:string|null} $foreignKey
+     */
+    private function foreignKeyActions(array $foreignKey): string
+    {
+        $actions = [];
+        if ($foreignKey['onDelete'] !== null) {
+            $actions[] = 'ON DELETE ' . $foreignKey['onDelete'];
+        }
+        if ($foreignKey['onUpdate'] !== null) {
+            $actions[] = 'ON UPDATE ' . $foreignKey['onUpdate'];
+        }
+
+        return $actions === [] ? '' : ' ' . implode(' ', $actions);
+    }
+
+    /**
      * @param array<string, mixed> $table
      * @return list<string>
      */
-    private function dataStatements(array $table, string $tableName, TableSchema $schema, string $fromCommit, string $toCommit): array
-    {
+    private function dataStatements(
+        array $table,
+        string $tableName,
+        ?TableSchema $fromSchema,
+        TableSchema $schema,
+        string $fromCommit,
+        string $toCommit,
+        array &$warnings,
+    ): array {
+        if ($fromSchema !== null && !TableSchema::primaryKeySetsDiffable($fromSchema, $schema)) {
+            $warnings[] = [
+                'code' => self::PRIMARY_KEY_CHANGE_WARNING_CODE,
+                'message' => sprintf(self::PRIMARY_KEY_CHANGE_WARNING, $tableName),
+            ];
+
+            return [];
+        }
+
         if (isset($table['diffRows'])) {
             $diffRows = $table['diffRows'];
             if (!is_array($diffRows)) {

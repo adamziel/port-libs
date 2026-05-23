@@ -18,20 +18,36 @@ final class TableSchema
     /** @var list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}> */
     private array $columns;
 
+    /** @var list<array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}> */
+    private array $indexes;
+
+    /** @var list<array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null}> */
+    private array $foreignKeys;
+
     /**
      * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>}> $columns
+     * @param array{
+     *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
+     *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>
+     * } $options
      */
-    public function __construct(array $columns)
+    public function __construct(array $columns, array $options = [])
     {
         $this->columns = $this->normalizeColumns($columns);
+        $this->indexes = $this->normalizeIndexes($options['indexes'] ?? []);
+        $this->foreignKeys = $this->normalizeForeignKeys($options['foreignKeys'] ?? []);
     }
 
     /**
      * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>}> $columns
+     * @param array{
+     *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
+     *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>
+     * } $options
      */
-    public static function fromColumns(array $columns): self
+    public static function fromColumns(array $columns, array $options = []): self
     {
-        return new self($columns);
+        return new self($columns, $options);
     }
 
     /**
@@ -202,6 +218,28 @@ final class TableSchema
     }
 
     /**
+     * @return list<array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}>
+     */
+    public function indexes(): array
+    {
+        return $this->indexes;
+    }
+
+    /**
+     * @return list<array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null}>
+     */
+    public function foreignKeys(): array
+    {
+        return $this->foreignKeys;
+    }
+
+    public function hasSameSchemaMetadata(self $other): bool
+    {
+        return $this->indexes === $other->indexes
+            && $this->foreignKeys === $other->foreignKeys;
+    }
+
+    /**
      * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}>
      */
     public function primaryKeyColumns(): array
@@ -262,10 +300,13 @@ final class TableSchema
             return $this;
         }
 
-        return new self(array_values(array_filter(
-            $this->columns,
-            static fn (array $column): bool => !isset($names[$column['name']])
-        )));
+            return new self(array_values(array_filter(
+                $this->columns,
+                static fn (array $column): bool => !isset($names[$column['name']])
+            )), [
+                'indexes' => $this->indexes,
+                'foreignKeys' => $this->foreignKeys,
+            ]);
     }
 
     /**
@@ -350,6 +391,115 @@ final class TableSchema
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return list<array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}>
+     */
+    private function normalizeIndexes(mixed $indexes): array
+    {
+        if (!is_array($indexes)) {
+            throw new \InvalidArgumentException('Schema indexes must be a list.');
+        }
+
+        $normalized = [];
+        $names = [];
+        foreach (array_values($indexes) as $index) {
+            if (!is_array($index)) {
+                throw new \InvalidArgumentException('Schema indexes must contain arrays.');
+            }
+            $name = $index['name'] ?? null;
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('Schema index names must be non-empty strings.');
+            }
+            $lowerName = strtolower($name);
+            if (isset($names[$lowerName])) {
+                throw new \InvalidArgumentException("Duplicate schema index name: {$name}");
+            }
+
+            $normalized[] = [
+                'name' => $name,
+                'columns' => $this->normalizeNameList($index['columns'] ?? null, "Schema index {$name} columns"),
+                'unique' => (bool) ($index['unique'] ?? false),
+            ];
+            $names[$lowerName] = true;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<array{name:non-empty-string, columns:list<non-empty-string>, referencedTable:non-empty-string, referencedColumns:list<non-empty-string>, onDelete:string|null, onUpdate:string|null}>
+     */
+    private function normalizeForeignKeys(mixed $foreignKeys): array
+    {
+        if (!is_array($foreignKeys)) {
+            throw new \InvalidArgumentException('Schema foreign keys must be a list.');
+        }
+
+        $normalized = [];
+        $names = [];
+        foreach (array_values($foreignKeys) as $foreignKey) {
+            if (!is_array($foreignKey)) {
+                throw new \InvalidArgumentException('Schema foreign keys must contain arrays.');
+            }
+            $name = $foreignKey['name'] ?? null;
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('Schema foreign key names must be non-empty strings.');
+            }
+            $lowerName = strtolower($name);
+            if (isset($names[$lowerName])) {
+                throw new \InvalidArgumentException("Duplicate schema foreign key name: {$name}");
+            }
+            $referencedTable = $foreignKey['referencedTable'] ?? null;
+            if (!is_string($referencedTable) || $referencedTable === '') {
+                throw new \InvalidArgumentException("Schema foreign key {$name} referencedTable must be a non-empty string.");
+            }
+
+            $normalized[] = [
+                'name' => $name,
+                'columns' => $this->normalizeNameList($foreignKey['columns'] ?? null, "Schema foreign key {$name} columns"),
+                'referencedTable' => $referencedTable,
+                'referencedColumns' => $this->normalizeNameList($foreignKey['referencedColumns'] ?? null, "Schema foreign key {$name} referencedColumns"),
+                'onDelete' => $this->nullableString($foreignKey['onDelete'] ?? null, "Schema foreign key {$name} onDelete"),
+                'onUpdate' => $this->nullableString($foreignKey['onUpdate'] ?? null, "Schema foreign key {$name} onUpdate"),
+            ];
+            $names[$lowerName] = true;
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return list<non-empty-string>
+     */
+    private function normalizeNameList(mixed $names, string $label): array
+    {
+        if (!is_array($names) || $names === []) {
+            throw new \InvalidArgumentException("{$label} must be a non-empty list.");
+        }
+
+        $normalized = [];
+        foreach (array_values($names) as $name) {
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException("{$label} must contain non-empty strings.");
+            }
+            $normalized[] = $name;
+        }
+
+        return $normalized;
+    }
+
+    private function nullableString(mixed $value, string $label): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException("{$label} must be a string or null.");
+        }
+
+        return $value;
     }
 
     /**

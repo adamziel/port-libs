@@ -234,7 +234,7 @@ final class TableDeltaMatcher
             }
         }
 
-        return false;
+        return !$from->hasSameSchemaMetadata($to);
     }
 
     /**

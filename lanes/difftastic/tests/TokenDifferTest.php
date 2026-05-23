@@ -727,6 +727,41 @@ return [
         $t->same('Imported', $decoded['chunks'][0][0]['rhs']['changes'][0]['content']);
         $t->same('normal', $decoded['chunks'][0][0]['rhs']['changes'][0]['highlight']);
     },
+    'maps upstream cli makefile text as syntax atom' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-cli-makefile-1.mk');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-cli-makefile-2.mk');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'makefile']);
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'makefile',
+            'title' => 'Upstream Makefile text atom diff',
+        ]);
+
+        $t->same([[
+            'op' => '~',
+            'path' => '$make.text[0]',
+            'old' => 'CCFLAGS+=-std=c99 -D_DEFAULT_SOURCE -DVERSION=\"$(VERS)\" -O2 -Wall -Werror -D_FORTIFY_SOURCE=2 -fstack-protector-all $(CFLAGS) -g',
+            'new' => 'CCFLAGS+=-std=c99 -D_DEFAULT_SOURCE -DVERSION=\"$(VERS)\" -O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all $(CFLAGS) -g',
+        ]], $changes);
+        $t->contains('CCFLAGS', $html);
+        $t->contains('-Wall -Werror', $html);
+        $t->true(!str_contains($html, 'No syntactic changes'), 'Makefile text atoms should be visible in syntax-list rendering.');
+    },
+    'wordpress plugin build makefile diff reports flag and asset changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-build-makefile-before.mk');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-build-makefile-after.mk');
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'makefile',
+            'title' => 'Plugin build Makefile text-atom diff',
+        ]);
+
+        $t->contains('Plugin build Makefile text-atom diff', $html);
+        $t->contains('data-path="$make.text[1]"', $html);
+        $t->contains('-Werror', $html);
+        $t->contains('-D_FORTIFY_SOURCE=2', $html);
+        $t->contains('data-path="$make.text[2]"', $html);
+        $t->contains('build/view.js', $html);
+        $t->true(!str_contains($html, 'data-path="$text.line'), 'Makefile mode should use make-specific text atom paths, not generic text fallback paths.');
+    },
     'recurses into nested wordpress registration arrays' => static function (TestRunner $t): void {
         $before = "register_block_type('demo/card', ['supports' => ['html' => false, 'align' => ['wide']], 'render_callback' => 'old_card']);";
         $after = "register_block_type('demo/card', ['supports' => ['html' => true, 'align' => ['wide', 'full']], 'render_callback' => 'old_card']);";

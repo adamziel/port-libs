@@ -23,6 +23,8 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_patch()` revision snapshot materialization for supplied HEAD/STAGED/WORKING table roots, including forward and reverse schema/data patch rows, same-ref empty output, known unchanged-table empty output, and resolved HEAD commit hashes in patch rows.
 - Native `dolt_patch()` SELECT privilege checks for revision databases, including base database extraction from names like `wp_review/review-working`, table-specific reviewer grants, database-wide reviewer grants, all-table checks for unscoped patch calls, and authorization before same-ref no-op output.
 - Native `dolt_patch()` binary SQL rendering for media-library hashes and fingerprints stored in `binary` / `varbinary` columns, matching upstream `0x...` patch literals instead of quoted text.
+- Native `dolt_patch()` primary-key-change warning collection for staged/worktree snapshots, preserving schema patch rows while skipping unsafe data SQL and recording upstream warning code `1235`.
+- Native `dolt_patch()` secondary-index and foreign-key DDL rendering for staged/worktree snapshots, including `CREATE TABLE` KEY/CONSTRAINT clauses, index/foreign-key-only schema deltas, and upstream ordering of `ADD INDEX` before `ADD CONSTRAINT`.
 - Native `dolt diff -r sql` row rendering for added, modified, and removed rows, including upstream diff-type filters and the `removed` / `dropped` delete-row aliases.
 - Native row-mode `dolt diff` tabular rendering for added, modified, and removed rows, including upstream diff-type filters, empty output for mismatched filters, and fixed-width multiline/NULL cell padding.
 - Native tabular `dolt diff --diff-mode=row|line|in-place|context` rendering for modified rows, including upstream's default context behavior for multiline cells.
@@ -71,6 +73,10 @@ Versioned content/data migrations and inspectable database change sets.
 - `examples/wordpress-patch-call-boundary.php` returns native `dolt_patch()` call-boundary rows for `review-base..review-working`, a merge-base-backed `main...review-working` review, resolved review branch/tag hashes, a `WORKING` patch target, an unchanged known `wp_options` table, a missing table/ref error, and a non-literal table-argument error.
 - `fixtures/wp-patch-worktree-review.php` models a WordPress post migration where HEAD, STAGED, and WORKING each carry distinct `wp_posts` snapshots: staged post queue changes are ready for review, while unstaged worktree edits rename `post_status`, drop `legacy_checksum`, add `import_batch`, and add a media-note post.
 - `examples/wordpress-patch-worktree-review.php` returns HEAD-to-STAGED, STAGED-to-WORKING, WORKING-to-STAGED, and WORKING-to-WORKING `dolt_patch()` rows, so a migration UI can preview staged and unstaged SQL patch queues without shelling out to Dolt.
+- `fixtures/wp-patch-primary-key-warning.php` models a staged-to-working `wp_postmeta` key migration from `meta_id` to a composite content key.
+- `examples/wordpress-patch-primary-key-warning.php` returns schema-only `dolt_patch()` rows plus warning code `1235`, so a migration UI can show DDL while blocking unsafe data SQL when primary-key sets differ.
+- `fixtures/wp-patch-foreign-key-review.php` models a staged WordPress relational review where `wp_postmeta.post_id` gains an index and foreign key to `wp_posts.ID` while `wp_posts` moves to a composite import primary key.
+- `examples/wordpress-patch-foreign-key-review.php` returns the index, foreign-key, and parent primary-key `dolt_patch()` rows plus warning code `1235`, so a migration UI can apply safe DDL ordering while blocking unsafe data SQL.
 - `examples/wordpress-patch-privilege-review.php` returns a revision-database patch review where a limited reviewer can inspect `wp_posts` changes but an unscoped patch fails until the reviewer has database-wide SELECT over `wp_import_log` and the other database tables.
 - `fixtures/wp-ignore-summary.php` models a migration workspace with generated scratch/cache tables that should be hidden by `dolt_ignore`, while `dolt_ignore`, review tables, and explicit false-pattern exceptions remain visible.
 - `examples/wordpress-ignore-summary.php` returns ignore-aware `dolt_diff_summary()` rows for that workspace, so a WordPress migration UI can focus on reviewable data changes instead of generated scratch tables.
@@ -101,4 +107,4 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: map `dolt_patch()` primary-key-change warning behavior for staged/worktree comparisons, including skipped data patches and warning collection.
+Next best slice: map `dolt_patch()` check constraint and modified/drop secondary-index or foreign-key DDL boundaries for staged/worktree comparisons.

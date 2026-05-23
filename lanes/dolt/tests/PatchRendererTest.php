@@ -137,6 +137,106 @@ return [
             'UPDATE `t` SET `c1`=0xeeee0000000000000000000000000000 WHERE `pk`=0x42;',
         ], array_column($rows, 'statement'));
     },
+    'dolt patch skips data and records upstream warning when primary keys change' => static function (TestRunner $t): void {
+        $fromSchema = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'id_ext', 'tag' => 2, 'type' => 'int'],
+            ['name' => 'value', 'tag' => 3, 'type' => 'int'],
+        ]);
+        $toSchema = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'id_ext', 'tag' => 2, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'value', 'tag' => 3, 'type' => 'int'],
+        ]);
+        $table = [
+            'tableName' => 'parent',
+            'fromSchema' => $fromSchema,
+            'toSchema' => $toSchema,
+            'primaryKey' => ['id', 'id_ext'],
+            'fromRows' => [
+                ['id' => 0, 'id_ext' => 1, 'value' => 2],
+            ],
+            'toRows' => [
+                ['id' => 0, 'id_ext' => 1, 'value' => 3],
+            ],
+        ];
+        $renderer = new PatchRenderer();
+
+        $schemaWarnings = [];
+        $schemaRows = $renderer->rows([$table], ['fromCommit' => 'HEAD', 'toCommit' => 'STAGED', 'filter' => 'schema'], $schemaWarnings);
+        $warnings = [];
+        $rows = $renderer->rows([$table], ['fromCommit' => 'HEAD', 'toCommit' => 'STAGED'], $warnings);
+        $dataWarnings = [];
+        $dataRows = $renderer->rows([$table], ['fromCommit' => 'HEAD', 'toCommit' => 'STAGED', 'filter' => 'data'], $dataWarnings);
+
+        $t->same([], $schemaWarnings);
+        $t->same(['schema', 'schema'], array_column($schemaRows, 'diff_type'));
+        $t->same(['schema', 'schema'], array_column($rows, 'diff_type'));
+        $t->same([], $dataRows);
+        $t->same(1, count($warnings));
+        $t->same($warnings, $dataWarnings);
+        $t->same(PatchRenderer::PRIMARY_KEY_CHANGE_WARNING_CODE, $warnings[0]['code']);
+        $t->same("Primary key sets differ between revisions for table 'parent', skipping data diff", $warnings[0]['message']);
+    },
+    'dolt patch orders secondary index foreign key and primary key ddl like upstream' => static function (TestRunner $t): void {
+        $parentBefore = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'id_ext', 'tag' => 2, 'type' => 'int'],
+            ['name' => 'v1', 'tag' => 3, 'type' => 'int'],
+            ['name' => 'v2', 'tag' => 4, 'type' => "text COMMENT 'tag:1'"],
+        ], [
+            'indexes' => [['name' => 'v1', 'columns' => ['v1']]],
+        ]);
+        $parentAfter = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'id_ext', 'tag' => 2, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'v1', 'tag' => 3, 'type' => 'int'],
+            ['name' => 'v2', 'tag' => 4, 'type' => "text COMMENT 'tag:1'"],
+        ], [
+            'indexes' => [['name' => 'v1', 'columns' => ['v1']]],
+        ]);
+        $childBefore = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 5, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'v1', 'tag' => 6, 'type' => 'int'],
+        ]);
+        $childAfter = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 5, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'v1', 'tag' => 6, 'type' => 'int'],
+        ], [
+            'indexes' => [['name' => 'fk_named', 'columns' => ['v1']]],
+            'foreignKeys' => [[
+                'name' => 'fk_named',
+                'columns' => ['v1'],
+                'referencedTable' => 'parent',
+                'referencedColumns' => ['v1'],
+            ]],
+        ]);
+        $tables = [
+            ['tableName' => 'parent', 'fromSchema' => $parentBefore, 'toSchema' => $parentAfter, 'primaryKey' => ['id', 'id_ext'], 'fromRows' => [['id' => 0, 'id_ext' => 1, 'v1' => 2, 'v2' => null]], 'toRows' => [['id' => 0, 'id_ext' => 1, 'v1' => 2, 'v2' => null]]],
+            ['tableName' => 'child', 'fromSchema' => $childBefore, 'toSchema' => $childAfter, 'primaryKey' => 'id'],
+        ];
+        $warnings = [];
+
+        $rows = (new PatchRenderer())->rows($tables, ['fromCommit' => 'HEAD', 'toCommit' => 'STAGED'], $warnings);
+        $createRows = (new PatchRenderer())->rows([
+            ['tableName' => 'child', 'fromSchema' => null, 'toSchema' => $childAfter, 'primaryKey' => 'id'],
+            ['tableName' => 'parent', 'fromSchema' => null, 'toSchema' => $parentAfter, 'primaryKey' => ['id', 'id_ext'], 'toRows' => [['id' => 0, 'id_ext' => 1, 'v1' => 2, 'v2' => null]]],
+        ], ['fromCommit' => 'HEAD~', 'toCommit' => 'WORKING']);
+
+        $t->same([
+            'ALTER TABLE `child` ADD INDEX `fk_named`(`v1`);',
+            'ALTER TABLE `child` ADD CONSTRAINT `fk_named` FOREIGN KEY (`v1`) REFERENCES `parent` (`v1`);',
+            'ALTER TABLE `parent` DROP PRIMARY KEY;',
+            'ALTER TABLE `parent` ADD PRIMARY KEY (id,id_ext);',
+        ], array_column($rows, 'statement'));
+        $t->same(['child', 'child', 'parent', 'parent'], array_column($rows, 'table_name'));
+        $t->same(1, count($warnings));
+        $t->same(PatchRenderer::PRIMARY_KEY_CHANGE_WARNING_CODE, $warnings[0]['code']);
+        $t->contains("Primary key sets differ between revisions for table 'parent'", $warnings[0]['message']);
+        $t->same("CREATE TABLE `child` (\n  `id` int NOT NULL,\n  `v1` int,\n  PRIMARY KEY (`id`),\n  KEY `fk_named` (`v1`),\n  CONSTRAINT `fk_named` FOREIGN KEY (`v1`) REFERENCES `parent` (`v1`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;", $createRows[0]['statement']);
+        $t->same("CREATE TABLE `parent` (\n  `id` int NOT NULL,\n  `id_ext` int NOT NULL,\n  `v1` int,\n  `v2` text COMMENT 'tag:1',\n  PRIMARY KEY (`id`,`id_ext`),\n  KEY `v1` (`v1`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;", $createRows[1]['statement']);
+        $t->same('INSERT INTO `parent` (`id`,`id_ext`,`v1`,`v2`) VALUES (0,1,2,NULL);', $createRows[2]['statement']);
+    },
     'wordpress patch review example separates schema and data queues' => static function (TestRunner $t): void {
         $output = require __DIR__ . '/../examples/wordpress-patch-review.php';
 
