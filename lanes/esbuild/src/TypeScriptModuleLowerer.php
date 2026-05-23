@@ -4693,6 +4693,22 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $localExport = $this->rewriteTopLevelUsingHelperLocalExport($line);
+            if ($localExport !== null) {
+                foreach ($localExport['body'] as $bodyLine) {
+                    foreach (explode("\n", $bodyLine) as $part) {
+                        if ($part === '') {
+                            continue;
+                        }
+                        $body[] = '  ' . $part;
+                    }
+                }
+                foreach ($localExport['suffix'] as $suffixLine) {
+                    $suffix[] = $suffixLine;
+                }
+                continue;
+            }
+
             foreach (explode("\n", $line) as $part) {
                 if ($part === '') {
                     continue;
@@ -4738,6 +4754,74 @@ final class TypeScriptModuleLowerer
 
         return preg_match('/^export\s*\{/', $trimmed) === 1
             && preg_match('/^export\s*\{[\s\S]*?\}\s+from\b/', $trimmed) !== 1;
+    }
+
+    /**
+     * @return array{body:list<string>, suffix:list<string>}|null
+     */
+    private function rewriteTopLevelUsingHelperLocalExport(string $line): ?array
+    {
+        $trimmed = trim($line);
+        if (preg_match('/^export\s+(?:var|let|const)\s+([\s\S]*?);?$/', $trimmed, $match) === 1) {
+            $declarations = rtrim($match[1]);
+            $names = $this->exportedVariableNames($declarations);
+            if ($names === []) {
+                return null;
+            }
+
+            return [
+                'body' => ['var ' . $declarations . ';'],
+                'suffix' => [$this->exportClauseStatement($names)],
+            ];
+        }
+
+        if (preg_match('/^export\s+class\s+([A-Za-z_$][A-Za-z0-9_$]*)([\s\S]*)$/', $trimmed, $match) === 1) {
+            $name = $match[1];
+            $tail = rtrim($match[2]);
+            if ($tail === '' || !str_contains($tail, '{')) {
+                return null;
+            }
+
+            return [
+                'body' => ['var ' . $name . ' = class' . $tail . (str_ends_with($tail, ';') ? '' : ';')],
+                'suffix' => [$this->exportClauseStatement([$name])],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function exportedVariableNames(string $declarations): array
+    {
+        $names = [];
+        foreach ($this->splitTopLevelCommaExpression($declarations) as $declaration) {
+            $assignment = $this->topLevelDelimiterOffset($declaration, '=');
+            $binding = trim($assignment === null ? $declaration : substr($declaration, 0, $assignment));
+            if (preg_match('/^[A-Za-z_$][A-Za-z0-9_$]*$/', $binding) !== 1) {
+                return [];
+            }
+            $names[] = $binding;
+        }
+
+        return $names;
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function exportClauseStatement(array $names): string
+    {
+        $lines = ['export {'];
+        $last = count($names) - 1;
+        foreach ($names as $index => $name) {
+            $lines[] = '  ' . $name . ($index === $last ? '' : ',');
+        }
+        $lines[] = '};';
+
+        return implode("\n", $lines);
     }
 
     private function isStringDirectiveStatement(string $line): bool
