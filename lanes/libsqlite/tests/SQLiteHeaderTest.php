@@ -10,6 +10,7 @@ use PortLibs\LibSqlite\SQLiteCreateTable;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexColumn;
+use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
@@ -75,6 +76,9 @@ $recordPayload = static function (array $values) use ($varint): string {
                 $serialTypes[] = 4;
                 $body .= pack('N', $value & 0xffffffff);
             }
+        } elseif (is_array($value) && isset($value['__sqlite_blob']) && is_string($value['__sqlite_blob'])) {
+            $serialTypes[] = 12 + (strlen($value['__sqlite_blob']) * 2);
+            $body .= $value['__sqlite_blob'];
         } elseif (is_string($value)) {
             $serialTypes[] = 13 + (strlen($value) * 2);
             $body .= $value;
@@ -88,6 +92,8 @@ $recordPayload = static function (array $values) use ($varint): string {
 
     return $varint($headerSize) . $serialHeader . $body;
 };
+
+$blobValue = static fn (string $bytes): array => ['__sqlite_blob' => $bytes];
 
 $schemaCell = static function (array $values, int $rowId) use ($varint, $recordPayload): string {
     $payload = $recordPayload($values);
@@ -1426,6 +1432,47 @@ return [
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedJsonOptionValue('$.enabled', true));
+    },
+    'decodes focused sqlite jsonb blobs for json expression verification' => static function (TestRunner $t): void {
+        $jsonb = hex2bin('cc0f1761cb0b133235332e350102001778');
+        if (!is_string($jsonb)) {
+            throw new RuntimeException('Fixture JSONB hex is invalid');
+        }
+
+        $t->true(SQLiteJsonB::isJsonB($jsonb));
+        $t->same(['a' => [2, 3.5, true, false, null, 'x']], SQLiteJsonB::decode($jsonb));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonB::decode("\x8c\xe6\xff\xff\xff\x17\x13\x33"));
+    },
+    'uses jsonb option_value blobs through wordpress json expression indexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $blobValue): void {
+        $jsonbSettings = hex2bin('cc0f1761cb0b133235332e350102001778');
+        if (!is_string($jsonbSettings)) {
+            throw new RuntimeException('Fixture JSONB hex is invalid');
+        }
+
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value blob, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_jsonb_channel', 'wp_options', 3, 'CREATE INDEX wp_options_jsonb_channel ON wp_options(json_extract(option_value, \'$.a[5]\')) WHERE option_value IS NOT NULL'], 2),
+            $schemaCell(['index', 'wp_options_jsonb_array', 'wp_options', 4, 'CREATE INDEX wp_options_jsonb_array ON wp_options(option_value -> \'$.a\') WHERE option_value IS NOT NULL'], 3),
+        ], 1024, 100, $makeFirstPage(1024, 4));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_jsonb_settings', $blobValue($jsonbSettings), 'no'], 1),
+        ], 1024);
+        $page3 = $indexLeafPage([
+            $indexCell(['x', 1]),
+        ], 1024);
+        $page4 = $indexLeafPage([
+            $indexCell(['[2,3.5,true,false,null,"x"]', 1]),
+        ], 1024);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4);
+
+        $scalar = $database->wordpressOptionsByIndexedJsonOptionValue('$.a[5]', 'x');
+        $fragment = $database->wordpressOptionsByIndexedJsonOptionFragment('$.a', [2, 3.5, true, false, null, 'x']);
+
+        $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.a[5]', 'x'));
+        $t->same(4, $database->indexRootPageForJsonValueOperatorPointLookup('wp_options', 'option_value', '$.a', [2, 3.5, true, false, null, 'x']));
+        $t->same(['plugin_jsonb_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $scalar));
+        $t->same(['plugin_jsonb_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $fragment));
+        $t->same($jsonbSettings, $scalar[0]->optionValue);
     },
     'uses escaped sqlite json path labels for wordpress plugin option values' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

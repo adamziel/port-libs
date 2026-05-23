@@ -483,6 +483,14 @@ expression index, and returns options whose JSON-text fragment falls inside
 caller supplied bounds. This maps channel/stage audits where the database
 stores JSON fragments through SQLite's value-operator shorthand.
 
+`examples/wordpress-jsonb-option-value.php` reads a WordPress-oriented SQLite
+database file, resolves a first-term
+`wp_options(json_extract(option_value,'$.key'))` expression index, and returns
+options whose scalar value matches even when the underlying `option_value`
+record is a SQLite JSONB BLOB. This maps plugin/theme settings databases that
+were populated by SQLite JSONB functions while still running on hosts without
+the PHP SQLite extension.
+
 `examples/wordpress-trimmed-option-name.php` reads a WordPress-oriented SQLite
 database file, resolves a first-term
 `wp_options(trim(option_name))`/`ltrim`/`rtrim` expression index, and returns
@@ -514,6 +522,6 @@ slice: expression indexes beyond `lower(column)`, `upper(column)`,
 `substr(column,...)`, `length(column)`, `CAST(column AS INTEGER)`, and the
 named `json_extract(column,path)`, `column ->> path`, and `column -> path`
 JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
-mutation at `[#]`, JSONB input decoding, and full JSON5 numeric/string edge
+mutation at `[#]`, JSONB output/generation/mutation, and full JSON5 numeric/string edge
 parity; custom collations; and composite-key ranges beyond one equality prefix
 plus one range column.

@@ -1602,3 +1602,37 @@ quote labels. The new
 `examples/wordpress-json-escaped-label-option-value.php` script documents this
 recovery path for plugin/theme settings whose JSON keys come from escaped or
 external identifiers.
+
+## Focused Native Mapping: JSONB Indexed Option Reads
+
+This slice keeps the bounded JSON expression-index lookup API but broadens row
+verification from text JSON/JSON5 to SQLite JSONB blobs when a decoded
+`wp_options.option_value` field came from a SQLite BLOB serial type. The native
+decoder maps the JSONB header/payload format for null, booleans, integers,
+floats, text, arrays, and objects, then feeds the existing path traversal used
+by `json_extract(...)` and `->` expression-index verification.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  json102.test jsonb01.test
+```
+
+Result: 2 Tcl scripts, 0 errors out of 356 tests in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/json102.test` covers JSONB input for `json_extract(...)`,
+  `jsonb_extract(...)`, and JSON type traversal, including the canonical JSONB
+  blob for `{"a":[2,3.5,true,false,null,"x"]}`.
+- `test/jsonb01.test` covers JSONB-specific malformed-input handling.
+
+The native PHP tests decode the upstream JSONB fixture
+`x'cc0f1761cb0b133235332e350102001778'`, reject a malformed JSONB blob, and
+read a WordPress-shaped `wp_options` row whose `option_value` is a JSONB BLOB
+through both `json_extract(option_value,'$.a[5]')` and
+`option_value -> '$.a'` expression indexes. The new
+`examples/wordpress-jsonb-option-value.php` script documents this recovery path
+for plugin settings stored by SQLite JSONB functions.

@@ -2651,7 +2651,7 @@ final class SQLiteDatabase
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteJsonExtract($option->optionValue, $jsonPath),
+                    self::sqliteJsonExtract($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $lookupValue,
                     $indexLookup['collation'],
                 ) === 0
@@ -2711,7 +2711,7 @@ final class SQLiteDatabase
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (
                 self::compareSQLiteScalar(
-                    self::sqliteJsonValueOperator($option->optionValue, $jsonPath),
+                    self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $lookupValue,
                     $indexLookup['collation'],
                 ) === 0
@@ -2770,7 +2770,7 @@ final class SQLiteDatabase
             }
 
             $option = SQLiteWordPressOption::fromTableRow($row);
-            $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath);
+            $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null);
             if (
                 $fragment !== null
                 && self::inListContainsSQLiteScalar($lookupValues, $fragment, $indexLookup['collation'])
@@ -2849,7 +2849,7 @@ final class SQLiteDatabase
             }
 
             $option = SQLiteWordPressOption::fromTableRow($row);
-            $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath);
+            $fragment = self::sqliteJsonValueOperator($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null);
             if (
                 $fragment !== null
                 && self::firstValueIsInRange(
@@ -2921,7 +2921,7 @@ final class SQLiteDatabase
             if (
                 self::inListContainsSQLiteScalar(
                     $lookupValues,
-                    self::sqliteJsonExtract($option->optionValue, $jsonPath),
+                    self::sqliteJsonExtract($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                     $indexLookup['collation'],
                 )
             ) {
@@ -3000,7 +3000,7 @@ final class SQLiteDatabase
 
             $option = SQLiteWordPressOption::fromTableRow($row);
             if (self::firstValueIsInRange(
-                self::sqliteJsonExtract($option->optionValue, $jsonPath),
+                self::sqliteJsonExtract($option->optionValue, $jsonPath, $row->record->serialTypes[2] ?? null),
                 $lowerKey,
                 $upperKey,
                 $upperInclusive,
@@ -5008,9 +5008,9 @@ final class SQLiteDatabase
         return $negative ? -$parsed : $parsed;
     }
 
-    private static function sqliteJsonExtract(mixed $json, string $path): mixed
+    private static function sqliteJsonExtract(mixed $json, string $path, ?int $serialType = null): mixed
     {
-        $located = self::sqliteJsonLocate($json, $path);
+        $located = self::sqliteJsonLocate($json, $path, $serialType);
         if (!$located['found']) {
             return null;
         }
@@ -5018,9 +5018,9 @@ final class SQLiteDatabase
         return self::sqliteJsonScalar($located['value']);
     }
 
-    private static function sqliteJsonValueOperator(mixed $json, string $path): ?string
+    private static function sqliteJsonValueOperator(mixed $json, string $path, ?int $serialType = null): ?string
     {
-        $located = self::sqliteJsonLocate($json, $path);
+        $located = self::sqliteJsonLocate($json, $path, $serialType);
         if (!$located['found']) {
             return null;
         }
@@ -5031,7 +5031,7 @@ final class SQLiteDatabase
     /**
      * @return array{found:bool,value:mixed}
      */
-    private static function sqliteJsonLocate(mixed $json, string $path): array
+    private static function sqliteJsonLocate(mixed $json, string $path, ?int $serialType = null): array
     {
         $segments = self::parseSimpleJsonPath($path);
         if ($json === null) {
@@ -5041,15 +5041,7 @@ final class SQLiteDatabase
             $json = (string) self::sqliteJsonScalar($json);
         }
 
-        try {
-            $value = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-        } catch (\JsonException $exception) {
-            try {
-                $value = SQLiteJson5Parser::decode($json);
-            } catch (\InvalidArgumentException $json5Exception) {
-                throw new \InvalidArgumentException('SQLite json_extract expression index value is not valid strict JSON or supported JSON5', 0, $json5Exception);
-            }
-        }
+        $value = self::decodeSQLiteJsonInput($json, $serialType);
 
         foreach ($segments as $segment) {
             if ($segment['kind'] === 'index' || $segment['kind'] === 'indexFromEnd' || $segment['kind'] === 'arrayAppend') {
@@ -5090,6 +5082,23 @@ final class SQLiteDatabase
         }
 
         return ['found' => true, 'value' => $value];
+    }
+
+    private static function decodeSQLiteJsonInput(string $json, ?int $serialType): mixed
+    {
+        if ($serialType !== null && $serialType >= 12 && $serialType % 2 === 0 && SQLiteJsonB::isJsonB($json)) {
+            return SQLiteJsonB::decode($json);
+        }
+
+        try {
+            return json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            try {
+                return SQLiteJson5Parser::decode($json);
+            } catch (\InvalidArgumentException $json5Exception) {
+                throw new \InvalidArgumentException('SQLite json_extract expression index value is not valid strict JSON, supported JSON5, or JSONB', 0, $json5Exception);
+            }
+        }
     }
 
     private static function sqliteJsonScalar(mixed $value): mixed
