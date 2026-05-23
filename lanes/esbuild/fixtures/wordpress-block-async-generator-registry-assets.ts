@@ -3,8 +3,9 @@ import metadata from "./block.json" with { type: "json" };
 
 const previewStreams = [
   async function* (queue): AsyncGenerator<any> {
+    const resolvedHandle = await queue.resolveHandle?.(metadata.viewScript) ?? metadata.viewScript;
     const preferredHandle = await queue.resolveHandle(metadata.viewScript) || metadata.viewScript;
-    await using asset: AsyncDisposable = await queue.openNext(metadata.viewScript, metadata.name);
+    await using asset: AsyncDisposable = await queue.openNext(resolvedHandle, metadata.name);
     yield { handle: preferredHandle, url: asset.url };
     yield* queue.extraAssets(metadata.name);
   },

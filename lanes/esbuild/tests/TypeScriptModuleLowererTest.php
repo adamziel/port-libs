@@ -690,6 +690,28 @@ TS,
         $t->true(!str_contains($lowered, 'async function*'));
         $t->true(!str_contains($lowered, ': AsyncGenerator'));
     },
+    'lowers upstream async generator await operands with optional chain and nullish precedence' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+async function* foo(): AsyncGenerator<string> {
+  const resolved = await queue.resolveHandle?.(metadata.viewScript) ?? metadata.viewScript;
+  const assetUrl = await queue.currentAsset?.url;
+  const byName = await queue.assets?.[metadata.name];
+  const fallback = await queue.resolveHandle?.(metadata.editorScript) || metadata.editorScript;
+}
+TS,
+            lowerAsyncGenerators: true
+        );
+
+        $t->contains('const resolved = yield new __await(queue.resolveHandle?.(metadata.viewScript))??metadata.viewScript;', $lowered);
+        $t->contains('const assetUrl = yield new __await(queue.currentAsset?.url);', $lowered);
+        $t->contains('const byName = yield new __await(queue.assets?.[metadata.name]);', $lowered);
+        $t->contains('const fallback = yield new __await(queue.resolveHandle?.(metadata.editorScript))||metadata.editorScript;', $lowered);
+        $t->true(!str_contains($lowered, 'yield new __await(queue.resolveHandle?.(metadata.viewScript)??metadata.viewScript)'));
+        $t->true(!str_contains($lowered, 'yield new __await(queue.resolveHandle?.(metadata.editorScript)||metadata.editorScript)'));
+        $t->true(!str_contains($lowered, 'async function*'));
+        $t->true(!str_contains($lowered, ': AsyncGenerator'));
+    },
     'lowers upstream async generator for await bodies through runtime helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             <<<'TS'
@@ -2107,8 +2129,9 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('import metadata from "./block.json" with { type: "json" };', $lowered);
         $t->contains('const previewStreams = [function(queue) {', $lowered);
         $t->contains('return __asyncGenerator(this, null, function* () {', $lowered);
+        $t->contains('const resolvedHandle = yield new __await(queue.resolveHandle?.(metadata.viewScript))??metadata.viewScript;', $lowered);
         $t->contains('const preferredHandle = yield new __await(queue.resolveHandle(metadata.viewScript))||metadata.viewScript;', $lowered);
-        $t->contains('const asset = __using(_stack2, yield new __await(queue.openNext(metadata.viewScript, metadata.name)), true);', $lowered);
+        $t->contains('const asset = __using(_stack2, yield new __await(queue.openNext(resolvedHandle, metadata.name)), true);', $lowered);
         $t->contains('yield {handle:asset.handle, url:asset.url};', $lowered);
         $t->contains('yield* __yieldStar(queue.extraAssets(metadata.name));', $lowered);
         $t->contains('const fallback = __using(_stack3, yield new __await((queue.prepareFallback(metadata.name), queue.openNext(metadata.editorScript, metadata.name))), true);', $lowered);

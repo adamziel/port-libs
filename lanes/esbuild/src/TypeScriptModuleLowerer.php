@@ -5661,8 +5661,10 @@ final class TypeScriptModuleLowerer
             return preg_match('/\G\s+(?:in|instanceof)\b/', $expression, $matches, 0, $offset) === 1;
         }
 
-        if ($char === '?' && ($expression[$offset + 1] ?? '') === '.') {
-            return false;
+        if ($char === '?') {
+            $next = $expression[$offset + 1] ?? '';
+
+            return $next !== '.';
         }
 
         return str_contains('?:=<>|&^+-*/%!', $char);
