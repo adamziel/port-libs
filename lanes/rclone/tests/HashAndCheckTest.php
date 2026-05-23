@@ -41,7 +41,7 @@ return [
         $t->true($overlap->contains(HashType::MD5));
         $t->true(!$overlap->contains(HashType::SHA1));
 
-        foreach (['none' => HashType::NONE, 'None' => HashType::NONE, 'md5' => HashType::MD5, 'MD5' => HashType::MD5, 'sha1' => HashType::SHA1, 'SHA-1' => HashType::SHA1, 'SHA1' => HashType::SHA1, 'Sha1' => HashType::SHA1] as $input => $expected) {
+        foreach (['none' => HashType::NONE, 'None' => HashType::NONE, 'md5' => HashType::MD5, 'MD5' => HashType::MD5, 'sha1' => HashType::SHA1, 'SHA-1' => HashType::SHA1, 'SHA1' => HashType::SHA1, 'Sha1' => HashType::SHA1, 'quickxor' => HashType::QUICKXOR, 'QuickXorHash' => HashType::QUICKXOR] as $input => $expected) {
             $t->same($expected, HashType::fromString($input));
         }
         $t->throws(InvalidArgumentException::class, static fn () => HashType::fromString('Sha-1'));
@@ -64,6 +64,19 @@ return [
         $t->same('da39a3ee5e6b4b0d3255bfef95601890afd80709', $empty[HashType::SHA1]);
         $t->same('00000000', $empty[HashType::CRC32]);
         $t->same('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', $empty[HashType::SHA256]);
+    },
+    'maps upstream onedrive quickxor hash vectors' => static function (TestRunner $t): void {
+        $vectors = [
+            '' => '0000000000000000000000000000000000000000',
+            'Sg==' => '4a00000000000000000000000100000000000000',
+            'h490d57Pqz5q2rtT' => '8778041deee08967acc2076adcc62ea600000000',
+        ];
+
+        foreach ($vectors as $inputBase64 => $expectedHex) {
+            $bytes = base64_decode($inputBase64, true);
+            $t->same($expectedHex, MultiHasher::hashBytes($bytes, new HashSet(HashType::QUICKXOR))[HashType::QUICKXOR]);
+        }
+        $t->same('AAAAAAAAAAAAAAAAAAAAAAAAAAA=  -', HashListing::streamLine('', HashType::QUICKXOR, true));
     },
     'checks providers using rclone combined report sigils' => static function (TestRunner $t): void {
         $source = new MemoryProvider();

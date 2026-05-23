@@ -6,6 +6,9 @@ namespace PortLibs\Rclone;
 
 final class SyncPlan
 {
+    /** @var array<string, bool> */
+    private array $interactiveDestructiveSkips = [];
+
     /**
      * @return list<string>
      */
@@ -1354,7 +1357,13 @@ final class SyncPlan
      *     partialUploads?: bool,
      *     partialSuffix?: string,
      *     simulatePartialTransferError?: bool,
-     *     metadataSet?: array<string, scalar|null>
+     *     metadataSet?: array<string, scalar|null>,
+     *     maxTransfer?: int,
+     *     cutoffMode?: string,
+     *     bytesTransferredSoFar?: int,
+     *     dryRun?: bool,
+     *     interactive?: bool,
+     *     interactiveChoice?: mixed
      * } $options
      * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
      */
@@ -1388,7 +1397,13 @@ final class SyncPlan
      *     partialUploads?: bool,
      *     partialSuffix?: string,
      *     simulatePartialTransferError?: bool,
-     *     metadataSet?: array<string, scalar|null>
+     *     metadataSet?: array<string, scalar|null>,
+     *     maxTransfer?: int,
+     *     cutoffMode?: string,
+     *     bytesTransferredSoFar?: int,
+     *     dryRun?: bool,
+     *     interactive?: bool,
+     *     interactiveChoice?: mixed
      * } $options
      * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
      */
@@ -1400,6 +1415,369 @@ final class SyncPlan
         array $options = [],
     ): array {
         return $this->moveOrCopyFile($destination, $source, $destinationPath, $sourcePath, false, $options);
+    }
+
+    /**
+     * Model cmd/copy argument dispatch.
+     *
+     * File sources are copied into the destination directory using the source
+     * leaf name. Directory sources copy the contents of the directory, not the
+     * directory name itself, matching upstream CopyDir.
+     *
+     * @param array{
+     *     createEmptySrcDirs?: bool,
+     *     filter?: FilterRuleSet|null,
+     *     backup?: MemoryProvider|null,
+     *     backupPrefix?: string,
+     *     suffix?: string,
+     *     suffixKeepExtension?: bool,
+     *     compareDest?: list<MemoryProvider>,
+     *     copyDest?: list<MemoryProvider>,
+     *     noCheckDest?: bool,
+     *     ignoreExisting?: bool,
+     *     immutable?: bool,
+     *     ignoreTimes?: bool,
+     *     updateOlder?: bool,
+     *     noUpdateModTime?: bool,
+     *     modifyWindowSeconds?: int,
+     *     checksum?: bool,
+     *     refreshTimes?: bool,
+     *     partialUploads?: bool,
+     *     partialSuffix?: string,
+     *     simulatePartialTransferError?: bool,
+     *     metadataSet?: array<string, scalar|null>,
+     *     maxTransfer?: int,
+     *     cutoffMode?: string,
+     *     bytesTransferredSoFar?: int,
+     *     dryRun?: bool,
+     *     interactive?: bool,
+     *     interactiveChoice?: mixed
+     * } $options
+     * @param array<string, mixed>|null $stats
+     * @return array{command: string, sourceType: string, destinationPath: ?string, file: ?array<string, mixed>, directory: ?array<string, mixed>}
+     */
+    public function copyCommand(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $sourceRemote,
+        string $destinationRemote,
+        array $options = [],
+        ?array &$stats = null,
+    ): array {
+        $sourceRemote = self::normalizePath($sourceRemote);
+        $destinationRemote = self::normalizePath($destinationRemote);
+        $stats = $this->copyCommandStats('copy', $sourceRemote, $destinationRemote);
+
+        $sourceInfo = $this->optionalInfo($source, $sourceRemote);
+        if ($sourceInfo !== null) {
+            $destinationPath = self::joinPath($destinationRemote, self::pathBase($sourceInfo->path));
+            $stats['sourceType'] = 'file';
+            $stats['destinationPath'] = $destinationPath;
+            $file = $this->copyFile($destination, $source, $destinationPath, $sourceInfo->path, $options);
+            $this->recordCopyCommandFileStats($stats, $file);
+
+            return [
+                'command' => 'copy',
+                'sourceType' => 'file',
+                'destinationPath' => $destinationPath,
+                'file' => $file,
+                'directory' => null,
+            ];
+        }
+
+        if (!$this->directoryExists($source, $sourceRemote)) {
+            throw new \RuntimeException("Object or directory not found: {$sourceRemote}");
+        }
+
+        $stats['sourceType'] = 'directory';
+        $directory = $this->copyDirectoryCommand(
+            $destination,
+            $source,
+            $sourceRemote,
+            $destinationRemote,
+            (bool) ($options['createEmptySrcDirs'] ?? false),
+            $options['filter'] ?? null,
+            $options,
+            $stats,
+        );
+
+        return [
+            'command' => 'copy',
+            'sourceType' => 'directory',
+            'destinationPath' => $destinationRemote,
+            'file' => null,
+            'directory' => $directory,
+        ];
+    }
+
+    /**
+     * Model cmd/copyto argument dispatch.
+     *
+     * File sources copy to the exact destination path. Directory sources share
+     * CopyDir semantics with cmd/copy and do not expose copy's empty directory
+     * flag.
+     *
+     * @param array{
+     *     filter?: FilterRuleSet|null,
+     *     backup?: MemoryProvider|null,
+     *     backupPrefix?: string,
+     *     suffix?: string,
+     *     suffixKeepExtension?: bool,
+     *     compareDest?: list<MemoryProvider>,
+     *     copyDest?: list<MemoryProvider>,
+     *     noCheckDest?: bool,
+     *     ignoreExisting?: bool,
+     *     immutable?: bool,
+     *     ignoreTimes?: bool,
+     *     updateOlder?: bool,
+     *     noUpdateModTime?: bool,
+     *     modifyWindowSeconds?: int,
+     *     checksum?: bool,
+     *     refreshTimes?: bool,
+     *     partialUploads?: bool,
+     *     partialSuffix?: string,
+     *     simulatePartialTransferError?: bool,
+     *     metadataSet?: array<string, scalar|null>,
+     *     dryRun?: bool,
+     *     interactive?: bool,
+     *     interactiveChoice?: mixed
+     * } $options
+     * @param array<string, mixed>|null $stats
+     * @return array{command: string, sourceType: string, destinationPath: ?string, file: ?array<string, mixed>, directory: ?array<string, mixed>}
+     */
+    public function copytoCommand(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $sourceRemote,
+        string $destinationRemote,
+        array $options = [],
+        ?array &$stats = null,
+    ): array {
+        $sourceRemote = self::normalizePath($sourceRemote);
+        $destinationRemote = self::normalizePath($destinationRemote);
+        $stats = $this->copyCommandStats('copyto', $sourceRemote, $destinationRemote);
+
+        $sourceInfo = $this->optionalInfo($source, $sourceRemote);
+        if ($sourceInfo !== null) {
+            $stats['sourceType'] = 'file';
+            $stats['destinationPath'] = $destinationRemote;
+            $file = $this->copyFile($destination, $source, $destinationRemote, $sourceInfo->path, $options);
+            $this->recordCopyCommandFileStats($stats, $file);
+
+            return [
+                'command' => 'copyto',
+                'sourceType' => 'file',
+                'destinationPath' => $destinationRemote,
+                'file' => $file,
+                'directory' => null,
+            ];
+        }
+
+        if (!$this->directoryExists($source, $sourceRemote)) {
+            throw new \RuntimeException("Object or directory not found: {$sourceRemote}");
+        }
+
+        $stats['sourceType'] = 'directory';
+        $directory = $this->copyDirectoryCommand(
+            $destination,
+            $source,
+            $sourceRemote,
+            $destinationRemote,
+            false,
+            $options['filter'] ?? null,
+            $options,
+            $stats,
+        );
+
+        return [
+            'command' => 'copyto',
+            'sourceType' => 'directory',
+            'destinationPath' => $destinationRemote,
+            'file' => null,
+            'directory' => $directory,
+        ];
+    }
+
+    /**
+     * Model cmd/move argument dispatch.
+     *
+     * File sources are moved into the destination directory using the source
+     * leaf name. Directory sources use the same MoveDir boundary as upstream:
+     * try a provider directory move first when possible, then fall back to
+     * object-by-object moves with optional empty-directory handling.
+     *
+     * @param array{
+     *     deleteEmptySrcDirs?: bool,
+     *     createEmptySrcDirs?: bool,
+     *     filter?: FilterRuleSet|null,
+     *     backup?: MemoryProvider|null,
+     *     backupPrefix?: string,
+     *     suffix?: string,
+     *     suffixKeepExtension?: bool,
+     *     compareDest?: list<MemoryProvider>,
+     *     copyDest?: list<MemoryProvider>,
+     *     noCheckDest?: bool,
+     *     ignoreExisting?: bool,
+     *     immutable?: bool,
+     *     ignoreTimes?: bool,
+     *     updateOlder?: bool,
+     *     noUpdateModTime?: bool,
+     *     modifyWindowSeconds?: int,
+     *     checksum?: bool,
+     *     refreshTimes?: bool,
+     *     partialUploads?: bool,
+     *     partialSuffix?: string,
+     *     simulatePartialTransferError?: bool,
+     *     metadataSet?: array<string, scalar|null>,
+     *     dryRun?: bool,
+     *     interactive?: bool,
+     *     interactiveChoice?: mixed
+     * } $options
+     * @param array<string, mixed>|null $stats
+     * @return array{command: string, sourceType: string, destinationPath: ?string, file: ?array<string, mixed>, directory: ?array<string, mixed>}
+     */
+    public function moveCommand(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $sourceRemote,
+        string $destinationRemote,
+        array $options = [],
+        ?array &$stats = null,
+    ): array {
+        $sourceRemote = self::normalizePath($sourceRemote);
+        $destinationRemote = self::normalizePath($destinationRemote);
+        $stats = $this->moveCommandStats('move', $sourceRemote, $destinationRemote);
+
+        $sourceInfo = $this->optionalInfo($source, $sourceRemote);
+        if ($sourceInfo !== null) {
+            $destinationPath = self::joinPath($destinationRemote, self::pathBase($sourceInfo->path));
+            $stats['sourceType'] = 'file';
+            $stats['destinationPath'] = $destinationPath;
+            $file = $this->moveFile($destination, $source, $destinationPath, $sourceInfo->path, $options);
+            $this->recordMoveCommandFileStats($stats, $file);
+
+            return [
+                'command' => 'move',
+                'sourceType' => 'file',
+                'destinationPath' => $destinationPath,
+                'file' => $file,
+                'directory' => null,
+            ];
+        }
+
+        if (!$this->directoryExists($source, $sourceRemote)) {
+            throw new \RuntimeException("Object or directory not found: {$sourceRemote}");
+        }
+
+        $stats['sourceType'] = 'directory';
+        $directory = $this->moveDirectoryCommand(
+            $destination,
+            $source,
+            $sourceRemote,
+            $destinationRemote,
+            (bool) ($options['deleteEmptySrcDirs'] ?? false),
+            (bool) ($options['createEmptySrcDirs'] ?? false),
+            $options['filter'] ?? null,
+            $options,
+            $stats,
+        );
+
+        return [
+            'command' => 'move',
+            'sourceType' => 'directory',
+            'destinationPath' => $destinationRemote,
+            'file' => null,
+            'directory' => $directory,
+        ];
+    }
+
+    /**
+     * Model cmd/moveto argument dispatch.
+     *
+     * File sources move to the exact destination path. Directory sources share
+     * MoveDir semantics with cmd/move and intentionally do not expose the
+     * move-only empty source directory flags.
+     *
+     * @param array{
+     *     filter?: FilterRuleSet|null,
+     *     backup?: MemoryProvider|null,
+     *     backupPrefix?: string,
+     *     suffix?: string,
+     *     suffixKeepExtension?: bool,
+     *     compareDest?: list<MemoryProvider>,
+     *     copyDest?: list<MemoryProvider>,
+     *     noCheckDest?: bool,
+     *     ignoreExisting?: bool,
+     *     immutable?: bool,
+     *     ignoreTimes?: bool,
+     *     updateOlder?: bool,
+     *     noUpdateModTime?: bool,
+     *     modifyWindowSeconds?: int,
+     *     checksum?: bool,
+     *     refreshTimes?: bool,
+     *     partialUploads?: bool,
+     *     partialSuffix?: string,
+     *     simulatePartialTransferError?: bool,
+     *     metadataSet?: array<string, scalar|null>,
+     *     dryRun?: bool,
+     *     interactive?: bool,
+     *     interactiveChoice?: mixed
+     * } $options
+     * @param array<string, mixed>|null $stats
+     * @return array{command: string, sourceType: string, destinationPath: ?string, file: ?array<string, mixed>, directory: ?array<string, mixed>}
+     */
+    public function movetoCommand(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $sourceRemote,
+        string $destinationRemote,
+        array $options = [],
+        ?array &$stats = null,
+    ): array {
+        $sourceRemote = self::normalizePath($sourceRemote);
+        $destinationRemote = self::normalizePath($destinationRemote);
+        $stats = $this->moveCommandStats('moveto', $sourceRemote, $destinationRemote);
+
+        $sourceInfo = $this->optionalInfo($source, $sourceRemote);
+        if ($sourceInfo !== null) {
+            $stats['sourceType'] = 'file';
+            $stats['destinationPath'] = $destinationRemote;
+            $file = $this->moveFile($destination, $source, $destinationRemote, $sourceInfo->path, $options);
+            $this->recordMoveCommandFileStats($stats, $file);
+
+            return [
+                'command' => 'moveto',
+                'sourceType' => 'file',
+                'destinationPath' => $destinationRemote,
+                'file' => $file,
+                'directory' => null,
+            ];
+        }
+
+        if (!$this->directoryExists($source, $sourceRemote)) {
+            throw new \RuntimeException("Object or directory not found: {$sourceRemote}");
+        }
+
+        $stats['sourceType'] = 'directory';
+        $directory = $this->moveDirectoryCommand(
+            $destination,
+            $source,
+            $sourceRemote,
+            $destinationRemote,
+            false,
+            false,
+            $options['filter'] ?? null,
+            $options,
+            $stats,
+        );
+
+        return [
+            'command' => 'moveto',
+            'sourceType' => 'directory',
+            'destinationPath' => $destinationRemote,
+            'file' => null,
+            'directory' => $directory,
+        ];
     }
 
     /**
@@ -1858,6 +2236,7 @@ final class SyncPlan
      *     operation?: string,
      *     temporarySuffix?: string,
      *     guardCaseFoldSameRemote?: bool,
+     *     guardCaseFoldAfterRemoveExisting?: bool,
      *     precreateDestination?: bool,
      *     simulateCopyError?: bool|string,
      *     provider?: string,
@@ -1872,26 +2251,135 @@ final class SyncPlan
         string $destinationPath,
         array $options = [],
     ): array {
+        return $this->serverSideCopyReplaceFrom($provider, $provider, $sourcePath, $destinationPath, $options);
+    }
+
+    /**
+     * Model operations.Copy retrying as a normal streamed copy when a provider
+     * server-side copy reports ErrorCantCopy, as OneDrive does for unshared
+     * cross-config personal-drive copies after the async job starts.
+     *
+     * @param array{
+     *     operation?: string,
+     *     temporarySuffix?: string,
+     *     guardCaseFoldSameRemote?: bool,
+     *     guardCaseFoldAfterRemoveExisting?: bool,
+     *     precreateDestination?: bool,
+     *     simulateCopyError?: bool|string,
+     *     provider?: string,
+     *     apiResult?: array<string, mixed>,
+     *     providerError?: string|array<string, mixed>
+     * } $serverSideOptions
+     * @param array<string, mixed> $copyOptions
+     * @param array<string, mixed>|null $stats
+     * @return array{copied: ?ObjectInfo, serverSide: bool, fallbackUsed: bool, fallbackReason: ?string, savedPath: ?string, metadataRefresh: list<string>, manual: ?array<string, mixed>}
+     */
+    public function copyFileWithServerSideFallback(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $destinationPath,
+        string $sourcePath,
+        array $serverSideOptions = [],
+        array $copyOptions = [],
+        ?array &$stats = null,
+    ): array {
+        try {
+            $serverSide = $this->serverSideCopyReplaceFrom(
+                $source,
+                $destination,
+                $sourcePath,
+                $destinationPath,
+                $serverSideOptions,
+            );
+        } catch (\RuntimeException $throwable) {
+            if (!MemoryProvider::isCantCopyException($throwable)) {
+                throw $throwable;
+            }
+
+            $manual = $this->copyFile($destination, $source, $destinationPath, $sourcePath, $copyOptions);
+            $stats = [
+                'serverSideAttempted' => true,
+                'serverSideSucceeded' => false,
+                'fallbackUsed' => true,
+                'fallbackReason' => $throwable->getMessage(),
+                'manualCopiedPath' => $manual['copied']?->path,
+            ];
+
+            return [
+                'copied' => $manual['copied'],
+                'serverSide' => false,
+                'fallbackUsed' => true,
+                'fallbackReason' => $throwable->getMessage(),
+                'savedPath' => null,
+                'metadataRefresh' => [],
+                'manual' => $manual,
+            ];
+        }
+
+        $stats = [
+            'serverSideAttempted' => true,
+            'serverSideSucceeded' => true,
+            'fallbackUsed' => false,
+            'fallbackReason' => null,
+            'manualCopiedPath' => null,
+        ];
+
+        return [
+            'copied' => $serverSide['copied'],
+            'serverSide' => true,
+            'fallbackUsed' => false,
+            'fallbackReason' => null,
+            'savedPath' => $serverSide['savedPath'],
+            'metadataRefresh' => $serverSide['metadataRefresh'],
+            'manual' => null,
+        ];
+    }
+
+    /**
+     * @param array{
+     *     operation?: string,
+     *     temporarySuffix?: string,
+     *     guardCaseFoldSameRemote?: bool,
+     *     guardCaseFoldAfterRemoveExisting?: bool,
+     *     precreateDestination?: bool,
+     *     simulateCopyError?: bool|string,
+     *     provider?: string,
+     *     apiResult?: array<string, mixed>,
+     *     providerError?: string|array<string, mixed>
+     * } $options
+     * @return array{copied: ObjectInfo, savedPath: ?string, precreatedPath: ?string, metadataRefresh: list<string>}
+     */
+    private function serverSideCopyReplaceFrom(
+        MemoryProvider $sourceProvider,
+        MemoryProvider $destinationProvider,
+        string $sourcePath,
+        string $destinationPath,
+        array $options = [],
+    ): array {
         $sourcePath = self::normalizePath($sourcePath);
         $destinationPath = self::normalizePath($destinationPath);
 
-        if (!$provider->supportsServerSideCopy()) {
+        if (!$destinationProvider->supportsServerSideCopy()) {
             throw new \RuntimeException(MemoryProvider::ERROR_CANT_COPY);
         }
 
-        $sourceInfo = $provider->info($sourcePath);
-        if (
-            (bool) ($options['guardCaseFoldSameRemote'] ?? false)
-            && strtolower($sourcePath) === strtolower($destinationPath)
-        ) {
-            throw new \RuntimeException(
-                sprintf('can\'t copy "%s" -> "%s" as are same name when lowercase', $sourcePath, $destinationPath),
+        $sourceInfo = $sourceProvider->info($sourcePath);
+        $guardCaseFoldSameRemote = (bool) ($options['guardCaseFoldSameRemote'] ?? false);
+        $guardCaseFoldAfterRemoveExisting = (bool) ($options['guardCaseFoldAfterRemoveExisting'] ?? false);
+        $sameProvider = $sourceProvider === $destinationProvider;
+        if ($sameProvider && $guardCaseFoldSameRemote && !$guardCaseFoldAfterRemoveExisting) {
+            $this->assertNotSameCaseFoldedProviderPath($sourcePath, $destinationPath);
+        }
+        if (isset($options['provider'])) {
+            $this->providerCopyPreflight(
+                (string) $options['provider'],
+                is_array($options['apiResult'] ?? null) ? $options['apiResult'] : [],
             );
         }
 
         $operation = (string) ($options['operation'] ?? 'server side copy');
         $cleanup = $this->removeExisting(
-            $provider,
+            $destinationProvider,
             $destinationPath,
             $operation,
             $options['temporarySuffix'] ?? null,
@@ -1901,6 +2389,9 @@ final class SyncPlan
         $copied = null;
         $metadataRefresh = [];
         try {
+            if ($sameProvider && $guardCaseFoldSameRemote && $guardCaseFoldAfterRemoveExisting) {
+                $this->assertNotSameCaseFoldedProviderPath($sourcePath, $destinationPath);
+            }
             if (array_key_exists('simulateCopyError', $options) && $options['simulateCopyError'] !== false) {
                 $message = $options['simulateCopyError'] === true
                     ? 'server side copy failed'
@@ -1915,15 +2406,19 @@ final class SyncPlan
                 );
             }
 
-            $copied = $provider->serverSideCopyTo($sourceInfo->path, $provider, $destinationPath);
+            $copied = $sourceProvider->serverSideCopyTo($sourceInfo->path, $destinationProvider, $destinationPath);
             if (isset($options['provider'])) {
                 $providerResult = $this->providerCopyResultOptions(
                     (string) $options['provider'],
                     $sourceInfo,
-                    $options['apiResult'] ?? [],
+                    is_array($options['apiResult'] ?? null) ? $options['apiResult'] : [],
+                    $destinationPath,
                 );
                 $metadataRefresh = $providerResult['refresh'];
-                $copied = $provider->updateObjectInfo($copied->path, $providerResult['options']);
+                if ($providerResult['path'] !== null && $providerResult['path'] !== $copied->path) {
+                    $copied = $destinationProvider->renameObject($copied->path, $providerResult['path']);
+                }
+                $copied = $destinationProvider->updateObjectInfo($copied->path, $providerResult['options']);
             }
         } catch (\RuntimeException $throwable) {
             $operationError = $throwable;
@@ -1946,14 +2441,85 @@ final class SyncPlan
         ];
     }
 
+    private function assertNotSameCaseFoldedProviderPath(string $sourcePath, string $destinationPath): void
+    {
+        if (strtolower($sourcePath) !== strtolower($destinationPath)) {
+            return;
+        }
+
+        throw new \RuntimeException(
+            sprintf('can\'t copy "%s" -> "%s" as are same name when lowercase', $sourcePath, $destinationPath),
+        );
+    }
+
     /**
      * @param array<string, mixed> $apiResult
-     * @return array{options: array<string, mixed>, refresh: list<string>}
      */
-    private function providerCopyResultOptions(string $provider, ObjectInfo $sourceInfo, array $apiResult): array
+    private function providerCopyPreflight(string $provider, array $apiResult): void
+    {
+        if (strtolower($provider) !== 'onedrive') {
+            return;
+        }
+
+        $sourceDriveType = $this->optionalString(
+            $apiResult['sourceDriveType']
+                ?? $apiResult['srcDriveType']
+                ?? $apiResult['driveType']
+                ?? null,
+        );
+        $destinationDriveType = $this->optionalString(
+            $apiResult['destinationDriveType']
+                ?? $apiResult['dstDriveType']
+                ?? $apiResult['targetDriveType']
+                ?? $sourceDriveType,
+        );
+        if ($sourceDriveType === null || $destinationDriveType === null) {
+            return;
+        }
+
+        if (($destinationDriveType === 'personal' && $sourceDriveType !== 'personal')
+            || ($destinationDriveType !== 'personal' && $sourceDriveType === 'personal')) {
+            throw new \RuntimeException(MemoryProvider::ERROR_CANT_COPY);
+        }
+
+        $sourceDriveId = $this->optionalString(
+            $apiResult['sourceDriveId']
+                ?? $apiResult['sourceDriveID']
+                ?? $apiResult['srcDriveId']
+                ?? $apiResult['srcDriveID']
+                ?? null,
+        );
+        $destinationDriveId = $this->optionalString(
+            $apiResult['destinationDriveId']
+                ?? $apiResult['destinationDriveID']
+                ?? $apiResult['dstDriveId']
+                ?? $apiResult['dstDriveID']
+                ?? $apiResult['targetDriveId']
+                ?? $apiResult['targetDriveID']
+                ?? null,
+        );
+        if ($sourceDriveType === 'business'
+            && $destinationDriveType === 'business'
+            && $sourceDriveId !== null
+            && $destinationDriveId !== null
+            && strtolower($sourceDriveId) !== strtolower($destinationDriveId)) {
+            throw new \RuntimeException(MemoryProvider::ERROR_CANT_COPY);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array{options: array<string, mixed>, refresh: list<string>, path: ?string}
+     */
+    private function providerCopyResultOptions(
+        string $provider,
+        ObjectInfo $sourceInfo,
+        array $apiResult,
+        string $destinationPath,
+    ): array
     {
         return match (strtolower($provider)) {
-            'dropbox' => $this->dropboxCopyResultOptions($sourceInfo, $apiResult),
+            'dropbox' => $this->dropboxCopyResultOptions($sourceInfo, $apiResult, $destinationPath),
             'onedrive' => $this->onedriveCopyResultOptions($sourceInfo, $apiResult),
             'yandex' => $this->yandexCopyResultOptions($sourceInfo, $apiResult),
             'sugarsync' => $this->sugarsyncCopyResultOptions($sourceInfo, $apiResult),
@@ -1963,9 +2529,9 @@ final class SyncPlan
 
     /**
      * @param array<string, mixed> $apiResult
-     * @return array{options: array<string, mixed>, refresh: list<string>}
+     * @return array{options: array<string, mixed>, refresh: list<string>, path: ?string}
      */
-    private function dropboxCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult): array
+    private function dropboxCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult, string $destinationPath): array
     {
         $metadataType = strtolower($this->optionalString($apiResult['metadataType'] ?? $apiResult['metadata_type'] ?? 'file') ?? 'file');
         if ($metadataType !== 'file') {
@@ -1973,27 +2539,49 @@ final class SyncPlan
         }
 
         $metadata = $sourceInfo->metadata + $this->stringMetadata($apiResult['metadata'] ?? []);
+        $hashes = $this->stringMetadata($apiResult['hashes'] ?? $sourceInfo->hashes);
+        $unknownSize = false;
+        $path = null;
         $contentHash = $this->optionalString($apiResult['contentHash'] ?? $apiResult['content_hash'] ?? null);
         if ($contentHash !== null && $contentHash !== '') {
             $metadata['dropbox_content_hash'] = strtolower($contentHash);
         }
+        if (!$this->providerBool($apiResult['isDownloadable'] ?? $apiResult['is_downloadable'] ?? true)) {
+            $export = $this->dropboxExportResult($apiResult, $destinationPath);
+            $metadata['dropbox_is_downloadable'] = 'false';
+            $metadata['dropbox_export_type'] = $export['type'];
+            if ($export['apiFormat'] !== null) {
+                $metadata['dropbox_export_format'] = $export['apiFormat'];
+            }
+            if ($export['extension'] !== null) {
+                $metadata['dropbox_export_extension'] = $export['extension'];
+            }
+            if ($export['path'] !== null) {
+                $metadata['dropbox_exposed_remote'] = $export['path'];
+            }
+            $hashes = [];
+            $unknownSize = true;
+            $path = $export['path'];
+        }
 
         return [
             'options' => [
+                'unknownSize' => $unknownSize,
                 'modTime' => $this->optionalString($apiResult['clientModified'] ?? $apiResult['client_modified'] ?? null) ?? $sourceInfo->modTime,
                 'mimeType' => $this->optionalString($apiResult['mimeType'] ?? null) ?? $sourceInfo->mimeType,
                 'metadata' => $metadata,
                 'id' => $this->optionalString($apiResult['id'] ?? null) ?? $sourceInfo->id,
                 'tier' => $sourceInfo->tier,
-                'hashes' => $this->stringMetadata($apiResult['hashes'] ?? $sourceInfo->hashes),
+                'hashes' => $hashes,
             ],
             'refresh' => ['dropbox:relocation-result-metadata'],
+            'path' => $path,
         ];
     }
 
     /**
      * @param array<string, mixed> $apiResult
-     * @return array{options: array<string, mixed>, refresh: list<string>}
+     * @return array{options: array<string, mixed>, refresh: list<string>, path: ?string}
      */
     private function onedriveCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult): array
     {
@@ -2002,6 +2590,19 @@ final class SyncPlan
         if (isset($metadata['permissions'])) {
             $metadata['onedrive_permissions_mode'] = 'add-only';
             $refresh[] = 'onedrive:metadata-permissions-add-only';
+
+            $permissionsWriteError = $this->optionalString(
+                $apiResult['permissionsWriteError']
+                    ?? $apiResult['permissionWriteError']
+                    ?? null,
+            );
+            if ($permissionsWriteError !== null && $permissionsWriteError !== '') {
+                $permissionsError = 'failed to process permissions: ' . $permissionsWriteError;
+                if (!(bool) ($apiResult['permissionsFailOk'] ?? $apiResult['permissionFailOk'] ?? false)) {
+                    throw new \RuntimeException($permissionsError);
+                }
+                $refresh[] = 'onedrive:metadata-permissions-failok';
+            }
         }
 
         return [
@@ -2014,21 +2615,37 @@ final class SyncPlan
                 'hashes' => $this->onedriveHashes($apiResult) + $sourceInfo->hashes,
             ],
             'refresh' => $refresh,
+            'path' => null,
         ];
     }
 
     /**
      * @param array<string, mixed> $apiResult
-     * @return array{options: array<string, mixed>, refresh: list<string>}
+     * @return array{options: array<string, mixed>, refresh: list<string>, path: ?string}
      */
     private function yandexCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult): array
     {
+        $resourceType = strtolower($this->optionalString(
+            $apiResult['resourceType']
+                ?? $apiResult['type']
+                ?? 'file',
+        ) ?? 'file');
+        if ($resourceType === 'dir') {
+            throw new \RuntimeException('is a directory not a file');
+        }
+        if ($resourceType !== 'file') {
+            throw new \RuntimeException('is not a regular file');
+        }
+
         $customProperties = is_array($apiResult['customProperties'] ?? null)
             ? $apiResult['customProperties']
             : [];
         $modTime = $this->optionalString($customProperties['rclone_modified'] ?? null)
             ?? $this->optionalString($apiResult['modified'] ?? null)
             ?? $sourceInfo->modTime;
+        if ($modTime !== null && $modTime !== '') {
+            $this->assertRfc3339NanoModTime($modTime);
+        }
         $hashes = $sourceInfo->hashes;
         $md5 = $this->optionalString($apiResult['md5'] ?? null);
         if ($md5 !== null && $md5 !== '') {
@@ -2045,26 +2662,143 @@ final class SyncPlan
                 'hashes' => $hashes,
             ],
             'refresh' => ['yandex:new-object-metadata-read'],
+            'path' => null,
         ];
     }
 
     /**
      * @param array<string, mixed> $apiResult
-     * @return array{options: array<string, mixed>, refresh: list<string>}
+     * @return array{options: array<string, mixed>, refresh: list<string>, path: ?string}
      */
     private function sugarsyncCopyResultOptions(ObjectInfo $sourceInfo, array $apiResult): array
     {
+        $id = $this->optionalString(
+            $apiResult['location']
+                ?? $apiResult['id']
+                ?? $apiResult['ref']
+                ?? $apiResult['Ref']
+                ?? null,
+        );
+        if ($id === null || $id === '') {
+            throw new \RuntimeException('no ID found in response');
+        }
+
         return [
             'options' => [
                 'modTime' => $this->optionalString($apiResult['lastModified'] ?? $apiResult['last_modified'] ?? null) ?? $sourceInfo->modTime,
                 'mimeType' => $this->optionalString($apiResult['mimeType'] ?? null) ?? $sourceInfo->mimeType,
                 'metadata' => $sourceInfo->metadata + $this->stringMetadata($apiResult['metadata'] ?? []),
-                'id' => $this->optionalString($apiResult['location'] ?? $apiResult['id'] ?? null) ?? $sourceInfo->id,
+                'id' => $id,
                 'tier' => $sourceInfo->tier,
                 'hashes' => [],
             ],
             'refresh' => ['sugarsync:metadata-read-after-copy'],
+            'path' => null,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array{type: string, apiFormat: ?string, extension: ?string, path: ?string}
+     */
+    private function dropboxExportResult(array $apiResult, string $destinationPath): array
+    {
+        if ($this->providerBool($apiResult['skipExports'] ?? $apiResult['skip_exports'] ?? false)) {
+            return ['type' => 'hidden', 'apiFormat' => null, 'extension' => null, 'path' => null];
+        }
+        if ($this->providerBool($apiResult['showAllExports'] ?? $apiResult['show_all_exports'] ?? false)) {
+            return ['type' => 'list-only', 'apiFormat' => null, 'extension' => null, 'path' => null];
+        }
+
+        $known = [
+            'html' => 'html',
+            'markdown' => 'md',
+        ];
+        $exportInfo = is_array($apiResult['exportInfo'] ?? null) ? $apiResult['exportInfo'] : [];
+        $formatStrings = [];
+        $exportAs = $this->optionalString($apiResult['exportAs'] ?? $apiResult['export_as'] ?? $exportInfo['exportAs'] ?? null);
+        if ($exportAs !== null && $exportAs !== '') {
+            $formatStrings[] = $exportAs;
+        }
+        $exportOptions = $apiResult['exportOptions'] ?? $apiResult['export_options'] ?? $exportInfo['exportOptions'] ?? [];
+        if (is_array($exportOptions)) {
+            foreach ($exportOptions as $format) {
+                $format = $this->optionalString($format);
+                if ($format !== null && $format !== '') {
+                    $formatStrings[] = $format;
+                }
+            }
+        }
+
+        $formatsByExtension = [];
+        $dropboxPreferredFormat = null;
+        $dropboxPreferredExtension = null;
+        foreach ($formatStrings as $format) {
+            if (!isset($known[$format])) {
+                continue;
+            }
+            if ($dropboxPreferredFormat === null) {
+                $dropboxPreferredFormat = $format;
+                $dropboxPreferredExtension = $known[$format];
+            }
+            $formatsByExtension[$known[$format]] = $format;
+        }
+
+        $preferredExtensions = ['html', 'md'];
+        $configured = $apiResult['exportFormats'] ?? $apiResult['export_formats'] ?? null;
+        if (is_array($configured) && $configured !== []) {
+            $preferredExtensions = [];
+            foreach ($configured as $extension) {
+                $extension = $this->optionalString($extension);
+                if ($extension !== null && $extension !== '') {
+                    $preferredExtensions[] = ltrim($extension, '.');
+                }
+            }
+        }
+
+        foreach ($preferredExtensions as $extension) {
+            if (isset($formatsByExtension[$extension])) {
+                $path = preg_replace('/\.paper$/', '', $destinationPath) . '.' . $extension;
+
+                return [
+                    'type' => 'exportable',
+                    'apiFormat' => $formatsByExtension[$extension],
+                    'extension' => $extension,
+                    'path' => $path,
+                ];
+            }
+        }
+
+        if ($dropboxPreferredFormat !== null && $dropboxPreferredExtension !== null) {
+            $path = preg_replace('/\.paper$/', '', $destinationPath) . '.' . $dropboxPreferredExtension;
+
+            return [
+                'type' => 'exportable',
+                'apiFormat' => $dropboxPreferredFormat,
+                'extension' => $dropboxPreferredExtension,
+                'path' => $path,
+            ];
+        }
+
+        return ['type' => 'hidden', 'apiFormat' => null, 'extension' => null, 'path' => null];
+    }
+
+    public function yandexSetRcloneModified(
+        MemoryProvider $provider,
+        string $path,
+        \DateTimeInterface|string $modTime,
+    ): ObjectInfo {
+        $time = $this->normalizeTouchTime($modTime);
+        try {
+            $info = $provider->setModTime($path, $time);
+        } catch (\RuntimeException $throwable) {
+            throw new \RuntimeException('failed to set custom property rclone_modified: ' . $throwable->getMessage(), 0, $throwable);
+        }
+
+        return $provider->setObjectMetadata(
+            $info->path,
+            $info->metadata + ['rclone_modified' => $time],
+        );
     }
 
     /**
@@ -2083,6 +2817,18 @@ final class SyncPlan
             $hash = $this->optionalString($hashSource[$apiKey] ?? null);
             if ($hash !== null && $hash !== '') {
                 $hashes[$hashType] = strtolower($hash);
+            }
+        }
+        $quickXorHash = $this->optionalString(
+            $hashSource['quickXorHash']
+                ?? $hashSource['QuickXorHash']
+                ?? $hashSource['quickxorHash']
+                ?? null,
+        );
+        if ($quickXorHash !== null && $quickXorHash !== '') {
+            $decoded = base64_decode($quickXorHash, true);
+            if ($decoded !== false && strlen($decoded) === 20) {
+                $hashes[HashType::QUICKXOR] = bin2hex($decoded);
             }
         }
 
@@ -2119,6 +2865,32 @@ final class SyncPlan
         }
 
         return null;
+    }
+
+    private function providerBool(mixed $value): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_string($value)) {
+            return in_array(strtolower($value), ['1', 'true', 'yes', 'on'], true);
+        }
+
+        return (bool) $value;
+    }
+
+    private function assertRfc3339NanoModTime(string $modTime): void
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/', $modTime)) {
+            throw new \RuntimeException(sprintf('failed to parse modtime from %s: cannot parse as RFC3339Nano', json_encode($modTime)));
+        }
+
+        $parseable = preg_replace('/\.(\d{6})\d+(?=Z|[+-]\d{2}:\d{2}$)/', '.$1', $modTime);
+        try {
+            new \DateTimeImmutable($parseable);
+        } catch (\Exception) {
+            throw new \RuntimeException(sprintf('failed to parse modtime from %s: cannot parse as RFC3339Nano', json_encode($modTime)));
+        }
     }
 
     private function providerCopyFailure(string $provider, string $destinationPath, mixed $failure): \RuntimeException
@@ -2163,6 +2935,14 @@ final class SyncPlan
 
             return new \RuntimeException(sprintf('%s: async operation returned "%s"', $destinationPath, $status));
         }
+        if ($kind === 'async-metadata-read') {
+            return new \RuntimeException('async operation completed but readMetaData failed: ' . $message);
+        }
+        if ($kind === 'async-timeout') {
+            $duration = (string) ($failure['duration'] ?? $failure['timeout'] ?? 'timeout');
+
+            return new \RuntimeException(sprintf("async operation didn't complete after %s", $duration));
+        }
 
         return new \RuntimeException($message);
     }
@@ -2177,8 +2957,18 @@ final class SyncPlan
 
             return new \RuntimeException(sprintf('couldn\'t copy file: async info result not JSON: %s: %s', json_encode($body), $message));
         }
+        if ($kind === 'async-status-not-json') {
+            $body = (string) ($failure['body'] ?? '');
+
+            return new \RuntimeException(sprintf('couldn\'t copy file: async status result not JSON: %s: %s', json_encode($body), $message));
+        }
         if ($kind === 'async-failure') {
             return new \RuntimeException('couldn\'t copy file: async operation returned "failure"');
+        }
+        if ($kind === 'async-timeout') {
+            $duration = (string) ($failure['duration'] ?? $failure['timeout'] ?? 'timeout');
+
+            return new \RuntimeException(sprintf("couldn't copy file: async operation didn't complete after %s", $duration));
         }
 
         return new \RuntimeException('couldn\'t copy file: ' . $message);
@@ -2277,6 +3067,372 @@ final class SyncPlan
     }
 
     /**
+     * @param array<string, mixed> $fileOptions
+     * @param array<string, mixed> $stats
+     * @return array{
+     *     usedDirMove: bool,
+     *     fallbackReason: ?string,
+     *     moved: list<ObjectInfo>,
+     *     createdDirectories: list<ObjectInfo>,
+     *     prunedSourceDirectories: list<ObjectInfo>,
+     *     fileResults: list<array<string, mixed>>
+     * }
+     */
+    private function moveDirectoryCommand(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $sourceDir,
+        string $destinationDir,
+        bool $deleteEmptySrcDirs,
+        bool $createEmptySrcDirs,
+        ?FilterRuleSet $filter,
+        array $fileOptions,
+        array &$stats,
+    ): array {
+        $sourceDir = self::normalizePath($sourceDir);
+        $destinationDir = self::normalizePath($destinationDir);
+        $stats['destinationPath'] = $destinationDir;
+        $stats['deleteEmptySrcDirs'] = $deleteEmptySrcDirs;
+        $stats['createEmptySrcDirs'] = $createEmptySrcDirs;
+        $dryRun = (bool) ($fileOptions['dryRun'] ?? false);
+
+        if ($source === $destination && $sourceDir === $destinationDir) {
+            $stats['skipped'] = true;
+
+            return [
+                'usedDirMove' => false,
+                'fallbackReason' => 'source and destination are the same',
+                'moved' => [],
+                'createdDirectories' => [],
+                'prunedSourceDirectories' => [],
+                'fileResults' => [],
+            ];
+        }
+
+        if ($filter === null && $source === $destination) {
+            if ($dryRun) {
+                $source->directoryInfo($sourceDir);
+                $stats['dryRunSkipped']++;
+                $stats['dryRunDirMove'] = true;
+
+                return [
+                    'usedDirMove' => false,
+                    'fallbackReason' => null,
+                    'moved' => [],
+                    'createdDirectories' => [],
+                    'prunedSourceDirectories' => [],
+                    'fileResults' => [],
+                    'dryRunDirMove' => true,
+                ];
+            }
+
+            try {
+                $moved = $source->serverSideDirMove($sourceDir, $destinationDir);
+                $stats['usedDirMove'] = true;
+                $stats['filesMoved'] = 1;
+
+                return [
+                    'usedDirMove' => true,
+                    'fallbackReason' => null,
+                    'moved' => [$moved],
+                    'createdDirectories' => [],
+                    'prunedSourceDirectories' => [],
+                    'fileResults' => [],
+                ];
+            } catch (\RuntimeException $throwable) {
+                if (
+                    !MemoryProvider::isCantDirMoveException($throwable)
+                    && !MemoryProvider::isDirExistsException($throwable)
+                ) {
+                    throw $throwable;
+                }
+                $stats['fallbackReason'] = $throwable->getMessage();
+            }
+        }
+
+        $createdDirectories = $createEmptySrcDirs
+            ? $this->createCommandDirectoryPlaceholders($destination, $source, $sourceDir, $destinationDir, $filter, $dryRun, $stats)
+            : [];
+        $stats['createdDirectories'] = count($createdDirectories);
+
+        $moved = [];
+        $fileResults = [];
+        $sourceObjects = array_values(array_filter(
+            $source->list($sourceDir),
+            static fn (ObjectInfo $info): bool => self::pathUnderPrefix($info->path, $sourceDir),
+        ));
+        foreach ($sourceObjects as $sourceInfo) {
+            if ($filter !== null && !$filter->includes($sourceInfo->path)) {
+                continue;
+            }
+
+            $destinationPath = self::joinPath(
+                $destinationDir,
+                self::relativePathUnderRoot($sourceInfo->path, $sourceDir),
+            );
+            $fileResult = $this->moveFile($destination, $source, $destinationPath, $sourceInfo->path, $fileOptions);
+            $fileResults[] = $fileResult;
+            $this->recordMoveCommandFileStats($stats, $fileResult);
+            if ($fileResult['moved'] instanceof ObjectInfo) {
+                $moved[] = $fileResult['moved'];
+            }
+        }
+
+        $prunedSourceDirectories = [];
+        if (!$dryRun && $deleteEmptySrcDirs && $this->directoryExists($source, $sourceDir)) {
+            $prunedSourceDirectories = $this->pruneMovedSourceDirectories($source, $sourceDir);
+        }
+        $stats['prunedSourceDirectories'] = count($prunedSourceDirectories);
+
+        return [
+            'usedDirMove' => false,
+            'fallbackReason' => $stats['fallbackReason'],
+            'moved' => $moved,
+            'createdDirectories' => $createdDirectories,
+            'prunedSourceDirectories' => $prunedSourceDirectories,
+            'fileResults' => $fileResults,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $fileOptions
+     * @param array<string, mixed> $stats
+     * @return array{
+     *     copied: list<ObjectInfo>,
+     *     createdDirectories: list<ObjectInfo>,
+     *     fileResults: list<array<string, mixed>>
+     * }
+     */
+    private function copyDirectoryCommand(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $sourceDir,
+        string $destinationDir,
+        bool $createEmptySrcDirs,
+        ?FilterRuleSet $filter,
+        array $fileOptions,
+        array &$stats,
+    ): array {
+        $sourceDir = self::normalizePath($sourceDir);
+        $destinationDir = self::normalizePath($destinationDir);
+        $stats['destinationPath'] = $destinationDir;
+        $stats['createEmptySrcDirs'] = $createEmptySrcDirs;
+        $dryRun = (bool) ($fileOptions['dryRun'] ?? false);
+
+        $createdDirectories = $createEmptySrcDirs
+            ? $this->createCommandDirectoryPlaceholders($destination, $source, $sourceDir, $destinationDir, $filter, $dryRun, $stats)
+            : [];
+        $stats['createdDirectories'] = count($createdDirectories);
+
+        $copied = [];
+        $fileResults = [];
+        $sourceObjects = array_values(array_filter(
+            $source->list($sourceDir),
+            static fn (ObjectInfo $info): bool => self::pathUnderPrefix($info->path, $sourceDir),
+        ));
+        foreach ($sourceObjects as $sourceInfo) {
+            if ($filter !== null && !$filter->includes($sourceInfo->path)) {
+                continue;
+            }
+
+            $destinationPath = self::joinPath(
+                $destinationDir,
+                self::relativePathUnderRoot($sourceInfo->path, $sourceDir),
+            );
+            $fileResult = $this->copyFile($destination, $source, $destinationPath, $sourceInfo->path, $fileOptions);
+            $fileResults[] = $fileResult;
+            $this->recordCopyCommandFileStats($stats, $fileResult);
+            if ($fileResult['copied'] instanceof ObjectInfo) {
+                $copied[] = $fileResult['copied'];
+            }
+        }
+
+        return [
+            'copied' => $copied,
+            'createdDirectories' => $createdDirectories,
+            'fileResults' => $fileResults,
+        ];
+    }
+
+    /**
+     * @return list<ObjectInfo>
+     */
+    private function createCommandDirectoryPlaceholders(
+        MemoryProvider $destination,
+        MemoryProvider $source,
+        string $sourceDir,
+        string $destinationDir,
+        ?FilterRuleSet $filter,
+        bool $dryRun,
+        array &$stats,
+    ): array {
+        $created = [];
+        foreach ($source->directories($sourceDir) as $directory) {
+            if ($directory->path === $sourceDir || !self::pathUnderPrefix($directory->path, $sourceDir)) {
+                continue;
+            }
+            if (!$this->filterAllowsDirectory($source, $directory->path, $filter)) {
+                continue;
+            }
+
+            if ($dryRun) {
+                $stats['dryRunSkipped']++;
+                $stats['dryRunDirectoriesSkipped']++;
+                continue;
+            }
+
+            $created[] = $destination->mkdir(
+                self::joinPath(
+                    $destinationDir,
+                    self::relativePathUnderRoot($directory->path, $sourceDir),
+                ),
+                [
+                    'modTime' => $directory->modTime,
+                    'mimeType' => $directory->mimeType,
+                    'metadata' => $directory->metadata,
+                    'id' => $directory->id,
+                    'parentId' => $directory->parentId,
+                ],
+            );
+        }
+
+        return $created;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function copyCommandStats(string $command, string $sourceRemote, string $destinationRemote): array
+    {
+        return [
+            'command' => $command,
+            'sourceRemote' => $sourceRemote,
+            'destinationRemote' => $destinationRemote,
+            'sourceType' => null,
+            'destinationPath' => null,
+            'filesCopied' => 0,
+            'filesSkipped' => 0,
+            'backupsMoved' => 0,
+            'backupRenames' => 0,
+            'backupExistingDeletes' => 0,
+            'backupExistingDeleteBytes' => 0,
+            'backupCheckingTransfers' => 0,
+            'createdDirectories' => 0,
+            'createEmptySrcDirs' => false,
+            'dryRunSkipped' => 0,
+            'dryRunDirectoriesSkipped' => 0,
+            'destructiveSkipped' => 0,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $stats
+     * @param array<string, mixed> $file
+     */
+    private function recordCopyCommandFileStats(array &$stats, array $file): void
+    {
+        if (($file['copied'] ?? null) instanceof ObjectInfo) {
+            $stats['filesCopied']++;
+        }
+        if ((bool) ($file['skipped'] ?? false)) {
+            $stats['filesSkipped']++;
+        }
+        if (($file['backup'] ?? null) instanceof ObjectInfo) {
+            $stats['backupsMoved']++;
+        }
+        $this->recordBackupAccountingStats($stats, $file);
+        $stats['dryRunSkipped'] += $this->dryRunActionCount($file);
+        $stats['destructiveSkipped'] += $this->destructiveSkipActionCount($file);
+    }
+
+    /**
+     * @return list<ObjectInfo>
+     */
+    private function pruneMovedSourceDirectories(MemoryProvider $source, string $sourceDir): array
+    {
+        $candidates = array_values(array_filter(
+            $source->directories($sourceDir),
+            static fn (ObjectInfo $directory): bool => $directory->path !== $sourceDir
+                && self::pathUnderPrefix($directory->path, $sourceDir),
+        ));
+
+        return $this->pruneEmptyDirectoryCandidates($source, $candidates, '');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function moveCommandStats(string $command, string $sourceRemote, string $destinationRemote): array
+    {
+        return [
+            'command' => $command,
+            'sourceRemote' => $sourceRemote,
+            'destinationRemote' => $destinationRemote,
+            'sourceType' => null,
+            'destinationPath' => null,
+            'usedDirMove' => false,
+            'fallbackReason' => null,
+            'filesMoved' => 0,
+            'filesDeletedFromSource' => 0,
+            'filesSkipped' => 0,
+            'backupsMoved' => 0,
+            'backupRenames' => 0,
+            'backupExistingDeletes' => 0,
+            'backupExistingDeleteBytes' => 0,
+            'backupCheckingTransfers' => 0,
+            'createdDirectories' => 0,
+            'prunedSourceDirectories' => 0,
+            'deleteEmptySrcDirs' => false,
+            'createEmptySrcDirs' => false,
+            'skipped' => false,
+            'dryRunSkipped' => 0,
+            'dryRunDirectoriesSkipped' => 0,
+            'dryRunDirMove' => false,
+            'destructiveSkipped' => 0,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $stats
+     * @param array<string, mixed> $file
+     */
+    private function recordMoveCommandFileStats(array &$stats, array $file): void
+    {
+        if (($file['moved'] ?? null) instanceof ObjectInfo || ($file['copied'] ?? null) instanceof ObjectInfo) {
+            $stats['filesMoved']++;
+        }
+        if (($file['deletedSource'] ?? null) instanceof ObjectInfo) {
+            $stats['filesDeletedFromSource']++;
+        }
+        if ((bool) ($file['skipped'] ?? false)) {
+            $stats['filesSkipped']++;
+        }
+        if (($file['backup'] ?? null) instanceof ObjectInfo) {
+            $stats['backupsMoved']++;
+        }
+        $this->recordBackupAccountingStats($stats, $file);
+        $stats['dryRunSkipped'] += $this->dryRunActionCount($file);
+        $stats['destructiveSkipped'] += $this->destructiveSkipActionCount($file);
+    }
+
+    /**
+     * @param array<string, mixed> $stats
+     * @param array<string, mixed> $file
+     */
+    private function recordBackupAccountingStats(array &$stats, array $file): void
+    {
+        $accounting = $file['backupAccounting'] ?? null;
+        if (!is_array($accounting)) {
+            return;
+        }
+
+        $stats['backupRenames'] += (int) ($accounting['renames'] ?? 0);
+        $stats['backupExistingDeletes'] += (int) ($accounting['deletedFiles'] ?? 0);
+        $stats['backupExistingDeleteBytes'] += (int) ($accounting['deletedBytes'] ?? 0);
+        $stats['backupCheckingTransfers'] += (int) ($accounting['checkingTransfers'] ?? 0);
+    }
+
+    /**
      * @param array{
      *     backup?: MemoryProvider|null,
      *     backupPrefix?: string,
@@ -2296,7 +3452,10 @@ final class SyncPlan
      *     partialUploads?: bool,
      *     partialSuffix?: string,
      *     simulatePartialTransferError?: bool,
-     *     metadataSet?: array<string, scalar|null>
+     *     metadataSet?: array<string, scalar|null>,
+     *     dryRun?: bool,
+     *     interactive?: bool,
+     *     interactiveChoice?: mixed
      * } $options
      * @return array{copied: ?ObjectInfo, moved: ?ObjectInfo, deletedSource: ?ObjectInfo, backup: ?ObjectInfo, skipped: bool, caseInsensitiveMove: bool, partialPath: ?string, cleanedPartial: bool}
      */
@@ -2311,15 +3470,32 @@ final class SyncPlan
         $destinationPath = self::normalizePath($destinationPath);
         $sourcePath = self::normalizePath($sourcePath);
         $result = $this->fileOperationResult();
+        $dryRun = (bool) ($options['dryRun'] ?? false);
 
         if ($source === $destination && $sourcePath === $destinationPath) {
             $result['skipped'] = true;
+            $result['logEvents'][] = [
+                'level' => 'debug',
+                'path' => $destinationPath,
+                'message' => "don't need to copy/move {$destinationPath}, it is already at target location",
+            ];
+            $result['loggerEvents'][] = [
+                'type' => 'match',
+                'sourcePath' => $sourcePath,
+                'destinationPath' => $destinationPath,
+                'error' => null,
+            ];
 
             return $result;
         }
 
         $sourceInfo = $source->info($sourcePath);
         if (!$copy && $this->needsCaseInsensitiveFileMove($destination, $source, $destinationPath, $sourcePath)) {
+            $action = 'rename to ' . $destinationPath;
+            if ($this->skipDestructive($options, $sourceInfo, $action)) {
+                return $this->withSkippedDestructiveAction($result, $action, $options);
+            }
+
             $result['moved'] = $this->moveCaseInsensitiveFile($destination, $destinationPath, $sourcePath);
             if (isset($options['metadataSet'])) {
                 $result['moved'] = $destination->setObjectMetadata($result['moved']->path, $options['metadataSet']);
@@ -2353,6 +3529,10 @@ final class SyncPlan
 
         if (!$needsTransfer) {
             if (!$copy && $targetInfo !== null && !$this->sameProviderObject($source, $sourceInfo, $destination, $targetInfo)) {
+                if ($this->skipDestructive($options, $sourceInfo, 'delete source')) {
+                    return $this->withSkippedDestructiveAction($result, 'delete source', $options);
+                }
+
                 $result['deletedSource'] = $source->delete($sourceInfo->path);
             } else {
                 $result['skipped'] = true;
@@ -2363,6 +3543,10 @@ final class SyncPlan
 
         if ($this->findEqualReference($sourceInfo, $targetInfo, $options['compareDest'] ?? []) !== null) {
             if (!$copy && $targetInfo !== null && !$this->sameProviderObject($source, $sourceInfo, $destination, $targetInfo)) {
+                if ($this->skipDestructive($options, $sourceInfo, 'delete source')) {
+                    return $this->withSkippedDestructiveAction($result, 'delete source', $options);
+                }
+
                 $result['deletedSource'] = $source->delete($sourceInfo->path);
             } else {
                 $result['skipped'] = true;
@@ -2377,7 +3561,23 @@ final class SyncPlan
         $suffixKeepExtension = (bool) ($options['suffixKeepExtension'] ?? false);
         $copyDestReference = $this->findEqualReference($sourceInfo, $targetInfo, $options['copyDest'] ?? []);
         if ($copyDestReference !== null) {
+            if ($dryRun) {
+                if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
+                    $result = $this->withDryRunAction($result, 'move into backup dir');
+                }
+                $result = $this->withDryRunAction(
+                    $result,
+                    $copy ? 'copy from copy-dest to ' . $destinationPath : 'move from copy-dest to ' . $destinationPath,
+                );
+                if (!$copy) {
+                    $result = $this->withDryRunAction($result, 'delete source');
+                }
+
+                return $result;
+            }
+
             if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
+                $backupDiagnostics = null;
                 $result['backup'] = $this->moveToBackup(
                     $destination,
                     $targetInfo->path,
@@ -2385,9 +3585,12 @@ final class SyncPlan
                     $backupPrefix,
                     $suffix,
                     $suffixKeepExtension,
+                    $backupDiagnostics,
                 );
+                $result = $this->withBackupDiagnostics($result, $backupDiagnostics);
                 $targetInfo = null;
             }
+            $this->assertMaxTransferAllows($sourceInfo, $options);
             $copied = $copyDestReference['provider']->copyTo(
                 $copyDestReference['path'],
                 $destination,
@@ -2410,16 +3613,39 @@ final class SyncPlan
             throw new \RuntimeException('immutable file modified');
         }
 
-        if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
-            $result['backup'] = $this->moveToBackup(
-                $destination,
-                $targetInfo->path,
-                $backup,
-                $backupPrefix,
-                $suffix,
-                $suffixKeepExtension,
+        if ($dryRun) {
+            if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
+                $result = $this->withDryRunAction($result, 'move into backup dir');
+            }
+
+            return $this->withDryRunAction(
+                $result,
+                $copy ? 'copy to ' . $destinationPath : 'move to ' . $destinationPath,
             );
+        }
+
+        if ($targetInfo !== null && $this->backupRequested($backup, $backupPrefix, $suffix)) {
+            if ($this->skipDestructive($options, $targetInfo, 'move into backup dir')) {
+                $result = $this->withSkippedDestructiveAction($result, 'move into backup dir', $options, false);
+            } else {
+                $backupDiagnostics = null;
+                $result['backup'] = $this->moveToBackup(
+                    $destination,
+                    $targetInfo->path,
+                    $backup,
+                    $backupPrefix,
+                    $suffix,
+                    $suffixKeepExtension,
+                    $backupDiagnostics,
+                );
+                $result = $this->withBackupDiagnostics($result, $backupDiagnostics);
+            }
             $targetInfo = null;
+        }
+
+        $transferAction = $copy ? 'copy to ' . $destinationPath : 'move to ' . $destinationPath;
+        if ($this->skipDestructive($options, $sourceInfo, $transferAction)) {
+            return $this->withSkippedDestructiveAction($result, $transferAction, $options);
         }
 
         if ($copy) {
@@ -2487,7 +3713,179 @@ final class SyncPlan
             'caseInsensitiveMove' => false,
             'partialPath' => null,
             'cleanedPartial' => false,
+            'dryRun' => false,
+            'dryRunActions' => [],
+            'skippedDestructive' => false,
+            'skippedActions' => [],
+            'accounting' => $this->emptyFileAccounting(),
+            'backupAccounting' => null,
+            'logEvents' => [],
+            'loggerEvents' => [],
         ];
+    }
+
+    /**
+     * @return array{checkingTransfers: int, renames: int, deletedFiles: int, deletedBytes: int, serverSideMoves: int}
+     */
+    private function emptyFileAccounting(): array
+    {
+        return [
+            'checkingTransfers' => 0,
+            'renames' => 0,
+            'deletedFiles' => 0,
+            'deletedBytes' => 0,
+            'serverSideMoves' => 0,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @param array<string, mixed>|null $diagnostics
+     * @return array<string, mixed>
+     */
+    private function withBackupDiagnostics(array $result, ?array $diagnostics): array
+    {
+        if ($diagnostics === null) {
+            return $result;
+        }
+
+        $accounting = $diagnostics['accounting'] ?? $this->emptyFileAccounting();
+        $result['backupAccounting'] = $accounting;
+        foreach ($accounting as $key => $value) {
+            if (array_key_exists($key, $result['accounting'])) {
+                $result['accounting'][$key] += (int) $value;
+            }
+        }
+
+        $result['logEvents'] = array_merge($result['logEvents'], $diagnostics['logEvents'] ?? []);
+        $result['loggerEvents'] = array_merge($result['loggerEvents'], $diagnostics['loggerEvents'] ?? []);
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @return array<string, mixed>
+     */
+    private function withDryRunAction(array $result, string $action): array
+    {
+        $result['dryRun'] = true;
+        $result['dryRunActions'][] = $action;
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function withSkippedDestructiveAction(
+        array $result,
+        string $action,
+        array $options,
+        bool $operationSkipped = true,
+    ): array {
+        if ((bool) ($options['dryRun'] ?? false)) {
+            return $this->withDryRunAction($result, $action);
+        }
+
+        $result['skippedDestructive'] = true;
+        $result['skippedActions'][] = $action;
+        if ($operationSkipped) {
+            $result['skipped'] = true;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     */
+    private function dryRunActionCount(array $file): int
+    {
+        if (isset($file['dryRunActions']) && is_array($file['dryRunActions'])) {
+            return count($file['dryRunActions']);
+        }
+
+        return (bool) ($file['dryRun'] ?? false) ? 1 : 0;
+    }
+
+    /**
+     * @param array<string, mixed> $file
+     */
+    private function destructiveSkipActionCount(array $file): int
+    {
+        if (isset($file['skippedActions']) && is_array($file['skippedActions'])) {
+            return count($file['skippedActions']);
+        }
+
+        return (bool) ($file['skippedDestructive'] ?? false) ? 1 : 0;
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     */
+    private function skipDestructive(array $options, ObjectInfo|string|null $subject, string $action): bool
+    {
+        if ((bool) ($options['dryRun'] ?? false)) {
+            return true;
+        }
+        if (!((bool) ($options['interactive'] ?? false) || array_key_exists('interactiveChoice', $options))) {
+            return false;
+        }
+        if (array_key_exists($action, $this->interactiveDestructiveSkips)) {
+            return $this->interactiveDestructiveSkips[$action];
+        }
+        if (!array_key_exists('interactiveChoice', $options)) {
+            throw new \InvalidArgumentException('interactive destructive mode requires a caller-supplied choice');
+        }
+
+        return $this->resolveDestructiveChoice(
+            $this->destructiveChoice($options['interactiveChoice'], $subject, $action),
+            $action,
+        );
+    }
+
+    private function destructiveChoice(mixed $choiceSource, ObjectInfo|string|null $subject, string $action): mixed
+    {
+        if (is_callable($choiceSource)) {
+            return $choiceSource([
+                'action' => $action,
+                'subject' => $subject,
+                'path' => $subject instanceof ObjectInfo ? $subject->path : (is_string($subject) ? $subject : null),
+                'size' => $subject instanceof ObjectInfo ? $subject->size : null,
+            ]);
+        }
+        if (is_array($choiceSource)) {
+            return $choiceSource[$action] ?? $choiceSource['default'] ?? 'n';
+        }
+
+        return $choiceSource;
+    }
+
+    private function resolveDestructiveChoice(mixed $choice, string $action): bool
+    {
+        if (is_array($choice)) {
+            $choice = $choice['choice'] ?? $choice['command'] ?? $choice['action'] ?? '';
+        }
+
+        $normalized = strtolower(trim((string) $choice));
+        return match ($normalized) {
+            'y', 'yes' => false,
+            'n', 'no' => true,
+            's', 'skip', 'skip-all', 'skip all' => $this->cacheDestructiveChoice($action, true),
+            '!', 'do', 'all', 'do-all', 'yes-all' => $this->cacheDestructiveChoice($action, false),
+            'q', 'quit', 'exit' => throw new \RuntimeException('interactive destructive choice requested quit'),
+            default => true,
+        };
+    }
+
+    private function cacheDestructiveChoice(string $action, bool $skip): bool
+    {
+        $this->interactiveDestructiveSkips[$action] = $skip;
+
+        return $skip;
     }
 
     private function needsCaseInsensitiveFileMove(
@@ -2515,7 +3913,7 @@ final class SyncPlan
     }
 
     /**
-     * @param array{partialUploads?: bool, partialSuffix?: string, simulatePartialTransferError?: bool, metadataSet?: array<string, scalar|null>} $options
+     * @param array{partialUploads?: bool, partialSuffix?: string, simulatePartialTransferError?: bool, metadataSet?: array<string, scalar|null>, maxTransfer?: int, cutoffMode?: string, bytesTransferredSoFar?: int} $options
      * @return array{object: ObjectInfo, partialPath: ?string}
      */
     private function copyFileObject(
@@ -2525,6 +3923,9 @@ final class SyncPlan
         string $destinationPath,
         array $options,
     ): array {
+        $sourceInfo = $source->info($sourcePath);
+        $this->assertMaxTransferAllows($sourceInfo, $options);
+
         $partialPath = null;
         $copyPath = $destinationPath;
         if (
@@ -2536,7 +3937,7 @@ final class SyncPlan
             if (strlen($partialSuffix) > 16) {
                 throw new \RuntimeException('expecting length of --partial-suffix to be not greater than 16 but got ' . strlen($partialSuffix));
             }
-            $partialPath = $this->partialCopyPath($destinationPath, $source->info($sourcePath), $partialSuffix);
+            $partialPath = $this->partialCopyPath($destinationPath, $sourceInfo, $partialSuffix);
             $copyPath = $partialPath;
         }
 
@@ -2556,6 +3957,45 @@ final class SyncPlan
             'object' => $copied,
             'partialPath' => $partialPath,
         ];
+    }
+
+    /**
+     * @param array{maxTransfer?: int, cutoffMode?: string, bytesTransferredSoFar?: int} $options
+     */
+    private function assertMaxTransferAllows(ObjectInfo $sourceInfo, array $options): void
+    {
+        if (!array_key_exists('maxTransfer', $options)) {
+            return;
+        }
+
+        $maxTransfer = (int) $options['maxTransfer'];
+        if ($maxTransfer < 0) {
+            return;
+        }
+
+        $mode = $this->normalizeCutoffMode((string) ($options['cutoffMode'] ?? 'hard'));
+        $bytesSoFar = max(0, (int) ($options['bytesTransferredSoFar'] ?? 0));
+        $sourceSize = max(0, $sourceInfo->size);
+
+        $alreadyAtLimit = $bytesSoFar >= $maxTransfer;
+        $wouldPassLimit = $bytesSoFar + $sourceSize > $maxTransfer;
+        $wouldReachLimit = $bytesSoFar + $sourceSize >= $maxTransfer;
+
+        if ($alreadyAtLimit || ($mode === 'hard' && $wouldPassLimit) || ($mode === 'cautious' && $wouldReachLimit)) {
+            throw new \RuntimeException('max transfer limit reached as set by --max-transfer');
+        }
+    }
+
+    private function normalizeCutoffMode(string $mode): string
+    {
+        $mode = strtolower(trim($mode));
+
+        return match ($mode) {
+            '', 'hard' => 'hard',
+            'soft' => 'soft',
+            'cautious' => 'cautious',
+            default => throw new \InvalidArgumentException('unknown cutoff mode "' . $mode . '"'),
+        };
     }
 
     private function partialCopyPath(string $destinationPath, ObjectInfo $sourceInfo, string $partialSuffix): string
@@ -5191,14 +6631,59 @@ final class SyncPlan
         string $backupPrefix,
         string $suffix,
         bool $suffixKeepExtension,
+        ?array &$diagnostics = null,
     ): ObjectInfo {
         $backup ??= $target;
+        $backupPath = self::backupPath($path, $backupPrefix, $suffix, $suffixKeepExtension);
+        $sourceInfo = $target->info($path);
+        $diagnostics = [
+            'sourcePath' => $sourceInfo->path,
+            'backupPath' => $backupPath,
+            'existingBackupPath' => null,
+            'accounting' => $this->emptyFileAccounting(),
+            'logEvents' => [],
+            'loggerEvents' => [],
+        ];
 
-        return $target->serverSideMoveTo(
+        $overwritten = $this->optionalInfo($backup, $backupPath);
+        if ($overwritten !== null && !$this->sameProviderObject($target, $sourceInfo, $backup, $overwritten)) {
+            $diagnostics['existingBackupPath'] = $overwritten->path;
+            $diagnostics['accounting']['checkingTransfers']++;
+            $diagnostics['accounting']['deletedFiles']++;
+            $diagnostics['accounting']['deletedBytes'] += max(0, $overwritten->size);
+            $backup->delete($overwritten->path);
+            $diagnostics['logEvents'][] = [
+                'level' => 'info',
+                'path' => $overwritten->path,
+                'message' => 'Deleted',
+            ];
+        } elseif ($overwritten !== null) {
+            $diagnostics['existingBackupPath'] = $overwritten->path;
+        }
+
+        $moved = $target->serverSideMoveTo(
             $path,
             $backup,
-            self::backupPath($path, $backupPrefix, $suffix, $suffixKeepExtension),
+            $backupPath,
         );
+        $diagnostics['accounting']['checkingTransfers']++;
+        $diagnostics['accounting']['renames']++;
+        $diagnostics['accounting']['serverSideMoves']++;
+        $diagnostics['logEvents'][] = [
+            'level' => 'info',
+            'path' => $sourceInfo->path,
+            'message' => $sourceInfo->path === $moved->path
+                ? 'Moved (server-side)'
+                : 'Moved (server-side) to: ' . $moved->path,
+        ];
+        $diagnostics['loggerEvents'][] = [
+            'type' => 'missing-on-dst',
+            'sourcePath' => $sourceInfo->path,
+            'destinationPath' => null,
+            'error' => null,
+        ];
+
+        return $moved;
     }
 
     private static function suffixName(string $path, string $suffix, bool $suffixKeepExtension): string
@@ -5340,6 +6825,23 @@ final class SyncPlan
         }
 
         return $targetPrefix . substr($path, strlen($sourcePrefix));
+    }
+
+    private static function relativePathUnderRoot(string $path, string $root): string
+    {
+        $path = self::normalizePath($path);
+        $root = self::normalizePath($root);
+        if ($root === '') {
+            return $path;
+        }
+        if ($path === $root) {
+            return '';
+        }
+        if (!str_starts_with($path, $root . '/')) {
+            throw new \InvalidArgumentException("path {$path} is not under {$root}");
+        }
+
+        return substr($path, strlen($root) + 1);
     }
 
     private static function pathLevel(string $path): int

@@ -286,7 +286,11 @@ final class MemoryProvider
 
     public function get(string $path): string
     {
-        return $this->entry($path)['bytes'];
+        $path = $this->canonicalPath($path);
+        $entry = $this->entry($path);
+        $this->assertObjectReadable($path, $entry);
+
+        return $entry['bytes'];
     }
 
     /**
@@ -298,7 +302,10 @@ final class MemoryProvider
      */
     public function readObject(string $path, array $options = []): string
     {
-        $bytes = $this->entry($path)['bytes'];
+        $path = $this->canonicalPath($path);
+        $entry = $this->entry($path);
+        $this->assertObjectReadable($path, $entry);
+        $bytes = $entry['bytes'];
         $size = strlen($bytes);
         $offset = 0;
         $limit = null;
@@ -913,6 +920,7 @@ final class MemoryProvider
     {
         $path = $this->canonicalPath($path);
         $entry = $this->entry($path);
+        $this->assertObjectReadable($path, $entry);
         $offset = max(0, $offset);
         if ($length !== null) {
             $length = max(0, $length);
@@ -1061,13 +1069,19 @@ final class MemoryProvider
     {
         $prefix = $this->normalize($prefix);
         $items = [];
-        foreach (array_keys($this->objects) as $path) {
+        foreach ($this->objects as $path => $entry) {
+            if (!$this->isObjectListable($entry)) {
+                continue;
+            }
             if ($prefix === '' || $this->pathStartsWith($path, $prefix)) {
                 $items[] = $this->info($path);
             }
         }
         foreach (array_keys($this->duplicateObjects) as $key) {
             $path = $this->duplicateObjects[$key]['path'];
+            if (!$this->isObjectListable($this->duplicateObjects[$key]['entry'])) {
+                continue;
+            }
             if ($prefix === '' || $this->pathStartsWith($path, $prefix)) {
                 $items[] = $this->duplicateInfo($key);
             }
@@ -1244,13 +1258,16 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>} $options
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>} $options
      */
     public function updateObjectInfo(string $path, array $options): ObjectInfo
     {
         $path = $this->canonicalPath($path);
         $entry = $this->entry($path);
 
+        if (array_key_exists('unknownSize', $options)) {
+            $entry['unknownSize'] = (bool) $options['unknownSize'];
+        }
         if (array_key_exists('modTime', $options)) {
             $entry['modTime'] = $this->normalizeModTime($options['modTime']);
         }
@@ -1729,6 +1746,24 @@ final class MemoryProvider
         }
 
         return $this->sameProviderPath($left->path, $right->path);
+    }
+
+    /**
+     * @param array{metadata: array<string, string>} $entry
+     */
+    private function isObjectListable(array $entry): bool
+    {
+        return ($entry['metadata']['dropbox_export_type'] ?? '') !== 'hidden';
+    }
+
+    /**
+     * @param array{metadata: array<string, string>} $entry
+     */
+    private function assertObjectReadable(string $path, array $entry): void
+    {
+        if (($entry['metadata']['dropbox_export_type'] ?? '') === 'list-only') {
+            throw new \RuntimeException("Object not found: {$path}");
+        }
     }
 
     private function hasConcreteDirectory(string $path): bool
