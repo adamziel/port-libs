@@ -256,6 +256,8 @@ TypeScript syntax highlighting now also maps upstream constructor/type captures 
 
 JavaScript and TypeScript syntax highlighting now maps upstream uppercase identifier capture priority from difftastic's parser query dependencies. The WordPress block registry display example emits inserted `BlockRegistry` as a `type` span outside a type annotation and `WP_BLOCK_API_VERSION` as a `keyword` span, matching upstream's constructor/type and constant bucket ordering for editor review data.
 
+JavaScript and TypeScript syntax highlighting now also maps upstream `variable.builtin` captures from the exact tree-sitter JavaScript query used by difftastic. The WordPress browser-globals example emits `window`, `document`, `console`, `module`, and `arguments` as `keyword` spans while leaving `wp` and `require` normal, so block review UIs can distinguish host globals from ordinary plugin namespaces without a browser-side parser.
+
 Compact JSON display now also maps upstream `src/display/json.rs` `tree_sitter_error` highlight output for parser-error atoms. The WordPress parser-error display example compares block registration JavaScript with an extra `}` and, when the parse-error budget allows structural display, exposes that delimiter as a `tree_sitter_error` span for editor review tools instead of treating it as ordinary punctuation.
 
 JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The WordPress block editor TSX fixture applies this to an `edit.tsx` sidebar control change, reporting the `PanelBody` title and `initialOpen` attribute change while keeping the retained `TextControl` tag out of the rendered change stream.

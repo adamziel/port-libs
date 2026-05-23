@@ -64,6 +64,9 @@ final class SyntaxHighlightClassifier
         }
 
         if ($this->isJavaScriptLikeLanguage($language)) {
+            if ($this->isJavaScriptBuiltinVariable($token->text)) {
+                return 'keyword';
+            }
             if ($this->isJavaScriptAllCapsConstantIdentifier($token->text)) {
                 return 'keyword';
             }
@@ -175,6 +178,11 @@ final class SyntaxHighlightClassifier
     private function isJavaScriptAllCapsConstantIdentifier(string $text): bool
     {
         return preg_match('/^[A-Z_][A-Z0-9_]+$/', $text) === 1;
+    }
+
+    private function isJavaScriptBuiltinVariable(string $text): bool
+    {
+        return in_array($text, ['arguments', 'module', 'console', 'window', 'document'], true);
     }
 
     private function isUppercaseIdentifier(string $text): bool

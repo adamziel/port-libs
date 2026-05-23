@@ -3332,6 +3332,36 @@ return [
         $t->contains('BlockRegistry:type', $encoded);
         $t->contains('WP_BLOCK_API_VERSION:keyword', $encoded);
     },
+    'json display renderer maps upstream javascript builtin variables as keyword highlights' => static function (TestRunner $t): void {
+        $before = "export { save } from './save';\n";
+        $after = "window.wp.hooks.addAction('acme.card', () => document.body);\nconsole.log(module.hot, arguments.length);\nrequire('./view');\nexport { save } from './save';\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/javascript_builtin_variables.js',
+            'JavaScript',
+            ['language' => 'javascript'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('JavaScript', $decoded['language']);
+        $t->contains('window:keyword', $encoded);
+        $t->contains('document:keyword', $encoded);
+        $t->contains('console:keyword', $encoded);
+        $t->contains('module:keyword', $encoded);
+        $t->contains('arguments:keyword', $encoded);
+        $t->contains('wp:normal', $encoded);
+        $t->contains('require:normal', $encoded);
+    },
     'json display renderer maps upstream tag captures as type highlights' => static function (TestRunner $t): void {
         $before = "export const Edit = () => null;\n";
         $after = "export const Edit = () => <PanelBody title=\"Modern\" />;\n";
@@ -3516,6 +3546,20 @@ return [
 
         $t->true(in_array(['start' => 0, 'end' => 13, 'style' => '1'], $spans, true), 'PascalCase identifiers should follow upstream constructor/type capture handling.');
         $t->true(in_array(['start' => 24, 'end' => 44, 'style' => '1'], $spans, true), 'All-caps constants should follow upstream constant-as-keyword capture handling.');
+    },
+    'ansi highlighter maps upstream javascript builtin variable captures' => static function (TestRunner $t): void {
+        $line = "require('./view'); window.wp.hooks.addAction(console, document.body, module.hot, arguments.length);";
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'javascript']);
+
+        foreach (['window', 'console', 'document', 'module', 'arguments'] as $builtin) {
+            $start = strpos($line, $builtin);
+            $t->true($start !== false, "Fixture should contain {$builtin}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($builtin), 'style' => '1'], $spans, true), "{$builtin} should follow upstream variable.builtin keyword-style handling.");
+        }
+
+        $requireStart = strpos($line, 'require');
+        $t->true($requireStart !== false, 'Fixture should contain require.');
+        $t->true(!in_array(['start' => $requireStart, 'end' => $requireStart + strlen('require'), 'style' => '1'], $spans, true), 'Function-builtin captures should remain normal because upstream only promotes function.macro, not function.builtin.');
     },
     'ansi highlighter maps upstream rust label captures as type highlights' => static function (TestRunner $t): void {
         $line = "fn render<'block>(title: &'block str) -> &'block str { title }";
@@ -3803,6 +3847,30 @@ return [
         $t->same('wp-content/plugins/acme-card/src/block-registry.js', $decoded['path']);
         $t->contains('BlockRegistry:type', $encoded);
         $t->contains('WP_BLOCK_API_VERSION:keyword', $encoded);
+    },
+    'wordpress browser globals display highlights upstream builtin variables' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-browser-globals-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/src/browser-globals.js', $decoded['path']);
+        $t->contains('window:keyword', $encoded);
+        $t->contains('document:keyword', $encoded);
+        $t->contains('console:keyword', $encoded);
+        $t->contains('module:keyword', $encoded);
+        $t->contains('arguments:keyword', $encoded);
+        $t->contains('wp:normal', $encoded);
     },
     'wordpress tsx tag highlight display exposes component tags as types' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tsx-tag-highlight-before.tsx');
