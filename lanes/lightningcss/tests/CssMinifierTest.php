@@ -307,6 +307,44 @@ CSS;
             $minifier->minify('.foo { left: calc(50% - 100px + clamp(0px, calc(50vw - 50px), 100px)) }')
         );
     },
+    'css minifier maps upstream transform translate and scale normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{transform:scale(.5)translate(10px)}',
+            $minifier->minify('.foo { transform: scale(  0.5 ) translateX(10px ) }')
+        );
+        $t->same('.foo{transform:translate(2px,3px)}', $minifier->minify('.foo { transform: translate(2px, 3px) }'));
+        $t->same('.foo{transform:translate(2px)}', $minifier->minify('.foo { transform: translate(2px, 0px) }'));
+        $t->same('.foo{transform:translateY(2px)}', $minifier->minify('.foo { transform: translate(0px, 2px) }'));
+        $t->same('.foo{transform:translate(2px)}', $minifier->minify('.foo { transform: translateX(2px) }'));
+        $t->same('.foo{transform:translateY(2px)}', $minifier->minify('.foo { transform: translateY(2px) }'));
+        $t->same('.foo{transform:translateZ(2px)}', $minifier->minify('.foo { transform: translateZ(2px) }'));
+        $t->same(
+            '.foo{transform:translate3d(10%,20%,4px)}',
+            $minifier->minify('.foo { transform: translate3d(10%, 20%, 4px) }')
+        );
+        $t->same('.foo{transform:translate(2px)}', $minifier->minify('.foo { transform: translate3d(2px, 0px, 0px) }'));
+        $t->same('.foo{transform:translateY(2px)}', $minifier->minify('.foo { transform: translate3d(0px, 2px, 0px) }'));
+        $t->same('.foo{transform:translateZ(2px)}', $minifier->minify('.foo { transform: translate3d(0px, 0px, 2px) }'));
+        $t->same('.foo{transform:translate(2px,3px)}', $minifier->minify('.foo { transform: translate3d(2px, 3px, 0px) }'));
+
+        $t->same('.foo{transform:scale(2,3)}', $minifier->minify('.foo { transform: scale(2, 3) }'));
+        $t->same('.foo{transform:scale(.1,.2)}', $minifier->minify('.foo { transform: scale(10%, 20%) }'));
+        $t->same('.foo{transform:scale(2)}', $minifier->minify('.foo { transform: scale(2, 2) }'));
+        $t->same('.foo{transform:scaleX(2)}', $minifier->minify('.foo { transform: scale(2, 1) }'));
+        $t->same('.foo{transform:scaleY(2)}', $minifier->minify('.foo { transform: scale(1, 2) }'));
+        $t->same('.foo{transform:scale3d(2,3,4)}', $minifier->minify('.foo { transform: scale3d(2, 3, 4) }'));
+        $t->same('.foo{transform:scaleX(2)}', $minifier->minify('.foo { transform: scale3d(2, 1, 1) }'));
+        $t->same('.foo{transform:scaleY(2)}', $minifier->minify('.foo { transform: scale3d(1, 2, 1) }'));
+        $t->same('.foo{transform:scaleZ(2)}', $minifier->minify('.foo { transform: scale3d(1, 1, 2) }'));
+        $t->same('.foo{transform:scale(2)}', $minifier->minify('.foo { transform: scale3d(2, 2, 1) }'));
+        $t->same('.foo{transform:scale(1)}', $minifier->minify('.foo { transform: scale3d(100%, 100%, 100%) }'));
+        $t->same('.foo{transform:scaleY(2)}', $minifier->minify('.foo { transform: scale(100%, 200%) }'));
+        $t->same('.foo{transform:scale(.3)}', $minifier->minify('.foo { transform: scale(calc(10% + 20%)) }'));
+        $t->same('.foo{transform:scale(.333333)}', $minifier->minify('.foo { transform: scale(calc(100% / 3)) }'));
+        $t->same('.foo{-webkit-transform:scale(.3)}', $minifier->minify('.foo { -webkit-transform: scale(calc(10% + 20%)) }'));
+    },
     'css minifier maps upstream animation longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -933,6 +971,22 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-depth{outline-offset:4px;margin-block-start:5px;padding-block:4rem;translate:0 -10px}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress cover transform functions normalize without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-lift:hover {
+  transform: translate3d(0px, 12px, 0px) scale(100%, 105%);
+}
+
+.wp-block-cover.is-style-lift:active {
+  transform: translateX(calc(4px + 8px)) scale3d(100%, 100%, 100%);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-lift:hover{transform:translateY(12px)scaleY(1.05)}.wp-block-cover.is-style-lift:active{transform:translate(12px)scale(1)}',
             (new CssMinifier())->minify($css)
         );
     },

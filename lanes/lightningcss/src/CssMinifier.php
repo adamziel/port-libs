@@ -1179,7 +1179,271 @@ final class CssMinifier
             return $value;
         }
 
-        return preg_replace('/\)\s+(?=[-_a-zA-Z][-_a-zA-Z0-9]*\()/u', ')', $value) ?? $value;
+        return $this->minifyTransformFunctionList($value);
+    }
+
+    private function minifyTransformFunctionList(string $value): string
+    {
+        $functions = [];
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length;) {
+            if (ctype_space($value[$i])) {
+                $i++;
+                continue;
+            }
+
+            if ($this->isIdentifierStart($value[$i])) {
+                $identifier = $this->readIdentifier($value, $i);
+                $next = $i + strlen($identifier);
+                if (($value[$next] ?? '') === '(') {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $functions[] = $this->minifyTransformFunction($function);
+                    $i = $offset + 1;
+                    continue;
+                }
+            }
+
+            return preg_replace('/\)\s+(?=[-_a-zA-Z][-_a-zA-Z0-9]*\()/u', ')', trim($value)) ?? trim($value);
+        }
+
+        return implode('', $functions);
+    }
+
+    private function minifyTransformFunction(string $function): string
+    {
+        if (preg_match('/^([-_a-zA-Z][-_a-zA-Z0-9]*)\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return trim($function);
+        }
+
+        $name = strtolower($matches[1]);
+        $args = $this->splitTopLevel($matches[2], ',');
+
+        return match ($name) {
+            'translate' => $this->minifyTransformTranslate($args),
+            'translatex' => $this->minifyTransformTranslateX($args),
+            'translatey' => $this->minifyTransformTranslateY($args),
+            'translatez' => $this->minifyTransformTranslateZ($args),
+            'translate3d' => $this->minifyTransformTranslate3d($args),
+            'scale' => $this->minifyTransformScale($args),
+            'scalex' => $this->minifyTransformScaleAxis('scaleX', $args),
+            'scaley' => $this->minifyTransformScaleAxis('scaleY', $args),
+            'scalez' => $this->minifyTransformScaleAxis('scaleZ', $args),
+            'scale3d' => $this->minifyTransformScale3d($args),
+            default => $matches[1] . '(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformGenericArgument($arg), $args)) . ')',
+        };
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformTranslate(array $args): string
+    {
+        if (count($args) < 1 || count($args) > 2) {
+            return 'translate(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformLengthArgument($arg), $args)) . ')';
+        }
+
+        $x = $this->normalizeTransformLengthArgument($args[0]);
+        $y = isset($args[1]) ? $this->normalizeTransformLengthArgument($args[1]) : '0';
+
+        if ($this->isTransformZeroLength($y)) {
+            return 'translate(' . $x . ')';
+        }
+        if ($this->isTransformZeroLength($x)) {
+            return 'translateY(' . $y . ')';
+        }
+
+        return 'translate(' . $x . ',' . $y . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformTranslateX(array $args): string
+    {
+        if (count($args) !== 1) {
+            return 'translateX(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformLengthArgument($arg), $args)) . ')';
+        }
+
+        return 'translate(' . $this->normalizeTransformLengthArgument($args[0]) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformTranslateY(array $args): string
+    {
+        if (count($args) !== 1) {
+            return 'translateY(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformLengthArgument($arg), $args)) . ')';
+        }
+
+        return 'translateY(' . $this->normalizeTransformLengthArgument($args[0]) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformTranslateZ(array $args): string
+    {
+        if (count($args) !== 1) {
+            return 'translateZ(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformLengthArgument($arg), $args)) . ')';
+        }
+
+        return 'translateZ(' . $this->normalizeTransformLengthArgument($args[0]) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformTranslate3d(array $args): string
+    {
+        if (count($args) !== 3) {
+            return 'translate3d(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformLengthArgument($arg), $args)) . ')';
+        }
+
+        $x = $this->normalizeTransformLengthArgument($args[0]);
+        $y = $this->normalizeTransformLengthArgument($args[1]);
+        $z = $this->normalizeTransformLengthArgument($args[2]);
+
+        if ($this->isTransformZeroLength($z)) {
+            if ($this->isTransformZeroLength($y)) {
+                return 'translate(' . $x . ')';
+            }
+            if ($this->isTransformZeroLength($x)) {
+                return 'translateY(' . $y . ')';
+            }
+
+            return 'translate(' . $x . ',' . $y . ')';
+        }
+        if ($this->isTransformZeroLength($x) && $this->isTransformZeroLength($y)) {
+            return 'translateZ(' . $z . ')';
+        }
+
+        return 'translate3d(' . $x . ',' . $y . ',' . $z . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformScale(array $args): string
+    {
+        if (count($args) < 1 || count($args) > 2) {
+            return 'scale(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformScaleArgument($arg), $args)) . ')';
+        }
+
+        $x = $this->normalizeTransformScaleArgument($args[0]);
+        $y = isset($args[1]) ? $this->normalizeTransformScaleArgument($args[1]) : $x;
+
+        if ($this->transformNumbersEqual($x, $y)) {
+            return 'scale(' . $x . ')';
+        }
+        if ($this->isTransformScaleIdentity($y)) {
+            return 'scaleX(' . $x . ')';
+        }
+        if ($this->isTransformScaleIdentity($x)) {
+            return 'scaleY(' . $y . ')';
+        }
+
+        return 'scale(' . $x . ',' . $y . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformScaleAxis(string $name, array $args): string
+    {
+        if (count($args) !== 1) {
+            return $name . '(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformScaleArgument($arg), $args)) . ')';
+        }
+
+        return $name . '(' . $this->normalizeTransformScaleArgument($args[0]) . ')';
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyTransformScale3d(array $args): string
+    {
+        if (count($args) !== 3) {
+            return 'scale3d(' . implode(',', array_map(fn (string $arg): string => $this->normalizeTransformScaleArgument($arg), $args)) . ')';
+        }
+
+        $x = $this->normalizeTransformScaleArgument($args[0]);
+        $y = $this->normalizeTransformScaleArgument($args[1]);
+        $z = $this->normalizeTransformScaleArgument($args[2]);
+
+        if ($this->isTransformScaleIdentity($z)) {
+            if ($this->transformNumbersEqual($x, $y)) {
+                return 'scale(' . $x . ')';
+            }
+            if ($this->isTransformScaleIdentity($y)) {
+                return 'scaleX(' . $x . ')';
+            }
+            if ($this->isTransformScaleIdentity($x)) {
+                return 'scaleY(' . $y . ')';
+            }
+        }
+
+        if ($this->isTransformScaleIdentity($x) && $this->isTransformScaleIdentity($y)) {
+            return 'scaleZ(' . $z . ')';
+        }
+
+        return 'scale3d(' . $x . ',' . $y . ',' . $z . ')';
+    }
+
+    private function normalizeTransformLengthArgument(string $arg): string
+    {
+        $normalized = $this->normalizeMathArgument($arg);
+        $value = $this->comparableMathValue($normalized);
+        if ($value !== null && abs($value['canonical']) < 0.0000001) {
+            return '0';
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeTransformScaleArgument(string $arg): string
+    {
+        $normalized = $this->normalizeMathArgument($arg);
+        $value = $this->comparableMathValue($normalized);
+        if ($value === null) {
+            return $normalized;
+        }
+        if ($value['unit'] === '%') {
+            return $this->serializeMathNumberWithUnit($value['value'] / 100, '');
+        }
+        if ($value['unit'] === '') {
+            return $this->serializeMathNumberWithUnit($value['value'], '');
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeTransformGenericArgument(string $arg): string
+    {
+        return $this->normalizeMathArgument($arg);
+    }
+
+    private function isTransformZeroLength(string $value): bool
+    {
+        $comparable = $this->comparableMathValue($value);
+
+        return $comparable !== null && abs($comparable['canonical']) < 0.0000001;
+    }
+
+    private function isTransformScaleIdentity(string $value): bool
+    {
+        $number = $this->unitlessMathNumber($value);
+
+        return $number !== null && abs($number - 1.0) < 0.0000001;
+    }
+
+    private function transformNumbersEqual(string $left, string $right): bool
+    {
+        $leftNumber = $this->unitlessMathNumber($left);
+        $rightNumber = $this->unitlessMathNumber($right);
+
+        return $leftNumber !== null && $rightNumber !== null && abs($leftNumber - $rightNumber) < 0.0000001;
     }
 
     private function minifyContainerDeclarationValue(string $property, string $value): string
