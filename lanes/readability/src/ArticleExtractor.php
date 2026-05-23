@@ -141,6 +141,9 @@ final class ArticleExtractor
             $this->articleAuthorByline($metaValues),
         ]);
         $articleByline = $metadataByline === null ? $this->extractArticleByline($xpath) : null;
+        if ($metadataByline === null && $articleByline === null && $dom->documentElement instanceof \DOMElement) {
+            $articleByline = $this->extractArticleHeaderAddressByline($dom->documentElement);
+        }
 
         foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form|//fieldset|//link') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
@@ -167,6 +170,7 @@ final class ArticleExtractor
             $this->removeInteractiveArticleChrome($best);
             $this->removeUnsupportedPublisherVideoPlaceholders($best);
             $this->removePublisherStoryChrome($best);
+            $this->removeMediaWikiArticleChrome($best);
             $this->removeNytCollectionChrome($best);
             $this->removeDuplicateTitleHeader($best, $title);
             $this->removeSectionScaffoldHeadings($best);
@@ -405,6 +409,9 @@ final class ArticleExtractor
             $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
         } elseif ($tag === 'figure' && $this->isImageFigure($element)) {
             $blocks[] = '<!-- wp:image -->' . "\n" . $html . "\n" . '<!-- /wp:image -->';
+        } elseif (($tag === 'ul' || $tag === 'ol') && $this->isMediaOnlyList($element)) {
+            $metadata = $tag === 'ol' ? ' {"ordered":true}' : '';
+            $blocks[] = '<!-- wp:list' . $metadata . ' -->' . "\n" . $html . "\n" . '<!-- /wp:list -->';
         } elseif ($tag === 'table') {
             $blocks[] = '<!-- wp:table -->' . "\n" . '<figure class="wp-block-table">' . $html . '</figure>' . "\n" . '<!-- /wp:table -->';
         } else {
@@ -430,6 +437,41 @@ final class ArticleExtractor
         return strtolower($element->tagName) === 'figure'
             && ($element->getElementsByTagName('img')->length > 0
                 || $element->getElementsByTagName('picture')->length > 0);
+    }
+
+    private function isMediaOnlyList(\DOMElement $element): bool
+    {
+        if (!in_array(strtolower($element->tagName), ['ul', 'ol'], true)) {
+            return false;
+        }
+
+        $items = 0;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+                return false;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (strtolower($child->tagName) !== 'li' || count($this->elementChildren($child)) !== 1) {
+                return false;
+            }
+
+            $media = $this->firstElementChild($child);
+            if (!$media instanceof \DOMElement || !in_array(strtolower($media->tagName), ['figure', 'img', 'picture'], true)) {
+                return false;
+            }
+
+            if (trim($this->textOutsideDescendant($child, $media)) !== '') {
+                return false;
+            }
+
+            $items++;
+        }
+
+        return $items > 0;
     }
 
     private function canFlattenBlockContainer(\DOMElement $element): bool
@@ -650,6 +692,8 @@ final class ArticleExtractor
 
     private function loadHtmlDocument(string $html): \DOMDocument
     {
+        $html = preg_replace('/^\xEF\xBB\xBF/', '', $html) ?? $html;
+
         $dom = new \DOMDocument();
         $previous = libxml_use_internal_errors(true);
         $dom->loadHTML('<?xml encoding="UTF-8" ?>' . $html, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
@@ -883,6 +927,40 @@ final class ArticleExtractor
         }
 
         return false;
+    }
+
+    private function extractArticleHeaderAddressByline(\DOMElement $scope): ?string
+    {
+        $document = $scope->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return null;
+        }
+
+        $xpath = new \DOMXPath($document);
+        foreach ($xpath->query('.//header//address[@rel="author"]|.//header//address//*[@rel="author"]', $scope) ?: [] as $node) {
+            $bylineLength = $node instanceof \DOMElement ? mb_strlen(trim($node->textContent)) : 0;
+            if (!$node instanceof \DOMElement
+                || $node->getAttribute('rel') !== 'author'
+                || $bylineLength === 0
+                || $bylineLength >= 100
+                || $this->isPromotionalBylineNode($node)) {
+                continue;
+            }
+
+            $byline = $this->articleBylineText($xpath, $node);
+            $remove = $node;
+            for ($parent = $node->parentNode; $parent instanceof \DOMElement && $parent !== $scope; $parent = $parent->parentNode) {
+                if (strtolower($parent->tagName) === 'address') {
+                    $remove = $parent;
+                    break;
+                }
+            }
+            $remove->parentNode?->removeChild($remove);
+
+            return $byline;
+        }
+
+        return null;
     }
 
     /**
@@ -1629,9 +1707,40 @@ final class ArticleExtractor
                 && $parent->getElementsByTagName('header')->length > 0) {
                 return $parent;
             }
+
+            if ($this->shouldPromoteDescribedArticleRoot($parent, $candidate)) {
+                return $parent;
+            }
         }
 
         return $candidate;
+    }
+
+    private function shouldPromoteDescribedArticleRoot(\DOMElement $article, \DOMElement $articleBody): bool
+    {
+        if (strtolower($article->tagName) !== 'article' || !$this->nodeContains($article, $articleBody)) {
+            return false;
+        }
+
+        $articleBodyCount = 0;
+        $hasDescription = false;
+        foreach ($article->getElementsByTagName('*') as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            if ($this->hasArticleBodyAttribute($node)) {
+                $articleBodyCount++;
+            }
+
+            if (!$this->nodeContains($articleBody, $node)
+                && str_contains(strtolower($node->getAttribute('itemprop')), 'description')
+                && $this->normalizeWhitespace($node->textContent) !== '') {
+                $hasDescription = true;
+            }
+        }
+
+        return $articleBodyCount === 1 && $hasDescription;
     }
 
     private function promoteMozillaHacksContentRoot(\DOMElement $candidate): \DOMElement
@@ -1868,6 +1977,9 @@ final class ArticleExtractor
 
         foreach ($xpath->query(
             './/*[@id="catlinks" or contains(concat(" ", normalize-space(@class), " "), " catlinks ")]'
+            . '|.//*[@id="mw-indicators" or starts-with(@id, "mw-indicator-")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " mw-indicators ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " mw-indicator ")]'
             . '|.//*[@role="note" and contains(concat(" ", normalize-space(@class), " "), " navigation-not-searchable ")]',
             $scope,
         ) ?: [] as $node) {
@@ -1902,6 +2014,46 @@ final class ArticleExtractor
 
         foreach ($xpath->query('.//ul[.//a]|.//ol[.//a]', $scope) ?: [] as $node) {
             if ($node instanceof \DOMElement && $this->isAuthorFeedList($node)) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " admonition ") and contains(concat(" ", normalize-space(@class), " "), " tip ")]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement && $this->isInteractiveEditorAdmonition($node)) {
+                $this->pruneInteractiveEditorAdmonition($node);
+            }
+        }
+
+        foreach (array_reverse($this->uniqueElements($remove)) as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function removeMediaWikiArticleChrome(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        if (($xpath->query('.//*[@id="mw-content-text"]', $scope)?->length ?? 0) === 0) {
+            return;
+        }
+
+        if (($xpath->query(
+            './/*[@id="jump-to-nav" or contains(concat(" ", normalize-space(@class), " "), " printfooter ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " mwe-math-element ")'
+            . ' or contains(@src, "/api/rest_v1/media/math/render/")]',
+            $scope,
+        )?->length ?? 0) === 0) {
+            return;
+        }
+
+        $remove = [];
+        foreach ($xpath->query(
+            './/*[@id="siteSub" or @id="contentSub" or @id="jump-to-nav"]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " mw-jump-link ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " hatnote ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " printfooter ")]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
                 $remove[] = $node;
             }
         }
@@ -1985,6 +2137,48 @@ final class ArticleExtractor
             if (str_contains($href, '/feeds/author/')
                 || str_contains($href, '/feed/author/')
                 || str_contains($href, '/rss/author/')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function pruneInteractiveEditorAdmonition(\DOMElement $node): void
+    {
+        $title = null;
+        foreach ($this->elementChildren($node) as $child) {
+            if ($title === null
+                && strtolower($child->tagName) === 'p'
+                && str_contains(strtolower($this->normalizeWhitespace($child->textContent)), 'interactive editor')) {
+                $title = $child;
+            }
+        }
+
+        foreach (iterator_to_array($node->childNodes) as $child) {
+            if ($child === $title) {
+                continue;
+            }
+
+            if ($child instanceof \DOMNode) {
+                $node->removeChild($child);
+            }
+        }
+    }
+
+    private function isInteractiveEditorAdmonition(\DOMElement $node): bool
+    {
+        $text = strtolower($this->normalizeWhitespace($node->textContent));
+        if (!str_contains($text, 'interactive editor')) {
+            return false;
+        }
+
+        if (str_contains($text, 'follow along with the article')) {
+            return true;
+        }
+
+        foreach ($node->getElementsByTagName('a') as $link) {
+            if ($link instanceof \DOMElement && str_contains(strtolower($link->getAttribute('href')), 'popsql.com')) {
                 return true;
             }
         }
@@ -2208,8 +2402,20 @@ final class ArticleExtractor
             return true;
         }
 
+        if ($this->isTrailingAdContainer($node, $text)) {
+            return true;
+        }
+
+        if ($this->isTrailingModalChrome($node, $text)) {
+            return true;
+        }
+
         if (mb_strlen($text) > 180) {
             return false;
+        }
+
+        if ($this->isTrailingAuthorSourceCredit($node, $text)) {
+            return true;
         }
 
         $linkCount = $node->getElementsByTagName('a')->length;
@@ -2224,6 +2430,111 @@ final class ArticleExtractor
         }
 
         return $imageCount > 0 && $linkCount > 0 && $this->linkDensity($node) >= 0.5;
+    }
+
+    private function isTrailingAdContainer(\DOMElement $node, string $text): bool
+    {
+        if ($text !== '' && strcasecmp($text, 'Advertisement') !== 0) {
+            return false;
+        }
+
+        foreach ($node->getElementsByTagName('ins') as $ins) {
+            if (!$ins instanceof \DOMElement) {
+                continue;
+            }
+
+            $matchString = strtolower(
+                $ins->getAttribute('class') . ' '
+                . $ins->getAttribute('id') . ' '
+                . $ins->getAttribute('data-ad-client') . ' '
+                . $ins->getAttribute('data-ad-slot') . ' '
+                . $ins->getAttribute('data-ad-format')
+            );
+            if (preg_match('/\b(?:adsbygoogle|data-ad|ad-client|ad-slot|bottom_ad)\b/i', $matchString) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isTrailingModalChrome(\DOMElement $node, string $text): bool
+    {
+        $tagName = strtolower($node->tagName);
+        if (!in_array($tagName, ['div', 'section'], true) || $this->hasMediaPayload($node)) {
+            return false;
+        }
+
+        if (mb_strlen($text) > 700) {
+            return false;
+        }
+
+        $matchString = strtolower(
+            $node->getAttribute('class') . ' '
+            . $node->getAttribute('id') . ' '
+            . $node->getAttribute('role') . ' '
+            . $node->getAttribute('data-dismiss')
+        );
+        foreach ($node->getElementsByTagName('*') as $descendant) {
+            if (!$descendant instanceof \DOMElement) {
+                continue;
+            }
+
+            $matchString .= ' ' . strtolower(
+                $descendant->getAttribute('class') . ' '
+                . $descendant->getAttribute('id') . ' '
+                . $descendant->getAttribute('role') . ' '
+                . $descendant->getAttribute('data-dismiss')
+            );
+        }
+
+        if (preg_match('/\bmodal(?:\b|-)/i', $matchString) !== 1) {
+            return false;
+        }
+
+        if (preg_match('/\b(?:approved author|account is not approved|close|login|request|sign in|subscribe)\b/i', $text . ' ' . $matchString) === 1) {
+            return true;
+        }
+
+        return $node->getElementsByTagName('button')->length > 0
+            || preg_match('/\bdata-dismiss\s*modal\b/i', $matchString) === 1;
+    }
+
+    private function isTrailingAuthorSourceCredit(\DOMElement $node, string $text): bool
+    {
+        if ($text === '' || mb_strlen($text) > 120 || $this->hasMediaPayload($node)) {
+            return false;
+        }
+
+        if ($node->getElementsByTagName('a')->length > 2) {
+            return false;
+        }
+
+        $ownMatchString = strtolower(
+            $node->getAttribute('class') . ' '
+            . $node->getAttribute('id') . ' '
+            . $node->getAttribute('itemprop') . ' '
+            . $node->getAttribute('rel')
+        );
+        if (preg_match('/\b(?:authors-container|author-source|byline-source|source-credit|wire-credit)\b/i', $ownMatchString) !== 1) {
+            return false;
+        }
+
+        $matchString = $ownMatchString;
+        foreach ($node->getElementsByTagName('*') as $descendant) {
+            if (!$descendant instanceof \DOMElement) {
+                continue;
+            }
+
+            $matchString .= ' ' . strtolower(
+                $descendant->getAttribute('class') . ' '
+                . $descendant->getAttribute('id') . ' '
+                . $descendant->getAttribute('itemprop') . ' '
+                . $descendant->getAttribute('rel')
+            );
+        }
+
+        return preg_match('/\b(?:author|authors|byline|creator|provider|source|sourceorganization|copyrightholder)\b/i', $matchString) === 1;
     }
 
     private function isTrailingMozillaSyncCallToAction(\DOMElement $node, string $text): bool

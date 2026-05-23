@@ -220,6 +220,13 @@ npm test -- --grep 'custom video regex|maxElemsToParse|keepClasses'
 5 passing (114ms)
 ```
 
+The Firefox Nightly WordPress author-header slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep firefox-nightly-blog
+17 passing (944ms)
+```
+
 The Mozilla Hacks `002` developer-article slice also has targeted upstream runner evidence:
 
 ```text
@@ -264,6 +271,40 @@ npm test -- --grep wikipedia
 ```
 
 The `wikipedia-4` fixture is now copied under `lanes/readability/fixtures/mozilla/wikipedia-4/` and mapped by native PHP tests for Wikimedia title/byline/site/date/lang metadata parity, readerable classification, exact normalized expected text parity, long sortable film-table retention, dynamic-list maintenance note cleanup, category-link cleanup, CentralAutoLogin tracking-pixel cleanup, and WordPress output with 6 paragraph blocks, 2 heading blocks, 1 table block, 0 image blocks, and no portal/category/tracking chrome.
+
+The `wikipedia` fixture is now copied under `lanes/readability/fixtures/mozilla/wikipedia/` and mapped by native PHP tests for Mozilla article title/lang/excerpt metadata parity, readerable classification, exact normalized expected text parity, 69 expected paragraphs, 9 h2 headings, 17 h3 headings, two retained tables, eight retained image payloads, 508 expected links, MediaWiki siteSub/jump/hatnote/printfooter cleanup, and WordPress output with 74 paragraph blocks, 37 heading blocks, 2 table blocks, and no shell chrome.
+
+The `wikipedia-2` fixture is now copied under `lanes/readability/fixtures/mozilla/wikipedia-2/` and mapped by native PHP tests for New Zealand country-page title/byline/site/date/lang/dir metadata parity, readerable classification, excerpt parity, heading and table retention, expected upstream image-source retention, MediaWiki good-article/protection status-indicator cleanup, and WordPress output with 151 paragraph blocks, 30 heading blocks, 4 table blocks, and no status/shell chrome.
+
+The `wikipedia-3` fixture is now copied under `lanes/readability/fixtures/mozilla/wikipedia-3/` and mapped by native PHP tests for Hermitian-matrix title/byline/site/date/lang/dir metadata parity, readerable classification, excerpt parity, MediaWiki math article shell cleanup, expected paragraph and section-heading text parity, one retained review table, retained upstream expected math/editorial image sources, and WordPress output with 62 paragraph blocks, 12 heading blocks, 1 table block, and no siteSub/jump/category/tracking chrome.
+
+The `wikipedia-2` slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep wikipedia-2
+19 passing (6s)
+```
+
+The `wikipedia-3` slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep wikipedia-3
+19 passing (979ms)
+```
+
+The La Nacion leading-BOM/described-NewsArticle slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep la-nacion
+13 passing (164ms)
+```
+
+The dev418 mixed-media/list-retention slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep dev418
+13 passing (485ms)
+```
 
 The `charThreshold` retry/null boundary was cross-checked against the upstream implementation with a focused Node oracle in `.upstream-cache/readability`:
 
@@ -422,6 +463,7 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Upstream targeted oracle: `npm test -- --grep yahoo-3` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering the Yahoo/GMA provider/action chrome fixture at `test/test-pages/yahoo-3`.
 - Upstream targeted oracle: `npm test -- --grep yahoo-4` passes 15 checks with 0 failures in `.upstream-cache/readability`, covering the Yahoo Japan `ynDetailText` articleBody fixture at `test/test-pages/yahoo-4`.
 - Upstream targeted oracle: `npm test -- --grep telegraph` passes 15 checks with 0 failures in `.upstream-cache/readability`, covering the Telegraph text-section publisher chrome fixture at `test/test-pages/telegraph`.
+- Upstream targeted oracle: `npm test -- --grep liberation-1` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering the Libération French articleBody, Dailymotion iframe, and trailing AFP source-credit fixture at `test/test-pages/liberation-1`.
 - Upstream targeted oracle: `npm test -- --grep buzzfeed-1` passes 15 checks with 0 failures in `.upstream-cache/readability`, covering the BuzzFeed print image/bio chrome fixture at `test/test-pages/buzzfeed-1`.
 - Upstream targeted oracle: `npm test -- --grep lemonde-1` passes 15 checks with 0 failures in `.upstream-cache/readability`, covering the Le Monde French articleBody/Dailymotion fixture at `test/test-pages/lemonde-1`.
 - Upstream targeted oracle: `npm test -- --grep theverge` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering The Verge content wrapper, pullquote, responsive image, newsletter, and metadata fixture at `test/test-pages/theverge`.
@@ -431,9 +473,13 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Upstream targeted oracle: `npm test -- --grep article-author-tag` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering the Atlas Obscura article:author metadata and article-body section fixture at `test/test-pages/article-author-tag`.
 - Upstream targeted oracle: `npm test -- --grep engadget` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering the Engadget review-gallery/product-chrome fixture at `test/test-pages/engadget`.
 - Upstream targeted oracle: `npm test -- --grep google-sre-book-1` passes 15 checks with 0 failures in `.upstream-cache/readability`, covering the Google SRE book chapter-main/table-of-contents fixture at `test/test-pages/google-sre-book-1`.
-- Upstream targeted oracle: `npm test -- --grep wikipedia` passes 74 checks with 0 failures in `.upstream-cache/readability`, covering the Wikipedia fixture family including the mapped `test/test-pages/wikipedia-4` table/category/tracking cleanup boundary.
-- Readability-local PHP coverage: 124 behavior tests, 1476 assertions, 0 failures.
-- Root `php tools/run-tests.php`: the duplicate-root gate was clear, and the root harness passed with 198 test files, 22201 assertions, and 0 failures.
+- Upstream targeted oracle: `npm test -- --grep wikipedia` passes 74 checks with 0 failures in `.upstream-cache/readability`, covering the Wikipedia fixture family including the mapped plain `test/test-pages/wikipedia` article-shell cleanup boundary and the `wikipedia-4` table/category/tracking cleanup boundary.
+- Upstream targeted oracle: `npm test -- --grep wikipedia-2` passes 19 checks with 0 failures in `.upstream-cache/readability`, covering the large New Zealand country-page fixture and MediaWiki status-indicator cleanup boundary.
+- Upstream targeted oracle: `npm test -- --grep wikipedia-3` passes 19 checks with 0 failures in `.upstream-cache/readability`, covering the Hermitian-matrix math article shell cleanup boundary.
+- Upstream targeted oracle: `npm test -- --grep la-nacion` passes 13 checks with 0 failures in `.upstream-cache/readability`, covering the La Nacion leading-BOM/described-NewsArticle fixture boundary.
+- Upstream targeted oracle: `npm test -- --grep dev418` passes 13 checks with 0 failures in `.upstream-cache/readability`, covering mixed standalone image, figure, separator, and media-list retention.
+- Readability-local PHP coverage: 135 behavior tests, 1653 assertions, 0 failures.
+- Root `php tools/run-tests.php`: final gated rerun passed with 208 test files, 24022 assertions, and 0 failures. An earlier aggregate attempt in this turn returned 1 failure with the failure line outside the captured output; the immediate gated rerun was clean.
 - WordPress React/Next migration cleanup: contributor or byline text split by parser comment delimiters serializes as one paragraph block instead of multiple fragment blocks.
 - Mozilla/fixture text projection boundary semantics are now native for the current slice: text-bearing block, table, and list siblings receive separator whitespace after cleanup so expected text does not concatenate across paragraph-heading, paragraph-paragraph, generated-br paragraph, and table-cell boundaries.
 - WordPress block-boundary spacing cleanup: imported article text, search excerpts, and review logs keep paragraph-to-heading and table-cell words separated even when source HTML omits whitespace between adjacent tags.
@@ -518,20 +564,30 @@ Current PHP tests map a narrow readerable/extraction slice:
 - WordPress ACLU Drupal panel import cleanup: article paragraphs and headings serialize cleanly from a sidebar-labeled panel layout while comments, share links, conference banners, and hero/theme images stay out of migrated blocks.
 - Mozilla `test-pages/telegraph` copied into the lane from `.upstream-cache/readability/test/test-pages/telegraph/` and mapped for Telegraph metadata/readerable parity, null `publishedTime` from dateCreated-only JSON-LD, six retained text-section wrappers under the optional readability-page oracle wrapper, 13 expected paragraphs, and removal of publisher image interrupter sections, related topics, social/share, comment, sidebar, and ad chrome.
 - WordPress Telegraph text-section import cleanup: upstream-excluded publisher image interrupters and media credits are dropped before block serialization while all 13 editorial paragraphs survive as paragraph blocks and no image blocks are emitted.
+- Mozilla `test-pages/liberation-1` copied into the lane from `.upstream-cache/readability/test/test-pages/liberation-1/` and mapped for Libération title/byline/site/lang/publishedTime/excerpt metadata, readerable classification, normalized expected text parity, retained Dailymotion iframe, and removal of the trailing AFP author/source-credit container.
+- WordPress Libération wire-credit cleanup: French wire-service articles keep the trusted metadata byline and retained video embed while a final short `authors-container`/AFP source link is removed before paragraph block serialization.
+- Mozilla `test-pages/simplyfound-1` copied into the lane from `.upstream-cache/readability/test/test-pages/simplyfound-1/` and mapped for SimplyFound title/siteName/lang/excerpt metadata, readerable classification, normalized expected text parity, trailing Bootstrap account-approval modal removal, and trailing adsbygoogle container cleanup.
+- WordPress SimplyFound account-modal cleanup: source account approval dialogs and empty ad slots appended after the article body are removed before block serialization, while the Raspberry Pi article remains available as 11 paragraph blocks with source-site and language metadata.
+- Mozilla `test-pages/la-nacion` copied into the lane from `.upstream-cache/readability/test/test-pages/la-nacion/` and mapped for La Nacion title/excerpt/readerable/content text parity, leading UTF-8 BOM cleanup before DOM parsing, and described NewsArticle root promotion so the `itemprop=description` lead paragraph remains ahead of the `articleBody` section.
+- Mozilla `test-pages/dev418` copied into the lane from `.upstream-cache/readability/test/test-pages/dev418/` and mapped for mixed standalone image, figure, separator, and media-list retention with title/excerpt/readerable parity and absolute image URL cleanup.
+- WordPress dev418 media-list import cleanup: retained media-only lists now serialize as core list blocks instead of paragraph-wrapped `<ul>` markup, while text-heavy list fixtures keep the previous paragraph-review shape.
+- WordPress La Nacion BOM/description import cleanup: source HTML with a BOM before doctype still imports a clean post title/excerpt, keeps the lead summary paragraph, emits 12 paragraph blocks plus 1 image block, and excludes navigation/compatibility-warning chrome.
+- Mozilla `test-pages/toc-missing` copied into the lane from `.upstream-cache/readability/test/test-pages/toc-missing/` and mapped for Haki Benita title/byline/site/date/lang/excerpt/readerable parity, retained table-of-contents details, 26 retained SQL code examples, exact normalized expected text parity, and pruning of the external interactive editor CTA body while keeping the upstream `Interactive Editor` title boundary.
+- WordPress toc-missing technical article import cleanup: retained TOC and SQL snippets serialize into 96 paragraph blocks, 18 heading blocks, and 26 code blocks while the external editor CTA copy is excluded from migrated blocks.
 - Mozilla parse-option semantics now have native PHP coverage for `keepClasses`, custom allowed-video regex/pattern handling, `maxElemsToParse` aborts with the upstream-shaped `"Aborting parsing document; N elements found"` error boundary, and `charThreshold` retry/null-result behavior.
 - WordPress custom oEmbed migration cleanup: callers can preserve a trusted non-default iframe provider and full source classes for review while unrelated widget iframes are still removed.
 - WordPress char-threshold import boundary: short editorial content hidden in a comment-like source wrapper can be recovered after the strict unlikely-candidate pass fails, while chrome-only empty documents return null instead of creating blank post blocks.
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy-media/table/hidden-node/br/script-style/social/title/body-byline/metadata/section-wrapper/readability-page/publisher cleanup mappings, now including Wikipedia table/category/tracking cleanup parity.
-- Native PHP lane tests: 124 passing, 0 failing, 1476 assertions.
-- Latest readability-local verification: `php tools/run-tests.php lanes/readability/tests` passes 1 selected test file, 1476 assertions, and 0 failures.
-- Latest root verification for this lane batch: `php tools/run-tests.php` passed with 198 test files, 22201 assertions, and 0 failures after the duplicate-root gate returned no active process.
-- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. Targeted `npm test -- --grep wikipedia` passes 74 checks in the upstream checkout, in addition to targeted fixture/oracle runs for google-sre-book-1, engadget, article-author-tag, 002, aclu, mozilla-1, citylab-1, keep-images, schema-org-context-object, keep-tabular-data/replace-brs, clean-links, medium-1/2/3, cnet-svg-classes, v8-blog, lazy-image-1, heise, ars-1, guardian-1, nytimes-1/2/3/4/5, bbc-1, cnn, wapo-1/2, yahoo-2/3/4, buzzfeed-1, lemonde-1, telegraph, theverge, parse options, and charThreshold retry/null behavior.
-- Blocker: none active for focused readability work; root aggregate verification is green for this slice.
-- Current work: native Mozilla `wikipedia-4` fixture mapping copies Mozilla source/expected/metadata, preserves Wikimedia metadata/readerable/text parity and the long sortable film table, removes the dynamic-list hatnote, category links, and CentralAutoLogin tracking image, and emits WordPress output with 6 paragraph blocks, 2 heading blocks, 1 table block, 0 image blocks, and no portal/category/tracking chrome.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy-media/table/hidden-node/br/script-style/social/title/body-byline/metadata/section-wrapper/readability-page/publisher cleanup mappings, now including Wikipedia table/category/tracking cleanup, Wikipedia math-article shell cleanup, Wikipedia Mozilla article shell cleanup parity, Wikipedia country-page status-indicator cleanup, Firefox Nightly WordPress author-header byline extraction, Libération trailing wire source-credit cleanup, SimplyFound account-modal/ad cleanup, La Nacion leading-BOM/description-lead cleanup, dev418 media-list retention, and toc-missing interactive editor CTA pruning.
+- Native PHP lane tests: 137 passing, 0 failing, 1675 assertions.
+- Latest readability-local verification: `php tools/run-tests.php lanes/readability/tests` passes 1 selected test file, 1675 assertions, and 0 failures.
+- Latest root verification for this lane batch: `php tools/run-tests.php` passes 211 test files, 24224 assertions, and 0 failures. The first duplicate-root gate saw active root PID 2992617, but it exited before owner sampling; a second exact gate was clear before this worker started the root run.
+- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. Targeted `npm test -- --grep toc-missing` passes 17 checks in the upstream checkout and covers the Haki Benita TOC/interactive-editor fixture. Targeted `npm test -- --grep dev418` passes 13 checks in the upstream checkout and covers mixed media/list retention. Targeted `npm test -- --grep la-nacion` passes 13 checks in the upstream checkout and covers the leading BOM/described-NewsArticle boundary. Targeted `npm test -- --grep simplyfound-1` passes 15 checks in the upstream checkout and covers the SimplyFound trailing account-approval modal/ad boundary. Targeted `npm test -- --grep liberation-1` passes 17 checks in the upstream checkout and covers the Libération trailing AFP source-credit boundary. Targeted `npm test -- --grep firefox-nightly-blog` passes 17 checks in the upstream checkout and covers the Firefox Nightly WordPress article-header author fixture. Targeted `npm test -- --grep wikipedia-2` passes 19 checks in the upstream checkout and covers the large New Zealand country-page/status-indicator boundary, alongside targeted `npm test -- --grep wikipedia` with 74 checks and `npm test -- --grep wikipedia-3` with 19 checks, plus targeted fixture/oracle runs for google-sre-book-1, engadget, article-author-tag, 002, aclu, mozilla-1, citylab-1, keep-images, schema-org-context-object, keep-tabular-data/replace-brs, clean-links, medium-1/2/3, cnet-svg-classes, v8-blog, lazy-image-1, heise, ars-1, guardian-1, nytimes-1/2/3/4/5, bbc-1, cnn, wapo-1/2, yahoo-2/3/4, buzzfeed-1, lemonde-1, telegraph, theverge, parse options, and charThreshold retry/null behavior.
+- Blocker: none active for focused readability work. Final root aggregate is green for this batch.
+- Current work: native Mozilla `toc-missing` fixture mapping copies Mozilla source/expected/metadata, preserves TOC and expected text parity, prunes the external editor CTA body, and emits WordPress output with the TOC retained, 96 paragraph blocks, 18 heading blocks, 26 code blocks, and no retained CTA copy.
 
 ## Next Slice
 
-Map another remaining Wikipedia fixture (`wikipedia`, `wikipedia-2`, or `wikipedia-3`) for long-document image/math/reference parity, or pick another remaining fixture with a distinct reader-mode boundary while preserving the 1984-test upstream denominator.
+Map another remaining small upstream fixture with current text parity but no local fixture coverage, such as `invalid-attributes` or `comment-inside-script-parsing`, then tighten expected-HTML parity for one small fixture without broad cleanup changes.

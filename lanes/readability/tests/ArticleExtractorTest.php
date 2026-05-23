@@ -909,6 +909,59 @@ return [
         $t->same(false, str_contains($article->text, 'Related Topics'), 'related-topic chrome should not enter article text');
         $t->same(false, str_contains($article->text, 'Show comments'), 'comment chrome should not enter article text');
     },
+    'maps Mozilla liberation-1 fixture by pruning trailing wire author source credit' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $iframeSources, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/liberation-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same($iframeSources($expected), $iframeSources($article->contentHtml));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(5, substr_count($blocks, '<!-- wp:paragraph -->'), 'Liberation article paragraphs and retained Dailymotion iframe should serialize without the trailing source credit');
+        $t->contains('dailymotion.com/embed/video/x2oikl3', $blocks);
+        $t->same(false, str_contains($article->text, 'AFP'), 'trailing AFP author/source credit should not enter article text');
+        $t->same(false, str_contains($blocks, 'auteur/2005-afp'), 'trailing wire-service author link should not enter WordPress blocks');
+    },
+    'maps Mozilla la-nacion fixture with UTF-8 BOM and article description lead' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/la-nacion';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->contains('Los pueblos indígenas reclaman', $blocks);
+        $t->same(false, str_starts_with($article->text, "\xEF\xBB\xBF"), 'leading UTF-8 BOM should not become article text');
+        $t->same(false, str_contains($blocks, 'MENÚ'), 'La Nacion navigation chrome should not become WordPress blocks');
+        $t->same(false, str_contains($blocks, 'NO SOPORTADO'), 'hidden compatibility warning should not become WordPress blocks');
+    },
     'maps Mozilla bbc-1 fixture with RDFa articleBody and unsupported video placeholders' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/bbc-1';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -1593,6 +1646,25 @@ return [
         $t->same(false, str_contains($article->contentHtml, '/archive'), 'source footer archive link should be dropped');
         $t->same(false, str_contains($article->contentHtml, 'More Links'), 'source footer navigation text should be dropped');
     },
+    'removes trailing WordPress wire source credits without losing metadata bylines' => static function (TestRunner $t): void {
+        $html = '<html><head><meta property="og:title" content="Wire Credit Cleanup"><meta name="author" content="Editorial Desk"></head><body><article>'
+            . '<h1>Wire Credit Cleanup</h1>'
+            . '<p>' . str_repeat('A WordPress importer should keep the local editorial byline as metadata while dropping a syndicated source credit appended after the story. ', 3) . '</p>'
+            . '<p>' . str_repeat('The resulting blocks should contain only portable article copy and reviewable media, not the publisher credit link. ', 3) . '</p>'
+            . '<div class="source-credit"><span itemprop="author creator"><a href="/author/afp">AFP</a></span></div>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Wire Credit Cleanup', $article->title);
+        $t->same('Editorial Desk', $article->byline);
+        $t->contains('syndicated source credit appended after the story', $blocks);
+        $t->same(2, substr_count($blocks, '<!-- wp:paragraph -->'), 'source credit should not add a third paragraph block');
+        $t->same(false, str_contains($article->text, 'AFP'), 'trailing wire credit text should be removed from article text');
+        $t->same(false, str_contains($blocks, '/author/afp'), 'trailing wire credit link should be removed before block output');
+    },
     'promotes single article bodies and removes empty paragraphs before block migration' => static function (TestRunner $t): void {
         $html = '<html><head><title>Single Article Import</title></head><body>'
             . '<p> </p><div class="masthead"></div>'
@@ -1989,6 +2061,46 @@ return [
             $t->same(false, str_contains($blocks, $fragment), 'Google SRE book navigation/header chrome should not enter WordPress blocks: ' . $fragment);
         }
     },
+    'maps Mozilla toc-missing fixture while pruning interactive editor CTA chrome' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/toc-missing';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://hakibenita.com/sql-anomaly-detection', true);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(1, count($attributeValues($article->contentHtml, '//details')));
+        $t->same(['Table of Contents'], array_map($normalizedText, $attributeValues($article->contentHtml, '//details/summary')));
+        $t->same(26, count($attributeValues($article->contentHtml, '//pre')), 'SQL examples should remain available for code-block migration');
+        $t->same(false, str_contains($article->contentHtml, 'To follow along with the article'), 'interactive editor CTA body should not survive upstream fixture extraction');
+        $t->same(false, str_contains($article->contentHtml, 'interactive editor on PopSQL'), 'interactive editor CTA link text should not survive article cleanup');
+    },
+    'keeps technical article TOCs while dropping external editor CTAs before WordPress blocks' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/mozilla/toc-missing/source.html');
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://hakibenita.com/sql-anomaly-detection');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Simple Anomaly Detection Using Plain SQL', $article->title);
+        $t->contains('Table of Contents', $blocks);
+        $t->contains('Detecting Anomalies', $blocks);
+        $t->same(96, substr_count($blocks, '<!-- wp:paragraph -->'), 'technical article prose and the retained TOC should serialize as reviewable paragraph blocks');
+        $t->same(18, substr_count($blocks, '<!-- wp:heading'), 'technical article section headings should remain reviewable');
+        $t->same(26, substr_count($blocks, '<!-- wp:code -->'), 'SQL snippets should become WordPress code blocks');
+        $t->same(false, str_contains($blocks, 'To follow along with the article'), 'external editor CTA copy should not become WordPress blocks');
+        $t->same(false, str_contains($blocks, 'interactive editor on PopSQL'), 'external editor CTA link text should not become WordPress blocks');
+    },
     'maps Mozilla wikipedia-4 fixture with list table and category chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/wikipedia-4';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -2023,6 +2135,116 @@ return [
         foreach (['dynamic list', 'Special:CentralAutoLogin', 'Categories:', 'Time loop films', 'Film portal'] as $fragment) {
             $t->same(false, str_contains($article->contentHtml, $fragment), 'Wikipedia maintenance/category chrome should not enter article HTML: ' . $fragment);
             $t->same(false, str_contains($blocks, $fragment), 'Wikipedia maintenance/category chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
+    'maps Mozilla wikipedia fixture with article hatnote and shell cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/wikipedia';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(count($attributeValues($expected, '//h2')), count($attributeValues($article->contentHtml, '//h2')));
+        $t->same(count($attributeValues($expected, '//h3')), count($attributeValues($article->contentHtml, '//h3')));
+        $t->same(count($attributeValues($expected, '//table')), count($attributeValues($article->contentHtml, '//table')));
+        $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same(74, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia long-form article copy, lists, and references should remain paragraph-reviewable');
+        $t->same(37, substr_count($blocks, '<!-- wp:heading'), 'Wikipedia article and table-of-contents headings should remain reviewable as heading blocks');
+        $t->same(2, substr_count($blocks, '<!-- wp:table -->'), 'Wikipedia infobox and release table should become WordPress table blocks');
+        $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'Wikipedia table-contained images should stay inside table review output instead of separate image blocks');
+        foreach (['From Wikipedia, the free encyclopedia', 'Jump to navigation', 'Main article:', 'Special:CentralAutoLogin', 'Categories:'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'MediaWiki article shell or hatnote chrome should not enter article HTML: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'MediaWiki article shell or hatnote chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
+    'maps Mozilla wikipedia-2 country fixture without status indicator chrome' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/wikipedia-2';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(count($attributeValues($expected, '//h2')), count($attributeValues($article->contentHtml, '//h2')));
+        $t->same(count($attributeValues($expected, '//h3')), count($attributeValues($article->contentHtml, '//h3')));
+        $t->same(count($attributeValues($expected, '//table')), count($attributeValues($article->contentHtml, '//table')));
+        $t->same([], array_values(array_diff($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'))));
+        $t->same(151, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia country article prose should remain reviewable as paragraph blocks');
+        $t->same(30, substr_count($blocks, '<!-- wp:heading'), 'Wikipedia country sections should remain reviewable as heading blocks');
+        $t->same(4, substr_count($blocks, '<!-- wp:table -->'), 'Wikipedia country infobox and data tables should become WordPress table blocks');
+        $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'Wikipedia table-contained country images should stay in table review output');
+        $t->contains('Jacinda Ardern', $blocks);
+        $t->contains('Mount Cook', $blocks);
+        foreach (['This is a good article', 'Page semi-protected', 'From Wikipedia, the free encyclopedia', 'Jump to navigation', 'Special:CentralAutoLogin', 'Categories:'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'MediaWiki country status/shell chrome should not enter article HTML: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'MediaWiki country status/shell chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
+    'maps Mozilla wikipedia-3 fixture with math article shell cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/wikipedia-3';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h2')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h2')),
+        );
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//h3')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//h3')),
+        );
+        $t->same(count($attributeValues($expected, '//table')), count($attributeValues($article->contentHtml, '//table')));
+        $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
+        $t->same([], array_values(array_diff($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'))));
+        $t->same(62, count($attributeValues($expected, '//img/@src')), 'Mozilla wikipedia-3 expected math/editorial images should be fixture-backed');
+        $t->same(62, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia math prose and formulas should remain paragraph-reviewable');
+        $t->same(12, substr_count($blocks, '<!-- wp:heading'), 'Wikipedia article sections should remain reviewable as heading blocks');
+        $t->same(1, substr_count($blocks, '<!-- wp:table -->'), 'Wikipedia maintenance expansion table should stay available for review');
+        foreach (['From Wikipedia, the free encyclopedia', 'Jump to navigation', 'Jump to search', 'Special:CentralAutoLogin', 'Categories:'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'MediaWiki shell chrome should not enter article HTML: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'MediaWiki shell chrome should not enter WordPress blocks: ' . $fragment);
         }
     },
     'extracts WordPress itemprop body bylines without importing byline blocks' => static function (TestRunner $t): void {
@@ -2245,6 +2467,32 @@ return [
         $t->same(false, str_contains($article->text, 'Keep your Firefox in Sync'), 'trailing Mozilla Sync CTA should not enter article text');
         $t->same(false, str_contains($article->contentHtml, 'id="sync"'), 'trailing Mozilla Sync CTA wrapper should not survive upstream fixture extraction');
         $t->same(false, str_contains($blocks, 'sync-button'), 'trailing Mozilla Sync CTA should not become WordPress block output');
+    },
+    'maps Mozilla firefox-nightly-blog fixture with article-header rel author byline' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/firefox-nightly-blog';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true, ['caption']);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(array_slice($attributeValues($expected, '//img/@src'), 0, 3), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same(['Highlights', 'Friends of the Firefox team', 'Project Updates'], array_map($normalizedText, $attributeValues($article->contentHtml, '//h3')));
+        $t->contains('Firefox now supports printing non-contiguous page ranges', $article->text);
+        $t->contains('<!-- wp:paragraph -->', $blocks);
+        $t->same(false, str_contains($article->text, '2 comments on'), 'WordPress comment threads should stay out of imported article text');
+        $t->same(false, str_contains($article->text, 'Download Firefox Nightly'), 'site download CTA should stay out of imported article text');
+        $t->same(false, str_contains($blocks, 'More articles in'), 'related article sidebar should not become WordPress blocks');
     },
     'maps Mozilla embedded-videos fixture allowed iframe preservation' => static function (TestRunner $t) use ($fixtureText, $iframeSources, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/embedded-videos';
@@ -2665,6 +2913,48 @@ return [
         $t->same(false, str_contains($article->text, 'Originally published at'), 'source-platform syndication footer should not survive extraction');
         $t->same(false, str_contains($blocks, 'old.example'), 'source-platform syndication links should not become WordPress paragraph blocks');
     },
+    'maps Mozilla simplyfound-1 fixture by pruning trailing account approval modal chrome' => static function (TestRunner $t) use ($fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/simplyfound-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(false, str_contains($article->text, 'approved author'), 'account approval modal text should not survive extraction');
+        $t->same(false, str_contains($article->contentHtml, 'adsbygoogle'), 'trailing ad container should not survive extraction');
+        $t->same(false, str_contains($blocks, 'approval/request'), 'approval request links should not become WordPress blocks');
+    },
+    'removes trailing WordPress account modals and ad containers before block output' => static function (TestRunner $t): void {
+        $source = '<html><head><meta property="og:title" content="Modal Chrome Import"></head><body><article>'
+            . '<div class="entry-content">'
+            . '<p>' . str_repeat('The migrated article body should remain intact while hidden account dialogs from the source theme are discarded. ', 3) . '</p>'
+            . '<p>' . str_repeat('This keeps review blocks focused on editorial content instead of login or author-approval workflow chrome. ', 2) . '</p>'
+            . '<div class="modal fade" id="become-an-approved-author"><div class="modal-dialog"><div class="modal-content"><button type="button" class="close" data-dismiss="modal">Close</button><p>You account is not approved yet.</p><p>To become an approved author, you must have minimum of two articles in your account.</p><p><a href="/approval/request">Send Your Request</a></p></div></div></div>'
+            . '<center><ins class="adsbygoogle bottom_ad" data-ad-client="ca-pub-1" data-ad-slot="123"></ins></center>'
+            . '</div></article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://example.com/imported/modal-chrome');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same('Modal Chrome Import', $article->title);
+        $t->contains('migrated article body should remain intact', $blocks);
+        $t->same(false, str_contains($article->text, 'approved author'), 'source account modal should not survive extraction');
+        $t->same(false, str_contains($article->contentHtml, 'adsbygoogle'), 'source ad slot should not survive extraction');
+        $t->same(false, str_contains($blocks, 'approval/request'), 'modal action links should not become WordPress paragraph blocks');
+    },
     'maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $imageAttributeRows, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/lazy-image-1';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -2931,6 +3221,47 @@ return [
         $t->contains('Version 1.0. Release Plan Not all migration blocks', $article->text);
         $t->contains('Status complete. Next review.', $article->text);
         $t->contains('<!-- wp:table -->', $blocks);
+    },
+    'maps Mozilla dev418 fixture with mixed image list media retention' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $imageAttributeRows, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/dev418';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same($imageAttributeRows($expected), $imageAttributeRows($article->contentHtml));
+        $t->same(4, count($attributeValues($article->contentHtml, '//hr')));
+        $t->same(4, count($attributeValues($article->contentHtml, '//h2')));
+        $t->same(8, count($attributeValues($article->contentHtml, '//img')));
+        $t->same(4, count($attributeValues($article->contentHtml, '//figure')));
+        $t->same(2, count($attributeValues($article->contentHtml, '//ul')));
+        $t->same(6, count($attributeValues($article->contentHtml, '//li')));
+    },
+    'serializes retained image lists from media fixtures as WordPress blocks' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/mozilla/dev418/source.html');
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:image -->'), 'standalone figures should remain image blocks');
+        $t->same(2, substr_count($blocks, '<!-- wp:list'), 'retained media lists should become list blocks');
+        $t->same(4, substr_count($blocks, '<!-- wp:separator -->'));
+        $t->same(4, substr_count($blocks, '<!-- wp:heading'));
+        $t->contains('<!-- wp:list -->', $blocks);
+        $t->contains('<ul>', $blocks);
+        $t->contains('<img src="http://fakehost/test/florian-giorgio-P1U7-ZgKeOM-unsplash.jpg" alt="An image">', $blocks);
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<ul>"), 'media lists should not be wrapped in paragraph blocks');
     },
     'maps Mozilla replace-font-tags fixture to span markup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/replace-font-tags';
