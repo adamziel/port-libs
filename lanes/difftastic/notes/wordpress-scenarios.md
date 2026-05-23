@@ -22,6 +22,10 @@ The upstream CLI `changes_at_end` fixture now maps a text display shape where th
 
 The WordPress readme end-changes fixture applies that to plugin `readme.txt` changelog review. Stable-tag and final release-note edits plus an inserted audit note are visible, while the retained terminal EOF context stays aligned outside the changed chunk.
 
+The upstream `text_*.txt` fixture now maps difftastic's display hunk grouping boundary from `src/display/hunks.rs`. Nearby text changes separated by short retained context are emitted as one compact JSON chunk, while the retained context remains aligned instead of appearing in `changes`.
+
+The WordPress readme nearby-hunks fixture applies that to plugin metadata review. An inserted `Requires PHP` line and a nearby `legacy` to `modern` description update stay grouped for review without marking the stable tag line as changed content.
+
 Plain-text line splitting now maps upstream `src/lines.rs` `split_on_newlines` trailing EOF behavior and the `sample_files/repeated_line_no_eol_*.txt` fixture. Text mode preserves trailing empty lines and appended repeated final lines instead of trimming them away before `$text.line[...]` output.
 
 The WordPress import-log no-EOL fixture applies that to migration output under `wp-content/uploads/migration/import.log`. Compact JSON output preserves a final appended import record even when neither side ends with a newline.
@@ -164,6 +168,7 @@ php lanes/difftastic/examples/wordpress-plugin-readme-text-diff.php
 php lanes/difftastic/examples/wordpress-plugin-readme-blank-display.php
 php lanes/difftastic/examples/wordpress-readme-footer-alignment-display.php
 php lanes/difftastic/examples/wordpress-readme-end-changes-display.php
+php lanes/difftastic/examples/wordpress-readme-nearby-hunks-display.php
 php lanes/difftastic/examples/wordpress-import-log-no-eol-display.php
 php lanes/difftastic/examples/wordpress-plugin-build-makefile-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
@@ -213,4 +218,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map another upstream text display pair such as `big_text_hunk_*.txt` or `many_newlines_*.txt`, especially hunk compaction and dense blank-line context behavior.
+Map another upstream text display pair such as `big_text_hunk_*.txt` or `many_newlines_*.txt`, especially dense inserted text and large created-file status behavior.

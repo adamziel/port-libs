@@ -696,6 +696,53 @@ return [
         $t->same(29, $lastChunkLine['rhs']['line_number']);
         $t->true(!str_contains($encodedChunks, '"line_number":30'), 'The retained terminal EOF context should stay aligned, not appear as novel chunk content.');
     },
+    'maps upstream text sample as one nearby json hunk' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-text-1.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-text-2.txt');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'text']);
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/text.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+        $encodedChunks = json_encode($decoded['chunks'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same(3, count($changes));
+        $t->same('+', $changes[0]['op']);
+        $t->same('$text.line[1]', $changes[0]['path']);
+        $t->same('~', $changes[1]['op']);
+        $t->same('$text.line[3]', $changes[1]['path']);
+        $t->same(1, count($decoded['chunks']));
+        $t->same(3, count($decoded['chunks'][0]));
+        $t->same(1, $decoded['chunks'][0][0]['rhs']['line_number']);
+        $t->same(3, $decoded['chunks'][0][1]['lhs']['line_number']);
+        $t->contains('novel', $encodedChunks);
+        $t->contains('bar', $encodedChunks);
+        $t->true(!str_contains($encodedChunks, '"content":"world"'), 'Short retained context should merge nearby text changes without appearing as novel JSON content.');
+    },
+    'wordpress readme nearby text hunks are grouped for review' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-nearby-hunks-before.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-nearby-hunks-after.txt');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-review-tools/readme.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+        $encodedChunks = json_encode($decoded['chunks'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same('changed', $decoded['status']);
+        $t->same(1, count($decoded['chunks']));
+        $t->same(2, $decoded['chunks'][0][0]['rhs']['line_number']);
+        $t->same(5, $decoded['chunks'][0][1]['lhs']['line_number']);
+        $t->contains('Requires', $encodedChunks);
+        $t->contains('legacy', $encodedChunks);
+        $t->contains('modern', $encodedChunks);
+        $t->true(!str_contains($encodedChunks, 'Stable tag'), 'Retained readme context should group nearby changes without appearing as changed content.');
+    },
     'wordpress readme footer alignment display keeps faq footer unchanged' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-before.txt');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-after.txt');

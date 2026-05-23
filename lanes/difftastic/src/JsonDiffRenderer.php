@@ -6,6 +6,8 @@ namespace PortLibs\Difftastic;
 
 final class JsonDiffRenderer
 {
+    private const MAX_HUNK_LINE_DISTANCE = 4;
+
     public function __construct(
         private readonly TokenDiffer $differ = new TokenDiffer(),
     ) {
@@ -156,18 +158,31 @@ final class JsonDiffRenderer
         $multilineAtomChanges = $this->pairedMultilineAtomLineChanges($old, $new, $options);
         $alignedLines = [];
         $chunks = [];
+        $chunk = [];
         $pending = [];
+        $unchangedGap = 0;
         foreach ($this->diffLines($oldLines, $newLines) as $op) {
             if ($op['op'] === '=') {
-                $this->flushChangedLineOps($pending, $oldLines, $newLines, $options, $multilineAtomChanges, $alignedLines, $chunks);
+                $this->flushChangedLineOps($pending, $oldLines, $newLines, $options, $multilineAtomChanges, $alignedLines, $chunk);
                 $alignedLines[] = [$op['old'], $op['new']];
+                if ($chunk !== []) {
+                    $unchangedGap++;
+                }
                 continue;
             }
 
+            if ($chunk !== [] && $unchangedGap >= self::MAX_HUNK_LINE_DISTANCE) {
+                $chunks[] = $chunk;
+                $chunk = [];
+            }
+            $unchangedGap = 0;
             $pending[] = $op;
         }
 
-        $this->flushChangedLineOps($pending, $oldLines, $newLines, $options, $multilineAtomChanges, $alignedLines, $chunks);
+        $this->flushChangedLineOps($pending, $oldLines, $newLines, $options, $multilineAtomChanges, $alignedLines, $chunk);
+        if ($chunk !== []) {
+            $chunks[] = $chunk;
+        }
 
         return [$alignedLines, $chunks];
     }
@@ -179,9 +194,9 @@ final class JsonDiffRenderer
      * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
      * @param array{lhs:array<int, list<array{start:int, end:int, content:string, highlight:string}>>, rhs:array<int, list<array{start:int, end:int, content:string, highlight:string}>>} $multilineAtomChanges
      * @param list<array{0:?int, 1:?int}> $alignedLines
-     * @param list<list<array<string, mixed>>> $chunks
+     * @param list<array<string, mixed>> $chunk
      */
-    private function flushChangedLineOps(array &$pending, array $oldLines, array $newLines, array $options, array $multilineAtomChanges, array &$alignedLines, array &$chunks): void
+    private function flushChangedLineOps(array &$pending, array $oldLines, array $newLines, array $options, array $multilineAtomChanges, array &$alignedLines, array &$chunk): void
     {
         if ($pending === []) {
             return;
@@ -190,8 +205,6 @@ final class JsonDiffRenderer
         $deleted = array_values(array_filter($pending, static fn (array $op): bool => $op['op'] === '-'));
         $inserted = array_values(array_filter($pending, static fn (array $op): bool => $op['op'] === '+'));
         $lineCount = max(count($deleted), count($inserted));
-        $chunk = [];
-
         for ($index = 0; $index < $lineCount; $index++) {
             $oldLineNumber = $deleted[$index]['old'] ?? null;
             $newLineNumber = $inserted[$index]['new'] ?? null;
@@ -238,9 +251,6 @@ final class JsonDiffRenderer
             $chunk[] = $line;
         }
 
-        if ($chunk !== []) {
-            $chunks[] = $chunk;
-        }
         $pending = [];
     }
 
