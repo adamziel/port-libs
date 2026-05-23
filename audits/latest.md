@@ -3,8 +3,9 @@
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status
 files needed for alignment checks, recent Git history through initial audit
-`HEAD` `702734a0`, a post-commit handoff after `HEAD` advanced to `987cea06`,
-dirty-tree state, active process state, and the PHP process-launch surface.
+`HEAD` `702734a0`, post-commit handoff movement through `987cea06` and
+`7902f910`, dirty-tree state, active process state, and the PHP
+process-launch surface.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 read secrets, inspect process environments, or start a root harness. Bridge,
@@ -32,10 +33,11 @@ non-progress unless it is explicitly temporary oracle tooling.
      lane-agent loops for LightningCSS, Quadrable, Syncthing, Gitoxide,
      esbuild, Difftastic, Dolt, markerPDF, Readability, libsqlite, Pandoc, and
      rclone.
-   - Evidence: after the audit-only commit, another worker advanced `HEAD` to
-     `987cea06`. The latest dirty-tree samples then showed `1111` default
-     `git status --short` entries, `136` tracked changed files, and
-     `136 files changed, 28871 insertions(+), 870 deletions(-)`.
+   - Evidence: after the audit-only commit, other workers advanced `HEAD`
+     through `987cea06` and `7902f910`. The latest dirty-tree samples then
+     showed `1114` default `git status --short` entries, `130` tracked
+     changed files, and `130 files changed, 28760 insertions(+), 854
+     deletions(-)`.
    - Audit judgment: do not accept any dashboard, lane-status, manifest
      percentage, or root-test anecdote as the current portfolio baseline until
      active writers/status publishers are frozen and one snapshot is tested.
@@ -184,6 +186,8 @@ owner evidence: 2542369 claude 2510498 00:13 R php tools/run-tests.php
 sample 3: no exact root-harness process after HEAD advanced to 987cea06
 sample 4: 2555291 php tools/run-tests.php
 owner evidence: 2555291 claude 2518279 00:10 R php tools/run-tests.php
+sample 5: 2558261 php tools/run-tests.php
+owner evidence: 2558261 claude 2546057 00:21 R php tools/run-tests.php
 ```
 
 No duplicate root run was started. A temporary clear gate was not enough for a
@@ -194,14 +198,16 @@ another active exact root harness.
 Latest dirty-tree samples:
 
 ```text
-git status --short --untracked-files=no: 136 tracked entries
-git status --short: 1111 entries
-git diff --shortstat: 136 files changed, 28871 insertions(+), 870 deletions(-)
+git status --short --untracked-files=no: 130 tracked entries
+git status --short: 1114 entries
+git diff --shortstat: 130 files changed, 28760 insertions(+), 854 deletions(-)
 ```
 
 Recent history reviewed:
 
 ```text
+c6fad4e2 Record audit handoff after moving head
+7902f910 libsqlite add composite replacement root split
 987cea06 Port syncthing scanner sub-walk diagnostics
 2345b8a6 Refresh independent audit status
 702734a0 Refresh independent audit status
