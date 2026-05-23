@@ -120,6 +120,13 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
+            $objectMethodUsingStatement = $this->lowerObjectLiteralMethodUsingStatementAt($i, $effectiveEnd);
+            if ($objectMethodUsingStatement !== null) {
+                $lines[] = $objectMethodUsingStatement;
+                $i = $end;
+                continue;
+            }
+
             if ($first->text === 'export' && ($this->tokens[$i + 1] ?? null)?->text === '=') {
                 if ($i + 2 > $effectiveEnd) {
                     throw new \InvalidArgumentException('Expected expression after TypeScript export equals');
@@ -3402,6 +3409,21 @@ final class TypeScriptModuleLowerer
 
     private function printRuntimeStatement(int $start, int $end): string
     {
+        $statement = $this->printRuntimeTokenRange($start, $end, $start);
+        if ($statement === '') {
+            return '';
+        }
+
+        if ($this->runtimeStatementNeedsSemicolon($start, $end, $statement)) {
+            $statement .= ';';
+        }
+
+        return $statement;
+    }
+
+    private function printRuntimeTokenRange(int $start, int $end, ?int $statementStart = null): string
+    {
+        $statementStart ??= $start;
         $parts = [];
         $previous = null;
         for ($i = $start; $i <= $end; $i++) {
@@ -3422,21 +3444,21 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            if ($token->text === '?' && ($this->tokens[$i + 1] ?? null)?->text === ':' && $this->isOptionalTypeMarker($i, $start)) {
+            if ($token->text === '?' && ($this->tokens[$i + 1] ?? null)?->text === ':' && $this->isOptionalTypeMarker($i, $statementStart)) {
                 continue;
             }
 
-            if ($token->text === ':' && $this->isTypeAnnotationColon($i, $start)) {
-                $i = $this->skipTypeExpression($i + 1, $end, $this->typeAnnotationStopTokens($i, $start)) - 1;
+            if ($token->text === ':' && $this->isTypeAnnotationColon($i, $statementStart)) {
+                $i = $this->skipTypeExpression($i + 1, $end, $this->typeAnnotationStopTokens($i, $statementStart)) - 1;
                 continue;
             }
 
-            if (($token->text === 'as' || $token->text === 'satisfies') && $this->isTypeCastKeyword($i, $start)) {
+            if (($token->text === 'as' || $token->text === 'satisfies') && $this->isTypeCastKeyword($i, $statementStart)) {
                 $i = $this->skipTypeExpression($i + 1, $end, [',', ')', ']', '}', ';']) - 1;
                 continue;
             }
 
-            if ($token->text === '!' && $this->isPostfixTypeAssertion($i, $start)) {
+            if ($token->text === '!' && $this->isPostfixTypeAssertion($i, $statementStart)) {
                 continue;
             }
 
@@ -3456,18 +3478,19 @@ final class TypeScriptModuleLowerer
             return '';
         }
 
-        $statement = implode('', $parts);
+        return implode('', $parts);
+    }
+
+    private function runtimeStatementNeedsSemicolon(int $start, int $end, string $statement): bool
+    {
         $last = $this->tokens[$end] ?? null;
         $firstText = ($this->tokens[$start] ?? null)?->text;
         $secondText = ($this->tokens[$start + 1] ?? null)?->text;
         $isVariableDeclaration = in_array($firstText, ['let', 'const', 'var'], true)
             || $firstText === 'using'
             || ($firstText === 'export' && in_array($secondText, ['let', 'const', 'var'], true));
-        if (($isVariableDeclaration || $last?->text !== '}') && !str_ends_with($statement, ';')) {
-            $statement .= ';';
-        }
 
-        return $statement;
+        return ($isVariableDeclaration || $last?->text !== '}') && !str_ends_with($statement, ';');
     }
 
     /**
@@ -3560,6 +3583,167 @@ final class TypeScriptModuleLowerer
         $lines[] = '}';
 
         return [implode("\n", $lines), $bodyClose];
+    }
+
+    private function lowerObjectLiteralMethodUsingStatementAt(int $start, int $effectiveEnd): ?string
+    {
+        $methods = [];
+        for ($cursor = $start; $cursor <= $effectiveEnd; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text !== '{') {
+                continue;
+            }
+
+            $method = $this->objectLiteralMethodBodyAt($start, $cursor, $effectiveEnd);
+            if ($method === null) {
+                continue;
+            }
+
+            [$bodyLines, $changed] = $this->lowerFunctionBodyUsingStatements(
+                $cursor + 1,
+                $method['bodyClose'],
+                $method['async'],
+            );
+            if (!$changed) {
+                continue;
+            }
+
+            $methods[] = [
+                'methodStart' => $method['methodStart'],
+                'bodyOpen' => $cursor,
+                'bodyClose' => $method['bodyClose'],
+                'bodyLines' => $bodyLines,
+            ];
+            $cursor = $method['bodyClose'];
+        }
+
+        if ($methods === []) {
+            return null;
+        }
+
+        $output = '';
+        $cursor = $start;
+        foreach ($methods as $method) {
+            if ($cursor <= $method['methodStart'] - 1) {
+                $output .= $this->printRuntimeTokenRange($cursor, $method['methodStart'] - 1, $start);
+            }
+
+            $output .= rtrim($this->printClassMethodHeaderRuntimeRange($method['methodStart'], $method['bodyOpen'] - 1)) . " {\n";
+            foreach ($method['bodyLines'] as $line) {
+                foreach (explode("\n", $line) as $part) {
+                    if ($part === '') {
+                        continue;
+                    }
+                    $output .= '  ' . $part . "\n";
+                }
+            }
+            $output .= '}';
+            $cursor = $method['bodyClose'] + 1;
+        }
+
+        if ($cursor <= $effectiveEnd) {
+            $output .= $this->printRuntimeTokenRange($cursor, $effectiveEnd, $start);
+        }
+
+        if ($output !== '' && $this->runtimeStatementNeedsSemicolon($start, $effectiveEnd, $output)) {
+            $output .= ';';
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{methodStart:int, bodyClose:int, async:bool}|null
+     */
+    private function objectLiteralMethodBodyAt(int $statementStart, int $bodyOpen, int $effectiveEnd): ?array
+    {
+        $paramsOpen = $this->objectMethodParamsOpenBeforeBody($statementStart, $bodyOpen);
+        if ($paramsOpen === null) {
+            return null;
+        }
+
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $effectiveEnd) {
+            return null;
+        }
+
+        $nameEnd = $this->previousSignificantTokenIndex($paramsOpen - 1);
+        if ($nameEnd === null) {
+            return null;
+        }
+
+        $name = $this->tokens[$nameEnd] ?? null;
+        if ($name === null) {
+            return null;
+        }
+
+        if ($name->text === ']') {
+            $nameStart = $this->matchingOpenPunctuator($nameEnd, '[', ']', $statementStart);
+            if ($nameStart === null) {
+                return null;
+            }
+        } elseif ($name->kind === 'identifier'
+            || $name->kind === 'private_identifier'
+            || $name->kind === 'string'
+            || $name->kind === 'number'
+        ) {
+            $nameStart = $nameEnd;
+        } else {
+            return null;
+        }
+
+        $methodStart = $nameStart;
+        $beforeName = $this->previousSignificantTokenIndex($nameStart - 1);
+        if ($beforeName !== null && ($this->tokens[$beforeName] ?? null)?->text === '*') {
+            $methodStart = $beforeName;
+            $beforeName = $this->previousSignificantTokenIndex($beforeName - 1);
+        }
+
+        $isAsync = false;
+        if ($beforeName !== null
+            && ($this->tokens[$beforeName] ?? null)?->text === 'async'
+            && !$this->hasLineBreakBetween($beforeName, $methodStart)
+            && ($this->tokens[$beforeName + 1] ?? null)?->text !== '('
+        ) {
+            $isAsync = true;
+            $methodStart = $beforeName;
+        }
+
+        $beforeMethod = $this->previousSignificantTokenIndex($methodStart - 1);
+        if ($beforeMethod !== null && !in_array(($this->tokens[$beforeMethod] ?? null)?->text, ['{', ',', ';'], true)) {
+            return null;
+        }
+
+        return [
+            'methodStart' => $methodStart,
+            'bodyClose' => $bodyClose,
+            'async' => $isAsync,
+        ];
+    }
+
+    private function objectMethodParamsOpenBeforeBody(int $statementStart, int $bodyOpen): ?int
+    {
+        $candidate = null;
+        for ($cursor = $statementStart; $cursor < $bodyOpen; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text !== '(') {
+                continue;
+            }
+
+            $paramsClose = $this->findMatchingPunctuator($cursor, '(', ')');
+            if ($paramsClose >= $bodyOpen) {
+                continue;
+            }
+
+            $afterParams = $paramsClose + 1;
+            if (($this->tokens[$afterParams] ?? null)?->text === ':') {
+                $afterParams = $this->skipTypeExpression($afterParams + 1, $bodyOpen - 1, ['{']);
+            }
+
+            if ($afterParams === $bodyOpen) {
+                $candidate = $cursor;
+            }
+        }
+
+        return $candidate;
     }
 
     /**

@@ -43,6 +43,7 @@ $forUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . 
 $forUsingHelperCollisionTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-for-using-helper-collision.ts');
 $whileUsingAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-while-using-assets.ts');
 $asyncGeneratorAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-async-generator-assets.ts');
+$objectAsyncGeneratorAssetsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-object-async-generator-assets.ts');
 $namespaceExportTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-export.ts');
 $namespaceRuntimeTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-namespace-runtime.ts');
 $nestedNamespaceEnumTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-nested-namespace-enum.ts');
@@ -89,6 +90,7 @@ $forUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingA
 $forUsingHelperCollisionLegacyLowered = (new TypeScriptModuleLowerer())->lower($forUsingHelperCollisionTypeScriptSource, lowerUsingDeclarations: true);
 $whileUsingAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($whileUsingAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $asyncGeneratorAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($asyncGeneratorAssetsTypeScriptSource, lowerUsingDeclarations: true);
+$objectAsyncGeneratorAssetsLegacyLowered = (new TypeScriptModuleLowerer())->lower($objectAsyncGeneratorAssetsTypeScriptSource, lowerUsingDeclarations: true);
 $namespaceExportLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceExportTypeScriptSource);
 $namespaceRuntimeLowered = (new TypeScriptNamespaceLowerer())->lower($namespaceRuntimeTypeScriptSource);
 $nestedNamespaceEnumLowered = (new TypeScriptNamespaceLowerer())->lower($nestedNamespaceEnumTypeScriptSource);
@@ -148,6 +150,7 @@ printf("WordPress TypeScript for using asset helper bytes: %d\n", strlen($forUsi
 printf("WordPress TypeScript for using collision helper bytes: %d\n", strlen($forUsingHelperCollisionLegacyLowered));
 printf("WordPress TypeScript while using asset helper bytes: %d\n", strlen($whileUsingAssetsLegacyLowered));
 printf("WordPress TypeScript async generator asset helper bytes: %d\n", strlen($asyncGeneratorAssetsLegacyLowered));
+printf("WordPress TypeScript object async generator asset helper bytes: %d\n", strlen($objectAsyncGeneratorAssetsLegacyLowered));
 printf("WordPress TypeScript lowered namespace bytes: %d\n", strlen($namespaceLowered));
 printf("WordPress TypeScript namespace export bytes: %d\n", strlen($namespaceExportLowered));
 printf("WordPress TypeScript namespace runtime bytes: %d\n", strlen($namespaceRuntimeLowered));
