@@ -600,6 +600,83 @@ final class OneDrivePermissionPlanner
     }
 
     /**
+     * Model backend/onedrive Object.Update upload selection without Graph calls.
+     *
+     * @param array<string, string>|null $sourceMetadata Null models --metadata disabled or a source without metadata.
+     * @param array{size?: int, uploadCutoff?: int, hasMetadata?: bool, hasMetaData?: bool, isOneNoteFile?: bool, noVersions?: bool, deleteVersionsError?: string, updateDeleteVersionsError?: string, uploadError?: string, createSessionError?: string, uploadFragmentError?: string, setUploadedMetadataError?: string, setFetchedMetadataError?: string, setFinalMetadataError?: string, sourceMetadataError?: string, metadataReadError?: string, hasObjectMetadata?: bool, setModTimeError?: string, normalizedId?: string, normalizedID?: string, objectId?: string, id?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
+     * @return array<string, mixed>
+     */
+    public static function objectUpdateUploadFlow(string $remote, ?array $sourceMetadata, array $options = []): array
+    {
+        $size = (int) ($options['size'] ?? 0);
+        $uploadCutoff = (int) ($options['uploadCutoff'] ?? -1);
+        $hasMetadata = (bool) ($options['hasMetadata'] ?? $options['hasMetaData'] ?? false);
+        $isOneNoteFile = (bool) ($options['isOneNoteFile'] ?? false);
+
+        $flow = [
+            'remote' => $remote,
+            'sourceSize' => $size,
+            'uploadCutoff' => $uploadCutoff,
+            'existingHasMetadata' => $hasMetadata,
+            'isOneNoteFile' => $isOneNoteFile,
+            'selectedUpload' => null,
+            'sequence' => [
+                'object-update',
+            ],
+            'upload' => null,
+            'versionsDeleteAttempted' => false,
+            'versionsDeleted' => false,
+            'suppressedErrors' => [],
+            'error' => null,
+        ];
+
+        if ($hasMetadata && $isOneNoteFile) {
+            $flow['sequence'][] = 'reject-onenote';
+            $flow['error'] = "can't upload content to a OneNote file";
+
+            return $flow;
+        }
+
+        if ($size > 0 && $size >= $uploadCutoff) {
+            $flow['selectedUpload'] = 'multipart';
+            $upload = self::uploadMultipartMetadataFlow($remote, $sourceMetadata, $options);
+        } elseif ($size >= 0) {
+            $flow['selectedUpload'] = 'singlepart';
+            $upload = self::uploadSinglepartMetadataFlow($remote, $sourceMetadata, $options);
+        } else {
+            $flow['error'] = 'unknown-sized upload not supported';
+
+            return $flow;
+        }
+
+        $flow['upload'] = $upload;
+        $flow['sequence'] = array_merge($flow['sequence'], $upload['sequence']);
+        if ($upload['error'] !== null) {
+            $flow['error'] = $upload['error'];
+
+            return $flow;
+        }
+
+        if ((bool) ($options['noVersions'] ?? false) && $hasMetadata) {
+            $flow['sequence'][] = 'delete-versions-after-update';
+            $flow['versionsDeleteAttempted'] = true;
+
+            $deleteVersionsError = self::optionalString(
+                $options['updateDeleteVersionsError']
+                    ?? $options['deleteVersionsError']
+                    ?? null,
+            );
+            if ($deleteVersionsError !== null && $deleteVersionsError !== '') {
+                $flow['suppressedErrors'][] = $remote . ': Failed to remove versions: ' . $deleteVersionsError;
+            } else {
+                $flow['versionsDeleted'] = true;
+            }
+        }
+
+        return $flow;
+    }
+
+    /**
      * @param list<array<string, mixed>> $currentPermissions
      * @param array<string, mixed> $metadata
      * @param array{driveType?: string, metadataPermissions?: string, addOnly?: bool, operationErrors?: array<string, string>} $options

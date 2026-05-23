@@ -230,6 +230,8 @@ The `../examples/wordpress-onedrive-upload-metadata-fallback.php` scenario maps 
 
 The `../examples/wordpress-onedrive-multipart-upload-metadata.php` scenario maps OneDrive `uploadMultipart` metadata sequencing for large WXR upload preflights. It shows reviewer permissions written after chunk upload when `metadata_permissions` includes write, the permissions-only no-API-metadata failure before the final cache update, and the upstream multipart quirk where a permission write error is ignored when `updateMetadata` still returns item info, all without OAuth or live provider credentials.
 
+The `../examples/wordpress-onedrive-update-upload-selection.php` scenario maps OneDrive `Object.Update` upload selection for WXR migration preflights. It sends a zero-byte WXR marker through the singlepart path, a large WXR export with reviewer permissions through the multipart metadata path, rejects a OneNote migration notebook before upload, and rejects an unknown-size WXR stream with the upstream error, all without OAuth or live provider credentials.
+
 ## Next Task
 
-Map the next OneDrive update path edge: ordinary `Object.Update` choosing singlepart vs multipart upload, including OneNote guard behavior, unknown-size boundaries, and metadata propagation into the selected upload path.
+Map OneDrive `Put`/`createObject` path behavior around parent directory lookup, temporary objects with no existing metadata, upload-selection reuse, and singlepart `nameAlreadyExists` OneNote-hint errors.

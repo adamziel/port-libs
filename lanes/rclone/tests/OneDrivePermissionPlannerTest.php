@@ -716,6 +716,119 @@ return [
         $t->same(false, $flow['sessionCancelled']);
         $t->same(null, $flow['error']);
     },
+    'onedrive object update selects singlepart for zero size and propagates source metadata' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::objectUpdateUploadFlow(
+            'exports/empty-review.wxr',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+            ],
+            [
+                'size' => 0,
+                'uploadCutoff' => -1,
+                'metadataPermissions' => 'write',
+                'hasObjectMetadata' => false,
+            ],
+        );
+
+        $t->same('singlepart', $flow['selectedUpload']);
+        $t->same([
+            'object-update',
+            'upload-singlepart',
+            'set-upload-metadata',
+            'fetch-and-update-metadata',
+            'get-source-metadata-options',
+            'new-object-metadata',
+            'get-current-metadata',
+            'set-metadata',
+            'write-object-metadata',
+            'set-system-metadata',
+            'set-object-metadata',
+            'set-upload-metadata-from-fetch',
+        ], $flow['sequence']);
+        $t->same(['mtime'], $flow['upload']['fetch']['metadataUpdate']['writeableMetadata']);
+        $t->same(true, $flow['upload']['infoReturned']);
+        $t->same(null, $flow['error']);
+    },
+    'onedrive object update selects multipart at cutoff and carries permission metadata' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::objectUpdateUploadFlow(
+            'exports/site.wxr',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+                'permissions' => '[{"id":"reviewer","roles":["write"],"grantedToV2":{"user":{"id":"reviewer@example.com"}}}]',
+            ],
+            [
+                'size' => 4 * 1024 * 1024,
+                'uploadCutoff' => 4 * 1024 * 1024,
+                'normalizedId' => 'business-drive#site-wxr',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'metadataPermissions' => 'read,write',
+                'currentPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['read'], 'grantedToV2' => ['user' => ['id' => 'reviewer@example.com']]],
+                ],
+                'refreshedPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['write']],
+                ],
+            ],
+        );
+
+        $t->same('multipart', $flow['selectedUpload']);
+        $t->same('upload-multipart', $flow['sequence'][1]);
+        $t->same('update-metadata-for-permissions', $flow['sequence'][7]);
+        $t->same(true, $flow['upload']['needsUpdatePermissions']);
+        $t->same(true, $flow['upload']['finalMetadataSet']);
+        $t->same(['update'], array_column($flow['upload']['metadataUpdate']['permissionWrite']['operations'], 'action'));
+        $t->same(null, $flow['error']);
+    },
+    'onedrive object update rejects onenote and unknown sized sources before upload' => static function (TestRunner $t): void {
+        $oneNote = OneDrivePermissionPlanner::objectUpdateUploadFlow(
+            'exports/site-notes.one',
+            null,
+            [
+                'size' => 128,
+                'hasMetadata' => true,
+                'isOneNoteFile' => true,
+            ],
+        );
+        $unknown = OneDrivePermissionPlanner::objectUpdateUploadFlow(
+            'exports/streamed.wxr',
+            null,
+            [
+                'size' => -1,
+                'hasMetadata' => false,
+                'isOneNoteFile' => false,
+            ],
+        );
+
+        $t->same(['object-update', 'reject-onenote'], $oneNote['sequence']);
+        $t->same(null, $oneNote['selectedUpload']);
+        $t->same("can't upload content to a OneNote file", $oneNote['error']);
+        $t->same(['object-update'], $unknown['sequence']);
+        $t->same(null, $unknown['selectedUpload']);
+        $t->same('unknown-sized upload not supported', $unknown['error']);
+    },
+    'onedrive object update no versions cleanup is logged after successful upload' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::objectUpdateUploadFlow(
+            'exports/site.wxr',
+            [
+                'content-type' => 'application/rss+xml',
+            ],
+            [
+                'size' => 0,
+                'uploadCutoff' => -1,
+                'hasMetadata' => true,
+                'metadataPermissions' => 'read',
+                'noVersions' => true,
+                'updateDeleteVersionsError' => 'Graph versions denied',
+            ],
+        );
+
+        $t->same('singlepart', $flow['selectedUpload']);
+        $t->same('delete-versions-after-update', $flow['sequence'][count($flow['sequence']) - 1]);
+        $t->same(true, $flow['versionsDeleteAttempted']);
+        $t->same(false, $flow['versionsDeleted']);
+        $t->same(['exports/site.wxr: Failed to remove versions: Graph versions denied'], $flow['suppressedErrors']);
+        $t->same(null, $flow['error']);
+    },
     'wordpress onedrive permission write plan example keeps owner and plans review changes' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-permission-write-plan.php';
 
@@ -789,5 +902,17 @@ return [
         $t->same('failed to process permissions: failed to set permissions: Graph invite throttled', $example['ignoredPermissionError']);
         $t->same(true, $example['ignoredPermissionErrorReturnedSuccess']);
         $t->same(true, $example['ignoredPermissionErrorFinalMetadataSet']);
+    },
+    'wordpress onedrive update upload selection example records preflight boundaries' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-update-upload-selection.php';
+
+        $t->same('onedrive-update-upload-selection', $example['source']);
+        $t->same('singlepart', $example['zeroByteUpload']);
+        $t->same('set-upload-metadata-from-fetch', $example['zeroByteMetadataSequence'][10]);
+        $t->same('multipart', $example['largeUpload']);
+        $t->same(true, $example['largeFinalMetadataSet']);
+        $t->same(['update'], $example['largePermissionActions']);
+        $t->same("can't upload content to a OneNote file", $example['oneNoteError']);
+        $t->same('unknown-sized upload not supported', $example['unknownSizeError']);
     },
 ];
