@@ -1,9 +1,9 @@
-# Independent Audit - 2026-05-23T08:11:26Z
+# Independent Audit - 2026-05-23T08:12:38Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
 lane-status summaries needed to check alignment, recent Git history through
-`5ac25c1e`, dirty-tree status, active process/test state, and PHP shell-out
+`683a6879`, dirty-tree status, active process/test state, and PHP shell-out
 surface.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
@@ -108,8 +108,10 @@ it as temporary fixture/oracle evidence.
      `2059800 php tools/run-tests.php` with owner evidence
      `2059800 claude 2059799 00:08 R php tools/run-tests.php`, and latest
      `2072435 php tools/run-tests.php` with owner evidence
-     `2072435 claude 2072427 00:13 R php tools/run-tests.php`. Active writers
-     and `HEAD` movement made another root run untrustworthy.
+     `2072435 claude 2072427 00:13 R php tools/run-tests.php`. A post-commit
+     handoff sample then found exact root PIDs `2079004` and `2079005`, owned
+     by `claude`. Active writers and `HEAD` movement made another root run
+     untrustworthy.
    - Audit judgment: collapse root status to one repo-level integration record
      from a frozen tree, then regenerate lane statuses from that single record.
 
@@ -211,13 +213,15 @@ pgrep -af '^php tools/run-tests\.php( |$)'
 Result:
 
 ```text
-2072435 php tools/run-tests.php
+2079004 php tools/run-tests.php
+2079005 php tools/run-tests.php
 ```
 
 Owner evidence:
 
 ```text
-2072435 claude 2072427 00:13 R php tools/run-tests.php
+2079004 claude 2079003 00:09 R php tools/run-tests.php
+2079005 claude 2020479 00:09 Ss php tools/run-tests.php
 ```
 
 No duplicate root run was started. The tree was also not stable enough for a
@@ -258,6 +262,7 @@ Active process evidence:
 Recent commits reviewed:
 
 ```text
+683a6879 Update audit handoff after moving root
 5ac25c1e Record audit handoff refresh
 0d05da47 Record pandoc backslash slice status
 dabc8d3a Refresh independent audit status
