@@ -1,146 +1,133 @@
-# Independent Audit - 2026-05-23T03:35:41Z
+# Independent Audit - 2026-05-23T04:02:37Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, selected
-lane status files needed to verify dashboard/status drift, PHP shell-out usage
-in `lanes/`, `tools/`, and `scripts/`, and recent Git history.
+`lanes/*/lane-status.json` files needed to verify status drift, PHP shell-out
+usage in `lanes/`, `tools/`, and `scripts/`, and recent Git history.
 
-Recent history observed at the end of the audit: `dd55d42`, `e0614e5`,
-`100bb7c`, `977ac74`, `3ec36a4`, `f6489ca`, `9fcad97`, `d2a0f17`,
-`ce35417`, `675de77`, `412b96d`, and `f37fe5f`. `HEAD` moved while this audit
-was reading and testing the tree, so the test result below is a
-moving-worktree sample, not an accepted integration checkpoint. I did not edit
-lane implementation files, launch agents or tmux sessions, or push.
+Recent history observed during the run: `66b4b84f`, `2eb7c44a`, `efc4ab23`,
+`38173835`, `8c6d732e`, `6a4c9ec2`, `10021651`, `6d424207`, `94992feb`,
+`8244f1ee`, `028890f1`, and `c80db50f`. `HEAD` moved while this audit was
+reading, testing, and writing, from `10021651` through `6a4c9ec2`, `8c6d732e`,
+`38173835`, `efc4ab23`, `2eb7c44a`, and `66b4b84f`, so the test result below is
+a moving dirty-worktree sample, not an accepted integration checkpoint. I did
+not edit lane implementation files, launch agents or tmux sessions, push, or
+treat generated fixtures/bridge tooling as native implementation progress.
 
 ## Findings
 
-1. **Critical - the current green root sample is still an unaccepted dirty aggregate.**
-   - Paths: worktree-wide; `progress.md:237`-`245`; `goal.md:29`,
-     `goal.md:44`, `goal.md:48`-`49`.
-   - Evidence: the required root test now passes, but the tree was moving
-     during the audit: observed `HEAD` advanced through `675de77` to
-     `dd55d42`, `git status --short` reported `398` entries, tracked-only
-     status reported `42` modified entries, and `git diff --shortstat`
-     reported `42 files changed, 9309 insertions(+), 397 deletions(-)`.
-   - The exact harness result was `exit 0`, `179` test files, `17246`
-     assertions, and `0` failures.
-   - Audit judgment: this is better than the starting red audit record, but it
-     is not a stable integration checkpoint until active writers are frozen or
-     explicitly coordinated and the accepted snapshot is rerun green.
+1. **Critical - the root harness is green, but the portfolio still lacks an accepted, reproducible snapshot.**
+   - Paths: worktree-wide; `progress.md:238`-`246`; `porting.html:32`-`36`;
+     `porting-summary.json:2`-`8`.
+   - Requirement at risk: `goal.md:29`, `goal.md:44`, `goal.md:45`, and
+     `goal.md:49` require small reviewable slices, precise coordination
+     status, a current dashboard, and repo-wide test recording.
+   - Evidence: the final required root command in this audit exited `0` with
+     `182` test files, `17732` assertions, and `0` failures. However, `HEAD`
+     moved during the audit, and the final observed tree remains broad and
+     unaccepted: `git status --short` reported `451` entries,
+     `git status --short --untracked-files=no` reported `56` tracked entries,
+     and `git diff --shortstat` reported `56 files changed, 11028 insertions(+),
+     431 deletions(-)`.
+   - Audit judgment: the red esbuild/LightningCSS blocker recorded in the
+     previous audit is no longer current, but the green root result is not yet a
+     stable integration checkpoint. Freeze writers or coordinate a clean
+     accept/reject pass before publishing status.
 
-2. **High - `porting.html` and `porting-summary.json` are stale relative to current `HEAD` and lane files.**
-   - Paths: `porting.html:32`-`36`, `porting.html:54`-`65`,
-     `porting-summary.json:2`-`8`, `porting-summary.json:16`-`18`,
-     `porting-summary.json:33`-`35`, `porting-summary.json:67`-`69`,
-     `porting-summary.json:84`-`86`, `porting-summary.json:101`-`103`,
-     `porting-summary.json:118`-`120`, `porting-summary.json:169`-`171`,
-     `porting-summary.json:186`-`188`, `porting-summary.json:203`-`205`.
-   - Evidence: the dashboard still claims a generated snapshot from
-     `2026-05-23 03:09:50 UTC` at source commit `3f4ea3cda693`, while current
-     `HEAD` is `dd55d42`. Mismatch examples: Difftastic dashboard says
-     `139 / 417` and `139 pass` while manifest/status say `147`; Dolt says
-     `197` mapped and `171 pass` while current files say `200` mapped and
-     `176` pass; Gitoxide says `1358` mapped and `2511 pass` while current
-     files say `1362` mapped and `2537` assertions; libsqlite says `129` while
-     current files say `134`; LightningCSS says `703` mapped and `827 pass`
-     while current files say `728` and `858`; markerPDF still renders the
-     impossible `81 / 78` and stale `254 pass` while current files say `83`
-     mapped and `257` pass; rclone says `265` while current
-     files say `276`; Readability says `907` mapped and `100 pass` while
-     current files say `984` mapped and `104` pass; Syncthing says `204` while
-     current files say `213`.
-   - Goal requirement at risk: `goal.md:3` and `goal.md:45` require a current
-     generated dashboard with denominator, mapped tests, PHP pass/fail,
-     WordPress scenarios, phase, audit, current work, blocker, and commit.
-   - Audit judgment: do not publish or rely on the dashboard until it is
-     regenerated from one frozen green snapshot.
+2. **High - `porting.html` and `porting-summary.json` are stale and still do not expose the goal's required columns cleanly.**
+   - Paths: `porting.html:32`-`36`, `porting.html:41`-`65`,
+     `porting-summary.json:2`-`8`, `porting-summary.json:15`-`18`,
+     `porting-summary.json:32`-`35`, `porting-summary.json:117`-`120`,
+     `porting-summary.json:185`-`188`, `porting-summary.json:202`-`205`.
+   - Requirement at risk: `goal.md:3` and `goal.md:45` require browsing status
+     by upstream benchmark denominator, mapped upstream tests, PHP pass/fail,
+     WordPress scenarios, phase, audit, current work, blocker, and latest
+     commit.
+   - Evidence: the dashboard still claims generated time
+     `2026-05-23 03:09:50 UTC` and source commit `3f4ea3cda693`, while the final
+     observed `HEAD` is `66b4b84f`. It collapses benchmark source plus
+     denominator into one `Benchmark` column and PHP pass/fail plus mapped tests
+     into one `Mapped` column. Current drift examples: Difftastic dashboard
+     `139` mapped vs manifest/status `152`; Dolt `197` mapped and `171` PHP
+     pass vs manifest/status `209` mapped and `184` PHP pass; esbuild `150` vs
+     `159`; Gitoxide `1358` mapped vs manifest `1399`; libsqlite `129` vs
+     `138`; LightningCSS `703` vs manifest `756`; markerPDF still renders
+     `81 / 78` while the manifest now says `86 / 78`; Pandoc `397` vs `413`;
+     rclone `265` vs `281`; Readability `907` vs `999`; Syncthing `204` vs
+     `221`.
+   - Audit judgment: regenerate the dashboard only from a frozen accepted
+     green snapshot, and keep denominator, mapped-test, and PHP pass/fail fields
+     separate.
 
-3. **High - lane status files contain contradictory root-test and blocker claims.**
-   - Paths: `lanes/dolt/lane-status.json:10`-`13`,
-     `lanes/difftastic/lane-status.json:10`-`12`,
-     `lanes/esbuild/lane-status.json:10`-`12`,
-     `lanes/markerpdf/lane-status.json:10`-`12`,
-     `lanes/pandoc/lane-status.json:10`-`12`,
-     `lanes/quadrable/lane-status.json:10`-`12`,
-     `lanes/readability/lane-status.json:10`-`12`,
-     `lanes/syncthing/lane-status.json:10`-`12`, `progress.md:240`.
-   - Evidence: current exact root result is green with `179` files, `17246`
-     assertions, and `0` failures. Status files still cite older root states:
-     Dolt reports a markerPDF root failure, Quadrable reports two unrelated
-     failures, Pandoc reports one markerPDF failure, Difftastic says root was
-     not started, Esbuild says root verification is pending, and several green
-     claims use stale assertion counts such as `16997`, `17042`, `17109`, or
-     `17211`.
-   - Goal requirement at risk: `goal.md:44`, `goal.md:45`, and `goal.md:49`
-     require precise blockers, audit status, and repo-wide test recording.
-   - Audit judgment: split lane-local pass/fail, root-suite pass/fail, and
-     accepted snapshot SHA into separate fields. Root status should be stamped
-     once per frozen snapshot, not opportunistically per lane.
+3. **High - lane status files contain stale blockers and non-auditable commit fields.**
+   - Paths: `lanes/esbuild/lane-status.json:10`-`13`,
+     `lanes/markerpdf/lane-status.json:10`-`13`,
+     `lanes/pandoc/lane-status.json:10`-`13`,
+     `lanes/gitoxide/lane-status.json:10`-`13`,
+     `lanes/lightningcss/lane-status.json:10`-`13`,
+     `lanes/difftastic/lane-status.json:10`-`13`,
+     `lanes/syncthing/lane-status.json:10`-`13`.
+   - Requirement at risk: `goal.md:3`, `goal.md:29`, `goal.md:44`, and
+     `goal.md:45` require trustworthy audit, blocker, current work, and latest
+     commit fields.
+   - Evidence: esbuild still says the required root run is red in
+     LightningCSS; markerPDF still says the root run is red in esbuild; Pandoc
+     still says the root run is red in LightningCSS; Gitoxide still cites
+     `181` files and `17549` assertions after the current root pass is
+     `182`/`17732`; LightningCSS records a `TMPDIR` workaround even though the
+     plain required command passed in this audit. Several `latestCommit` fields
+     are prose or dirty-batch labels (`pending inline display slice`,
+     `committed lane batch; root green`, `Map Syncthing directory and symlink
+     item lifecycle; root harness green`) rather than accepted SHAs.
+   - Audit judgment: split lane-local verification, latest root sample,
+     accepted snapshot SHA, and dirty-batch label into distinct fields. Do not
+     put prose in the commit column.
 
-4. **High - upstream denominator units remain mixed, and markerPDF still reports more mapped items than its denominator.**
-   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:14`-`15`,
-     `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:14`-`15`,
-     `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:14`-`15`,
-     `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:14`-`21`,
-     `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:14`-`20`,
-     `lanes/readability/UPSTREAM_TEST_MANIFEST.json:14`-`15`.
-   - Evidence: markerPDF declares `78 tracked upstream repository paths` while
-     reporting `mapped: 83`. Difftastic's `417` mixes Rust attributes, golden
-     pairs, numbered fixture pairs, parser corpus files, CLI fixtures, and
-     source files. Dolt's denominator is executable test files while the same
-     text also records BATS cases, Go test functions, benchmarks, and fixture
-     artifacts. Gitoxide uses `2877` upstream files while mapped progress is
-     behavior slices and native assertions. Quadrable's `total` is a prose
-     string combining tracked paths, scenarios, checks, and runner evidence.
-     Readability maps `984` local assertions against a `1984` Mocha-test
-     upstream denominator while status reports only `104` PHP behavior tests.
-   - Goal requirement at risk: `goal.md:25` and `goal.md:35`-`38` require a
-     real upstream denominator, upstream tests as source of truth, and explicit
-     slices when suites are huge.
-   - Audit judgment: normalize manifests into separate upstream-file,
-     executable-test, behavior-case, mapped-behavior, PHP-test, assertion,
-     failure, runner-parity, and static/bounded/full evidence fields before
-     percentages are treated as portfolio progress.
+4. **High - manifest denominator units and schema shapes remain too mixed for machine-checkable progress.**
+   - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:12`-`18`,
+     `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:12`-`16`,
+     `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:12`-`16`,
+     `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:12`-`21`,
+     `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:12`-`20`,
+     `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:12`-`17`,
+     `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json:12`-`16`.
+   - Requirement at risk: `goal.md:25`, `goal.md:35`, and `goal.md:38` require
+     a real upstream denominator, upstream tests as source of truth, and
+     explicit slices for huge suites.
+   - Evidence: markerPDF reports `mapped: 86` against a visible denominator of
+     `78 tracked upstream repository paths`. Difftastic mixes Rust test
+     attributes, golden pairs, numbered fixture pairs, directory pairs, parser
+     corpus files, and source files into one `417` denominator. Dolt's visible
+     denominator is executable test files while the same text also cites BATS
+     cases, Go functions, benchmarks, and fixture artifacts. Gitoxide uses
+     upstream files as the denominator while mapped progress is behavior slices
+     and PHP assertions. Quadrable's `total` is a prose string combining paths,
+     upstream scenarios, verify checks, and runner status. LightningCSS has
+     `mapped: 756` at `benchmarkDenominator.mapped`, while its warning text
+     still says native PHP maps `736` checks. `benchmarkDenominator.runnerStatus`
+     is an object in some manifests, a string in Gitoxide/markerPDF/Quadrable,
+     and absent/null in Pandoc.
+   - Audit judgment: normalize manifests into explicit fields for upstream
+     files, executable test cases, behavior cases, mapped cases, PHP tests,
+     assertions, failures, runner parity, evidence type, and accepted snapshot.
 
-5. **High - latest-commit/provenance fields are not reliably auditable commit identifiers.**
-   - Paths: `porting-summary.json:42`, `porting-summary.json:76`,
-     `porting-summary.json:127`, `porting-summary.json:161`,
-     `porting-summary.json:195`, `porting-summary.json:212`,
-     `lanes/dolt/lane-status.json:13`,
-     `lanes/markerpdf/lane-status.json:13`,
-     `lanes/quadrable/lane-status.json:13`,
-     `lanes/rclone/lane-status.json:13`,
-     `lanes/readability/lane-status.json:13`,
-     `lanes/syncthing/lane-status.json:13`.
-   - Evidence: dashboard/status commit fields contain truncated or prose values
-     such as `metadat`, `pending`, `pending-current-batch`, `not committed`,
-     `pending verified rclone...`, and a markerPDF mixed-lane note pointing at
-     a Difftastic commit. These are not stable SHAs for review.
-   - Goal requirement at risk: `goal.md:29`, `goal.md:44`, and `goal.md:45`
-     require small reviewable slices and a trustworthy latest-commit column.
-   - Audit judgment: split accepted SHA, dirty batch label, root-test sample,
-     and mixed-lane provenance. The dashboard commit column should contain real
-     accepted SHAs or an explicit unaccepted/dirty marker.
-
-6. **Medium - bounded/static evidence is still presented too close to upstream parity in several lanes.**
-   - Paths: `lanes/difftastic/lane-status.json:5`,
-     `lanes/difftastic/lane-status.json:12`,
+5. **Medium - bounded/static upstream evidence is still easy to overread as full parity.**
+   - Paths: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:184`-`199`,
      `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:17`-`20`,
-     `lanes/markerpdf/lane-status.json:12`,
-     `lanes/pandoc/lane-status.json:12`,
-     `lanes/rclone/UPSTREAM_TEST_MANIFEST.json:271`,
-     `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:697`.
-   - Evidence: Difftastic has no upstream runner parity. Gitoxide still has no
-     full workspace Cargo pass. markerPDF's full benchmark runner is still not
-     executed. Pandoc lacks the full Haskell runner. rclone explicitly excludes
-     live providers/mounts. Syncthing remains static plus focused bounded
-     runners, not full `go test ./...` parity.
-   - Goal requirement at risk: `goal.md:35`-`40` says upstream tests are the
-     source of truth, static inventories must be marked clearly, and hard
-     features cannot be silently skipped.
-   - Audit judgment: keep these as bounded/static slices until the upstream
-     runners are executed, or deliberately narrow the scope and label it as
-     bounded evidence in both manifests and dashboard.
+     `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:205`-`206`,
+     `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:17`,
+     `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:12`-`16`,
+     `lanes/rclone/lane-status.json:10`-`12`,
+     `lanes/dolt/lane-status.json:10`-`12`.
+   - Requirement at risk: `goal.md:35`-`40` require upstream tests as the source
+     of truth and hard features to be marked as blockers or future slices.
+   - Evidence: Difftastic, Gitoxide, markerPDF, Pandoc, and Syncthing still do
+     not have full upstream runner parity. Rclone and Dolt have useful bounded
+     runner evidence, but still exclude full provider/mount, full BATS, or full
+     Go coverage. These distinctions are present in notes, but they are not
+     consistently visible in dashboard/status percentage displays.
+   - Audit judgment: keep bounded/static/full runner evidence as first-class
+     fields everywhere progress percentages are shown.
 
 ## Bridge / Shell-Out Check
 
@@ -167,22 +154,24 @@ Required command:
 php tools/run-tests.php
 ```
 
-Exact result from this audit:
+Final completed result for this audit:
 
 ```text
 exit status: 0
-179 test files, 17246 assertions, 0 failures
+182 test files, 17732 assertions, 0 failures
 ```
 
-This is better than the starting audit record in `progress.md`, which reported
-exit `1`, `178` test files, `17135` assertions, and `2` failures. It is still
-a moving-worktree sample, not an accepted integration checkpoint.
+An earlier run in this same audit also exited `0` with `182` test files,
+`17666` assertions, and `0` failures, but `HEAD` moved afterward. `HEAD`
+continued to move after the final root run; the final observed `HEAD` while
+writing the audit was `66b4b84f`, and no post-`66b4b84f` root rerun was
+performed.
 
 ## Recommended Next Intervention
 
-Freeze or explicitly coordinate active writers. Accept or reject the dirty lane
-batches one lane at a time, rerun focused lane tests and `php tools/run-tests.php`
-after each accepted batch, commit accepted slices, then regenerate
-`progress.md`, `porting.html`, `porting-summary.json`, and lane statuses from
-the same stable green snapshot with normalized denominator, mapped-case,
-native-test, runner-parity, blocker, and latest-commit fields.
+Freeze or explicitly coordinate active writers, then accept or reject the dirty
+lane batches one lane at a time. For each accepted batch, stamp real accepted
+SHAs, rerun focused lane tests plus `php tools/run-tests.php`, and regenerate
+`progress.md`, `porting.html`, `porting-summary.json`, and `lane-status.json`
+from the same accepted green snapshot with normalized denominator, mapped-case,
+native-test, runner-parity, blocker, root-test, and latest-commit fields.
