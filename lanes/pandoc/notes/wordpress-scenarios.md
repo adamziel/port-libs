@@ -150,6 +150,12 @@ dollar-delimited math-looking strings, and one-line tabular fragments inside
 HTML text stay literal on the HTML-reader path, while explicit HTML `<code>` and
 `<em>` markup remains semantic. This keeps legacy source snippets reviewable
 without incorrectly turning imported HTML into Markdown math or raw TeX spans.
+The bounded HTML-reader Special Characters slice is now represented too:
+Unicode list text, decoded entities, comparison punctuation, and
+Markdown-sensitive punctuation tokens from imported HTML stay literal on the
+HTML-reader path. This prevents legacy source snippets like `*`, `_`, `[`, `]`,
+`#`, or comparison operators from turning into Markdown markup while still
+escaping them safely for WordPress output.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -294,6 +300,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   HTML `<code>` source tokens, exercising preservation of urgent review marks,
   block-comment source snippets, PHP variable names, and literal dollar escapes
   without shelling out to Pandoc.
+- The fixture now includes HTML reader special-character import text, exercising
+  Unicode list items, entity-decoded organization names, comparison operators,
+  and Markdown-sensitive punctuation tokens that must remain literal text in
+  WordPress output without shelling out to Pandoc.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -379,6 +389,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   list markup: `\cite`, `$x \in y$`, and one-line `\begin{tabular}` fragments
   remain literal reviewer source instead of becoming math spans or raw-TeX
   preservation spans.
+- HTML reader special-character imports render as ordinary WordPress-safe text,
+  list, and separator markup: Unicode source text, decoded `AT&amp;T` entities,
+  comparison operators, and punctuation tokens such as `*`, `_`, `[`, `]`, and
+  `#` stay literal instead of becoming Markdown syntax.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
@@ -431,7 +445,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded HTML-reader Special Characters slice from
-`test/html-reader.html/native`, starting with Unicode text, decoded entities,
-literal comparison characters, and punctuation that should remain text on the
-HTML-reader path.
+Map the next bounded HTML-reader Links slice from `test/html-reader.html/native`,
+starting with explicit links, empty href links, HTML title entities, and
+reference-like link text that should stay on the HTML-reader path.

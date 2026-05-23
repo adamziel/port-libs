@@ -201,6 +201,18 @@ HTML reader literal punctuation import:
 </ul>
 <p>\begin{tabular}{|l|l|}\hline Field &amp; Value \\ \hline Posts &amp; 42 \\ \hline \end{tabular}</p>
 
+<h2 id="special-characters">HTML reader special characters import</h2>
+<p>Here is some unicode:</p>
+<ul>
+<li>I hat: Î</li>
+<li>section: §</li>
+<li>set membership: ∈</li>
+<li>copyright: ©</li>
+</ul>
+<p>AT&amp;T import source decodes once and writes safely.</p>
+<p>4 &lt; 5 and 6 &gt; 5 stay text for reviewer copy.</p>
+<p>Escapes stay literal: \ ` * _ { } [ ] ( ) &gt; # . ! + -.</p>
+
 Empty import audit table:
 
 <table>

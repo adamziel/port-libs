@@ -241,6 +241,16 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   spans, and a final `HorizontalRule`. Unlike Pandoc's Markdown reader LaTeX
   section, the HTML reader does not produce `Math` or TeX `RawInline` nodes for
   dollar-delimited or backslash-command source text.
+- `test/html-reader.html` Special Characters slice inspected in this run:
+  upstream lines 358-388 cover the `Special Characters` heading, one intro
+  paragraph, five Unicode list items, five entity/comparison paragraphs,
+  sixteen punctuation-token paragraphs, and a self-closing `<hr />` separator.
+- `test/html-reader.native` Special Characters rendered native AST slice
+  inspected in this run: upstream lines 1298-1385 show one `Header`, one
+  `BulletList` with five `Plain` list items, 22 `Para` nodes, and one
+  `HorizontalRule`. Unlike the Markdown-reader Special Characters section, the
+  HTML reader gets already-decoded text from the HTML parser and does not treat
+  `*`, `_`, `[`, `]`, `#`, or other punctuation tokens as Markdown syntax.
 - `test/tables/nordics.html5` fixture inspected in this run: 59 HTML lines
   from the upstream table writer artifacts, including caption inline emphasis,
   four `colgroup` widths, a `thead`, one `tbody`, one `tfoot`, row-header
@@ -559,11 +569,16 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   explicit HTML inline tags such as `<code>` and `<em>` become semantic inline
   nodes. WordPress output preserves the source text without creating math spans
   or raw-TeX spans on the HTML-reader path.
+- The HTML-reader Special Characters shape from `test/html-reader.html` is now
+  mapped for a narrow HTML reader slice: Unicode list text survives unchanged,
+  HTML entities decode once, comparison characters stay ordinary text,
+  Markdown-sensitive punctuation tokens remain literal, and the final
+  self-closing `<hr />` remains a `horizontal_rule` node.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
-Focused local verification on 2026-05-22: the pandoc-local test file passed
-with 134 behavior tests, 1,162 assertions, and 0 failures after this slice. The
+Focused local verification on 2026-05-23: the pandoc-local test file passed
+with 136 behavior tests, 1,192 assertions, and 0 failures after this slice. The
 required repo-wide `php tools/run-tests.php` command was run after this slice
-and passed with 155 test files, 14,065 assertions, and 0 failures.
+and passed with 157 test files, 14,315 assertions, and 0 failures.

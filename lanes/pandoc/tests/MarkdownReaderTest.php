@@ -1765,6 +1765,94 @@ HTML);
         $t->same(false, str_contains($blocks, 'pandoc-raw-tex'));
         $t->same(false, str_contains($blocks, 'class="math'));
     },
+    'maps upstream html reader special characters as literal text' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<h1>Special Characters</h1>
+<p>Here is some unicode:</p>
+<ul>
+<li>I hat: Î</li>
+<li>o umlaut: ö</li>
+<li>section: §</li>
+<li>set membership: ∈</li>
+<li>copyright: ©</li>
+</ul>
+<p>AT&amp;T has an ampersand in their name.</p>
+<p>AT&amp;T is another way to write it.</p>
+<p>This &amp; that.</p>
+<p>4 &lt; 5.</p>
+<p>6 &gt; 5.</p>
+<p>Backslash: \</p>
+<p>Backtick: `</p>
+<p>Asterisk: *</p>
+<p>Underscore: _</p>
+<p>Left brace: {</p>
+<p>Right brace: }</p>
+<p>Left bracket: [</p>
+<p>Right bracket: ]</p>
+<p>Left paren: (</p>
+<p>Right paren: )</p>
+<p>Greater-than: &gt;</p>
+<p>Hash: #</p>
+<p>Period: .</p>
+<p>Bang: !</p>
+<p>Plus: +</p>
+<p>Minus: -</p>
+<hr />
+HTML);
+        $heading = $document->children[0];
+        $unicodeList = $document->children[2];
+        $entityParagraphs = array_slice($document->children, 3, 5);
+        $literalParagraphs = array_slice($document->children, 8, 16);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(25, count($document->children));
+        $t->same('heading', $heading->type);
+        $t->same('special-characters', $heading->attr('id'));
+        $t->same('Here is some unicode:', $document->children[1]->children[0]->attr('text'));
+        $t->same('bullet_list', $unicodeList->type);
+        $t->same([
+            'I hat: Î',
+            'o umlaut: ö',
+            'section: §',
+            'set membership: ∈',
+            'copyright: ©',
+        ], array_map(static fn (AstNode $node): mixed => $node->children[0]->attr('text'), $unicodeList->children));
+        $t->same([
+            'AT&T has an ampersand in their name.',
+            'AT&T is another way to write it.',
+            'This & that.',
+            '4 < 5.',
+            '6 > 5.',
+        ], array_map(static fn (AstNode $node): mixed => $node->children[0]->attr('text'), $entityParagraphs));
+        $t->same([
+            'Backslash: \\',
+            'Backtick: `',
+            'Asterisk: *',
+            'Underscore: _',
+            'Left brace: {',
+            'Right brace: }',
+            'Left bracket: [',
+            'Right bracket: ]',
+            'Left paren: (',
+            'Right paren: )',
+            'Greater-than: >',
+            'Hash: #',
+            'Period: .',
+            'Bang: !',
+            'Plus: +',
+            'Minus: -',
+        ], array_map(static fn (AstNode $node): mixed => $node->children[0]->attr('text'), $literalParagraphs));
+        $t->same('horizontal_rule', $document->children[24]->type);
+        $t->contains('<h1 id="special-characters">Special Characters</h1>', $blocks);
+        $t->contains('<li>I hat: Î</li><li>o umlaut: ö</li><li>section: §</li><li>set membership: ∈</li><li>copyright: ©</li>', $blocks);
+        $t->contains('<p>AT&amp;T has an ampersand in their name.</p>', $blocks);
+        $t->contains('<p>4 &lt; 5.</p>', $blocks);
+        $t->contains('<p>Greater-than: &gt;</p>', $blocks);
+        $t->contains('<p>Asterisk: *</p>', $blocks);
+        $t->contains('<hr class="wp-block-separator has-alpha-channel-opacity"/>', $blocks);
+        $t->same(false, str_contains($blocks, '<em></em>'));
+        $t->same(false, str_contains($blocks, '<strong></strong>'));
+    },
     'maps upstream html reader table headers with omitted section tags' => static function (TestRunner $t): void {
         $html = <<<'HTML'
 <table>
@@ -3445,6 +3533,41 @@ XML;
         $latexFragment = substr($latexFragment, 0, strpos($latexFragment, '<p>Empty import audit table:</p>') ?: strlen($latexFragment));
         $t->same(false, str_contains($latexFragment, 'pandoc-raw-tex'));
         $t->same(false, str_contains($latexFragment, 'class="math'));
+    },
+    'writes wordpress html reader special character imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $specialHeading = null;
+        $unicodeList = null;
+        $comparisonParagraph = null;
+        $escapeParagraph = null;
+        foreach ($document->children as $index => $node) {
+            if ($node->type === 'heading' && $node->attr('text') === 'HTML reader special characters import') {
+                $specialHeading = $node;
+                $unicodeList = $document->children[$index + 2] ?? null;
+                continue;
+            }
+            if ($node->type === 'paragraph' && $node->attr('text') === '4 < 5 and 6 > 5 stay text for reviewer copy.') {
+                $comparisonParagraph = $node;
+            }
+            if ($node->type === 'paragraph' && $node->attr('text') === 'Escapes stay literal: \\ ` * _ { } [ ] ( ) > # . ! + -.') {
+                $escapeParagraph = $node;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($specialHeading !== null, 'HTML reader special-character heading should stay on the native HTML path');
+        $t->true($unicodeList instanceof AstNode && $unicodeList->type === 'bullet_list', 'HTML reader Unicode list should stay a native list');
+        $t->same('special-characters', $specialHeading->attr('id'));
+        $t->same('I hat: Î', $unicodeList->children[0]->children[0]->attr('text'));
+        $t->same('section: §', $unicodeList->children[1]->children[0]->attr('text'));
+        $t->true($comparisonParagraph !== null, 'HTML reader comparison punctuation should remain literal text');
+        $t->true($escapeParagraph !== null, 'HTML reader escape punctuation should remain literal text');
+        $t->contains('<h2 id="special-characters">HTML reader special characters import</h2>', $blocks);
+        $t->contains('<ul><li>I hat: Î</li><li>section: §</li><li>set membership: ∈</li><li>copyright: ©</li></ul>', $blocks);
+        $t->contains('<p>AT&amp;T import source decodes once and writes safely.</p>', $blocks);
+        $t->contains('<p>4 &lt; 5 and 6 &gt; 5 stay text for reviewer copy.</p>', $blocks);
+        $t->contains('<p>Escapes stay literal: \ ` * _ { } [ ] ( ) &gt; # . ! + -.</p>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");
