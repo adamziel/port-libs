@@ -771,9 +771,36 @@ backed by targeted reads plus a focused upstream pass:
 and a deletable private cache directory while the native DB updater records
 RemoteChangeDetected-style delete events and a ReceivedFile-style marker only
 for the deleted regular file.
+The process-deletions slice now maps upstream `processDeletions`: pending
+regular-file tombstones are coalesced by path before deletion, those file
+tombstones are processed before any directory tombstones, and directory
+tombstones are processed in reverse order so nested upload folders are removed
+depth-first after their deleted children are gone. This is backed by static
+targeted reads of `lib/model/folder_sendrecv.go` around `processNeeded` and
+`processDeletions`, plus the existing focused upstream delete lifecycle pass:
+`go test ./lib/model -run 'TestDeleteBehindSymlink|TestPullDeleteUnscannedDir|TestPullDeleteCaseConflict|TestPullDeleteIgnoreChildDir|TestIssue3164' -count=1`.
+`wordpress-process-deletions.php` shows a Playground peer deleting a stale
+media file before removing its now-empty month and year upload directories,
+with the native DB updater recording the same delete job order.
+The rename-shortcut slice now maps upstream `processNeeded` and `renameFile`:
+pending regular-file tombstones are bucketed by block identity, a same-block
+target file can be satisfied by renaming an existing local source through a
+Syncthing temporary name instead of pulling bytes again, the consumed source
+tombstone is removed from later deletion processing, source delete and target
+update ItemStarted/ItemFinished events share the rename result, changed source
+or target files are queued for scan without becoming permanent pull errors, and
+successful shortcuts schedule `dbUpdateHandleFile` for the target followed by
+`dbUpdateDeleteFile` for the source. This is backed by targeted reads of
+`lib/model/folder_sendrecv.go` around `processNeeded`, `popCandidate`,
+`renameFile`, `checkToBeDeleted`, and `performFinish`, plus a focused upstream
+pass:
+`go test ./lib/model -run 'TestPullCaseOnlyRename' -count=1`.
+`wordpress-rename-shortcut.php` shows a staged WordPress media import being
+renamed into the dated uploads folder without re-downloading the same block
+content, while the native DB updater records the target update and source
+tombstone.
 
 ## Next Task
 
-Target `processDeletions` ordering and coalescing around file-vs-directory
-delete batches, including depth-first directory deletes after child file
-tombstones.
+Target metadata-only `shortcutFile` updates before queuing full `handleFile`
+work, including permission/mtime changes and `dbUpdateShortcutFile` behavior.

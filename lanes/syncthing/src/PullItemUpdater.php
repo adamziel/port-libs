@@ -223,6 +223,157 @@ final class PullItemUpdater
     }
 
     /**
+     * @param iterable<FileInfo> $fileDeletions
+     * @param iterable<FileInfo> $directoryDeletions
+     * @param iterable<FileInfo> $currentFiles
+     * @param iterable<FileInfo> $knownDirectoryChildren
+     */
+    public function processDeletions(
+        iterable $fileDeletions,
+        iterable $directoryDeletions,
+        iterable $currentFiles = [],
+        iterable $knownDirectoryChildren = [],
+    ): void {
+        $currentByName = $this->fileInfoByName($currentFiles, 'Current files');
+        $directoryChildren = $this->fileInfoList($knownDirectoryChildren, 'Known directory children');
+        $filesByName = [];
+
+        foreach ($fileDeletions as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \InvalidArgumentException('File deletions must be FileInfo instances');
+            }
+            if ($file->isDirectory() || !$file->isDeleted() || $file->isInvalid()) {
+                throw new \InvalidArgumentException('File deletions must be deleted non-directory FileInfos');
+            }
+
+            $filesByName[$file->name] = $file;
+        }
+
+        foreach ($filesByName as $file) {
+            $this->deleteFile($file, $currentByName[$file->name] ?? null);
+        }
+
+        $dirs = $this->fileInfoList($directoryDeletions, 'Directory deletions');
+        for ($i = count($dirs) - 1; $i >= 0; --$i) {
+            $dir = $dirs[$i];
+            if (!$dir->isDirectory() || !$dir->isDeleted() || $dir->isInvalid()) {
+                throw new \InvalidArgumentException('Directory deletions must be deleted directory FileInfos');
+            }
+
+            $this->deleteDirectory($dir, $currentByName[$dir->name] ?? null, $directoryChildren);
+        }
+    }
+
+    /**
+     * @param iterable<FileInfo> $targetFiles
+     * @param iterable<FileInfo> $fileDeletions
+     * @param iterable<FileInfo> $currentFiles
+     *
+     * @return list<FileInfo> file tombstones that were not consumed by a rename shortcut
+     */
+    public function processRenameShortcuts(
+        iterable $targetFiles,
+        iterable $fileDeletions,
+        iterable $currentFiles,
+    ): array {
+        $currentByName = $this->fileInfoByName($currentFiles, 'Current files');
+        $remainingDeletes = [];
+        $buckets = [];
+
+        foreach ($fileDeletions as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \InvalidArgumentException('File deletions must be FileInfo instances');
+            }
+            if ($file->isDirectory() || $file->isSymlink() || !$file->isDeleted() || $file->isInvalid()) {
+                throw new \InvalidArgumentException('Rename shortcut deletions must be deleted regular-file FileInfos');
+            }
+
+            $remainingDeletes[$file->name] = $file;
+            $current = $currentByName[$file->name] ?? null;
+            if ($current === null || !$this->isRegularAvailableFile($current)) {
+                continue;
+            }
+
+            $key = $this->blockIdentityKey($current);
+            if ($key !== null) {
+                $buckets[$key][] = $current;
+            }
+        }
+
+        foreach ($targetFiles as $target) {
+            if (!$target instanceof FileInfo) {
+                throw new \InvalidArgumentException('Target files must be FileInfo instances');
+            }
+            if (!$this->isRegularAvailableFile($target)) {
+                throw new \InvalidArgumentException('Rename shortcut targets must be available regular-file FileInfos');
+            }
+
+            $key = $this->blockIdentityKey($target);
+            if ($key === null || !isset($buckets[$key])) {
+                continue;
+            }
+
+            while ($buckets[$key] !== []) {
+                $candidate = array_shift($buckets[$key]);
+                $sourceDeletion = $remainingDeletes[$candidate->name] ?? null;
+                if ($sourceDeletion === null) {
+                    continue;
+                }
+
+                if ($this->renameFileShortcut($candidate, $sourceDeletion, $target, $currentByName[$target->name] ?? null)) {
+                    unset($remainingDeletes[$candidate->name]);
+                    break;
+                }
+            }
+        }
+
+        return array_values($remainingDeletes);
+    }
+
+    public function renameFileShortcut(
+        FileInfo $currentSource,
+        FileInfo $sourceDeletion,
+        FileInfo $target,
+        ?FileInfo $currentTarget = null,
+    ): bool {
+        $this->itemStartedEvents[] = [
+            'folder' => $this->folderId,
+            'item' => $sourceDeletion->name,
+            'type' => 'file',
+            'action' => 'delete',
+        ];
+        $this->itemStartedEvents[] = [
+            'folder' => $this->folderId,
+            'item' => $target->name,
+            'type' => 'file',
+            'action' => 'update',
+        ];
+
+        try {
+            $error = $this->renameFileShortcutError($currentSource, $sourceDeletion, $target, $currentTarget);
+        } catch (\Throwable $throwable) {
+            $error = $throwable->getMessage();
+        }
+
+        $this->itemFinishedEvents[] = [
+            'folder' => $this->folderId,
+            'item' => $sourceDeletion->name,
+            'error' => $error,
+            'type' => 'file',
+            'action' => 'delete',
+        ];
+        $this->itemFinishedEvents[] = [
+            'folder' => $this->folderId,
+            'item' => $target->name,
+            'error' => $error,
+            'type' => 'file',
+            'action' => 'update',
+        ];
+
+        return $error === null;
+    }
+
+    /**
      * @return list<array{folder:string, item:string, type:string, action:string}>
      */
     public function itemStartedEvents(): array
@@ -289,6 +440,183 @@ final class PullItemUpdater
             'type' => $type,
             'action' => $action,
         ];
+    }
+
+    /**
+     * @param iterable<FileInfo> $files
+     *
+     * @return array<string, FileInfo>
+     */
+    private function fileInfoByName(iterable $files, string $label): array
+    {
+        $byName = [];
+        foreach ($files as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \InvalidArgumentException($label . ' must be FileInfo instances');
+            }
+            $byName[$file->name] = $file;
+        }
+
+        return $byName;
+    }
+
+    /**
+     * @param iterable<FileInfo> $files
+     *
+     * @return list<FileInfo>
+     */
+    private function fileInfoList(iterable $files, string $label): array
+    {
+        $list = [];
+        foreach ($files as $file) {
+            if (!$file instanceof FileInfo) {
+                throw new \InvalidArgumentException($label . ' must be FileInfo instances');
+            }
+            $list[] = $file;
+        }
+
+        return $list;
+    }
+
+    private function renameFileShortcutError(
+        FileInfo $currentSource,
+        FileInfo $sourceDeletion,
+        FileInfo $target,
+        ?FileInfo $currentTarget,
+    ): ?string {
+        if (!$this->isRegularAvailableFile($currentSource)) {
+            return 'rename source must be an available regular file';
+        }
+        if ($sourceDeletion->name !== $currentSource->name || $sourceDeletion->isDirectory() || $sourceDeletion->isSymlink() || !$sourceDeletion->isDeleted() || $sourceDeletion->isInvalid()) {
+            return 'rename source deletion must be a deleted regular-file tombstone for the current source';
+        }
+        if (!$this->isRegularAvailableFile($target)) {
+            return 'rename target must be an available regular file';
+        }
+        if (!$this->sameBlockIdentity($currentSource, $target)) {
+            return 'rename shortcut requires matching block identity';
+        }
+
+        $check = $this->checkToBeDeleted($sourceDeletion, $currentSource);
+        if ($check === self::DELETE_DB_ONLY) {
+            return 'rename source is not present on disk';
+        }
+        if ($check !== null) {
+            return 'rename source: ' . $check;
+        }
+
+        $targetCheck = $this->checkRenameTarget($target, $currentTarget, $currentSource->name);
+        if ($targetCheck !== null) {
+            return 'rename target: ' . $targetCheck;
+        }
+
+        $parentError = $this->ensureParentDirectory($target->name);
+        if ($parentError !== null) {
+            return 'rename target: ' . $parentError;
+        }
+
+        $sourcePath = $this->absolutePath($currentSource->name);
+        $targetPath = $this->absolutePath($target->name);
+        $tempName = RequestServer::temporaryName($target->name);
+        $tempPath = $this->absolutePath($tempName);
+
+        if ($sourcePath === $targetPath) {
+            return 'rename source and target are identical';
+        }
+        if ($this->pathExists($tempPath) && $tempPath !== $sourcePath) {
+            $tempDelete = $this->deleteItemOnDisk($tempPath);
+            if ($tempDelete !== null) {
+                return 'rename temp cleanup: ' . $tempDelete;
+            }
+        }
+
+        if (!@rename($sourcePath, $tempPath)) {
+            return 'rename source to temporary target failed';
+        }
+
+        $replaceError = null;
+        if ($this->pathExists($targetPath)) {
+            $replaceError = $this->replaceExistingNonDirectory($targetPath, $target, $currentTarget);
+        }
+        if ($replaceError !== null) {
+            $this->restoreRenameSource($tempPath, $sourcePath);
+            return 'rename target: ' . $replaceError;
+        }
+
+        if (!@rename($tempPath, $targetPath)) {
+            $this->restoreRenameSource($tempPath, $sourcePath);
+            return 'rename temporary target into place failed';
+        }
+
+        $this->applyFileMetadata($targetPath, $target);
+        $this->scheduleDbUpdate($target, PullDbUpdater::DB_UPDATE_HANDLE_FILE);
+        $this->scheduleDbUpdate($sourceDeletion, PullDbUpdater::DB_UPDATE_DELETE_FILE);
+
+        return null;
+    }
+
+    private function checkRenameTarget(FileInfo $target, ?FileInfo $currentTarget, string $sourceName): ?string
+    {
+        if ($this->parentTraversesSymlink($target->name)) {
+            $this->addScanName($target->name);
+            return self::ERR_MODIFIED;
+        }
+
+        $path = $this->absolutePath($target->name);
+        if (!$this->pathExists($path)) {
+            $caseConflict = $this->caseConflictName($target->name);
+            if ($caseConflict !== null && $caseConflict !== $sourceName) {
+                $this->addScanName($target->name);
+                return self::ERR_MODIFIED;
+            }
+            if ($currentTarget === null || $currentTarget->isDeleted()) {
+                return null;
+            }
+
+            $this->addScanName($target->name);
+            return self::ERR_MODIFIED;
+        }
+
+        if ($currentTarget === null || $currentTarget->isDeleted()) {
+            $this->addScanName($target->name);
+            return self::ERR_MODIFIED;
+        }
+        if (!$this->diskEntryMatchesKnownFileInfo($path, $target->name, $currentTarget)) {
+            $this->addScanName($target->name);
+            return self::ERR_MODIFIED;
+        }
+
+        return null;
+    }
+
+    private function isRegularAvailableFile(FileInfo $file): bool
+    {
+        return $file->type === FileInfo::TYPE_FILE && !$file->isDeleted() && !$file->isInvalid();
+    }
+
+    private function blockIdentityKey(FileInfo $file): ?string
+    {
+        if ($file->blocksHash !== '') {
+            return 'hash:' . $file->blocksHash;
+        }
+        if ($file->blocks === []) {
+            return null;
+        }
+
+        $parts = [];
+        foreach ($file->blocks as $block) {
+            $parts[] = $block->offset . ':' . $block->size . ':' . strtolower($block->hashHex);
+        }
+
+        return 'blocks:' . implode('|', $parts);
+    }
+
+    private function sameBlockIdentity(FileInfo $left, FileInfo $right): bool
+    {
+        $leftKey = $this->blockIdentityKey($left);
+        $rightKey = $this->blockIdentityKey($right);
+
+        return $leftKey !== null && $leftKey === $rightKey;
     }
 
     private function checkToBeDeleted(FileInfo $file, ?FileInfo $current): ?string
@@ -576,6 +904,25 @@ final class PullItemUpdater
         }
 
         return rmdir($path) ? null : 'removing old directory failed';
+    }
+
+    private function restoreRenameSource(string $tempPath, string $sourcePath): void
+    {
+        if (!$this->pathExists($tempPath) || $this->pathExists($sourcePath)) {
+            return;
+        }
+
+        @rename($tempPath, $sourcePath);
+    }
+
+    private function applyFileMetadata(string $path, FileInfo $file): void
+    {
+        if (!$this->ignorePerms && !$file->noPermissions) {
+            @chmod($path, $file->permissions & 0777);
+        }
+        if ($file->modifiedS > 0) {
+            @touch($path, $file->modifiedS);
+        }
     }
 
     private function moveForConflict(string $path, FileInfo $file): ?string

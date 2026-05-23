@@ -316,6 +316,186 @@ return [
             syncthing_item_rm($root);
         }
     },
+    'processDeletions deletes files before reverse ordered directory tombstones' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $fileName = 'wp-content/uploads/2026/05/old.jpg';
+            syncthing_item_write($root, $fileName, 'old media bytes', 1_700_003_400);
+
+            $currentFile = syncthing_item_file_info($fileName, 'old media bytes', 1_700_003_400, [101 => 22]);
+            $currentMonth = new FileInfo(
+                name: 'wp-content/uploads/2026/05',
+                version: VersionVector::fromCounters([101 => 22]),
+                type: FileInfo::TYPE_DIRECTORY,
+                permissions: 0755,
+                modifiedBy: 101,
+            );
+            $currentYear = new FileInfo(
+                name: 'wp-content/uploads/2026',
+                version: VersionVector::fromCounters([101 => 22]),
+                type: FileInfo::TYPE_DIRECTORY,
+                permissions: 0755,
+                modifiedBy: 101,
+            );
+            $deletedFile = syncthing_item_deleted($fileName, VersionVector::fromCounters([101 => 22, 202 => 23]));
+            $deletedMonth = syncthing_item_deleted_dir($currentMonth->name, VersionVector::fromCounters([101 => 22, 202 => 23]));
+            $deletedYear = syncthing_item_deleted_dir($currentYear->name, VersionVector::fromCounters([101 => 22, 202 => 23]));
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media');
+
+            $updater->processDeletions(
+                [$deletedFile],
+                [$deletedYear, $deletedMonth],
+                [$currentFile, $currentMonth, $currentYear],
+            );
+
+            $t->true(!file_exists(syncthing_item_path($root, 'wp-content/uploads/2026')));
+            $t->same([], $updater->scanNames());
+            $t->same([], $updater->pullErrors());
+            $t->same([
+                $fileName,
+                'wp-content/uploads/2026/05',
+                'wp-content/uploads/2026',
+            ], array_column($updater->itemStartedEvents(), 'item'));
+            $t->same([
+                PullDbUpdater::DB_UPDATE_DELETE_FILE,
+                PullDbUpdater::DB_UPDATE_DELETE_DIR,
+                PullDbUpdater::DB_UPDATE_DELETE_DIR,
+            ], array_column($updater->dbUpdates(), 'type'));
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'processDeletions coalesces repeated file tombstones by path' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $name = 'wp-content/uploads/2026/duplicate.jpg';
+            syncthing_item_write($root, $name, 'old media bytes', 1_700_003_500);
+            $current = syncthing_item_file_info($name, 'old media bytes', 1_700_003_500, [101 => 24]);
+            $olderDelete = syncthing_item_deleted($name, VersionVector::fromCounters([202 => 1]), modifiedBy: 202);
+            $newerDelete = syncthing_item_deleted($name, VersionVector::fromCounters([202 => 1, 203 => 2]), modifiedBy: 203);
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media');
+
+            $updater->processDeletions([$olderDelete, $newerDelete], [], [$current]);
+
+            $t->true(!file_exists(syncthing_item_path($root, $name)));
+            $t->same(1, count($updater->itemStartedEvents()));
+            $t->same(1, count($updater->dbUpdates()));
+            $t->same($name, $updater->dbUpdates()[0]['file']->name);
+            $t->same(203, $updater->dbUpdates()[0]['file']->modifiedBy);
+            $t->same(PullDbUpdater::DB_UPDATE_DELETE_FILE, $updater->dbUpdates()[0]['type']);
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'processRenameShortcuts renames same-block source tombstone into target' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $sourceName = 'wp-content/uploads/2026/inbox/hero.jpg';
+            $targetName = 'wp-content/uploads/2026/05/hero.jpg';
+            $bytes = 'hero media bytes already present locally';
+            $blocksHash = hash('sha256', 'shared hero block list');
+
+            syncthing_item_write($root, $sourceName, $bytes, 1_700_003_600);
+            mkdir(dirname(syncthing_item_path($root, $targetName)), 0777, true);
+
+            $currentSource = syncthing_item_file_info($sourceName, $bytes, 1_700_003_600, [101 => 31], $blocksHash);
+            $sourceDelete = syncthing_item_deleted($sourceName, VersionVector::fromCounters([101 => 31, 202 => 32]));
+            $target = syncthing_item_file_info($targetName, $bytes, 1_700_003_700, [202 => 33], $blocksHash);
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media');
+
+            $remainingDeletes = $updater->processRenameShortcuts([$target], [$sourceDelete], [$currentSource]);
+
+            $t->same([], $remainingDeletes);
+            $t->true(!file_exists(syncthing_item_path($root, $sourceName)));
+            $t->same($bytes, file_get_contents(syncthing_item_path($root, $targetName)));
+            $t->same(1_700_003_700, filemtime(syncthing_item_path($root, $targetName)));
+            $t->same([], $updater->scanNames());
+            $t->same([], $updater->pullErrors());
+            $t->same([
+                [$sourceName, 'delete'],
+                [$targetName, 'update'],
+            ], array_map(static fn (array $event): array => [$event['item'], $event['action']], $updater->itemStartedEvents()));
+            $t->same([
+                PullDbUpdater::DB_UPDATE_HANDLE_FILE,
+                PullDbUpdater::DB_UPDATE_DELETE_FILE,
+            ], array_column($updater->dbUpdates(), 'type'));
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'processRenameShortcuts retries next same-block candidate when first source changed' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $badSourceName = 'wp-content/uploads/2026/inbox/bad-hero.jpg';
+            $goodSourceName = 'wp-content/uploads/2026/inbox/good-hero.jpg';
+            $targetName = 'wp-content/uploads/2026/05/renamed-hero.jpg';
+            $bytes = 'renamed hero bytes';
+            $blocksHash = hash('sha256', 'two matching source block list');
+
+            syncthing_item_write($root, $badSourceName, $bytes, 1_700_003_800);
+            syncthing_item_write($root, $goodSourceName, $bytes, 1_700_003_900);
+            mkdir(dirname(syncthing_item_path($root, $targetName)), 0777, true);
+
+            $badCurrent = syncthing_item_file_info($badSourceName, $bytes, 1_700_003_700, [101 => 40], $blocksHash);
+            $goodCurrent = syncthing_item_file_info($goodSourceName, $bytes, 1_700_003_900, [101 => 41], $blocksHash);
+            $badDelete = syncthing_item_deleted($badSourceName, VersionVector::fromCounters([101 => 40, 202 => 42]));
+            $goodDelete = syncthing_item_deleted($goodSourceName, VersionVector::fromCounters([101 => 41, 202 => 43]));
+            $target = syncthing_item_file_info($targetName, $bytes, 1_700_004_000, [202 => 44], $blocksHash);
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media');
+
+            $remainingDeletes = $updater->processRenameShortcuts(
+                [$target],
+                [$badDelete, $goodDelete],
+                [$badCurrent, $goodCurrent],
+            );
+
+            $t->same([$badSourceName], array_map(static fn (FileInfo $file): string => $file->name, $remainingDeletes));
+            $t->true(file_exists(syncthing_item_path($root, $badSourceName)));
+            $t->true(!file_exists(syncthing_item_path($root, $goodSourceName)));
+            $t->same($bytes, file_get_contents(syncthing_item_path($root, $targetName)));
+            $t->same([$badSourceName], $updater->scanNames());
+            $t->same([], $updater->pullErrors());
+            $t->same('rename source: checking existing item: file modified but not rescanned; will try again later', $updater->itemFinishedEvents()[0]['error']);
+            $t->same(null, $updater->itemFinishedEvents()[2]['error']);
+            $t->same([
+                PullDbUpdater::DB_UPDATE_HANDLE_FILE,
+                PullDbUpdater::DB_UPDATE_DELETE_FILE,
+            ], array_column($updater->dbUpdates(), 'type'));
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
+    'renameFileShortcut scans changed existing target and leaves source in place' => static function (TestRunner $t): void {
+        $root = syncthing_item_root();
+        try {
+            $sourceName = 'wp-content/uploads/2026/inbox/source.jpg';
+            $targetName = 'wp-content/uploads/2026/05/source.jpg';
+            $sourceBytes = 'source bytes';
+            $targetBytes = 'locally changed target bytes';
+            $blocksHash = hash('sha256', 'source target block list');
+
+            syncthing_item_write($root, $sourceName, $sourceBytes, 1_700_004_100);
+            syncthing_item_write($root, $targetName, $targetBytes, 1_700_004_200);
+
+            $currentSource = syncthing_item_file_info($sourceName, $sourceBytes, 1_700_004_100, [101 => 50], $blocksHash);
+            $sourceDelete = syncthing_item_deleted($sourceName, VersionVector::fromCounters([101 => 50, 202 => 51]));
+            $target = syncthing_item_file_info($targetName, $sourceBytes, 1_700_004_300, [202 => 52], $blocksHash);
+            $currentTarget = syncthing_item_file_info($targetName, $targetBytes, 1_700_004_000, [101 => 49], hash('sha256', 'old target block list'));
+            $updater = new PullItemUpdater($root, folderId: 'wordpress-media');
+
+            $renamed = $updater->renameFileShortcut($currentSource, $sourceDelete, $target, $currentTarget);
+
+            $t->true(!$renamed);
+            $t->same($sourceBytes, file_get_contents(syncthing_item_path($root, $sourceName)));
+            $t->same($targetBytes, file_get_contents(syncthing_item_path($root, $targetName)));
+            $t->same([$targetName], $updater->scanNames());
+            $t->same([], $updater->pullErrors());
+            $t->same([], $updater->dbUpdates());
+            $t->same('rename target: checking existing item: file modified but not rescanned; will try again later', $updater->itemFinishedEvents()[0]['error']);
+        } finally {
+            syncthing_item_rm($root);
+        }
+    },
 ];
 
 function syncthing_item_root(): string
@@ -351,13 +531,14 @@ function syncthing_item_write(string $root, string $name, string $bytes, int $mt
 /**
  * @param array<int, int> $version
  */
-function syncthing_item_file_info(string $name, string $bytes, int $modifiedS, array $version): FileInfo
+function syncthing_item_file_info(string $name, string $bytes, int $modifiedS, array $version, string $blocksHash = ''): FileInfo
 {
     return new FileInfo(
         name: $name,
         modifiedS: $modifiedS,
         version: VersionVector::fromCounters($version),
         size: strlen($bytes),
+        blocksHash: $blocksHash,
         type: FileInfo::TYPE_FILE,
         permissions: 0644,
         rawBlockSize: max(1, strlen($bytes)),

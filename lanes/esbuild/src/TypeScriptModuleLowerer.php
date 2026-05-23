@@ -3638,7 +3638,8 @@ final class TypeScriptModuleLowerer
 
         $previous = $this->previousSignificantTokenIndex($async - 1);
         $previousText = $previous === null ? null : ($this->tokens[$previous] ?? null)?->text;
-        if ($previousText !== null
+        if ($async !== $start
+            && $previousText !== null
             && !in_array($previousText, ['=', 'export', 'default'], true)
             && !($isParenthesizedDefaultExport && $previousText === '(')
             && !($isParenthesizedExpression && $previousText === '(')
@@ -3728,7 +3729,7 @@ final class TypeScriptModuleLowerer
 
     private function asyncGeneratorExpressionSeparator(string $prefix): string
     {
-        return preg_match('/[\(\[:]$/', $prefix) === 1 ? '' : ' ';
+        return $prefix === '' || preg_match('/[\(\[:]$/', $prefix) === 1 ? '' : ' ';
     }
 
     /**
