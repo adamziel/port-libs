@@ -48,13 +48,16 @@ final class SyncPlan
      * Duplicate same-key objects keep the first listed entry for comparisons
      * and report later entries as ignored diagnostics, matching upstream's
      * duplicate source/destination log boundary without mutating either side.
+     * Callers that opt into directories get upstream's DirEntry partition too:
+     * a file and directory with the same remote are matched separately and are
+     * not treated as duplicates.
      *
      * @return array{
      *     matches: list<array{source: ObjectInfo, destination: ObjectInfo}>,
      *     sourceOnly: list<ObjectInfo>,
      *     destinationOnly: list<ObjectInfo>,
-     *     duplicateSources: list<array{path: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>,
-     *     duplicateDestinations: list<array{path: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     *     duplicateSources: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>,
+     *     duplicateDestinations: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
      * }
      */
     public function matchListingDiagnostics(
@@ -62,13 +65,19 @@ final class SyncPlan
         MemoryProvider $target,
         ?FilterRuleSet $filter = null,
         bool $ignoreCaseSync = false,
+        bool $includeDirectories = false,
     ): array {
-        $sourceListing = $this->diagnosticListing($source, $filter, $ignoreCaseSync, 'source');
-        $targetListing = $this->diagnosticListing($target, $filter, $ignoreCaseSync, 'destination');
+        $sourceListing = $this->diagnosticListing($source, $filter, $ignoreCaseSync, 'source', $includeDirectories);
+        $targetListing = $this->diagnosticListing($target, $filter, $ignoreCaseSync, 'destination', $includeDirectories);
         $sourcePaths = $sourceListing['paths'];
         $targetPaths = $targetListing['paths'];
+        $entryOrder = $sourceListing['order'] + $targetListing['order'];
         $allPaths = array_keys($sourcePaths + $targetPaths);
-        sort($allPaths, SORT_STRING);
+        usort(
+            $allPaths,
+            static fn (string $left, string $right): int => $entryOrder[$left]['pathKey'] <=> $entryOrder[$right]['pathKey']
+                ?: $entryOrder[$left]['type'] <=> $entryOrder[$right]['type'],
+        );
 
         $matches = [];
         $sourceOnly = [];
@@ -2492,7 +2501,8 @@ final class SyncPlan
     /**
      * @return array{
      *     paths: array<string, ObjectInfo>,
-     *     duplicates: list<array{path: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
+     *     order: array<string, array{pathKey: string, type: string}>,
+     *     duplicates: list<array{path: string, type: string, kept: ObjectInfo, ignored: ObjectInfo, message: string}>
      * }
      */
     private function diagnosticListing(
@@ -2500,32 +2510,88 @@ final class SyncPlan
         ?FilterRuleSet $filter,
         bool $ignoreCaseSync,
         string $side,
+        bool $includeDirectories,
     ): array {
         $paths = [];
+        $order = [];
         $duplicates = [];
-        $message = 'Duplicate object found in ' . $side . ' - ignoring';
-        foreach ($provider->list() as $info) {
-            if ($filter !== null && !$filter->includes($info->path)) {
+        foreach ($this->diagnosticEntries($provider, $filter, $ignoreCaseSync, $includeDirectories) as $entry) {
+            $entryKey = $entry['pathKey'] . "\0" . $entry['type'];
+            if (!isset($paths[$entryKey])) {
+                $paths[$entryKey] = $entry['info'];
+                $order[$entryKey] = [
+                    'pathKey' => $entry['pathKey'],
+                    'type' => $entry['type'],
+                ];
                 continue;
             }
 
-            $key = $ignoreCaseSync ? $this->syncPathKey($info->path) : self::normalizePath($info->path);
-            if (!isset($paths[$key])) {
-                $paths[$key] = $info;
-                continue;
-            }
-
+            $message = 'Duplicate ' . $entry['type'] . ' found in ' . $side . ' - ignoring';
             $duplicates[] = [
-                'path' => $info->path,
-                'kept' => $paths[$key],
-                'ignored' => $info,
+                'path' => $entry['info']->path,
+                'type' => $entry['type'],
+                'kept' => $paths[$entryKey],
+                'ignored' => $entry['info'],
                 'message' => $message,
             ];
         }
 
         return [
             'paths' => $paths,
+            'order' => $order,
             'duplicates' => $duplicates,
+        ];
+    }
+
+    /**
+     * @return list<array{pathKey: string, type: string, info: ObjectInfo, sequence: int}>
+     */
+    private function diagnosticEntries(
+        MemoryProvider $provider,
+        ?FilterRuleSet $filter,
+        bool $ignoreCaseSync,
+        bool $includeDirectories,
+    ): array {
+        $entries = [];
+        $sequence = 0;
+        foreach ($provider->list() as $info) {
+            if ($filter !== null && !$filter->includes($info->path)) {
+                continue;
+            }
+
+            $entries[] = $this->diagnosticEntry($info, 'object', $ignoreCaseSync, $sequence++);
+        }
+
+        if ($includeDirectories) {
+            foreach ($provider->directories() as $info) {
+                if ($info->path === '' || !$this->filterAllowsDirectory($provider, $info->path, $filter)) {
+                    continue;
+                }
+
+                $entries[] = $this->diagnosticEntry($info, 'directory', $ignoreCaseSync, $sequence++);
+            }
+        }
+
+        usort(
+            $entries,
+            static fn (array $left, array $right): int => $left['pathKey'] <=> $right['pathKey']
+                ?: $left['type'] <=> $right['type']
+                ?: $left['sequence'] <=> $right['sequence'],
+        );
+
+        return $entries;
+    }
+
+    /**
+     * @return array{pathKey: string, type: string, info: ObjectInfo, sequence: int}
+     */
+    private function diagnosticEntry(ObjectInfo $info, string $type, bool $ignoreCaseSync, int $sequence): array
+    {
+        return [
+            'pathKey' => $ignoreCaseSync ? $this->syncPathKey($info->path) : self::normalizePath($info->path),
+            'type' => $type,
+            'info' => $info,
+            'sequence' => $sequence,
         ];
     }
 

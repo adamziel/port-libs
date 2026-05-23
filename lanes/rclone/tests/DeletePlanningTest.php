@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Rclone\DeleteMode;
 use PortLibs\Rclone\FilterRuleSet;
 use PortLibs\Rclone\HashSet;
+use PortLibs\Rclone\ListDirectory;
 use PortLibs\Rclone\MemoryProvider;
 use PortLibs\Rclone\SyncPlan;
 
@@ -162,6 +163,53 @@ return [
         $t->same(['database/site.sql'], array_map(static fn ($info): string => $info->path, $copied));
         $t->same('<rss>current export</rss>', $target->get('exports/site.wxr'));
     },
+    'match listings keeps same-remote directories separate from objects' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->mkdir('exports');
+        $source->put('exports', '<rss>directory marker object</rss>');
+        $target->mkdir('exports');
+        $target->put('exports', '<rss>directory marker object</rss>');
+
+        $diagnostics = (new SyncPlan())->matchListingDiagnostics($source, $target, includeDirectories: true);
+
+        $t->same([
+            'directory:exports',
+            'object:exports',
+        ], array_map(
+            static fn (array $pair): string => (ListDirectory::isDirectory($pair['source']) ? 'directory:' : 'object:')
+                . $pair['source']->path,
+            $diagnostics['matches'],
+        ));
+        $t->same([], $diagnostics['sourceOnly']);
+        $t->same([], $diagnostics['destinationOnly']);
+        $t->same([], $diagnostics['duplicateSources']);
+        $t->same([], $diagnostics['duplicateDestinations']);
+    },
+    'match listings reports duplicate directories separately from same-path objects' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->mkdir('exports', ['id' => 'source-dir']);
+        $source->put('exports', '<rss>directory marker object</rss>');
+        $target->mkdir('exports', ['id' => 'target-dir']);
+        $target->mkdirUnchecked('exports', ['id' => 'interrupted-dir']);
+        $target->put('exports', '<rss>directory marker object</rss>');
+
+        $diagnostics = (new SyncPlan())->matchListingDiagnostics($source, $target, includeDirectories: true);
+
+        $t->same([
+            'directory:exports',
+            'object:exports',
+        ], array_map(
+            static fn (array $pair): string => (ListDirectory::isDirectory($pair['source']) ? 'directory:' : 'object:')
+                . $pair['source']->path,
+            $diagnostics['matches'],
+        ));
+        $t->same(['directory'], array_map(static fn (array $duplicate): string => $duplicate['type'], $diagnostics['duplicateDestinations']));
+        $t->same(['Duplicate directory found in destination - ignoring'], array_map(static fn (array $duplicate): string => $duplicate['message'], $diagnostics['duplicateDestinations']));
+        $t->same('target-dir', $diagnostics['duplicateDestinations'][0]['kept']->id);
+        $t->same('interrupted-dir', $diagnostics['duplicateDestinations'][0]['ignored']->id);
+    },
     'wordpress duplicate source listing example preserves first export entry' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-duplicate-source-listing.php';
 
@@ -182,6 +230,20 @@ return [
         $t->same(['database/site.sql'], $example['copied']);
         $t->same('<rss version="2.0"></rss>', $example['targetExportBytes']);
         $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
+    },
+    'wordpress duplicate directory and marker object diagnostics example separates entry types' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-duplicate-directory-file-diagnostics.php';
+
+        $t->same([
+            'directory:wp-content/uploads/2026/05',
+            'object:wp-content/uploads/2026/05',
+        ], $example['uploadPathMatches']);
+        $t->same(['wp-content/uploads/2026/05'], $example['duplicateDestinationPaths']);
+        $t->same(['directory'], $example['duplicateDestinationTypes']);
+        $t->same(['Duplicate directory found in destination - ignoring'], $example['duplicateDestinationMessages']);
+        $t->same(['published-month'], $example['keptDirectoryIds']);
+        $t->same(['interrupted-restore-month'], $example['ignoredDirectoryIds']);
+        $t->same(hash('sha256', 'directory marker bytes'), $example['markerObjectHash']);
     },
     'ignore existing skips changed destination objects like upstream sync' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
