@@ -845,6 +845,69 @@ return [
             quadrableQuadbRemoveDir($targetDir);
         }
     },
+    'native quadb store shares imported proof storage across divergent proof-backed forks' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $proofHex = $source->exportProofHex([
+                'wp_options:siteurl',
+                'wp_options:home',
+            ], Proof::ENCODING_FULL_KEYS);
+
+            $source->put('wp_options:siteurl', 'https://preview.example.test');
+            $updatedRoot = $source->tree()->rootHash();
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('wp-delegated-base');
+            $target->importProofHex($proofHex, $trustedRoot);
+            $target->fork('wp-delegated-preview');
+            $target->put('wp_options:siteurl', 'https://preview.example.test');
+
+            $previewRoot = $target->status()['rootHash'];
+            $t->same($updatedRoot, $previewRoot);
+            $t->same('https://preview.example.test', $target->get('wp_options:siteurl'));
+            $t->same('https://example.test', $target->get('wp_options:home'));
+
+            $base = $target->checkout('wp-delegated-base');
+            $t->true($base instanceof SparseTree);
+            $t->same($trustedRoot, $target->status()['rootHash']);
+            $t->same('https://example.test', $target->get('wp_options:siteurl'));
+            $t->same('https://example.test', $target->get('wp_options:home'));
+
+            $lmdb = $target->lmdbBucketSnapshot();
+            $headNodeIds = [];
+            foreach ($lmdb['quadrable_head'] as $head => $rawNodeId) {
+                $headNodeIds[$head] = quadrableQuadbUnpackUint64Le($rawNodeId);
+            }
+            $keyCounts = array_count_values(array_values($lmdb['quadrable_key']));
+
+            $t->true($headNodeIds['wp-delegated-base'] !== $headNodeIds['wp-delegated-preview']);
+            $t->same(1, $keyCounts['wp_options:home'] ?? 0);
+            $t->same(2, $keyCounts['wp_options:siteurl'] ?? 0);
+            $t->same($lmdb, QuadbStore::open($targetDir)->lmdbBucketSnapshot());
+
+            $reopened = QuadbStore::open($targetDir);
+            $reopened->checkout('wp-delegated-preview');
+            $t->same($previewRoot, $reopened->status()['rootHash']);
+            $t->same('https://preview.example.test', $reopened->get('wp_options:siteurl'));
+            $reopened->checkout('wp-delegated-base');
+            $t->same($trustedRoot, $reopened->status()['rootHash']);
+            $t->same('https://example.test', $reopened->get('wp_options:siteurl'));
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
     'native quadb store rejects proof imports unless the current head is empty' => static function (TestRunner $t): void {
         $sourceDir = quadrableQuadbTempDir();
         $targetDir = quadrableQuadbTempDir();
