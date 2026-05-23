@@ -86,9 +86,18 @@ final class ArticleExtractor
     /**
      * @param list<string> $classesToPreserve
      */
-    public function extract(string $html, ?string $url = null, bool $includeReadabilityPage = false, array $classesToPreserve = []): Article
+    public function extract(
+        string $html,
+        ?string $url = null,
+        bool $includeReadabilityPage = false,
+        array $classesToPreserve = [],
+        bool $keepClasses = false,
+        ?string $allowedVideoPattern = null,
+        int $maxElemsToParse = 0,
+    ): Article
     {
         $dom = $this->loadHtmlDocument($html);
+        $this->guardMaxElementsToParse($dom, $maxElemsToParse);
         $this->replaceBreakChains($dom);
         $this->replaceElementsByTagName($dom, 'font', 'span');
         $xpath = new \DOMXPath($dom);
@@ -110,7 +119,7 @@ final class ArticleExtractor
         foreach ($xpath->query('//script|//style|//noscript|//nav|//footer|//aside|//form|//fieldset|//link') ?: [] as $node) {
             $node->parentNode?->removeChild($node);
         }
-        $this->cleanUnsafeEmbeds($xpath);
+        $this->cleanUnsafeEmbeds($xpath, $allowedVideoPattern);
         $this->removeInvisibleNodes($xpath);
         $this->removeUnlikelyCandidates($xpath);
 
@@ -127,7 +136,7 @@ final class ArticleExtractor
             $this->removeLeadingBylineActionBar($best);
             $this->removeTrailingArticleChrome($best);
             $this->demoteHeadingOnes($best);
-            $best = $this->postProcessContent($best, $effectiveBaseUri, $url, $classesToPreserve);
+            $best = $this->postProcessContent($best, $effectiveBaseUri, $url, $classesToPreserve, $keepClasses);
         }
         $contentHtml = $best instanceof \DOMElement && $includeReadabilityPage
             ? $this->readabilityPageHtml($best)
@@ -161,6 +170,32 @@ final class ArticleExtractor
             ]),
             $articleDir,
             $this->documentAttribute($dom, 'lang'),
+        );
+    }
+
+    /**
+     * Native PHP option wrapper for upstream Readability parse options.
+     *
+     * @param array{
+     *     url?: ?string,
+     *     includeReadabilityPage?: bool,
+     *     classesToPreserve?: list<string>,
+     *     keepClasses?: bool,
+     *     allowedVideoRegex?: ?string,
+     *     allowedVideoPattern?: ?string,
+     *     maxElemsToParse?: int
+     * } $options
+     */
+    public function extractWithOptions(string $html, array $options = []): Article
+    {
+        return $this->extract(
+            $html,
+            $options['url'] ?? null,
+            (bool) ($options['includeReadabilityPage'] ?? false),
+            $options['classesToPreserve'] ?? [],
+            (bool) ($options['keepClasses'] ?? false),
+            $options['allowedVideoPattern'] ?? $options['allowedVideoRegex'] ?? null,
+            (int) ($options['maxElemsToParse'] ?? 0),
         );
     }
 
@@ -514,6 +549,18 @@ final class ArticleExtractor
         }
 
         return $dom;
+    }
+
+    private function guardMaxElementsToParse(\DOMDocument $dom, int $maxElemsToParse): void
+    {
+        if ($maxElemsToParse <= 0) {
+            return;
+        }
+
+        $numTags = $dom->getElementsByTagName('*')->length;
+        if ($numTags > $maxElemsToParse) {
+            throw new \RuntimeException("Aborting parsing document; {$numTags} elements found");
+        }
     }
 
     /**
@@ -1164,11 +1211,11 @@ final class ArticleExtractor
         }
     }
 
-    private function cleanUnsafeEmbeds(\DOMXPath $xpath): void
+    private function cleanUnsafeEmbeds(\DOMXPath $xpath, ?string $allowedVideoPattern): void
     {
         $remove = [];
         foreach ($xpath->query('//object|//embed|//iframe') ?: [] as $node) {
-            if (!$node instanceof \DOMElement || $this->isAllowedVideoEmbed($node)) {
+            if (!$node instanceof \DOMElement || $this->isAllowedVideoEmbed($node, $allowedVideoPattern)) {
                 continue;
             }
 
@@ -1180,16 +1227,17 @@ final class ArticleExtractor
         }
     }
 
-    private function isAllowedVideoEmbed(\DOMElement $node): bool
+    private function isAllowedVideoEmbed(\DOMElement $node, ?string $allowedVideoPattern): bool
     {
+        $pattern = $allowedVideoPattern ?? self::ALLOWED_VIDEO_PATTERN;
         foreach ($node->attributes ?: [] as $attribute) {
-            if (preg_match(self::ALLOWED_VIDEO_PATTERN, $attribute->value) === 1) {
+            if (preg_match($pattern, $attribute->value) === 1) {
                 return true;
             }
         }
 
         return strtolower($node->tagName) === 'object'
-            && preg_match(self::ALLOWED_VIDEO_PATTERN, $this->innerHtml($node)) === 1;
+            && preg_match($pattern, $this->innerHtml($node)) === 1;
     }
 
     private function removeInvisibleNodes(\DOMXPath $xpath): void
@@ -1878,7 +1926,7 @@ final class ArticleExtractor
     /**
      * @param list<string> $classesToPreserve
      */
-    private function postProcessContent(\DOMElement $scope, ?string $baseUri, ?string $documentUri, array $classesToPreserve): \DOMElement
+    private function postProcessContent(\DOMElement $scope, ?string $baseUri, ?string $documentUri, array $classesToPreserve, bool $keepClasses): \DOMElement
     {
         $this->fixRelativeUris($scope, $baseUri, $documentUri);
         $this->removeCommentNodes($scope);
@@ -1897,7 +1945,9 @@ final class ArticleExtractor
         $scope = $this->unwrapSingleCellTables($scope);
         $this->removeCommentNodes($scope);
         $this->cleanPresentationalAttributes($scope);
-        $this->cleanClasses($scope, $this->classPreservationMap($classesToPreserve));
+        if (!$keepClasses) {
+            $this->cleanClasses($scope, $this->classPreservationMap($classesToPreserve));
+        }
         $this->unwrapTransparentSectionWrappers($scope);
         $scope = $this->unwrapHrSeparatedPageContainers($scope);
         $this->insertTextBoundaryWhitespace($scope);

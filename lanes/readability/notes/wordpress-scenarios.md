@@ -28,6 +28,8 @@ The current class-preservation and single-article promotion slice maps Mozilla `
 
 The current ARS figure-credit slice maps Mozilla `ars-1` caption cleanup: link-heavy credit-only wrappers inside `figcaption` are removed, the hero image source remains available, and requested caption classes can still survive for WordPress media review workflows.
 
+The current parse-options slice maps upstream Readability API option boundaries: `keepClasses` skips default class cleanup for review-mode imports, a custom allowed-video regex can retain trusted non-default oEmbed iframe hosts while unrelated widgets are removed, and `maxElemsToParse` aborts oversized documents before cleanup work begins.
+
 ## Scenario Fixture
 
 - `lanes/readability/fixtures/wordpress-page-builder.html` models a legacy WordPress page-builder article with sidebar navigation, in-article ad slots, comments, share widgets, retained media, and article paragraphs.
@@ -109,6 +111,7 @@ The current ARS figure-credit slice maps Mozilla `ars-1` caption cleanup: link-h
 - `lanes/readability/examples/wordpress-medium-page-break-cleanup.php` demonstrates removing Medium page-break `<hr>` separators before WordPress block serialization while keeping each editorial section as paragraph content.
 - `lanes/readability/examples/wordpress-caption-class-preservation.php` demonstrates opt-in preservation of WordPress caption classes while unrelated source theme classes are still stripped.
 - `lanes/readability/examples/wordpress-figure-credit-cleanup.php` demonstrates removing link-only source photo-credit wrappers inside media captions while preserving the requested WordPress caption class contract.
+- `lanes/readability/examples/wordpress-custom-video-embed-preservation.php` demonstrates preserving a trusted custom oEmbed iframe provider and review-mode classes while unrelated widget embeds are removed before block serialization.
 - The focused WordPress test covers migration output where `post_title` stores the article title separately: duplicate source `h1` content is removed, while real body section headings remain as `h2` block headings.
 - The focused WordPress full-width media test covers imports where a theme/page builder emits a layout-only crop outside the paragraph column: the decorative wrapper is removed while the editorial figure remains available for image block serialization.
 - The focused WordPress editorial media test covers imports where a Medium-style `postField--fillWidthImage` figure is editorial content: the figure and caption remain available for block output while the source class is stripped after the keep decision.
@@ -152,7 +155,8 @@ The current ARS figure-credit slice maps Mozilla `ars-1` caption cleanup: link-h
 - The focused Medium page-break cleanup test covers source exports that split a long Medium article with `<hr>` separators: editorial sections remain in order, but separator rules are not emitted as WordPress paragraph blocks.
 - The focused caption class preservation test covers migration pipelines that need selected WordPress media classes for review: configured class tokens survive, while unconfigured source theme classes are removed like upstream Readability default cleanup.
 - The focused figure credit cleanup test covers media migrations where a source theme embeds a photo-credit-only link inside `figcaption`: the credit wrapper and text are removed before block serialization, while the image and requested caption classes remain available.
+- The focused parse-options tests cover review-mode class retention, custom trusted iframe host preservation, unknown widget iframe removal, and upstream-shaped `maxElemsToParse` aborts for overly large source documents.
 
 ## Next Task
 
-Map another caption/media-heavy copied fixture such as `guardian-1`, or continue exact ARS article/header wrapper parity and Medium image/avatar wrapper parity using `ars-1`, `lazy-image-1`, and `medium-1`.
+Map another parse-option boundary such as `charThreshold` retries/null result semantics, or copy and map a caption/media-heavy fixture such as `guardian-1`.

@@ -589,6 +589,20 @@ return [
             $t->same(false, str_contains($preservedArticle->contentHtml, $className), 'unconfigured source class should be stripped: ' . $className);
         }
     },
+    'honors upstream keepClasses extraction option' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Keep Classes</title></head><body><article class="entry-content source-shell">'
+            . '<h1>Keep Classes</h1>'
+            . '<p class="lead theme-copy">' . str_repeat('Option-driven migrations sometimes need full source classes for review. ', 4) . '</p>'
+            . '</article></body></html>';
+        $extractor = new ArticleExtractor();
+
+        $stripped = $extractor->extract($source);
+        $kept = $extractor->extractWithOptions($source, ['keepClasses' => true]);
+
+        $t->same(false, str_contains($stripped->contentHtml, 'theme-copy'), 'default cleanup should strip source classes');
+        $t->contains('class="lead theme-copy"', $kept->contentHtml);
+        $t->same(false, str_contains($kept->contentHtml, 'source-shell'), 'the selected article wrapper is still serialized as inner content');
+    },
     'maps Mozilla heise fixture with caption class preservation and article promotion' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/heise';
         $source = (string) file_get_contents($fixture . '/source.html');
@@ -1438,6 +1452,34 @@ return [
         $t->true(!str_contains($article->contentHtml, 'tracker.example.test'), 'generic iframe should be removed');
         $t->true(!str_contains($article->contentHtml, 'widgets.example.test'), 'generic embed should be removed');
         $t->contains('ready for block serialization', $article->text);
+    },
+    'honors upstream custom allowed video regex extraction option' => static function (TestRunner $t): void {
+        $source = '<article>'
+            . '<h1>Custom Video Cleanup</h1>'
+            . '<p>' . str_repeat('Publisher-specific embeds can be editorial media in WordPress migrations. ', 5) . '</p>'
+            . '<iframe src="https://video.example.test/embed/123"></iframe>'
+            . '<iframe src="https://widgets.example.test/ad"></iframe>'
+            . '</article>';
+        $extractor = new ArticleExtractor();
+
+        $default = $extractor->extractWithOptions($source);
+        $custom = $extractor->extractWithOptions($source, ['allowedVideoRegex' => '~//video\.example\.test/embed/~']);
+
+        $t->same(false, str_contains($default->contentHtml, '<iframe'), 'default video whitelist should remove unknown iframe hosts');
+        $t->contains('https://video.example.test/embed/123', $custom->contentHtml);
+        $t->same(false, str_contains($custom->contentHtml, 'widgets.example.test'), 'custom regex should not keep unrelated widgets');
+    },
+    'honors upstream maxElemsToParse extraction option' => static function (TestRunner $t): void {
+        $extractor = new ArticleExtractor();
+
+        try {
+            $extractor->extractWithOptions('<html><div>yo</div></html>', ['maxElemsToParse' => 1]);
+        } catch (RuntimeException $exception) {
+            $t->contains('Aborting parsing document; 2 elements found', $exception->getMessage());
+            return;
+        }
+
+        throw new RuntimeException('Expected maxElemsToParse to abort oversized document parsing');
     },
     'maps Mozilla lazy-image noscript replacement semantics' => static function (TestRunner $t): void {
         $source = '<html lang="en"><head>'

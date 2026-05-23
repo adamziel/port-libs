@@ -722,6 +722,31 @@ return [
         $t->contains('bar', $encodedChunks);
         $t->true(!str_contains($encodedChunks, '"content":"world"'), 'Short retained context should merge nearby text changes without appearing as novel JSON content.');
     },
+    'maps upstream big text hunk sample as one dense insertion hunk' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-big-text-hunk-1.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-big-text-hunk-2.txt');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'text']);
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/big_text_hunk.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+        $insertions = array_values(array_filter($changes, static fn (array $change): bool => $change['op'] === '+'));
+
+        $t->same(42, count($changes));
+        $t->same(42, count($insertions));
+        $t->same('$text.line[7]', $insertions[0]['path']);
+        $t->same('$text.line[48]', $insertions[41]['path']);
+        $t->same('golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=', $insertions[41]['text']);
+        $t->same('changed', $decoded['status']);
+        $t->same(1, count($decoded['chunks']));
+        $t->same(42, count($decoded['chunks'][0]));
+        $t->same(7, $decoded['chunks'][0][0]['rhs']['line_number']);
+        $t->same(48, $decoded['chunks'][0][41]['rhs']['line_number']);
+        $t->true(!isset($decoded['chunks'][0][0]['lhs']), 'Inserted dense text hunk lines should not fabricate an opposite-side display entry.');
+    },
     'wordpress readme nearby text hunks are grouped for review' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-nearby-hunks-before.txt');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-nearby-hunks-after.txt');
@@ -789,6 +814,27 @@ return [
 
         $t->same([['op' => '+', 'path' => '$text.line[1]', 'text' => '']], $changes);
     },
+    'maps upstream many newlines empty lhs shape as created status' => static function (TestRunner $t): void {
+        $after = "Name: res/drawable-hdpi/com_facebook_tooltip_blue_topnub.png\n"
+            . "SHA1-Digest: rQJiOcIwwhKZTBdd1spU/vsYtYk=\n\n"
+            . "Name: res/drawable-hdpi/abc_list_divider_mtrl_alpha.9.png\n"
+            . "SHA1-Digest: 2rDL6SgURlRMBXTSLtkL8kMQ6Xc=\n";
+        $changes = (new TokenDiffer())->diffSyntaxLists('', $after, ['language' => 'text']);
+        $decoded = (new JsonDiffRenderer())->fileDiff(
+            '',
+            $after,
+            'sample_files/many_newlines.txt',
+            'Text',
+            ['language' => 'text'],
+        );
+
+        $t->same(['+', '+', '+', '+', '+', '+'], array_map(static fn (array $change): string => $change['op'], $changes));
+        $t->same('$text.line[0]', $changes[0]['path']);
+        $t->same('Name: res/drawable-hdpi/com_facebook_tooltip_blue_topnub.png', $changes[0]['text']);
+        $t->same('$text.line[5]', $changes[5]['path']);
+        $t->same('', $changes[5]['text']);
+        $t->same(['language' => 'Text', 'path' => 'sample_files/many_newlines.txt', 'status' => 'created'], $decoded);
+    },
     'maps upstream repeated line no eol sample as an eof insertion' => static function (TestRunner $t): void {
         $before = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-repeated-line-no-eol-1.hex')));
         $after = hex2bin(trim((string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-repeated-line-no-eol-2.hex')));
@@ -824,6 +870,27 @@ return [
         $t->same(1, $decoded['chunks'][0][0]['rhs']['line_number']);
         $t->same('Imported', $decoded['chunks'][0][0]['rhs']['changes'][0]['content']);
         $t->same('normal', $decoded['chunks'][0][0]['rhs']['changes'][0]['highlight']);
+    },
+    'wordpress created import report uses created status and pure text insertions' => static function (TestRunner $t): void {
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-created-import-report-after.txt');
+        $changes = (new TokenDiffer())->diffSyntaxLists('', $after, ['language' => 'text']);
+        $decoded = (new JsonDiffRenderer())->fileDiff(
+            '',
+            $after,
+            'wp-content/uploads/migration/import-report.csv',
+            'Text',
+            ['language' => 'text'],
+        );
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? ''),
+            $changes,
+        ));
+
+        $t->same(['language' => 'Text', 'path' => 'wp-content/uploads/migration/import-report.csv', 'status' => 'created'], $decoded);
+        $t->same(5, count($changes));
+        $t->same(['+', '+', '+', '+', '+'], array_map(static fn (array $change): string => $change['op'], $changes));
+        $t->contains('+ $text.line[3] 44,queued,Needs media sideload retry', $encoded);
+        $t->true(!str_contains($encoded, '~ $text.line[0]'), 'Created text files should not pair the first real line with a synthetic empty old line.');
     },
     'maps upstream cli makefile text as syntax atom' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-cli-makefile-1.mk');

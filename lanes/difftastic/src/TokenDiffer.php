@@ -606,6 +606,22 @@ final class TokenDiffer
      */
     private function diffLineChanges(string $old, string $new, array $changes = [], string $linePathPrefix = '$text.line'): array
     {
+        if ($old === '' && $new !== '') {
+            foreach ($this->fallbackLines($new) as $index => $text) {
+                $changes[] = ['op' => '+', 'path' => $linePathPrefix . '[' . $index . ']', 'text' => $text];
+            }
+
+            return $changes;
+        }
+
+        if ($old !== '' && $new === '') {
+            foreach ($this->fallbackLines($old) as $index => $text) {
+                $changes[] = ['op' => '-', 'path' => $linePathPrefix . '[' . $index . ']', 'text' => $text];
+            }
+
+            return $changes;
+        }
+
         $oldLines = $this->fallbackLines($old);
         $newLines = $this->fallbackLines($new);
         $table = $this->lcsTable($oldLines, $newLines);

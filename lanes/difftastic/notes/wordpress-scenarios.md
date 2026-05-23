@@ -26,6 +26,10 @@ The upstream `text_*.txt` fixture now maps difftastic's display hunk grouping bo
 
 The WordPress readme nearby-hunks fixture applies that to plugin metadata review. An inserted `Requires PHP` line and a nearby `legacy` to `modern` description update stay grouped for review without marking the stable tag line as changed content.
 
+The upstream `big_text_hunk_*.txt` fixture now maps dense inserted plain-text hunks, and the `many_newlines_*.txt` empty-LHS shape maps created-file JSON status. The native syntax-list output emits pure inserted lines for empty-side text diffs rather than pairing the first real line with a synthetic empty old line.
+
+The WordPress created import-report fixture applies that to Data Liberation CSV reports under `wp-content/uploads/migration`. JSON display returns a `created` file envelope, while syntax-list review surfaces can still show each inserted report row under `$text.line[...]`.
+
 Plain-text line splitting now maps upstream `src/lines.rs` `split_on_newlines` trailing EOF behavior and the `sample_files/repeated_line_no_eol_*.txt` fixture. Text mode preserves trailing empty lines and appended repeated final lines instead of trimming them away before `$text.line[...]` output.
 
 The WordPress import-log no-EOL fixture applies that to migration output under `wp-content/uploads/migration/import.log`. Compact JSON output preserves a final appended import record even when neither side ends with a newline.
@@ -169,6 +173,7 @@ php lanes/difftastic/examples/wordpress-plugin-readme-blank-display.php
 php lanes/difftastic/examples/wordpress-readme-footer-alignment-display.php
 php lanes/difftastic/examples/wordpress-readme-end-changes-display.php
 php lanes/difftastic/examples/wordpress-readme-nearby-hunks-display.php
+php lanes/difftastic/examples/wordpress-created-import-report-display.php
 php lanes/difftastic/examples/wordpress-import-log-no-eol-display.php
 php lanes/difftastic/examples/wordpress-plugin-build-makefile-diff.php
 php lanes/difftastic/examples/wordpress-html-diff.php
@@ -218,4 +223,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map another upstream text display pair such as `big_text_hunk_*.txt` or `many_newlines_*.txt`, especially dense inserted text and large created-file status behavior.
+Map another upstream text/display pair such as `tab_*.txt` or `long_line_*.txt`, especially tab-width alignment and oversized-line fallback/status behavior.
