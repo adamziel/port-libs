@@ -4910,7 +4910,7 @@ return [
         $t->same(4, $option->rowId);
         $t->same('twentytwentyfive', $option->optionValue);
     },
-    'rejects wordpress indexed insert plans that would split a multi-page index leaf' => static function (TestRunner $t) use ($makeFirstPage): void {
+    'plans wordpress indexed insert by splitting a same-depth multi-page index leaf' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $schemaPage = SQLiteTableLeafPage::assemble([
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
@@ -4953,10 +4953,45 @@ return [
             . $rightIndexLeafPage,
         );
 
-        $t->throws(
-            InvalidArgumentException::class,
-            static fn () => $database->planWordPressOptionInsert(2, str_repeat('z', 70), 'value', 'yes'),
+        $insertedName = str_repeat('z', 70);
+        $plan = $database->planWordPressOptionInsert(2, $insertedName, 'value', 'yes');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
         );
+        $insertedOption = $postDatabase->wordpressOptionByIndexedName($insertedName);
+
+        $t->same([1, 2, 3, 5, 6], array_keys($plan->pageImages()));
+        $t->same(6, $plan->databasePageCount);
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(2, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(5)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(6)->cellCount);
+        $t->same([
+            ['blogname', 8],
+            [str_repeat('m', 70), 9],
+            [str_repeat('n', 70), 10],
+            [str_repeat('o', 70), 11],
+            [str_repeat('p', 70), 12],
+            [str_repeat('q', 70), 13],
+            [str_repeat('r', 70), 14],
+            [str_repeat('s', 70), 15],
+            [$insertedName, 2],
+        ], $indexRecords);
+        $t->true($insertedOption instanceof SQLiteWordPressOption);
+        $t->same(2, $insertedOption->rowId);
+        $t->same($insertedName, $insertedOption->optionName);
+        $t->same('value', $insertedOption->optionValue);
     },
     'plans wordpress wp_options replacement while freeing obsolete overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

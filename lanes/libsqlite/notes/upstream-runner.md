@@ -2704,6 +2704,42 @@ Per lane instructions, this worker did not start a duplicate root harness. The
 post-change root result is pending supervisor/integrator acceptance of the
 active run.
 
+For the bounded same-depth secondary index split slice on 2026-05-23, the
+focused upstream runner passed `insert.test`, `index.test`, and `btree01.test`
+with 0 errors out of 809 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test index.test btree01.test
+```
+
+This maps rowid INSERT persistence, index b-tree key ordering,
+`sqlite3BtreeInsert()` overflow-cell insertion, `balance_nonroot()` and
+`balance_quick()` b-tree split boundaries, and b-tree cell/page assembly used
+by the native bounded `wp_options(option_name)` same-depth leaf-split planner.
+The direct libsqlite harness passed 180 PHP tests with 1188 assertions and 0
+failures. The new `examples/wordpress-index-split-option-insert-plan.php`
+script ran successfully, reporting updated page images `[1,2,3,5,6]`, an
+`index-interior` root with 2 divider cells, split leaf pages 5 and 6 with 3
+cells each, and indexed lookup of the generated option through the split
+`option_name` index.
+
+Before starting a root harness for this slice, the required preflight returned
+no active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+This worker then ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 193 test files, 21075 assertions, 0 failures.
+
 ## Focused Native Mapping: UTF-16 Record Encoding
 
 For the bounded UTF-16 record serialization slice on 2026-05-23, the focused

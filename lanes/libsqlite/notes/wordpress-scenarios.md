@@ -802,6 +802,18 @@ returned table and two leaf-index page images, and verifies that the
 WordPress option tables where repair tooling must update preload indexes
 without collapsing the index tree or invoking the SQLite extension.
 
+`examples/wordpress-index-split-option-insert-plan.php` starts from a
+`wp_options` table with a two-level `option_name` secondary index whose
+right-most leaf is full for the native page assembler. It asks
+`planWordPressOptionInsert()` for a generated option row, applies the returned
+header/table/root/leaf page images, and verifies that the existing
+`index-interior` root now has a promoted divider plus a newly allocated leaf
+while the inserted option is reachable through
+`wordpressOptionByIndexedName()`. This maps larger WordPress SQLite images
+where repair tooling must insert generated options without the SQLite
+extension and without leaving a secondary index stale when the target leaf
+splits but the parent can stay at the same depth.
+
 `examples/wordpress-replace-obsolete-overflow-option.php` starts from a
 large `wp_options` value stored across overflow pages, asks
 `planWordPressOptionReplace()` for a bounded same-row replacement, applies the
@@ -821,6 +833,6 @@ free-old update order.
 
 ## Next Task
 
-Add bounded same-depth page-split planning for secondary indexes, then extend
-the current automatic-index write slice to multi-page autoindexes before
-pointer-map/auto-vacuum, journaling, or WAL work.
+Add focused tests for same-depth split planning on automatic and composite
+insert indexes, then extend replacement moves to bounded leaf splits before
+parent-page/root growth, pointer-map/auto-vacuum, journaling, or WAL work.

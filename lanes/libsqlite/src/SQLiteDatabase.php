@@ -473,6 +473,14 @@ final class SQLiteDatabase
         }
         ksort($pageImages);
 
+        $pageImages = $this->withWordPressOptionIndexInsertPages($pageImages, $insertIndexes, $rowId, $allowAppend);
+        $databasePageCount = max(
+            $this->pageCount(),
+            $this->header->databaseSizePages,
+            $allocationPlan?->databasePageCount ?? 0,
+            $pageImages === [] ? 0 : max(array_keys($pageImages)),
+        );
+
         return new SQLiteWordPressOptionWritePlan(
             $tableRootPage,
             $rowId,
@@ -481,8 +489,8 @@ final class SQLiteDatabase
             $autoload,
             $overflowPageNumbers,
             $localPayloadLength,
-            $allocationPlan?->databasePageCount ?? max($this->pageCount(), $this->header->databaseSizePages),
-            $this->withWordPressOptionIndexInsertPages($pageImages, $insertIndexes, $rowId),
+            $databasePageCount,
+            $pageImages,
         );
     }
 
@@ -826,12 +834,12 @@ final class SQLiteDatabase
         array $pageImages,
         array $indexes,
         int $rowId,
+        bool $allowAppend,
     ): array {
         foreach ($indexes as $index) {
             $record = $index['record'];
             $columns = $index['columns'];
             $indexValues = $index['values'];
-            $keyColumnCount = count($columns);
             $rootPage = $record->rootPage;
             if ($rootPage === null) {
                 throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
@@ -860,7 +868,14 @@ final class SQLiteDatabase
                 ),
             );
 
-            $pageImages[$leaf['pageNumber']] = $this->assembleWritableIndexLeafPage($entries, $leaf['headerOffset'], $leaf['page']);
+            $pageImages = $this->withAssembledWritableIndexLeafPage(
+                $pageImages,
+                $rootPage,
+                $leaf,
+                $entries,
+                $columns,
+                $allowAppend,
+            );
         }
 
         ksort($pageImages);
@@ -1031,7 +1046,7 @@ final class SQLiteDatabase
     /**
      * @param list<mixed> $entryValues
      * @param non-empty-list<SQLiteIndexColumn> $columns
-     * @return array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int}
+     * @return array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,parent:?array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int}}
      */
     private function writableIndexLeafForEntry(
         int $rootPage,
@@ -1041,6 +1056,7 @@ final class SQLiteDatabase
     ): array {
         $visited = [];
         $pageNumber = $rootPage;
+        $parentContext = null;
         while (true) {
             if (isset($visited[$pageNumber])) {
                 throw new \InvalidArgumentException("SQLite wp_options index write planning reached page {$pageNumber} more than once");
@@ -1061,6 +1077,7 @@ final class SQLiteDatabase
                     'page' => $page,
                     'header' => $header,
                     'headerOffset' => $headerOffset,
+                    'parent' => $parentContext,
                 ];
             }
             if ($header->pageType !== 'index-interior') {
@@ -1071,7 +1088,8 @@ final class SQLiteDatabase
             }
 
             $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
-            foreach (SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
+            $cells = SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader);
+            foreach ($cells as $cellIndex => $cell) {
                 if ($cell->leftChildPage === null || $cell->leftChildPage < 1) {
                     throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid child pointer");
                 }
@@ -1085,11 +1103,25 @@ final class SQLiteDatabase
                     throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet delete index entries from interior pages');
                 }
                 if ($comparison < 0) {
+                    $parentContext = [
+                        'pageNumber' => $pageNumber,
+                        'page' => $page,
+                        'header' => $header,
+                        'headerOffset' => $headerOffset,
+                        'childIndex' => $cellIndex,
+                    ];
                     $pageNumber = $cell->leftChildPage;
                     continue 2;
                 }
             }
 
+            $parentContext = [
+                'pageNumber' => $pageNumber,
+                'page' => $page,
+                'header' => $header,
+                'headerOffset' => $headerOffset,
+                'childIndex' => count($cells),
+            ];
             $pageNumber = $header->rightMostPointer;
         }
     }
@@ -1146,6 +1178,228 @@ final class SQLiteDatabase
             if (str_contains($exception->getMessage(), 'overlap')) {
                 throw new \InvalidArgumentException(
                     'SQLite wp_options indexed write planning does not yet split index leaf pages',
+                    0,
+                    $exception,
+                );
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @param array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,parent:?array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int}} $leaf
+     * @param list<array{values:list<mixed>,cell:string}> $entries
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @return array<int, string>
+     */
+    private function withAssembledWritableIndexLeafPage(
+        array $pageImages,
+        int $rootPage,
+        array $leaf,
+        array $entries,
+        array $columns,
+        bool $allowAppend,
+    ): array {
+        try {
+            $pageImages[$leaf['pageNumber']] = $this->assembleWritableIndexLeafPage(
+                $entries,
+                $leaf['headerOffset'],
+                $leaf['page'],
+            );
+
+            return $pageImages;
+        } catch (\InvalidArgumentException $exception) {
+            if (!str_contains($exception->getMessage(), 'split index leaf pages')) {
+                throw $exception;
+            }
+        }
+
+        return $this->withSplitWritableIndexLeafPage($pageImages, $rootPage, $leaf, $entries, $columns, $allowAppend);
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @param array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,parent:?array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int}} $leaf
+     * @param list<array{values:list<mixed>,cell:string}> $entries
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @return array<int, string>
+     */
+    private function withSplitWritableIndexLeafPage(
+        array $pageImages,
+        int $rootPage,
+        array $leaf,
+        array $entries,
+        array $columns,
+        bool $allowAppend,
+    ): array {
+        $parent = $leaf['parent'];
+        if ($parent === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed write planning does not yet grow index root pages');
+        }
+        if ($parent['header']->pageType !== 'index-interior') {
+            throw new \InvalidArgumentException('SQLite wp_options indexed write planning can split only children of index interior pages');
+        }
+
+        [$leftEntries, $dividerEntry, $rightEntries] = $this->partitionWritableIndexLeafEntriesForSplit(
+            $entries,
+            $leaf['headerOffset'],
+            $leaf['page'],
+        );
+
+        $workingDatabase = $this->withPageImages($pageImages);
+        $allocationPlan = $workingDatabase->planPageAllocation(1, $allowAppend);
+        foreach ($allocationPlan->pageImages() as $pageNumber => $page) {
+            $pageImages[$pageNumber] = $page;
+        }
+        $newLeafPageNumber = $allocationPlan->allocatedPageNumbers[0] ?? null;
+        if ($newLeafPageNumber === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed write planning could not allocate a split index leaf page');
+        }
+
+        $pageImages[$leaf['pageNumber']] = SQLiteIndexLeafPage::assemble(
+            array_map(static fn (array $entry): string => $entry['cell'], $leftEntries),
+            $this->header->pageSize,
+            $leaf['headerOffset'],
+            $leaf['page'],
+            $this->usablePageSize(),
+        );
+        $pageImages[$newLeafPageNumber] = SQLiteIndexLeafPage::assemble(
+            array_map(static fn (array $entry): string => $entry['cell'], $rightEntries),
+            $this->header->pageSize,
+            0,
+            str_repeat("\0", $this->header->pageSize),
+            $this->usablePageSize(),
+        );
+        $pageImages[$parent['pageNumber']] = $this->assembleWritableIndexParentAfterLeafSplit(
+            $parent,
+            $dividerEntry,
+            $leaf['pageNumber'],
+            $newLeafPageNumber,
+            $columns,
+        );
+        ksort($pageImages);
+
+        return $pageImages;
+    }
+
+    /**
+     * @param list<array{values:list<mixed>,cell:string}> $entries
+     * @return array{0:list<array{values:list<mixed>,cell:string}>,1:array{values:list<mixed>,cell:string},2:list<array{values:list<mixed>,cell:string}>}
+     */
+    private function partitionWritableIndexLeafEntriesForSplit(array $entries, int $headerOffset, string $basePage): array
+    {
+        $entryCount = count($entries);
+        if ($entryCount < 3) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed write planning cannot split fewer than three index entries');
+        }
+
+        $best = null;
+        $bestScore = null;
+        for ($dividerIndex = 1; $dividerIndex <= $entryCount - 2; $dividerIndex++) {
+            $leftEntries = array_slice($entries, 0, $dividerIndex);
+            $dividerEntry = $entries[$dividerIndex];
+            $rightEntries = array_slice($entries, $dividerIndex + 1);
+
+            try {
+                SQLiteIndexLeafPage::assemble(
+                    array_map(static fn (array $entry): string => $entry['cell'], $leftEntries),
+                    $this->header->pageSize,
+                    $headerOffset,
+                    $basePage,
+                    $this->usablePageSize(),
+                );
+                SQLiteIndexLeafPage::assemble(
+                    array_map(static fn (array $entry): string => $entry['cell'], $rightEntries),
+                    $this->header->pageSize,
+                    0,
+                    str_repeat("\0", $this->header->pageSize),
+                    $this->usablePageSize(),
+                );
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+
+            $score = abs(count($leftEntries) - count($rightEntries));
+            if ($bestScore === null || $score < $bestScore) {
+                $best = [$leftEntries, $dividerEntry, $rightEntries];
+                $bestScore = $score;
+            }
+        }
+
+        if ($best === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed write planning cannot split these index leaf entries within page capacity');
+        }
+
+        return $best;
+    }
+
+    /**
+     * @param array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int} $parent
+     * @param array{values:list<mixed>,cell:string} $dividerEntry
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     */
+    private function assembleWritableIndexParentAfterLeafSplit(
+        array $parent,
+        array $dividerEntry,
+        int $oldLeafPageNumber,
+        int $newLeafPageNumber,
+        array $columns,
+    ): string {
+        $header = $parent['header'];
+        if ($header->pageType !== 'index-interior' || $header->rightMostPointer === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed write planning requires an index interior parent page');
+        }
+
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        $parentCells = SQLiteIndexCell::parsePageCells($parent['page'], $header, $this->usablePageSize(), $overflowReader);
+        $childIndex = $parent['childIndex'];
+        if ($childIndex < 0 || $childIndex > count($parentCells)) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed write planning found an invalid parent child slot');
+        }
+        if ($childIndex === count($parentCells)) {
+            if ($header->rightMostPointer !== $oldLeafPageNumber) {
+                throw new \InvalidArgumentException('SQLite wp_options indexed write planning parent right-most pointer does not match the split leaf');
+            }
+        } elseif ($parentCells[$childIndex]->leftChildPage !== $oldLeafPageNumber) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed write planning parent child pointer does not match the split leaf');
+        }
+
+        $dividerPayload = SQLiteRecord::encode($dividerEntry['values'], $this->header->textEncoding);
+        $cellBytes = [];
+        foreach ($parentCells as $index => $cell) {
+            if ($cell->leftChildPage === null) {
+                throw new \InvalidArgumentException('SQLite wp_options indexed write planning found a parent cell without a child pointer');
+            }
+            if ($index === $childIndex) {
+                $cellBytes[] = SQLiteIndexCell::encode($dividerPayload, $this->usablePageSize(), null, $oldLeafPageNumber);
+                $cellBytes[] = SQLiteIndexCell::encode($cell->payload, $this->usablePageSize(), null, $newLeafPageNumber);
+                continue;
+            }
+
+            $cellBytes[] = SQLiteIndexCell::encode($cell->payload, $this->usablePageSize(), null, $cell->leftChildPage);
+        }
+
+        $rightMostPointer = $header->rightMostPointer;
+        if ($childIndex === count($parentCells)) {
+            $cellBytes[] = SQLiteIndexCell::encode($dividerPayload, $this->usablePageSize(), null, $oldLeafPageNumber);
+            $rightMostPointer = $newLeafPageNumber;
+        }
+
+        try {
+            return SQLiteIndexInteriorPage::assemble(
+                $cellBytes,
+                $rightMostPointer,
+                $this->header->pageSize,
+                $parent['headerOffset'],
+                $parent['page'],
+                $this->usablePageSize(),
+            );
+        } catch (\InvalidArgumentException $exception) {
+            if (str_contains($exception->getMessage(), 'overlap')) {
+                throw new \InvalidArgumentException(
+                    'SQLite wp_options indexed write planning does not yet split parent index pages',
                     0,
                     $exception,
                 );
