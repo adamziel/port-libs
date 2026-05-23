@@ -341,3 +341,61 @@ Repo-wide root harness passed:
 
 - `php tools/run-tests.php`
 - 202 test files, 23,334 assertions, 0 failures.
+
+## 2026-05-23T10:08Z status/head/stats/gc/dumpTree command-output slice
+
+Focused lane verification passed for this batch:
+
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`
+- 1 selected test file, 856 assertions, 0 failures.
+- `php tools/run-tests.php lanes/quadrable/tests`
+- 10 selected test files, 129 behavior tests, 3,031 assertions, 0 failures.
+
+WordPress example verification passed:
+
+- `php lanes/quadrable/examples/wordpress-quadb-inspection-command-guard.php`
+- Reported fail-closed missing-store `status`, empty-store bootstrap status, populated preview-head status/head/stats/dumpTree inspection, silent discarded-head removal, and `quadb gc` cleanup output.
+
+Upstream verification passed for this batch:
+
+- `make -r quadb` built the upstream command for targeted status/head/stats/gc/dumpTree probes.
+- Targeted upstream probes showed missing `status`, `head`, `stats`, `gc`, and `dumpTree` fail before creating the store with `quadb error: Could not access directory '<dir>/': No such file or directory`.
+- Targeted upstream probes showed precreated empty stores bootstrap and print `Head: master`, empty `head` output, zero stats, `Collected 0/0 nodes`, and the empty-tree dump.
+- Targeted upstream probes showed populated stores print current-head status, sorted heads, stats, dumpTree output, silent `head rm`, and `Collected X/Y nodes` GC output.
+- `make -r test` in `.upstream-cache/quadrable` passed all 34 upstream `check.cpp` scenarios and reported `All tests OK`.
+
+The required duplicate-root gate was checked before the repo-wide harness:
+
+- `pgrep -af '^php tools/run-tests\.php( |$)'`
+- Active root harness was reported: PID 2895371, owner `claude`, command `php tools/run-tests.php`.
+
+No duplicate repo-wide root harness was started for this slice; root result is pending for the supervisor/integrator.
+
+## 2026-05-23T10:19Z diff/patch command-output slice
+
+Focused lane verification passed for this batch:
+
+- `php tools/run-tests.php lanes/quadrable/tests`
+- 10 selected test files, 130 behavior tests, 3,046 assertions, 0 failures.
+
+WordPress example verification passed:
+
+- `php lanes/quadrable/examples/wordpress-quadb-patch.php`
+- Reported fail-closed missing-store diff behavior, command-clean diff/patch execution, upstream-ordered preview patch lines, and a replica root matching the WordPress preview root after patch application.
+
+Upstream verification passed for this batch:
+
+- `make -r quadb` built the upstream command for targeted diff/patch probes.
+- Targeted upstream probes showed missing `diff` and `patch` stores fail before directory creation with `quadb error: Could not access directory '<dir>/': No such file or directory`.
+- Targeted upstream probes showed `diff <head>` on a precreated empty store exits 0 with empty stdout/stderr, populated `diff master --sep='|'` emits tree-walk ordered delete/add patch lines, successful `patch --sep='|'` exits 0 with empty stdout/stderr, and malformed patch lines return `empty line in patch`, `unexpected line in patch`, or `couldn't find separator in input line`.
+- `make -r test` in `.upstream-cache/quadrable` passed all 34 upstream `check.cpp` scenarios and reported `All tests OK`.
+
+The required duplicate-root gate was checked before the repo-wide harness:
+
+- `pgrep -af '^php tools/run-tests\.php( |$)'`
+- No active root harness was reported.
+
+Repo-wide root harness passed:
+
+- `php tools/run-tests.php`
+- 207 test files, 23,995 assertions, 0 failures.

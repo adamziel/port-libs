@@ -326,6 +326,143 @@ USAGE;
     }
 
     /**
+     * Native stdout/stderr/exit-code shape for `quadb stats`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function statsCommandOutput(string $directory, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->statsText(),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb status`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function statusCommandOutput(string $directory, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->statusText(),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb head`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function headCommandOutput(string $directory, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->headText(),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb head rm [<head>]`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function headRemoveCommandOutput(
+        string $directory,
+        ?string $head = null,
+        bool $trackKeys = true
+    ): array {
+        try {
+            self::openForCommand($directory, $trackKeys)->removeHead($head);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb gc`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function garbageCollectCommandOutput(string $directory, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->garbageCollectText(),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb dumpTree`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function dumpTreeCommandOutput(string $directory, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->dumpTreeText(),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
      * Native stdout/stderr/exit-code shape for `quadb get <key>`.
      *
      * @return array{exitCode: int, stdout: string, stderr: string}
@@ -439,6 +576,60 @@ USAGE;
     {
         try {
             self::openForCommand($directory, $trackKeys)->delete($key);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb diff <head>`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function diffCommandOutput(
+        string $directory,
+        string $head,
+        string $separator = ',',
+        bool $trackKeys = true
+    ): array {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->diffLines($head, $separator),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb patch`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function patchCommandOutput(
+        string $directory,
+        string $input,
+        string $separator = ',',
+        bool $trackKeys = true
+    ): array {
+        try {
+            self::openForCommand($directory, $trackKeys)->applyPatchLines($input, $separator);
 
             return [
                 'exitCode' => 0,
@@ -1567,33 +1758,18 @@ USAGE;
             throw new \RuntimeException('cannot diff proof-backed partial trees');
         }
 
-        $base = (new TrackedSparseTree($this->nodeStore))->checkout($head);
-        $current = $this->tree();
-        $baseEntries = $this->entriesByKeyHex($base);
-        $currentEntries = $this->entriesByKeyHex($current);
-        $keys = array_values(array_unique(array_merge(array_keys($baseEntries), array_keys($currentEntries))));
-        sort($keys, SORT_STRING);
+        $baseNodeId = $this->nodeStore->headNodeId($head);
+        $currentNodeId = $this->tree()->headNodeId();
+        $deltas = [];
+        $this->diffNodeIds($baseNodeId, $currentNodeId, $deltas);
 
         $output = '';
-        foreach ($keys as $keyHex) {
-            $baseEntry = $baseEntries[$keyHex] ?? null;
-            $currentEntry = $currentEntries[$keyHex] ?? null;
-            $renderedKey = $this->renderTrackedKey($keyHex);
-
-            if ($baseEntry === null && $currentEntry !== null) {
-                $output .= '+' . $renderedKey . $separator . $currentEntry['value'] . "\n";
-                continue;
-            }
-
-            if ($baseEntry !== null && $currentEntry === null) {
-                $output .= '-' . $renderedKey . $separator . $baseEntry['value'] . "\n";
-                continue;
-            }
-
-            if ($baseEntry !== null && $currentEntry !== null && $baseEntry['value'] !== $currentEntry['value']) {
-                $output .= '-' . $renderedKey . $separator . $baseEntry['value'] . "\n";
-                $output .= '+' . $renderedKey . $separator . $currentEntry['value'] . "\n";
-            }
+        foreach ($deltas as $delta) {
+            $output .= ($delta['deletion'] ? '-' : '+')
+                . $this->renderTrackedKey($delta['keyHash'])
+                . $separator
+                . $delta['value']
+                . "\n";
         }
 
         return $output;
@@ -5068,6 +5244,138 @@ USAGE;
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{keyHash: string, value: string, deletion: bool}> $output
+     */
+    private function diffNodeIds(int $nodeIdA, int $nodeIdB, array &$output): void
+    {
+        if ($nodeIdA === $nodeIdB) {
+            return;
+        }
+
+        if ($this->nodeStore->nodeHash($nodeIdA) === $this->nodeStore->nodeHash($nodeIdB)) {
+            return;
+        }
+
+        $aIsBranch = $this->nodeStore->isBranch($nodeIdA);
+        $bIsBranch = $this->nodeStore->isBranch($nodeIdB);
+        $aIsLeaf = $this->nodeStore->isLeaf($nodeIdA);
+        $bIsLeaf = $this->nodeStore->isLeaf($nodeIdB);
+
+        if ($aIsBranch && $bIsBranch) {
+            $branchA = $this->nodeStore->branch($nodeIdA);
+            $branchB = $this->nodeStore->branch($nodeIdB);
+            $this->diffNodeIds($branchA['leftNodeId'], $branchB['leftNodeId'], $output);
+            $this->diffNodeIds($branchA['rightNodeId'], $branchB['rightNodeId'], $output);
+
+            return;
+        }
+
+        if (!$aIsBranch && $bIsBranch) {
+            $foundLeaf = false;
+            $leafA = $aIsLeaf ? $this->nodeStore->leaf($nodeIdA) : null;
+            $this->walkDiffLeaves($nodeIdB, static function (array $leafB) use (&$foundLeaf, $leafA, &$output): void {
+                if ($leafA !== null && $leafB['keyHash'] === $leafA['keyHash']) {
+                    $foundLeaf = true;
+                    if ($leafB['value'] !== $leafA['value']) {
+                        self::pushDiffLeaf($output, $leafA, true);
+                        self::pushDiffLeaf($output, $leafB, false);
+                    }
+
+                    return;
+                }
+
+                self::pushDiffLeaf($output, $leafB, false);
+            });
+            if ($leafA !== null && !$foundLeaf) {
+                self::pushDiffLeaf($output, $leafA, true);
+            }
+
+            return;
+        }
+
+        if ($aIsBranch && !$bIsBranch) {
+            $foundLeaf = false;
+            $leafB = $bIsLeaf ? $this->nodeStore->leaf($nodeIdB) : null;
+            $this->walkDiffLeaves($nodeIdA, static function (array $leafA) use (&$foundLeaf, $leafB, &$output): void {
+                if ($leafB !== null && $leafA['keyHash'] === $leafB['keyHash']) {
+                    $foundLeaf = true;
+                    if ($leafA['value'] !== $leafB['value']) {
+                        self::pushDiffLeaf($output, $leafA, true);
+                        self::pushDiffLeaf($output, $leafB, false);
+                    }
+
+                    return;
+                }
+
+                self::pushDiffLeaf($output, $leafA, true);
+            });
+            if ($leafB !== null && !$foundLeaf) {
+                self::pushDiffLeaf($output, $leafB, false);
+            }
+
+            return;
+        }
+
+        if ($aIsLeaf && $bIsLeaf) {
+            $leafA = $this->nodeStore->leaf($nodeIdA);
+            $leafB = $this->nodeStore->leaf($nodeIdB);
+            if ($leafA['keyHash'] !== $leafB['keyHash'] || $leafA['value'] !== $leafB['value']) {
+                self::pushDiffLeaf($output, $leafA, true);
+                self::pushDiffLeaf($output, $leafB, false);
+            }
+
+            return;
+        }
+
+        if ($aIsLeaf) {
+            self::pushDiffLeaf($output, $this->nodeStore->leaf($nodeIdA), true);
+
+            return;
+        }
+
+        if ($bIsLeaf) {
+            self::pushDiffLeaf($output, $this->nodeStore->leaf($nodeIdB), false);
+        }
+    }
+
+    /**
+     * @param callable(array{keyHash: string, value: string, hash: string}): void $callback
+     */
+    private function walkDiffLeaves(int $nodeId, callable $callback): void
+    {
+        if ($nodeId === 0) {
+            return;
+        }
+
+        if ($this->nodeStore->isLeaf($nodeId)) {
+            $callback($this->nodeStore->leaf($nodeId));
+
+            return;
+        }
+
+        if (!$this->nodeStore->isBranch($nodeId)) {
+            throw new \RuntimeException('diff traversal encountered an unknown node');
+        }
+
+        $branch = $this->nodeStore->branch($nodeId);
+        $this->walkDiffLeaves($branch['leftNodeId'], $callback);
+        $this->walkDiffLeaves($branch['rightNodeId'], $callback);
+    }
+
+    /**
+     * @param list<array{keyHash: string, value: string, deletion: bool}> $output
+     * @param array{keyHash: string, value: string, hash: string} $leaf
+     */
+    private static function pushDiffLeaf(array &$output, array $leaf, bool $deletion): void
+    {
+        $output[] = [
+            'keyHash' => $leaf['keyHash'],
+            'value' => $leaf['value'],
+            'deletion' => $deletion,
+        ];
     }
 
     private function renderTrackedKey(string $keyHex): string

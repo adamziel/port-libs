@@ -552,6 +552,150 @@ return [
             quadrableQuadbRemoveDir($emptyDir);
         }
     },
+    'native quadb store maps status head stats gc and dumpTree command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $emptyDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $missingError = "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n";
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $missingError,
+            ], QuadbStore::statusCommandOutput($missingDir));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $missingError,
+            ], QuadbStore::headCommandOutput($missingDir));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $missingError,
+            ], QuadbStore::headRemoveCommandOutput($missingDir, 'wp-preview'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $missingError,
+            ], QuadbStore::statsCommandOutput($missingDir));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $missingError,
+            ], QuadbStore::garbageCollectCommandOutput($missingDir));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $missingError,
+            ], QuadbStore::dumpTreeCommandOutput($missingDir));
+            $t->true(!is_dir($missingDir), 'missing inspection commands should not create the database directory');
+
+            if (!mkdir($emptyDir, 0755, true) && !is_dir($emptyDir)) {
+                throw new RuntimeException('unable to create empty quadrable temp directory');
+            }
+
+            $emptyStatus = "Head: master\nRoot: 0x" . HashTree::EMPTY_HASH . " (0)\n";
+            $emptyDump = "-----------------\n"
+                . "0x00000000... (0) empty\n"
+                . "-----------------\n";
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $emptyStatus,
+                'stderr' => '',
+            ], QuadbStore::statusCommandOutput($emptyDir));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::headCommandOutput($emptyDir));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "numNodes:        0\n"
+                    . "numLeafNodes:    0\n"
+                    . "numBranchNodes:  0\n"
+                    . "numWitnessNodes: 0\n"
+                    . "maxDepth:        0\n"
+                    . "numBytes:        0\n",
+                'stderr' => '',
+            ], QuadbStore::statsCommandOutput($emptyDir));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "Collected 0/0 nodes\n",
+                'stderr' => '',
+            ], QuadbStore::garbageCollectCommandOutput($emptyDir));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $emptyDump,
+                'stderr' => '',
+            ], QuadbStore::dumpTreeCommandOutput($emptyDir));
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::putCommandOutput($storeDir, 'wp_options:siteurl', 'https://example.test'));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::forkCommandOutput($storeDir, 'preview'));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::putCommandOutput($storeDir, 'wp_options:home', 'https://preview.example.test'));
+
+            $repo = QuadbStore::open($storeDir);
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $repo->statusText(),
+                'stderr' => '',
+            ], QuadbStore::statusCommandOutput($storeDir));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $repo->headText(),
+                'stderr' => '',
+            ], QuadbStore::headCommandOutput($storeDir));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $repo->statsText(),
+                'stderr' => '',
+            ], QuadbStore::statsCommandOutput($storeDir));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $repo->dumpTreeText(),
+                'stderr' => '',
+            ], QuadbStore::dumpTreeCommandOutput($storeDir));
+
+            $storedBeforeRemove = quadrableQuadbStoredNodeCount($repo);
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::headRemoveCommandOutput($storeDir));
+
+            $afterRemove = QuadbStore::open($storeDir);
+            $t->same("Head: preview\nRoot: 0x" . HashTree::EMPTY_HASH . " (0)\n", $afterRemove->statusText());
+            $t->contains('   master : ', $afterRemove->headText());
+            $t->true(!str_contains($afterRemove->headText(), 'preview :'), 'removed current head should disappear from head output');
+
+            $gcCommand = QuadbStore::garbageCollectCommandOutput($storeDir);
+            $t->same(0, $gcCommand['exitCode']);
+            $t->same('', $gcCommand['stderr']);
+            $gc = quadrableQuadbParseGcText($gcCommand['stdout']);
+            $t->same($storedBeforeRemove, $gc['total']);
+            $t->true($gc['garbage'] > 0);
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($emptyDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
     'native quadb store maps checkout and fork command output' => static function (TestRunner $t): void {
         $missingDir = quadrableQuadbTempDir();
         $storeDir = quadrableQuadbTempDir();
@@ -791,6 +935,96 @@ return [
             $t->throws(RuntimeException::class, static fn () => $reopened->applyPatchLines("~wp_posts:1|bad\n", '|'));
             $t->throws(RuntimeException::class, static fn () => $reopened->applyPatchLines("+wp_posts:1 missing separator\n", '|'));
         } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
+    'native quadb store maps diff and patch command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $emptyDir = quadrableQuadbTempDir();
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $missingError = "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n";
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $missingError,
+            ], QuadbStore::diffCommandOutput($missingDir, 'master', '|'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => $missingError,
+            ], QuadbStore::patchCommandOutput($missingDir, "+wp_posts:1|Preview edit\n", '|'));
+            $t->true(!is_dir($missingDir), 'missing diff/patch commands should not create the database directory');
+
+            if (!mkdir($emptyDir, 0755, true) && !is_dir($emptyDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::diffCommandOutput($emptyDir, 'missing-head', '|'));
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($emptyDir)->rootText());
+
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Hello world\n",
+                '|'
+            );
+            $repo->fork('wp-preview');
+            $repo->put('wp_posts:1', 'Preview edit');
+            $repo->put('wp_posts:2', 'New page');
+            $repo->delete('wp_options:home');
+            $previewRoot = $repo->tree()->rootHash();
+
+            $expectedPatch = "-wp_posts:1|Hello world\n"
+                . "+wp_posts:1|Preview edit\n"
+                . "-wp_options:home|https://example.test\n"
+                . "+wp_posts:2|New page\n";
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $expectedPatch,
+                'stderr' => '',
+            ], QuadbStore::diffCommandOutput($dir, 'master', '|'));
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::forkCommandOutput($dir, 'wp-replica', 'master'));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::patchCommandOutput($dir, "# preview patch\n" . $expectedPatch, '|'));
+
+            $replica = QuadbStore::open($dir);
+            $t->same($previewRoot, $replica->tree()->rootHash());
+            $t->same('Preview edit', $replica->get('wp_posts:1'));
+            $t->same('New page', $replica->get('wp_posts:2'));
+            $t->throws(RuntimeException::class, static fn () => $replica->get('wp_options:home'));
+
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: empty line in patch\n",
+            ], QuadbStore::patchCommandOutput($dir, "\n", '|'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: unexpected line in patch\n",
+            ], QuadbStore::patchCommandOutput($dir, "~wp_posts:1|bad\n", '|'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: couldn't find separator in input line\n",
+            ], QuadbStore::patchCommandOutput($dir, "+wp_posts:1 missing separator\n", '|'));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($emptyDir);
             quadrableQuadbRemoveDir($dir);
         }
     },

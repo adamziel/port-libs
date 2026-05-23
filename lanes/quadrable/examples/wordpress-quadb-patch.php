@@ -7,6 +7,7 @@ use PortLibs\Quadrable\QuadbStore;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $dir = sys_get_temp_dir() . '/quadrable-wp-quadb-patch-' . bin2hex(random_bytes(6));
+$missingDir = sys_get_temp_dir() . '/quadrable-wp-quadb-patch-missing-' . bin2hex(random_bytes(6));
 
 $cleanup = static function (string $dir): void {
     if (!is_dir($dir)) {
@@ -42,19 +43,35 @@ try {
     $repo->delete('wp_options:home');
 
     $previewRoot = $repo->tree()->rootHash();
-    $patch = $repo->diffLines('master', '|');
+    $diffCommand = QuadbStore::diffCommandOutput($dir, 'master', '|');
+    if ($diffCommand['exitCode'] !== 0) {
+        throw new RuntimeException($diffCommand['stderr']);
+    }
+    $patch = $diffCommand['stdout'];
 
-    $replica = $repo->fork('replica', 'master');
-    $repo->applyPatchLines("# patch generated from preview\n" . $patch, '|');
+    $forkCommand = QuadbStore::forkCommandOutput($dir, 'replica', 'master');
+    if ($forkCommand['exitCode'] !== 0) {
+        throw new RuntimeException($forkCommand['stderr']);
+    }
+    $patchCommand = QuadbStore::patchCommandOutput($dir, "# patch generated from preview\n" . $patch, '|');
+    if ($patchCommand['exitCode'] !== 0) {
+        throw new RuntimeException($patchCommand['stderr']);
+    }
+
+    $replica = QuadbStore::open($dir);
+    $missingDiff = QuadbStore::diffCommandOutput($missingDir, 'master', '|');
 
     echo json_encode([
-        'scenario' => 'apply quadb-style tracked string-key patch lines to a WordPress preview snapshot',
+        'scenario' => 'apply quadb command-style tracked string-key patch lines to a WordPress preview snapshot',
+        'missingStoreFailsClosed' => $missingDiff['exitCode'] === 1 && !is_dir($missingDir),
+        'diffCommandClean' => $diffCommand['stderr'] === '',
+        'patchCommandClean' => $patchCommand['stderr'] === '',
         'patchLines' => array_values(array_filter(explode("\n", trim($patch)), static fn (string $line): bool => $line !== '')),
-        'replicaStartedAtMaster' => $replica->get('wp_posts:1') === 'Published post',
-        'replicaMatchesPreviewRoot' => $repo->tree()->rootHash() === $previewRoot,
-        'previewPost' => $repo->get('wp_posts:1'),
-        'newDraft' => $repo->get('wp_posts:2'),
+        'replicaMatchesPreviewRoot' => $replica->tree()->rootHash() === $previewRoot,
+        'previewPost' => $replica->get('wp_posts:1'),
+        'newDraft' => $replica->get('wp_posts:2'),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($dir);
+    $cleanup($missingDir);
 }
