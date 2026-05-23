@@ -12,12 +12,12 @@ final class MemoryProvider
     public const ERROR_DIR_EXISTS = "can't copy directory - destination already exists";
 
     /**
-     * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}>
+     * @var array<string, array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable}>
      */
     private array $objects = [];
 
     /**
-     * @var array<string, array{path: string, entry: array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}}>
+     * @var array<string, array{path: string, entry: array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable}}>
      */
     private array $duplicateObjects = [];
 
@@ -49,6 +49,11 @@ final class MemoryProvider
      * @var list<array{path: string, offset: int, length: ?int}>
      */
     private array $openLog = [];
+
+    /**
+     * @var list<array{path: string, offset: int, length: ?int}>
+     */
+    private array $closeLog = [];
 
     /**
      * @var array<string, string>
@@ -98,7 +103,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>, closeError?: \Throwable|string|null} $options
      */
     public function put(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -109,7 +114,7 @@ final class MemoryProvider
      * Model rclone PutStream: callers may not know the source size up front,
      * but a successful provider object reports the stored byte length.
      *
-     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @param array{modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>, closeError?: \Throwable|string|null} $options
      */
     public function putStream(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -122,7 +127,7 @@ final class MemoryProvider
      * Model fs.Object.Update: the source object's remote name is ignored and
      * the existing object's remote path is kept while bytes/metadata change.
      *
-     * @param array{sourcePath?: string, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @param array{sourcePath?: string, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>, closeError?: \Throwable|string|null} $options
      */
     public function updateObject(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -137,7 +142,7 @@ final class MemoryProvider
      * Add another object with the same remote path, matching providers that
      * support duplicate names via unchecked writes.
      *
-     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>, closeError?: \Throwable|string|null} $options
      */
     public function putUnchecked(string $path, string $bytes, array $options = []): ObjectInfo
     {
@@ -770,13 +775,21 @@ final class MemoryProvider
             ? substr($entry['bytes'], $offset)
             : substr($entry['bytes'], $offset, $length);
 
-        return new class($bytes, $readError, $readErrorAfterBytes) {
+        $closeError = $entry['closeError'];
+        $onClose = function () use ($path, $offset, $length): void {
+            $this->closeLog[] = ['path' => $path, 'offset' => $offset, 'length' => $length];
+        };
+
+        return new class($bytes, $readError, $readErrorAfterBytes, $closeError, $onClose) {
             private int $offset = 0;
+            private bool $closed = false;
 
             public function __construct(
                 private readonly string $bytes,
                 private readonly ?\Throwable $readError,
                 private readonly ?int $readErrorAfterBytes,
+                private readonly ?\Throwable $closeError,
+                private readonly \Closure $onClose,
             ) {
             }
 
@@ -821,6 +834,13 @@ final class MemoryProvider
 
             public function close(): void
             {
+                if (!$this->closed) {
+                    ($this->onClose)();
+                    $this->closed = true;
+                }
+                if ($this->closeError !== null) {
+                    throw $this->closeError;
+                }
             }
         };
     }
@@ -831,6 +851,14 @@ final class MemoryProvider
     public function openLog(): array
     {
         return $this->openLog;
+    }
+
+    /**
+     * @return list<array{path: string, offset: int, length: ?int}>
+     */
+    public function closeLog(): array
+    {
+        return $this->closeLog;
     }
 
     public function info(string $path): ObjectInfo
@@ -1261,7 +1289,7 @@ final class MemoryProvider
     }
 
     /**
-     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable}
      */
     private function entry(string $path): array
     {
@@ -1279,8 +1307,8 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>} $options
-     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @param array{unknownSize?: bool, modTime?: \DateTimeInterface|string|null, mimeType?: string|null, metadata?: array<string, string>, id?: string|null, parentId?: string|null, tier?: string|null, hashes?: array<string, string>, openError?: \Throwable|string|null, readError?: \Throwable|string|null, readErrorAfterBytes?: int|null, readBreaks?: list<int>, closeError?: \Throwable|string|null} $options
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable}
      */
     private function objectEntry(string $bytes, array $options): array
     {
@@ -1300,6 +1328,7 @@ final class MemoryProvider
                 ? null
                 : $this->normalizeReadErrorAfterBytes($options),
             'readBreaks' => array_map(static fn (int $break): int => max(0, $break), $options['readBreaks'] ?? []),
+            'closeError' => $this->normalizeThrowable($options['closeError'] ?? null),
         ];
     }
 
@@ -1316,9 +1345,9 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable} $entry
      * @param array<string, scalar|null> $metadata
-     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable}
      */
     private function entryWithMetadataSet(array $entry, array $metadata): array
     {
@@ -1529,7 +1558,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable} $entry
      */
     private function putDuplicateEntry(string $path, array $entry): ObjectInfo
     {
@@ -1557,7 +1586,7 @@ final class MemoryProvider
     }
 
     /**
-     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>}
+     * @return array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable}
      */
     private function listedObjectEntry(ObjectInfo $info): array
     {
@@ -1580,7 +1609,7 @@ final class MemoryProvider
     }
 
     /**
-     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>} $entry
+     * @param array{bytes: string, unknownSize: bool, modTime: ?string, mimeType: ?string, metadata: array<string, string>, id: ?string, parentId: ?string, tier: ?string, hashes: array<string, string>, openError: ?\Throwable, readError: ?\Throwable, readErrorAfterBytes: ?int, readBreaks: list<int>, closeError: ?\Throwable} $entry
      */
     private function putEntry(string $path, array $entry): ObjectInfo
     {

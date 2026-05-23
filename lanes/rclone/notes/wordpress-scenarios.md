@@ -10,6 +10,10 @@ The chunksize slice adds native upload chunk-size selection for providers with a
 
 The sequential chunkedreader slice adds native restore-side range reading for WXR artifacts: a reader opens provider ranges lazily, grows sequential chunks up to a cap, honors one-shot custom `RangeSeek` lengths, and surfaces closed/invalid seek errors like upstream rclone.
 
+The parallel chunkedreader slice adds native restore-side prefetch behavior for known-size WXR artifacts: requested chunks are rounded to rclone's 1 MiB multipart buffer size, the configured stream window is kept prefetched, seeks inside a prefetched range reuse buffered bytes, seeks outside the window restart lazily on the next read, `RangeSeek` ignores custom lengths in parallel mode, and unknown-size objects are rejected for parallel reads.
+
+The parallel cleanup slice adds the remaining provider-failure boundaries needed for robust WXR restores: failed prefetch reads close the failed stream plus already-open ranges, `Close` reports the first provider close failure after closing every prefetched range, and seeks past abandoned ranges ignore close cleanup errors like upstream rclone.
+
 ## Filtered Backup Example
 
 The fixture in `../fixtures/wordpress-backup-tree.php` models a small WordPress backup set with uploads, cache files, logs, WXR export data, and a SQL dump. The example in `../examples/wordpress-filtered-backup.php` includes uploads plus export/database artifacts while excluding cache, debug logs, and heavyweight design source files before planning changed paths. The current copy-changed test then copies only the included missing/changed artifacts and verifies the next filtered sync is empty.
@@ -112,6 +116,8 @@ The `../examples/wordpress-chunked-archive-upload.php` example maps upstream `fs
 
 The `../examples/wordpress-chunked-wxr-restore.php` example maps upstream sequential `fs/chunkedreader` behavior for WXR restores. It reads an initial header chunk, continues through a grown chunk range, then lazily seeks to the closing `</rss>` range without reopening the provider until bytes are requested.
 
+The `../examples/wordpress-parallel-chunked-wxr-restore.php` example maps upstream parallel `fs/chunkedreader` behavior for larger WXR restores. It opens two provider ranges up front, reads across the 1 MiB boundary using the prefetched second range, then seeks to the closing `</rss>` tail without another provider open. The cleanup tests cover the provider-failure side of that same restore path without shelling out to rclone.
+
 ## Next Task
 
-Continue into `fs/chunkedreader` parallel prefetch/seek behavior, or validate provider-ID duplicate-directory merge against live-provider fixture evidence.
+Map a small chunkedreader factory wrapper that chooses sequential versus parallel from upstream `New`, or validate provider-ID duplicate-directory merge against live-provider fixture evidence.
