@@ -2572,6 +2572,9 @@ HTML;
         $t->same(['bgcolor' => '#ccc'], $footRow->attr('attributes'));
         $t->same(['square' => 'true'], $footRow->children[0]->attr('attributes'));
         $t->contains('<table id="attrib-test-table">', $blocks);
+        $t->contains('<thead class="table-head"><tr class="table-head-row">', $blocks);
+        $t->contains('<tbody class="main" data-part="body"><tr data-part="row">', $blocks);
+        $t->contains('<tfoot class="summary"><tr bgcolor="#ccc">', $blocks);
         $t->contains('<th abbr="x" colspan="3">Cat X</th>', $blocks);
         $t->contains('<td data-part="cell">1</td><td valign="bottom">2</td><td style="color: #151950">3</td>', $blocks);
         $t->contains('<td data-square="true">4</td>', $blocks);
@@ -2602,10 +2605,10 @@ HTML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Structured HTML import table:</p>', $blocks);
-        $t->contains('<figure class="wp-block-table"><table id="nordics" data-source="wikipedia"><colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:20%"/><col style="width:20%"/></colgroup><thead><tr><th style="text-align:center">Name</th><th style="text-align:center">Capital</th><th style="text-align:center">Population', $blocks);
-        $t->contains('<tbody><tr><th style="text-align:center">Denmark</th><td style="text-align:left">Copenhagen</td>', $blocks);
+        $t->contains('<figure class="wp-block-table"><table id="nordics" data-source="wikipedia"><colgroup><col style="width:30%"/><col style="width:30%"/><col style="width:20%"/><col style="width:20%"/></colgroup><thead class="simple-head"><tr><th style="text-align:center">Name</th><th style="text-align:center">Capital</th><th style="text-align:center">Population', $blocks);
+        $t->contains('<tbody class="souvereign-states"><tr class="country"><th style="text-align:center">Denmark</th><td style="text-align:left">Copenhagen</td>', $blocks);
         $t->contains('<figcaption class="wp-element-caption">States belonging to the <em>Nordics.</em></figcaption>', $blocks);
-        $t->contains('<tfoot><tr><td style="text-align:center">Total</td><td style="text-align:left"></td><td style="text-align:left">27,376,022</td><td style="text-align:left">1,258,336</td></tr></tfoot>', $blocks);
+        $t->contains('<tfoot><tr id="summary"><td style="text-align:center">Total</td><td style="text-align:left"></td><td style="text-align:left">27,376,022</td><td style="text-align:left">1,258,336</td></tr></tfoot>', $blocks);
     },
     'writes wordpress multiple html table bodies from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
@@ -2623,11 +2626,13 @@ HTML;
         $t->contains('<p>Segmented HTML import table:</p>', $blocks);
         $t->same('table_body', $segmented->children[1]->type);
         $t->same(['batch' => 'published'], $segmented->children[1]->attr('attributes'));
+        $t->same(['review-row' => 'published'], $segmented->children[1]->children[0]->attr('attributes'));
         $t->same('paragraph', $segmented->children[1]->children[0]->children[1]->children[0]->type);
         $t->same('12', $segmented->children[1]->children[0]->children[1]->children[0]->attr('text'));
         $t->same('table_body', $segmented->children[2]->type);
         $t->same(['batch' => 'review'], $segmented->children[2]->attr('attributes'));
-        $t->contains('<thead><tr><th>Batch</th><th>Posts</th><th>Status</th></tr></thead><tbody><tr><td>May archive</td><td><p>12</p></td><td>Published</td></tr></tbody><tbody><tr><td>June archive</td><td>8</td><td>Needs media review</td></tr></tbody>', $blocks);
+        $t->same(['review-row' => 'media'], $segmented->children[2]->children[0]->attr('attributes'));
+        $t->contains('<thead><tr><th>Batch</th><th>Posts</th><th>Status</th></tr></thead><tbody data-batch="published"><tr data-review-row="published"><td>May archive</td><td><p>12</p></td><td>Published</td></tr></tbody><tbody data-batch="review"><tr data-review-row="media"><td>June archive</td><td>8</td><td>Needs media review</td></tr></tbody>', $blocks);
     },
     'maps upstream testsuite raw html comments hr blocks and indented html code' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
@@ -3359,7 +3364,7 @@ XML;
         $t->same(1, $bodyHeadedTable->children[1]->attr('headRowCount'));
         $t->same('Posts', $bodyHeadedTable->children[1]->children[0]->children[0]->attr('text'));
         $t->contains('<p>Body-headed HTML reader import table:</p>', $blocks);
-        $t->contains('<tbody><tr><th>Queue</th><th>Items</th><th>Status</th></tr><tr><td>Posts</td><td>42</td><td>Ready</td></tr><tr><td colspan="3">Review body-local headers before publish</td></tr></tbody><tfoot><tr><th>Total</th><td>42</td><td>Ready</td></tr></tfoot>', $blocks);
+        $t->contains('<tbody data-batch="audit"><tr><th>Queue</th><th>Items</th><th>Status</th></tr><tr><td>Posts</td><td>42</td><td>Ready</td></tr><tr><td colspan="3">Review body-local headers before publish</td></tr></tbody><tfoot><tr><th>Total</th><td>42</td><td>Ready</td></tr></tfoot>', $blocks);
     },
     'writes wordpress html reader quote citations and hard breaks from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

@@ -75,8 +75,10 @@ attribute-carrying cases: no-header `colspan` tables parse as native table
 nodes instead of raw HTML, headed tables keep `colspan`/`rowspan` metadata, and
 Pandoc-style table/section/row/cell attrs are captured in the AST. WordPress
 table output preserves table identity attrs and practical cell attrs such as
-`abbr`, `valign`, `data-*`, and non-alignment `style` values while leaving row
-and section attrs in the AST for later export tooling.
+`abbr`, `valign`, `data-*`, and non-alignment `style` values. The writer now
+also emits section and row attrs from the upstream Attributes table, so source
+batch classes, `data-part` markers, and foot-row review color markers survive
+in WordPress table markup.
 The upstream empty-table case is now mapped as well: legacy HTML table shells
 with no cells are consumed and omitted instead of becoming empty WordPress
 table blocks or raw HTML review blocks.
@@ -277,8 +279,8 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   breaks, and superscript units in WordPress table block output.
 - The fixture now includes a segmented HTML import table based on the upstream
   multiple-`tbody` reader cases, exercising separate body groups for published
-  and media-review batches plus paragraph-bearing table cells in WordPress
-  table block output.
+  and media-review batches, section and row metadata attrs, plus
+  paragraph-bearing table cells in WordPress table block output.
 - The fixture now includes a plain td-only HTML reader import table, exercising
   the upstream headerless table body path without changing Markdown-looking raw
   review tables.
@@ -376,6 +378,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   preserved `<thead>`, `<tbody>`, `<tfoot>`, `<colgroup>`, caption inline
   markup, row-header `<th>` cell treatment, inferred header rows, omitted
   section-end normalization, and superscript units without invoking Pandoc.
+- HTML reader table Attributes imports render as core WordPress table blocks
+  with preserved table ids, section classes/data attributes, row
+  classes/data/bgcolor attributes, and practical cell attrs without invoking
+  Pandoc.
 - HTML reader quote/cite paragraphs render as WordPress paragraph blocks with
   Pandoc-style typographic quotes, preserved citation metadata, and hard
   `<br/>` line breaks without invoking Pandoc.
@@ -424,7 +430,8 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   around emphasis are normalized outside `<em>` so reviewer copy round-trips
   like Pandoc's native AST.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
-  invoking Pandoc, keeping source batches visually grouped for reviewer scans.
+  invoking Pandoc, keeping source batches visually grouped for reviewer scans
+  with body and row metadata attrs intact.
 - Paragraph-bearing cells inside segmented HTML import tables stay as block
   paragraphs inside their table cells without invoking Pandoc.
 - Plain headerless HTML reader tables render as core WordPress table blocks
@@ -475,7 +482,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next unmapped bounded HTML-reader table or inline fixture shard from
-`test/html-reader.html/native`, starting with any remaining table
-caption/column metadata or inline attribute cases not covered by the current
-slices.
+Map the next unmapped bounded HTML-reader inline/header fixture shard from
+`test/html-reader.html/native`, starting with early Headers/Paragraphs metadata,
+title, and header class cases.

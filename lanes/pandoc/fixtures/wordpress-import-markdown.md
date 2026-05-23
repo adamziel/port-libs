@@ -339,10 +339,10 @@ Segmented HTML import table:
 <tr><th>Batch</th><th>Posts</th><th>Status</th></tr>
 </thead>
 <tbody data-batch="published">
-<tr><td>May archive</td><td><p>12</p></td><td>Published</td></tr>
+<tr data-review-row="published"><td>May archive</td><td><p>12</p></td><td>Published</td></tr>
 </tbody>
 <tbody data-batch="review">
-<tr><td>June archive</td><td>8</td><td>Needs media review</td></tr>
+<tr data-review-row="media"><td>June archive</td><td>8</td><td>Needs media review</td></tr>
 </tbody>
 </table>
 

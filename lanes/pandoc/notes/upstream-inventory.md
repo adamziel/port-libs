@@ -134,6 +134,13 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   body-local `TableBody` head-row cases, the four plain `Tables without
   Headers` body-only/body-omitted/empty-head/body-plus-foot shapes, plus the two
   empty table inputs omitted from the upstream native output.
+- `test/html-reader.html` upstream Attributes table inspected in this run:
+  lines 766-786 include table id metadata, `thead` class metadata, a head-row
+  class, `tbody` class plus `data-part`, body-row `data-part`, practical cell
+  attrs, `tfoot` class metadata, and a foot-row `bgcolor` marker.
+- `test/html-reader.native` upstream Attributes table rendered AST inspected in
+  this run: lines 3202-3272 show those fields as Pandoc native attributes on
+  `Table`, `TableHead`, `Row`, `TableBody`, `TableFoot`, and `Cell` nodes.
 - `test/html-reader.html` paragraph and inline-quote slice inspected in this
   run: upstream lines 33-86 cover a paragraph hard line break and two `<q>`
   examples, one with a `cite` attribute and one without.
@@ -435,7 +442,8 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   the cells are plain scalar text. The WordPress writer now emits body
   row-header cells as `<th>` instead of flattening them to `<td>`, renders
   body-local head rows inside `<tbody>` before ordinary body rows, preserves
-  table identity attributes, carries practical cell attributes such as `abbr`,
+  table identity attributes, emits section and row attrs on `<thead>`, `<tbody>`,
+  `<tfoot>`, and `<tr>`, carries practical cell attributes such as `abbr`,
   `valign`, `data-*`, and non-alignment `style` values, emits one `<tbody>` per
   `table_body` node, preserves paragraph cells as `<td><p>...</p></td>`, and
   emits headerless plain import grids as core table blocks. The upstream
@@ -619,6 +627,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 142 behavior tests, 1,322 assertions, and 0 failures after this slice. The
+with 142 behavior tests, 1,327 assertions, and 0 failures after this slice. The
 required repo-wide `php tools/run-tests.php` command was run after this slice
-and passed with 162 test files, 14,874 assertions, and 0 failures.
+and passed with 163 test files, 15,003 assertions, and 0 failures.

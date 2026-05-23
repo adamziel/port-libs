@@ -284,7 +284,7 @@ final class WordPressBlockWriter
 
         $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
-            $html .= '<thead>';
+            $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
             foreach ($head->children as $row) {
                 $html .= $this->renderTableRow($row, $node, true);
             }
@@ -295,7 +295,7 @@ final class WordPressBlockWriter
             $bodies[] = new AstNode('table_body');
         }
         foreach ($bodies as $body) {
-            $html .= '<tbody>';
+            $html .= '<tbody' . $this->renderStoredHtmlAttrs($body, true, []) . '>';
             $bodyHeadRows = $body->attr('headRows', []);
             if (is_array($bodyHeadRows)) {
                 foreach ($bodyHeadRows as $row) {
@@ -310,7 +310,7 @@ final class WordPressBlockWriter
             $html .= '</tbody>';
         }
         if ($foot instanceof AstNode && $foot->children !== []) {
-            $html .= '<tfoot>';
+            $html .= '<tfoot' . $this->renderStoredHtmlAttrs($foot, true, []) . '>';
             foreach ($foot->children as $row) {
                 $html .= $this->renderTableRow($row, $node, false);
             }
@@ -389,7 +389,7 @@ final class WordPressBlockWriter
 
     private function renderTableRow(AstNode $row, AstNode $table, bool $header): string
     {
-        $html = '<tr>';
+        $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
         foreach ($row->children as $index => $cell) {
             if ($cell->type !== 'table_cell') {
                 continue;
