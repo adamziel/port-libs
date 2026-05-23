@@ -411,23 +411,46 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   mapped by focused PHP tests
 - `Tests.Readers.Markdown` smart apostrophe-after-math regression: 1 focused
   case, now mapped by a PHP test
+- `Tests.Readers.Markdown` smart unclosed double-quote regression: 1 focused
+  case, now mapped by a PHP test. `**this should "be bold**` stays a `Strong`
+  node while the unmatched opening quote becomes Pandoc's left double quote.
 - `Tests.Readers.Markdown` footnote edge cases: 3 focused cases, now mapped by
   PHP tests for whitespace-only indented separator termination, indented
   continuation after a blank line, and recursive references left literal inside
   note bodies
+- `Tests.Readers.Markdown` MultiMarkdown sub- and superscripts group: 14
+  focused cases, now mapped by PHP tests for regular delimited sub/superscripts,
+  short digit scripts terminated by spaces, newlines, EOF, punctuation, and
+  emphasis, plus the two no-nesting guards
+- `Tests.Readers.Markdown` citation and citation-following-boundary cases: 8
+  focused cases, now mapped by PHP tests for simple bare citation ids,
+  digit-leading ids, citation followed by a footnote, inline link, reference
+  link, shortcut reference link, implicit header link, and regular citation
+  suffix text
 - `Tests.Readers.Markdown` inline-code attribute cases: 2 focused cases, now
   mapped by PHP tests for immediate attribute attachment and spaced
   attribute-looking text remaining literal
 - `Tests.Readers.Markdown` autolink attribute cases: 2 focused cases, now
   mapped by PHP tests for immediate link attribute attachment and spaced
   attribute-looking text remaining literal
-- `Tests.Readers.Markdown` bare URI autolink extension cases: 6 focused cases,
-  now mapped by PHP tests for leading http(s) URLs, query strings with trailing
-  period, surrounding punctuation, uppercase schemes, balanced parentheses, and
-  bracketed paths whose destinations percent-encode square brackets
+- `Tests.Readers.Markdown` bare URI autolink extension cases: all 41 upstream
+  `bareLinkTests` cases now mapped by PHP tests, including raw HTML anchor
+  pass-through, Greek and long encoded URLs, port/tilde/%20 variants, at-sign
+  paths, DOI/Git/file/mailto schemes, and punctuation boundaries
 - `Tests.Readers.Markdown` no-links-inside-link-label cases: 3 focused cases,
   now mapped by PHP tests for autolinks, inline links, and bare URI-looking
   text staying literal inside ordinary link labels
+- `Tests.Readers.Markdown` raw HTML regression cases: 4 focused cases, now
+  mapped by PHP tests for block-start `<del>test</del>` becoming raw-open,
+  plain-content, raw-close blocks, invalid tags remaining literal paragraph
+  text, technically invalid comments staying raw HTML, and the
+  GitHub-flavored split `<`/`a>` case remaining two paragraphs
+- `Tests.Readers.Markdown` raw email address cases: 1 focused GitHub-flavored
+  Markdown case, now mapped by a PHP test that keeps `**@user**` as strong text
+  rather than treating `@user` as link syntax
+- `Tests.Readers.Markdown` emoji extension cases: 1 focused GitHub-flavored
+  Markdown case, now mapped by a PHP test that converts `:smile:` and `:+1:`
+  into emoji `Span` nodes with `class="emoji"` and `data-emoji` metadata
 - Focused `# Lists` fancy-marker mappings from `test/testsuite.txt`: 4 local
   checks covering parenthesized decimal starts, lower/upper roman numerals,
   upper/lower alphabetic markers, and Pandoc autonumbering
@@ -461,11 +484,15 @@ runner parity.
 
 The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
 
-- ATX headings, including the `test/markdown-reader-more.txt` implicit header
-  reference slice: generated identifiers, duplicate generated-id suffixes,
-  shortcut/collapsed/case-insensitive implicit links, explicit heading
-  attributes, and explicit reference definitions overriding implicit heading
-  targets.
+- ATX and setext headings, including all eight adjacent
+  `Tests.Readers.Markdown` Header and Implicit header references cases:
+  blank-leading ATX headings, bracketed heading text, closing ATX `#`
+  normalization, setext headings, and implicit header references whose labels
+  trim surrounding spaces. The existing `test/markdown-reader-more.txt`
+  implicit header reference slice remains covered too: generated identifiers,
+  duplicate generated-id suffixes, shortcut/collapsed/case-insensitive
+  implicit links, explicit heading attributes, and explicit reference
+  definitions overriding implicit heading targets.
 - Paragraph joining, including the `test/markdown-reader-more.txt`
   backslash-newline slice where an unescaped trailing backslash before a line
   boundary becomes a `LineBreak` node instead of a soft line wrap.
@@ -482,6 +509,16 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   superscripts with escaped spaces normalized to non-breaking spaces,
   `H~2~O`/`H~23~O`/`H~many\ of\ them~O` map to subscripts, and the upstream
   unescaped-space examples remain plain text rather than script spans.
+- MultiMarkdown short script delimiters from `Tests.Readers.Markdown`: `O~2`
+  and `x^2` forms become subscript/superscript nodes when followed by a space,
+  newline, EOF, punctuation, or emphasis, while `y~*2*` and `y^*2*` keep the
+  marker literal and parse only the following emphasis.
+- Citation cases from `Tests.Readers.Markdown`: bare `@item1` and
+  `@1657:huyghens` become author-in-text citation nodes, `@cita[^note]` leaves
+  the following note reference attached, citation plus inline/reference/
+  shortcut/implicit-header links keeps the real link separate, and
+  `@cita [foo]` becomes one citation node with suffix text when `[foo]` is not
+  otherwise a link.
 - Inline code spans, including the `test/markdown-reader-more.txt` cases where
   a trailing backslash is literal inside code, embedded newlines normalize to
   spaces, longer backtick delimiters permit literal backticks, and a blank line
@@ -504,6 +541,12 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   nested inline links, and bare URI-looking text inside an ordinary link label
   remain literal label text, while non-link inline markup such as emphasis still
   parses inside the label.
+- Raw HTML regression boundaries from `Tests.Readers.Markdown`: a single-line
+  `<del>test</del>` at block start becomes a raw HTML opening block, a plain
+  content block, and a raw HTML closing block; malformed tags such as
+  `</ div></.div>` stay paragraph text; invalid comments such as
+  `<!-- pandoc --help -->` stay raw comment blocks; and GitHub-flavored split
+  angle-bracket input remains separate literal paragraphs.
 - Multilingual URI/e-mail links from `test/markdown-reader-more.txt`: Unicode
   URI autolinks keep the URL as both text and destination, inline links keep
   Unicode destination text plus title metadata, and Unicode e-mail autolinks
@@ -636,6 +679,10 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `$x$'s` parses as inline math followed by a right apostrophe text node, and
   the trailing possessive apostrophe in `systems' condition` normalizes to
   Pandoc's right single quotation mark.
+- The `Tests.Readers.Markdown` unclosed double-quote smart-punctuation
+  regression is mapped too: `**this should "be bold**` remains a `Strong` node
+  and the unmatched opening quote is normalized to a left double quote instead
+  of staying straight source text.
 - Special Characters cases from `test/testsuite.txt`, cross-checked against
   `test/testsuite.native`: Unicode list item text stays literal, `AT&amp;T`
   decodes to `AT&T` in the inline text node, literal `&`, `<`, and `>` examples
@@ -834,22 +881,80 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   WordPress writer emits safe link id/class/data/title attrs for reviewer
   source links while keeping ordinary URI/e-mail autolinks visually unchanged.
 - The `Tests.Readers.Markdown` bare URI autolink extension slice is now mapped
-  too: leading http(s) URLs, query URLs followed by sentence punctuation,
-  parenthesized URLs, uppercase schemes, balanced parenthesized paths, and
-  bracketed paths produce `uri` links with Pandoc-compatible visible text and
-  safe destinations.
+  against all 41 upstream `bareLinkTests` cases: leading http(s) URLs, raw HTML
+  anchor pass-through without nested autolinking, query URLs followed by
+  sentence punctuation, parenthesized URLs, uppercase schemes, Greek URLs,
+  balanced parenthesized paths, bracketed and braced destinations with safe
+  percent-encoding, `doi:`, `git://`, `file://`, and `mailto:` source URIs, the
+  `Use http:` non-link guard, long encoded HTTP URLs, port/tilde/%20 variants,
+  at-sign archive paths, semicolon/query/fragment/plus URL shapes, repeated
+  plain HTTP inputs, and both trailing-hyphen forms.
 - The `Tests.Readers.Markdown` no-links-inside-link-label slice is now mapped
   too: `[<https://example.org>](url)`, `[[a](url2)](url)`, and
   `[https://example.org(](url)` each produce one outer Link whose label content
   stays literal text. The helper used for link and image labels keeps recursive
   link parsing disabled while preserving non-link inline markup such as
   emphasis.
+- The adjacent `Tests.Readers.Markdown` raw email, emoji, and GitHub wiki-link
+  extension slice is now mapped too: `**@user**` stays a `Strong` node with
+  literal `@user` text, GitHub-flavored `:smile: and :+1:` becomes two emoji
+  `Span` nodes with `class="emoji"`, `data-emoji` metadata, and the expected
+  glyph text, and the six `Github wiki links` cases become classed Link nodes.
+  The mapped wiki cases cover bare URL links, title-before-pipe links,
+  non-URL page targets, page names with spaces, page names containing a literal
+  `]`, and labels containing backticks/asterisks that stay literal text.
+  Unknown emoji aliases remain literal text.
+- The adjacent `Tests.Readers.Markdown` MultiMarkdown short sub/superscript
+  slice is now mapped too: the 14-case group covers the regular delimited
+  `H~2~` and `x^3^` cases, short digit scripts before whitespace/newline/EOF,
+  punctuation, and emphasis, and the no-nesting guards where `y~*2*` and
+  `y^*2*` remain literal marker text followed by emphasis.
+- The adjacent `Tests.Readers.Markdown` citation and
+  citation-following-boundary slice is now mapped too: the 8-case group covers
+  simple author-in-text ids, digit-leading ids, footnote/link boundaries after
+  `@cita`, reference and shortcut reference disambiguation, implicit header
+  links, and the regular citation suffix case. Bare citation parsing is
+  deliberately kept out of nested emphasis so GitHub-flavored `**@user**`
+  remains strong literal text in the earlier raw-email slice.
+- The adjacent `Tests.Readers.Markdown` figures slice is now mapped for the
+  `latex placement` case: `![caption](img.jpg){latex-placement="htbp"
+  alt="alt text"}` becomes a standalone Figure with `latex-placement` metadata,
+  while the image's alt text is overridden to `alt text` and the visible caption
+  remains `caption`.
+- The adjacent `Tests.Readers.Markdown` emph/strong delimiter slice is now
+  mapped for two upstream cases from the `emph and strong` group:
+  `*x **xx** x*` and `***a**b **c**d*`. The native PHP reader keeps the outer
+  emphasis open across inner strong delimiter runs, yielding `Emph` nodes with
+  nested `Strong` children instead of prematurely closing at the first `**`
+  run.
+- The same upstream `emph and strong` group is now mapped for the alternating
+  softbreak case too: `*xxx* ***xxx*** xxx` followed by another physical
+  paragraph line keeps the newline as a `SoftBreak` inline node between the two
+  emphasized runs. Paragraph `text` attributes remain space-normalized for
+  existing callers, while the AST and WordPress output preserve the line
+  boundary. The full upstream group has four cases; three are now explicitly
+  mapped in this focused slice.
+- The adjacent `Tests.Readers.Markdown` smart-punctuation unclosed double quote
+  case is now mapped too: the native PHP reader keeps
+  `**this should "be bold**` as strong content and converts the unmatched
+  opening quote to a left double quote, matching Pandoc's smart reader.
+- The same upstream `Tests.Readers.Markdown` smart-punctuation group is now
+  fully mapped for its seven named cases across upstream lines 362-383. The
+  latest slice covers quote-before-ellipsis (`'...hi'`), apostrophe before
+  emphasis (`D'oh! A l'*aide*!`), and the French guillemet case
+  (`l'«impossibilité...`). Smart apostrophe boundaries now use Unicode
+  letter/number checks, while issue #11613 inline-note quote delimiters inside
+  `^[...]` notes still stay inside the note instead of closing the surrounding
+  single or double quoted span.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 164 behavior tests, 1,699 assertions, and 0 failures after this slice. No
-active root harness was found by `pgrep -af '^php tools/run-tests\.php( |$)'`,
-so the required repo-wide `php tools/run-tests.php` command was run and passed
-with 183 test files, 18,316 assertions, and 0 failures.
+with 181 behavior tests, 2,043 assertions, and 0 failures after this slice.
+Root verification for this batch was started after the required duplicate-root
+gate returned clear. `php tools/run-tests.php` exited 1 with 192 test files,
+20,864 assertions, and 1 failure in `lanes/quadrable/tests/QuadbStoreTest.php`
+(`native quadb store imports and merges proof-backed heads across reopen`;
+expected `RuntimeException` was not thrown). Pandoc tests passed inside that
+root run.

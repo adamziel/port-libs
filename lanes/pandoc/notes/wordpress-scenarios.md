@@ -182,15 +182,48 @@ The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
 renders as nested strong emphasis in WordPress block HTML.
+The adjacent `Tests.Readers.Markdown` emph-with-strong delimiter cases are now
+represented too: reviewer notes like `*x **xx** x*` and `***a**b **c**d*`
+render as outer emphasis containing nested strong spans, matching Pandoc's
+reader boundary instead of splitting the paragraph at the first inner `**`
+delimiter run.
+The adjacent alternating emph/strong softbreak case is now represented too:
+multi-line reviewer notes keep the physical Markdown paragraph line break as a
+softbreak between repeated emphasis and strong-emphasis runs, so WordPress
+handoff HTML preserves reviewer line boundaries without splitting the paragraph.
 The remaining bounded Inline Markup script/deletion cases are also mapped:
 `~~legacy cleanup~~` renders as deletion markup, `a^*draft*^` renders as a
 superscript containing emphasis, and `H~2~O` renders as subscript text while
 Pandoc's unescaped-space examples stay plain text.
+The adjacent MultiMarkdown short script cases are represented too: compact
+reviewer annotations such as `O~2` and `x^2` render as subscript/superscript
+when followed by spaces, punctuation, or emphasis, while no-nesting forms keep
+the marker literal before ordinary emphasis.
+The adjacent citation boundary cases are represented too: reviewer notes can
+preserve bare Pandoc citations such as `@cita [review-only note]` while still
+keeping following footnotes, inline links, reference links, shortcut reference
+links, and implicit header links separate when those brackets are real links.
+The adjacent figure attribute case is represented too: immediate image
+attributes keep `latex-placement` on the standalone figure and use `alt` as the
+image alt override without replacing the reviewer-visible caption.
 The bounded Smart quotes, ellipses, dashes section is now mapped too: nested
 single and double quote spans render as typographic quotes, contractions and
 date possessives keep Pandoc's right-apostrophe behavior, quoted code and
 one-line reference links stay semantic, `---` becomes an em dash, numeric `--`
 ranges become en dashes, and `...` becomes an ellipsis.
+The adjacent smart-punctuation unclosed quote case is now represented too:
+bold reviewer notes such as `**this should "be bold**` stay strong while the
+unmatched opening quote becomes a left double quote in WordPress output.
+The adjacent inline-note quote cases from `Tests.Readers.Markdown` are now
+represented too: reviewer text such as `'a^['source quote'.] c.'` and
+`"a^["review quote".] c."` keeps the outer quote open across the inline note,
+while the note body parses its own nested smart quote. WordPress output keeps
+the reviewer sentence quoted and emits the note bodies as normal endnotes.
+The remaining `Tests.Readers.Markdown` smart-punctuation edge cases are now
+represented too: quoted leading ellipses render as smart quoted ellipsis text,
+apostrophes before an emphasized French helper phrase stay right apostrophes
+instead of opening quotes, and French guillemet-adjacent apostrophes survive in
+reviewer notes with Unicode-aware word-boundary handling.
 The bounded LaTeX section is now mapped for import-safe preservation: raw TeX
 citations render as escaped inline TeX spans, `$...$` and `$$...$$` math render
 as WordPress-safe math spans, currency-like dollar examples and escaped dollars
@@ -237,10 +270,13 @@ attribute-looking text remains literal. The WordPress fixture uses this path for
 reviewer source links that need stable id, class, data, and title metadata
 without changing ordinary autolink markup.
 The focused `Tests.Readers.Markdown` bare URI autolink extension cases are now
-represented too: plain http(s) source URLs become links, trailing sentence
-punctuation remains outside the anchor, balanced parentheses remain inside the
-destination, uppercase schemes are accepted, and bracketed path text keeps a
-safe percent-encoded destination. The WordPress fixture uses this path for
+represented too: all 41 upstream `bareLinkTests` cases now have local PHP
+coverage. Plain http(s), DOI, Git, file, and mailto source URLs become links,
+trailing sentence punctuation remains outside the anchor, balanced parentheses
+remain inside the destination, uppercase schemes are accepted, bracketed path
+text keeps a safe percent-encoded destination, raw HTML anchors pass through
+without nested autolinking, and Greek, long encoded, port, tilde, `%20`, and
+at-sign path variants stay intact. The WordPress fixture uses this path for
 legacy import notes where reviewers pasted source URLs without angle brackets
 or Markdown link syntax.
 The focused `Tests.Readers.Markdown` no-links-inside-link-label cases are now
@@ -248,6 +284,20 @@ represented too: autolink-looking source URLs, nested Markdown link syntax, and
 bare URI-looking text remain literal inside the outer reviewer link label. The
 WordPress fixture uses this path when import notes need the visible source
 notation to stay reviewable without producing nested anchors.
+The focused `Tests.Readers.Markdown` raw HTML regression cases are now
+represented too: a block-start `<del>test</del>` becomes a raw-open, plain,
+raw-close block sequence, invalid tags stay literal, technically invalid
+comments stay raw HTML, and split angle-bracket text stays in separate
+paragraphs. The WordPress fixture uses this path for legacy raw deletion
+boundaries that should not be flattened into visible tag text.
+The adjacent GitHub-flavored raw email, emoji, and wiki-link extension cases
+are now represented too: `**@user**` remains strong text instead of becoming
+link syntax, `:smile:` and `:+1:` become Pandoc-style emoji spans with
+`class="emoji"` and `data-emoji` metadata, and `[[title|target]]` wiki links
+become classed links with literal label text. The WordPress fixture uses this
+path for reviewer reaction shortcodes and legacy wiki shortcuts that should
+stay visible without importing external media assets or creating nested inline
+markup inside the wiki label.
 The next adjacent `test/markdown-reader-more.txt` multilingual URL and
 numbered-example cases are now represented too: Unicode URI autolinks, Unicode
 inline link destinations, and Unicode e-mail autolinks stay clickable, while
@@ -314,15 +364,17 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   reviewer checkpoints, definition-list import notes, an alternate-marker source
   glossary with nested ordered review tasks, a div-wrapped glossary audit note,
   underscore-delimited reviewer emphasis, nested urgent cleanup emphasis,
-  strikeout cleanup notes, superscript draft status, subscript chemical/media
-  labels, smart import-editor quotes, apostrophes, ellipses, date-range en
+  unclosed bold quote audit text, strikeout cleanup notes, superscript draft
+  status, subscript chemical/media labels, short O~2/x^2 reviewer annotations,
+  smart import-editor quotes, apostrophes, ellipses, date-range en
   dashes, em-dash review notes, HTML entity text that must not double-escape,
   literal comparison characters, reference audit links with WordPress edit-link
   titles, spaced media/manifest URLs that must be `%20`-encoded, autolinked
-  audit URLs, importer email contacts, a standalone
-  referenced release image, an inline thumbnail image, reference and inline
-  footnotes for source audit trails, raw TeX citations, inline/display math
-  notes, a raw TeX table source block, and a fenced PHP migration snippet.
+  audit URLs, importer email contacts, a standalone referenced release image, a
+  latex-placement reviewer gallery figure with an imported alt override, an
+  inline thumbnail image, reference and inline footnotes for source audit
+  trails, raw TeX citations, inline/display math notes, a raw TeX table source
+  block, and a fenced PHP migration snippet.
 - The fixture also includes a raw import table, an HTML migration audit comment,
   and a custom legacy divider to exercise WordPress HTML block output for
   imported raw HTML boundaries.
@@ -338,9 +390,30 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes bare source URL audit notes, exercising
   Pandoc-compatible bare URI autolinks with trailing punctuation and balanced
   parenthesized media paths for pasted migration references.
+- The fixture now includes extended bare source URL audit notes, exercising
+  Greek source URLs, `%20` paths, and at-sign archive paths from the upstream
+  bare URI family.
 - The fixture now includes link-label boundary audit notes, exercising Pandoc's
   rule that link-looking syntax remains literal inside an ordinary link label
   instead of creating nested anchors.
+- The fixture now includes a raw Markdown HTML deletion-boundary audit note,
+  exercising Pandoc's raw-open/plain/raw-close handling for block-start
+  `<del>...</del>` imports.
+- The fixture now includes a reviewer emoji shortcode audit note, exercising
+  GitHub-flavored Pandoc emoji span output for `:smile:` and `:+1:` without
+  shelling out to Pandoc or importing external assets.
+- The fixture now includes compact short script annotations, exercising
+  Pandoc's MultiMarkdown short subscript/superscript delimiter behavior for
+  reviewer notes such as `O~2` and `x^2`.
+- The fixture now includes a multi-line softbreak emphasis note, exercising
+  Pandoc's alternating emph/strong paragraph case while keeping the reviewer
+  note in one WordPress paragraph.
+- The fixture now includes a citation boundary audit note, exercising Pandoc's
+  bare citation suffix behavior while keeping a following reviewer source link
+  as an ordinary WordPress link.
+- The fixture now includes a latex-placement reviewer image figure, exercising
+  Pandoc's immediate image attribute behavior and WordPress-safe
+  `data-pandoc-latex-placement` output.
 - The fixture now includes a Pandoc-style line block, exercising source stanza
   boundaries, nonbreaking indentation, and continuation-line preservation in
   WordPress paragraph output.
@@ -451,6 +524,13 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Raw HTML tables, comments, and custom dividers render inside WordPress HTML
   blocks without shelling out to Pandoc, preserving legacy import annotations
   and table markup that reviewers may need to inspect.
+- Raw Markdown HTML deletion boundaries now preserve Pandoc's block boundary:
+  the opening and closing `<del>` tags stay raw HTML while the contained text
+  renders as ordinary WordPress paragraph content, avoiding literal visible tag
+  text in migrated review notes.
+- GitHub-flavored Pandoc emoji aliases now render as safe inline WordPress
+  spans with `class="emoji"` and `data-emoji` metadata for reviewer reaction
+  notes, while unsupported aliases remain literal source text.
 - Empty legacy HTML table shells are omitted without shelling out to Pandoc,
   avoiding empty WordPress table blocks in migrated content.
 - Nested legacy HTML audit tables render as nested table HTML inside the
@@ -551,6 +631,13 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   pasted http(s) source URLs become anchors with trailing punctuation kept
   outside the link, and importer email autolinks render as `mailto:` links
   without invoking Pandoc.
+- Reviewer-pasted source URI notes now map the adjacent Pandoc bare URI
+  extension cases: DOI identifiers, Git remote URLs, local `file://` export
+  paths, and `mailto:` handoff contacts become WordPress-safe links while
+  commas and periods remain outside the anchor text.
+- Extended reviewer source URL notes now cover the rest of the upstream bare
+  URI shape family: Greek source pages, `%20` paths, and at-sign mailing-list
+  archives render as WordPress-safe links without requiring angle brackets.
 - Legacy media and manifest links with spaces render as WordPress-safe
   `%20`-encoded URLs, including split reference definitions whose title is on a
   following line.
@@ -566,6 +653,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   citation-adjacent shortcut links keep the source link clickable while leaving
   the citation marker visible, and empty reference placeholders render as empty
   `href` links without swallowing the following review paragraph.
+- Bare Pandoc citation imports now keep reviewer citation text visible while
+  preserving link boundaries around adjacent source logs. This lets later
+  citation-processing passes see `@cita [review-only note]` without turning a
+  real migration source link into citation suffix text.
 - Bracketed review spans now preserve Pandoc-style id/class/key-value metadata
   in the AST while the WordPress output emits safe span attributes for migration
   review markers around emphasized edit links.
@@ -575,6 +666,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Implicit intra-document reviewer links render as WordPress anchor links, and
   attributed Markdown headings preserve stable ids/classes for migration review
   without shelling out to Pandoc.
+- ATX headings with closing `#` markers and setext headings from legacy editor
+  notes now normalize to stable WordPress heading anchors, so Data Liberation
+  imports do not expose trailing Markdown fence characters in block output.
 - Referenced import images render as core WordPress image blocks with preserved
   captions/titles, and inline thumbnail images render inside paragraph blocks
   without invoking Pandoc.
@@ -613,6 +707,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the remaining broader `Tests.Readers.Markdown` bare URI extension families:
-doi/git/file/mailto schemes, semicolon/query/fragment variants, and additional
-trailing punctuation boundaries.
+Map the remaining `Tests.Readers.Markdown` `emph and strong` intraword
+underscore case explicitly, or take the adjacent unbalanced-bracket/backslash
+escape group as the next bounded Markdown-reader slice.

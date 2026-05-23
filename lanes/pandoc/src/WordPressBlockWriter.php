@@ -627,12 +627,36 @@ final class WordPressBlockWriter
         }
 
         $caption = (string) $node->attr('caption', $image->attr('alt', ''));
-        $html = '<figure class="wp-block-image">' . $this->renderImageHtml($image);
+        $html = '<figure' . $this->renderImageFigureAttrs($node) . '>' . $this->renderImageHtml($image);
         if ($caption !== '') {
             $html .= '<figcaption>' . $this->esc($caption) . '</figcaption>';
         }
 
         return $html . '</figure>';
+    }
+
+    private function renderImageFigureAttrs(AstNode $node): string
+    {
+        $classes = ['wp-block-image'];
+        $extraClasses = $node->attr('classes', []);
+        if (is_array($extraClasses)) {
+            foreach ($extraClasses as $class) {
+                $classes[] = (string) $class;
+            }
+        }
+
+        $attrs = ' class="' . $this->esc(implode(' ', array_values(array_unique($classes)))) . '"';
+        $id = (string) $node->attr('id', '');
+        if ($id !== '') {
+            $attrs .= ' id="' . $this->esc($id) . '"';
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes) && isset($attributes['latex-placement'])) {
+            $attrs .= ' data-pandoc-latex-placement="' . $this->esc((string) $attributes['latex-placement']) . '"';
+        }
+
+        return $attrs;
     }
 
     private function renderImageHtml(AstNode $node): string
@@ -841,6 +865,7 @@ final class WordPressBlockWriter
             'quoted' => $this->renderQuotedInline($node),
             'math' => $this->renderMathInline($node),
             'raw_tex' => '<span class="pandoc-raw-tex">' . $this->esc((string) $node->attr('tex', '')) . '</span>',
+            'raw_html_inline' => (string) $node->attr('html', ''),
             'code' => '<code' . $this->renderInlineCodeAttrs($node) . '>' . $this->esc((string) $node->attr('text', '')) . '</code>',
             'link' => '<a' . $this->renderLinkAttrs($node) . '>' . $this->renderInlines($node) . '</a>',
             'image' => $this->renderImageHtml($node),

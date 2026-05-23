@@ -60,6 +60,53 @@ return [
         $t->same('emph', $nestedWord->children[0]->type);
         $t->same('this', $nestedWord->children[0]->children[0]->attr('text'));
     },
+    'maps upstream markdown reader emph containing strong delimiter runs' => static function (TestRunner $t): void {
+        $spacedStrong = (new MarkdownReader())->read('*x **xx** x*')->children[0]->children[0];
+        $twoStrongs = (new MarkdownReader())->read('***a**b **c**d*')->children[0]->children[0];
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read(implode("\n\n", [
+            '*x **xx** x*',
+            '***a**b **c**d*',
+        ])));
+
+        $t->same('emph', $spacedStrong->type);
+        $t->same(['text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $spacedStrong->children));
+        $t->same('x ', $spacedStrong->children[0]->attr('text'));
+        $t->same('xx', $spacedStrong->children[1]->children[0]->attr('text'));
+        $t->same(' x', $spacedStrong->children[2]->attr('text'));
+        $t->same('emph', $twoStrongs->type);
+        $t->same(['strong', 'text', 'strong', 'text'], array_map(static fn (AstNode $node): string => $node->type, $twoStrongs->children));
+        $t->same('a', $twoStrongs->children[0]->children[0]->attr('text'));
+        $t->same('b ', $twoStrongs->children[1]->attr('text'));
+        $t->same('c', $twoStrongs->children[2]->children[0]->attr('text'));
+        $t->same('d', $twoStrongs->children[3]->attr('text'));
+        $t->contains('<p><em>x <strong>xx</strong> x</em></p>', $blocks);
+        $t->contains('<p><em><strong>a</strong>b <strong>c</strong>d</em></p>', $blocks);
+    },
+    'maps upstream markdown reader alternating emph strong softbreak' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read("*xxx* ***xxx*** xxx\n*xxx* ***xxx*** xxx");
+        $paragraph = $document->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same([
+            'emph',
+            'text',
+            'strong',
+            'text',
+            'softbreak',
+            'emph',
+            'text',
+            'strong',
+            'text',
+        ], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('xxx', $paragraph->children[0]->children[0]->attr('text'));
+        $t->same('xxx', $paragraph->children[2]->children[0]->children[0]->attr('text'));
+        $t->same(' xxx', $paragraph->children[3]->attr('text'));
+        $t->same('xxx', $paragraph->children[5]->children[0]->attr('text'));
+        $t->same('xxx', $paragraph->children[7]->children[0]->children[0]->attr('text'));
+        $t->same('xxx xxx xxx xxx xxx xxx', $paragraph->attr('text'));
+        $t->contains("<p><em>xxx</em> <strong><em>xxx</em></strong> xxx\n<em>xxx</em> <strong><em>xxx</em></strong> xxx</p>", $blocks);
+    },
     'maps upstream testsuite strikeout inline markup' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read('~~This is *strikeout*.~~');
         $strikeout = $document->children[0]->children[0];
@@ -94,8 +141,56 @@ return [
         $t->same('23', $subscripts->children[3]->children[0]->attr('text'));
         $t->same('subscript', $subscripts->children[5]->type);
         $t->same("many\xC2\xA0of\xC2\xA0them", $subscripts->children[5]->children[0]->attr('text'));
-        $t->same(1, count($notScript->children));
-        $t->contains('a^b c^d, a~b c~d.', $notScript->children[0]->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $notScript->children));
+        $t->contains('a^b c^d, a~b c~d.', $notScript->children[2]->attr('text'));
+    },
+    'maps upstream markdown reader mmd short subscript superscript delimiters' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $subspace = $reader->read('O~2 is dangerous')->children[0];
+        $subnewline = $reader->read("O~2\n")->children[0];
+        $subeof = $reader->read('O~2')->children[0];
+        $subpunctuation = $reader->read('O~2.')->children[0];
+        $subemph = $reader->read('O~2*combustible!*')->children[0];
+        $subNoNesting = $reader->read('y~*2*')->children[0];
+        $supspace = $reader->read('x^2 = y')->children[0];
+        $supnewline = $reader->read("x^2\n")->children[0];
+        $supeof = $reader->read('x^2')->children[0];
+        $suppunctuation = $reader->read('x^2.')->children[0];
+        $supemph = $reader->read('x^2*combustible!*')->children[0];
+        $supNoNesting = $reader->read('y^*2*')->children[0];
+        $regularSubscript = $reader->read('H~2~')->children[0];
+        $regularSuperscript = $reader->read('x^3^')->children[0];
+        $defaultWhitespaceGuard = $reader->read('a^b c^d, a~b c~d.')->children[0];
+
+        $t->same(['text', 'subscript', 'text'], array_map(static fn (AstNode $node): string => $node->type, $subspace->children));
+        $t->same('O', $subspace->children[0]->attr('text'));
+        $t->same('2', $subspace->children[1]->children[0]->attr('text'));
+        $t->same(' is dangerous', $subspace->children[2]->attr('text'));
+        $t->same('2', $subnewline->children[1]->children[0]->attr('text'));
+        $t->same(2, count($subeof->children));
+        $t->same('.', $subpunctuation->children[2]->attr('text'));
+        $t->same('emph', $subemph->children[2]->type);
+        $t->same('combustible!', $subemph->children[2]->children[0]->attr('text'));
+        $t->same(['text', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $subNoNesting->children));
+        $t->same('y~', $subNoNesting->children[0]->attr('text'));
+        $t->same('2', $subNoNesting->children[1]->children[0]->attr('text'));
+        $t->same(['text', 'superscript', 'text'], array_map(static fn (AstNode $node): string => $node->type, $supspace->children));
+        $t->same('x', $supspace->children[0]->attr('text'));
+        $t->same('2', $supspace->children[1]->children[0]->attr('text'));
+        $t->same(' = y', $supspace->children[2]->attr('text'));
+        $t->same('2', $supnewline->children[1]->children[0]->attr('text'));
+        $t->same(2, count($supeof->children));
+        $t->same('.', $suppunctuation->children[2]->attr('text'));
+        $t->same('emph', $supemph->children[2]->type);
+        $t->same('combustible!', $supemph->children[2]->children[0]->attr('text'));
+        $t->same(['text', 'emph'], array_map(static fn (AstNode $node): string => $node->type, $supNoNesting->children));
+        $t->same('y^', $supNoNesting->children[0]->attr('text'));
+        $t->same('2', $supNoNesting->children[1]->children[0]->attr('text'));
+        $t->same('subscript', $regularSubscript->children[1]->type);
+        $t->same('2', $regularSubscript->children[1]->children[0]->attr('text'));
+        $t->same('superscript', $regularSuperscript->children[1]->type);
+        $t->same('3', $regularSuperscript->children[1]->children[0]->attr('text'));
+        $t->same('a^b c^d, a~b c~d.', $defaultWhitespaceGuard->children[0]->attr('text'));
     },
     'maps upstream testsuite smart quote nesting and apostrophes' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
@@ -121,10 +216,10 @@ return [
         $t->same('single', $letters->children[2]->attr('kind'));
         $t->same('C', $letters->children[4]->children[0]->attr('text'));
         $t->same('single', $trees->children[0]->attr('kind'));
-        $t->same('pine.', $trees->children[6]->children[0]->attr('text'));
+        $t->same('pine.', $trees->children[8]->children[0]->attr('text'));
         $t->same('single', $speech->children[0]->attr('kind'));
         $t->same('double', $speech->children[0]->children[1]->attr('kind'));
-        $t->contains("70\u{2019}s?", $speech->children[1]->attr('text'));
+        $t->contains("70\u{2019}s?", $speech->attr('text'));
     },
     'maps upstream testsuite quoted code and reference links' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(
@@ -156,6 +251,70 @@ return [
         $t->same("Some dashes:  one\u{2014}two \u{2014} three\u{2014}four \u{2014} five.", $document->children[0]->children[0]->attr('text'));
         $t->same("Dashes between numbers: 5\u{2013}7, 255\u{2013}66, 1987\u{2013}1999.", $document->children[1]->children[0]->attr('text'));
         $t->same("Ellipses\u{2026}and\u{2026}and\u{2026}.", $document->children[2]->children[0]->attr('text'));
+    },
+    'maps upstream markdown smart quote before ellipses and apostrophe edges' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $quoteBeforeEllipses = $reader->read("'...hi'")->children[0];
+        $apostropheBeforeEmph = $reader->read("D'oh! A l'*aide*!")->children[0];
+        $frenchApostrophes = $reader->read("À l'arrivée de la guerre, le thème de l'«impossibilité du socialisme»")->children[0];
+        $blocks = (new WordPressBlockWriter())->write($reader->read(implode("\n\n", [
+            "'...hi'",
+            "D'oh! A l'*aide*!",
+            "À l'arrivée de la guerre, le thème de l'«impossibilité du socialisme»",
+        ])));
+
+        $t->same('quoted', $quoteBeforeEllipses->children[0]->type);
+        $t->same('single', $quoteBeforeEllipses->children[0]->attr('kind'));
+        $t->same("\u{2026}hi", $quoteBeforeEllipses->children[0]->children[0]->attr('text'));
+        $t->same(["text", "emph", "text"], array_map(static fn (AstNode $node): string => $node->type, $apostropheBeforeEmph->children));
+        $t->same("D\u{2019}oh! A l\u{2019}", $apostropheBeforeEmph->children[0]->attr('text'));
+        $t->same('aide', $apostropheBeforeEmph->children[1]->children[0]->attr('text'));
+        $t->same('!', $apostropheBeforeEmph->children[2]->attr('text'));
+        $t->same("À l\u{2019}arrivée de la guerre, le thème de l\u{2019}«impossibilité du socialisme»", $frenchApostrophes->children[0]->attr('text'));
+        $t->contains("<p>\u{2018}\u{2026}hi\u{2019}</p>", $blocks);
+        $t->contains("<p>D\u{2019}oh! A l\u{2019}<em>aide</em>!</p>", $blocks);
+        $t->contains("<p>À l\u{2019}arrivée de la guerre, le thème de l\u{2019}«impossibilité du socialisme»</p>", $blocks);
+    },
+    'maps upstream markdown smart unclosed double quote inside strong' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('**this should "be bold**');
+        $strong = $document->children[0]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('strong', $strong->type);
+        $t->same("this should \u{201C}be bold", $strong->children[0]->attr('text'));
+        $t->contains('<p><strong>this should “be bold</strong></p>', $blocks);
+    },
+    'maps upstream markdown smart quotes around inline notes' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $singleDocument = $reader->read("'a^['b'.] c.'");
+        $doubleDocument = $reader->read('"a^["b".] c."');
+        $singleQuote = $singleDocument->children[0]->children[0];
+        $doubleQuote = $doubleDocument->children[0]->children[0];
+        $singleNote = $singleQuote->children[1];
+        $doubleNote = $doubleQuote->children[1];
+        $blocks = (new WordPressBlockWriter())->write($reader->read(implode("\n\n", [
+            "'a^['b'.] c.'",
+            '"a^["b".] c."',
+        ])));
+
+        $t->same('quoted', $singleQuote->type);
+        $t->same('single', $singleQuote->attr('kind'));
+        $t->same(['text', 'note', 'text'], array_map(static fn (AstNode $node): string => $node->type, $singleQuote->children));
+        $t->same('a', $singleQuote->children[0]->attr('text'));
+        $t->same(' c.', $singleQuote->children[2]->attr('text'));
+        $t->same(['quoted', 'text'], array_map(static fn (AstNode $node): string => $node->type, $singleNote->children[0]->children));
+        $t->same('single', $singleNote->children[0]->children[0]->attr('kind'));
+        $t->same('b', $singleNote->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('.', $singleNote->children[0]->children[1]->attr('text'));
+        $t->same('quoted', $doubleQuote->type);
+        $t->same('double', $doubleQuote->attr('kind'));
+        $t->same(['text', 'note', 'text'], array_map(static fn (AstNode $node): string => $node->type, $doubleQuote->children));
+        $t->same('double', $doubleNote->children[0]->children[0]->attr('kind'));
+        $t->same('b', $doubleNote->children[0]->children[0]->children[0]->attr('text'));
+        $t->contains('<p>‘a<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup> c.’</p>', $blocks);
+        $t->contains('<p>“a<sup id="fnref-2"><a href="#fn-2" role="doc-noteref">2</a></sup> c.”</p>', $blocks);
+        $t->contains('<li id="fn-1"><p>‘b’.</p> <a href="#fnref-1" aria-label="Back to content">Back</a></li>', $blocks);
+        $t->contains('<li id="fn-2"><p>“b”.</p> <a href="#fnref-2" aria-label="Back to content">Back</a></li>', $blocks);
     },
     'maps upstream testsuite latex raw inline and math list items' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -281,8 +440,9 @@ return [
         $t->same('\placeformula \startformula', $contextFormula->attr('tex'));
         $t->same('paragraph', $contextParagraph->type);
         $t->same('L_{1} = L_{2} \stopformula', $contextParagraph->attr('text'));
-        $t->same('raw_tex', $contextParagraph->children[1]->type);
-        $t->same('\stopformula', $contextParagraph->children[1]->attr('tex'));
+        $t->same('softbreak', $contextParagraph->children[1]->type);
+        $t->same('raw_tex', $contextParagraph->children[2]->type);
+        $t->same('\stopformula', $contextParagraph->children[2]->attr('tex'));
         $t->same('raw_tex', $contextStartStop->type);
         $t->same('context:a2', $contextStartStop->attr('environment'));
         $t->same('\start[a2]' . "\n" . '\start[a2]' . "\n" . '\stop[a2]' . "\n" . '\stop[a2]', $contextStartStop->attr('tex'));
@@ -591,7 +751,7 @@ return [
         $t->same('] [', $fallback->children[2]->attr('text'));
         $t->same('nope', $fallback->children[3]->children[0]->attr('text'));
         $t->same("]\u{2026}", $fallback->children[4]->attr('text'));
-        $t->same(['text', 'link', 'text', 'citation', 'text'], array_map(static fn (AstNode $node): string => $node->type, $citationAdjacent->children));
+        $t->same(['text', 'link', 'text', 'citation', 'text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $citationAdjacent->children));
         $t->same('http://google.com', $citationAdjacent->children[1]->attr('url'));
         $t->same('Google', $citationAdjacent->children[1]->children[0]->attr('text'));
         $t->same('mapreduce', $citationAdjacent->children[3]->attr('id'));
@@ -604,6 +764,45 @@ return [
         $t->contains('<p>[<em>not a link</em>] [<em>nope</em>]…</p>', $blocks);
         $t->contains('<p>MapReduce is a paradigm popularized by <a href="http://google.com">Google</a> [@mapreduce] as its', $blocks);
         $t->contains('<p><a href="">foo2</a></p>', $blocks);
+    },
+    'maps upstream markdown reader citations and following note link boundaries' => static function (TestRunner $t): void {
+        $simple = (new MarkdownReader())->read('@item1')->children[0]->children[0];
+        $digit = (new MarkdownReader())->read('@1657:huyghens')->children[0]->children[0];
+        $footnote = (new MarkdownReader())->read("@cita[^note]\n\n[^note]: note")->children[0];
+        $inlineLink = (new MarkdownReader())->read('@cita [link](http://www.com)')->children[0];
+        $referenceLink = (new MarkdownReader())->read("@cita [link][link]\n\n[link]: http://www.com")->children[0];
+        $shortcutReference = (new MarkdownReader())->read("@cita [link]\n\n[link]: http://www.com")->children[0];
+        $implicitHeader = (new MarkdownReader())->read("# Header\n@cita [Header]");
+        $regularCitation = (new MarkdownReader())->read('@cita [foo]')->children[0]->children[0];
+
+        $t->same('citation', $simple->type);
+        $t->same('item1', $simple->attr('id'));
+        $t->same('@item1', $simple->attr('text'));
+        $t->same('author_in_text', $simple->attr('mode'));
+        $t->same('citation', $digit->type);
+        $t->same('1657:huyghens', $digit->attr('id'));
+        $t->same(['citation', 'note'], array_map(static fn (AstNode $node): string => $node->type, $footnote->children));
+        $t->same('cita', $footnote->children[0]->attr('id'));
+        $t->same('note', $footnote->children[1]->attr('label'));
+        $t->same('note', $footnote->children[1]->children[0]->attr('text'));
+        $t->same(['citation', 'text', 'link'], array_map(static fn (AstNode $node): string => $node->type, $inlineLink->children));
+        $t->same('http://www.com', $inlineLink->children[2]->attr('url'));
+        $t->same(['citation', 'text', 'link'], array_map(static fn (AstNode $node): string => $node->type, $referenceLink->children));
+        $t->same('http://www.com', $referenceLink->children[2]->attr('url'));
+        $t->same(['citation', 'text', 'link'], array_map(static fn (AstNode $node): string => $node->type, $shortcutReference->children));
+        $t->same('http://www.com', $shortcutReference->children[2]->attr('url'));
+        $t->same('heading', $implicitHeader->children[0]->type);
+        $t->same(['citation', 'text', 'link'], array_map(static fn (AstNode $node): string => $node->type, $implicitHeader->children[1]->children));
+        $t->same('#header', $implicitHeader->children[1]->children[2]->attr('url'));
+        $t->same('citation', $regularCitation->type);
+        $t->same('cita', $regularCitation->attr('id'));
+        $t->same('foo', $regularCitation->attr('suffix'));
+        $t->same('@cita [foo]', $regularCitation->attr('text'));
+
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read("@cita[^note]\n\n[^note]: note\n\n@cita [link](http://www.com)\n\n@cita [foo]"));
+        $t->contains('<p>@cita<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
+        $t->contains('<p>@cita <a href="http://www.com">link</a></p>', $blocks);
+        $t->contains('<p>@cita [foo]</p>', $blocks);
     },
     'maps upstream markdown reader more wrapping and bracketed spans' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -758,6 +957,111 @@ return [
         $t->contains('<p>(<a href="http://google.com">http://google.com</a>).</p>', $blocks);
         $t->contains('<p><a href="http://en.wikipedia.org/wiki/Sprite_%5Bcomputer_graphics%5D">http://en.wikipedia.org/wiki/Sprite_[computer_graphics]</a></p>', $blocks);
     },
+    'maps upstream markdown reader bare uri schemes and punctuation families' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            'doi:10.1000/182,',
+            'git://github.com/foo/bar.git,',
+            'file:///Users/joe/joe.txt, and',
+            'mailto:someone@somedomain.com.',
+            'Use http: this is not a link!',
+            'http://www.rubyonrails.com/contact;new',
+            'http://www.rubyonrails.com/contact;new?with=query&string=params',
+            'http://foo.example.com/controller/action?parm=value&p2=v2#anchor123',
+            'http://foo.example.com:3000/controller/action+pack',
+            'http://en.wikipedia.org/wiki/Sprite_{computer_graphics}',
+            'https://example.org/?anchor=lala-',
+        ]));
+        $doi = $document->children[0]->children[0];
+        $git = $document->children[1]->children[0];
+        $file = $document->children[2]->children[0];
+        $mailto = $document->children[3]->children[0];
+        $semicolon = $document->children[5]->children[0];
+        $semicolonQuery = $document->children[6]->children[0];
+        $fragment = $document->children[7]->children[0];
+        $plus = $document->children[8]->children[0];
+        $curly = $document->children[9]->children[0];
+        $trailingHyphen = $document->children[10]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $doi->type);
+        $t->same('doi:10.1000/182', $doi->attr('url'));
+        $t->same(['uri'], $doi->attr('classes'));
+        $t->same(',', $document->children[0]->children[1]->attr('text'));
+        $t->same('git://github.com/foo/bar.git', $git->attr('url'));
+        $t->same(',', $document->children[1]->children[1]->attr('text'));
+        $t->same('file:///Users/joe/joe.txt', $file->attr('url'));
+        $t->same(', and', $document->children[2]->children[1]->attr('text'));
+        $t->same('mailto:someone@somedomain.com', $mailto->attr('url'));
+        $t->same('.', $document->children[3]->children[1]->attr('text'));
+        $t->same(1, count($document->children[4]->children));
+        $t->same('Use http: this is not a link!', $document->children[4]->children[0]->attr('text'));
+        $t->same('http://www.rubyonrails.com/contact;new', $semicolon->attr('url'));
+        $t->same('http://www.rubyonrails.com/contact;new?with=query&string=params', $semicolonQuery->attr('url'));
+        $t->same('http://foo.example.com/controller/action?parm=value&p2=v2#anchor123', $fragment->attr('url'));
+        $t->same('http://foo.example.com:3000/controller/action+pack', $plus->attr('url'));
+        $t->same('http://en.wikipedia.org/wiki/Sprite_%7Bcomputer_graphics%7D', $curly->attr('url'));
+        $t->same('http://en.wikipedia.org/wiki/Sprite_{computer_graphics}', $curly->children[0]->attr('text'));
+        $t->same('https://example.org/?anchor=lala-', $trailingHyphen->attr('url'));
+        $t->contains('<p><a href="doi:10.1000/182">doi:10.1000/182</a>,</p>', $blocks);
+        $t->contains('<p><a href="git://github.com/foo/bar.git">git://github.com/foo/bar.git</a>,</p>', $blocks);
+        $t->contains('<p><a href="file:///Users/joe/joe.txt">file:///Users/joe/joe.txt</a>, and</p>', $blocks);
+        $t->contains('<p><a href="mailto:someone@somedomain.com">mailto:someone@somedomain.com</a>.</p>', $blocks);
+        $t->contains('<p>Use http: this is not a link!</p>', $blocks);
+        $t->contains('<p><a href="http://www.rubyonrails.com/contact;new?with=query&amp;string=params">http://www.rubyonrails.com/contact;new?with=query&amp;string=params</a></p>', $blocks);
+        $t->contains('<p><a href="http://en.wikipedia.org/wiki/Sprite_%7Bcomputer_graphics%7D">http://en.wikipedia.org/wiki/Sprite_{computer_graphics}</a></p>', $blocks);
+    },
+    'maps remaining upstream markdown reader bare uri url shapes and raw html anchor boundary' => static function (TestRunner $t): void {
+        $urls = [
+            'http://el.wikipedia.org/wiki/Τεχνολογία',
+            'http://example.com/Notification_Center-GitHub-20101108-140050.jpg',
+            'https://github.com/github/hubot/blob/master/scripts/cream.js#L20-20',
+            'http://www.rubyonrails.com',
+            'http://www.rubyonrails.com:80',
+            'http://www.rubyonrails.com/~minam',
+            'https://www.rubyonrails.com/~minam',
+            'http://www.rubyonrails.com/~minam/url%20with%20spaces',
+            'http://www.rubyonrails.com/foo.cgi?something=here',
+            'http://www.rubyonrails.com/foo.cgi?something=here&and=here',
+            'http://www.rubyonrails.com/contact;new%20with%20spaces',
+            'http://www.rubyonrails.com/~minam/contact;new?with=query&string=params',
+            'http://en.wikipedia.org/wiki/Wikipedia:Today%27s_featured_picture_%28animation%29/January_20%2C_2007',
+            'http://www.mail-archive.com/rails@lists.rubyonrails.org/',
+            'http://www.amazon.com/Testing-Equal-Sign-In-Path/ref=pd_bbs_sr_1?ie=UTF8&s=books&qid=1198861734&sr=8-1',
+            'http://en.wikipedia.org/wiki/Texas_hold%27em',
+            'https://www.google.com/doku.php?id=gps:resource:scs:start',
+            'http://www.rubyonrails.com',
+            'http://manuals.ruby-on-rails.com/read/chapter.need_a-period/103#page281',
+            'http://foo.example.com:3000/controller/action',
+            'http://business.timesonline.co.uk/article/0,,9065-2473189,00.html',
+            'http://www.mail-archive.com/ruby-talk@ruby-lang.org/',
+            'https://example.org/?anchor=-lala',
+        ];
+        $document = (new MarkdownReader())->read(
+            '<a href="http://foo.bar.baz">http://foo.bar.baz</a>'
+            . "\n\n" . implode(",\n\n", $urls)
+        );
+        $rawAnchor = $document->children[0]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_html_inline', $rawAnchor->type);
+        $t->same('<a href="http://foo.bar.baz">http://foo.bar.baz</a>', $rawAnchor->attr('html'));
+        $t->same(1, count($document->children[0]->children));
+
+        foreach ($urls as $index => $url) {
+            $paragraph = $document->children[$index + 1];
+            $link = $paragraph->children[0];
+            $t->same('link', $link->type);
+            $t->same($url, $link->attr('url'));
+            $t->same($url, $link->children[0]->attr('text'));
+        }
+
+        $t->same(',', $document->children[1]->children[1]->attr('text'));
+        $t->contains('<p><a href="http://foo.bar.baz">http://foo.bar.baz</a></p>', $blocks);
+        $t->contains('<a href="http://el.wikipedia.org/wiki/Τεχνολογία">http://el.wikipedia.org/wiki/Τεχνολογία</a>', $blocks);
+        $t->contains('<a href="http://www.rubyonrails.com/~minam/url%20with%20spaces">http://www.rubyonrails.com/~minam/url%20with%20spaces</a>', $blocks);
+        $t->contains('<a href="http://www.mail-archive.com/rails@lists.rubyonrails.org/">http://www.mail-archive.com/rails@lists.rubyonrails.org/</a>', $blocks);
+        $t->contains('<a href="https://example.org/?anchor=-lala">https://example.org/?anchor=-lala</a>', $blocks);
+    },
     'maps upstream markdown reader no links inside link labels' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '[<https://example.org>](url)',
@@ -876,6 +1180,79 @@ return [
         $t->contains('<h2 id="foobar" class="baz">Explicit header attributes</h2>', $blocks);
         $t->contains('<a href="#my-header">My header</a>', $blocks);
         $t->contains('<a href="/foo">My other header</a>', $blocks);
+    },
+    'maps upstream markdown reader header edge cases' => static function (TestRunner $t): void {
+        $blankBefore = (new MarkdownReader())->read("\n# Header\n");
+        $bracketed = (new MarkdownReader())->read("# [hi]\n");
+        $atx = (new MarkdownReader())->read("# Foo bar\n\n");
+        $closingAtx = (new MarkdownReader())->read("# Foo bar with # #");
+        $setext = (new MarkdownReader())->read("Foo bar\n=\n\n Foo bar 2 \n=");
+
+        $t->same('heading', $blankBefore->children[0]->type);
+        $t->same(1, $blankBefore->children[0]->attr('level'));
+        $t->same('Header', $blankBefore->children[0]->attr('text'));
+        $t->same('header', $blankBefore->children[0]->attr('id'));
+        $t->same('[hi]', $bracketed->children[0]->attr('text'));
+        $t->same('hi', $bracketed->children[0]->attr('id'));
+        $t->same('Foo bar', $atx->children[0]->attr('text'));
+        $t->same('foo-bar', $atx->children[0]->attr('id'));
+        $t->same('Foo bar with #', $closingAtx->children[0]->attr('text'));
+        $t->same('foo-bar-with', $closingAtx->children[0]->attr('id'));
+        $t->same(['heading', 'heading'], array_map(static fn (AstNode $node): string => $node->type, $setext->children));
+        $t->same([1, 1], array_map(static fn (AstNode $node): int => (int) $node->attr('level'), $setext->children));
+        $t->same('Foo bar', $setext->children[0]->attr('text'));
+        $t->same('foo-bar', $setext->children[0]->attr('id'));
+        $t->same('Foo bar 2', $setext->children[1]->attr('text'));
+        $t->same('foo-bar-2', $setext->children[1]->attr('id'));
+    },
+    'maps upstream markdown reader implicit references for closing atx and setext headers' => static function (TestRunner $t): void {
+        $closingAtx = (new MarkdownReader())->read("# Foo bar #\n[foo bar]\n\n[foo bar ]\n\n[ foo bar]");
+        $setext = (new MarkdownReader())->read(" Header \n=\n\n[header]\n\n[header ]\n\n[ header]");
+        $closingBlocks = (new WordPressBlockWriter())->write($closingAtx);
+        $setextBlocks = (new WordPressBlockWriter())->write($setext);
+
+        $t->same('Foo bar', $closingAtx->children[0]->attr('text'));
+        $t->same('foo-bar', $closingAtx->children[0]->attr('id'));
+        $t->same('#foo-bar', $closingAtx->children[1]->children[0]->attr('url'));
+        $t->same('#foo-bar', $closingAtx->children[2]->children[0]->attr('url'));
+        $t->same('#foo-bar', $closingAtx->children[3]->children[0]->attr('url'));
+        $t->same('Header', $setext->children[0]->attr('text'));
+        $t->same('header', $setext->children[0]->attr('id'));
+        $t->same('#header', $setext->children[1]->children[0]->attr('url'));
+        $t->same('#header', $setext->children[2]->children[0]->attr('url'));
+        $t->same('#header', $setext->children[3]->children[0]->attr('url'));
+        $t->contains('<h1 id="foo-bar">Foo bar</h1>', $closingBlocks);
+        $t->contains('<a href="#foo-bar">foo bar</a>', $closingBlocks);
+        $t->contains('<h1 id="header">Header</h1>', $setextBlocks);
+        $t->contains('<a href="#header">header</a>', $setextBlocks);
+    },
+    'writes wordpress normalized markdown header imports' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $closingHeading = null;
+        $setextHeading = null;
+        foreach ($document->children as $node) {
+            if ($node->type !== 'heading') {
+                continue;
+            }
+            if ($node->attr('text') === 'Closing Hash Heading') {
+                $closingHeading = $node;
+                continue;
+            }
+            if ($node->attr('text') === 'Setext Import Heading') {
+                $setextHeading = $node;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->true($closingHeading instanceof AstNode, 'ATX closing-hash fixture heading should normalize before WordPress output');
+        $t->true($setextHeading instanceof AstNode, 'Setext fixture heading should become a WordPress heading');
+        $t->same(2, $closingHeading->attr('level'));
+        $t->same('closing-hash-heading', $closingHeading->attr('id'));
+        $t->same(2, $setextHeading->attr('level'));
+        $t->same('setext-import-heading', $setextHeading->attr('id'));
+        $t->contains('<h2 id="closing-hash-heading">Closing Hash Heading</h2>', $blocks);
+        $t->contains('<h2 id="setext-import-heading">Setext Import Heading</h2>', $blocks);
     },
     'maps upstream markdown reader more line blocks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -1213,6 +1590,22 @@ return [
         $t->same(' icon.', $document->children[3]->children[2]->attr('text'));
         $t->same('horizontal_rule', $document->children[4]->type);
     },
+    'maps upstream markdown reader figure latex placement attributes' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read('![caption](img.jpg){latex-placement="htbp" alt="alt text"}');
+        $figure = $document->children[0];
+        $image = $figure->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('figure', $figure->type);
+        $t->same('caption', $figure->attr('caption'));
+        $t->same(['latex-placement' => 'htbp'], $figure->attr('attributes'));
+        $t->same('image', $image->type);
+        $t->same('img.jpg', $image->attr('url'));
+        $t->same('alt text', $image->attr('alt'));
+        $t->same('caption', $image->attr('caption'));
+        $t->same('caption', $image->children[0]->attr('text'));
+        $t->contains('<figure class="wp-block-image" data-pandoc-latex-placement="htbp"><img src="img.jpg" alt="alt text"/><figcaption>caption</figcaption></figure>', $blocks);
+    },
     'maps upstream html reader images as paragraph image inlines' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             '<h1>Images</h1>',
@@ -1330,7 +1723,7 @@ return [
         $paragraph = $document->children[1];
         $shortNote = $paragraph->children[1];
         $longNote = $paragraph->children[3];
-        $inlineNote = $paragraph->children[7];
+        $inlineNote = $paragraph->children[10];
         $inlineNoteParagraph = $inlineNote->children[0];
         $quoteNote = $document->children[2]->children[0]->children[1];
         $listNote = $document->children[3]->children[0]->children[1];
@@ -1344,16 +1737,16 @@ return [
         $t->same('longnote', $longNote->attr('label'));
         $t->same(['paragraph', 'paragraph', 'code_block', 'paragraph'], array_map(static fn ($node): string => $node->type, $longNote->children));
         $t->same('  { <code> }', $longNote->children[2]->attr('text'));
-        $t->same('emph', $paragraph->children[5]->type);
-        $t->contains('[^my note]', $paragraph->children[6]->attr('text'));
+        $t->same('emph', $paragraph->children[6]->type);
+        $t->contains('[^my note]', $paragraph->children[9]->attr('text'));
         $t->same('note', $inlineNote->type);
-        $t->same('emph', $inlineNoteParagraph->children[1]->type);
-        $t->same('easier', $inlineNoteParagraph->children[1]->children[0]->attr('text'));
-        $t->same('link', $inlineNoteParagraph->children[3]->type);
-        $t->same('http://google.com', $inlineNoteParagraph->children[3]->attr('url'));
-        $t->same('code', $inlineNoteParagraph->children[5]->type);
-        $t->same(']', $inlineNoteParagraph->children[5]->attr('text'));
-        $t->contains('[bracketed text].', $inlineNoteParagraph->children[6]->attr('text'));
+        $t->same('emph', $inlineNoteParagraph->children[3]->type);
+        $t->same('easier', $inlineNoteParagraph->children[3]->children[0]->attr('text'));
+        $t->same('link', $inlineNoteParagraph->children[6]->type);
+        $t->same('http://google.com', $inlineNoteParagraph->children[6]->attr('url'));
+        $t->same('code', $inlineNoteParagraph->children[8]->type);
+        $t->same(']', $inlineNoteParagraph->children[8]->attr('text'));
+        $t->contains('[bracketed text].', $inlineNoteParagraph->children[11]->attr('text'));
         $t->same('note', $quoteNote->type);
         $t->same('In quote.', $quoteNote->children[0]->attr('text'));
         $t->same('note', $listNote->type);
@@ -3394,6 +3787,96 @@ HTML;
         $t->true(!str_contains($blocks, '<table>'), 'Empty upstream HTML tables should not render WordPress table markup');
         $t->true(!str_contains($blocks, '<!-- wp:html -->'), 'Empty upstream HTML tables should not fall back to raw HTML blocks');
     },
+    'maps upstream markdown raw html regression boundaries' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '<del>test</del>',
+            '</ div></.div>',
+            '<!-- pandoc --help -->',
+            "<\n\na>",
+        ]));
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(7, count($document->children));
+        $t->same('raw_html', $document->children[0]->type);
+        $t->same('<del>', $document->children[0]->attr('html'));
+        $t->same('plain', $document->children[1]->type);
+        $t->same('test', $document->children[1]->attr('text'));
+        $t->same('raw_html', $document->children[2]->type);
+        $t->same('</del>', $document->children[2]->attr('html'));
+        $t->same('paragraph', $document->children[3]->type);
+        $t->same('</ div></.div>', $document->children[3]->children[0]->attr('text'));
+        $t->same('raw_html', $document->children[4]->type);
+        $t->same('<!-- pandoc --help -->', $document->children[4]->attr('html'));
+        $t->same('<', $document->children[5]->children[0]->attr('text'));
+        $t->same('a>', $document->children[6]->children[0]->attr('text'));
+        $t->contains('<p>test</p>', $blocks);
+        $t->contains('<p>&lt;/ div&gt;&lt;/.div&gt;</p>', $blocks);
+        $t->contains('<!-- pandoc --help -->', $blocks);
+    },
+    'maps upstream markdown raw email and emoji extension cases' => static function (TestRunner $t): void {
+        $rawEmailDocument = (new MarkdownReader())->read('**@user**');
+        $emojiDocument = (new MarkdownReader())->read(':smile: and :+1:');
+        $unknownDocument = (new MarkdownReader())->read('Unknown :not-a-pandoc-test-emoji: stays literal.');
+        $rawEmail = $rawEmailDocument->children[0]->children[0];
+        $smile = $emojiDocument->children[0]->children[0];
+        $thumb = $emojiDocument->children[0]->children[2];
+        $smileGlyph = "\u{1F604}";
+        $thumbGlyph = "\u{1F44D}";
+        $blocks = (new WordPressBlockWriter())->write($emojiDocument);
+
+        $t->same('strong', $rawEmail->type);
+        $t->same('@user', $rawEmail->children[0]->attr('text'));
+        $t->same('span', $smile->type);
+        $t->same(['emoji'], $smile->attr('classes'));
+        $t->same(['data-emoji' => 'smile'], $smile->attr('attributes'));
+        $t->same($smileGlyph, $smile->children[0]->attr('text'));
+        $t->same(' and ', $emojiDocument->children[0]->children[1]->attr('text'));
+        $t->same('span', $thumb->type);
+        $t->same(['emoji'], $thumb->attr('classes'));
+        $t->same(['data-emoji' => '+1'], $thumb->attr('attributes'));
+        $t->same($thumbGlyph, $thumb->children[0]->attr('text'));
+        $t->same('Unknown :not-a-pandoc-test-emoji: stays literal.', $unknownDocument->children[0]->children[0]->attr('text'));
+        $t->contains('<p><span class="emoji" data-emoji="smile">' . $smileGlyph . '</span> and <span class="emoji" data-emoji="+1">' . $thumbGlyph . '</span></p>', $blocks);
+    },
+    'maps upstream markdown github wiki link extension cases' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            '[[https://example.org]]',
+            '[[title|https://example.org]]',
+            '[[title|random string]]',
+            '[[Name of page]]',
+            '[[Name of ]page]]',
+            '[[t`i*t_le|https://example.org]]',
+        ]));
+        $autolink = $document->children[0]->children[0];
+        $titled = $document->children[1]->children[0];
+        $badTarget = $document->children[2]->children[0];
+        $pageName = $document->children[3]->children[0];
+        $bracketPageName = $document->children[4]->children[0];
+        $literalTitle = $document->children[5]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        foreach ([$autolink, $titled, $badTarget, $pageName, $bracketPageName, $literalTitle] as $link) {
+            $t->same('link', $link->type);
+            $t->same(['wikilink'], $link->attr('classes'));
+        }
+        $t->same('https://example.org', $autolink->attr('url'));
+        $t->same('https://example.org', $autolink->children[0]->attr('text'));
+        $t->same('https://example.org', $titled->attr('url'));
+        $t->same('title', $titled->children[0]->attr('text'));
+        $t->same('random string', $badTarget->attr('url'));
+        $t->same('title', $badTarget->children[0]->attr('text'));
+        $t->same('Name of page', $pageName->attr('url'));
+        $t->same('Name of page', $pageName->children[0]->attr('text'));
+        $t->same('Name of ]page', $bracketPageName->attr('url'));
+        $t->same('Name of ]page', $bracketPageName->children[0]->attr('text'));
+        $t->same('https://example.org', $literalTitle->attr('url'));
+        $t->same('t`i*t_le', $literalTitle->children[0]->attr('text'));
+        $t->contains('<a href="https://example.org" class="wikilink">https://example.org</a>', $blocks);
+        $t->contains('<a href="https://example.org" class="wikilink">title</a>', $blocks);
+        $t->contains('<a href="random string" class="wikilink">title</a>', $blocks);
+        $t->contains('<a href="Name of ]page" class="wikilink">Name of ]page</a>', $blocks);
+        $t->contains('<a href="https://example.org" class="wikilink">t`i*t_le</a>', $blocks);
+    },
     'writes wordpress structured html table sections from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
@@ -4043,6 +4526,8 @@ XML;
         $t->contains('<a href="/wp-content/uploads/import%20batch%2042.csv" title="Batch manifest">spaced batch manifest</a>', $blocks);
         $t->contains('<a href="https://example.test/audit?post=42&amp;status=ready">https://example.test/audit?post=42&amp;status=ready</a>', $blocks);
         $t->contains('<p>Bare URI audit: <a href="http://example.test/import?post=42&amp;stage=bare">http://example.test/import?post=42&amp;stage=bare</a>. Keep (<a href="https://example.test/media_(legacy)">https://example.test/media_(legacy)</a>) visible.</p>', $blocks);
+        $t->contains('<p>Source URI audit: <a href="doi:10.1000/182">doi:10.1000/182</a>, <a href="git://github.com/example/wp-migration.git">git://github.com/example/wp-migration.git</a>, <a href="file:///Users/editor/imports/batch-42.csv">file:///Users/editor/imports/batch-42.csv</a>, and <a href="mailto:migration@example.test">mailto:migration@example.test</a>.</p>', $blocks);
+        $t->contains('<p>Extended source URL audit: <a href="http://el.wikipedia.org/wiki/Τεχνολογία">http://el.wikipedia.org/wiki/Τεχνολογία</a>, <a href="http://www.rubyonrails.com/~minam/url%20with%20spaces">http://www.rubyonrails.com/~minam/url%20with%20spaces</a>, and <a href="http://www.mail-archive.com/rails@lists.rubyonrails.org/">http://www.mail-archive.com/rails@lists.rubyonrails.org/</a>.</p>', $blocks);
         $t->contains('<a href="https://example.test/review-token" id="review-token" class="source-link" data-source="batch-42" title="Review token">https://example.test/review-token</a>', $blocks);
         $t->contains('<a href="mailto:importer@example.test">importer@example.test</a>', $blocks);
         $t->contains('<a href="http://测.com?测=测">http://测.com?测=测</a>', $blocks);
@@ -4051,6 +4536,8 @@ XML;
         $t->contains('<a href="/ürl" title="öö!">legacy umlaut media</a>', $blocks);
         $t->contains('<a href="http://göögle.com">http://göögle.com</a>', $blocks);
         $t->contains('<a href="mailto:me@exämple.com">me@exämple.com</a>', $blocks);
+        $t->contains('<p>Emoji shortcode audit: <span class="emoji" data-emoji="smile">😄</span> and <span class="emoji" data-emoji="+1">👍</span> keep reviewer reactions visible without importing external assets.</p>', $blocks);
+        $t->contains('<p>Wiki link audit: <a href="https://example.test/runbook" class="wikilink">Migration runbook</a> and <a href="Legacy import checklist" class="wikilink">Legacy import checklist</a> keep legacy wiki shortcuts visible.</p>', $blocks);
         $t->contains('<a href="https://example.test/review-label">&lt;https://example.test/source&gt;</a>', $blocks);
         $t->contains('<a href="https://example.test/link-label-audit">[edit link](/wp-admin/post.php?post=42&amp;action=edit)</a>', $blocks);
         $t->contains('<a href="https://example.test/bare-uri-label">https://example.test/raw-source(</a>', $blocks);
@@ -4060,11 +4547,36 @@ XML;
         $t->contains('<p>Backslash link label audit: <a href="b">*<span class="pandoc-raw-tex">\a</span></a> keeps escaped import markers visible.</p>', $blocks);
         $t->contains('<p>Fallback source markers: [<em>not a migration link</em>] [<em>no source</em>]…</p>', $blocks);
         $t->contains('<p>Citation-adjacent source link: MapReduce was popularized by <a href="https://example.test/source/mapreduce">Google</a> [@mapreduce] during source review.</p>', $blocks);
+        $t->contains('<p>Citation boundary audit: @cita [review-only note] stays source citation text, while @cita <a href="https://example.test/citation-link">source log</a> keeps the reviewer link separate.</p>', $blocks);
         $t->contains('<p>Bracketed review span: <span id="migration-span" class="review-span" data-source="batch-42" title="Migration span"><em>urgent</em> source flag <a href="/wp-admin/post.php?post=42&amp;action=edit">edit</a></span>.</p>', $blocks);
         $t->contains('<p>Review the empty import target before publishing.</p>', $blocks);
         $t->contains('<p><a href="">empty-target</a></p>', $blocks);
         $t->contains('<ol><li>Capture source metadata.</li><li>Review multilingual media URLs.</li></ol>', $blocks);
         $t->contains('<p>Example cross-reference: follow step (2) before publishing.</p>', $blocks);
+    },
+    'writes wordpress citation boundary imports from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $citationParagraph = null;
+        foreach ($document->children as $node) {
+            if (
+                $node->type === 'paragraph'
+                && str_starts_with((string) $node->attr('text', ''), 'Citation boundary audit:')
+            ) {
+                $citationParagraph = $node;
+                break;
+            }
+        }
+
+        $t->true($citationParagraph instanceof AstNode, 'Citation boundary fixture paragraph should parse on the native Markdown path');
+        $t->same(['text', 'citation', 'text', 'citation', 'text', 'link', 'text'], array_map(static fn (AstNode $node): string => $node->type, $citationParagraph->children));
+        $t->same('cita', $citationParagraph->children[1]->attr('id'));
+        $t->same('review-only note', $citationParagraph->children[1]->attr('suffix'));
+        $t->same('@cita [review-only note]', $citationParagraph->children[1]->attr('text'));
+        $t->same('cita', $citationParagraph->children[3]->attr('id'));
+        $t->same('@cita', $citationParagraph->children[3]->attr('text'));
+        $t->same('https://example.test/citation-link', $citationParagraph->children[5]->attr('url'));
+        $t->same('source log', $citationParagraph->children[5]->children[0]->attr('text'));
     },
     'writes wordpress markdown hard breaks and multiline code spans from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
@@ -4079,6 +4591,7 @@ XML;
         $t->contains('<!-- wp:image -->', $blocks);
         $t->contains('<figure class="wp-block-image"><img src="https://example.test/uploads/release-frame.jpg" alt="Release archive frame" title="Release archive frame"/><figcaption>Release archive frame</figcaption></figure>', $blocks);
         $t->contains('<p>Inline media audit: <img src="https://example.test/uploads/thumb.jpg" alt="thumbnail" title="Thumbnail title"/> remains in paragraph text.</p>', $blocks);
+        $t->contains('<figure class="wp-block-image" data-pandoc-latex-placement="htbp"><img src="https://example.test/uploads/reviewer-gallery.jpg" alt="Reviewer gallery alt text"/><figcaption>Reviewer gallery</figcaption></figure>', $blocks);
     },
     'writes wordpress footnote endnotes from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
@@ -4143,6 +4656,8 @@ XML;
         $t->contains('<p>Empty import audit table:</p>', $blocks);
         $t->true(!str_contains($blocks, '<table>' . "\n" . '<tbody>' . "\n" . '</tbody>' . "\n" . '</table>'), 'Empty fixture tables should not become raw HTML blocks');
         $t->true(!str_contains($blocks, '<table>' . "\n" . '</table>'), 'Empty fixture tables should be omitted');
+        $t->contains('<p>Markdown raw HTML boundary audit:</p>', $blocks);
+        $t->contains('<p>Legacy raw deletion boundary</p>', $blocks);
         $t->contains('<!-- Preserve migration audit marker -->', $blocks);
         $t->contains('<hr class="legacy-import-divider" />', $blocks);
     },
@@ -4338,18 +4853,26 @@ XML;
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Reviewer <em>import note</em> flags <strong><em>urgent media cleanup</em></strong> before publishing.</p>', $blocks);
+        $t->contains('<p>Reviewer emphasis nesting: <em>x <strong>xx</strong> x</em> and <em><strong>a</strong>b <strong>c</strong>d</em>.</p>', $blocks);
+        $t->contains("<p>Reviewer softbreak emphasis:\n<em>source review</em> <strong><em>urgent pass</em></strong> keeps line\n<em>source review</em> <strong><em>urgent pass</em></strong> in one paragraph.</p>", $blocks);
     },
     'writes wordpress strikeout superscript and subscript from import review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains('<p>Chemistry note: H<sub>2</sub>O import and a<sup><em>draft</em></sup> status need <del>legacy cleanup</del>.</p>', $blocks);
+        $t->contains('<p>Short script audit: O<sub>2</sub> levels and x<sup>2</sup><em>status</em> annotations stay compact for reviewer notes.</p>', $blocks);
     },
     'writes wordpress smart punctuation from import review notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
 
         $t->contains("<p>Migration editor said, \u{201C}Don\u{2019}t flatten \u{2018}legacy\u{2019} captions\u{2026}\u{201D} Keep dates 1987\u{2013}1999 and one\u{2014}two review notes.</p>", $blocks);
+        $t->contains("<p>French quote audit: \u{2018}\u{2026}legacy source\u{2019} starts truncated, and À l\u{2019}arrivée de la guerre, le thème de l\u{2019}«impossibilité du socialisme» plus D\u{2019}oh! A l\u{2019}<em>aide</em>! keep Pandoc smart punctuation.</p>", $blocks);
+        $t->contains("<p>Unclosed quote audit: <strong>this should \u{201C}be bold</strong> during reviewer import.</p>", $blocks);
+        $t->contains("<p>Inline note quote audit: \u{2018}a<sup id=\"fnref-3\"><a href=\"#fn-3\" role=\"doc-noteref\">3</a></sup> c.\u{2019} and \u{201C}a<sup id=\"fnref-4\"><a href=\"#fn-4\" role=\"doc-noteref\">4</a></sup> c.\u{201D} stay nested for reviewer import.</p>", $blocks);
+        $t->contains("<li id=\"fn-3\"><p>\u{2018}source quote\u{2019}.</p> <a href=\"#fnref-3\" aria-label=\"Back to content\">Back</a></li>", $blocks);
+        $t->contains("<li id=\"fn-4\"><p>\u{201C}review quote\u{201D}.</p> <a href=\"#fnref-4\" aria-label=\"Back to content\">Back</a></li>", $blocks);
     },
     'writes wordpress math and raw tex preservation markup from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

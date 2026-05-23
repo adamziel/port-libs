@@ -6,11 +6,21 @@ This **legacy post** links back to the [source archive](https://example.test/arc
 
 Inline media audit: ![thumbnail](https://example.test/uploads/thumb.jpg "Thumbnail title") remains in paragraph text.
 
+![Reviewer gallery](https://example.test/uploads/reviewer-gallery.jpg){latex-placement="htbp" alt="Reviewer gallery alt text"}
+
 Reference audit links: [migration checklist][checklist] and <https://example.test/audit?post=42&status=ready>.
 
 Bare URI audit: http://example.test/import?post=42&stage=bare. Keep (https://example.test/media_(legacy)) visible.
 
+Source URI audit: doi:10.1000/182, git://github.com/example/wp-migration.git, file:///Users/editor/imports/batch-42.csv, and mailto:migration@example.test.
+
+Extended source URL audit: http://el.wikipedia.org/wiki/Τεχνολογία, http://www.rubyonrails.com/~minam/url%20with%20spaces, and http://www.mail-archive.com/rails@lists.rubyonrails.org/.
+
 Autolink attribute audit: <https://example.test/review-token>{#review-token .source-link data-source=batch-42 title="Review token"} stays tagged for reviewer tooling.
+
+Emoji shortcode audit: :smile: and :+1: keep reviewer reactions visible without importing external assets.
+
+Wiki link audit: [[Migration runbook|https://example.test/runbook]] and [[Legacy import checklist]] keep legacy wiki shortcuts visible.
 
 Link label boundary audit: [<https://example.test/source>](https://example.test/review-label), [[edit link](/wp-admin/post.php?post=42&action=edit)](https://example.test/link-label-audit), and [https://example.test/raw-source(](https://example.test/bare-uri-label) keep source notation literal inside reviewer labels.
 
@@ -41,6 +51,8 @@ Fallback source markers: [*not a migration link*] [*no source*]...
 Citation-adjacent source link: MapReduce was popularized by [Google] [@mapreduce] during source review.
 
 [Google]: https://example.test/source/mapreduce
+
+Citation boundary audit: @cita [review-only note] stays source citation text, while @cita [source log](https://example.test/citation-link) keeps the reviewer link separate.
 
 Bracketed review span: [*urgent* source flag [edit](/wp-admin/post.php?post=42&action=edit)]{.review-span #migration-span data-source=batch-42 title="Migration span"}.
 
@@ -81,13 +93,36 @@ Footnote audit: migration source[^source-note] and inline editor note.^[Inline n
 
 Reviewer _import note_ flags ___urgent media cleanup___ before publishing.
 
+Reviewer emphasis nesting: *x **xx** x* and ***a**b **c**d*.
+
+Reviewer softbreak emphasis:
+*source review* ***urgent pass*** keeps line
+*source review* ***urgent pass*** in one paragraph.
+
+Unclosed quote audit: **this should "be bold** during reviewer import.
+
+Inline note quote audit: 'a^['source quote'.] c.' and "a^["review quote".] c." stay nested for reviewer import.
+
 Chemistry note: H~2~O import and a^*draft*^ status need ~~legacy cleanup~~.
 
+Short script audit: O~2 levels and x^2*status* annotations stay compact for reviewer notes.
+
 Migration editor said, "Don't flatten 'legacy' captions..." Keep dates 1987--1999 and one---two review notes.
+
+French quote audit: '...legacy source' starts truncated, and À l'arrivée de la guerre, le thème de l'«impossibilité du socialisme» plus D'oh! A l'*aide*! keep Pandoc smart punctuation.
 
 ## Review Anchors {#review-anchors .migration-anchor}
 
 Reviewers can jump back to [Migrated Release Notes] without a manually written reference definition.
+
+## Closing Hash Heading #
+
+Legacy exports sometimes keep ATX closing hashes; this heading should normalize before import.
+
+Setext Import Heading
+---------------------
+
+Setext headings from old editor notes should still create stable reviewer anchors.
 
 Entity import note: AT&amp;T sponsor text and 4 < 5 comparator stay visible for review.
 
@@ -150,6 +185,10 @@ Raw import table:
 <td>**Reviewer flag**</td>
 </tr>
 </table>
+
+Markdown raw HTML boundary audit:
+
+<del>Legacy raw deletion boundary</del>
 
 Plain HTML reader import table:
 
