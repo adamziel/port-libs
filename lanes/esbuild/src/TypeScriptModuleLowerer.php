@@ -19,6 +19,7 @@ final class TypeScriptModuleLowerer
     private bool $minifySyntax = false;
     private bool $lowerUsingDeclarations = false;
     private bool $lowerAsyncGenerators = false;
+    private bool $lowerDecorators = false;
     private int $targetYear = 2022;
     private bool $hasLoweredUsingDeclarations = false;
     private bool $hasLoweredAwaitUsingDeclarations = false;
@@ -34,6 +35,10 @@ final class TypeScriptModuleLowerer
     private string $asyncGeneratorName = '__asyncGenerator';
     private string $asyncGeneratorYieldStarName = '__yieldStar';
     private string $asyncGeneratorForAwaitName = '__forAwait';
+    /**
+     * @var array<string, true>
+     */
+    private array $generatedIdentifiers = [];
 
     public function lower(
         string $source,
@@ -41,7 +46,8 @@ final class TypeScriptModuleLowerer
         bool $minifySyntax = false,
         bool $lowerUsingDeclarations = false,
         bool $lowerAsyncGenerators = false,
-        int $targetYear = 2022
+        int $targetYear = 2022,
+        bool $lowerDecorators = false
     ): string
     {
         $this->source = $source;
@@ -51,6 +57,7 @@ final class TypeScriptModuleLowerer
         $this->minifySyntax = $minifySyntax;
         $this->lowerUsingDeclarations = $lowerUsingDeclarations;
         $this->lowerAsyncGenerators = $lowerAsyncGenerators;
+        $this->lowerDecorators = $lowerDecorators;
         $this->targetYear = $targetYear;
         $this->hasLoweredUsingDeclarations = false;
         $this->hasLoweredAwaitUsingDeclarations = false;
@@ -58,6 +65,7 @@ final class TypeScriptModuleLowerer
         $this->needsAsyncGeneratorHelperRuntime = false;
         $this->usingScopeCounter = 0;
         $this->asyncGeneratorForAwaitCounter = 0;
+        $this->generatedIdentifiers = $this->sourceIdentifierMap();
         $this->configureHelperNames();
         $this->validateSwitchCaseUsingDeclarations();
         $this->validateDecoratorBoundaries();
@@ -533,6 +541,17 @@ final class TypeScriptModuleLowerer
         return $best;
     }
 
+    private function rangeContainsToken(string $text, int $start, int $end): bool
+    {
+        for ($i = $start; $i <= $end; $i++) {
+            if (($this->tokens[$i] ?? null)?->text === $text) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function decoratorListClassTargetIndex(int $start): ?int
     {
         $cursor = $start;
@@ -691,6 +710,7 @@ final class TypeScriptModuleLowerer
     {
         $cursor = $start;
         $hasTypeScriptClassSyntax = false;
+        $isExportDefaultClass = false;
         [$decoratorTexts, $decoratorSkipRanges, $cursor] = $this->classStatementDecorators($cursor);
         if (($this->tokens[$cursor] ?? null)?->text === 'export') {
             if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
@@ -701,6 +721,7 @@ final class TypeScriptModuleLowerer
                 if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
                     return null;
                 }
+                $isExportDefaultClass = true;
                 $cursor++;
             }
             [$afterExportDecorators, $afterExportSkipRanges, $cursor] = $this->classStatementDecorators($cursor);
@@ -737,8 +758,13 @@ final class TypeScriptModuleLowerer
             $bodyClose,
             $this->classHeaderHasExtends($cursor, $bodyOpen),
         );
-        if (!$hasTypeScriptClassSyntax && !$hasTypeScriptMemberSyntax) {
+        $hasClassDecorators = $decoratorTexts !== [];
+        if (!$hasTypeScriptClassSyntax && !$hasTypeScriptMemberSyntax && !($this->lowerDecorators && $hasClassDecorators)) {
             return null;
+        }
+
+        if ($this->lowerDecorators && $hasClassDecorators && $this->rangeContainsToken('@', $bodyOpen + 1, $bodyClose - 1)) {
+            throw new \InvalidArgumentException('Decorator lowering for class members is not supported yet');
         }
 
         $fieldKeyExtendsPrelude = [];
@@ -754,7 +780,7 @@ final class TypeScriptModuleLowerer
         $afterClassStaticAssignmentClassName = null;
         if ($afterClassStaticAssignments !== []) {
             $className = $this->classDeclarationName($cursor, $bodyOpen);
-            if ($this->isExportDefaultClassStatement($start)) {
+            if ($isExportDefaultClass) {
                 $exportDefaultWithAfterClassAssignments = true;
                 if ($className === null) {
                     $className = $this->allocateDefaultExportName();
@@ -767,6 +793,22 @@ final class TypeScriptModuleLowerer
             $afterClassStaticAssignmentClassName = $className;
         }
 
+        $decoratorTargetClassName = null;
+        $decoratorContextName = null;
+        $decoratorVariableBaseName = null;
+        if ($this->lowerDecorators && $hasClassDecorators) {
+            $decoratorTargetClassName = $this->classDeclarationName($cursor, $bodyOpen);
+            if ($decoratorTargetClassName === null && $isExportDefaultClass) {
+                $decoratorTargetClassName = $defaultClassName ?? $this->allocateDefaultExportName();
+                $defaultClassName ??= $decoratorTargetClassName;
+                $decoratorContextName = '';
+                $decoratorVariableBaseName = '_class_decorators';
+            }
+            if ($decoratorTargetClassName === null) {
+                throw new \InvalidArgumentException('Decorator lowering for anonymous classes is not supported yet');
+            }
+        }
+
         $header = $this->classHeaderText(
             $exportDefaultWithAfterClassAssignments ? $cursor : $start,
             $bodyOpen,
@@ -775,7 +817,7 @@ final class TypeScriptModuleLowerer
             $defaultClassName,
             $decoratorSkipRanges,
         );
-        if ($decoratorTexts !== []) {
+        if ($decoratorTexts !== [] && !$this->lowerDecorators) {
             $header = implode(' ', $decoratorTexts) . ' ' . $header;
         }
         $lines = [$header . ' {'];
@@ -808,6 +850,19 @@ final class TypeScriptModuleLowerer
             }
         }
 
+        if ($this->lowerDecorators && $hasClassDecorators) {
+            if ($decoratorTargetClassName === null) {
+                throw new \LogicException('Expected a class name for decorator lowering');
+            }
+            $classOutput = $this->lowerClassDecoratorStatement(
+                $classOutput,
+                $decoratorTargetClassName,
+                $decoratorTexts,
+                $decoratorContextName,
+                $decoratorVariableBaseName,
+            );
+        }
+
         return [$classOutput, $bodyClose];
     }
 
@@ -827,6 +882,44 @@ final class TypeScriptModuleLowerer
         }
 
         return [$texts, $skipRanges, $cursor];
+    }
+
+    /**
+     * @param list<string> $decoratorTexts
+     */
+    private function lowerClassDecoratorStatement(
+        string $classOutput,
+        string $className,
+        array $decoratorTexts,
+        ?string $decoratorContextName = null,
+        ?string $decoratorVariableBaseName = null,
+    ): string
+    {
+        $decoratorName = $this->allocateGeneratedIdentifier($decoratorVariableBaseName ?? '_' . $className . '_decorators');
+        $initName = $this->allocateGeneratedIdentifier('_init');
+        $decoratorContextName ??= $className;
+        $decorators = array_map(
+            fn (string $decoratorText): string => $this->decoratorExpression($decoratorText),
+            $decoratorTexts,
+        );
+
+        return 'var ' . $decoratorName . ', ' . $initName . ";\n"
+            . $decoratorName . ' = [' . implode(', ', $decorators) . "];\n"
+            . $classOutput . "\n"
+            . $initName . " = __decoratorStart(null);\n"
+            . $className . ' = __decorateElement(' . $initName . ', 0, '
+            . $this->quoteJsString($decoratorContextName) . ', ' . $decoratorName . ', ' . $className . ");\n"
+            . '__runInitializers(' . $initName . ', 1, ' . $className . ');';
+    }
+
+    private function decoratorExpression(string $decoratorText): string
+    {
+        $decoratorText = trim($decoratorText);
+        if (!str_starts_with($decoratorText, '@')) {
+            throw new \InvalidArgumentException('Expected JavaScript decorator expression');
+        }
+
+        return trim(substr($decoratorText, 1));
     }
 
     private function isExportDefaultClassStatement(int $start): bool
@@ -7343,6 +7436,11 @@ JS, [
         }
 
         return $used;
+    }
+
+    private function allocateGeneratedIdentifier(string $base): string
+    {
+        return $this->allocateUniqueIdentifier($base, $this->generatedIdentifiers);
     }
 
     /**

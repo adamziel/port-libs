@@ -1389,6 +1389,57 @@ JS . "\n", $lowerer->lower('@blockController<BlockConfiguration>(metadata) class
 
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@x export @y class Foo { y: any }'));
     },
+    'lowers upstream class decorators through helper calls' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _Foo_decorators, _init;
+_Foo_decorators = [dec];
+class Foo {
+}
+_init = __decoratorStart(null);
+Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);
+__runInitializers(_init, 1, Foo);
+JS . "\n", $lowerer->lower('@dec class Foo {}', lowerDecorators: true));
+
+        $t->same(<<<'JS'
+var _Foo_decorators, _init;
+_Foo_decorators = [dec];
+export class Foo {
+}
+_init = __decoratorStart(null);
+Foo = __decorateElement(_init, 0, "Foo", _Foo_decorators, Foo);
+__runInitializers(_init, 1, Foo);
+JS . "\n", $lowerer->lower('export @dec class Foo {}', lowerDecorators: true));
+
+        $t->same(<<<'JS'
+var _class_decorators, _init;
+_class_decorators = [dec];
+export default class defaultExport {
+}
+_init = __decoratorStart(null);
+defaultExport = __decorateElement(_init, 0, "", _class_decorators, defaultExport);
+__runInitializers(_init, 1, defaultExport);
+JS . "\n", $lowerer->lower('export default @dec class {}', lowerDecorators: true));
+
+        $collision = $lowerer->lower(
+            'const _init = runtime.init; @track<BlockConfiguration>(metadata) class Foo { y: any }',
+            lowerDecorators: true
+        );
+        $t->contains('const _init = runtime.init;', $collision);
+        $t->contains('var _Foo_decorators, _init2;', $collision);
+        $t->contains('_Foo_decorators = [track(metadata)];', $collision);
+        $t->contains('class Foo {', $collision);
+        $t->contains('  y;', $collision);
+        $t->contains('Foo = __decorateElement(_init2, 0, "Foo", _Foo_decorators, Foo);', $collision);
+        $t->true(!str_contains($collision, '@track'));
+        $t->true(!str_contains($collision, 'BlockConfiguration'));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): string => $lowerer->lower('@dec class Foo { @field x }', lowerDecorators: true)
+        );
+    },
     'rejects wordpress block decorators on non-class declarations without node' => static function (TestRunner $t): void {
         $source = <<<'TS'
 @blockController<BlockConfiguration>(metadata)
@@ -2360,6 +2411,35 @@ JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, 'static {'));
+    },
+    'lowers wordpress block controller decorators for legacy targets without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-decorator-legacy-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
+
+        $t->contains('_DecoratedRegistration_decorators = [blockController(metadata)];', $lowered);
+        $t->contains('class DecoratedRegistration {', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, metadata);', $lowered);
+        $t->contains('DecoratedRegistration = __decorateElement(_init, 0, "DecoratedRegistration", _DecoratedRegistration_decorators, DecoratedRegistration);', $lowered);
+        $t->contains('__runInitializers(_init, 1, DecoratedRegistration);', $lowered);
+        $t->contains('new DecoratedRegistration().register();', $lowered);
+        $t->true(!str_contains($lowered, '@blockController'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress default block controller decorators for legacy targets without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-default-decorator-legacy-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerDecorators: true);
+
+        $t->contains('_class_decorators = [blockController(metadata)];', $lowered);
+        $t->contains('export default class defaultExport {', $lowered);
+        $t->contains('static settings = {supports:{html:false}, viewScript:"file:./view.js",};', $lowered);
+        $t->contains('blocks.registerBlockType(metadata.name, metadata);', $lowered);
+        $t->contains('defaultExport = __decorateElement(_init, 0, "", _class_decorators, defaultExport);', $lowered);
+        $t->contains('__runInitializers(_init, 1, defaultExport);', $lowered);
+        $t->true(strpos($lowered, 'export default class defaultExport') < strpos($lowered, 'defaultExport = __decorateElement'));
+        $t->true(!str_contains($lowered, '@blockController'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
     'lowers wordpress using disposable asset handles without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-using-disposable.ts');
