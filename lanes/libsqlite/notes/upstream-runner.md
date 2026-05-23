@@ -3918,3 +3918,47 @@ and a readable rewritten `obsolete_large_cache` option.
 Remaining boundaries: non-root parent underflow after source-leaf
 merge/rebalance, cell-level FAST secure-delete freeblock clearing, journaling,
 WAL, and general SQL execution remain future slices.
+
+## Focused Native Mapping: Non-Root Composite Index Parent Collapse
+
+For the bounded `wp_options(autoload, option_name)` replacement slice where
+the source-leaf merge leaves its non-root index-interior parent underfilled
+below a two-child root, the focused upstream runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test btree01.test delete2.test delete3.test delete4.test
+```
+
+Result: 6 named Tcl scripts / 9 runner script-permutation runs, 0 errors out
+of 804 tests in 00:00. A bounded static scan counted 293 `do_*` Tcl command
+lines in those scripts and 36 targeted `balance_nonroot`,
+`balance_shallower`, `dropCell()`, `insertCell()`, `editPage()`, and
+`freePage2()` source contract lines in `src/btree.c`.
+
+This maps SQLite's UPDATE row rewrite behavior, composite index key ordering,
+delete-triggered `balance_nonroot()` leaf merge that underfills a non-root
+parent, root-level parent collapse/`balance_shallower`, parent divider
+promotion into the collapsed root, and obsolete leaf/interior-page release
+through `freePage2()`.
+
+The native PHP slice now lets a replacement autoload change merge an
+underfilled composite-index source leaf below a non-root parent, then collapse
+that underfilled parent and its sibling into the two-child root. The direct
+libsqlite harness passed 209 PHP tests with 1596 assertions and 0 failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-index-parent-collapse-option-replacement-plan.php` script
+ran successfully, reporting updated page images `[1,2,3,5,6,7]`, a collapsed
+index root at page 3 with left children `[5,6,9]` and right-most pointer 10,
+merged leaf page 6 with 3 cells, obsolete pages `[7,4,8]` on the freelist,
+and a readable rewritten option through the composite index.
+
+Remaining boundaries: non-root parent underflow beyond the current two-child
+root collapse shape, cell-level FAST secure-delete freeblock clearing,
+journaling, WAL, and general SQL execution remain future slices.

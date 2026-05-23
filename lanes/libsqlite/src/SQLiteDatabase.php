@@ -1899,6 +1899,7 @@ final class SQLiteDatabase
             try {
                 return $this->withMergedWritableIndexLeafSiblingAfterDeletion(
                     $pageImages,
+                    $rootPage,
                     $parent,
                     $leaf,
                     $entries,
@@ -2066,6 +2067,7 @@ final class SQLiteDatabase
      */
     private function withMergedWritableIndexLeafSiblingAfterDeletion(
         array $pageImages,
+        int $rootPage,
         array $parent,
         array $leaf,
         array $entries,
@@ -2080,9 +2082,6 @@ final class SQLiteDatabase
         );
         if ($parentHeader->pageType !== 'index-interior' || $parentHeader->rightMostPointer === null || $parentHeader->cellCount < 2) {
             throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning requires a mergeable index interior parent');
-        }
-        if (($parent['parent'] ?? null) !== null && $parentHeader->cellCount < 4) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet merge leaves when a non-root parent would underflow');
         }
 
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $workingDatabase->readOverflowPayload($firstOverflowPage, $byteCount);
@@ -2188,6 +2187,20 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning lost the parent right-most pointer');
         }
 
+        if (($parent['parent'] ?? null) !== null && count($newParentEntries) < 3) {
+            return $workingDatabase->withCollapsedRootIndexAfterNonRootParentUnderflow(
+                $pageImages,
+                $rootPage,
+                $parent,
+                $newParentEntries,
+                $rightMostPointer,
+                $leftPageNumber,
+                $mergedLeafPage,
+                $rightPageNumber,
+                $columns,
+            );
+        }
+
         $newParentPage = $workingDatabase->assembleWritableIndexInteriorPageFromEntries(
             $newParentEntries,
             $rightMostPointer,
@@ -2201,6 +2214,123 @@ final class SQLiteDatabase
         }
         $pageImages[$leftPageNumber] = $mergedLeafPage;
         $pageImages[$parent['pageNumber']] = $newParentPage;
+        ksort($pageImages);
+
+        return $pageImages;
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @param array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int,childIndex:int,parent:?array} $underfilledParent
+     * @param list<array{values:list<mixed>,payload:string,leftChild:int}> $underfilledEntries
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @return array<int, string>
+     */
+    private function withCollapsedRootIndexAfterNonRootParentUnderflow(
+        array $pageImages,
+        int $rootPage,
+        array $underfilledParent,
+        array $underfilledEntries,
+        int $underfilledRightMostPointer,
+        int $mergedLeafPageNumber,
+        string $mergedLeafPage,
+        int $obsoleteLeafPageNumber,
+        array $columns,
+    ): array {
+        $rootContext = $underfilledParent['parent'] ?? null;
+        if (
+            $rootContext === null
+            || ($rootContext['parent'] ?? null) !== null
+            || $rootContext['pageNumber'] !== $rootPage
+            || $rootContext['header']->pageType !== 'index-interior'
+        ) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only a root parent underflow');
+        }
+
+        $rootPageBytes = $this->page($rootPage);
+        $rootHeader = SQLiteBTreePageHeader::parsePage(
+            $rootPageBytes,
+            $this->header->pageSize,
+            $rootContext['headerOffset'],
+        );
+        if ($rootHeader->pageType !== 'index-interior' || $rootHeader->cellCount !== 1 || $rootHeader->rightMostPointer === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only two-child index roots');
+        }
+
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        $rootCells = SQLiteIndexCell::parsePageCells($rootPageBytes, $rootHeader, $this->usablePageSize(), $overflowReader);
+        $rootCell = $rootCells[0] ?? null;
+        if ($rootCell === null || $rootCell->leftChildPage === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found an invalid root divider');
+        }
+
+        $rootChildPages = [$rootCell->leftChildPage, $rootHeader->rightMostPointer];
+        $rootChildIndex = $rootContext['childIndex'];
+        if (
+            $rootChildIndex < 0
+            || $rootChildIndex > 1
+            || $rootChildPages[$rootChildIndex] !== $underfilledParent['pageNumber']
+        ) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found an invalid underfilled parent slot');
+        }
+
+        $siblingIndex = $rootChildIndex === 0 ? 1 : 0;
+        $siblingPageNumber = $rootChildPages[$siblingIndex];
+        $siblingPage = $this->page($siblingPageNumber);
+        $siblingHeaderOffset = $siblingPageNumber === 1 ? 100 : 0;
+        $siblingHeader = SQLiteBTreePageHeader::parsePage(
+            $siblingPage,
+            $this->header->pageSize,
+            $siblingHeaderOffset,
+        );
+        if ($siblingHeader->pageType !== 'index-interior' || $siblingHeader->rightMostPointer === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning can collapse only sibling index-interior parents');
+        }
+
+        $siblingCells = SQLiteIndexCell::parsePageCells($siblingPage, $siblingHeader, $this->usablePageSize(), $overflowReader);
+        $siblingEntries = [];
+        foreach ($siblingCells as $siblingCell) {
+            if ($siblingCell->leftChildPage === null) {
+                throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning found a sibling parent cell without a child pointer');
+            }
+            $siblingEntries[] = [
+                'values' => $this->indexEntryValuesForColumns($siblingCell, count($columns)),
+                'payload' => $siblingCell->payload,
+                'leftChild' => $siblingCell->leftChildPage,
+            ];
+        }
+
+        $rootDividerEntry = [
+            'values' => $this->indexEntryValuesForColumns($rootCell, count($columns)),
+            'payload' => $rootCell->payload,
+            'leftChild' => $rootChildIndex === 0 ? $underfilledRightMostPointer : $siblingHeader->rightMostPointer,
+        ];
+
+        if ($rootChildIndex === 0) {
+            $collapsedEntries = array_merge($underfilledEntries, [$rootDividerEntry], $siblingEntries);
+            $collapsedRightMostPointer = $siblingHeader->rightMostPointer;
+        } else {
+            $collapsedEntries = array_merge($siblingEntries, [$rootDividerEntry], $underfilledEntries);
+            $collapsedRightMostPointer = $underfilledRightMostPointer;
+        }
+
+        $collapsedRootPage = $this->assembleWritableIndexInteriorPageFromEntries(
+            $collapsedEntries,
+            $collapsedRightMostPointer,
+            $rootContext['headerOffset'],
+            $rootPageBytes,
+        );
+
+        $freePlan = $this->planPageFreeList(array_values(array_unique([
+            $obsoleteLeafPageNumber,
+            $underfilledParent['pageNumber'],
+            $siblingPageNumber,
+        ])));
+        foreach ($freePlan->pageImages() as $pageNumber => $page) {
+            $pageImages[$pageNumber] = $page;
+        }
+        $pageImages[$mergedLeafPageNumber] = $mergedLeafPage;
+        $pageImages[$rootPage] = $collapsedRootPage;
         ksort($pageImages);
 
         return $pageImages;
