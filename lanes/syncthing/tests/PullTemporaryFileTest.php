@@ -209,6 +209,107 @@ return [
             syncthing_pull_temp_rm($root);
         }
     },
+    'performFinish archives non-conflicting regular replacement when versioner is configured' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/versioned-hero.jpg';
+            $localBytes = str_repeat('published wordpress crop ', 3600);
+            $remoteBytes = str_repeat('normalized playground crop ', 3600);
+            $current = syncthing_pull_temp_file($name, $localBytes, 0640, 1700001200, VersionVector::fromCounters([101 => 7]));
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001300,
+                VersionVector::fromCounters([101 => 7, 202 => 2]),
+                modifiedBy: 202,
+            );
+            $finalPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+            if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
+                throw new RuntimeException('Failed to create final parent directory');
+            }
+            file_put_contents($finalPath, $localBytes);
+            chmod($finalPath, 0640);
+            touch($finalPath, 1700001200);
+
+            $archiveTimestamp = strtotime('2026-05-23 12:34:56 UTC');
+            if ($archiveTimestamp === false) {
+                throw new RuntimeException('Failed to create archive timestamp');
+            }
+            $assembler = new PullTemporaryFile(
+                $remote,
+                $root,
+                currentFile: $current,
+                archiveRootPath: '.stversions',
+                archiveTimestamp: $archiveTimestamp,
+            );
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledArchivedReplacement');
+            $result = $assembler->finalize();
+            $expectedArchiveName = 'wp-content/uploads/2026/versioned-hero~' . date('Ymd-His', $archiveTimestamp) . '.jpg';
+            $archivePath = $root . DIRECTORY_SEPARATOR . '.stversions' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $expectedArchiveName);
+
+            $t->true($result->finalized);
+            $t->same(null, $result->conflictName);
+            $t->same([], $result->scanNames);
+            $t->same($expectedArchiveName, $result->archivedName);
+            $t->same($remoteBytes, (string) file_get_contents($finalPath));
+            $t->same($localBytes, (string) file_get_contents($archivePath));
+            $t->same(0640, syncthing_pull_temp_mode($archivePath));
+            $t->same(1700001200, filemtime($archivePath));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish prefers conflict copy over version archive for conflicting regular replacement' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/conflicting-versioned-hero.jpg';
+            $localBytes = str_repeat('local editor crop ', 3600);
+            $remoteBytes = str_repeat('remote editor crop ', 3600);
+            $current = syncthing_pull_temp_file($name, $localBytes, 0644, 1700001400, VersionVector::fromCounters([101 => 8]));
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001500,
+                VersionVector::fromCounters([202 => 3]),
+                modifiedBy: 202,
+            );
+            $finalPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+            if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
+                throw new RuntimeException('Failed to create final parent directory');
+            }
+            file_put_contents($finalPath, $localBytes);
+
+            $conflictTimestamp = strtotime('2026-05-24 12:00:00 UTC');
+            if ($conflictTimestamp === false) {
+                throw new RuntimeException('Failed to create conflict timestamp');
+            }
+            $assembler = new PullTemporaryFile(
+                $remote,
+                $root,
+                currentFile: $current,
+                conflictTimestamp: $conflictTimestamp,
+                archiveRootPath: '.stversions',
+                archiveTimestamp: $conflictTimestamp,
+            );
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledConflictOverArchive');
+            $result = $assembler->finalize();
+            $expectedConflictName = 'wp-content/uploads/2026/conflicting-versioned-hero.sync-conflict-'
+                . date('Ymd-His', $conflictTimestamp)
+                . '-202.jpg';
+            $conflictPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $expectedConflictName);
+
+            $t->true($result->finalized);
+            $t->same($expectedConflictName, $result->conflictName);
+            $t->same(null, $result->archivedName);
+            $t->true(!is_dir($root . DIRECTORY_SEPARATOR . '.stversions'));
+            $t->same($localBytes, (string) file_get_contents($conflictPath));
+            $t->same($remoteBytes, (string) file_get_contents($finalPath));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
     'performFinish deletes tracked directory before regular file promotion' => static function (TestRunner $t): void {
         $root = syncthing_pull_temp_root();
         try {
@@ -245,6 +346,91 @@ return [
             $t->same([], $result->scanNames);
             $t->true(is_file($finalPath));
             $t->same($remoteBytes, (string) file_get_contents($finalPath));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish schedules a scan instead of deleting directory with unknown children' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/generated-gallery';
+            $remoteBytes = str_repeat('remote generated gallery archive ', 3000);
+            $current = new FileInfo(
+                name: $name,
+                modifiedS: 1700001550,
+                version: VersionVector::fromCounters([101 => 8]),
+                type: FileInfo::TYPE_DIRECTORY,
+                permissions: 0755,
+                modifiedBy: 101,
+            );
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001600,
+                VersionVector::fromCounters([202 => 3]),
+                modifiedBy: 202,
+            );
+            $finalPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+            $unknownChild = $name . '/thumbs/local-only.jpg';
+            $unknownChildPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $unknownChild);
+            if (!mkdir(dirname($unknownChildPath), 0777, true) && !is_dir(dirname($unknownChildPath))) {
+                throw new RuntimeException('Failed to create unknown child directory');
+            }
+            file_put_contents($unknownChildPath, 'locally generated thumbnail');
+
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current, knownDirectoryChildren: []);
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledDirectoryGuardedReplacement');
+            $result = $assembler->finalize();
+
+            $t->true($result->closed);
+            $t->true(!$result->finalized);
+            $t->same('directory has been deleted on a remote device but contains changed files, scheduling scan', $result->error);
+            $t->same([$name . '/thumbs', $unknownChild], $result->scanNames);
+            $t->true(is_dir($finalPath));
+            $t->same('locally generated thumbnail', (string) file_get_contents($unknownChildPath));
+            $t->true(file_exists($assembler->tempPath()));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish removes upstream temporary children before directory replacement' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/stale-temp-gallery';
+            $remoteBytes = str_repeat('remote compacted gallery archive ', 3000);
+            $current = new FileInfo(
+                name: $name,
+                modifiedS: 1700001650,
+                version: VersionVector::fromCounters([101 => 9]),
+                type: FileInfo::TYPE_DIRECTORY,
+                permissions: 0755,
+                modifiedBy: 101,
+            );
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001700,
+                VersionVector::fromCounters([202 => 4]),
+                modifiedBy: 202,
+            );
+            $temporaryChild = RequestServer::temporaryName($name . '/orphan.jpg');
+            $temporaryChildPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $temporaryChild);
+            if (!mkdir(dirname($temporaryChildPath), 0777, true) && !is_dir(dirname($temporaryChildPath))) {
+                throw new RuntimeException('Failed to create temporary child directory');
+            }
+            file_put_contents($temporaryChildPath, 'abandoned partial child');
+
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current, knownDirectoryChildren: []);
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledAfterTempCleanup');
+            $result = $assembler->finalize();
+
+            $t->true($result->finalized);
+            $t->same([], $result->scanNames);
+            $t->true(!file_exists($temporaryChildPath));
+            $t->true(is_file($assembler->finalPath()));
+            $t->same($remoteBytes, (string) file_get_contents($assembler->finalPath()));
         } finally {
             syncthing_pull_temp_rm($root);
         }

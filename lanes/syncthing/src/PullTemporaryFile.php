@@ -6,6 +6,17 @@ namespace PortLibs\Syncthing;
 
 final class PullTemporaryFile
 {
+    private const ERR_DIR_HAS_TO_BE_SCANNED = 'directory has been deleted on a remote device but contains changed files, scheduling scan';
+    private const ERR_DIR_HAS_IGNORED = 'directory has been deleted on a remote device but contains ignored files (see ignore documentation for (?d) prefix)';
+    private const ERR_DIR_NOT_EMPTY = 'directory has been deleted on a remote device but is not empty; the contents are probably ignored on that remote device, but not locally';
+    private const ALL_LOCAL_FLAGS = FileInfo::FLAG_LOCAL_UNSUPPORTED
+        | FileInfo::FLAG_LOCAL_IGNORED
+        | FileInfo::FLAG_LOCAL_MUST_RESCAN
+        | FileInfo::FLAG_LOCAL_RECEIVE_ONLY
+        | FileInfo::FLAG_LOCAL_GLOBAL
+        | FileInfo::FLAG_LOCAL_NEEDED
+        | FileInfo::FLAG_LOCAL_REMOTE_INVALID;
+
     private string $rootPath;
 
     private string $tempName;
@@ -30,6 +41,8 @@ final class PullTemporaryFile
 
     private ?string $conflictName = null;
 
+    private ?string $archivedName = null;
+
     /**
      * @var list<string>
      */
@@ -44,12 +57,31 @@ final class PullTemporaryFile
         private readonly ?FileInfo $currentFile = null,
         private readonly int $maxConflicts = -1,
         private readonly ?int $conflictTimestamp = null,
+        private readonly ?string $archiveRootPath = null,
+        private readonly ?int $archiveTimestamp = null,
+        /** @var list<FileInfo>|null */
+        private readonly ?array $knownDirectoryChildren = null,
+        private readonly ?IgnoreMatcher $ignoreMatcher = null,
+        private readonly bool $receiveOnlyFolder = false,
     ) {
         if ($this->file->type !== FileInfo::TYPE_FILE || $this->file->deleted || $this->file->isInvalid()) {
             throw new \InvalidArgumentException('Pull temporary files can only assemble valid regular files');
         }
         if ($this->maxConflicts < -1) {
             throw new \InvalidArgumentException('Max conflicts must be -1 or greater');
+        }
+        if ($this->archiveRootPath !== null && ($this->archiveRootPath === '' || str_contains($this->archiveRootPath, "\0"))) {
+            throw new \InvalidArgumentException('Archive root path must be null or a valid path');
+        }
+        if ($this->archiveTimestamp !== null && $this->archiveTimestamp < 0) {
+            throw new \InvalidArgumentException('Archive timestamp must be non-negative');
+        }
+        if ($this->knownDirectoryChildren !== null) {
+            foreach ($this->knownDirectoryChildren as $child) {
+                if (!$child instanceof FileInfo) {
+                    throw new \InvalidArgumentException('Known directory children must be FileInfo instances');
+                }
+            }
         }
 
         ProtocolValidation::checkFileInfoConsistency($this->file);
@@ -395,6 +427,7 @@ final class PullTemporaryFile
             encryptionTrailerSize: $this->encryptionTrailerSize,
             conflictName: $this->conflictName,
             scanNames: $this->scanNames,
+            archivedName: $this->archivedName,
         );
     }
 
@@ -428,6 +461,10 @@ final class PullTemporaryFile
     private function replaceExistingFinalFile(string $finalPath): bool
     {
         if (!$this->shouldMoveExistingForConflict()) {
+            if ($this->shouldArchiveExistingFinalFile()) {
+                return $this->archiveExistingFinalFile($finalPath);
+            }
+
             if (!unlink($finalPath)) {
                 $this->error = 'removing old final file failed';
                 return false;
@@ -478,6 +515,44 @@ final class PullTemporaryFile
         return $this->file->inConflictWith($this->currentFile);
     }
 
+    private function shouldArchiveExistingFinalFile(): bool
+    {
+        return $this->archiveRootPath !== null
+            && $this->currentFile !== null
+            && !$this->currentFile->isDirectory()
+            && !$this->currentFile->isSymlink();
+    }
+
+    private function archiveExistingFinalFile(string $finalPath): bool
+    {
+        clearstatcache(true, $finalPath);
+        $archiveName = self::archiveName($this->file->name, $this->archiveTimestamp ?? time());
+        $archivePath = $this->archiveAbsolutePath($archiveName);
+        $archiveDir = dirname($archivePath);
+        if (!is_dir($archiveDir) && !mkdir($archiveDir, 0777, true) && !is_dir($archiveDir)) {
+            $this->error = 'creating version archive parent directory failed';
+            return false;
+        }
+
+        $mtime = filemtime($finalPath);
+        $mode = fileperms($finalPath);
+        if (!@rename($finalPath, $archivePath)) {
+            if (!$this->copyThenRemove($finalPath, $archivePath)) {
+                $this->error = 'archiving old final file failed';
+                return false;
+            }
+        }
+        if (is_int($mtime)) {
+            @touch($archivePath, $mtime);
+        }
+        if (is_int($mode)) {
+            @chmod($archivePath, $mode & 0777);
+        }
+
+        $this->archivedName = $archiveName;
+        return true;
+    }
+
     private function shouldDeleteExistingNonRegular(): bool
     {
         return $this->currentFile !== null
@@ -497,6 +572,10 @@ final class PullTemporaryFile
 
         if (!is_dir($path)) {
             return true;
+        }
+
+        if (!$this->prepareDirectoryChildrenForDeletion($path)) {
+            return false;
         }
 
         $iterator = new \RecursiveIteratorIterator(
@@ -524,9 +603,210 @@ final class PullTemporaryFile
         return true;
     }
 
+    private function prepareDirectoryChildrenForDeletion(string $directoryPath): bool
+    {
+        if ($this->knownDirectoryChildren === null) {
+            return true;
+        }
+
+        $directoryName = $this->relativeNameFromPath($directoryPath);
+        $knownChildren = $this->knownDirectoryChildrenByName($directoryName);
+        $dirsToDelete = [];
+        $hasIgnored = false;
+        $hasKnown = false;
+        $hasToBeScanned = false;
+        $hasReceiveOnlyChanged = false;
+        $deleteError = null;
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($directoryPath, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST,
+        );
+        foreach ($iterator as $entry) {
+            $entryPath = $entry->getPathname();
+            $entryName = $this->relativeNameFromPath($entryPath);
+            $match = $this->ignoreMatcher?->match($entryName);
+
+            if (($match !== null && $match->isDeletable()) || RequestServer::isTemporaryName($entryName)) {
+                if ($entry->isDir() && !$entry->isLink()) {
+                    $dirsToDelete[] = $entryPath;
+                    continue;
+                }
+                if (!@unlink($entryPath) && $deleteError === null) {
+                    $deleteError = 'removing old directory child failed';
+                }
+                continue;
+            }
+
+            if ($match !== null && $match->isIgnored()) {
+                $hasIgnored = true;
+                continue;
+            }
+
+            $known = $knownChildren[$entryName] ?? null;
+            if ($known === null || $known->deleted) {
+                $this->addScanName($entryName);
+                $hasToBeScanned = true;
+                continue;
+            }
+
+            if ($this->receiveOnlyFolder && $known->isReceiveOnlyChanged()) {
+                $hasReceiveOnlyChanged = true;
+                continue;
+            }
+
+            if (!$this->diskEntryMatchesKnownFileInfo($entryPath, $entryName, $known)) {
+                $this->addScanName($entryName);
+                $hasToBeScanned = true;
+                continue;
+            }
+
+            $hasKnown = true;
+        }
+
+        usort($dirsToDelete, static fn (string $left, string $right): int => strlen($right) <=> strlen($left));
+        foreach ($dirsToDelete as $dir) {
+            if (!@rmdir($dir) && $deleteError === null) {
+                $deleteError = 'removing old directory child failed';
+            }
+        }
+
+        if ($hasToBeScanned) {
+            $this->error = self::ERR_DIR_HAS_TO_BE_SCANNED;
+            return false;
+        }
+        if ($hasIgnored) {
+            $this->error = self::ERR_DIR_HAS_IGNORED;
+            return false;
+        }
+        if ($hasReceiveOnlyChanged) {
+            $this->addScanName($directoryName);
+            $this->error = 'removing old directory failed';
+            return false;
+        }
+        if ($hasKnown) {
+            $this->error = self::ERR_DIR_NOT_EMPTY;
+            return false;
+        }
+        if ($deleteError !== null) {
+            $this->error = $deleteError;
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array<string, FileInfo>
+     */
+    private function knownDirectoryChildrenByName(string $directoryName): array
+    {
+        $prefix = rtrim($directoryName, '/') . '/';
+        $children = [];
+        foreach ($this->knownDirectoryChildren ?? [] as $child) {
+            if ($child->name !== $directoryName && str_starts_with($child->name, $prefix)) {
+                $children[$child->name] = $child;
+            }
+        }
+
+        return $children;
+    }
+
+    private function diskEntryMatchesKnownFileInfo(string $path, string $name, FileInfo $known): bool
+    {
+        clearstatcache(true, $path);
+
+        if (is_link($path)) {
+            $target = readlink($path);
+            return $known->isSymlink() && is_string($target) && $known->symlinkTarget === $target;
+        }
+
+        if (is_dir($path)) {
+            return $known->isDirectory();
+        }
+
+        if (!is_file($path)) {
+            return false;
+        }
+
+        $size = filesize($path);
+        $mtime = filemtime($path);
+        $mode = fileperms($path);
+        if (!is_int($size) || !is_int($mtime) || !is_int($mode)) {
+            return false;
+        }
+
+        $disk = new FileInfo(
+            name: $name,
+            modifiedS: $mtime,
+            version: $known->version,
+            size: $size,
+            type: FileInfo::TYPE_FILE,
+            permissions: $mode & 0777,
+            noPermissions: $known->noPermissions,
+            rawBlockSize: $known->rawBlockSize,
+        );
+
+        return $known->isEquivalent($disk, new FileInfoComparison(
+            ignorePerms: $this->ignorePerms || $known->noPermissions,
+            ignoreBlocks: true,
+            ignoreFlags: self::ALL_LOCAL_FLAGS,
+            ignoreOwnership: true,
+        ));
+    }
+
+    private function relativeNameFromPath(string $path): string
+    {
+        $prefix = $this->rootPath . DIRECTORY_SEPARATOR;
+        if (!str_starts_with($path, $prefix)) {
+            throw new \RuntimeException('Directory entry is outside the pull root');
+        }
+
+        return str_replace(DIRECTORY_SEPARATOR, '/', substr($path, strlen($prefix)));
+    }
+
+    private function addScanName(string $name): void
+    {
+        if (!in_array($name, $this->scanNames, true)) {
+            $this->scanNames[] = $name;
+        }
+    }
+
     private function modifiedByLabel(): string
     {
         return $this->file->modifiedBy > 0 ? (string) $this->file->modifiedBy : 'unknown';
+    }
+
+    private function archiveAbsolutePath(string $name): string
+    {
+        if ($this->archiveRootPath === null) {
+            throw new \LogicException('Archive root path is not configured');
+        }
+
+        $root = $this->archiveRootPath;
+        if (!self::isAbsolutePath($root)) {
+            $root = $this->rootPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $root);
+        }
+
+        return rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+    }
+
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, DIRECTORY_SEPARATOR)
+            || preg_match('/^[A-Za-z]:[\\\\\\/]/', $path) === 1;
+    }
+
+    private static function archiveName(string $name, int $timestamp): string
+    {
+        $slash = strrpos($name, '/');
+        $directory = $slash === false ? '' : substr($name, 0, $slash + 1);
+        $base = $slash === false ? $name : substr($name, $slash + 1);
+        $dot = strrpos($base, '.');
+        $stem = $dot === false ? $base : substr($base, 0, $dot);
+        $extension = $dot === false ? '' : substr($base, $dot);
+
+        return $directory . $stem . '~' . date('Ymd-His', $timestamp) . $extension;
     }
 
     private static function conflictName(string $name, string $lastModifiedBy, int $timestamp): string

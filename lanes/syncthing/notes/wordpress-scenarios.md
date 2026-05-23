@@ -602,7 +602,7 @@ both peer activity counters returning to zero after the request attempts.
 The temporary-finalization slice now maps the adjacent upstream
 `sharedPullerState.tempFile`, `copyDone`, `pullDone`, `finalClose`,
 `tempFileInWritableDir`, `finalizeEncrypted`, `writeEncryptionTrailer`,
-`performFinish`, `moveForConflict`, and sparse all-zero block boundaries: verified copied and
+`performFinish`, `deleteItemOnDisk`, `moveForConflict`, and sparse all-zero block boundaries: verified copied and
 pulled blocks are written into Syncthing temporary names, temporary files are
 created or reopened with final permissions OR `0600` so read-only private media
 can still be assembled after a restart, sparse zero blocks are marked available
@@ -614,11 +614,21 @@ to `.sync-conflict-YYYYMMDD-HHMMSS-device` siblings before the pulled file is
 published, tracked existing directories and symlinks are deleted before a
 pulled regular file is promoted, `MaxConflicts` keeps only the newest conflict
 copies after `moveForConflict`, descendant versions replace without conflict
-copies, second close attempts are no-ops, and failed pulls close while leaving
+copies, non-conflicting regular-file replacements can archive the previous file
+under a Syncthing-style `~YYYYMMDD-HHMMSS` `.stversions` name, conflicts still
+prefer `.sync-conflict` copies over version archives, guarded tracked-directory
+replacement now preserves unknown or changed children, records upstream-style
+scan requests, and fails with the `contains changed files, scheduling scan`
+error before destructive removal, abandoned Syncthing temporary children can
+still be removed so replacement can continue, second close attempts are no-ops, and failed pulls close while leaving
 the temporary file for a later retry. This is a
 static targeted mapping from upstream `sharedpullerstate.go`,
-`sharedpullerstate_test.go`, `folder_sendrecv.go`, and
-`lib/protocol/bep_fileinfo.go`, not a new full upstream runner. The WordPress
+`sharedpullerstate_test.go`, `folder_sendrecv.go`,
+`lib/protocol/bep_fileinfo.go`, and `lib/versioner`, plus a focused upstream
+`go test ./lib/versioner -run 'TestTaggedFilename|TestTrashcanArchiveRestoreSwitcharoo|TestTrashcanRestoreDeletedFile'`
+runner pass and a focused upstream
+`go test ./lib/model -run 'TestPullDeleteUnscannedDir|TestPullDeleteIgnoreChildDir' -count=1`
+pass, not full upstream runner parity. The WordPress
 example `wordpress-pull-temporary-finalize.php` shows a
 media file assembled from one origin copy, one sparse zero block, and one
 pulled block before final promotion. `wordpress-pull-temp-permissions.php`
@@ -630,6 +640,12 @@ before a Playground peer's version is promoted.
 `wordpress-pull-directory-replacement.php` shows a stale generated media
 directory being removed before a Playground archive file is promoted without a
 conflict copy.
+`wordpress-pull-version-archive.php` shows a non-conflicting previous WordPress
+media version moved into `.stversions` before the Playground peer's file is
+promoted.
+`wordpress-pull-directory-scan-guard.php` shows a generated media directory
+with an unknown local thumbnail preserved for a follow-up scan while the pulled
+archive remains in its temporary file for retry.
 The receive-encrypted variant
 `wordpress-pull-receive-encrypted-finalize.php` shows the trailer appended
 during native temporary-file promotion, with local finalized size and remote
@@ -638,6 +654,6 @@ index size reported separately.
 ## Next Task
 
 Broaden upstream `folder_sendrecv` behavior around unavailable peers,
-versioner/archive replacement during `performFinish`, case-conflict replacement,
+case-conflict replacement, ignored-directory deletion precedence,
 receive-only changed children, and database update side effects after the native
 final file promotion succeeds.

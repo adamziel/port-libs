@@ -23,6 +23,7 @@ final class PullFinalizationResult
         public readonly int $encryptionTrailerSize = 0,
         public readonly ?string $conflictName = null,
         public readonly array $scanNames = [],
+        public readonly ?string $archivedName = null,
     ) {
         foreach ($this->availableBlockIndexes as $index) {
             if (!is_int($index) || $index < 0) {
@@ -37,13 +38,16 @@ final class PullFinalizationResult
         if ($this->finalSize < 0 || $this->encryptionTrailerSize < 0) {
             throw new \InvalidArgumentException('Finalized sizes must not be negative');
         }
+        if ($this->archivedName !== null && $this->archivedName === '') {
+            throw new \InvalidArgumentException('Archived name must be null or non-empty');
+        }
         if ($this->finalized && $this->dbUpdateType === '') {
             throw new \InvalidArgumentException('Finalized pull results must include a database update type');
         }
     }
 
     /**
-     * @return array{closed:bool, finalized:bool, error:?string, tempName:string, finalName:string, availableBlockIndexes:list<int>, dbUpdateType:string, finalSize:int, encryptionTrailerSize:int, conflictName:?string, scanNames:list<string>}
+     * @return array{closed:bool, finalized:bool, error:?string, tempName:string, finalName:string, availableBlockIndexes:list<int>, dbUpdateType:string, finalSize:int, encryptionTrailerSize:int, conflictName:?string, scanNames:list<string>, archivedName:?string}
      */
     public function toArray(): array
     {
@@ -59,6 +63,7 @@ final class PullFinalizationResult
             'encryptionTrailerSize' => $this->encryptionTrailerSize,
             'conflictName' => $this->conflictName,
             'scanNames' => $this->scanNames,
+            'archivedName' => $this->archivedName,
         ];
     }
 }
