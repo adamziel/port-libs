@@ -1,9 +1,9 @@
-# Independent Audit - 2026-05-23T06:49:16Z
+# Independent Audit - 2026-05-23T06:52:55Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
 lane-status summaries needed to check status alignment, recent Git history
-through `4e9d95e0` plus this audit follow-up, dirty-tree status, active
+through `b6254802` plus this audit follow-up, dirty-tree status, active
 process/test state, and the PHP shell-out surface.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
@@ -31,20 +31,24 @@ it as temporary fixture/oracle evidence.
      and a focused markerPDF test process active at the same time.
    - Evidence: `HEAD` moved during this audit from `cddabe76` through
      `b63b8f34`, `51858b39`, `cc6816bb`, `10cdf74f`, `5c03e2be`,
-     audit commit `b5127b50`, `b81b54d7`, and `4e9d95e0` before this
-     follow-up. Latest samples showed `746` default `git status --short`
-     entries, `73` tracked changed entries, and `73 files changed, 18035
-     insertions(+), 539 deletions(-)`.
+     audit commit `b5127b50`, `b81b54d7`, `4e9d95e0`, `951fc895`,
+     `65b07e78`, `7c328a3f`, `a4b65435`, and `b6254802` before this
+     follow-up. Latest samples showed `756` default `git status --short`
+     entries, `73` tracked changed entries, and `73 files changed, 18111
+     insertions(+), 464 deletions(-)`.
    - Required duplicate-root gate: `pgrep -af
      '^php tools/run-tests\.php( |$)'` initially returned active root PIDs
-     `1281798` and `1281936`; a later sample returned active root PID
-     `1301820`, so I did not start a duplicate root harness.
+     `1281798` and `1281936`; later samples returned active root PIDs
+     `1301820`, `1308552`, `1310128`, and `1323815`; the latest exact sample
+     remained active, so I did not start a duplicate root harness.
    - Owner evidence:
 
      ```text
      1281798 claude   1225389       00:13 Rs   php tools/run-tests.php
      1281936 claude   1253900       00:10 Ss   php tools/run-tests.php
      1301820 claude   1276501       00:08 Rs   php tools/run-tests.php
+     1310128 claude   1272087       00:30 Rs   php tools/run-tests.php
+     1323815 claude   1323814       00:09 R    php tools/run-tests.php
      ```
 
    - Audit judgment: freeze active writers and duplicate loops before treating
@@ -59,7 +63,7 @@ it as temporary fixture/oracle evidence.
      phase, audit, current work, blocker, and commit.
    - Evidence: the dashboard still advertises generated time
      `2026-05-23 04:57:16 UTC` and source commit `bda83c6b93d4`, while
-     reviewed lane/status history has advanced through `4e9d95e0` plus this
+     reviewed lane/status history has advanced through `b6254802` plus this
      audit follow-up.
    - Evidence: the table has compound `Benchmark` and `Mapped` columns instead
      of separate `benchmark source`, `upstream denominator`, `mapped tests`,
@@ -196,12 +200,15 @@ Required duplicate-root check before any root run:
 pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
-Active results observed during this audit:
+Earlier active results observed during this audit:
 
 ```text
 1281798 php tools/run-tests.php
 1281936 php tools/run-tests.php
 1301820 php tools/run-tests.php
+1308552 php tools/run-tests.php
+1310128 php tools/run-tests.php
+1323815 php tools/run-tests.php
 ```
 
 Owner evidence:
@@ -210,11 +217,14 @@ Owner evidence:
 1281798 claude   1225389       00:13 Rs   php tools/run-tests.php
 1281936 claude   1253900       00:10 Ss   php tools/run-tests.php
 1301820 claude   1276501       00:08 Rs   php tools/run-tests.php
+1310128 claude   1272087       00:30 Rs   php tools/run-tests.php
+1323815 claude   1323814       00:09 R    php tools/run-tests.php
 ```
 
-A middle exact duplicate-root sample was clear, but the latest exact sample
-returned PID `1301820`. Active writer/process sampling and `HEAD` movement
-still made the tree unstable for an accepted root baseline.
+A middle exact duplicate-root sample was clear, but later active samples
+returned root PIDs `1308552`, `1310128`, and `1323815`. Active writer/process
+sampling and `HEAD` movement still made the tree unstable for an accepted root
+baseline.
 
 I did not run `php tools/run-tests.php`.
 
@@ -223,6 +233,11 @@ I did not run `php tools/run-tests.php`.
 Recent commits reviewed:
 
 ```text
+b6254802 Record libsqlite lane commit
+a4b65435 Advance libsqlite multi-page index write planning
+7c328a3f Record Dolt lane implementation commit
+65b07e78 Record Syncthing lane implementation commit
+951fc895 Add Dolt preview merge conflict projections
 4e9d95e0 Port Syncthing scanner block-size hysteresis
 b81b54d7 Stamp difftastic lane status
 b5127b50 Refresh independent audit status
