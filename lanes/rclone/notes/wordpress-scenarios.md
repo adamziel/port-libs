@@ -138,6 +138,8 @@ The `../examples/wordpress-direct-listr-bucket-manifest.php` example maps upstre
 
 The `../examples/wordpress-dirtree-direct-restore-manifest.php` example maps upstream direct `fs/walk` `walkRDirTree` / `NewDirTree` behavior for recursive-capable providers. It normalizes arbitrary ListR batches into a sorted directory tree, synthesizes missing parents, prunes cache directories containing `.rclone-ignore` after listing, preserves upload directory boundaries for filtered or max-depth-limited objects, and publishes SQL, WXR, users WXR, and uploads in restore-priority order.
 
+The `../examples/wordpress-walkr-direct-restore-manifest.php` example maps upstream direct `fs/walk` `walkR` callback traversal over a ListR-built DirTree. It receives sorted directory callbacks, uses `ErrorSkipDir` to suppress cache descendants without hiding sibling upload directories, and publishes SQL, WXR, users WXR, upload directories, and media leaves in restore-priority order.
+
 ## Next Task
 
-Map `fs/walk` `walkR` over direct ListR DirTree output, including sorted directory callback order, `ErrorSkipDir` prefix suppression, and non-recursive `NewDirTree` fallback selection.
+Map `fs/walk` `GetAll` over direct ListR and Walk fallback outputs, including object/dir separation, maxLevel boundaries, and provider error propagation.

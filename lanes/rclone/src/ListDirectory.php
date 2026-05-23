@@ -540,6 +540,143 @@ final class ListDirectory
     }
 
     /**
+     * Model fs/walk.walkR over the direct ListR DirTree path.
+     *
+     * ListR builds a sorted directory tree first, then walkR calls the callback
+     * once per directory in sorted order. ErrorSkipDir skips descendants by
+     * prefix and does not suppress similarly-prefixed siblings such as "a2".
+     *
+     * @param callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable) $listR
+     * @param callable(string, list<ObjectInfo>, ?\Throwable): (null|string|\Throwable) $callback
+     * @param null|callable(ObjectInfo): bool $includeObject
+     * @param null|callable(string): bool $includeDirectory
+     * @param list<string> $excludeIfPresent
+     * @return array{visited: int, listed: int, batches: int, skipped: int, pruned: int}
+     */
+    public static function walkRecursiveTree(
+        callable $listR,
+        bool $includeAll,
+        string $path,
+        int $maxLevel,
+        callable $callback,
+        ?callable $includeObject = null,
+        ?callable $includeDirectory = null,
+        array $excludeIfPresent = [],
+    ): array {
+        $result = self::dirTreeFromListR(
+            $listR,
+            $includeAll,
+            $path,
+            $maxLevel,
+            $includeObject,
+            $includeDirectory,
+            $excludeIfPresent,
+        );
+
+        $visited = 0;
+        $skipped = 0;
+        $skipping = false;
+        $skipPrefix = '';
+
+        foreach ($result['tree'] as $dir => $entries) {
+            if ($skipping) {
+                if (str_starts_with($dir, $skipPrefix)) {
+                    continue;
+                }
+                $skipping = false;
+            }
+
+            $visited++;
+            if (self::invokeWalkCallback($callback, $dir, $entries, null)) {
+                $skipped++;
+                $skipping = true;
+                $skipPrefix = $dir === '' ? '' : $dir . '/';
+            }
+        }
+
+        return [
+            'visited' => $visited,
+            'listed' => $result['listed'],
+            'batches' => $result['batches'],
+            'skipped' => $skipped,
+            'pruned' => count($result['pruned']),
+        ];
+    }
+
+    /**
+     * Model fs/walk.NewDirTree selection between direct ListR and WalkN.
+     *
+     * Upstream uses ListR only when a recursive provider listing exists and the
+     * caller asks for unbounded recursion or more than one level. Level-one
+     * calls and non-recursive providers fall back to Walk over DirSorted.
+     *
+     * @param callable(string): iterable<ObjectInfo> $list
+     * @param null|callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable) $listR
+     * @param null|callable(ObjectInfo): bool $includeObject
+     * @param null|callable(string): bool $includeDirectory
+     * @param list<string> $excludeIfPresent
+     * @return array{tree: array<string, list<ObjectInfo>>, source: string, listed: int, batches: int, pruned: list<string>}
+     */
+    public static function newDirTree(
+        callable $list,
+        ?callable $listR,
+        bool $includeAll,
+        string $path,
+        int $maxLevel,
+        ?callable $includeObject = null,
+        ?callable $includeDirectory = null,
+        array $excludeIfPresent = [],
+    ): array {
+        if ($listR !== null && ($maxLevel < 0 || $maxLevel > 1)) {
+            $result = self::dirTreeFromListR(
+                $listR,
+                $includeAll,
+                $path,
+                $maxLevel,
+                $includeObject,
+                $includeDirectory,
+                $excludeIfPresent,
+            );
+
+            return [
+                'tree' => $result['tree'],
+                'source' => 'listR',
+                'listed' => $result['listed'],
+                'batches' => $result['batches'],
+                'pruned' => $result['pruned'],
+            ];
+        }
+
+        $tree = [];
+        $stats = self::walk(
+            $list,
+            $includeAll,
+            $path,
+            $maxLevel,
+            static function (string $dir, array $entries, ?\Throwable $error) use (&$tree): ?\Throwable {
+                if ($error !== null) {
+                    return $error;
+                }
+                $tree[$dir] = $entries;
+
+                return null;
+            },
+            $includeObject,
+            $includeDirectory,
+            $excludeIfPresent,
+        );
+        self::sortDirTree($tree);
+
+        return [
+            'tree' => $tree,
+            'source' => 'walk',
+            'listed' => $stats['listed'],
+            'batches' => 0,
+            'pruned' => [],
+        ];
+    }
+
+    /**
      * @param array<string, list<ObjectInfo>> $tree
      */
     public static function formatDirTree(array $tree): string

@@ -925,6 +925,106 @@ TREE;
             -1,
         ));
     },
+    'walkR direct tree visits sorted directories with sorted entries' => static function (TestRunner $t): void {
+        $visited = [];
+        $stats = ListDirectory::walkRecursiveTree(
+            static function (string $dir, callable $callback): null {
+                $callback([
+                    rclone_list_directory_object('z/y/file'),
+                    rclone_list_directory_object('a/b/c'),
+                    rclone_list_directory_object('a/a'),
+                ]);
+
+                return null;
+            },
+            true,
+            '',
+            -1,
+            static function (string $dir, array $entries, ?Throwable $error) use (&$visited): null {
+                $visited[$dir] = rclone_list_directory_names($entries);
+
+                return null;
+            },
+        );
+
+        $t->same(['', 'a', 'a/b', 'z', 'z/y'], array_keys($visited));
+        $t->same(['a/', 'z/'], $visited['']);
+        $t->same(['a/a', 'a/b/'], $visited['a']);
+        $t->same(['z/y/file'], $visited['z/y']);
+        $t->same(['visited' => 5, 'listed' => 3, 'batches' => 1, 'skipped' => 0, 'pruned' => 0], $stats);
+    },
+    'walkR direct tree ErrorSkipDir suppresses only descendant prefixes' => static function (TestRunner $t): void {
+        $visited = [];
+        $stats = ListDirectory::walkRecursiveTree(
+            static function (string $dir, callable $callback): null {
+                $callback([
+                    rclone_list_directory_object('a/file'),
+                    rclone_list_directory_object('a/b/c'),
+                    rclone_list_directory_object('a2/file'),
+                    rclone_list_directory_object('b/file'),
+                ]);
+
+                return null;
+            },
+            true,
+            '',
+            -1,
+            static function (string $dir, array $entries, ?Throwable $error) use (&$visited): ?string {
+                $visited[] = $dir;
+
+                return $dir === 'a' ? ListDirectory::ERROR_SKIP_DIR : null;
+            },
+        );
+
+        $t->same(['', 'a', 'a2', 'b'], $visited);
+        $t->same(['visited' => 4, 'listed' => 4, 'batches' => 1, 'skipped' => 1, 'pruned' => 0], $stats);
+    },
+    'NewDirTree selects direct ListR only for recursive depth' => static function (TestRunner $t): void {
+        $listCalls = [];
+        $listRCalls = [];
+        $list = static function (string $dir) use (&$listCalls): array {
+            $listCalls[] = $dir;
+
+            return match ($dir) {
+                '' => [
+                    rclone_list_directory_object('root.txt'),
+                    rclone_list_directory_directory('a'),
+                ],
+                default => throw new RuntimeException("unexpected List call for {$dir}"),
+            };
+        };
+        $listR = static function (string $dir, callable $callback) use (&$listRCalls): null {
+            $listRCalls[] = $dir;
+            $callback([rclone_list_directory_object('a/file.txt')]);
+
+            return null;
+        };
+
+        $direct = ListDirectory::newDirTree($list, $listR, true, '', -1);
+        $directExpected = <<<'TREE'
+/
+  a/
+a/
+  file.txt
+TREE;
+        $directExpected .= "\n";
+        $t->same('listR', $direct['source']);
+        $t->same($directExpected, ListDirectory::formatDirTree($direct['tree']));
+        $t->same([], $listCalls);
+        $t->same([''], $listRCalls);
+
+        $fallback = ListDirectory::newDirTree($list, $listR, true, '', 1);
+        $fallbackExpected = <<<'TREE'
+/
+  a/
+  root.txt
+TREE;
+        $fallbackExpected .= "\n";
+        $t->same('walk', $fallback['source']);
+        $t->same($fallbackExpected, ListDirectory::formatDirTree($fallback['tree']));
+        $t->same([''], $listCalls);
+        $t->same([''], $listRCalls);
+    },
     'wordpress direct backup manifest example filters and sorts one listed directory' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-list-filter-sort.php';
 
@@ -1023,5 +1123,27 @@ TREE;
         $t->same(true, $example['generatedDirPreserved']);
         $t->same(true, $example['maxDepthStoppedBeforeGeneratedFiles']);
         $t->same(8, $example['treeEntryCount']);
+    },
+    'wordpress direct walkR restore manifest example skips cache subtree' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-walkr-direct-restore-manifest.php';
+
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/export.wxr',
+            'site-backups/users.wxr',
+            'site-backups/uploads/',
+            'site-backups/uploads/2026/',
+            'site-backups/uploads/2026/05/',
+            'site-backups/uploads/2026/05/hero.jpg',
+        ], $example['manifest']);
+        $t->same([
+            'site-backups',
+            'site-backups/cache',
+            'site-backups/uploads',
+            'site-backups/uploads/2026',
+            'site-backups/uploads/2026/05',
+        ], $example['visitedDirs']);
+        $t->same(true, $example['cacheSubtreeSkipped']);
+        $t->same(['visited' => 5, 'listed' => 6, 'batches' => 2, 'skipped' => 1, 'pruned' => 0], $example['stats']);
     },
 ];
