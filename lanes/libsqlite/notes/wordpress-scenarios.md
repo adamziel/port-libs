@@ -33,14 +33,16 @@ or promoted into a new first trunk when the freelist is empty or the first
 trunk is compatibility-full. Bounded insert planning now combines these
 write-side primitives for explicit-rowid `wp_options` fixtures whose root is a
 single table leaf page: the planner returns first-page, table-page,
-overflow-page, freelist-trunk, and, for explicit single-leaf full or
-`WHERE option_name IS NOT NULL` partial `option_name` indexes and explicit
-single-leaf `autoload, option_name` composite indexes, plus matching
-`sqlite_autoindex_*` automatic UNIQUE/PRIMARY KEY index shapes, index page
-images for a new option row. It rejects duplicate rowids or option names and
-still refuses unsupported composite shapes, unsafe partial predicates,
-expression indexes, unsupported automatic indexes, multi-page indexes, or
-index-overflow cases instead of leaving stale secondary indexes behind.
+overflow-page, freelist-trunk, and, for explicit `option_name` indexes,
+single-leaf, root-growth, no-split multi-page, same-depth leaf-split,
+parent-root-split, or `WHERE option_name IS NOT NULL` partial index page
+images for a new option row. It also handles explicit single-leaf
+`autoload, option_name` composite indexes plus matching `sqlite_autoindex_*`
+automatic UNIQUE/PRIMARY KEY index shapes. It rejects duplicate rowids or
+option names and still refuses unsupported composite shapes, unsafe partial
+predicates, expression indexes, unsupported automatic indexes, non-root
+parent-page splits, or index-overflow cases instead of leaving stale
+secondary indexes behind.
 Bounded replacement planning handles index-free, single-leaf `wp_options`
 fixtures for both shrink and large-value rewrites. Large replacement payloads
 allocate their new overflow chain before obsolete overflow pages are returned
@@ -48,13 +50,17 @@ to freelist metadata, matching SQLite's b-tree update ordering and avoiding
 accidental same-operation reuse of the old chain. Replacement planning also
 allows explicit single-leaf full or safe partial `option_name` indexes when
 the key and rowid are unchanged, verifies that the index already points to the
-replaced row, and can move a single-leaf `autoload, option_name` composite
-index entry when an `autoload` rewrite changes the leading key. The same
-bounded maintenance now works for inferred `sqlite_autoindex_*` UNIQUE/PRIMARY
-KEY indexes whose columns match `option_name` or `autoload, option_name`. It
-still rejects unsupported index shapes, unsafe partial predicates, expression
-indexes, unsupported automatic indexes, multi-page indexes, or index-overflow
-cases instead of leaving stale secondary indexes behind.
+replaced row, and can move a single-leaf or multi-page
+`autoload, option_name` composite index entry when an `autoload` rewrite
+changes the leading key. The same bounded maintenance now also splits a full
+destination composite-index leaf when the parent page can absorb the promoted
+divider. Inferred `sqlite_autoindex_*` UNIQUE/PRIMARY KEY indexes whose
+columns match `option_name` or `autoload, option_name` remain supported for
+the bounded single-leaf write shapes. The planner still rejects unsupported
+index shapes, unsafe partial predicates, expression indexes, unsupported
+automatic indexes, non-root parent-page splits, source-leaf rebalancing, or
+index-overflow cases beyond bounded root growth instead of leaving stale
+secondary indexes behind.
 Explicit
 `CREATE INDEX ... ON wp_options(option_name)` b-trees can now be parsed and
 used to fetch a single option by indexed name, then resolve the stored rowid
@@ -814,6 +820,49 @@ where repair tooling must insert generated options without the SQLite
 extension and without leaving a secondary index stale when the target leaf
 splits but the parent can stay at the same depth.
 
+`examples/wordpress-index-root-split-option-insert-plan.php` starts from a
+`wp_options` table with a full single-leaf `option_name` secondary index. It
+asks `planWordPressOptionInsert()` for a generated option row, applies the
+returned header/table/root/new-leaf page images, and verifies that the
+original index root page has grown into an `index-interior` page whose two new
+leaf children keep the inserted option reachable through
+`wordpressOptionByIndexedName()`. This maps small-to-medium WordPress SQLite
+images where a repair or fixture-generation insert crosses the first b-tree
+depth boundary without the SQLite extension.
+
+`examples/wordpress-index-parent-root-split-option-insert-plan.php` starts
+from a larger `wp_options` table with a full two-level `option_name`
+secondary index whose right-most leaf and index-interior root are both full.
+It asks `planWordPressOptionInsert()` for a generated option row, applies the
+returned header/table/root/leaf/new-interior page images, and verifies that
+the original root has grown into a higher-level `index-interior` page over
+two newly allocated interior pages while the inserted option remains reachable
+through `wordpressOptionByIndexedName()`. This maps repair tooling that must
+insert a generated option into a larger SQLite-backed WordPress database when
+the secondary index crosses a deeper b-tree boundary.
+
+`examples/wordpress-composite-index-parent-root-split-option-insert-plan.php`
+starts from a larger `wp_options` table with a full two-level
+`autoload, option_name` secondary index whose right-most leaf and
+index-interior root are both full. It asks `planWordPressOptionInsert()` for a
+generated autoloaded option row, applies the returned
+header/table/root/leaf/new-interior page images, and verifies that the grown
+composite index still resolves the row through
+`wordpressOptionByIndexedAutoloadAndName('yes', $optionName)`. This maps
+preload-oriented WordPress SQLite images where repair tooling must add a
+generated option without stale composite indexes or the SQLite extension.
+
+`examples/wordpress-index-split-option-replacement-plan.php` starts from a
+`wp_options` table with a two-level `autoload, option_name` secondary index
+whose target `autoload='no'` leaf is full. It asks
+`planWordPressOptionReplace()` to rewrite an existing option from
+`autoload='yes'` to `autoload='no'`, applies the returned
+header/table/root/source-leaf/split-leaf page images, and verifies that the
+replaced option is reachable through
+`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`. This maps larger
+WordPress repair flows that disable autoload for a heavy option while keeping
+a preload-oriented composite index consistent through a same-depth leaf split.
+
 `examples/wordpress-replace-obsolete-overflow-option.php` starts from a
 large `wp_options` value stored across overflow pages, asks
 `planWordPressOptionReplace()` for a bounded same-row replacement, applies the
@@ -833,6 +882,6 @@ free-old update order.
 
 ## Next Task
 
-Add focused tests for same-depth split planning on automatic and composite
-insert indexes, then extend replacement moves to bounded leaf splits before
-parent-page/root growth, pointer-map/auto-vacuum, journaling, or WAL work.
+Extend replacement moves through parent-root split cases or add non-root
+parent split propagation before pointer-map/auto-vacuum, journaling, or WAL
+work.

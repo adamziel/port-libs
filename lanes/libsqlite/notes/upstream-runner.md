@@ -2704,6 +2704,193 @@ Per lane instructions, this worker did not start a duplicate root harness. The
 post-change root result is pending supervisor/integrator acceptance of the
 active run.
 
+## Focused Native Mapping: Automatic and Composite Parent-Root Index Splits
+
+For the bounded sqlite_autoindex-backed and composite `autoload, option_name`
+parent-root split insert slice on 2026-05-23, the focused upstream runner
+passed `insert.test`, `index.test`, `index3.test`, `schema6.test`,
+`indexedby.test`, `where.test`, `whereH.test`, and `btree01.test` with 0
+errors out of 1277 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test index.test index3.test schema6.test indexedby.test where.test whereH.test btree01.test
+```
+
+This maps rowid INSERT persistence, automatic UNIQUE/PRIMARY KEY index
+metadata and selection, composite index key ordering, equality-prefix planner
+coverage, root-interior balancing after leaf splits, and b-tree cell/page
+assembly used by the native bounded `wp_options` parent-root split insert
+planner. The direct libsqlite harness passed 185 PHP tests with 1264
+assertions and 0 failures. The new
+`examples/wordpress-composite-index-parent-root-split-option-insert-plan.php`
+script ran successfully, reporting updated page images `[1,2,3,10,11,12,13]`,
+an `index-interior` root with 1 cell, two new index-interior pages with 3
+cells each, split composite leaves with 3 cells each, 19 index records, and an
+indexed lookup of the generated option through
+`wordpressOptionByIndexedAutoloadAndName('yes', $optionName)`.
+
+Before starting the root harness, the required duplicate-run preflight returned
+no active exact `php tools/run-tests.php` process. This worker then ran
+`php tools/run-tests.php`; result on 2026-05-23: 197 test files, 21713
+assertions, 0 failures.
+
+## Focused Native Mapping: Parent-Root Secondary Index Split
+
+For the bounded parent-root secondary-index split slice on 2026-05-23, the
+focused upstream runner passed `insert.test`, `index.test`, and `btree01.test`
+with 0 errors out of 809 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test index.test btree01.test
+```
+
+This maps rowid INSERT persistence, index b-tree key ordering,
+`sqlite3BtreeInsert()` balancing after a leaf split reaches a full
+index-interior root, and b-tree cell/page assembly boundaries used by the
+native bounded `wp_options(option_name)` planner. The PHP planner can now
+split a full index leaf, detect that the parent root cannot absorb the
+promoted divider, allocate two new interior pages, convert the original root
+into a one-cell higher-level index-interior root, and keep the inserted option
+reachable through the native index lookup. It still rejects non-root parent
+propagation, source-leaf rebalancing on replacements, index-overflow cells,
+pointer-map/auto-vacuum, journaling, WAL, and general SQL execution.
+
+The direct libsqlite harness passed 183 PHP tests with 1229 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-index-parent-root-split-option-insert-plan.php` script ran
+successfully, reporting updated page images `[1,2,3,10,11,12,13]`, an
+`index-interior` root with 1 cell, two new index-interior pages with 3 cells
+each, split leaf counts 3 and 3, and indexed lookup of the generated option
+through the grown `option_name` index.
+
+Before starting a root harness for this slice, the required duplicate-root
+preflight found an active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 1908018 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 1908018
+# 1908018 claude 00:17 php tools/run-tests.php
+```
+
+Per lane instructions, this worker did not start a duplicate root harness. The
+post-change root result is pending supervisor/integrator acceptance of the
+active run.
+
+## Focused Native Mapping: Same-Depth Replacement Index Leaf Split
+
+For the bounded same-depth composite-index replacement split slice on
+2026-05-23, the focused upstream runner passed `update.test`, `index.test`,
+`where.test`, `whereH.test`, and `btree01.test` with 0 errors out of 1096
+tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test where.test whereH.test btree01.test
+```
+
+This maps SQLite UPDATE row rewrite behavior, composite index key ordering,
+equality-prefix planner coverage, and b-tree cell/page assembly boundaries
+used by the native bounded `wp_options(autoload, option_name)` replacement
+planner when an `autoload` change moves the secondary-index entry into a full
+leaf. The PHP planner now routes replacement destination leaf writes through
+the same bounded same-depth split helper used by inserts, allocates one new
+leaf page when the parent can absorb the divider, updates the returned
+database page count for index-split allocations, and still rejects parent-page
+splits above the bounded root-leaf case, empty-source-leaf rebalancing,
+index-overflow cells, pointer-map/auto-vacuum, journaling, WAL, and general
+SQL execution.
+
+The direct libsqlite harness passed 181 PHP tests with 1201 assertions and 0
+failures. The new
+`examples/wordpress-index-split-option-replacement-plan.php` script ran
+successfully, reporting updated page images `[1,2,3,4,5,6]`, an index-interior
+root with 2 cells, split destination leaf counts 3 and 3, the old source leaf
+reduced to 1 cell, and indexed lookup of the replaced option through
+`wordpressOptionByIndexedAutoloadAndName('no', $optionName)`.
+
+Before starting a root harness for this slice, the required preflight first
+saw this worker's transient focused lane command:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 1534845 php tools/run-tests.php lanes/libsqlite/tests
+```
+
+After that focused command exited, the duplicate-root preflight returned no
+active aggregate run, so this worker ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 195 test files, 21326 assertions, 1 failure. The failure
+was outside libsqlite: `lanes/dolt/tests/DataConflictsResolverTest.php`
+requires missing
+`lanes/dolt/examples/wordpress-data-conflict-resolve-review.php`. The
+libsqlite focused harness remained green, so this is recorded as a repo
+integration blocker rather than a libsqlite implementation blocker.
+
+## Focused Native Mapping: Index Root Leaf Growth
+
+For the bounded secondary-index root-growth slice on 2026-05-23, the focused
+upstream runner passed `insert.test`, `index.test`, and `btree01.test` with 0
+errors out of 809 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test index.test btree01.test
+```
+
+This maps rowid INSERT persistence, index b-tree key ordering,
+`sqlite3BtreeInsert()` root-leaf growth/balancing boundaries, and b-tree
+cell/page assembly used by the native bounded `wp_options(option_name)`
+planner. The PHP planner can now split an overfull index root leaf by
+allocating two new leaf pages, converting the original root page into an
+index-interior page, promoting one divider record into the root, and updating
+the returned database page count. It still rejects parent-page splits,
+source-leaf rebalancing, index-overflow cells, pointer-map/auto-vacuum,
+journaling, WAL, and general SQL execution.
+
+The direct libsqlite harness passed 182 PHP tests with 1213 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-index-root-split-option-insert-plan.php` script
+ran successfully, reporting updated page images `[1,2,3,4,5]`, an
+`index-interior` root with 1 divider cell, two new index leaves with 3 cells
+each, and indexed lookup of the generated option through the grown
+`option_name` index.
+
+Before starting a root harness for this slice, the required duplicate-root
+preflight found an active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 1566768 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 1566768
+# 1566768 claude 00:10 php tools/run-tests.php
+```
+
+Per lane instructions, this worker did not start a duplicate root harness. The
+post-change root result is pending supervisor/integrator acceptance of the
+active run.
+
 For the bounded same-depth secondary index split slice on 2026-05-23, the
 focused upstream runner passed `insert.test`, `index.test`, and `btree01.test`
 with 0 errors out of 809 tests:

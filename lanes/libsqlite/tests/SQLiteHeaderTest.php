@@ -4993,6 +4993,410 @@ return [
         $t->same($insertedName, $insertedOption->optionName);
         $t->same('value', $insertedOption->optionValue);
     },
+    'plans wordpress indexed insert by growing a full option_name index root leaf' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_option_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_option_name ON wp_options(option_name)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 3));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+        $indexEntries = [];
+        foreach (['a', 'b', 'c', 'd', 'e', 'f'] as $index => $prefix) {
+            $indexEntries[] = SQLiteIndexCell::encode(SQLiteRecord::encode([str_repeat($prefix, 70), 10 + $index]));
+        }
+        $indexRootPage = SQLiteIndexLeafPage::assemble($indexEntries, $pageSize);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexRootPage);
+
+        $insertedName = str_repeat('z', 70);
+        $plan = $database->planWordPressOptionInsert(2, $insertedName, 'root-grown-value', 'yes');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+        $insertedOption = $postDatabase->wordpressOptionByIndexedName($insertedName);
+
+        $t->same([1, 2, 3, 4, 5], array_keys($plan->pageImages()));
+        $t->same(5, $plan->databasePageCount);
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(1, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(4)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(5)->cellCount);
+        $t->same([
+            [str_repeat('a', 70), 10],
+            [str_repeat('b', 70), 11],
+            [str_repeat('c', 70), 12],
+            [str_repeat('d', 70), 13],
+            [str_repeat('e', 70), 14],
+            [str_repeat('f', 70), 15],
+            [$insertedName, 2],
+        ], $indexRecords);
+        $t->true($insertedOption instanceof SQLiteWordPressOption);
+        $t->same(2, $insertedOption->rowId);
+        $t->same($insertedName, $insertedOption->optionName);
+        $t->same('root-grown-value', $insertedOption->optionValue);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionInsert(2, $insertedName, 'root-grown-value', 'yes', false),
+        );
+    },
+    'plans wordpress indexed insert by splitting a leaf and growing a full index root interior' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_option_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_option_name ON wp_options(option_name)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 10));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+
+        $indexRootCells = [];
+        foreach (['g', 'i', 'k', 'm', 'o', 'q'] as $index => $prefix) {
+            $indexRootCells[] = SQLiteIndexCell::encode(
+                SQLiteRecord::encode([str_repeat($prefix, 70), 100 + $index]),
+                $pageSize,
+                null,
+                4 + $index,
+            );
+        }
+        $indexRootPage = SQLiteIndexInteriorPage::assemble($indexRootCells, 10, $pageSize);
+
+        $leafPages = [];
+        foreach (['a', 'h', 'j', 'l', 'n', 'p'] as $index => $prefix) {
+            $leafPages[] = SQLiteIndexLeafPage::assemble([
+                SQLiteIndexCell::encode(SQLiteRecord::encode([str_repeat($prefix, 70), 50 + $index])),
+            ], $pageSize);
+        }
+        $rightLeafCells = [];
+        foreach (['r', 's', 't', 'u', 'v', 'w'] as $index => $prefix) {
+            $rightLeafCells[] = SQLiteIndexCell::encode(SQLiteRecord::encode([str_repeat($prefix, 70), 200 + $index]));
+        }
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $indexRootPage
+            . implode('', $leafPages)
+            . SQLiteIndexLeafPage::assemble($rightLeafCells, $pageSize),
+        );
+
+        $insertedName = str_repeat('z', 70);
+        $plan = $database->planWordPressOptionInsert(2, $insertedName, 'parent-grown-value', 'yes');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+        $insertedOption = $postDatabase->wordpressOptionByIndexedName($insertedName);
+
+        $t->same([1, 2, 3, 10, 11, 12, 13], array_keys($plan->pageImages()));
+        $t->same(13, $plan->databasePageCount);
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(1, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(12)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(13)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(10)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(11)->cellCount);
+        $t->same(7, $postDatabase->pageHeader(12)->rightMostPointer);
+        $t->same(11, $postDatabase->pageHeader(13)->rightMostPointer);
+        $t->same([
+            [str_repeat('a', 70), 50],
+            [str_repeat('g', 70), 100],
+            [str_repeat('h', 70), 51],
+            [str_repeat('i', 70), 101],
+            [str_repeat('j', 70), 52],
+            [str_repeat('k', 70), 102],
+            [str_repeat('l', 70), 53],
+            [str_repeat('m', 70), 103],
+            [str_repeat('n', 70), 54],
+            [str_repeat('o', 70), 104],
+            [str_repeat('p', 70), 55],
+            [str_repeat('q', 70), 105],
+            [str_repeat('r', 70), 200],
+            [str_repeat('s', 70), 201],
+            [str_repeat('t', 70), 202],
+            [str_repeat('u', 70), 203],
+            [str_repeat('v', 70), 204],
+            [str_repeat('w', 70), 205],
+            [$insertedName, 2],
+        ], $indexRecords);
+        $t->true($insertedOption instanceof SQLiteWordPressOption);
+        $t->same(2, $insertedOption->rowId);
+        $t->same($insertedName, $insertedOption->optionName);
+        $t->same('parent-grown-value', $insertedOption->optionValue);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionInsert(2, $insertedName, 'parent-grown-value', 'yes', false),
+        );
+    },
+    'plans wordpress automatic indexed insert by splitting a leaf and growing a full index root interior' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text UNIQUE, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'sqlite_autoindex_wp_options_1',
+                'wp_options',
+                3,
+                null,
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 10));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+
+        $indexRootCells = [];
+        foreach (['g', 'i', 'k', 'm', 'o', 'q'] as $index => $prefix) {
+            $indexRootCells[] = SQLiteIndexCell::encode(
+                SQLiteRecord::encode([str_repeat($prefix, 70), 100 + $index]),
+                $pageSize,
+                null,
+                4 + $index,
+            );
+        }
+        $indexRootPage = SQLiteIndexInteriorPage::assemble($indexRootCells, 10, $pageSize);
+
+        $leafPages = [];
+        foreach (['a', 'h', 'j', 'l', 'n', 'p'] as $index => $prefix) {
+            $leafPages[] = SQLiteIndexLeafPage::assemble([
+                SQLiteIndexCell::encode(SQLiteRecord::encode([str_repeat($prefix, 70), 50 + $index])),
+            ], $pageSize);
+        }
+        $rightLeafCells = [];
+        foreach (['r', 's', 't', 'u', 'v', 'w'] as $index => $prefix) {
+            $rightLeafCells[] = SQLiteIndexCell::encode(SQLiteRecord::encode([str_repeat($prefix, 70), 200 + $index]));
+        }
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $indexRootPage
+            . implode('', $leafPages)
+            . SQLiteIndexLeafPage::assemble($rightLeafCells, $pageSize),
+        );
+
+        $insertedName = str_repeat('z', 70);
+        $plan = $database->planWordPressOptionInsert(2, $insertedName, 'auto-parent-grown-value', 'yes');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+        $insertedOption = $postDatabase->wordpressOptionByIndexedName($insertedName);
+
+        $t->same([1, 2, 3, 10, 11, 12, 13], array_keys($plan->pageImages()));
+        $t->same(13, $plan->databasePageCount);
+        $t->same(3, $postDatabase->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(1, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(12)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(13)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(10)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(11)->cellCount);
+        $t->same(7, $postDatabase->pageHeader(12)->rightMostPointer);
+        $t->same(11, $postDatabase->pageHeader(13)->rightMostPointer);
+        $t->same([
+            [str_repeat('a', 70), 50],
+            [str_repeat('g', 70), 100],
+            [str_repeat('h', 70), 51],
+            [str_repeat('i', 70), 101],
+            [str_repeat('j', 70), 52],
+            [str_repeat('k', 70), 102],
+            [str_repeat('l', 70), 53],
+            [str_repeat('m', 70), 103],
+            [str_repeat('n', 70), 54],
+            [str_repeat('o', 70), 104],
+            [str_repeat('p', 70), 55],
+            [str_repeat('q', 70), 105],
+            [str_repeat('r', 70), 200],
+            [str_repeat('s', 70), 201],
+            [str_repeat('t', 70), 202],
+            [str_repeat('u', 70), 203],
+            [str_repeat('v', 70), 204],
+            [str_repeat('w', 70), 205],
+            [$insertedName, 2],
+        ], $indexRecords);
+        $t->true($insertedOption instanceof SQLiteWordPressOption);
+        $t->same(2, $insertedOption->rowId);
+        $t->same($insertedName, $insertedOption->optionName);
+        $t->same('auto-parent-grown-value', $insertedOption->optionValue);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionInsert(2, $insertedName, 'auto-parent-grown-value', 'yes', false),
+        );
+    },
+    'plans wordpress composite indexed insert by splitting a leaf and growing a full index root interior' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $nameLength = 64;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_autoload_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 10));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+
+        $indexRootCells = [];
+        foreach (['g', 'i', 'k', 'm', 'o', 'q'] as $index => $prefix) {
+            $indexRootCells[] = SQLiteIndexCell::encode(
+                SQLiteRecord::encode(['yes', str_repeat($prefix, $nameLength), 100 + $index]),
+                $pageSize,
+                null,
+                4 + $index,
+            );
+        }
+        $indexRootPage = SQLiteIndexInteriorPage::assemble($indexRootCells, 10, $pageSize);
+
+        $leafPages = [];
+        foreach (['a', 'h', 'j', 'l', 'n', 'p'] as $index => $prefix) {
+            $leafPages[] = SQLiteIndexLeafPage::assemble([
+                SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat($prefix, $nameLength), 50 + $index])),
+            ], $pageSize);
+        }
+        $rightLeafCells = [];
+        foreach (['r', 's', 't', 'u', 'v', 'w'] as $index => $prefix) {
+            $rightLeafCells[] = SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', str_repeat($prefix, $nameLength), 200 + $index]));
+        }
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $indexRootPage
+            . implode('', $leafPages)
+            . SQLiteIndexLeafPage::assemble($rightLeafCells, $pageSize),
+        );
+
+        $insertedName = str_repeat('z', $nameLength);
+        $plan = $database->planWordPressOptionInsert(2, $insertedName, 'composite-parent-grown-value', 'yes');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+        $insertedOption = $postDatabase->wordpressOptionByIndexedAutoloadAndName('yes', $insertedName);
+
+        $t->same([1, 2, 3, 10, 11, 12, 13], array_keys($plan->pageImages()));
+        $t->same(13, $plan->databasePageCount);
+        $t->same(3, $postDatabase->indexRootPageForPointLookupColumns('wp_options', [
+            'autoload' => 'yes',
+            'option_name' => $insertedName,
+        ]));
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(1, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(12)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(13)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(10)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(11)->cellCount);
+        $t->same(7, $postDatabase->pageHeader(12)->rightMostPointer);
+        $t->same(11, $postDatabase->pageHeader(13)->rightMostPointer);
+        $t->same([
+            ['yes', str_repeat('a', $nameLength), 50],
+            ['yes', str_repeat('g', $nameLength), 100],
+            ['yes', str_repeat('h', $nameLength), 51],
+            ['yes', str_repeat('i', $nameLength), 101],
+            ['yes', str_repeat('j', $nameLength), 52],
+            ['yes', str_repeat('k', $nameLength), 102],
+            ['yes', str_repeat('l', $nameLength), 53],
+            ['yes', str_repeat('m', $nameLength), 103],
+            ['yes', str_repeat('n', $nameLength), 54],
+            ['yes', str_repeat('o', $nameLength), 104],
+            ['yes', str_repeat('p', $nameLength), 55],
+            ['yes', str_repeat('q', $nameLength), 105],
+            ['yes', str_repeat('r', $nameLength), 200],
+            ['yes', str_repeat('s', $nameLength), 201],
+            ['yes', str_repeat('t', $nameLength), 202],
+            ['yes', str_repeat('u', $nameLength), 203],
+            ['yes', str_repeat('v', $nameLength), 204],
+            ['yes', str_repeat('w', $nameLength), 205],
+            ['yes', $insertedName, 2],
+        ], $indexRecords);
+        $t->true($insertedOption instanceof SQLiteWordPressOption);
+        $t->same(2, $insertedOption->rowId);
+        $t->same($insertedName, $insertedOption->optionName);
+        $t->same('composite-parent-grown-value', $insertedOption->optionValue);
+        $t->same('yes', $insertedOption->autoload);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionInsert(2, $insertedName, 'composite-parent-grown-value', 'yes', false),
+        );
+    },
     'plans wordpress wp_options replacement while freeing obsolete overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $emptyPage = str_repeat("\0", $pageSize);
@@ -5351,6 +5755,95 @@ return [
         $t->same(3, $option->rowId);
         $t->same('https://fixed.example', $option->optionValue);
         $t->same('no', $option->autoload);
+    },
+    'plans wordpress replacement by splitting a same-depth composite index leaf' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $optionName = str_repeat('z', 70);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_autoload_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_autoload_name ON wp_options(autoload, option_name)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 5));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'cron_lock', '1', 'no'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, $optionName, 'stale-cache', 'yes'])),
+            SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, 'stylesheet', 'twentytwentyfive', 'yes'])),
+        ], $pageSize);
+        $indexRootPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'home', 2]), $pageSize, null, 4),
+        ], 5, $pageSize);
+        $leftIndexEntries = [];
+        foreach (['a', 'b', 'c', 'd', 'e', 'f'] as $index => $prefix) {
+            $leftIndexEntries[] = SQLiteIndexCell::encode(SQLiteRecord::encode(['no', str_repeat($prefix, 70), 10 + $index]));
+        }
+        $leftIndexLeafPage = SQLiteIndexLeafPage::assemble($leftIndexEntries, $pageSize);
+        $rightIndexLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'stylesheet', 4])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', $optionName, 3])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $indexRootPage
+            . $leftIndexLeafPage
+            . $rightIndexLeafPage,
+        );
+
+        $plan = $database->planWordPressOptionReplace($optionName, 'fixed-cache', 'no');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $option = $postDatabase->wordpressOptionByIndexedAutoloadAndName('no', $optionName);
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+
+        $t->same([1, 2, 3, 4, 5, 6], array_keys($plan->pageImages()));
+        $t->same(6, $plan->databasePageCount);
+        $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
+        $t->same(2, $postDatabase->pageHeader(3)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(4)->cellCount);
+        $t->same(3, $postDatabase->pageHeader(6)->cellCount);
+        $t->same([
+            ['no', str_repeat('a', 70), 10],
+            ['no', str_repeat('b', 70), 11],
+            ['no', str_repeat('c', 70), 12],
+            ['no', str_repeat('d', 70), 13],
+            ['no', str_repeat('e', 70), 14],
+            ['no', str_repeat('f', 70), 15],
+            ['no', $optionName, 3],
+            ['yes', 'home', 2],
+            ['yes', 'stylesheet', 4],
+        ], $indexRecords);
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(3, $option->rowId);
+        $t->same($optionName, $option->optionName);
+        $t->same('fixed-cache', $option->optionValue);
+        $t->same('no', $option->autoload);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionReplace($optionName, 'fixed-cache', 'no', false),
+        );
     },
     'plans wordpress wp_options replacement with appended overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
