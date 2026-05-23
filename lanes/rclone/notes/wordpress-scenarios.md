@@ -216,6 +216,8 @@ The `../examples/wordpress-onedrive-shared-listp-pagination.php` scenario maps O
 
 The `../examples/wordpress-onedrive-shared-listp-error-preflight.php` scenario maps OneDrive's ordinary child `ListP` error propagation inside the shared-folder fallback. A failed Graph continuation preserves only the already-flushed 100-entry WXR manifest batch, suppresses the pending shared folder and child partials because final `Flush` is skipped after the provider error, and reports the upstream-shaped `couldn't list files` error without OAuth or provider credentials.
 
+The `../examples/wordpress-onedrive-listp-cache-metadata-preflight.php` scenario maps OneDrive ordinary `ListP` item conversion and directory-cache side effects. It lists a shared review WXR export and upload folder, hides a OneNote migration notebook unless package exposure is enabled, reuses the upload folder ID cached from the parent listing for a later scoped media listing, and reports a lazy permissions metadata error only when metadata is requested.
+
 ## Next Task
 
-Map OneDrive ordinary `ListP` item conversion failures and directory-cache side effects, including OneNote package skips, metadata read errors, and child-directory ID caching for later scoped calls.
+Map OneDrive `ListP` and `ListR` metadata permission read modes more deeply, including successful permission JSON materialization and permission serialization failures.

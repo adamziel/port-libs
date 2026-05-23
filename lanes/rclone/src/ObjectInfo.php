@@ -22,6 +22,22 @@ final class ObjectInfo
         public readonly array $hashes = [],
         public readonly ?string $providerKey = null,
         public readonly ?string $parentId = null,
+        public readonly ?\Throwable $metadataError = null,
     ) {
+    }
+
+    /**
+     * Model providers whose listed entries are available but whose metadata
+     * reader can fail later, such as OneDrive permission metadata reads.
+     *
+     * @return array<string, string>
+     */
+    public function readMetadata(): array
+    {
+        if ($this->metadataError !== null) {
+            throw $this->metadataError;
+        }
+
+        return $this->metadata;
     }
 }

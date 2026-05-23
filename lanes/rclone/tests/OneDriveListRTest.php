@@ -523,6 +523,144 @@ return [
             ],
         ], $trace['requests']);
     },
+    'onedrive child ListP caches directory IDs for later scoped calls' => static function (TestRunner $t): void {
+        $trace = [];
+        $listP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [[
+                    'value' => [[
+                        'id' => 'uploads',
+                        'name' => 'uploads',
+                        'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                        'folder' => ['childCount' => 1],
+                    ]],
+                ]],
+                'site-backups/shared-review/uploads' => [[
+                    'value' => [[
+                        'id' => 'hero',
+                        'name' => 'hero.jpg',
+                        'size' => 150,
+                        'parentReference' => ['driveId' => 'owner-drive', 'id' => 'uploads'],
+                        'file' => ['mimeType' => 'image/jpeg'],
+                    ]],
+                ]],
+            ],
+            ['site-backups/shared-review' => 'owner-drive#shared-root'],
+            trace: $trace,
+        );
+
+        $parent = rclone_onedrive_listr_collect_listp($listP, 'site-backups/shared-review');
+        $child = rclone_onedrive_listr_collect_listp($listP, 'site-backups/shared-review/uploads');
+
+        $t->same(['site-backups/shared-review/uploads/'], rclone_onedrive_listr_names($parent['entries']));
+        $t->same(['site-backups/shared-review/uploads/hero.jpg'], rclone_onedrive_listr_names($child['entries']));
+        $t->same('owner-drive#uploads', $trace['requests'][1]['directoryId']);
+    },
+    'onedrive child ListP hides OneNote packages unless exposure is requested' => static function (TestRunner $t): void {
+        $childPages = [
+            'site-backups/shared-review' => [[
+                'value' => [
+                    [
+                        'id' => 'notes',
+                        'name' => 'migration-notes.one',
+                        'size' => 1024,
+                        'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                        'package' => ['type' => 'oneNote'],
+                    ],
+                    [
+                        'id' => 'export',
+                        'name' => 'export.wxr',
+                        'size' => 18,
+                        'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                        'file' => ['mimeType' => 'application/rss+xml'],
+                    ],
+                ],
+            ]],
+        ];
+        $directoryIds = ['site-backups/shared-review' => 'owner-drive#shared-root'];
+
+        $hidden = rclone_onedrive_listr_collect_listp(
+            OneDriveListR::listPFromChildPages($childPages, $directoryIds),
+            'site-backups/shared-review',
+        );
+        $shown = rclone_onedrive_listr_collect_listp(
+            OneDriveListR::listPFromChildPages($childPages, $directoryIds, exposeOneNoteFiles: true),
+            'site-backups/shared-review',
+        );
+
+        $t->same(['site-backups/shared-review/export.wxr'], rclone_onedrive_listr_names($hidden['entries']));
+        $t->same([
+            'site-backups/shared-review/migration-notes.one',
+            'site-backups/shared-review/export.wxr',
+        ], rclone_onedrive_listr_names($shown['entries']));
+        $t->same('oneNote', $shown['entries'][0]->readMetadata()['package-type']);
+    },
+    'onedrive child ListP defers permission metadata errors until metadata is read' => static function (TestRunner $t): void {
+        $listP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [[
+                    'value' => [[
+                        'id' => 'review',
+                        'name' => 'review.wxr',
+                        'size' => 18,
+                        'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+                        'file' => ['mimeType' => 'application/rss+xml'],
+                        'metadataPermissionsError' => 'Graph permissions failed',
+                    ]],
+                ]],
+            ],
+            ['site-backups/shared-review' => 'owner-drive#shared-root'],
+        );
+
+        $collected = rclone_onedrive_listr_collect_listp($listP, 'site-backups/shared-review');
+
+        $t->same(['site-backups/shared-review/review.wxr'], rclone_onedrive_listr_names($collected['entries']));
+        $t->same('application/rss+xml', $collected['entries'][0]->metadata['content-type']);
+        $t->throws(RuntimeException::class, static fn () => $collected['entries'][0]->readMetadata());
+        try {
+            $collected['entries'][0]->readMetadata();
+        } catch (RuntimeException $exception) {
+            $t->same('failed to get permissions: Graph permissions failed', $exception->getMessage());
+        }
+    },
+    'onedrive child ListP item conversion errors keep flushed batches and suppress pending flush' => static function (TestRunner $t): void {
+        $firstPage = [];
+        for ($i = 1; $i <= 101; $i++) {
+            $firstPage[] = rclone_onedrive_listr_child_file($i);
+        }
+        $firstPage[] = [
+            'id' => 'bad-item',
+            'name' => 'bad-item.wxr',
+            'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-root'],
+            'file' => [],
+            'conversionError' => 'metadata decode failed',
+        ];
+
+        $listP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [[
+                    'value' => $firstPage,
+                ]],
+            ],
+            ['site-backups/shared-review' => 'owner-drive#shared-root'],
+            listChunk: 102,
+        );
+
+        $batches = [];
+        $result = $listP(
+            'site-backups/shared-review',
+            static function (array $batch) use (&$batches): null {
+                $batches[] = rclone_onedrive_listr_names($batch);
+
+                return null;
+            },
+        );
+
+        $t->same("couldn't convert list item: metadata decode failed", $result?->getMessage());
+        $t->same([100], array_map('count', $batches));
+        $t->same('site-backups/shared-review/asset-001.wxr', $batches[0][0]);
+        $t->same('site-backups/shared-review/asset-100.wxr', $batches[0][99]);
+    },
     'onedrive ListR shared-folder fallback can recurse through paged child ListP' => static function (TestRunner $t): void {
         $childTrace = [];
         $sharedListP = OneDriveListR::listPFromChildPages(
@@ -568,7 +706,6 @@ return [
             ],
             [
                 'site-backups/shared-review' => 'owner-drive#shared-root',
-                'site-backups/shared-review/uploads' => 'owner-drive#uploads',
             ],
             listChunk: 2,
             trace: $childTrace,
@@ -861,5 +998,19 @@ return [
         $t->same(true, $example['sharedFolderSuppressed']);
         $t->same(true, $example['childPartialSuppressed']);
         $t->same(true, $example['nextLinkReached']);
+    },
+    'wordpress onedrive ListP cache metadata example records scoped restore preflight' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-listp-cache-metadata-preflight.php';
+
+        $t->same('listp-cache-metadata-preflight', $example['source']);
+        $t->same([
+            'site-backups/shared-review/review-export.wxr',
+            'site-backups/shared-review/uploads/',
+            'site-backups/shared-review/uploads/hero.jpg',
+        ], $example['manifest']);
+        $t->same(true, $example['childCacheWorked']);
+        $t->same(true, $example['oneNoteHidden']);
+        $t->same('failed to get permissions: Graph permissions denied', $example['metadataError']);
+        $t->same('application/rss+xml', $example['listedContentType']);
     },
 ];

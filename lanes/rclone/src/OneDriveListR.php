@@ -209,7 +209,7 @@ final class OneDriveListR
             bool $filesOnly = false,
         ) use (
             $pagesByRemote,
-            $directoryIds,
+            &$directoryIds,
             $exposeOneNoteFiles,
             $listChunk,
             &$trace,
@@ -235,9 +235,12 @@ final class OneDriveListR
                     $pagesByRemote[$remote] ?? [['value' => []]],
                     $directoriesOnly,
                     $filesOnly,
-                    static function (array $item) use ($remote, $exposeOneNoteFiles, $helper): void {
+                    static function (array $item) use ($remote, $exposeOneNoteFiles, $helper, &$directoryIds): void {
                         $entry = self::entryFromItem($item, $remote, $exposeOneNoteFiles);
                         if ($entry !== null) {
+                            if (ListDirectory::isDirectory($entry) && $entry->id !== null && $entry->id !== '') {
+                                $directoryIds[$entry->path] = $entry->id;
+                            }
                             $helper->add($entry);
                         }
                     },
@@ -520,6 +523,11 @@ final class OneDriveListR
      */
     private static function entryFromItem(array $item, string $parentPath, bool $exposeOneNoteFiles): ?ObjectInfo
     {
+        $conversionError = self::conversionError($item);
+        if ($conversionError !== null) {
+            throw $conversionError;
+        }
+
         $packageType = self::packageType($item);
         if (!$exposeOneNoteFiles && $packageType === 'oneNote') {
             return null;
@@ -529,6 +537,7 @@ final class OneDriveListR
         $id = self::itemId($item);
         $parentId = self::referenceId(self::parentReference($item));
         $metadata = self::systemMetadata($item);
+        $metadataError = self::metadataError($item);
         $modTime = self::modTime($item);
         $mimeType = self::mimeType($item);
 
@@ -545,6 +554,7 @@ final class OneDriveListR
                 [],
                 null,
                 $parentId !== '' ? $parentId : null,
+                $metadataError,
             );
         }
 
@@ -562,7 +572,51 @@ final class OneDriveListR
             $hashes,
             null,
             $parentId !== '' ? $parentId : null,
+            $metadataError,
         );
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function conversionError(array $item): ?\Throwable
+    {
+        $error = self::errorFromValue($item['conversionError'] ?? $item['itemConversionError'] ?? null);
+        if ($error === null) {
+            return null;
+        }
+
+        return new \RuntimeException("couldn't convert list item: {$error->getMessage()}", 0, $error);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function metadataError(array $item): ?\Throwable
+    {
+        $permissionError = self::errorFromValue(
+            $item['metadataPermissionsError']
+                ?? $item['metadata_permissions_error']
+                ?? $item['permissionsError']
+                ?? null,
+        );
+        if ($permissionError !== null) {
+            return new \RuntimeException("failed to get permissions: {$permissionError->getMessage()}", 0, $permissionError);
+        }
+
+        return self::errorFromValue($item['metadataError'] ?? $item['metadata_error'] ?? null);
+    }
+
+    private static function errorFromValue(mixed $value): ?\Throwable
+    {
+        if ($value instanceof \Throwable) {
+            return $value;
+        }
+        if (is_scalar($value) && (string) $value !== '') {
+            return new \RuntimeException((string) $value);
+        }
+
+        return null;
     }
 
     /**
