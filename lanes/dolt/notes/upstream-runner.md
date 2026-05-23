@@ -42,6 +42,23 @@
   - Result: exit 0 with 162 test files, 14,732 assertions, and 0 failures.
 - Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, server, or benchmark suites were run.
 
+## Runner Refresh 2026-05-23 Patch Ref Resolution Slice
+
+- Focused upstream source inspection:
+  - `go/libraries/doltcore/sqle/dtablefunctions/dolt_patch.go`: `PartitionRows` evaluates literal arguments, calls `loadDetailsForRefs`, then emits patch rows using resolved `fromRefDetails.hashStr` and `toRefDetails.hashStr`.
+  - `go/libraries/doltcore/sqle/dtablefunctions/dolt_diff.go`: `loadCommitStrings` splits `A..B` ranges and resolves `A...B` to a merge base; `loadDetailsForRefs` calls `ResolveRootForRef` for branch, tag, hash, ancestor, `HEAD`, `WORKING`, and `STAGED` specs.
+- Direct cache-local CLI probe:
+  - Built a small temporary Dolt repo under `.upstream-cache/dolt/tmp/patch-rev-probe.*`, tagged the main commit as `tag_main`, branched to `branch1`, edited table `t`, and ran `dolt_patch('tag_main', 'branch1', 't')`.
+  - Observed CSV row: `from_commit_hash=qj946k1l60pehco463tj4bstla7jno4m`, `to_commit_hash=cn1m2jd1onp2fo1cup0d9t3slpt7k317`, `table_name=t`, `diff_type=data`, and `UPDATE \`t\` SET \`c1\`='branch' WHERE \`pk\`=1;`.
+  - The same probe confirmed upstream-shaped errors: `branch not found: missing-branch` for a missing to-ref and `table not found: missing_table` for a missing requested table.
+- Focused upstream runner:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(PatchTableFunction|PatchTableFunctionPrepared)$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.724s`.
+- Native PHP verification after this slice:
+  - Dolt lane-only PHP: `16` Dolt test files, `144` behavior tests, `744` assertions, and `0` failures.
+  - Required root `php tools/run-tests.php`: exit `0` with `162` test files, `14,874` assertions, and `0` failures.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, server, or benchmark suites were run.
+
 ## Runner Refresh 2026-05-23 Binary Patch Slice
 
 - Static denominator refresh:

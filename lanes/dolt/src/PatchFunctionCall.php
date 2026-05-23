@@ -35,6 +35,8 @@ final class PatchFunctionCall
      *   filter?:string|null,
      *   knownTables?:list<string>,
      *   mergeBases?:array<string, string>,
+     *   revisionGraph?:list<array<string, mixed>>,
+     *   headHash?:string,
      *   databaseName?:string,
      *   databaseTables?:list<string>,
      *   selectPrivileges?:list<string>
@@ -44,6 +46,7 @@ final class PatchFunctionCall
     public function rows(array $tables, array $arguments, array $options = []): array
     {
         [$fromCommit, $toCommit, $tableName] = $this->parseArguments($arguments, $options);
+        [$fromCommit, $toCommit] = $this->resolvePatchRevisions($fromCommit, $toCommit, $options);
         $this->enforceSelectPrivileges($tables, $tableName, $options);
 
         if ($fromCommit === $toCommit) {
@@ -91,6 +94,73 @@ final class PatchFunctionCall
         $tableName = $count === 3 ? $this->textArgument($arguments[2], 'table name') : null;
 
         return [$first, $toCommit, $tableName];
+    }
+
+    /**
+     * @param array{revisionGraph?:list<array<string, mixed>>, headHash?:string} $options
+     * @return array{0:string, 1:string}
+     */
+    private function resolvePatchRevisions(string $fromCommit, string $toCommit, array $options): array
+    {
+        if (!array_key_exists('revisionGraph', $options)) {
+            return [$fromCommit, $toCommit];
+        }
+        if (!is_array($options['revisionGraph'])) {
+            throw new \InvalidArgumentException('Patch revisionGraph must be a list of commits.');
+        }
+
+        $graph = new CommitGraph();
+        $headHash = $options['headHash'] ?? null;
+        if ($headHash !== null && (!is_string($headHash) || $headHash === '')) {
+            throw new \InvalidArgumentException('Patch headHash must be a non-empty string when supplied.');
+        }
+
+        return [
+            $this->resolvePatchRevision($graph, $options['revisionGraph'], $fromCommit, $headHash),
+            $this->resolvePatchRevision($graph, $options['revisionGraph'], $toCommit, $headHash),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $commits
+     */
+    private function resolvePatchRevision(CommitGraph $graph, array $commits, string $spec, ?string $headHash): string
+    {
+        if ($spec === 'WORKING' || $spec === 'STAGED') {
+            return $spec;
+        }
+
+        try {
+            return $graph->resolve($commits, $spec, $headHash);
+        } catch (\InvalidArgumentException $exception) {
+            throw $exception;
+        } catch (\RuntimeException $exception) {
+            if (str_starts_with($exception->getMessage(), 'Dolt ref or commit not found:')) {
+                throw new \RuntimeException($this->revisionResolutionError($spec), 0, $exception);
+            }
+
+            throw $exception;
+        }
+    }
+
+    private function revisionResolutionError(string $spec): string
+    {
+        try {
+            $baseSpec = CommitGraph::splitAncestorSpec($spec)['commit_spec'];
+        } catch (\InvalidArgumentException) {
+            $baseSpec = $spec;
+        }
+
+        if ($this->isDoltHashLike($baseSpec)) {
+            return 'target commit not found';
+        }
+
+        return "branch not found: {$baseSpec}";
+    }
+
+    private function isDoltHashLike(string $spec): bool
+    {
+        return preg_match('/^[a-z0-9]{32}$/i', $spec) === 1;
     }
 
     /**

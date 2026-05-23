@@ -47,6 +47,22 @@ $patchTables = static function (): array {
     ];
 };
 
+$patchRevisionGraph = static function (): array {
+    return [
+        ['commit_hash' => 'base0000000000000000000000000000', 'parents' => []],
+        [
+            'commit_hash' => 'main0000000000000000000000000000',
+            'parents' => ['base0000000000000000000000000000'],
+            'refs' => ['refs/heads/main', 'refs/tags/tag_main'],
+        ],
+        [
+            'commit_hash' => 'branch00000000000000000000000000',
+            'parents' => ['main0000000000000000000000000000'],
+            'refs' => ['refs/heads/branch1', 'refs/tags/tag_branch1'],
+        ],
+    ];
+};
+
 return [
     'dolt patch function call parses two-dot revisions and filters requested tables' => static function (TestRunner $t) use ($patchTables): void {
         $rows = (new PatchFunctionCall())->rows($patchTables(), ['main..branch1', 'T'], [
@@ -76,6 +92,60 @@ return [
         $t->same(['main~2', 'branch1'], [$rows[0]['from_commit_hash'], $rows[0]['to_commit_hash']]);
         $t->same('ALTER TABLE `t` DROP `c2`;', $rows[0]['statement']);
         $t->throws(InvalidArgumentException::class, static fn () => $call->rows($patchTables(), ['main...branch1', 't']));
+    },
+    'dolt patch function call resolves branch tag and working refs when commit graph is supplied' => static function (TestRunner $t) use ($patchTables, $patchRevisionGraph): void {
+        $call = new PatchFunctionCall();
+        $options = [
+            'knownTables' => ['t', 'newtable'],
+            'revisionGraph' => $patchRevisionGraph(),
+            'headHash' => 'main0000000000000000000000000000',
+        ];
+
+        $rows = $call->rows($patchTables(), ['tag_main', 'branch1', 't'], $options);
+        $t->same(['main0000000000000000000000000000', 'branch00000000000000000000000000'], [
+            $rows[0]['from_commit_hash'],
+            $rows[0]['to_commit_hash'],
+        ]);
+        $t->same('ALTER TABLE `t` DROP `c2`;', $rows[0]['statement']);
+
+        $sameResolvedRef = $call->rows($patchTables(), ['tag_main', 'main', 't'], $options);
+        $t->same([], $sameResolvedRef);
+
+        $workingRows = $call->rows($patchTables(), ['main', 'WORKING', 't'], $options);
+        $t->same(['main0000000000000000000000000000', 'WORKING'], [
+            $workingRows[0]['from_commit_hash'],
+            $workingRows[0]['to_commit_hash'],
+        ]);
+
+        $threeDotRows = $call->rows($patchTables(), ['main...branch1', 't'], $options + [
+            'mergeBases' => ['main...branch1' => 'tag_main'],
+        ]);
+        $t->same(['main0000000000000000000000000000', 'branch00000000000000000000000000'], [
+            $threeDotRows[0]['from_commit_hash'],
+            $threeDotRows[0]['to_commit_hash'],
+        ]);
+    },
+    'dolt patch function call reports upstream-shaped revision resolution errors' => static function (TestRunner $t) use ($patchTables, $patchRevisionGraph): void {
+        $call = new PatchFunctionCall();
+        $options = [
+            'knownTables' => ['t', 'newtable'],
+            'revisionGraph' => $patchRevisionGraph(),
+            'headHash' => 'main0000000000000000000000000000',
+        ];
+
+        try {
+            $call->rows($patchTables(), ['tag_main', 'missing-branch', 't'], $options);
+            $t->true(false, 'Expected missing branch to throw.');
+        } catch (RuntimeException $exception) {
+            $t->contains('branch not found: missing-branch', $exception->getMessage());
+        }
+
+        try {
+            $call->rows($patchTables(), ['fakefakefakefakefakefakefakefake', 'branch1', 't'], $options);
+            $t->true(false, 'Expected missing commit hash to throw.');
+        } catch (RuntimeException $exception) {
+            $t->contains('target commit not found', $exception->getMessage());
+        }
     },
     'dolt patch function call reports no-diff known tables and missing tables' => static function (TestRunner $t) use ($patchTables): void {
         $call = new PatchFunctionCall();
@@ -176,8 +246,12 @@ return [
         $t->true(count($output['postDataPatch']) >= 2);
         $t->same(['data', 'data'], array_slice(array_column($output['postDataPatch'], 'diff_type'), 0, 2));
         $t->same('review-base', $output['allPatchFromThreeDot'][0]['from_commit_hash']);
+        $t->same('review-head-hash', $output['resolvedBranchPatch'][0]['from_commit_hash']);
+        $t->same('review-working-hash', $output['resolvedBranchPatch'][0]['to_commit_hash']);
+        $t->same('WORKING', $output['resolvedWorkingPatch'][0]['to_commit_hash']);
         $t->same([], $output['unchangedKnownTable']);
         $t->contains('table not found: wp_missing_queue', $output['missingTableError']);
+        $t->contains('branch not found: missing-review-branch', $output['missingBranchError']);
         $t->contains('only literal values supported', $output['nonLiteralError']);
     },
     'wordpress patch privilege review example maps limited reviewer access' => static function (TestRunner $t): void {
