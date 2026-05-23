@@ -302,6 +302,95 @@ final class SyncPlan
     }
 
     /**
+     * Model the sync-level delete mode orchestration around copyChanged.
+     *
+     * Upstream --delete-before runs an initial delete-only traversal pass, then
+     * a copy-only pass. That second pass may use --no-traverse because delete
+     * traversal is no longer active.
+     *
+     * @return array{copied: list<ObjectInfo>, deleted: list<ObjectInfo>, deleteMode: string, deletePassNoTraverse: ?array<string, mixed>}
+     */
+    public function syncWithDeleteMode(
+        MemoryProvider $source,
+        MemoryProvider $target,
+        ?FilterRuleSet $filter = null,
+        string $deleteMode = DeleteMode::DEFAULT,
+        bool $deleteExcluded = false,
+        bool $noTraverse = false,
+        ?array &$noTraverseStats = null,
+        bool $ignoreCaseSync = false,
+    ): array {
+        $deleteMode = DeleteMode::normalize($deleteMode);
+        $deleted = [];
+        $deletePassNoTraverse = null;
+
+        if ($deleteMode === DeleteMode::ONLY) {
+            if ($noTraverse) {
+                $deletePassNoTraverse = $this->disabledNoTraverseStats(DeleteMode::ONLY);
+            }
+            $noTraverseStats = null;
+            $deleted = $this->deleteDestinationOnly(
+                $source,
+                $target,
+                $filter,
+                DeleteMode::ONLY,
+                $deleteExcluded,
+                ignoreCaseSync: $ignoreCaseSync,
+            );
+
+            return [
+                'copied' => [],
+                'deleted' => $deleted,
+                'deleteMode' => $deleteMode,
+                'deletePassNoTraverse' => $deletePassNoTraverse,
+            ];
+        }
+
+        $copyDeleteMode = $deleteMode;
+        if ($deleteMode === DeleteMode::BEFORE) {
+            if ($noTraverse) {
+                $deletePassNoTraverse = $this->disabledNoTraverseStats(DeleteMode::ONLY);
+            }
+            $deleted = $this->deleteDestinationOnly(
+                $source,
+                $target,
+                $filter,
+                DeleteMode::ONLY,
+                $deleteExcluded,
+                ignoreCaseSync: $ignoreCaseSync,
+            );
+        }
+
+        $copied = $this->copyChanged(
+            $source,
+            $target,
+            $filter,
+            ignoreCaseSync: $ignoreCaseSync,
+            noTraverse: $noTraverse,
+            noTraverseStats: $noTraverseStats,
+            syncDeleteMode: $copyDeleteMode,
+        );
+
+        if ($deleteMode !== DeleteMode::OFF && $deleteMode !== DeleteMode::BEFORE) {
+            $deleted = $this->deleteDestinationOnly(
+                $source,
+                $target,
+                $filter,
+                $deleteMode,
+                $deleteExcluded,
+                ignoreCaseSync: $ignoreCaseSync,
+            );
+        }
+
+        return [
+            'copied' => $copied,
+            'deleted' => $deleted,
+            'deleteMode' => $deleteMode,
+            'deletePassNoTraverse' => $deletePassNoTraverse,
+        ];
+    }
+
+    /**
      * @return array{renamed: list<ObjectInfo>, copied: list<ObjectInfo>, deleted: list<ObjectInfo>, trackRenamesEnabled: bool, disabledReason: ?string}
      */
     public function syncWithTrackRenames(
@@ -2365,7 +2454,12 @@ final class SyncPlan
 
     private function noTraverseDisabledReason(?string $syncDeleteMode, bool $trackRenamesForSync): ?string
     {
-        if ($syncDeleteMode !== null && DeleteMode::normalize($syncDeleteMode) !== DeleteMode::OFF) {
+        $deleteMode = $syncDeleteMode === null ? null : DeleteMode::normalize($syncDeleteMode);
+        if (
+            $deleteMode !== null
+            && $deleteMode !== DeleteMode::OFF
+            && $deleteMode !== DeleteMode::BEFORE
+        ) {
             return 'sync delete mode requires destination traversal';
         }
         if ($trackRenamesForSync) {
@@ -2373,6 +2467,25 @@ final class SyncPlan
         }
 
         return null;
+    }
+
+    /**
+     * @return array{requested: true, enabled: false, disabledReason: string, noCheckDest: false, targetListUsed: true, targetLookups: list<string>, targetMatches: list<string>, targetMisses: list<string>, sourceOnlyDirectories: list<string>}
+     */
+    private function disabledNoTraverseStats(string $syncDeleteMode): array
+    {
+        return [
+            'requested' => true,
+            'enabled' => false,
+            'disabledReason' => $this->noTraverseDisabledReason($syncDeleteMode, false)
+                ?? 'sync delete mode requires destination traversal',
+            'noCheckDest' => false,
+            'targetListUsed' => true,
+            'targetLookups' => [],
+            'targetMatches' => [],
+            'targetMisses' => [],
+            'sourceOnlyDirectories' => [],
+        ];
     }
 
     /**

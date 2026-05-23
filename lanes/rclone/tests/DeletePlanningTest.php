@@ -282,6 +282,51 @@ return [
         $t->same('<rss>current</rss>', $target->get('exports/site.wxr'));
         $t->throws(RuntimeException::class, static fn () => $target->get('exports/old-site.wxr'));
     },
+    'delete before sync uses no traverse only for the copy pass' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('database/site.sql', 'insert into wp_posts values (...)');
+        $source->put('exports/site.wxr', '<rss>current</rss>');
+        $source->put('wp-content/uploads/2026/05/hero.jpg', 'new image bytes');
+
+        $target->put('database/site.sql', 'insert into wp_posts values (...)');
+        $target->put('exports/site.wxr', '<rss>stale</rss>');
+        $target->put('exports/old-site.wxr', '<rss>old</rss>');
+
+        $plan = new SyncPlan();
+        $stats = null;
+        $result = $plan->syncWithDeleteMode(
+            $source,
+            $target,
+            deleteMode: DeleteMode::BEFORE,
+            noTraverse: true,
+            noTraverseStats: $stats,
+        );
+
+        $t->same(['exports/old-site.wxr'], array_map(static fn ($info) => $info->path, $result['deleted']));
+        $t->same([
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+        ], array_map(static fn ($info) => $info->path, $result['copied']));
+        $t->same(false, $result['deletePassNoTraverse']['enabled']);
+        $t->same('sync delete mode requires destination traversal', $result['deletePassNoTraverse']['disabledReason']);
+        $t->same(true, $result['deletePassNoTraverse']['targetListUsed']);
+        $t->same(true, $stats['enabled']);
+        $t->same(null, $stats['disabledReason']);
+        $t->same(false, $stats['targetListUsed']);
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+        ], $stats['targetLookups']);
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+        ], $stats['targetMatches']);
+        $t->same(['wp-content/uploads/2026/05/hero.jpg'], $stats['targetMisses']);
+        $t->same('<rss>current</rss>', $target->get('exports/site.wxr'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('exports/old-site.wxr'));
+    },
     'wordpress sync no traverse example reports traversal disablement before pruning' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-sync-notraverse-disabled.php';
 
@@ -291,6 +336,28 @@ return [
         $t->same([], $example['targetLookups']);
         $t->same([
             'database/site.sql',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], $example['copied']);
+        $t->same(['exports/old-site.wxr'], $example['deleted']);
+        $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
+    },
+    'wordpress delete before example probes only copy pass destinations' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-delete-before-notraverse-sync.php';
+
+        $t->same(false, $example['deletePassNoTraverseEnabled']);
+        $t->same('sync delete mode requires destination traversal', $example['deletePassNoTraverseReason']);
+        $t->same(true, $example['copyPassNoTraverseEnabled']);
+        $t->same(false, $example['copyPassTargetListUsed']);
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], $example['copyPassTargetLookups']);
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
             'wp-content/uploads/2026/05/hero.jpg',
             'wp-content/uploads/2026/05/hero.webp',
         ], $example['copied']);

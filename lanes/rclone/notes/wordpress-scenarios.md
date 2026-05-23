@@ -146,10 +146,12 @@ The `../examples/wordpress-no-traverse-copy.php` example maps upstream `fs/march
 
 The `../examples/wordpress-sync-notraverse-disabled.php` example maps upstream sync behavior when `--no-traverse` is requested with delete-after semantics. It records no-traverse as disabled because stale destination pruning needs traversal, performs no destination object probe accounting, copies changed or missing WXR/SQL/upload artifacts, prunes a stale WXR export, and leaves excluded cache objects untouched.
 
+The `../examples/wordpress-delete-before-notraverse-sync.php` example maps upstream `--delete-before` two-pass sync behavior. It records no-traverse as disabled during the delete-only traversal pass that prunes a stale WXR export, then records no-traverse as enabled during the copy-only pass that probes only filtered WXR, SQL, and upload artifact destinations while leaving excluded cache objects untouched.
+
 The `../examples/wordpress-files-from-no-traverse-restore.php` example maps upstream `fs/walk.NewDirTree` under `--no-traverse` plus `--files-from`. It looks up only selected WXR, SQL, and media remotes, skips a missing WXR entry, avoids provider `List` and provider `ListR` traversal entirely, synthesizes upload parent directories, and publishes a restore-priority manifest without scanning unrelated cache artifacts.
 
 The `../examples/wordpress-duplicate-source-listing.php` example maps upstream `fs/march.matchListings` duplicate-source behavior. It models a provider returning two WXR export objects at the same remote path, keeps the first listed export as the canonical sync comparison, suppresses the stale duplicate entry, and still copies the missing SQL artifact.
 
 ## Next Task
 
-Expose focused destination-duplicate `matchListings` diagnostics, or map delete-before's two-pass behavior where the delete-only pass disables no-traverse but the later copy-only pass can use it.
+Expose focused destination-duplicate `matchListings` diagnostics, or map delete-before behavior with backup-dir and max-delete interactions.
