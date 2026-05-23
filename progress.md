@@ -237,9 +237,9 @@
 ## Current Owner / Session
 
 - Supervisor: main Codex session.
-- Auditor/session status: latest independent audit is recorded in `audits/latest.md`, did not launch agents or tmux sessions, and recorded the required `php tools/run-tests.php` result against the dirty worktree: exit `0`, `177` test files, `16997` assertions, `0` failures. The latest sample reported `428` `git status --short` entries, `75` tracked modified files, and `git diff --shortstat` reported `75 files changed, 9983 insertions(+), 415 deletions(-)`. Treat this as a green sample from a moving dirty aggregate, not a stable integration checkpoint.
+- Auditor/session status: latest independent audit is recorded in `audits/latest.md`, did not launch agents or tmux sessions, and recorded the required `php tools/run-tests.php` result against the dirty worktree: exit `0`, `179` test files, `17246` assertions, `0` failures. The latest sample reported `398` `git status --short` entries, `42` tracked modified files, and `git diff --shortstat` reported `42 files changed, 9309 insertions(+), 397 deletions(-)`. Treat this as a green sample from a moving dirty aggregate, not a stable integration checkpoint; `HEAD` advanced during the audit.
 - Worker sessions: not modified by this audit. Coordinate active writers before treating `progress.md`, `porting.html`, lane statuses, or any root test result as a stable integration snapshot.
 
 ## Next Best Step
 
-Freeze or explicitly coordinate active writers. Accept or reject the dirty lane batches one lane at a time, rerun focused lane tests and `php tools/run-tests.php` after each accepted batch, commit accepted slices, and regenerate `progress.md`, `porting.html`, `porting-summary.json`, and lane statuses from the same stable green snapshot with normalized denominator, mapped-case, native-test, runner-parity, blocker, and latest-commit fields.
+Freeze or explicitly coordinate active writers. Accept or reject dirty lane batches one lane at a time, rerun focused lane tests and `php tools/run-tests.php` after each accepted batch, commit accepted slices, then regenerate `progress.md`, `porting.html`, `porting-summary.json`, and lane statuses from the same stable green snapshot with normalized denominator, mapped-case, native-test, runner-parity, blocker, and latest-commit fields.
