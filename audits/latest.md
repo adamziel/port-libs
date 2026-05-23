@@ -72,6 +72,19 @@ The final exact gate returned no rows, but I still did not start a root run
 because the tree was not stable enough: `HEAD` had moved, active writer/test
 loops were still present, and tracked dirt increased to `270` files.
 
+A post-commit sanity gate again found an active no-argument root harness:
+
+```text
+2211058 php tools/run-tests.php
+```
+
+Owner evidence:
+
+```text
+PID     USER    PPID     ELAPSED STAT COMMAND
+2211058 claude  2211001  00:29   R+   php tools/run-tests.php
+```
+
 ## Findings
 
 1. **Critical - there is still no trustworthy integration baseline.**
@@ -206,10 +219,12 @@ I did not run `php tools/run-tests.php`.
 
 The required pre-root gate matched active no-argument root harnesses owned by
 `claude` (`2079387`, then `2110084` and `2115039`), plus focused Syncthing
-PHP shards. A final exact gate returned no rows, but the tree was still not
-stable enough for a root run because `HEAD`, status counts, and active
-worker/test loops were still moving. Starting an aggregate run in that state
-would not produce an accepted baseline.
+PHP shards. A final exact gate briefly returned no rows, but the tree was still
+not stable enough for a root run because `HEAD`, status counts, and active
+worker/test loops were still moving. A post-commit sanity gate then found
+active no-argument root PID `2211058` owned by `claude`. Starting an aggregate
+run in that state would duplicate an existing harness or fail to produce an
+accepted baseline.
 
 ## Next Intervention
 
