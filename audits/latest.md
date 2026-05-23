@@ -1,10 +1,10 @@
-# Independent Audit - 2026-05-23T02:44:00Z
+# Independent Audit - 2026-05-23T02:48:00Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane
 status files needed to check dashboard/status drift, bridge/shell-out usage in
 PHP files, and recent Git history through observed implementation commit
-`dcd7d16` before this audit-only update.
+`de8da60` before this audit-only update.
 
 I did not edit lane implementation files, launch agents or tmux sessions, or
 push. The only intended writes from this pass are this audit and the
@@ -20,11 +20,11 @@ audit-status/next-intervention section in `progress.md`.
      15671 assertions, 0 failures`, but the worktree remains a broad dirty
      aggregate. During this audit, observed implementation commits advanced
      from `fb8810e` through `d570464`, `53fafba`, `ffffb68`, `cefd368`,
-     `8925fcf`, `345cb39`, `b9a34b8`, and `dcd7d16`; interim audit commits
-     `362ce29` and `62c1278` also landed. The final status sample reported
-     `286` `git status --short` entries, including `57` tracked modified
-     entries, and `git diff --shortstat` reported `57 files changed,
-     7752 insertions(+), 223 deletions(-)`.
+     `8925fcf`, `345cb39`, `b9a34b8`, `dcd7d16`, `d58816d`, and `de8da60`;
+     interim audit commits `362ce29`, `62c1278`, and `b909661` also landed.
+     The final status sample reported `274` `git status --short` entries,
+     including `45` tracked modified entries, and `git diff --shortstat`
+     reported `45 files changed, 7284 insertions(+), 200 deletions(-)`.
      Tracked dirt spans Dolt, Gitoxide, libsqlite, LightningCSS, markerPDF,
      Pandoc, Quadrable, rclone, Readability, Syncthing, generated dashboard
      files, and audit/status files. Some markerPDF lane files were already
@@ -48,8 +48,8 @@ audit-status/next-intervention section in `progress.md`.
      Difftastic `124 / 415`, Dolt `179 / 613`, Esbuild `138 / 2,567`,
      Gitoxide `1259 / 2877`, libsqlite `119 / 1454`, LightningCSS
      `689 / 3532`, markerPDF `78 / 78` with only `2` actual benchmark pairs,
-     Pandoc `363 / 2028`, Quadrable `55 / 55`, rclone `239 / 327`,
-     Readability `848 / 1984`, and Syncthing `193 / 658`.
+     Pandoc `363 / 2028`, Quadrable `55 / 55`, rclone `243 / 327`,
+     Readability `871 / 1984`, and Syncthing `193 / 658`.
    - Goal requirement at risk: `goal.md:3` requires durable current tracking;
      `goal.md:45` requires the dashboard to show current denominator, mapped
      tests, PHP pass/fail, audit, blocker, and commit; `goal.md:52` requires
@@ -64,7 +64,7 @@ audit-status/next-intervention section in `progress.md`.
      Pandoc `10%`, Quadrable `8%`, rclone `9%`, Dolt `5%`, and Esbuild `8%`.
      Current lane statuses claim very different estimates: Difftastic `45%`,
      Gitoxide `91%`, LightningCSS `60%`, markerPDF `54%`, libsqlite `64%`,
-     Pandoc `60%`, Quadrable `66%`, rclone `63%`, Dolt `46%`, Readability
+     Pandoc `60%`, Quadrable `67%`, rclone `63%`, Dolt `46%`, Readability
      `51%`, Syncthing `61%`, and Esbuild `43%`.
    - Goal requirement at risk: `goal.md:44` requires `progress.md` to include
      current active lanes, blockers, owner/session, next task per lane, and
@@ -107,7 +107,7 @@ audit-status/next-intervention section in `progress.md`.
      `pending local commit`, `not committed`, and `current batch`, while the
      dashboard still shows old or truncated values such as `pending`, `uncommi`,
      `2e1fcb0`, and `a184e4a`. The current observed implementation commit is
-     `dcd7d16`, and several pending/prose fields cannot be machine-checked
+     `de8da60`, and several pending/prose fields cannot be machine-checked
      against it.
    - Goal requirement at risk: `goal.md:3` and `goal.md:45` require tracking
      latest commit per lane.
