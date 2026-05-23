@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace PortLibs\MarkerPDF;
 
+use InvalidArgumentException;
+
 final class EquationReplacer
 {
     private const DEFAULT_TEXIFY_MODEL_MAX = 384;
     private const DEFAULT_INTERSECTION_THRESHOLD = 0.7;
 
     private LayoutOrderer $layout;
+    private MarkerSettings $settings;
 
-    public function __construct(?LayoutOrderer $layout = null)
+    public function __construct(?LayoutOrderer $layout = null, ?MarkerSettings $settings = null)
     {
         $this->layout = $layout ?? new LayoutOrderer();
+        $this->settings = $settings ?? new MarkerSettings();
     }
 
     /**
@@ -243,6 +247,127 @@ final class EquationReplacer
 
         preg_match_all('/\S+/u', $text, $matches);
         return count($matches[0]);
+    }
+
+    /**
+     * Native boundary for marker.equations.inference::get_batch_size.
+     */
+    public function texifyBatchSize(float $batchMultiplier = 1.0): int
+    {
+        $configured = $this->settings->get('TEXIFY_BATCH_SIZE');
+        if ($configured !== null) {
+            return (int) ((int) $configured * $batchMultiplier);
+        }
+
+        $device = $this->settings->torchDeviceModel();
+        $base = ($device === 'cuda' || $device === 'mps') ? 6 : 2;
+
+        return (int) ($base * $batchMultiplier);
+    }
+
+    /**
+     * Native supplied-output boundary for marker.equations.inference::get_latex_batched.
+     *
+     * Upstream batches rendered equation images, sets max_tokens from the
+     * largest detected equation token count in each batch, then blanks outputs
+     * whose tokenizer count reaches the generated max-length sentinel. This
+     * method preserves that control flow for supplied model outputs without
+     * loading Texify.
+     *
+     * @param list<mixed> $images
+     * @param list<int|float|string> $tokenCounts
+     * @param list<mixed> $modelOutputs
+     * @return array{
+     *     predictions: list<string>,
+     *     batches: list<array{start: int, end: int, image_count: int, token_counts: list<int>, max_tokens: int}>,
+     *     dropped_output_indexes: list<int>,
+     *     batch_size: int
+     * }
+     */
+    public function getLatexBatchedFromSuppliedOutputs(
+        array $images,
+        array $tokenCounts,
+        array $modelOutputs,
+        float $batchMultiplier = 1.0
+    ): array {
+        $images = array_values($images);
+        $tokenCounts = $this->normalizeTokenCounts($tokenCounts);
+        $modelOutputs = array_values($modelOutputs);
+
+        if (count($images) !== count($tokenCounts)) {
+            throw new InvalidArgumentException('Texify images and token counts must have matching counts.');
+        }
+
+        $batchSize = $this->texifyBatchSize($batchMultiplier);
+        if ($batchSize <= 0) {
+            throw new InvalidArgumentException('Texify batch size must be positive.');
+        }
+
+        if ($images === []) {
+            return [
+                'predictions' => [],
+                'batches' => [],
+                'dropped_output_indexes' => [],
+                'batch_size' => $batchSize,
+            ];
+        }
+
+        $modelMax = (int) $this->settings->get('TEXIFY_MODEL_MAX');
+        $tokenBuffer = (int) $this->settings->get('TEXIFY_TOKEN_BUFFER');
+        $predictions = array_fill(0, count($images), '');
+        $batches = [];
+        $droppedIndexes = [];
+
+        for ($start = 0; $start < count($images); $start += $batchSize) {
+            $end = min($start + $batchSize, count($images));
+            $batchTokenCounts = array_slice($tokenCounts, $start, $end - $start);
+            $maxTokens = min(max($batchTokenCounts), $modelMax) + $tokenBuffer;
+
+            $batches[] = [
+                'start' => $start,
+                'end' => $end,
+                'image_count' => $end - $start,
+                'token_counts' => $batchTokenCounts,
+                'max_tokens' => $maxTokens,
+            ];
+
+            for ($index = $start; $index < $end; $index++) {
+                $output = array_key_exists($index, $modelOutputs) ? (string) $modelOutputs[$index] : '';
+                if ($this->totalTexifyTokens($output) >= $maxTokens - 1) {
+                    $output = '';
+                    $droppedIndexes[] = $index;
+                }
+                $predictions[$index] = $output;
+            }
+        }
+
+        return [
+            'predictions' => $predictions,
+            'batches' => $batches,
+            'dropped_output_indexes' => $droppedIndexes,
+            'batch_size' => $batchSize,
+        ];
+    }
+
+    /**
+     * @param list<int|float|string> $tokenCounts
+     * @return list<int>
+     */
+    private function normalizeTokenCounts(array $tokenCounts): array
+    {
+        if (!array_is_list($tokenCounts)) {
+            throw new InvalidArgumentException('Texify token counts must be a list.');
+        }
+
+        $normalized = [];
+        foreach ($tokenCounts as $value) {
+            if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric($value))) {
+                throw new InvalidArgumentException('Texify token counts must be numeric.');
+            }
+            $normalized[] = (int) $value;
+        }
+
+        return $normalized;
     }
 
     /**

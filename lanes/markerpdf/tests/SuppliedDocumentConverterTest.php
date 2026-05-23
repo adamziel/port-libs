@@ -233,6 +233,35 @@ return [
             unlink($path);
         }
     },
+    'converts supplied equation dictionaries inside the document-level pipeline' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-formula-supplied-document.php';
+        $path = sys_get_temp_dir() . '/markerpdf-formula-supplied-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% formula supplied dictionary fixture\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                $fixture['pdftextPages'],
+                $fixture['options'],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->same($fixture['expectedMarkdown'], $result['text']);
+            $t->contains('$$E=mc^2$$', $result['text']);
+            $t->true(!str_contains($result['text'], 'E = m c ^ 2'));
+            $t->same(['layout', 'order', 'equation-recognition'], $result['metadata']['supplied_boundaries']);
+            $t->same([
+                'successful_ocr' => 1,
+                'unsuccessful_ocr' => 0,
+                'equations' => 1,
+            ], $result['metadata']['block_stats']['equations']);
+            $t->same('$$E=mc^2$$', $result['metadata']['converted_equation_spans'][0]['text']);
+            $t->same('WordPress math migration', $result['metadata']['pdf_toc'][0]['title']);
+            $t->same('WordPress math migration', $result['metadata']['computed_toc'][0]['title']);
+        } finally {
+            unlink($path);
+        }
+    },
     'short-circuits supplied documents with no extracted blocks like convert_single_pdf' => static function (TestRunner $t): void {
         $path = sys_get_temp_dir() . '/markerpdf-empty-supplied-' . bin2hex(random_bytes(4)) . '.pdf';
         file_put_contents($path, "%PDF-1.4\n% empty supplied dictionary fixture\n%%EOF");
@@ -390,6 +419,10 @@ return [
             $t->throws(
                 InvalidArgumentException::class,
                 static fn (): array => $converter->convert($path, [$page], ['ocr_stats' => 'none'])
+            );
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $converter->convert($path, [$page], ['equation_results' => [['score' => 1.0]]])
             );
         } finally {
             unlink($path);

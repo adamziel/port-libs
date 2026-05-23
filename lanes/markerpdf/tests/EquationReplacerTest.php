@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\MarkerPDF\EquationReplacer;
 use PortLibs\MarkerPDF\MarkdownPostProcessor;
+use PortLibs\MarkerPDF\MarkerSettings;
 
 $equationPage = static function (): array {
     return [
@@ -119,5 +120,41 @@ return [
 
         $t->contains('$$E=mc^2$$', $fullText);
         $t->same("<!-- wp:html -->\n<div class=\"wp-block-markerpdf-equation\">\$\$E=mc^2\$\$</div>\n<!-- /wp:html -->\n", $html);
+    },
+    'computes upstream Texify batch sizes for equation recognition' => static function (TestRunner $t): void {
+        $t->same(2, (new EquationReplacer())->texifyBatchSize());
+        $t->same(3, (new EquationReplacer())->texifyBatchSize(1.5));
+        $t->same(6, (new EquationReplacer(null, new MarkerSettings(['TORCH_DEVICE' => 'cuda'])))->texifyBatchSize());
+        $t->same(6, (new EquationReplacer(null, new MarkerSettings(['TORCH_DEVICE' => 'mps'])))->texifyBatchSize());
+        $t->same(10, (new EquationReplacer(null, new MarkerSettings(['TEXIFY_BATCH_SIZE' => '5'])))->texifyBatchSize(2.0));
+    },
+    'filters supplied Texify batch outputs at the upstream max-token sentinel' => static function (TestRunner $t): void {
+        $replacer = new EquationReplacer(null, new MarkerSettings([
+            'TEXIFY_BATCH_SIZE' => 2,
+            'TEXIFY_MODEL_MAX' => 10,
+            'TEXIFY_TOKEN_BUFFER' => 3,
+        ]));
+
+        $plan = $replacer->getLatexBatchedFromSuppliedOutputs(
+            ['eq-image-0', 'eq-image-1', 'eq-image-2'],
+            [4, '12', 2],
+            [
+                '$$a+b$$',
+                'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu',
+                'one two three four',
+            ]
+        );
+
+        $t->same(2, $plan['batch_size']);
+        $t->same([
+            ['start' => 0, 'end' => 2, 'image_count' => 2, 'token_counts' => [4, 12], 'max_tokens' => 13],
+            ['start' => 2, 'end' => 3, 'image_count' => 1, 'token_counts' => [2], 'max_tokens' => 5],
+        ], $plan['batches']);
+        $t->same(['$$a+b$$', '', ''], $plan['predictions']);
+        $t->same([1, 2], $plan['dropped_output_indexes']);
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn (): array => $replacer->getLatexBatchedFromSuppliedOutputs(['image'], [1, 2], ['output'])
+        );
     },
 ];

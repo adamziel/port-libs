@@ -16,6 +16,7 @@ final class ConversionFinalizer
     private HeaderFooterCleaner $headerFooterCleaner;
     private ImageExtractor $imageExtractor;
     private CodeBlockDetector $codeBlockDetector;
+    private EquationReplacer $equationReplacer;
 
     public function __construct(
         ?MarkdownPostProcessor $markdown = null,
@@ -25,7 +26,8 @@ final class ConversionFinalizer
         ?FontStyleCleaner $fontStyleCleaner = null,
         ?HeaderFooterCleaner $headerFooterCleaner = null,
         ?ImageExtractor $imageExtractor = null,
-        ?CodeBlockDetector $codeBlockDetector = null
+        ?CodeBlockDetector $codeBlockDetector = null,
+        ?EquationReplacer $equationReplacer = null
     ) {
         $this->markdown = $markdown ?? new MarkdownPostProcessor();
         $this->textCleaner = $textCleaner ?? new TextCleaner();
@@ -35,15 +37,17 @@ final class ConversionFinalizer
         $this->headerFooterCleaner = $headerFooterCleaner ?? new HeaderFooterCleaner();
         $this->imageExtractor = $imageExtractor ?? new ImageExtractor();
         $this->codeBlockDetector = $codeBlockDetector ?? new CodeBlockDetector();
+        $this->equationReplacer = $equationReplacer ?? new EquationReplacer();
     }
 
     /**
-     * Native late-stage boundary for marker.convert::convert_single_pdf after OCR/layout/table/equation stages.
+     * Native late-stage boundary for marker.convert::convert_single_pdf after OCR/layout/table stages.
      *
      * @param list<array<string, mixed>> $pages
      * @param list<string> $badSpanIds
      * @param array<string, mixed> $metadata
      * @param list<list<mixed>> $imagePayloads
+     * @param list<string> $equationPredictions
      * @return array{
      *     pages: list<array<string, mixed>>,
      *     merged_pages: list<list<array<string, mixed>>>,
@@ -58,7 +62,10 @@ final class ConversionFinalizer
         array $badSpanIds = [],
         ?MarkerSettings $settings = null,
         array $metadata = [],
-        array $imagePayloads = []
+        array $imagePayloads = [],
+        array $equationPredictions = [],
+        ?int $equationModelMaxTokens = null,
+        ?float $equationIntersectionThreshold = null
     ): array {
         $settings ??= new MarkerSettings();
 
@@ -67,6 +74,19 @@ final class ConversionFinalizer
             $metadata['block_stats'] = [];
         }
         $pages = $this->identifyAndIndentCodeBlocks($pages, $metadata);
+        if ($equationPredictions !== []) {
+            $equationResult = $this->equationReplacer->replaceEquations(
+                $pages,
+                $equationPredictions,
+                $equationModelMaxTokens ?? (int) $settings->get('TEXIFY_MODEL_MAX'),
+                $equationIntersectionThreshold ?? (float) $settings->get('BBOX_INTERSECTION_THRESH')
+            );
+            $pages = $equationResult['pages'];
+            $metadata['block_stats']['equations'] = $equationResult['metadata'];
+            if ($equationResult['converted_spans'] !== []) {
+                $metadata['converted_equation_spans'] = $equationResult['converted_spans'];
+            }
+        }
         if ($settings->extractImages() && $imagePayloads !== []) {
             $pages = $this->insertSuppliedImagePayloads($pages, $imagePayloads);
             $metadata['block_stats']['images'] = count($this->imageExtractor->imagesToDict($pages));

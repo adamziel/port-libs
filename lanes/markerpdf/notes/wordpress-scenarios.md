@@ -68,6 +68,10 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-supplied-document-benchmark.php` maps the new document-level supplied-boundary path into a WordPress quality gate. It converts supplied pdftext/layout/order/table/image dictionaries into block-ready Markdown, runs that Markdown through the upstream benchmark report shape, and reports the supplied model boundaries, table count, and image count that a WordPress import UI can store as review metadata.
 
+`examples/wordpress-supplied-equation-import.php` maps the supplied-document path with a Formula layout region and supplied Texify-style equation result dictionary. It replaces the extracted equation text after span/code cleanup, emits a Gutenberg HTML math block, and reports upstream-shaped equation stats without loading Texify, pypdfium, or Torch.
+
+`examples/wordpress-texify-equation-batch-preflight.php` maps Marker's upstream Texify equation-recognition batching control flow into a WordPress import worker preflight. It calculates batch size and dynamic `max_tokens`, accepts supplied model outputs, blanks run-on predictions at the same sentinel boundary as `get_latex_batched`, and keeps the slice native without loading Texify.
+
 `examples/wordpress-multicolcnn-supplied-benchmark.php` maps a fuller upstream `multicolcnn.pdf` supplied-dictionary excerpt into a WordPress Data Liberation quality gate. It imports supplied pdftext/layout/order payloads for the title, authors, abstract, and introduction, preserves no-OCR `ocr_stats`, keeps Python-style hyphen title casing for `Perspective-Free`, and reports a `0.9778095238095238` score against the committed surrogate threshold.
 
 `examples/wordpress-switch-transformers-supplied-benchmark.php` maps a fuller upstream `switch_trans.pdf` supplied-dictionary excerpt into a WordPress Data Liberation quality gate. It imports supplied pdftext/layout/order payloads for the title, authors, abstract, and introduction, preserves styled emphasis from pdftext spans, and reports a `0.8827096774193548` score against the committed surrogate threshold.
@@ -184,4 +188,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Next bounded task: extend `SuppliedDocumentConverter` with supplied equation dictionaries for a benchmark excerpt that includes formula regions, or add a table-of-contents/table-heavy `switch_trans.pdf` page slice if equation fixtures remain model-boundary-only.
+Next bounded task: map a table-of-contents/table-heavy `switch_trans.pdf` page slice, or acquire an actual upstream benchmark excerpt with Formula regions to replace the synthetic supplied-equation fixture.

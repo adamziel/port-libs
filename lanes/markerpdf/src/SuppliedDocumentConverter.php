@@ -62,6 +62,10 @@ final class SuppliedDocumentConverter
      *     table_rendered_image_sizes?: array<int, array{width?: int|float, height?: int|float}|list<int|float>>,
      *     table_dpi?: int|float,
      *     table_intersection_threshold?: int|float,
+     *     equation_predictions?: list<string>,
+     *     equation_results?: list<array<string, mixed>>,
+     *     equation_model_max_tokens?: int,
+     *     equation_intersection_threshold?: int|float,
      *     image_payloads?: list<list<mixed>>
      * } $options
      * @return array{text: string, images: array<string, mixed>, metadata: array<string, mixed>, context: array<string, mixed>}
@@ -201,6 +205,11 @@ final class SuppliedDocumentConverter
             $metadata['supplied_boundaries'][] = 'table-formatting';
         }
 
+        $equationPredictions = $this->equationPredictionsOption($options);
+        if ($equationPredictions !== []) {
+            $metadata['supplied_boundaries'][] = 'equation-recognition';
+        }
+
         $imagePayloads = $this->listOption($options, 'image_payloads');
         if ($imagePayloads !== [] && $settings->extractImages()) {
             $metadata['supplied_boundaries'][] = 'image-extraction';
@@ -211,7 +220,10 @@ final class SuppliedDocumentConverter
             $this->stringListOption($options, 'bad_span_ids'),
             $settings,
             $metadata,
-            $imagePayloads
+            $imagePayloads,
+            $equationPredictions,
+            $this->nullableIntOption($options, 'equation_model_max_tokens') ?? (int) $settings->get('TEXIFY_MODEL_MAX'),
+            $this->numericOption($options, 'equation_intersection_threshold', (float) $settings->get('BBOX_INTERSECTION_THRESH'))
         );
         $finalized['metadata']['pipeline_stage'] = 'supplied-document';
         $finalized['metadata']['context'] = [
@@ -332,6 +344,53 @@ final class SuppliedDocumentConverter
         }
 
         return array_map(static fn (mixed $value): string => (string) $value, $options[$key]);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return list<string>
+     */
+    private function equationPredictionsOption(array $options): array
+    {
+        $key = null;
+        if (array_key_exists('equation_results', $options) && $options['equation_results'] !== null) {
+            $key = 'equation_results';
+        } elseif (array_key_exists('equation_predictions', $options) && $options['equation_predictions'] !== null) {
+            $key = 'equation_predictions';
+        }
+
+        if ($key === null) {
+            return [];
+        }
+
+        $items = $this->listOption($options, $key);
+        $predictions = [];
+        foreach ($items as $item) {
+            if (is_scalar($item)) {
+                $predictions[] = (string) $item;
+                continue;
+            }
+
+            if (!is_array($item)) {
+                throw new InvalidArgumentException("markerPDF supplied document option {$key} must contain strings or arrays.");
+            }
+
+            $value = null;
+            foreach (['latex', 'prediction', 'text'] as $field) {
+                if (array_key_exists($field, $item) && is_scalar($item[$field])) {
+                    $value = (string) $item[$field];
+                    break;
+                }
+            }
+
+            if ($value === null) {
+                throw new InvalidArgumentException("markerPDF supplied document option {$key} arrays must include latex, prediction, or text.");
+            }
+
+            $predictions[] = $value;
+        }
+
+        return $predictions;
     }
 
     /**
