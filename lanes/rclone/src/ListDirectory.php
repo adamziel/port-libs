@@ -416,6 +416,88 @@ final class ListDirectory
     }
 
     /**
+     * Model fs/walk.GetAll by collecting ListR output into object and directory lists.
+     *
+     * Upstream GetAll calls ListR with ListAll, which uses direct provider ListR
+     * only for unbounded recursive listings that do not require exclude-file
+     * fallback. Bounded maxLevel or exclude-if-present rules fall back through
+     * Walk over DirSorted, preserving maxLevel and delayed listing-error
+     * behavior from listRwalk.
+     *
+     * @param callable(string): iterable<ObjectInfo> $list
+     * @param null|callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable) $listR
+     * @param null|callable(ObjectInfo): bool $includeObject
+     * @param null|callable(string): bool $includeDirectory
+     * @param list<string> $excludeIfPresent
+     * @return array{objects: list<ObjectInfo>, directories: list<ObjectInfo>, source: string, stats: array<string, int>}
+     */
+    public static function getAll(
+        callable $list,
+        ?callable $listR,
+        bool $includeAll,
+        string $path,
+        int $maxLevel,
+        ?callable $includeObject = null,
+        ?callable $includeDirectory = null,
+        array $excludeIfPresent = [],
+        bool $synthesizeDirs = false,
+    ): array {
+        $objects = [];
+        $directories = [];
+
+        $collector = static function (array $entries) use (&$objects, &$directories): null {
+            foreach ($entries as $entry) {
+                if (self::isDirectory($entry)) {
+                    $directories[] = $entry;
+                } else {
+                    $objects[] = $entry;
+                }
+            }
+
+            return null;
+        };
+
+        if ($listR !== null && $maxLevel < 0 && $excludeIfPresent === []) {
+            $stats = self::listRecursiveDirect(
+                $listR,
+                $includeAll,
+                $path,
+                self::LIST_ALL,
+                $collector,
+                $includeObject,
+                $includeDirectory,
+                $synthesizeDirs,
+            );
+
+            return [
+                'objects' => $objects,
+                'directories' => $directories,
+                'source' => 'listR',
+                'stats' => $stats,
+            ];
+        }
+
+        $stats = self::listRecursiveFallback(
+            $list,
+            $includeAll,
+            $path,
+            $maxLevel,
+            self::LIST_ALL,
+            $collector,
+            $includeObject,
+            $includeDirectory,
+            $excludeIfPresent,
+        );
+
+        return [
+            'objects' => $objects,
+            'directories' => $directories,
+            'source' => 'walk',
+            'stats' => $stats,
+        ];
+    }
+
+    /**
      * Model fs/walk.walkRDirTree over a recursive-capable provider.
      *
      * Recursive provider batches may arrive in arbitrary order. This builds the
@@ -604,18 +686,22 @@ final class ListDirectory
     }
 
     /**
-     * Model fs/walk.NewDirTree selection between direct ListR and WalkN.
+     * Model fs/walk.NewDirTree selection between files-from, direct ListR, and WalkN.
      *
-     * Upstream uses ListR only when a recursive provider listing exists and the
-     * caller asks for unbounded recursion or more than one level. Level-one
-     * calls and non-recursive providers fall back to Walk over DirSorted.
+     * Upstream first uses the --no-traverse plus --files-from branch when both
+     * are set, building the tree from explicit object lookups only. Otherwise it
+     * uses ListR when a recursive provider listing exists and the caller asks
+     * for unbounded recursion or more than one level. Level-one calls and
+     * non-recursive providers fall back to Walk over DirSorted.
      *
      * @param callable(string): iterable<ObjectInfo> $list
      * @param null|callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable) $listR
      * @param null|callable(ObjectInfo): bool $includeObject
      * @param null|callable(string): bool $includeDirectory
      * @param list<string> $excludeIfPresent
-     * @return array{tree: array<string, list<ObjectInfo>>, source: string, listed: int, batches: int, pruned: list<string>}
+     * @param null|list<string> $filesFrom
+     * @param null|callable(string): (?ObjectInfo) $newObject
+     * @return array{tree: array<string, list<ObjectInfo>>, source: string, listed: int, batches: int, pruned: list<string>, requested?: int}
      */
     public static function newDirTree(
         callable $list,
@@ -626,7 +712,27 @@ final class ListDirectory
         ?callable $includeObject = null,
         ?callable $includeDirectory = null,
         array $excludeIfPresent = [],
+        bool $noTraverse = false,
+        ?array $filesFrom = null,
+        ?callable $newObject = null,
     ): array {
+        if ($noTraverse && $filesFrom !== null) {
+            if ($newObject === null) {
+                throw new \InvalidArgumentException('files-from no-traverse requires a new-object callback');
+            }
+
+            return self::newDirTreeFromFiles(
+                $filesFrom,
+                $newObject,
+                $includeAll,
+                $path,
+                $maxLevel,
+                $includeObject,
+                $includeDirectory,
+                $excludeIfPresent,
+            );
+        }
+
         if ($listR !== null && ($maxLevel < 0 || $maxLevel > 1)) {
             $result = self::dirTreeFromListR(
                 $listR,
@@ -673,6 +779,52 @@ final class ListDirectory
             'listed' => $stats['listed'],
             'batches' => 0,
             'pruned' => [],
+        ];
+    }
+
+    /**
+     * Model fs/walk.NewDirTree's --no-traverse plus --files-from branch.
+     *
+     * The upstream filter builds a synthetic ListR from explicit remotes by
+     * calling NewObject for each files-from path. Missing objects are skipped,
+     * ordinary lookup errors stop the tree construction, and provider traversal
+     * is not used.
+     *
+     * @param list<string> $filesFrom
+     * @param callable(string): (?ObjectInfo) $newObject
+     * @param null|callable(ObjectInfo): bool $includeObject
+     * @param null|callable(string): bool $includeDirectory
+     * @param list<string> $excludeIfPresent
+     * @return array{tree: array<string, list<ObjectInfo>>, source: string, listed: int, batches: int, pruned: list<string>, requested: int}
+     */
+    public static function newDirTreeFromFiles(
+        array $filesFrom,
+        callable $newObject,
+        bool $includeAll,
+        string $path,
+        int $maxLevel,
+        ?callable $includeObject = null,
+        ?callable $includeDirectory = null,
+        array $excludeIfPresent = [],
+    ): array {
+        $requested = 0;
+        $result = self::dirTreeFromListR(
+            self::listRFromFiles($filesFrom, $newObject, $requested),
+            $includeAll,
+            $path,
+            $maxLevel,
+            $includeObject,
+            $includeDirectory,
+            $excludeIfPresent,
+        );
+
+        return [
+            'tree' => $result['tree'],
+            'source' => 'filesFrom',
+            'listed' => $result['listed'],
+            'batches' => $result['batches'],
+            'pruned' => $result['pruned'],
+            'requested' => $requested,
         ];
     }
 
@@ -982,6 +1134,72 @@ final class ListDirectory
         if ($result !== null) {
             throw new \InvalidArgumentException('recursive list callback must return null or Throwable');
         }
+    }
+
+    /**
+     * @param list<string> $filesFrom
+     * @param callable(string): (?ObjectInfo) $newObject
+     * @return callable(string, callable(list<ObjectInfo>): (null|\Throwable)): null
+     */
+    private static function listRFromFiles(array $filesFrom, callable $newObject, int &$requested): callable
+    {
+        $remotes = self::normalizeFilesFrom($filesFrom);
+
+        return static function (string $dir, callable $callback) use ($remotes, $newObject, &$requested): null {
+            unset($dir);
+
+            foreach ($remotes as $remote) {
+                $requested++;
+                try {
+                    $entry = $newObject($remote);
+                } catch (\Throwable $throwable) {
+                    if (self::isObjectNotFound($throwable)) {
+                        continue;
+                    }
+
+                    throw $throwable;
+                }
+
+                if ($entry === null) {
+                    continue;
+                }
+                if (!$entry instanceof ObjectInfo) {
+                    $type = get_debug_type($entry);
+                    throw new \RuntimeException("new-object callback must return ObjectInfo or null, got {$type}");
+                }
+
+                self::invokeRecursiveListCallback($callback, [$entry]);
+            }
+
+            return null;
+        };
+    }
+
+    /**
+     * @param list<string> $filesFrom
+     * @return list<string>
+     */
+    private static function normalizeFilesFrom(array $filesFrom): array
+    {
+        $normalized = [];
+        foreach ($filesFrom as $remote) {
+            if (!is_string($remote)) {
+                $type = get_debug_type($remote);
+                throw new \InvalidArgumentException("files-from remote must be a string, got {$type}");
+            }
+
+            $remote = self::normalizeDirectory($remote);
+            $normalized[$remote] = $remote;
+        }
+
+        return array_values($normalized);
+    }
+
+    private static function isObjectNotFound(\Throwable $throwable): bool
+    {
+        $message = strtolower($throwable->getMessage());
+
+        return $message === 'object not found' || str_starts_with($message, 'object not found:');
     }
 
     /**

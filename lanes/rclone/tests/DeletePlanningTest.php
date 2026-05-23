@@ -174,6 +174,98 @@ return [
         $t->same('new', $target->get('b.txt'));
         $t->throws(RuntimeException::class, static fn () => $target->get('backup/b.txt'));
     },
+    'no traverse copy probes destination objects without matching directories' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->mkdir('empty-source-dir');
+        $source->put('sub dir/hello world', 'hello world');
+        $source->put('root.txt', 'fresh');
+        $target->put('sub dir/hello world', 'hello world');
+        $target->put('root.txt', 'stale');
+        $target->put('orphan.txt', 'orphan');
+
+        $stats = null;
+        $copied = (new SyncPlan())->copyChanged($source, $target, noTraverse: true, noTraverseStats: $stats);
+
+        $t->same(['root.txt'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('fresh', $target->get('root.txt'));
+        $t->same('hello world', $target->get('sub dir/hello world'));
+        $t->same('orphan', $target->get('orphan.txt'));
+        $t->same(true, $stats['enabled']);
+        $t->same(false, $stats['noCheckDest']);
+        $t->same(false, $stats['targetListUsed']);
+        $t->same(['root.txt', 'sub dir/hello world'], $stats['targetLookups']);
+        $t->same(['root.txt', 'sub dir/hello world'], $stats['targetMatches']);
+        $t->same([], $stats['targetMisses']);
+        $t->same(['empty-source-dir', 'sub dir'], $stats['sourceOnlyDirectories']);
+    },
+    'no traverse no check dest skips destination object probes' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('a.txt', 'same');
+        $source->put('b.txt', 'new');
+        $target->put('a.txt', 'same');
+        $target->put('b.txt', 'old');
+
+        $stats = null;
+        $copied = (new SyncPlan())->copyChanged(
+            $source,
+            $target,
+            noCheckDest: true,
+            noTraverse: true,
+            noTraverseStats: $stats,
+        );
+
+        $t->same(['a.txt', 'b.txt'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same('same', $target->get('a.txt'));
+        $t->same('new', $target->get('b.txt'));
+        $t->same(true, $stats['enabled']);
+        $t->same(true, $stats['noCheckDest']);
+        $t->same([], $stats['targetLookups']);
+        $t->same([], $stats['targetMatches']);
+        $t->same([], $stats['targetMisses']);
+    },
+    'no traverse wordpress backup copy probes only included artifact destinations' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $tree = require __DIR__ . '/../fixtures/wordpress-backup-tree.php';
+        foreach ($tree as $path => $bytes) {
+            $source->put($path, $bytes);
+        }
+        $target->put('exports/site.wxr', $tree['exports/site.wxr']);
+        $target->put('wp-content/uploads/2026/05/hero.jpg', 'old image bytes');
+        $target->put('wp-content/cache/orphan.html', '<html>stale cache</html>');
+
+        $filter = FilterRuleSet::fromRules([
+            '- wp-content/cache/**',
+            '- *.log',
+            '- *.psd',
+            '+ wp-content/uploads/**',
+            '+ exports/*.wxr',
+            '+ database/*.sql',
+            '- *',
+        ]);
+
+        $stats = null;
+        $copied = (new SyncPlan())->copyChanged($source, $target, $filter, noTraverse: true, noTraverseStats: $stats);
+
+        $t->same([
+            'database/site.sql',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], array_map(static fn ($info) => $info->path, $copied));
+        $t->same([
+            'database/site.sql',
+            'exports/site.wxr',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], $stats['targetLookups']);
+        $t->same(['exports/site.wxr', 'wp-content/uploads/2026/05/hero.jpg'], $stats['targetMatches']);
+        $t->same(['database/site.sql', 'wp-content/uploads/2026/05/hero.webp'], $stats['targetMisses']);
+        $t->same(true, in_array('wp-content/uploads/2026/05', $stats['sourceOnlyDirectories'], true));
+        $t->same(false, in_array('wp-content/cache', $stats['sourceOnlyDirectories'], true));
+        $t->same('<html>stale cache</html>', $target->get('wp-content/cache/orphan.html'));
+    },
     'ignore times transfers identical destination objects unconditionally' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();

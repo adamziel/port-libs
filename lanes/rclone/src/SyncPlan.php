@@ -173,6 +173,7 @@ final class SyncPlan
      *
      * @param list<MemoryProvider> $compareDest
      * @param list<MemoryProvider> $copyDest
+     * @param array{enabled: bool, noCheckDest: bool, targetListUsed: bool, targetLookups: list<string>, targetMatches: list<string>, targetMisses: list<string>, sourceOnlyDirectories: list<string>}|null $noTraverseStats
      */
     public function copyChanged(
         MemoryProvider $source,
@@ -195,13 +196,31 @@ final class SyncPlan
         bool $refreshTimes = false,
         bool $fixCase = false,
         bool $ignoreCaseSync = false,
+        bool $noTraverse = false,
+        ?array &$noTraverseStats = null,
     ): array {
         if ($fixCase && !$noCheckDest) {
             $this->fixCase($source, $target, $filter, $immutable);
         }
 
         $copied = [];
-        $targetPaths = $ignoreCaseSync && !$noCheckDest ? $this->listedPaths($target, $filter, true) : [];
+        if ($noTraverse) {
+            $noTraverseStats = [
+                'enabled' => true,
+                'noCheckDest' => $noCheckDest,
+                'targetListUsed' => false,
+                'targetLookups' => [],
+                'targetMatches' => [],
+                'targetMisses' => [],
+                'sourceOnlyDirectories' => $this->noTraverseSourceDirectories($source, $filter),
+            ];
+        } else {
+            $noTraverseStats = null;
+        }
+
+        $targetPaths = $ignoreCaseSync && !$noCheckDest && !$noTraverse
+            ? $this->listedPaths($target, $filter, true)
+            : [];
         $seenSourceKeys = [];
         foreach ($source->list() as $sourceInfo) {
             $path = $sourceInfo->path;
@@ -212,9 +231,16 @@ final class SyncPlan
                 continue;
             }
 
-            $targetInfo = $noCheckDest
-                ? null
-                : ($ignoreCaseSync ? ($targetPaths[$this->syncPathKey($path)] ?? null) : $this->optionalInfo($target, $path));
+            $targetInfo = null;
+            if (!$noCheckDest) {
+                if ($noTraverse) {
+                    $targetInfo = $this->noTraverseTargetInfo($target, $path, $noTraverseStats);
+                } elseif ($ignoreCaseSync) {
+                    $targetInfo = $targetPaths[$this->syncPathKey($path)] ?? null;
+                } else {
+                    $targetInfo = $this->optionalInfo($target, $path);
+                }
+            }
             if (!$noCheckDest && $targetInfo !== null && $ignoreExisting) {
                 continue;
             }
@@ -2246,6 +2272,56 @@ final class SyncPlan
         }
 
         return $paths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function noTraverseSourceDirectories(MemoryProvider $source, ?FilterRuleSet $filter): array
+    {
+        $directories = [];
+        foreach ($source->directories() as $directory) {
+            if ($directory->path === '') {
+                continue;
+            }
+            if (!$this->filterAllowsDirectory($source, $directory->path, $filter)) {
+                continue;
+            }
+
+            $directories[] = $directory->path;
+        }
+
+        return $directories;
+    }
+
+    /**
+     * Model fs/march --no-traverse destination matching. Source directories are
+     * not probed with NewObject; source objects are checked at their destination
+     * path, and lookup failures become source-only transfers.
+     *
+     * @param array{targetLookups: list<string>, targetMatches: list<string>, targetMisses: list<string>}|null $stats
+     */
+    private function noTraverseTargetInfo(MemoryProvider $target, string $sourcePath, ?array &$stats): ?ObjectInfo
+    {
+        $lookup = self::normalizePath($sourcePath);
+        if ($stats !== null) {
+            $stats['targetLookups'][] = $lookup;
+        }
+
+        $targetInfo = $this->optionalInfo($target, $lookup);
+        if ($targetInfo === null) {
+            if ($stats !== null) {
+                $stats['targetMisses'][] = $lookup;
+            }
+
+            return null;
+        }
+
+        if ($stats !== null) {
+            $stats['targetMatches'][] = $targetInfo->path;
+        }
+
+        return $targetInfo;
     }
 
     /**

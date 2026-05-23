@@ -140,6 +140,12 @@ The `../examples/wordpress-dirtree-direct-restore-manifest.php` example maps ups
 
 The `../examples/wordpress-walkr-direct-restore-manifest.php` example maps upstream direct `fs/walk` `walkR` callback traversal over a ListR-built DirTree. It receives sorted directory callbacks, uses `ErrorSkipDir` to suppress cache descendants without hiding sibling upload directories, and publishes SQL, WXR, users WXR, upload directories, and media leaves in restore-priority order.
 
+The `../examples/wordpress-getall-restore-catalog.php` example maps upstream `fs/walk.GetAll` collection over direct recursive `ListR`. It separates portable WXR, SQL, and media objects from upload directories before sorting the combined restore catalog into WordPress import priority order.
+
+The `../examples/wordpress-no-traverse-copy.php` example maps upstream `fs/march --no-traverse` destination object lookup. It probes only filtered WXR/SQL/upload destination object paths, skips destination directory/list traversal, reports match/miss probes, copies changed or missing portable artifacts, and leaves cache objects untouched.
+
+The `../examples/wordpress-files-from-no-traverse-restore.php` example maps upstream `fs/walk.NewDirTree` under `--no-traverse` plus `--files-from`. It looks up only selected WXR, SQL, and media remotes, skips a missing WXR entry, avoids provider `List` and provider `ListR` traversal entirely, synthesizes upload parent directories, and publishes a restore-priority manifest without scanning unrelated cache artifacts.
+
 ## Next Task
 
-Map `fs/walk` `GetAll` over direct ListR and Walk fallback outputs, including object/dir separation, maxLevel boundaries, and provider error propagation.
+Map `fs/march.matchListings` duplicate source/destination handling or the no-traverse disable boundaries for sync delete modes and `--track-renames`.

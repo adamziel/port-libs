@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Rclone\ListDirectory;
+use PortLibs\Rclone\MemoryProvider;
 use PortLibs\Rclone\ObjectInfo;
 
 function rclone_list_directory_object(string $path, string $providerKey = ''): ObjectInfo
@@ -1025,6 +1026,213 @@ TREE;
         $t->same([''], $listCalls);
         $t->same([''], $listRCalls);
     },
+    'NewDirTree no-traverse files-from builds from explicit object lookups only' => static function (TestRunner $t): void {
+        $provider = new MemoryProvider();
+        $provider->put('site-backups/export.wxr', '<rss>site</rss>');
+        $provider->put('site-backups/uploads/2026/05/hero.jpg', 'image bytes');
+        $provider->put('site-backups/uploads/2026/05/generated/thumb.jpg', 'thumb');
+        $listCalls = [];
+        $listRCalls = [];
+        $lookups = [];
+
+        $result = ListDirectory::newDirTree(
+            static function (string $dir) use (&$listCalls): array {
+                $listCalls[] = $dir;
+
+                return [];
+            },
+            static function (string $dir, callable $callback) use (&$listRCalls): null {
+                $listRCalls[] = $dir;
+                $callback([rclone_list_directory_object('should-not-be-used')]);
+
+                return null;
+            },
+            true,
+            'site-backups',
+            -1,
+            noTraverse: true,
+            filesFrom: [
+                '/site-backups/uploads/2026/05/hero.jpg',
+                'site-backups/export.wxr',
+                'site-backups/missing.sql',
+                'site-backups/export.wxr',
+            ],
+            newObject: static function (string $remote) use ($provider, &$lookups): ObjectInfo {
+                $lookups[] = $remote;
+
+                return $provider->info($remote);
+            },
+        );
+
+        $expected = <<<'TREE'
+site-backups/
+  export.wxr
+  uploads/
+site-backups/uploads/
+  2026/
+site-backups/uploads/2026/
+  05/
+site-backups/uploads/2026/05/
+  hero.jpg
+TREE;
+        $expected .= "\n";
+        $t->same('filesFrom', $result['source']);
+        $t->same([], $listCalls);
+        $t->same([], $listRCalls);
+        $t->same([
+            'site-backups/uploads/2026/05/hero.jpg',
+            'site-backups/export.wxr',
+            'site-backups/missing.sql',
+        ], $lookups);
+        $t->same($expected, ListDirectory::formatDirTree($result['tree']));
+        $t->same(2, $result['listed']);
+        $t->same(2, $result['batches']);
+        $t->same(3, $result['requested']);
+    },
+    'NewDirTree no-traverse files-from propagates lookup and type errors' => static function (TestRunner $t): void {
+        $t->throws(RuntimeException::class, static fn () => ListDirectory::newDirTreeFromFiles(
+            ['site-backups/private.wxr'],
+            static fn (string $remote): ObjectInfo => throw new RuntimeException("permission denied for {$remote}"),
+            true,
+            'site-backups',
+            -1,
+        ));
+
+        $t->throws(RuntimeException::class, static fn () => ListDirectory::newDirTreeFromFiles(
+            ['site-backups/export.wxr'],
+            static fn (string $remote): string => $remote,
+            true,
+            'site-backups',
+            -1,
+        ));
+    },
+    'GetAll uses direct ListR for unbounded recursive listings and separates entries' => static function (TestRunner $t): void {
+        $listRCalls = [];
+        $listR = static function (string $dir, callable $callback) use (&$listRCalls): null {
+            $listRCalls[] = $dir;
+            $callback([
+                rclone_list_directory_object('site-backups/database.sql'),
+                rclone_list_directory_directory('site-backups/uploads'),
+            ]);
+            $callback([
+                rclone_list_directory_directory('site-backups/uploads/2026'),
+                rclone_list_directory_object('site-backups/uploads/2026/05/hero.jpg'),
+            ]);
+
+            return null;
+        };
+
+        $result = ListDirectory::getAll(
+            static fn (string $dir): array => throw new RuntimeException("unexpected List fallback for {$dir}"),
+            $listR,
+            true,
+            'site-backups',
+            -1,
+        );
+
+        $t->same('listR', $result['source']);
+        $t->same(['site-backups'], $listRCalls);
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/uploads/2026/05/hero.jpg',
+        ], rclone_list_directory_paths($result['objects']));
+        $t->same([
+            'site-backups/uploads',
+            'site-backups/uploads/2026',
+        ], rclone_list_directory_paths($result['directories']));
+        $t->same([
+            'listed' => 4,
+            'batches' => 2,
+            'sent' => 4,
+            'synthesized' => 0,
+            'syntheticBatches' => 0,
+        ], $result['stats']);
+    },
+    'GetAll falls back to Walk for bounded maxLevel and preserves entry split' => static function (TestRunner $t): void {
+        $listCalls = [];
+        $listRCalls = [];
+        $list = static function (string $dir) use (&$listCalls): array {
+            $listCalls[] = $dir;
+
+            return match ($dir) {
+                '' => [
+                    rclone_list_directory_directory('a'),
+                    rclone_list_directory_object('root.txt'),
+                ],
+                'a' => [
+                    rclone_list_directory_directory('a/b'),
+                    rclone_list_directory_object('a/file.txt'),
+                ],
+                default => throw new RuntimeException("unexpected List call for {$dir}"),
+            };
+        };
+        $listR = static function (string $dir, callable $callback) use (&$listRCalls): null {
+            $listRCalls[] = $dir;
+            $callback([rclone_list_directory_object('should-not-be-used')]);
+
+            return null;
+        };
+
+        $result = ListDirectory::getAll($list, $listR, true, '', 2);
+
+        $t->same('walk', $result['source']);
+        $t->same(['', 'a'], $listCalls);
+        $t->same([], $listRCalls);
+        $t->same(['root.txt', 'a/file.txt'], rclone_list_directory_paths($result['objects']));
+        $t->same(['a', 'a/b'], rclone_list_directory_paths($result['directories']));
+        $t->same(['visited' => 2, 'listed' => 4, 'excluded' => 0, 'skipped' => 0, 'sent' => 4], $result['stats']);
+    },
+    'GetAll fallback delays provider list errors until sibling directories finish' => static function (TestRunner $t): void {
+        $listCalls = [];
+        $message = null;
+        $list = static function (string $dir) use (&$listCalls): array {
+            $listCalls[] = $dir;
+
+            return match ($dir) {
+                '' => [
+                    rclone_list_directory_directory('good'),
+                    rclone_list_directory_directory('broken'),
+                ],
+                'broken' => throw new RuntimeException('provider List failed for broken'),
+                'good' => [rclone_list_directory_object('good/export.wxr')],
+                default => throw new RuntimeException("unexpected List call for {$dir}"),
+            };
+        };
+
+        try {
+            ListDirectory::getAll($list, null, true, '', -1);
+        } catch (RuntimeException $throwable) {
+            $message = $throwable->getMessage();
+        }
+
+        $t->same('provider List failed for broken', $message);
+        $t->same(['', 'broken', 'good'], $listCalls);
+    },
+    'GetAll direct ListR propagates provider errors' => static function (TestRunner $t): void {
+        $callbackWasCalled = false;
+        $message = null;
+        $listR = static function (string $dir, callable $callback) use (&$callbackWasCalled): RuntimeException {
+            $callback([rclone_list_directory_object('site-backups/export.wxr')]);
+            $callbackWasCalled = true;
+
+            return new RuntimeException('provider ListR failed');
+        };
+
+        try {
+            ListDirectory::getAll(
+                static fn (string $dir): array => [],
+                $listR,
+                true,
+                'site-backups',
+                -1,
+            );
+        } catch (RuntimeException $throwable) {
+            $message = $throwable->getMessage();
+        }
+
+        $t->same(true, $callbackWasCalled);
+        $t->same('provider ListR failed', $message);
+    },
     'wordpress direct backup manifest example filters and sorts one listed directory' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-list-filter-sort.php';
 
@@ -1145,5 +1353,55 @@ TREE;
         ], $example['visitedDirs']);
         $t->same(true, $example['cacheSubtreeSkipped']);
         $t->same(['visited' => 5, 'listed' => 6, 'batches' => 2, 'skipped' => 1, 'pruned' => 0], $example['stats']);
+    },
+    'wordpress GetAll restore catalog example separates upload dirs and portable artifacts' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-getall-restore-catalog.php';
+
+        $t->same('listR', $example['source']);
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/uploads/2026/05/hero.jpg',
+            'site-backups/users.wxr',
+            'site-backups/export.wxr',
+        ], $example['objects']);
+        $t->same([
+            'site-backups/uploads',
+            'site-backups/uploads/2026',
+            'site-backups/uploads/2026/05',
+        ], $example['directories']);
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/export.wxr',
+            'site-backups/users.wxr',
+            'site-backups/uploads/',
+            'site-backups/uploads/2026/',
+            'site-backups/uploads/2026/05/',
+            'site-backups/uploads/2026/05/hero.jpg',
+        ], $example['manifest']);
+        $t->same(['listed' => 7, 'batches' => 2, 'sent' => 7, 'synthesized' => 0, 'syntheticBatches' => 0], $example['stats']);
+    },
+    'wordpress files-from no-traverse restore example avoids provider traversal' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-files-from-no-traverse-restore.php';
+
+        $t->same('filesFrom', $example['source']);
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/export.wxr',
+            'site-backups/uploads/',
+            'site-backups/uploads/2026/',
+            'site-backups/uploads/2026/05/',
+            'site-backups/uploads/2026/05/hero.jpg',
+        ], $example['manifest']);
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/uploads/2026/05/hero.jpg',
+            'site-backups/export.wxr',
+            'site-backups/missing.wxr',
+        ], $example['lookups']);
+        $t->same(0, $example['providerListCalls']);
+        $t->same(0, $example['providerListRCalls']);
+        $t->same(3, $example['listed']);
+        $t->same(4, $example['requested']);
+        $t->same(true, $example['missingSkipped']);
     },
 ];
