@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-23 06:12:56 UTC",
-    "sourceCommit": "df56249e5dcac96657d9b6a4a44593191c5db3ef",
-    "sourceCommitShort": "df56249e5dca",
-    "sourceBranch": "dashboard-publish-20260523T061153Z",
-    "dashboardCommit": "2c201b6141f446e1865ee654c0772c3afaef77a0",
-    "dashboardCommitShort": "2c201b6141f4",
-    "averageProgressPercent": "70.8",
+    "generated": "2026-05-23 06:28:19 UTC",
+    "sourceCommit": "b3bf404c22f5317ade2cde961eb678578414cdd9",
+    "sourceCommitShort": "b3bf404c22f5",
+    "sourceBranch": "dashboard-publish-20260523T062727Z",
+    "dashboardCommit": "3049a1b2f42d14a0a939ebaa5b141392f07144e9",
+    "dashboardCommitShort": "3049a1b2f42d",
+    "averageProgressPercent": "71.2",
     "lanes": [
         {
             "library": "difftastic",
@@ -26,20 +26,20 @@
         },
         {
             "library": "dolt",
-            "progressPercent": "58.0",
+            "progressPercent": "63.0",
             "suite": "cloned-static-inventory-plus-bounded-upstream-runner",
             "benchmark": "cloned-static-inventory-plus-bounded-upstream-runner",
             "denominator": "613",
-            "mapped": "250",
-            "coverage": "250 / 613",
-            "php": "198 pass / 0 fail",
+            "mapped": "298",
+            "coverage": "298 / 613",
+            "php": "202 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static upstream inventory + bounded diff/schema/...",
             "audit": "audited 2026-05-23",
             "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-k...",
-            "nextTarget": "Add native `dolt merge` failure summary text for conflict-only, constraint-only, and mixe...",
+            "nextTarget": "Implementation worker: add native `dolt_preview_merge_conflicts_summary` and `dolt_previe...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "a02e718"
+            "commit": "5f70c87"
         },
         {
             "library": "esbuild",
