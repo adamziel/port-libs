@@ -96,6 +96,32 @@ final class ArticleExtractor
         int $maxElemsToParse = 0,
     ): Article
     {
+        return $this->extractArticle(
+            $html,
+            $url,
+            $includeReadabilityPage,
+            $classesToPreserve,
+            $keepClasses,
+            $allowedVideoPattern,
+            $maxElemsToParse,
+            true,
+        );
+    }
+
+    /**
+     * @param list<string> $classesToPreserve
+     */
+    private function extractArticle(
+        string $html,
+        ?string $url,
+        bool $includeReadabilityPage,
+        array $classesToPreserve,
+        bool $keepClasses,
+        ?string $allowedVideoPattern,
+        int $maxElemsToParse,
+        bool $stripUnlikelyCandidates,
+    ): Article
+    {
         $dom = $this->loadHtmlDocument($html);
         $this->guardMaxElementsToParse($dom, $maxElemsToParse);
         $this->replaceBreakChains($dom);
@@ -121,7 +147,9 @@ final class ArticleExtractor
         }
         $this->cleanUnsafeEmbeds($xpath, $allowedVideoPattern);
         $this->removeInvisibleNodes($xpath);
-        $this->removeUnlikelyCandidates($xpath);
+        if ($stripUnlikelyCandidates) {
+            $this->removeUnlikelyCandidates($xpath);
+        }
 
         $title = $this->title($xpath, $dom, $metaValues, $jsonLdMetadata);
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
@@ -183,12 +211,18 @@ final class ArticleExtractor
      *     keepClasses?: bool,
      *     allowedVideoRegex?: ?string,
      *     allowedVideoPattern?: ?string,
-     *     maxElemsToParse?: int
+     *     maxElemsToParse?: int,
+     *     charThreshold?: int
      * } $options
      */
-    public function extractWithOptions(string $html, array $options = []): Article
+    public function extractWithOptions(string $html, array $options = []): ?Article
     {
-        return $this->extract(
+        $charThresholdOption = $options['charThreshold'] ?? null;
+        $charThreshold = is_numeric($charThresholdOption) && (int) $charThresholdOption !== 0
+            ? (int) $charThresholdOption
+            : 500;
+
+        return $this->extractWithThreshold(
             $html,
             $options['url'] ?? null,
             (bool) ($options['includeReadabilityPage'] ?? false),
@@ -196,7 +230,49 @@ final class ArticleExtractor
             (bool) ($options['keepClasses'] ?? false),
             $options['allowedVideoPattern'] ?? $options['allowedVideoRegex'] ?? null,
             (int) ($options['maxElemsToParse'] ?? 0),
+            $charThreshold,
         );
+    }
+
+    /**
+     * @param list<string> $classesToPreserve
+     */
+    private function extractWithThreshold(
+        string $html,
+        ?string $url,
+        bool $includeReadabilityPage,
+        array $classesToPreserve,
+        bool $keepClasses,
+        ?string $allowedVideoPattern,
+        int $maxElemsToParse,
+        int $charThreshold,
+    ): ?Article
+    {
+        $attempts = [];
+        foreach ([true, false] as $stripUnlikelyCandidates) {
+            $article = $this->extractArticle(
+                $html,
+                $url,
+                $includeReadabilityPage,
+                $classesToPreserve,
+                $keepClasses,
+                $allowedVideoPattern,
+                $maxElemsToParse,
+                $stripUnlikelyCandidates,
+            );
+            $attempts[] = $article;
+
+            if ($charThreshold <= 0 || mb_strlen($article->text) >= $charThreshold) {
+                return $article;
+            }
+        }
+
+        usort(
+            $attempts,
+            static fn (Article $left, Article $right): int => mb_strlen($right->text) <=> mb_strlen($left->text),
+        );
+
+        return $attempts !== [] && mb_strlen($attempts[0]->text) > 0 ? $attempts[0] : null;
     }
 
     /**
@@ -307,11 +383,20 @@ final class ArticleExtractor
             $blocks[] = '<!-- wp:heading {"level":' . $m[1] . '} -->' . "\n" . $html . "\n" . '<!-- /wp:heading -->';
         } elseif ($tag === 'img') {
             $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
+        } elseif ($tag === 'figure' && $this->isImageFigure($element)) {
+            $blocks[] = '<!-- wp:image -->' . "\n" . $html . "\n" . '<!-- /wp:image -->';
         } elseif ($tag === 'table') {
             $blocks[] = '<!-- wp:table -->' . "\n" . '<figure class="wp-block-table">' . $html . '</figure>' . "\n" . '<!-- /wp:table -->';
         } else {
             $blocks[] = '<!-- wp:paragraph -->' . "\n" . $html . "\n" . '<!-- /wp:paragraph -->';
         }
+    }
+
+    private function isImageFigure(\DOMElement $element): bool
+    {
+        return strtolower($element->tagName) === 'figure'
+            && ($element->getElementsByTagName('img')->length > 0
+                || $element->getElementsByTagName('picture')->length > 0);
     }
 
     private function canFlattenBlockContainer(\DOMElement $element): bool
@@ -3361,10 +3446,21 @@ final class ArticleExtractor
         $wrapper->setAttribute('id', 'readability-page-1');
         $wrapper->setAttribute('class', 'page');
 
-        foreach ($node->childNodes as $child) {
-            $wrapper->appendChild($child->cloneNode(true));
+        if ($this->shouldPreserveReadabilityPageRoot($node)) {
+            $wrapper->appendChild($node->cloneNode(true));
+        } else {
+            foreach ($node->childNodes as $child) {
+                $wrapper->appendChild($child->cloneNode(true));
+            }
         }
 
         return trim($document->saveHTML($wrapper) ?: '');
+    }
+
+    private function shouldPreserveReadabilityPageRoot(\DOMElement $node): bool
+    {
+        return strtolower($node->tagName) === 'div'
+            && trim($node->getAttribute('data-test-id')) === 'article-review-body'
+            && preg_match('/(?:^|\s)articleBody(?:\s|$)/', $node->getAttribute('itemprop')) === 1;
     }
 }

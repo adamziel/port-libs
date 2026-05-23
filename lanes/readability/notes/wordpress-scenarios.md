@@ -28,7 +28,9 @@ The current class-preservation and single-article promotion slice maps Mozilla `
 
 The current ARS figure-credit slice maps Mozilla `ars-1` caption cleanup: link-heavy credit-only wrappers inside `figcaption` are removed, the hero image source remains available, and requested caption classes can still survive for WordPress media review workflows.
 
-The current parse-options slice maps upstream Readability API option boundaries: `keepClasses` skips default class cleanup for review-mode imports, a custom allowed-video regex can retain trusted non-default oEmbed iframe hosts while unrelated widgets are removed, and `maxElemsToParse` aborts oversized documents before cleanup work begins.
+The current Guardian media slice maps Mozilla `guardian-1` from `.upstream-cache/readability/test/test-pages/guardian-1/`: the optional oracle wrapper preserves the selected Guardian `itemprop="articleBody"` media root, 14 figures, 13 image payloads, 112 responsive source rows, and 8 caption list items survive, Guardian navigation/contribution/byline chrome is excluded from article text, and retained image figures now serialize as WordPress image blocks.
+
+The current parse-options slice maps upstream Readability API option boundaries: `keepClasses` skips default class cleanup for review-mode imports, a custom allowed-video regex can retain trusted non-default oEmbed iframe hosts while unrelated widgets are removed, `maxElemsToParse` aborts oversized documents before cleanup work begins, and `charThreshold` retries can recover short nonempty article candidates or return null for chrome-only documents.
 
 ## Scenario Fixture
 
@@ -53,6 +55,7 @@ The current parse-options slice maps upstream Readability API option boundaries:
 - `lanes/readability/fixtures/mozilla/medium-3/` copies Mozilla's Medium fixture to keep hr-separated page-section cleanup, long article text, blockquotes, ordered lists, links, images, and readability-page child structure tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/heise/` copies Mozilla's Heise fixture to keep single-article promotion, timestamp cleanup, caption class preservation, and German metadata tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/ars-1/` copies Mozilla's ARS fixture to keep metadata, readerable classification, retained hero image source, empty caption text, and credit-only caption-link removal tied to a named upstream page.
+- `lanes/readability/fixtures/mozilla/guardian-1/` copies Mozilla's Guardian fixture from upstream `test/test-pages/guardian-1` to keep articleBody wrapper parity, dense image/picture/source retention, caption list retention, and theme-chrome cleanup tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/cnet-svg-classes/` copies Mozilla's CNET fixture to keep duplicate SVG symbol-sprite cleanup, article image parity, and Spanish metadata tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/v8-blog/` copies Mozilla's V8 fixture to keep the null publishedTime boundary for visible article header time elements tied to a named upstream page.
 - `lanes/readability/fixtures/mozilla/base-url/` copies Mozilla's no-base-element URL fixture to keep source-page relative links, root-relative links, hash links, and image sources tied to a named upstream page.
@@ -111,7 +114,9 @@ The current parse-options slice maps upstream Readability API option boundaries:
 - `lanes/readability/examples/wordpress-medium-page-break-cleanup.php` demonstrates removing Medium page-break `<hr>` separators before WordPress block serialization while keeping each editorial section as paragraph content.
 - `lanes/readability/examples/wordpress-caption-class-preservation.php` demonstrates opt-in preservation of WordPress caption classes while unrelated source theme classes are still stripped.
 - `lanes/readability/examples/wordpress-figure-credit-cleanup.php` demonstrates removing link-only source photo-credit wrappers inside media captions while preserving the requested WordPress caption class contract.
+- `lanes/readability/examples/wordpress-guardian-media-caption-import.php` demonstrates importing the Guardian fixture as 13 WordPress image blocks while retaining 8 adjacent caption list items for media review.
 - `lanes/readability/examples/wordpress-custom-video-embed-preservation.php` demonstrates preserving a trusted custom oEmbed iframe provider and review-mode classes while unrelated widget embeds are removed before block serialization.
+- `lanes/readability/examples/wordpress-char-threshold-import-boundary.php` demonstrates recovering short editorial copy from a comment-like source wrapper through `charThreshold` retry behavior while still allowing empty chrome-only sources to be skipped as null.
 - The focused WordPress test covers migration output where `post_title` stores the article title separately: duplicate source `h1` content is removed, while real body section headings remain as `h2` block headings.
 - The focused WordPress full-width media test covers imports where a theme/page builder emits a layout-only crop outside the paragraph column: the decorative wrapper is removed while the editorial figure remains available for image block serialization.
 - The focused WordPress editorial media test covers imports where a Medium-style `postField--fillWidthImage` figure is editorial content: the figure and caption remain available for block output while the source class is stripped after the keep decision.
@@ -155,8 +160,9 @@ The current parse-options slice maps upstream Readability API option boundaries:
 - The focused Medium page-break cleanup test covers source exports that split a long Medium article with `<hr>` separators: editorial sections remain in order, but separator rules are not emitted as WordPress paragraph blocks.
 - The focused caption class preservation test covers migration pipelines that need selected WordPress media classes for review: configured class tokens survive, while unconfigured source theme classes are removed like upstream Readability default cleanup.
 - The focused figure credit cleanup test covers media migrations where a source theme embeds a photo-credit-only link inside `figcaption`: the credit wrapper and text are removed before block serialization, while the image and requested caption classes remain available.
-- The focused parse-options tests cover review-mode class retention, custom trusted iframe host preservation, unknown widget iframe removal, and upstream-shaped `maxElemsToParse` aborts for overly large source documents.
+- The focused Guardian media test covers publisher imports where captions are emitted as list items immediately after media figures: the media root and image payloads match the upstream fixture, theme chrome is removed, and retained figures serialize as image blocks instead of paragraph blocks.
+- The focused parse-options tests cover review-mode class retention, custom trusted iframe host preservation, unknown widget iframe removal, upstream-shaped `maxElemsToParse` aborts for overly large source documents, `charThreshold` longest-nonempty retry recovery, and null results for chrome-only imports.
 
 ## Next Task
 
-Map another parse-option boundary such as `charThreshold` retries/null result semantics, or copy and map a caption/media-heavy fixture such as `guardian-1`.
+Map another media-heavy Mozilla fixture such as `nytimes-1`, `nytimes-2`, or `telegraph`, focusing on caption structure and publisher chrome cleanup not already covered by Guardian and ARS.

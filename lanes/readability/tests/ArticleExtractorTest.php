@@ -658,6 +658,48 @@ return [
         $t->same(false, str_contains($article->contentHtml, 'caption-link'), 'credit-only caption link should be removed');
         $t->same(false, str_contains($article->text, 'Kevin'), 'credit-only caption text should not enter imported article text');
     },
+    'maps Mozilla guardian-1 fixture with media captions and articleBody wrapper parity' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/guardian-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(
+            $attributeValues($expected, '//div[@id="readability-page-1"]/*[1]/@data-test-id'),
+            $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/*[1]/@data-test-id'),
+            'Guardian articleBody media root should survive inside the upstream readability-page wrapper',
+        );
+        $t->same(
+            $attributeValues($expected, '//div[@id="readability-page-1"]/*[1]/@itemprop'),
+            $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/*[1]/@itemprop'),
+        );
+        $t->same($attributeValues($expected, '//figure/@id'), $attributeValues($article->contentHtml, '//figure/@id'));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//picture/source/@srcset'), $attributeValues($article->contentHtml, '//picture/source/@srcset'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//figure/following-sibling::*[1][self::ul]//li/p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//figure/following-sibling::*[1][self::ul]//li/p')),
+        );
+        $t->same(14, count($attributeValues($article->contentHtml, '//figure')));
+        $t->same(13, substr_count($blocks, '<!-- wp:image -->'), 'Guardian image figures should become WordPress image blocks');
+        $t->contains('Hori Parata at his Pātaua farm', $blocks);
+        $t->same(false, str_contains($article->text, 'The Guardian - Back to home'), 'Guardian navigation chrome should not enter article text');
+        $t->same(false, str_contains($article->text, 'Support The Guardian'), 'Guardian contribution chrome should not enter article text');
+        $t->same(false, str_contains($article->text, 'Eleanor Ainge Roy'), 'byline metadata should not be duplicated in article text');
+    },
     'preserves requested WordPress caption classes without keeping theme classes' => static function (TestRunner $t): void {
         $source = '<html><head><meta property="og:title" content="Caption Class Import"></head><body><article>'
             . '<h1>Caption Class Import</h1>'
@@ -672,7 +714,10 @@ return [
 
         $t->contains('<figure class="wp-caption aligncenter">', $article->contentHtml);
         $t->contains('<figcaption class="wp-caption-text">Imported media caption</figcaption>', $article->contentHtml);
+        $t->same(1, substr_count($blocks, '<!-- wp:image -->'), 'retained image figures should serialize as image blocks');
+        $t->same(false, str_contains($blocks, '<!-- wp:paragraph -->' . "\n" . '<figure'), 'media figures should not be serialized as paragraph blocks');
         $t->contains('class="wp-caption aligncenter"', $blocks);
+        $t->contains('<figcaption class="wp-caption-text">Imported media caption</figcaption>', $blocks);
         $t->same(false, str_contains($article->contentHtml, 'theme-frame'), 'source theme figure class should not be preserved');
         $t->same(false, str_contains($article->contentHtml, 'legacy-caption'), 'source theme caption class should not be preserved');
     },
@@ -1463,7 +1508,7 @@ return [
         $extractor = new ArticleExtractor();
 
         $default = $extractor->extractWithOptions($source);
-        $custom = $extractor->extractWithOptions($source, ['allowedVideoRegex' => '~//video\.example\.test/embed/~']);
+        $custom = $extractor->extractWithOptions($source, ['charThreshold' => 20, 'allowedVideoRegex' => '~//video\.example\.test/embed/~']);
 
         $t->same(false, str_contains($default->contentHtml, '<iframe'), 'default video whitelist should remove unknown iframe hosts');
         $t->contains('https://video.example.test/embed/123', $custom->contentHtml);
@@ -1480,6 +1525,32 @@ return [
         }
 
         throw new RuntimeException('Expected maxElemsToParse to abort oversized document parsing');
+    },
+    'honors upstream charThreshold retry with the longest nonempty attempt' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Threshold Retry Import</title></head><body>'
+            . '<div class="comment"><p>Legacy imports sometimes wrap short editorial copy in containers whose classes look like comment chrome to the first Readability pass.</p></div>'
+            . '</body></html>';
+        $extractor = new ArticleExtractor();
+
+        $strictFirstPass = $extractor->extract($source);
+        $article = $extractor->extractWithOptions($source, ['charThreshold' => 1000]);
+
+        $t->same(false, str_contains($strictFirstPass->text, 'Legacy imports sometimes wrap'), 'the normal strict pass should strip unlikely comment containers');
+        if (!$article instanceof \PortLibs\Readability\Article) {
+            throw new RuntimeException('Expected charThreshold retry to return the longest nonempty attempt');
+        }
+        $t->contains('Legacy imports sometimes wrap short editorial copy', $article->text);
+        $t->same(false, str_contains($article->contentHtml, 'class="comment"'), 'classes should still be cleaned after the relaxed retry');
+        $t->same('Threshold Retry Import', $article->title);
+    },
+    'returns null for chrome-only WordPress imports after charThreshold retries' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Chrome Only Import</title></head><body>'
+            . '<div class="comment"><span></span></div><nav><a href="/">Home</a></nav>'
+            . '</body></html>';
+
+        $article = (new ArticleExtractor())->extractWithOptions($source, ['charThreshold' => 50]);
+
+        $t->same(null, $article, 'empty extraction attempts should not produce a blank WordPress post candidate');
     },
     'maps Mozilla lazy-image noscript replacement semantics' => static function (TestRunner $t): void {
         $source = '<html lang="en"><head>'

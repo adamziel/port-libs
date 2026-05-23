@@ -217,10 +217,26 @@ The parse-options slice also has targeted upstream runner evidence:
 
 ```text
 npm test -- --grep 'custom video regex|maxElemsToParse|keepClasses'
-5 passing (109ms)
+5 passing (114ms)
 ```
 
-For the JSON-LD title disambiguation, replace-font-tags, compact metadata, RTL direction, and data URL image slices, the upstream implementation and fixture inventory were inspected statically rather than rerunning the full upstream JavaScript suite again. The hydrated sparse checkout still exposes 130 fixture pages and 390 fixture files, and the lane now copies 50 Mozilla fixture pages, including `test-pages/ars-1`, `test-pages/heise`, `test-pages/cnet-svg-classes`, `test-pages/medium-1`, `test-pages/medium-2`, `test-pages/medium-3`, `test-pages/data-url-image`, `test-pages/keep-images`, `test-pages/wordpress`, `test-pages/schema-org-context-object`, `test-pages/003-metadata-preferred`, `test-pages/004-metadata-space-separated-properties`, `test-pages/title-and-h1-discrepancy`, `test-pages/replace-font-tags`, and `test-pages/rtl-1` through `test-pages/rtl-4`.
+The `charThreshold` retry/null boundary was cross-checked against the upstream implementation with a focused Node oracle in `.upstream-cache/readability`:
+
+```text
+retry-null false
+retry-text Legacy imports sometimes wrap short editorial copy in containers whose classes look like comment chrome to the first Readability pass.
+retry-length 134
+empty-null true
+```
+
+The caption/media-heavy Guardian fixture is copied from the exact upstream path `.upstream-cache/readability/test/test-pages/guardian-1/` and has targeted upstream runner evidence:
+
+```text
+npm test -- --grep guardian-1
+17 passing (1s)
+```
+
+For the JSON-LD title disambiguation, replace-font-tags, compact metadata, RTL direction, and data URL image slices, the upstream implementation and fixture inventory were inspected statically rather than rerunning the full upstream JavaScript suite again. The hydrated sparse checkout still exposes 130 fixture pages and 390 fixture files, and the lane now copies 51 Mozilla fixture pages, including `test-pages/guardian-1`, `test-pages/ars-1`, `test-pages/heise`, `test-pages/cnet-svg-classes`, `test-pages/medium-1`, `test-pages/medium-2`, `test-pages/medium-3`, `test-pages/data-url-image`, `test-pages/keep-images`, `test-pages/wordpress`, `test-pages/schema-org-context-object`, `test-pages/003-metadata-preferred`, `test-pages/004-metadata-space-separated-properties`, `test-pages/title-and-h1-discrepancy`, `test-pages/replace-font-tags`, and `test-pages/rtl-1` through `test-pages/rtl-4`.
 
 ## PHP Mapping
 
@@ -304,8 +320,9 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Upstream targeted oracle: `npm test -- --grep medium-3` passes 17 checks with 0 failures in `.upstream-cache/readability`.
 - Upstream targeted oracle: `npm test -- --grep heise` passes 15 checks with 0 failures in `.upstream-cache/readability`, covering the canonical fixture harness `classesToPreserve: ["caption"]` boundary.
 - Upstream targeted oracle: `npm test -- --grep ars-1` passes 15 checks with 0 failures in `.upstream-cache/readability`, covering the ARS figure-caption credit cleanup fixture.
-- Readability-local PHP coverage: 94 behavior tests, 871 assertions, 0 failures.
-- Required root `php tools/run-tests.php`: passes with 170 test files, 15703 assertions, and 0 failures.
+- Upstream targeted oracle: `npm test -- --grep guardian-1` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering the caption/media-heavy Guardian fixture at `test/test-pages/guardian-1`.
+- Readability-local PHP coverage: 100 behavior tests, 907 assertions, 0 failures.
+- Required root `php tools/run-tests.php`: passes with 174 test files, 16300 assertions, and 0 failures.
 - WordPress React/Next migration cleanup: contributor or byline text split by parser comment delimiters serializes as one paragraph block instead of multiple fragment blocks.
 - Mozilla/fixture text projection boundary semantics are now native for the current slice: text-bearing block, table, and list siblings receive separator whitespace after cleanup so expected text does not concatenate across paragraph-heading, paragraph-paragraph, generated-br paragraph, and table-cell boundaries.
 - WordPress block-boundary spacing cleanup: imported article text, search excerpts, and review logs keep paragraph-to-heading and table-cell words separated even when source HTML omits whitespace between adjacent tags.
@@ -350,19 +367,22 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Mozilla `_replaceBrs` and trailing-br cleanup semantics: two or more successive `br` elements with optional whitespace between them become paragraph boundaries, `br` elements immediately before paragraphs are removed, and legacy WordPress exports with hard-break paragraph boundaries serialize as separate paragraph blocks.
 - Mozilla conditional-cleanup slice for ARS media captions: short link-heavy `div` wrappers inside `figcaption` are removed so photo-credit-only links do not enter article text while caller-requested caption classes can survive.
 - WordPress figure credit cleanup: link-only source photo-credit wrappers inside media captions are removed before block serialization while the image and requested caption class contract remain available.
-- Mozilla parse-option semantics now have native PHP coverage for `keepClasses`, custom allowed-video regex/pattern handling, and `maxElemsToParse` aborts with the upstream-shaped `"Aborting parsing document; N elements found"` error boundary.
+- Mozilla `test-pages/guardian-1` copied into the lane from `.upstream-cache/readability/test/test-pages/guardian-1/` and mapped for Guardian articleBody media-root wrapper retention under the optional readability-page oracle wrapper, metadata/readerable parity, 14 retained figures, 13 image payloads, 112 responsive `source[srcset]` rows, 8 caption list items after figures, and removal of Guardian navigation/contribution/byline chrome from article text.
+- WordPress Guardian media import cleanup: retained image figures serialize as `wp:image` blocks instead of paragraph blocks, while adjacent Guardian caption list text remains available for review and media attachment workflows.
+- Mozilla parse-option semantics now have native PHP coverage for `keepClasses`, custom allowed-video regex/pattern handling, `maxElemsToParse` aborts with the upstream-shaped `"Aborting parsing document; N elements found"` error boundary, and `charThreshold` retry/null-result behavior.
 - WordPress custom oEmbed migration cleanup: callers can preserve a trusted non-default iframe provider and full source classes for review while unrelated widget iframes are still removed.
+- WordPress char-threshold import boundary: short editorial content hidden in a comment-like source wrapper can be recovered after the strict unlikely-candidate pass fails, while chrome-only empty documents return null instead of creating blank post blocks.
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/data-url-image/keep-images-medium-section-wrapper/ad wrapper/title-heading/title-h1-discrepancy/schema-org-context-object/wordpress-articleBody/out-of-band figure/post-process/classesToPreserve/leading-action-bar/heading-less-news-chrome/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/clean-links-uri-trim-footer-parity-selected-root-nbsp/single-article/empty-paragraph/single-cell-table/table-style/links-in-tables/keep-tabular-data/data-table-marker/remove-aria-hidden/hidden-nodes/visibility-hidden/invisible-node/first-paragraph-excerpt/br-chain/scaffold-heading/basic-tag-cleaning/link-fieldset/script-style-social/title-separator/ordered-list/hash-link-density/body-byline/entity-unescape/replace-font-tags/rtl-direction/transparent-section-wrapper/readability-page-wrapper/comment-delimited-phrasing/block-boundary-spacing/medium-1-empty-heading-boundary/cnet-svg-sprite-dedupe/v8-blog-published-time-boundary/medium-2-syndication-footer/medium-3-hr-page-break/heise-single-article-promotion/ars-1-figure-credit-cleanup/parse-options-custom-video-keepclasses-maxelems mappings.
-- Native PHP lane tests: 97 passing, 0 failing, 878 assertions.
-- Latest readability-local verification: direct `ArticleExtractorTest.php` run passes 97 tests, 878 assertions, and 0 failures.
-- Latest required root verification: `php tools/run-tests.php` passes with 171 test files, 15984 assertions, and 0 failures.
-- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. Targeted oracles pass `npm test -- --grep keep-images` with 15 checks in 825ms, `npm test -- --grep schema-org-context-object` with 17 checks in 759ms, `npm test -- --grep 'keep-tabular-data|replace-brs'` with 26 checks in 648ms, `npm test -- --grep clean-links` with 13 checks in 599ms, `npm test -- --grep medium-1` with 15 checks in 750ms, `npm test -- --grep cnet-svg-classes` with 15 checks in 639ms, `npm test -- --grep v8-blog` with 15 checks in 970ms, `npm test -- --grep lazy-image-1` with 17 checks in 780ms, `npm test -- --grep medium-2` with 15 checks in 157ms, `npm test -- --grep medium-3` with 17 checks in 1s, `npm test -- --grep heise` with 15 checks in 603ms, `npm test -- --grep ars-1` with 15 checks in 200ms, and `npm test -- --grep 'custom video regex|maxElemsToParse|keepClasses'` with 5 checks in 109ms.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy media/data-url-image/keep-images-medium-section-wrapper/ad wrapper/title-heading/title-h1-discrepancy/schema-org-context-object/wordpress-articleBody/out-of-band figure/post-process/classesToPreserve/leading-action-bar/heading-less-news-chrome/single-paragraph-wrapper/base-url-relative-uri/div-to-paragraph/js-link/clean-links-uri-trim-footer-parity-selected-root-nbsp/single-article/empty-paragraph/single-cell-table/table-style/links-in-tables/keep-tabular-data/data-table-marker/remove-aria-hidden/hidden-nodes/visibility-hidden/invisible-node/first-paragraph-excerpt/br-chain/scaffold-heading/basic-tag-cleaning/link-fieldset/script-style-social/title-separator/ordered-list/hash-link-density/body-byline/entity-unescape/replace-font-tags/rtl-direction/transparent-section-wrapper/readability-page-wrapper/comment-delimited-phrasing/block-boundary-spacing/medium-1-empty-heading-boundary/cnet-svg-sprite-dedupe/v8-blog-published-time-boundary/medium-2-syndication-footer/medium-3-hr-page-break/heise-single-article-promotion/ars-1-figure-credit-cleanup/guardian-1-media-caption-retention/figure-image-blocks/parse-options-custom-video-keepclasses-maxelems-charthreshold mappings.
+- Native PHP lane tests: 100 passing, 0 failing, 907 assertions.
+- Latest readability-local verification: direct `ArticleExtractorTest.php` run passes 100 tests, 907 assertions, and 0 failures.
+- Latest required root verification: `php tools/run-tests.php` passes with 174 test files, 16300 assertions, and 0 failures.
+- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. Targeted oracles pass `npm test -- --grep keep-images` with 15 checks in 825ms, `npm test -- --grep schema-org-context-object` with 17 checks in 759ms, `npm test -- --grep 'keep-tabular-data|replace-brs'` with 26 checks in 648ms, `npm test -- --grep clean-links` with 13 checks in 599ms, `npm test -- --grep medium-1` with 15 checks in 750ms, `npm test -- --grep cnet-svg-classes` with 15 checks in 639ms, `npm test -- --grep v8-blog` with 15 checks in 970ms, `npm test -- --grep lazy-image-1` with 17 checks in 780ms, `npm test -- --grep medium-2` with 15 checks in 157ms, `npm test -- --grep medium-3` with 17 checks in 1s, `npm test -- --grep heise` with 15 checks in 603ms, `npm test -- --grep ars-1` with 15 checks in 200ms, `npm test -- --grep guardian-1` with 17 checks in 1s, and `npm test -- --grep 'custom video regex|maxElemsToParse|keepClasses'` with 5 checks in 114ms; focused upstream Node oracle confirms `charThreshold` retry/nonempty and null outcomes.
 - Blocker: no readability-local, upstream targeted, or required root-test blocker is active.
-- Current work: native parse options now expose `extractWithOptions()` plus `keepClasses`, custom allowed video regex/pattern handling, and `maxElemsToParse` aborts; `wordpress-custom-video-embed-preservation.php` demonstrates preserving a trusted custom oEmbed iframe while dropping unrelated widget embeds.
+- Current work: native Guardian fixture mapping preserves the selected articleBody media root inside the readability-page oracle wrapper, retains 14 figures, 13 image payloads, 112 responsive source rows, and 8 caption list items, strips Guardian navigation/contribution/byline chrome from article text, and serializes retained image figures as WordPress image blocks; parse options still cover `keepClasses`, custom allowed video regex/pattern handling, `maxElemsToParse` aborts, and `charThreshold` retry/null-result semantics.
 
 ## Next Slice
 
-Map another parse-option boundary such as `charThreshold` retries/null result semantics, or copy and map a caption/media-heavy fixture such as `guardian-1`.
+Map another media-heavy Mozilla fixture such as `nytimes-1`, `nytimes-2`, or `telegraph`, focusing on caption structure and publisher chrome cleanup not already covered by Guardian and ARS.
