@@ -646,6 +646,46 @@ return [
         $t->same(1, $decoded['chunks'][0][0]['lhs']['line_number']);
         $t->same([], $decoded['chunks'][0][0]['lhs']['changes']);
     },
+    'maps upstream align footer text sample without marking footer or unchanged rhs novel' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-align-footer-1.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-align-footer-2.txt');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'text']);
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/align_footer.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same([
+            ['op' => '~', 'path' => '$text.line[1]', 'old' => ' foo x', 'new' => ' x'],
+            ['op' => '-', 'path' => '$text.line[2]', 'text' => 'y'],
+        ], $changes);
+        $t->same([[0, 0], [1, 1], [2, null], [3, 2], [4, 3]], $decoded['aligned_lines']);
+        $t->same('foo', $decoded['chunks'][0][0]['lhs']['changes'][0]['content']);
+        $t->same([], $decoded['chunks'][0][0]['rhs']['changes']);
+        $t->same(2, $decoded['chunks'][0][1]['lhs']['line_number']);
+        $t->true(!isset($decoded['chunks'][0][1]['rhs']), 'Deleted text line should not fabricate an opposite-side display entry.');
+    },
+    'wordpress readme footer alignment display keeps faq footer unchanged' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-before.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-after.txt');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-review-tools/readme.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+        $encodedChunks = json_encode($decoded['chunks'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same('changed', $decoded['status']);
+        $t->same([3, 2], $decoded['aligned_lines'][3]);
+        $t->same('legacy', $decoded['chunks'][0][0]['lhs']['changes'][0]['content']);
+        $t->same('modern', $decoded['chunks'][0][0]['rhs']['changes'][0]['content']);
+        $t->true(!str_contains($encodedChunks, 'Frequently Asked Questions'), 'Stable readme footer heading should stay aligned as context, not novel chunk content.');
+    },
     'maps upstream split on newlines trailing eof behavior' => static function (TestRunner $t): void {
         $changes = (new TokenDiffer())->diffSyntaxLists('abc', "abc\n", ['language' => 'text']);
 

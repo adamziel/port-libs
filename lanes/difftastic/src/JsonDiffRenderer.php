@@ -198,25 +198,41 @@ final class JsonDiffRenderer
             $alignedLines[] = [$oldLineNumber, $newLineNumber];
 
             $line = [];
-            if ($oldLineNumber !== null) {
-                $line['lhs'] = $this->side(
+            $pairedChanges = null;
+            if ($oldLineNumber !== null && $newLineNumber !== null) {
+                $pairedChanges = $this->pairedSideChanges(
                     $oldLineNumber,
+                    $newLineNumber,
                     $oldLines[$oldLineNumber],
-                    $newLineNumber === null ? null : $newLines[$newLineNumber],
-                    'lhs',
+                    $newLines[$newLineNumber],
                     $options,
-                    $multilineAtomChanges['lhs'],
+                    $multilineAtomChanges,
                 );
             }
+
+            if ($oldLineNumber !== null) {
+                $line['lhs'] = $pairedChanges === null
+                    ? $this->side(
+                        $oldLineNumber,
+                        $oldLines[$oldLineNumber],
+                        null,
+                        'lhs',
+                        $options,
+                        $multilineAtomChanges['lhs'],
+                    )
+                    : $this->sideFromChanges($oldLineNumber, $pairedChanges['lhs']);
+            }
             if ($newLineNumber !== null) {
-                $line['rhs'] = $this->side(
-                    $newLineNumber,
-                    $newLines[$newLineNumber],
-                    $oldLineNumber === null ? null : $oldLines[$oldLineNumber],
-                    'rhs',
-                    $options,
-                    $multilineAtomChanges['rhs'],
-                );
+                $line['rhs'] = $pairedChanges === null
+                    ? $this->side(
+                        $newLineNumber,
+                        $newLines[$newLineNumber],
+                        null,
+                        'rhs',
+                        $options,
+                        $multilineAtomChanges['rhs'],
+                    )
+                    : $this->sideFromChanges($newLineNumber, $pairedChanges['rhs']);
             }
 
             $chunk[] = $line;
@@ -226,6 +242,26 @@ final class JsonDiffRenderer
             $chunks[] = $chunk;
         }
         $pending = [];
+    }
+
+    /**
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param array{lhs:array<int, list<array{start:int, end:int, content:string, highlight:string}>>, rhs:array<int, list<array{start:int, end:int, content:string, highlight:string}>>} $multilineAtomChanges
+     * @return array{lhs:list<array{start:int, end:int, content:string, highlight:string}>, rhs:list<array{start:int, end:int, content:string, highlight:string}>}
+     */
+    private function pairedSideChanges(int $oldLineNumber, int $newLineNumber, string $oldLine, string $newLine, array $options, array $multilineAtomChanges): array
+    {
+        $lhsChanges = $multilineAtomChanges['lhs'][$oldLineNumber]
+            ?? $this->pairedLineChanges($oldLine, $newLine, 'lhs', $options);
+        $rhsChanges = $multilineAtomChanges['rhs'][$newLineNumber]
+            ?? $this->pairedLineChanges($newLine, $oldLine, 'rhs', $options);
+
+        if ($lhsChanges === [] && $rhsChanges === [] && $oldLine !== $newLine) {
+            $lhsChanges = $this->wholeLineChanges($oldLine, $options);
+            $rhsChanges = $this->wholeLineChanges($newLine, $options);
+        }
+
+        return ['lhs' => $lhsChanges, 'rhs' => $rhsChanges];
     }
 
     /**
@@ -242,19 +278,48 @@ final class JsonDiffRenderer
                 : $this->pairedLineChanges($line, $otherLine, $side, $options);
         }
 
-        if ($changes === [] && $line !== '') {
-            $changes[] = [
-                'start' => 0,
-                'end' => strlen($line),
-                'content' => $line,
-                'highlight' => 'normal',
-            ];
-        }
+        $changes = $otherLine === null ? $this->fillEmptyWholeLineChanges($line, $changes) : $changes;
 
+        return $this->sideFromChanges($lineNumber, $changes);
+    }
+
+    /**
+     * @param list<array{start:int, end:int, content:string, highlight:string}> $changes
+     * @return array{line_number:int, changes:list<array{start:int, end:int, content:string, highlight:string}>}
+     */
+    private function sideFromChanges(int $lineNumber, array $changes): array
+    {
         return [
             'line_number' => $lineNumber,
             'changes' => $changes,
         ];
+    }
+
+    /**
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @return list<array{start:int, end:int, content:string, highlight:string}>
+     */
+    private function wholeLineChanges(string $line, array $options): array
+    {
+        return $this->fillEmptyWholeLineChanges($line, $this->fullLineChanges($line, $options));
+    }
+
+    /**
+     * @param list<array{start:int, end:int, content:string, highlight:string}> $changes
+     * @return list<array{start:int, end:int, content:string, highlight:string}>
+     */
+    private function fillEmptyWholeLineChanges(string $line, array $changes): array
+    {
+        if ($changes !== [] || $line === '') {
+            return $changes;
+        }
+
+        return [[
+            'start' => 0,
+            'end' => strlen($line),
+            'content' => $line,
+            'highlight' => 'normal',
+        ]];
     }
 
     /**

@@ -14,6 +14,10 @@ The WordPress plugin readme fixture applies that to `readme.txt` release notes. 
 
 The WordPress plugin readme blank-line fixture applies the same display slice to release notes where a spacing-only changelog cleanup still matters to reviewers. Compact JSON output reports the deleted blank line for `wp-content/plugins/acme-events/readme.txt` instead of returning `unchanged`.
 
+The upstream `align_footer` text fixture now maps display alignment where a changed line and a deleted line are followed by a stable footer. Compact JSON output keeps the retained footer aligned as context and leaves the unchanged opposite side with an empty `changes` array instead of fabricating novel text.
+
+The WordPress readme footer fixture applies that to plugin `readme.txt` reviews. A description wording change and deleted beta-only note are reported, while the stable FAQ footer heading remains aligned context instead of appearing as chunk content.
+
 Plain-text line splitting now maps upstream `src/lines.rs` `split_on_newlines` trailing EOF behavior and the `sample_files/repeated_line_no_eol_*.txt` fixture. Text mode preserves trailing empty lines and appended repeated final lines instead of trimming them away before `$text.line[...]` output.
 
 The WordPress import-log no-EOL fixture applies that to migration output under `wp-content/uploads/migration/import.log`. Compact JSON output preserves a final appended import record even when neither side ends with a newline.
@@ -150,6 +154,7 @@ php lanes/difftastic/examples/wordpress-render-return-type-diff.php
 php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-plugin-readme-text-diff.php
 php lanes/difftastic/examples/wordpress-plugin-readme-blank-display.php
+php lanes/difftastic/examples/wordpress-readme-footer-alignment-display.php
 php lanes/difftastic/examples/wordpress-import-log-no-eol-display.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
@@ -198,4 +203,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map another upstream CLI display golden shard such as `align_footer` or `changes_at_end` into explicit PHP display expectations.
+Map the upstream CLI `changes_at_end` text fixture into explicit PHP display expectations, or map the CLI Makefile text-as-atom case.
