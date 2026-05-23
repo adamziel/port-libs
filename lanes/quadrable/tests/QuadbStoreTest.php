@@ -1276,20 +1276,26 @@ return [
             quadrableQuadbRemoveDir($proofDir);
         }
     },
-    'native quadb store matches upstream LMDB cursor oracle for binary proof heads' => static function (TestRunner $t): void {
+    'native quadb store matches upstream LMDB cursor oracle for binary and detached proof heads' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
         $proofDir = quadrableQuadbTempDir();
+        $detachedProofDir = quadrableQuadbTempDir();
         $mergeGcDir = quadrableQuadbTempDir();
+        $noTrackDir = quadrableQuadbTempDir();
+        $noTrackProofDir = quadrableQuadbTempDir();
 
         try {
             $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-cursor-oracle.json';
             $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
             if (!is_array($oracle)
-                || !isset($oracle['binaryFixture'], $oracle['fullHead'], $oracle['proofHead'], $oracle['mergeGcProofHead'])
+                || !isset($oracle['binaryFixture'], $oracle['fullHead'], $oracle['proofHead'], $oracle['detachedProofHead'], $oracle['mergeGcProofHead'], $oracle['noTrackHead'], $oracle['noTrackProofHead'])
                 || !is_array($oracle['binaryFixture'])
                 || !is_array($oracle['fullHead'])
                 || !is_array($oracle['proofHead'])
+                || !is_array($oracle['detachedProofHead'])
                 || !is_array($oracle['mergeGcProofHead'])
+                || !is_array($oracle['noTrackHead'])
+                || !is_array($oracle['noTrackProofHead'])
             ) {
                 throw new RuntimeException('malformed upstream LMDB cursor oracle fixture');
             }
@@ -1298,6 +1304,8 @@ return [
             $binaryValue = quadrableQuadbOracleBytes($oracle['binaryFixture']['valueHex']);
             $previewValue = quadrableQuadbOracleBytes($oracle['binaryFixture']['previewValueHex']);
             $delegatedValue = quadrableQuadbOracleBytes($oracle['binaryFixture']['delegatedValueHex']);
+            $detachedValue = quadrableQuadbOracleBytes($oracle['binaryFixture']['detachedValueHex']);
+            $noTrackDelegatedValue = quadrableQuadbOracleBytes($oracle['binaryFixture']['noTrackDelegatedValueHex']);
 
             $repo = QuadbStore::init($dir);
             $repo->put('wp_options:plain', 'plain');
@@ -1322,6 +1330,84 @@ return [
 
             $t->same($oracle['proofHead']['rootHex'], $proofRepo->status()['rootHash']);
             $t->same($oracle['proofHead']['entries'], quadrableQuadbRawSnapshotHex($proofRepo->lmdbRawEntrySnapshot()));
+
+            $detachedOracle = $oracle['detachedProofHead'];
+            if (!isset($detachedOracle['sourceRootHex'], $detachedOracle['rootHex'], $detachedOracle['entries'])
+                || !is_array($detachedOracle['entries'])
+            ) {
+                throw new RuntimeException('malformed upstream detached proof-head LMDB cursor oracle fixture');
+            }
+
+            $detachedRepo = QuadbStore::init($detachedProofDir);
+            $detachedRepo->checkout();
+            $t->same($detachedOracle['sourceRootHex'], $masterRoot);
+            $detachedRepo->importProofHex($proofHex, $masterRoot);
+            $detachedRepo->put($binaryKey, $detachedValue);
+
+            $detachedStatus = $detachedRepo->status();
+            $t->true($detachedStatus['detached']);
+            $t->same($detachedOracle['rootHex'], $detachedStatus['rootHash']);
+            $t->same(
+                $detachedOracle['entries'],
+                quadrableQuadbRawSnapshotHex($detachedRepo->lmdbRawEntrySnapshot())
+            );
+            $t->same(
+                $detachedOracle['entries'],
+                quadrableQuadbRawSnapshotHex(QuadbStore::open($detachedProofDir)->lmdbRawEntrySnapshot())
+            );
+
+            $noTrackOracle = $oracle['noTrackHead'];
+            if (!isset($noTrackOracle['rootHex'], $noTrackOracle['entries'])
+                || !is_array($noTrackOracle['entries'])
+            ) {
+                throw new RuntimeException('malformed upstream noTrackKeys LMDB cursor oracle fixture');
+            }
+
+            $noTrackRepo = QuadbStore::init($noTrackDir, false);
+            $noTrackRepo->put('wp_options:plain', 'plain');
+            $noTrackRepo->put($binaryKey, $binaryValue);
+            $noTrackMasterRoot = $noTrackRepo->tree()->rootHash();
+            $noTrackProofHex = $noTrackRepo->exportProofHex([$binaryKey, 'wp_posts:404']);
+
+            $noTrackRepo->fork('2');
+            $noTrackRepo->put('wp_posts:2', $previewValue);
+            $noTrackRepo->fork('10', 'master');
+            $noTrackRepo->fork('a-preview', '2');
+
+            $t->same($noTrackOracle['rootHex'], $noTrackRepo->tree()->rootHash());
+            $t->same([], $noTrackOracle['entries']['quadrable_key']);
+            $t->same(
+                $noTrackOracle['entries'],
+                quadrableQuadbRawSnapshotHex($noTrackRepo->lmdbRawEntrySnapshot())
+            );
+            $t->same(
+                $noTrackOracle['entries'],
+                quadrableQuadbRawSnapshotHex(QuadbStore::open($noTrackDir, false)->lmdbRawEntrySnapshot())
+            );
+
+            $noTrackProofOracle = $oracle['noTrackProofHead'];
+            if (!isset($noTrackProofOracle['sourceRootHex'], $noTrackProofOracle['rootHex'], $noTrackProofOracle['entries'])
+                || !is_array($noTrackProofOracle['entries'])
+            ) {
+                throw new RuntimeException('malformed upstream noTrackKeys proof-head LMDB cursor oracle fixture');
+            }
+
+            $noTrackProofRepo = QuadbStore::init($noTrackProofDir, false);
+            $noTrackProofRepo->checkout('private-proof');
+            $t->same($noTrackProofOracle['sourceRootHex'], $noTrackMasterRoot);
+            $noTrackProofRepo->importProofHex($noTrackProofHex, $noTrackMasterRoot);
+            $noTrackProofRepo->put($binaryKey, $noTrackDelegatedValue);
+
+            $t->same($noTrackProofOracle['rootHex'], $noTrackProofRepo->status()['rootHash']);
+            $t->same([], $noTrackProofOracle['entries']['quadrable_key']);
+            $t->same(
+                $noTrackProofOracle['entries'],
+                quadrableQuadbRawSnapshotHex($noTrackProofRepo->lmdbRawEntrySnapshot())
+            );
+            $t->same(
+                $noTrackProofOracle['entries'],
+                quadrableQuadbRawSnapshotHex(QuadbStore::open($noTrackProofDir, false)->lmdbRawEntrySnapshot())
+            );
 
             $mergeGcOracle = $oracle['mergeGcProofHead'];
             if (!isset($mergeGcOracle['sourceRootHex'], $mergeGcOracle['rootHex'], $mergeGcOracle['beforeGc'], $mergeGcOracle['afterGc'], $mergeGcOracle['gc'])
@@ -1357,7 +1443,10 @@ return [
         } finally {
             quadrableQuadbRemoveDir($dir);
             quadrableQuadbRemoveDir($proofDir);
+            quadrableQuadbRemoveDir($detachedProofDir);
             quadrableQuadbRemoveDir($mergeGcDir);
+            quadrableQuadbRemoveDir($noTrackDir);
+            quadrableQuadbRemoveDir($noTrackProofDir);
         }
     },
     'native quadb store preserves numeric head names as LMDB string keys' => static function (TestRunner $t): void {

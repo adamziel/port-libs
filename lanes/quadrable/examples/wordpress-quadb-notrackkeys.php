@@ -9,6 +9,7 @@ use PortLibs\Quadrable\SparseTree;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $dir = sys_get_temp_dir() . '/quadrable-wp-quadb-notrackkeys-' . bin2hex(random_bytes(6));
+$proofDir = sys_get_temp_dir() . '/quadrable-wp-quadb-notrackkeys-proof-' . bin2hex(random_bytes(6));
 
 $cleanup = static function (string $dir): void {
     if (!is_dir($dir)) {
@@ -42,6 +43,13 @@ try {
     $trustedRoot = $repo->tree()->rootHash();
     $hashedProofBytes = $repo->exportProofBytes(['wp_options:siteurl']);
     $partial = SparseTree::importProof(Proof::decode($hashedProofBytes), $trustedRoot);
+    $raw = $repo->lmdbRawEntrySnapshot();
+
+    $proofRepo = QuadbStore::init($proofDir, false);
+    $proofRepo->checkout('private-proof');
+    $proofRepo->importProofBytes($hashedProofBytes, $trustedRoot);
+    $proofRepo->put('wp_options:siteurl', 'https://private.example.test');
+    $proofRaw = $proofRepo->lmdbRawEntrySnapshot();
 
     $fullKeysAvailable = true;
     try {
@@ -57,8 +65,13 @@ try {
         'dumpMentionsOriginalKeys' => str_contains($repo->dumpTreeText(), 'wp_options:siteurl'),
         'hashedProofBytes' => strlen($hashedProofBytes),
         'hashedProofRead' => $partial->get('wp_options:siteurl'),
+        'rawKeyBucketEntries' => count($raw['quadrable_key']),
+        'proofRawKeyBucketEntries' => count($proofRaw['quadrable_key']),
+        'proofHead' => $proofRepo->currentHeadName(),
+        'proofHeadRead' => $proofRepo->get('wp_options:siteurl'),
         'fullKeysAvailable' => $fullKeysAvailable,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($dir);
+    $cleanup($proofDir);
 }

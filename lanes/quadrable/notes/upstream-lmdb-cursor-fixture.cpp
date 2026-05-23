@@ -78,7 +78,7 @@ void put(quadrable::Quadrable &db, lmdb::txn &txn, std::string_view key, std::st
 }
 
 void dumpBucket(std::ostream &out, lmdb::txn &txn, const char *name) {
-    auto dbi = lmdb::dbi::open(txn, name);
+    auto dbi = lmdb::dbi::open(txn, name, MDB_CREATE);
     auto cursor = lmdb::cursor::open(txn, dbi);
     std::string_view key;
     std::string_view value;
@@ -121,14 +121,17 @@ void dumpEntries(std::ostream &out, lmdb::txn &txn) {
 } // namespace
 
 int main(int argc, char **argv) {
-    if (argc != 4) {
-        std::cerr << "usage: upstream-lmdb-cursor-fixture <source-db-dir> <proof-db-dir> <merge-gc-db-dir>\n";
+    if (argc != 7) {
+        std::cerr << "usage: upstream-lmdb-cursor-fixture <source-db-dir> <proof-db-dir> <detached-proof-db-dir> <merge-gc-db-dir> <notrack-db-dir> <notrack-proof-db-dir>\n";
         return 2;
     }
 
     const std::string sourceDir = argv[1];
     const std::string proofDir = argv[2];
-    const std::string mergeGcDir = argv[3];
+    const std::string detachedProofDir = argv[3];
+    const std::string mergeGcDir = argv[4];
+    const std::string noTrackDir = argv[5];
+    const std::string noTrackProofDir = argv[6];
 
     const std::string binaryKey = std::string("wp_options:serialized-") + static_cast<char>(0xff);
     const std::string binaryValue = std::string("autoload") + '\0' + static_cast<char>(0xff)
@@ -137,10 +140,17 @@ int main(int argc, char **argv) {
         + std::string("post-bytes") + static_cast<char>(0x81);
     const std::string delegatedValue = std::string("delegated") + '\0' + static_cast<char>(0xff)
         + std::string("preview-update") + static_cast<char>(0x82);
+    const std::string detachedValue = std::string("detached") + '\0' + static_cast<char>(0xff)
+        + std::string("proof-preview") + static_cast<char>(0x83);
+    const std::string noTrackDelegatedValue = std::string("notrack") + '\0' + static_cast<char>(0xff)
+        + std::string("delegated-update") + static_cast<char>(0x84);
 
     auto sourceEnv = openEnv(sourceDir);
     auto proofEnv = openEnv(proofDir);
+    auto detachedProofEnv = openEnv(detachedProofDir);
     auto mergeGcEnv = openEnv(mergeGcDir);
+    auto noTrackEnv = openEnv(noTrackDir);
+    auto noTrackProofEnv = openEnv(noTrackProofDir);
 
     quadrable::Proof binaryProof;
     quadrable::Proof plainProof;
@@ -148,7 +158,12 @@ int main(int argc, char **argv) {
     std::string masterRootHex;
     std::string previewRootHex;
     std::string delegatedRootHex;
+    std::string detachedRootHex;
     std::string mergeGcRootHex;
+    std::string noTrackMasterRoot;
+    std::string noTrackMasterRootHex;
+    std::string noTrackPreviewRootHex;
+    std::string noTrackDelegatedRootHex;
     quadrable::Quadrable::GCStats mergeGcStats;
 
     auto sourceTxn = lmdb::txn::begin(sourceEnv, nullptr, 0);
@@ -186,6 +201,18 @@ int main(int argc, char **argv) {
     delegatedRootHex = hex(proofDb.root(proofTxn));
     proofState.put(proofTxn, "currHead", std::string("binary-proof"));
 
+    auto detachedProofTxn = lmdb::txn::begin(detachedProofEnv, nullptr, 0);
+    quadrable::Quadrable detachedProofDb;
+    detachedProofDb.trackKeys = true;
+    detachedProofDb.init(detachedProofTxn);
+    auto detachedProofState = lmdb::dbi::open(detachedProofTxn, "quadrable_quadb_state", MDB_CREATE);
+
+    detachedProofDb.checkout();
+    detachedProofDb.importProof(detachedProofTxn, binaryProof, masterRoot);
+    put(detachedProofDb, detachedProofTxn, binaryKey, detachedValue);
+    detachedRootHex = hex(detachedProofDb.root(detachedProofTxn));
+    detachedProofState.put(detachedProofTxn, "detachedHead", lmdb::to_sv<uint64_t>(detachedProofDb.getHeadNodeId(detachedProofTxn)));
+
     auto mergeGcTxn = lmdb::txn::begin(mergeGcEnv, nullptr, 0);
     quadrable::Quadrable mergeGcDb;
     mergeGcDb.trackKeys = true;
@@ -198,13 +225,49 @@ int main(int argc, char **argv) {
     mergeGcRootHex = hex(mergeGcDb.root(mergeGcTxn));
     mergeGcState.put(mergeGcTxn, "currHead", std::string("merge-gc-proof"));
 
+    quadrable::Proof noTrackProof;
+
+    auto noTrackTxn = lmdb::txn::begin(noTrackEnv, nullptr, 0);
+    quadrable::Quadrable noTrackDb;
+    noTrackDb.trackKeys = false;
+    noTrackDb.init(noTrackTxn);
+    auto noTrackState = lmdb::dbi::open(noTrackTxn, "quadrable_quadb_state", MDB_CREATE);
+
+    noTrackDb.checkout("master");
+    put(noTrackDb, noTrackTxn, "wp_options:plain", "plain");
+    put(noTrackDb, noTrackTxn, binaryKey, binaryValue);
+    noTrackMasterRoot = noTrackDb.root(noTrackTxn);
+    noTrackMasterRootHex = hex(noTrackMasterRoot);
+    noTrackProof = noTrackDb.exportProof(noTrackTxn, {binaryKey, "wp_posts:404"});
+
+    noTrackDb.fork(noTrackTxn, "2");
+    put(noTrackDb, noTrackTxn, "wp_posts:2", previewValue);
+    noTrackDb.checkout("master");
+    noTrackDb.fork(noTrackTxn, "10");
+    noTrackDb.checkout("2");
+    noTrackDb.fork(noTrackTxn, "a-preview");
+    noTrackPreviewRootHex = hex(noTrackDb.root(noTrackTxn));
+    noTrackState.put(noTrackTxn, "currHead", std::string("a-preview"));
+
+    auto noTrackProofTxn = lmdb::txn::begin(noTrackProofEnv, nullptr, 0);
+    quadrable::Quadrable noTrackProofDb;
+    noTrackProofDb.trackKeys = false;
+    noTrackProofDb.init(noTrackProofTxn);
+    auto noTrackProofState = lmdb::dbi::open(noTrackProofTxn, "quadrable_quadb_state", MDB_CREATE);
+
+    noTrackProofDb.checkout("private-proof");
+    noTrackProofDb.importProof(noTrackProofTxn, noTrackProof, noTrackMasterRoot);
+    put(noTrackProofDb, noTrackProofTxn, binaryKey, noTrackDelegatedValue);
+    noTrackDelegatedRootHex = hex(noTrackProofDb.root(noTrackProofTxn));
+    noTrackProofState.put(noTrackProofTxn, "currHead", std::string("private-proof"));
+
     std::cout << "{\n";
     std::cout << "  \"upstream\": {\n";
     std::cout << "    \"repo\": \"hoytech/quadrable\",\n";
     std::cout << "    \"commit\": \"4f44437dc9b951a91986ad69e2856938387be614\",\n";
     std::cout << "    \"source\": \"lanes/quadrable/notes/upstream-lmdb-cursor-fixture.cpp\"\n";
     std::cout << "  },\n";
-    std::cout << "  \"scenario\": \"WordPress binary tracked key/value rows, string-sorted numeric heads, proof-backed delegated updates, and mergeProof plus quadb gc raw LMDB cursor bytes\",\n";
+    std::cout << "  \"scenario\": \"WordPress binary tracked key/value rows, string-sorted numeric heads, proof-backed delegated and detached updates, noTrackKeys empty key buckets, and mergeProof plus quadb gc raw LMDB cursor bytes\",\n";
     std::cout << "  \"binaryFixture\": {\n";
     std::cout << "    \"keyHex\": ";
     jsonString(std::cout, hex(binaryKey));
@@ -217,6 +280,12 @@ int main(int argc, char **argv) {
     std::cout << ",\n";
     std::cout << "    \"delegatedValueHex\": ";
     jsonString(std::cout, hex(delegatedValue));
+    std::cout << ",\n";
+    std::cout << "    \"detachedValueHex\": ";
+    jsonString(std::cout, hex(detachedValue));
+    std::cout << ",\n";
+    std::cout << "    \"noTrackDelegatedValueHex\": ";
+    jsonString(std::cout, hex(noTrackDelegatedValue));
     std::cout << "\n";
     std::cout << "  },\n";
     std::cout << "  \"fullHead\": {\n";
@@ -234,6 +303,16 @@ int main(int argc, char **argv) {
     jsonString(std::cout, delegatedRootHex);
     std::cout << ",\n";
     dumpEntries(std::cout, proofTxn);
+    std::cout << "\n";
+    std::cout << "  },\n";
+    std::cout << "  \"detachedProofHead\": {\n";
+    std::cout << "    \"sourceRootHex\": ";
+    jsonString(std::cout, masterRootHex);
+    std::cout << ",\n";
+    std::cout << "    \"rootHex\": ";
+    jsonString(std::cout, detachedRootHex);
+    std::cout << ",\n";
+    dumpEntries(std::cout, detachedProofTxn);
     std::cout << "\n";
     std::cout << "  },\n";
     std::cout << "  \"mergeGcProofHead\": {\n";
@@ -263,9 +342,30 @@ int main(int argc, char **argv) {
     std::cout << "\n";
     std::cout << "    }\n";
     std::cout << "  }\n";
+    std::cout << "  ,\n";
+    std::cout << "  \"noTrackHead\": {\n";
+    std::cout << "    \"rootHex\": ";
+    jsonString(std::cout, noTrackPreviewRootHex);
+    std::cout << ",\n";
+    dumpEntries(std::cout, noTrackTxn);
+    std::cout << "\n";
+    std::cout << "  },\n";
+    std::cout << "  \"noTrackProofHead\": {\n";
+    std::cout << "    \"sourceRootHex\": ";
+    jsonString(std::cout, noTrackMasterRootHex);
+    std::cout << ",\n";
+    std::cout << "    \"rootHex\": ";
+    jsonString(std::cout, noTrackDelegatedRootHex);
+    std::cout << ",\n";
+    dumpEntries(std::cout, noTrackProofTxn);
+    std::cout << "\n";
+    std::cout << "  }\n";
     std::cout << "}\n";
 
+    noTrackProofTxn.commit();
+    noTrackTxn.commit();
     mergeGcTxn.commit();
+    detachedProofTxn.commit();
     proofTxn.commit();
     sourceTxn.commit();
 
