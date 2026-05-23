@@ -161,6 +161,108 @@ final class RemoteDownloadProgressTracker
         );
     }
 
+    /**
+     * Maps the request-selection part of Syncthing's `pullBlock`: choose the
+     * least busy candidate, mark it in use only around the request, retry
+     * failed or invalid candidates once each, and skip the network for sparse
+     * zero blocks.
+     *
+     * The callback must return a successful `Response`, an error `Response`, a
+     * raw byte string, or `null` for a generic request failure.
+     *
+     * @param list<string> $completeDeviceIds devices with the full file in the global index
+     * @param callable(BlockRequestPlan): (Response|string|null) $request
+     */
+    public function pullBlock(
+        string $folder,
+        FileInfo $file,
+        Block $block,
+        array $completeDeviceIds,
+        callable $request,
+        int $requestId = 0,
+        bool $receiveEncrypted = false,
+    ): BlockPullResult {
+        if ($block->offset < 0 || $block->size < 0) {
+            throw new \InvalidArgumentException('Block offset and size must not be negative');
+        }
+
+        if ($block->isAllZeroes()) {
+            return new BlockPullResult(
+                block: $block,
+                data: str_repeat("\0", $block->size),
+                zeroBlock: true,
+            );
+        }
+
+        $activity = $this->activity ?? new DeviceActivity();
+        $candidates = $this->availability($folder, $file, $block, $completeDeviceIds);
+        $attempts = [];
+        $errors = [];
+
+        while ($candidates !== []) {
+            $index = $activity->leastBusyIndex($candidates);
+            if ($index < 0) {
+                break;
+            }
+
+            $selected = $candidates[$index];
+            array_splice($candidates, $index, 1);
+
+            $plan = new BlockRequestPlan(
+                $selected->deviceId,
+                $this->requestForBlock($folder, $file, $block, $selected->fromTemporary, $requestId + count($attempts)),
+                $selected,
+            );
+            $attempts[] = $plan;
+
+            $activity->using($selected);
+            try {
+                $response = $request($plan);
+            } catch (\Throwable $throwable) {
+                $errors[] = $throwable->getMessage() !== '' ? $throwable->getMessage() : $throwable::class;
+                continue;
+            } finally {
+                $activity->done($selected);
+            }
+
+            if ($response instanceof Response) {
+                if (!$response->successful()) {
+                    $errors[] = $response->error() ?? Response::ERROR_GENERIC;
+                    continue;
+                }
+                $data = $response->data;
+            } elseif (is_string($response)) {
+                $data = $response;
+            } elseif ($response === null) {
+                $errors[] = Response::ERROR_GENERIC;
+                continue;
+            } else {
+                throw new \UnexpectedValueException('Pull callback must return Response, string, or null');
+            }
+
+            $validationError = $receiveEncrypted ? null : $this->validatePulledBlock($data, $block);
+            if ($validationError !== null) {
+                $errors[] = $validationError;
+                continue;
+            }
+
+            return new BlockPullResult(
+                block: $block,
+                data: $data,
+                plan: $plan,
+                attempts: $attempts,
+                errors: $errors,
+            );
+        }
+
+        return new BlockPullResult(
+            block: $block,
+            error: $errors === [] ? 'no connected device has the required version of this file' : $errors[array_key_last($errors)],
+            attempts: $attempts,
+            errors: $errors,
+        );
+    }
+
     public function requestForBlock(string $folder, FileInfo $file, Block $block, bool $fromTemporary, int $requestId = 0): Request
     {
         return new Request(
@@ -187,5 +289,19 @@ final class RemoteDownloadProgressTracker
         }
 
         return intdiv($block->offset, $file->blockSize());
+    }
+
+    private function validatePulledBlock(string $data, Block $block): ?string
+    {
+        $length = strlen($data);
+        if ($length !== $block->size) {
+            return 'length mismatch ' . $length . ' != ' . $block->size;
+        }
+
+        if (!hash_equals(strtolower($block->hashHex), hash('sha256', $data))) {
+            return 'hash mismatch';
+        }
+
+        return null;
     }
 }
