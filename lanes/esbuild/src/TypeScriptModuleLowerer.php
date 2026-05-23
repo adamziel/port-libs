@@ -809,13 +809,18 @@ final class TypeScriptModuleLowerer
             if ($memberDecoratorClassName === null) {
                 throw new \InvalidArgumentException('Decorator lowering for anonymous class members is not supported yet');
             }
-            foreach ($members as $member) {
-                if (str_starts_with($member, 'constructor(')) {
-                    throw new \InvalidArgumentException('Decorator lowering for members with constructors is not supported yet');
+            $needsInstanceInitializer = $this->memberDecoratorsNeedInstanceInitializer($memberDecorators);
+            if ($needsInstanceInitializer) {
+                foreach ($members as $member) {
+                    if (str_starts_with($member, 'constructor(')) {
+                        throw new \InvalidArgumentException('Decorator lowering for members with constructors is not supported yet');
+                    }
                 }
             }
             $memberDecoratorInitName = $this->allocateGeneratedIdentifier('_init');
-            array_unshift($members, "constructor() {\n  __runInitializers(" . $memberDecoratorInitName . ', 5, this);' . "\n}");
+            if ($needsInstanceInitializer) {
+                array_unshift($members, "constructor() {\n  __runInitializers(" . $memberDecoratorInitName . ', 5, this);' . "\n}");
+            }
         }
 
         $decoratorTargetClassName = null;
@@ -950,7 +955,7 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @param list<array{memberName:string, decoratorName:string, decorators:list<string>}> $memberDecorators
+     * @param list<array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool}> $memberDecorators
      */
     private function lowerClassMemberDecoratorStatements(
         string $classOutput,
@@ -969,13 +974,44 @@ final class TypeScriptModuleLowerer
 
         $suffix = [$initName . ' = __decoratorStart(null);'];
         foreach ($memberDecorators as $decorator) {
-            $suffix[] = '__decorateElement(' . $initName . ', 1, '
+            $suffix[] = '__decorateElement(' . $initName . ', ' . $decorator['flags'] . ', '
                 . $this->quoteJsString($decorator['memberName']) . ', '
                 . $decorator['decoratorName'] . ', ' . $className . ');';
         }
         $suffix[] = '__decoratorMetadata(' . $initName . ', ' . $className . ');';
+        if ($this->memberDecoratorsNeedStaticInitializer($memberDecorators)) {
+            $suffix[] = '__runInitializers(' . $initName . ', 3, ' . $className . ');';
+        }
 
         return implode("\n", $prefix) . "\n" . $classOutput . "\n" . implode("\n", $suffix);
+    }
+
+    /**
+     * @param list<array{needsInstanceInitializer:bool}> $memberDecorators
+     */
+    private function memberDecoratorsNeedInstanceInitializer(array $memberDecorators): bool
+    {
+        foreach ($memberDecorators as $decorator) {
+            if ($decorator['needsInstanceInitializer']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{needsStaticInitializer:bool}> $memberDecorators
+     */
+    private function memberDecoratorsNeedStaticInitializer(array $memberDecorators): bool
+    {
+        foreach ($memberDecorators as $decorator) {
+            if ($decorator['needsStaticInitializer']) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function decoratorExpression(string $decoratorText): string
@@ -1032,7 +1068,7 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<string>, 5:list<array{memberName:string, decoratorName:string, decorators:list<string>}>}
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<string>, 5:list<array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool}>}
      */
     private function lowerClassMembers(int $start, int $end, bool $hasExtends, ?array &$fieldKeyTemps = null): array
     {
@@ -1154,7 +1190,7 @@ final class TypeScriptModuleLowerer
 
     /**
      * @param list<string> $fieldKeyTemps
-     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>, 5:array{memberName:string, decoratorName:string, decorators:list<string>}|null}
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>, 5:array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool}|null}
      */
     private function lowerClassMember(int $start, int $end, array &$fieldKeyTemps, bool $hasExtends): array
     {
@@ -1183,7 +1219,7 @@ final class TypeScriptModuleLowerer
         }
 
         if ($this->lowerDecorators && $decorated) {
-            $decoratedMethod = $this->lowerDecoratedInstanceMethodMember($memberStart, $end, $cursor, $modifiers, $decoratorTexts);
+            $decoratedMethod = $this->lowerDecoratedMethodMember($memberStart, $end, $cursor, $modifiers, $decoratorTexts);
             if ($decoratedMethod !== null) {
                 return $decoratedMethod;
             }
@@ -1275,9 +1311,9 @@ final class TypeScriptModuleLowerer
     /**
      * @param list<string> $modifiers
      * @param list<string> $decoratorTexts
-     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>, 5:array{memberName:string, decoratorName:string, decorators:list<string>}}|null
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<array{sequence:string, preludeExpression:?string}>, 5:array{memberName:string, decoratorName:string, decorators:list<string>, flags:int, needsInstanceInitializer:bool, needsStaticInitializer:bool}}|null
      */
-    private function lowerDecoratedInstanceMethodMember(
+    private function lowerDecoratedMethodMember(
         int $memberStart,
         int $end,
         int $memberNameIndex,
@@ -1285,12 +1321,14 @@ final class TypeScriptModuleLowerer
         array $decoratorTexts
     ): ?array {
         if ($decoratorTexts === []
-            || in_array('static', $modifiers, true)
             || in_array('accessor', $modifiers, true)
+            || in_array('get', $modifiers, true)
+            || in_array('set', $modifiers, true)
         ) {
             return null;
         }
 
+        $isStatic = in_array('static', $modifiers, true);
         $name = $this->tokens[$memberNameIndex] ?? null;
         if ($name?->kind !== 'identifier' || $name->text === 'constructor') {
             return null;
@@ -1315,6 +1353,9 @@ final class TypeScriptModuleLowerer
                 'memberName' => $name->text,
                 'decoratorName' => $this->allocateGeneratedIdentifier('_' . $name->text . '_dec'),
                 'decorators' => array_map(fn (string $decorator): string => $this->decoratorExpression($decorator), $decoratorTexts),
+                'flags' => $isStatic ? 9 : 1,
+                'needsInstanceInitializer' => !$isStatic,
+                'needsStaticInitializer' => $isStatic,
             ],
         ];
     }

@@ -39,6 +39,7 @@ $decoratedControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR_
 $decoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-decorator-legacy-controller.ts');
 $defaultDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-default-decorator-legacy-controller.ts');
 $methodDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-method-decorator-legacy-controller.ts');
+$staticMethodDecoratorLegacyControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-static-method-decorator-legacy-controller.ts');
 $usingDisposableTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-disposable.ts');
 $usingImportHoistTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-import-hoist.ts');
 $usingExportLocalTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-using-export-local.ts');
@@ -100,6 +101,7 @@ $decoratedControllerLowered = (new TypeScriptModuleLowerer())->lower($decoratedC
 $decoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($decoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
 $defaultDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($defaultDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
 $methodDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($methodDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
+$staticMethodDecoratorLegacyControllerLowered = (new TypeScriptModuleLowerer())->lower($staticMethodDecoratorLegacyControllerTypeScriptSource, lowerDecorators: true);
 $usingDisposableLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource);
 $usingDisposableLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingDisposableTypeScriptSource, lowerUsingDeclarations: true);
 $usingImportHoistLegacyLowered = (new TypeScriptModuleLowerer())->lower($usingImportHoistTypeScriptSource, lowerUsingDeclarations: true);
@@ -200,6 +202,7 @@ printf("WordPress TypeScript decorated controller bytes: %d\n", strlen($decorate
 printf("WordPress TypeScript legacy decorator helper bytes: %d\n", strlen($decoratorLegacyControllerLowered));
 printf("WordPress TypeScript default legacy decorator helper bytes: %d\n", strlen($defaultDecoratorLegacyControllerLowered));
 printf("WordPress TypeScript method legacy decorator helper bytes: %d\n", strlen($methodDecoratorLegacyControllerLowered));
+printf("WordPress TypeScript static method legacy decorator helper bytes: %d\n", strlen($staticMethodDecoratorLegacyControllerLowered));
 printf("WordPress TypeScript using disposable asset bytes: %d\n", strlen($usingDisposableLowered));
 printf("WordPress TypeScript legacy using helper bytes: %d\n", strlen($usingDisposableLegacyLowered));
 printf("WordPress TypeScript imported using helper bytes: %d\n", strlen($usingImportHoistLegacyLowered));
