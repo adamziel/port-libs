@@ -204,6 +204,10 @@ The latest provider-copy metadata scenario records a copied WordPress WXR export
 
 The `../examples/wordpress-onedrive-shared-copy-fallback.php` scenario maps the operations-level fallback for shared OneDrive Personal exports. A provider-side copy between personal drives is attempted, the async job returns the same `ErrorCantCopy` signal upstream uses for unshared files, the saved destination is restored without leaving the `.wpcopy` object visible, and the WXR export is then streamed normally into the site-owner drive while the shared source remains available.
 
+The `../examples/wordpress-onedrive-shared-listr-restore.php` scenario maps OneDrive's direct delta ListR behavior for shared restore folders. A scoped `site-backups` delta listing skips duplicate, deleted, and outside-root entries, preserves normalized OneDrive/SharePoint `driveId#id` metadata for the shared folder, and falls back to conventional recursion for the shared review folder so users WXR and upload media appear in the restore manifest without live credentials.
+
+The `../examples/wordpress-onedrive-delta-resume-cache.php` scenario maps OneDrive's delta-token resume path for change notifications. It extracts a seed token from `@odata.deltaLink`, builds the next `/root/delta?token=...` request, reports changed WXR and upload artifacts relative to `site-backups`, skips root and outside-site changes, and records invalid parent paths as non-fatal skipped entries without live credentials.
+
 ## Next Task
 
-Map direct ListR recursion for OneDrive shared folders or SharePoint shared library listings.
+Map the disabled-delta fallback where OneDrive does not advertise provider ListR, including the fs/walk/List fallback selection boundaries under filters or bounded recursion.
