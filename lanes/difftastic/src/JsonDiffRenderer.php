@@ -874,53 +874,6 @@ final class JsonDiffRenderer
      */
     private function diffLines(array $oldLines, array $newLines): array
     {
-        $table = $this->lcsTable($oldLines, $newLines);
-        $ops = [];
-        $i = 0;
-        $j = 0;
-        while ($i < count($oldLines) && $j < count($newLines)) {
-            if ($oldLines[$i] === $newLines[$j]) {
-                $ops[] = ['op' => '=', 'old' => $i, 'new' => $j];
-                $i++;
-                $j++;
-                continue;
-            }
-
-            if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
-                $ops[] = ['op' => '-', 'old' => $i];
-                $i++;
-            } else {
-                $ops[] = ['op' => '+', 'new' => $j];
-                $j++;
-            }
-        }
-
-        while ($i < count($oldLines)) {
-            $ops[] = ['op' => '-', 'old' => $i];
-            $i++;
-        }
-        while ($j < count($newLines)) {
-            $ops[] = ['op' => '+', 'new' => $j];
-            $j++;
-        }
-
-        return $ops;
-    }
-
-    /**
-     * @param list<string> $a
-     * @param list<string> $b
-     * @return list<list<int>>
-     */
-    private function lcsTable(array $a, array $b): array
-    {
-        $table = array_fill(0, count($a) + 1, array_fill(0, count($b) + 1, 0));
-        for ($i = count($a) - 1; $i >= 0; $i--) {
-            for ($j = count($b) - 1; $j >= 0; $j--) {
-                $table[$i][$j] = $a[$i] === $b[$j] ? $table[$i + 1][$j + 1] + 1 : max($table[$i + 1][$j], $table[$i][$j + 1]);
-            }
-        }
-
-        return $table;
+        return (new LineDiffer())->diff($oldLines, $newLines);
     }
 }

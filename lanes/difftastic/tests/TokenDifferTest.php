@@ -1973,6 +1973,77 @@ return [
         $t->contains('acme_render_modern_card', $encoded);
         $t->true(!str_contains($encoded, '$php.function'), 'Byte-limit fallback should not pretend to have a complete PHP syntax tree.');
     },
+    'maps upstream huge cpp byte-limit shape with bounded line fallback' => static function (TestRunner $t): void {
+        $line = static fn (int $index): string => 'int block_' . str_pad((string) $index, 4, '0', STR_PAD_LEFT) . '() { return ' . $index . '; }';
+        $beforeLines = array_map($line, range(0, 1800));
+        $afterLines = $beforeLines;
+        $afterLines[400] = 'int block_0400() { return 404; }';
+        $afterLines[1500] = 'int block_1500() { return 1504; }';
+        array_splice($afterLines, 401, 0, ['int block_view_asset() { return 401; }']);
+        $before = implode("\n", $beforeLines) . "\n";
+        $after = implode("\n", $afterLines) . "\n";
+        $differ = new TokenDiffer();
+        $reason = $differ->byteLimitFallbackReason($before, $after, [
+            'language' => 'cpp',
+            'byteLimit' => 1024,
+        ]);
+        $changes = $differ->diffSyntaxLists($before, $after, [
+            'language' => 'cpp',
+            'byteLimit' => 1024,
+        ]);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes,
+        ));
+
+        $t->true($reason !== null && str_contains($reason, 'exceeded DFT_BYTE_LIMIT'));
+        $t->contains('~ $text.fallback Text (' . $reason . ') line-oriented diff', $encoded);
+        $t->contains('~ $text.line[400] int block_0400() { return 400; } int block_0400() { return 404; }', $encoded);
+        $t->contains('+ $text.line[401] int block_view_asset() { return 401; }', $encoded);
+        $t->contains('~ $text.line[1500] int block_1500() { return 1500; } int block_1500() { return 1504; }', $encoded);
+        $t->true(!str_contains($encoded, '$text.line[900]'), 'Retained unique lines between separated huge-file edits should stay anchored out of the fallback change list.');
+    },
+    'wordpress generated cpp build artifact byte-limit json stays line-oriented' => static function (TestRunner $t): void {
+        $line = static fn (int $index): string => 'int acme_asset_' . str_pad((string) $index, 4, '0', STR_PAD_LEFT) . '() { return ' . $index . '; }';
+        $beforeLines = array_map($line, range(0, 1600));
+        $afterLines = $beforeLines;
+        $afterLines[256] = 'int acme_asset_0256() { return 512; }';
+        $afterLines[1200] = 'int acme_asset_1200() { return 1208; }';
+        array_splice($afterLines, 257, 0, ['int acme_generated_view_asset() { return 257; }']);
+        $before = implode("\n", $beforeLines) . "\n";
+        $after = implode("\n", $afterLines) . "\n";
+        $reason = (new TokenDiffer())->byteLimitFallbackReason($before, $after, [
+            'language' => 'cpp',
+            'byteLimit' => 1024,
+        ]);
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/build/generated/asset-index.cpp',
+            'C++',
+            ['language' => 'cpp', 'byteLimit' => 1024],
+        ), true, 512, JSON_THROW_ON_ERROR);
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $lineChange) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($lineChange[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Text (' . $reason . ')', $decoded['language']);
+        $t->same('wp-content/plugins/acme-card/build/generated/asset-index.cpp', $decoded['path']);
+        $t->same('changed', $decoded['status']);
+        $t->contains('rhs acme_generated_view_asset:normal', $encoded);
+        $t->contains('lhs 256:normal', $encoded);
+        $t->contains('rhs 512:normal', $encoded);
+        $t->contains('rhs 1208:normal', $encoded);
+        $t->true(!str_contains($encoded, 'acme_asset_0900'), 'Unchanged generated asset rows should not be emitted as JSON fallback changes.');
+    },
     'json display labels wordpress byte limit fallback as text' => static function (TestRunner $t): void {
         $before = "<?php\nreturn [\n    'render_callback' => 'acme_render_legacy_card',\n    'supports' => ['html' => false],\n];\n";
         $after = "<?php\nreturn [\n    'render_callback' => 'acme_render_modern_card',\n    'supports' => ['html' => true, 'align' => ['wide']],\n];\n";

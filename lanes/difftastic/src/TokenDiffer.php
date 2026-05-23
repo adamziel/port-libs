@@ -624,36 +624,22 @@ final class TokenDiffer
 
         $oldLines = $this->fallbackLines($old);
         $newLines = $this->fallbackLines($new);
-        $table = $this->lcsTable($oldLines, $newLines);
         $deleted = [];
         $inserted = [];
-        $i = 0;
-        $j = 0;
 
-        while ($i < count($oldLines) && $j < count($newLines)) {
-            if ($oldLines[$i] === $newLines[$j]) {
+        foreach ((new LineDiffer())->diff($oldLines, $newLines) as $op) {
+            if ($op['op'] === '=') {
                 $this->flushFallbackLineChanges($changes, $deleted, $inserted, $linePathPrefix);
-                $i++;
-                $j++;
                 continue;
             }
 
-            if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
-                $deleted[] = ['index' => $i, 'text' => $oldLines[$i]];
-                $i++;
+            if ($op['op'] === '-') {
+                $oldIndex = $op['old'];
+                $deleted[] = ['index' => $oldIndex, 'text' => $oldLines[$oldIndex]];
             } else {
-                $inserted[] = ['index' => $j, 'text' => $newLines[$j]];
-                $j++;
+                $newIndex = $op['new'];
+                $inserted[] = ['index' => $newIndex, 'text' => $newLines[$newIndex]];
             }
-        }
-
-        while ($i < count($oldLines)) {
-            $deleted[] = ['index' => $i, 'text' => $oldLines[$i]];
-            $i++;
-        }
-        while ($j < count($newLines)) {
-            $inserted[] = ['index' => $j, 'text' => $newLines[$j]];
-            $j++;
         }
 
         $this->flushFallbackLineChanges($changes, $deleted, $inserted, $linePathPrefix);

@@ -130,38 +130,22 @@ final class SideBySideDiffRenderer
      */
     private function alignedLinePairs(array $oldLines, array $newLines): array
     {
-        $table = $this->lcsTable($oldLines, $newLines);
         $pairs = [];
         $pendingOld = [];
         $pendingNew = [];
-        $i = 0;
-        $j = 0;
 
-        while ($i < count($oldLines) && $j < count($newLines)) {
-            if ($oldLines[$i] === $newLines[$j]) {
+        foreach ((new LineDiffer())->diff($oldLines, $newLines) as $op) {
+            if ($op['op'] === '=') {
                 $this->flushPendingLinePairs($pairs, $pendingOld, $pendingNew);
-                $pairs[] = [$i, $j];
-                $i++;
-                $j++;
+                $pairs[] = [$op['old'], $op['new']];
                 continue;
             }
 
-            if ($table[$i + 1][$j] >= $table[$i][$j + 1]) {
-                $pendingOld[] = $i;
-                $i++;
+            if ($op['op'] === '-') {
+                $pendingOld[] = $op['old'];
             } else {
-                $pendingNew[] = $j;
-                $j++;
+                $pendingNew[] = $op['new'];
             }
-        }
-
-        while ($i < count($oldLines)) {
-            $pendingOld[] = $i;
-            $i++;
-        }
-        while ($j < count($newLines)) {
-            $pendingNew[] = $j;
-            $j++;
         }
 
         $this->flushPendingLinePairs($pairs, $pendingOld, $pendingNew);
@@ -330,20 +314,4 @@ final class SideBySideDiffRenderer
         return null;
     }
 
-    /**
-     * @param list<string> $a
-     * @param list<string> $b
-     * @return list<list<int>>
-     */
-    private function lcsTable(array $a, array $b): array
-    {
-        $table = array_fill(0, count($a) + 1, array_fill(0, count($b) + 1, 0));
-        for ($i = count($a) - 1; $i >= 0; $i--) {
-            for ($j = count($b) - 1; $j >= 0; $j--) {
-                $table[$i][$j] = $a[$i] === $b[$j] ? $table[$i + 1][$j + 1] + 1 : max($table[$i + 1][$j], $table[$i][$j + 1]);
-            }
-        }
-
-        return $table;
-    }
 }
