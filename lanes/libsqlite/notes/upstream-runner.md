@@ -2704,6 +2704,97 @@ Per lane instructions, this worker did not start a duplicate root harness. The
 post-change root result is pending supervisor/integrator acceptance of the
 active run.
 
+## Focused Native Mapping: UTF-16 Record Encoding
+
+For the bounded UTF-16 record serialization slice on 2026-05-23, the focused
+upstream runner passed SQLite's encoding regression coverage with 0 errors out
+of 114 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick enc.test
+```
+
+This maps the `enc.test` UTF-8 to UTF-16LE/UTF-16BE conversion checks,
+UTF-16 database encoding boundaries, and timely `sqlite_schema` encoding
+detection. The native PHP record encoder now serializes text fields as UTF-8,
+UTF-16LE, or UTF-16BE according to the SQLite database header text encoding,
+while preserving byte-length serial types and the existing UTF-16 decoder.
+
+The direct libsqlite harness passed 180 PHP tests with 1178 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-utf16-option-insert-plan.php` script ran
+successfully, reporting `textEncoding` 2, updated page image `[2]`, and a
+generated `blogdescription` option whose UTF-16LE page bytes decode back to
+the expected UTF-8 option value. This maps WordPress SQLite repair/preflight
+for database images that are not UTF-8 encoded but still need bounded native
+page-image planning without the SQLite extension.
+
+Before starting a root harness for this slice, the required preflight returned
+no active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+This worker then ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 192 test files, 20867 assertions, 0 failures.
+
+## Focused Native Mapping: Automatic Index Write Planning
+
+For the bounded `sqlite_autoindex_*` write-planning slice on 2026-05-23, the
+focused upstream runner passed automatic-index and write-related SQLite Tcl
+coverage with 0 errors out of 1217 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index.test index3.test schema6.test indexedby.test insert.test update.test btree01.test
+```
+
+This maps automatic UNIQUE/PRIMARY KEY autoindex naming and column metadata,
+rowid INSERT/UPDATE behavior, index b-tree key ordering, and b-tree cell/page
+assembly boundaries. The native PHP planner now infers full automatic-index
+column lists from `CREATE TABLE` SQL for `sqlite_autoindex_wp_options_*`
+schema rows and maintains bounded single-leaf automatic indexes shaped like
+`UNIQUE(option_name)` or `UNIQUE(autoload, option_name)` during generated
+`wp_options` inserts and replacements. Unsupported automatic index shapes,
+index-overflow cells, multi-page automatic-index writes, page splits,
+rebalancing, pointer-map/auto-vacuum, journaling, WAL, and general SQL
+execution remain out of scope.
+
+The direct libsqlite harness passed 178 PHP tests with 1165 assertions and 0
+failures. The new
+`examples/wordpress-automatic-indexed-generated-option-insert-plan.php` script
+ran successfully, reporting updated table/autoindex page images `[2,3]`,
+automatic index records `home -> 2`, `siteurl -> 1`, and indexed lookup of the
+generated `home` row through the inferred `sqlite_autoindex_wp_options_1`.
+
+Before starting a root harness for this slice, the required preflight returned
+no active aggregate run:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+This worker then ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 190 test files, 20680 assertions, 0 failures.
+
 ## Focused Native Mapping: Multi-Page Secondary Index Write Planning
 
 For the bounded multi-page secondary-index write slice on 2026-05-23, the

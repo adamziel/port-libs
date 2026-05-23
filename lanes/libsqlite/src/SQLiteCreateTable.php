@@ -42,6 +42,14 @@ final class SQLiteCreateTable
     /**
      * @return list<non-empty-list<SQLiteIndexColumn>>
      */
+    public static function automaticIndexColumnMetadata(string $sql): array
+    {
+        return self::automaticIndexColumns($sql, true);
+    }
+
+    /**
+     * @return list<non-empty-list<SQLiteIndexColumn>>
+     */
     private static function automaticIndexColumns(string $sql, bool $includePrimaryKey): array
     {
         $body = self::tableBody($sql);

@@ -8,9 +8,11 @@ Native SQLite database header parser, SQLite varint decoder and encoder,
 b-tree page header parser for schema/root pages, table leaf and table interior cell
 parsing, a page-backed database reader, SQLite record serial decoding, and
 `sqlite_schema` table-b-tree traversal for WordPress table discovery. The
-write-side preflight slice now also serializes SQLite records, table-leaf
-cells, and clean table-leaf pages for minimal fixture or repair-planning
-images that can be parsed back by the native reader. The current slice also
+write-side preflight slice now also serializes SQLite records as UTF-8,
+UTF-16LE, or UTF-16BE according to the database header text encoding, plus
+table-leaf cells and clean table-leaf pages for minimal fixture or
+repair-planning images that can be parsed back by the native reader. The
+current slice also
 decodes bounded table rows and maps the standard
 `wp_options` row shape into `option_id`, `option_name`, `option_value`, and
 `autoload` fields without using the PHP SQLite extension. Large
@@ -33,11 +35,12 @@ write-side primitives for explicit-rowid `wp_options` fixtures whose root is a
 single table leaf page: the planner returns first-page, table-page,
 overflow-page, freelist-trunk, and, for explicit single-leaf full or
 `WHERE option_name IS NOT NULL` partial `option_name` indexes and explicit
-single-leaf `autoload, option_name` composite indexes, index page images for a
-new option row. It rejects duplicate rowids or option names and still refuses
-unsupported composite shapes, unsafe partial predicates, expression indexes,
-automatic indexes, multi-page indexes, or index-overflow cases instead of
-leaving stale secondary indexes behind.
+single-leaf `autoload, option_name` composite indexes, plus matching
+`sqlite_autoindex_*` automatic UNIQUE/PRIMARY KEY index shapes, index page
+images for a new option row. It rejects duplicate rowids or option names and
+still refuses unsupported composite shapes, unsafe partial predicates,
+expression indexes, unsupported automatic indexes, multi-page indexes, or
+index-overflow cases instead of leaving stale secondary indexes behind.
 Bounded replacement planning handles index-free, single-leaf `wp_options`
 fixtures for both shrink and large-value rewrites. Large replacement payloads
 allocate their new overflow chain before obsolete overflow pages are returned
@@ -46,10 +49,12 @@ accidental same-operation reuse of the old chain. Replacement planning also
 allows explicit single-leaf full or safe partial `option_name` indexes when
 the key and rowid are unchanged, verifies that the index already points to the
 replaced row, and can move a single-leaf `autoload, option_name` composite
-index entry when an `autoload` rewrite changes the leading key. It still
-rejects unsupported index shapes, unsafe partial predicates, expression
-indexes, automatic indexes, multi-page indexes, or index-overflow cases
-instead of leaving stale secondary indexes behind.
+index entry when an `autoload` rewrite changes the leading key. The same
+bounded maintenance now works for inferred `sqlite_autoindex_*` UNIQUE/PRIMARY
+KEY indexes whose columns match `option_name` or `autoload, option_name`. It
+still rejects unsupported index shapes, unsafe partial predicates, expression
+indexes, unsupported automatic indexes, multi-page indexes, or index-overflow
+cases instead of leaving stale secondary indexes behind.
 Explicit
 `CREATE INDEX ... ON wp_options(option_name)` b-trees can now be parsed and
 used to fetch a single option by indexed name, then resolve the stored rowid
@@ -743,6 +748,22 @@ is reachable through `wordpressOptionByIndexedName()`. This maps repair and
 fixture generation for common WordPress SQLite images that already have a
 simple option-name secondary index.
 
+`examples/wordpress-utf16-option-insert-plan.php` starts from a minimal
+UTF-16LE SQLite database image, asks `planWordPressOptionInsert()` for a
+bounded generated `blogdescription` row, applies the returned table page
+image, and verifies that the option value decodes back to UTF-8. This maps
+WordPress SQLite repair/preflight where the file header text encoding is not
+UTF-8 but tooling still cannot rely on the SQLite extension.
+
+`examples/wordpress-automatic-indexed-generated-option-insert-plan.php` starts
+from a minimal `wp_options` table whose `option_name UNIQUE` constraint is
+represented by a `sqlite_autoindex_wp_options_1` schema row with `sql=NULL`.
+It asks `planWordPressOptionInsert()` for a bounded generated row insert,
+applies the returned table and autoindex page images, and verifies that the
+new `home` option is reachable through the inferred automatic index. This maps
+WordPress SQLite repair preflight where uniqueness is enforced by a table
+constraint rather than an explicit `CREATE INDEX` statement.
+
 `examples/wordpress-partial-indexed-generated-option-insert-plan.php` starts
 from a minimal `wp_options` table with a single-leaf
 `WHERE option_name IS NOT NULL` partial `option_name` index, asks
@@ -800,6 +821,6 @@ free-old update order.
 
 ## Next Task
 
-Add bounded same-depth page-split planning for secondary indexes, or broaden
-the current multi-page write planner to safe automatic indexes, before
+Add bounded same-depth page-split planning for secondary indexes, then extend
+the current automatic-index write slice to multi-page autoindexes before
 pointer-map/auto-vacuum, journaling, or WAL work.

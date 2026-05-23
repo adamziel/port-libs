@@ -27,14 +27,10 @@ final class SQLiteRecord
      */
     public static function encode(array $values, int $textEncoding = 1): string
     {
-        if ($textEncoding !== 1) {
-            throw new \InvalidArgumentException('SQLite record encoding currently supports UTF-8 text only');
-        }
-
         $serialTypeBytes = '';
         $body = '';
         foreach ($values as $value) {
-            [$serialType, $bytes] = self::serialTypeAndBytes($value);
+            [$serialType, $bytes] = self::serialTypeAndBytes($value, $textEncoding);
             $serialTypeBytes .= SQLiteVarint::encode($serialType);
             $body .= $bytes;
         }
@@ -85,7 +81,7 @@ final class SQLiteRecord
     /**
      * @return array{0:int,1:string}
      */
-    private static function serialTypeAndBytes(mixed $value): array
+    private static function serialTypeAndBytes(mixed $value, int $textEncoding): array
     {
         if ($value === null) {
             return [0, ''];
@@ -100,7 +96,9 @@ final class SQLiteRecord
             return [7, pack('E', $value)];
         }
         if (is_string($value)) {
-            return [13 + (strlen($value) * 2), $value];
+            $bytes = self::encodeText($value, $textEncoding);
+
+            return [13 + (strlen($bytes) * 2), $bytes];
         }
 
         throw new \InvalidArgumentException('Unsupported SQLite record value type');
@@ -250,6 +248,27 @@ final class SQLiteRecord
         return match ($textEncoding) {
             2 => mb_convert_encoding($bytes, 'UTF-8', 'UTF-16LE'),
             3 => mb_convert_encoding($bytes, 'UTF-8', 'UTF-16BE'),
+        };
+    }
+
+    private static function encodeText(string $value, int $textEncoding): string
+    {
+        if ($textEncoding === 1) {
+            return $value;
+        }
+        if ($textEncoding !== 2 && $textEncoding !== 3) {
+            throw new \InvalidArgumentException("Unsupported SQLite text encoding: {$textEncoding}");
+        }
+        if ($value === '') {
+            return '';
+        }
+        if (!function_exists('mb_convert_encoding')) {
+            throw new \InvalidArgumentException('UTF-16 SQLite text requires mbstring for encoding');
+        }
+
+        return match ($textEncoding) {
+            2 => mb_convert_encoding($value, 'UTF-16LE', 'UTF-8'),
+            3 => mb_convert_encoding($value, 'UTF-16BE', 'UTF-8'),
         };
     }
 }

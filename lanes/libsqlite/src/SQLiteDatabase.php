@@ -658,15 +658,15 @@ final class SQLiteDatabase
     private function supportedWordPressOptionIndexesForInsert(string $optionName, ?string $autoload): array
     {
         $indexes = [];
+        $automaticIndexColumns = null;
+        $automaticIndexOrdinal = 0;
         foreach ($this->indexRecordsForTable('wp_options') as $record) {
-            if ($record->sql === null) {
-                throw new \InvalidArgumentException('SQLite wp_options insert planning currently supports only explicit option_name or autoload, option_name indexes');
-            }
-
-            $columns = SQLiteCreateIndex::columns($record->sql);
-            if ($columns === null) {
-                throw new \InvalidArgumentException('SQLite wp_options insert planning currently supports only ordinary column indexes');
-            }
+            $columns = $this->wordPressWriteIndexColumns(
+                $record,
+                $automaticIndexColumns,
+                $automaticIndexOrdinal,
+                'insert',
+            );
 
             if (
                 count($columns) === 1
@@ -702,15 +702,15 @@ final class SQLiteDatabase
     private function supportedWordPressOptionIndexesForReplacement(): array
     {
         $indexes = [];
+        $automaticIndexColumns = null;
+        $automaticIndexOrdinal = 0;
         foreach ($this->indexRecordsForTable('wp_options') as $record) {
-            if ($record->sql === null) {
-                throw new \InvalidArgumentException('SQLite wp_options replacement planning currently supports only explicit option_name or autoload, option_name indexes');
-            }
-
-            $columns = SQLiteCreateIndex::columns($record->sql);
-            if ($columns === null) {
-                throw new \InvalidArgumentException('SQLite wp_options replacement planning currently supports only ordinary column indexes');
-            }
+            $columns = $this->wordPressWriteIndexColumns(
+                $record,
+                $automaticIndexColumns,
+                $automaticIndexOrdinal,
+                'replacement',
+            );
 
             $isSupported = (
                 count($columns) === 1
@@ -734,6 +734,41 @@ final class SQLiteDatabase
         }
 
         return $indexes;
+    }
+
+    /**
+     * @param null|list<non-empty-list<SQLiteIndexColumn>> $automaticIndexColumns
+     * @return non-empty-list<SQLiteIndexColumn>
+     */
+    private function wordPressWriteIndexColumns(
+        SQLiteSchemaRecord $record,
+        ?array &$automaticIndexColumns,
+        int &$automaticIndexOrdinal,
+        string $operation,
+    ): array {
+        if ($record->sql !== null) {
+            $columns = SQLiteCreateIndex::columns($record->sql);
+            if ($columns === null) {
+                throw new \InvalidArgumentException("SQLite wp_options {$operation} planning currently supports only ordinary column indexes");
+            }
+
+            return $columns;
+        }
+
+        if (!self::isAutomaticIndex($record, 'wp_options')) {
+            throw new \InvalidArgumentException("SQLite wp_options {$operation} planning currently supports only explicit or automatic option_name indexes");
+        }
+
+        if ($automaticIndexColumns === null) {
+            $automaticIndexColumns = $this->automaticIndexColumnsForTable('wp_options');
+        }
+        $columns = $automaticIndexColumns[$automaticIndexOrdinal] ?? null;
+        $automaticIndexOrdinal++;
+        if ($columns === null) {
+            throw new \InvalidArgumentException("SQLite wp_options {$operation} planning cannot infer automatic index columns from CREATE TABLE");
+        }
+
+        return $columns;
     }
 
     /**
@@ -6579,12 +6614,21 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite index prefix lookup requires one value per column');
         }
 
+        $automaticIndexColumns = null;
+        $automaticIndexOrdinal = 0;
         foreach ($this->indexRecordsForTable($tableName) as $record) {
             if ($record->sql === null) {
-                continue;
+                if (!self::isAutomaticIndex($record, $tableName)) {
+                    continue;
+                }
+                if ($automaticIndexColumns === null) {
+                    $automaticIndexColumns = $this->automaticIndexColumnsForTable($tableName);
+                }
+                $columns = $automaticIndexColumns[$automaticIndexOrdinal] ?? null;
+                $automaticIndexOrdinal++;
+            } else {
+                $columns = SQLiteCreateIndex::columns($record->sql);
             }
-
-            $columns = SQLiteCreateIndex::columns($record->sql);
             if ($columns === null || count($columns) < count($columnNames)) {
                 continue;
             }
@@ -7064,9 +7108,20 @@ final class SQLiteDatabase
 
     private function automaticIndexFirstColumnsForTable(string $tableName): array
     {
+        return array_map(
+            static fn (array $columns): SQLiteIndexColumn => $columns[0],
+            $this->automaticIndexColumnsForTable($tableName),
+        );
+    }
+
+    /**
+     * @return list<non-empty-list<SQLiteIndexColumn>>
+     */
+    private function automaticIndexColumnsForTable(string $tableName): array
+    {
         foreach ($this->schemaRecords() as $record) {
             if ($record->isTable($tableName) && $record->sql !== null) {
-                return SQLiteCreateTable::automaticIndexFirstColumnMetadata($record->sql);
+                return SQLiteCreateTable::automaticIndexColumnMetadata($record->sql);
             }
         }
 

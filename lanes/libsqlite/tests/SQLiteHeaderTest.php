@@ -872,6 +872,22 @@ return [
         $t->same(array_fill(0, 130, 0), $record->serialTypes);
         $t->same(array_fill(0, 130, null), $record->values);
     },
+    'encodes sqlite text records using utf16le and utf16be database encodings' => static function (TestRunner $t): void {
+        $text = 'A' . "\u{1234}";
+        $utf16le = SQLiteRecord::encode([$text, 'siteurl'], 2);
+        $utf16be = SQLiteRecord::encode([$text, 'siteurl'], 3);
+
+        $leRecord = SQLiteRecord::parse($utf16le, 2);
+        $beRecord = SQLiteRecord::parse($utf16be, 3);
+
+        $t->same([21, 41], $leRecord->serialTypes);
+        $t->same([21, 41], $beRecord->serialTypes);
+        $t->same([$text, 'siteurl'], $leRecord->values);
+        $t->same([$text, 'siteurl'], $beRecord->values);
+        $t->contains(hex2bin('41003412'), $utf16le);
+        $t->contains(hex2bin('00411234'), $utf16be);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::encode(['x'], 4));
+    },
     'encodes sqlite table leaf cells including overflow pointers and minimum cell size' => static function (TestRunner $t): void {
         $tiny = SQLiteTableLeafCell::encode(1, '');
         $overflowPayload = str_repeat('x', 586);
@@ -3966,10 +3982,25 @@ return [
         $columns = SQLiteCreateTable::automaticIndexFirstColumnMetadata(
             'CREATE TABLE wp_options(option_id integer primary key, option_name text COLLATE binary COLLATE nocase UNIQUE, slug text COLLATE binary, UNIQUE(slug COLLATE rtrim DESC))',
         );
+        $allColumns = SQLiteCreateTable::automaticIndexColumnMetadata(
+            'CREATE TABLE wp_options(option_id integer primary key, autoload text, option_name text, UNIQUE(autoload, option_name COLLATE nocase DESC))',
+        );
 
         $t->same(['option_name', 'slug'], array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $columns));
         $t->same(['NOCASE', 'RTRIM'], array_map(static fn (SQLiteIndexColumn $column): string => $column->collation, $columns));
         $t->same([false, true], array_map(static fn (SQLiteIndexColumn $column): bool => $column->descending, $columns));
+        $t->same([['autoload', 'option_name']], array_map(
+            static fn (array $indexColumns): array => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $indexColumns),
+            $allColumns,
+        ));
+        $t->same([['BINARY', 'NOCASE']], array_map(
+            static fn (array $indexColumns): array => array_map(static fn (SQLiteIndexColumn $column): string => $column->collation, $indexColumns),
+            $allColumns,
+        ));
+        $t->same([[false, true]], array_map(
+            static fn (array $indexColumns): array => array_map(static fn (SQLiteIndexColumn $column): bool => $column->descending, $indexColumns),
+            $allColumns,
+        ));
     },
     'uses sqlite automatic unique index rows with null sql to fetch a wordpress option' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
@@ -4503,6 +4534,44 @@ return [
         $t->same('no', $options[1]->autoload);
         $t->same(3, $options[1]->rowId);
     },
+    'plans wordpress wp_options leaf insert in a utf16le encoded database image' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $textEncoding = 2;
+        $firstPage = substr_replace($makeFirstPage($pageSize, 2), pack('N', $textEncoding), 56, 4);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ], $textEncoding)),
+        ], $pageSize, 100, $firstPage);
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'], $textEncoding)),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage);
+        $optionValue = 'Ported ' . "\u{1234}" . ' option';
+
+        $plan = $database->planWordPressOptionInsert(2, 'blogdescription', $optionValue, 'yes');
+        $postPages = [
+            1 => $database->page(1),
+            2 => $database->page(2),
+        ];
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $options = $postDatabase->wordpressOptions();
+        $newRow = $postDatabase->tableRowByRowIdByName('wp_options', 2);
+
+        $t->same($textEncoding, $database->header->textEncoding);
+        $t->same([2], array_keys($plan->pageImages()));
+        $t->same(['siteurl', 'blogdescription'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same($optionValue, $options[1]->optionValue);
+        $t->same([null, 'blogdescription', $optionValue, 'yes'], $newRow?->values());
+        $t->contains(hex2bin('50006f0072007400650064002000341220006f007000740069006f006e00'), $plan->pageImages()[2]);
+    },
     'plans wordpress wp_options leaf insert using reusable freelist overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $emptyPage = str_repeat("\0", $pageSize);
@@ -4609,6 +4678,58 @@ return [
             'database_page_count' => 3,
             'updated_page_numbers' => [2, 3],
         ], $plan->toArray());
+    },
+    'plans wordpress wp_options leaf insert while maintaining an automatic unique option_name index' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text UNIQUE, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'sqlite_autoindex_wp_options_1',
+                'wp_options',
+                3,
+                null,
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 3));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+        $indexPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
+
+        $plan = $database->planWordPressOptionInsert(2, 'home', 'https://example.test/blog', 'yes');
+        $postPages = [
+            1 => $database->page(1),
+            2 => $database->page(2),
+            3 => $database->page(3),
+        ];
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $option = $postDatabase->wordpressOptionByIndexedName('home');
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+
+        $t->same([2, 3], array_keys($plan->pageImages()));
+        $t->same([
+            ['home', 2],
+            ['siteurl', 1],
+        ], $indexRecords);
+        $t->same(3, $postDatabase->indexRootPageForColumn('wp_options', 'option_name'));
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(2, $option->rowId);
+        $t->same('https://example.test/blog', $option->optionValue);
     },
     'plans wordpress wp_options leaf insert while maintaining a safe partial option_name index' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
@@ -5069,6 +5190,60 @@ return [
             'database_page_count' => 3,
             'updated_page_numbers' => [2, 3],
         ], $plan->toArray());
+    },
+    'plans wordpress wp_options replacement while moving an automatic composite index entry' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text, UNIQUE(autoload, option_name COLLATE NOCASE DESC))',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'sqlite_autoindex_wp_options_1',
+                'wp_options',
+                3,
+                null,
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 3));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'cron_lock', '1', 'no'])),
+        ], $pageSize);
+        $indexPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['no', 'cron_lock', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['yes', 'siteurl', 1])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
+
+        $plan = $database->planWordPressOptionReplace('siteurl', 'https://fixed.example', 'no');
+        $postPages = [
+            1 => $database->page(1),
+            2 => $database->page(2),
+            3 => $database->page(3),
+        ];
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $option = $postDatabase->wordpressOptionByIndexedAutoloadAndName('no', 'SITEURL');
+        $indexRecords = array_map(
+            static fn (SQLiteIndexCell $cell): array => $cell->record()->values,
+            $postDatabase->indexCells(3),
+        );
+
+        $t->same([2, 3], array_keys($plan->pageImages()));
+        $t->same([
+            ['no', 'siteurl', 1],
+            ['no', 'cron_lock', 2],
+        ], $indexRecords);
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(1, $option->rowId);
+        $t->same('https://fixed.example', $option->optionValue);
+        $t->same('no', $option->autoload);
     },
     'plans wordpress wp_options replacement while moving entries across a multi-page composite index' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
