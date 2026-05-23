@@ -416,6 +416,62 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'walk reports upstream normalization errors when auto normalization is disabled' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            $decomposedName = $dir . '/Cafe' . "\u{0301}" . '.jpg';
+            syncthing_scanner_write($root, $decomposedName, 'decomposed wordpress media');
+
+            $scanner = new FileInfoScanner($root);
+
+            $t->throws(RuntimeException::class, static fn () => $scanner->walk([$dir]));
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk auto normalizes UTF8 filenames before emitting FileInfo' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            $decomposedLeaf = 'Cafe' . "\u{0301}" . '.jpg';
+            $normalizedLeaf = 'Caf' . "\u{00e9}" . '.jpg';
+            $decomposedName = $dir . '/' . $decomposedLeaf;
+            $normalizedName = $dir . '/' . $normalizedLeaf;
+            $decomposedPath = syncthing_scanner_path($root, $decomposedName);
+            $normalizedPath = syncthing_scanner_path($root, $normalizedName);
+            syncthing_scanner_write($root, $decomposedName, 'normalized wordpress media');
+
+            $scanner = new FileInfoScanner($root, autoNormalize: true);
+            $files = $scanner->walk([$dir], hashBlocks: true, blockSize: 8);
+            $names = array_map(static fn (FileInfo $file): string => $file->name, $files);
+
+            $t->same([$dir, $normalizedName], $names);
+            $t->true(!file_exists($decomposedPath));
+            $t->true(file_exists($normalizedPath));
+            $t->same(hash('sha256', 'normaliz'), $files[1]->blocks[0]->hashHex);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
+    'walk reports upstream normalization conflicts without replacing the existing item' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            $decomposedName = $dir . '/Cafe' . "\u{0301}" . '.jpg';
+            $normalizedName = $dir . '/Caf' . "\u{00e9}" . '.jpg';
+            syncthing_scanner_write($root, $decomposedName, 'decomposed wordpress media');
+            syncthing_scanner_write($root, $normalizedName, 'existing normalized media');
+
+            $scanner = new FileInfoScanner($root, autoNormalize: true);
+
+            $t->throws(RuntimeException::class, static fn () => $scanner->walk([$dir]));
+            $t->same('decomposed wordpress media', file_get_contents(syncthing_scanner_path($root, $decomposedName)));
+            $t->same('existing normalized media', file_get_contents(syncthing_scanner_path($root, $normalizedName)));
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
 ];
 
 function syncthing_scanner_root(): string

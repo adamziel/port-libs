@@ -30,6 +30,7 @@ final class FileInfoScanner
         ?BlockList $blockList = null,
         private readonly int $localFlags = 0,
         private readonly int $modTimeWindowNs = 0,
+        private readonly bool $autoNormalize = false,
     ) {
         $realRoot = realpath($rootPath);
         if ($realRoot === false || !is_dir($realRoot)) {
@@ -417,8 +418,19 @@ final class FileInfoScanner
             return;
         }
 
+        $this->assertValidUtf8Name($name);
+
         if (RequestServer::isTemporaryName($name) || RequestServer::isInternalName($name)) {
             return;
+        }
+
+        $normalizedName = $this->normalizedWalkName($name);
+        if ($normalizedName !== $name) {
+            $name = $this->applyNormalization($name, $normalizedName);
+            $path = $this->absolutePath($name);
+            if (!file_exists($path) && !is_link($path)) {
+                return;
+            }
         }
 
         $isDirectory = is_dir($path) && !is_link($path);
@@ -542,6 +554,81 @@ final class FileInfoScanner
 
         sort($entries, SORT_STRING);
         return $entries;
+    }
+
+    private function assertValidUtf8Name(string $name): void
+    {
+        if (preg_match('//u', $name) !== 1) {
+            throw new \RuntimeException('scan: item is not in UTF8 encoding');
+        }
+    }
+
+    private function normalizedWalkName(string $name): string
+    {
+        $normalized = ProtocolValidation::normalizeWireName($name, '/');
+        if ($normalized === $name) {
+            return $name;
+        }
+
+        if (!$this->autoNormalize) {
+            throw new \RuntimeException('normalizing path: item is not in the correct UTF8 normalization form');
+        }
+
+        ProtocolValidation::checkFilename($normalized);
+        return $normalized;
+    }
+
+    private function applyNormalization(string $name, string $normalizedName): string
+    {
+        $oldPath = $this->absolutePath($name);
+        $newPath = $this->absolutePath($normalizedName);
+        if ($oldPath === $newPath) {
+            return $normalizedName;
+        }
+
+        if (file_exists($newPath) || is_link($newPath)) {
+            $oldStat = @lstat($oldPath);
+            $newStat = @lstat($newPath);
+            if (is_array($oldStat) && is_array($newStat) && self::sameFilesystemEntry($oldStat, $newStat)) {
+                $tempPath = self::normalizationTempPath($newPath);
+                if (!@rename($oldPath, $tempPath) || !@rename($tempPath, $newPath)) {
+                    @rename($tempPath, $oldPath);
+                    throw new \RuntimeException('normalizing path: rename failed');
+                }
+
+                return $normalizedName;
+            }
+
+            throw new \RuntimeException('normalizing path: item has UTF8 encoding conflict with another item');
+        }
+
+        if (!@rename($oldPath, $newPath)) {
+            throw new \RuntimeException('normalizing path: rename failed');
+        }
+
+        return $normalizedName;
+    }
+
+    /**
+     * @param array<string, mixed> $left
+     * @param array<string, mixed> $right
+     */
+    private static function sameFilesystemEntry(array $left, array $right): bool
+    {
+        return isset($left['dev'], $left['ino'], $right['dev'], $right['ino'])
+            && (int) $left['dev'] === (int) $right['dev']
+            && (int) $left['ino'] === (int) $right['ino'];
+    }
+
+    private static function normalizationTempPath(string $normalizedPath): string
+    {
+        $base = basename($normalizedPath);
+        $candidate = dirname($normalizedPath) . DIRECTORY_SEPARATOR . $base . '.tmp';
+        if (!file_exists($candidate) && !is_link($candidate)) {
+            return $candidate;
+        }
+
+        return dirname($normalizedPath) . DIRECTORY_SEPARATOR . hash('sha256', $base) . '.tmp';
     }
 
     private static function normalizeWalkSub(string $sub): string

@@ -965,6 +965,15 @@ unchanged symlink targets are skipped instead of re-emitted. The WordPress
 example `wordpress-scanner-ignoreperms-window.php` shows a shared-hosting media
 file where chmod noise and FAT-style timestamp truncation do not create a
 spurious sync item, while strict scanning still detects both changes.
+The scanner normalization slice now maps upstream `normalizePath`,
+`applyNormalization`, `errUTF8Normalization`, `errUTF8Conflict`, and
+`TestNormalization`: native walking validates UTF-8 path names, reports
+non-NFC names when auto-normalization is disabled, renames decomposed UTF-8
+WordPress media paths to NFC before emitting `FileInfo` when enabled, and
+refuses to replace an existing normalized sibling. The WordPress example
+`wordpress-scanner-normalization.php` shows a decomposed upload filename from a
+Mac-style export being rejected by strict scanning, then normalized on disk and
+hashed under the NFC Syncthing wire name.
 
 ## Test Run Notes
 
@@ -1022,12 +1031,16 @@ Focused upstream scanner unchanged-file evidence was refreshed with
 `go test ./lib/scanner -run '^TestWalkReceiveOnly$' -count=1`, which passed in
 the same hydrated worktree with
 `ok github.com/syncthing/syncthing/lib/scanner 0.007s`.
-Focused upstream evidence for this batch was refreshed with
+Focused upstream evidence for the previous scanner equivalence batch was refreshed with
 `go test ./lib/model -run '^TestModTimeWindow$' -count=1`, which passed in
 `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
 `ok github.com/syncthing/syncthing/lib/model 0.028s`, and
 `go test ./lib/scanner -run '^TestWalkSymlinkUnix$' -count=1`, which passed in
 the same worktree with `ok github.com/syncthing/syncthing/lib/scanner 0.016s`.
+Focused upstream evidence for this normalization batch was refreshed with
+`go test ./lib/scanner -run '^TestNormalization$' -count=1`, which passed in
+`.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
+`ok github.com/syncthing/syncthing/lib/scanner 0.024s`.
 
 Before root PHP harnesses, this worker ran the required
 `pgrep -af '^php tools/run-tests\.php( |$)'` check before starting any root
@@ -1043,9 +1056,21 @@ For this batch, the required pre-root
 `pgrep -af '^php tools/run-tests\.php( |$)'` check again returned no active
 root harness, and `php tools/run-tests.php` passed 193 test files, 20939
 assertions, and 0 failures.
+For the scanner normalization batch, the focused upstream
+`go test ./lib/scanner -run '^TestNormalization$' -count=1` passed with
+`ok github.com/syncthing/syncthing/lib/scanner 0.024s`. The focused lane test
+`php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php` passed
+1 file, 87 assertions, and 0 failures; the full lane run
+`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2089
+assertions, and 0 failures; and
+`php lanes/syncthing/examples/wordpress-scanner-normalization.php` ran
+successfully, reporting the strict normalization error, `decomposedPathExists=false`,
+and `normalizedPathExists=true`. The required pre-root
+`pgrep -af '^php tools/run-tests\.php( |$)'` check returned no active root
+harness, so this worker ran `php tools/run-tests.php`; it passed 193 test
+files, 21102 assertions, and 0 failures.
 
 ## Next Task
 
-Map upstream scanner normalization/error reporting, scan progress event
-boundaries, or platform-specific permission equivalence beyond the current
-POSIX-style slice.
+Map upstream scanner scan progress event boundaries or platform-specific
+permission equivalence beyond the current POSIX-style slice.
