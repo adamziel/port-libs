@@ -39,6 +39,11 @@ final class PullDbUpdater
      */
     private array $receivedFiles = [];
 
+    /**
+     * @var list<array{folder:string, folderID:string, label:string, action:string, type:string, path:string, modifiedBy:string}>
+     */
+    private array $remoteChangeEvents = [];
+
     private int $changed = 0;
 
     private bool $foundReceivedFile = false;
@@ -51,17 +56,22 @@ final class PullDbUpdater
      * @param callable(list<FileInfo>): (\Throwable|null)|null $updateLocalsFromPulling
      * @param callable(string): (\Throwable|null)|null $syncDirectory
      * @param callable(string, bool): void|null $receivedFile
+     * @param callable(array{folder:string, folderID:string, label:string, action:string, type:string, path:string, modifiedBy:string}): void|null $remoteChangeDetected
      */
     public function __construct(
         private readonly bool $disableFsync = false,
         private readonly mixed $updateLocalsFromPulling = null,
         private readonly mixed $syncDirectory = null,
         private readonly mixed $receivedFile = null,
+        private readonly mixed $remoteChangeDetected = null,
+        private readonly string $folderId = '',
+        private readonly string $folderLabel = '',
     ) {
         foreach ([
             'updateLocalsFromPulling' => $this->updateLocalsFromPulling,
             'syncDirectory' => $this->syncDirectory,
             'receivedFile' => $this->receivedFile,
+            'remoteChangeDetected' => $this->remoteChangeDetected,
         ] as $name => $callback) {
             if ($callback !== null && !is_callable($callback)) {
                 throw new \InvalidArgumentException($name . ' must be callable or null');
@@ -137,6 +147,14 @@ final class PullDbUpdater
     }
 
     /**
+     * @return list<array{folder:string, folderID:string, label:string, action:string, type:string, path:string, modifiedBy:string}>
+     */
+    public function remoteChangeEvents(): array
+    {
+        return $this->remoteChangeEvents;
+    }
+
+    /**
      * @param list<FileInfo> $files
      */
     private function flushBatch(array $files): ?\Throwable
@@ -179,6 +197,8 @@ final class PullDbUpdater
             }
         }
 
+        $this->emitRemoteChangeEvents($files);
+
         if ($this->foundReceivedFile && $this->lastReceivedFile !== null) {
             $event = [
                 'name' => $this->lastReceivedFile->name,
@@ -193,6 +213,44 @@ final class PullDbUpdater
         }
 
         return null;
+    }
+
+    /**
+     * @param list<FileInfo> $files
+     */
+    private function emitRemoteChangeEvents(array $files): void
+    {
+        foreach ($files as $file) {
+            if ($file->isInvalid()) {
+                continue;
+            }
+
+            $event = [
+                'folder' => $this->folderId,
+                'folderID' => $this->folderId,
+                'label' => $this->folderLabel,
+                'action' => $file->isDeleted() ? 'deleted' : 'modified',
+                'type' => $this->remoteChangeType($file),
+                'path' => str_replace('/', DIRECTORY_SEPARATOR, $file->name),
+                'modifiedBy' => (string) $file->modifiedBy,
+            ];
+            $this->remoteChangeEvents[] = $event;
+            if ($this->remoteChangeDetected !== null) {
+                ($this->remoteChangeDetected)($event);
+            }
+        }
+    }
+
+    private function remoteChangeType(FileInfo $file): string
+    {
+        if ($file->isSymlink()) {
+            return 'symlink';
+        }
+        if ($file->isDirectory()) {
+            return 'dir';
+        }
+
+        return 'file';
     }
 
     private function trackChangedDirectory(FileInfo $file, string $jobType): void

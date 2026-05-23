@@ -57,6 +57,89 @@ return [
             ['name' => 'wp-content/uploads/2026/old.jpg', 'deleted' => true],
         ], $updater->receivedFiles());
     },
+    'updateLocalsFromPulling emits remote change events after local batch update' => static function (TestRunner $t): void {
+        $order = [];
+        $remoteChanges = [];
+
+        $updater = new PullDbUpdater(
+            updateLocalsFromPulling: static function (array $files) use (&$order): ?Throwable {
+                $order[] = 'update:' . implode(',', array_map(static fn (FileInfo $file): string => $file->name, $files));
+
+                return null;
+            },
+            syncDirectory: static function (string $dir) use (&$order): ?Throwable {
+                $order[] = 'fsync:' . $dir;
+
+                return null;
+            },
+            receivedFile: static function (string $name, bool $deleted) use (&$order): void {
+                $order[] = 'received:' . $name . ':' . ($deleted ? 'deleted' : 'modified');
+            },
+            remoteChangeDetected: static function (array $event) use (&$order, &$remoteChanges): void {
+                $remoteChanges[] = $event;
+                $order[] = 'remote:' . $event['action'] . ':' . $event['type'] . ':' . $event['path'];
+            },
+            folderId: 'wordpress-media',
+            folderLabel: 'WordPress Media',
+        );
+
+        $updater->append(syncthing_pull_db_file('wp-content/uploads/2026/hero.jpg', sequence: 91), PullDbUpdater::DB_UPDATE_HANDLE_FILE);
+        $updater->append(syncthing_pull_db_file('wp-content/uploads/2026/old.jpg', sequence: 92, deleted: true), PullDbUpdater::DB_UPDATE_DELETE_FILE);
+        $updater->append(syncthing_pull_db_file('wp-content/uploads/2026/gallery', sequence: 93, type: FileInfo::TYPE_DIRECTORY), PullDbUpdater::DB_UPDATE_HANDLE_DIR);
+        $updater->append(syncthing_pull_db_file('wp-content/uploads/current', sequence: 94, type: FileInfo::TYPE_SYMLINK), PullDbUpdater::DB_UPDATE_HANDLE_SYMLINK);
+        $updater->append(syncthing_pull_db_file('wp-content/uploads/private.jpg', sequence: 95, flags: FileInfo::FLAG_LOCAL_IGNORED), PullDbUpdater::DB_UPDATE_INVALIDATE);
+
+        $t->same(5, $updater->close());
+        $t->same([
+            'fsync:wp-content/uploads/2026',
+            'fsync:wp-content/uploads/2026/gallery',
+            'update:wp-content/uploads/2026/hero.jpg,wp-content/uploads/2026/old.jpg,wp-content/uploads/2026/gallery,wp-content/uploads/current,wp-content/uploads/private.jpg',
+            'remote:modified:file:' . str_replace('/', DIRECTORY_SEPARATOR, 'wp-content/uploads/2026/hero.jpg'),
+            'remote:deleted:file:' . str_replace('/', DIRECTORY_SEPARATOR, 'wp-content/uploads/2026/old.jpg'),
+            'remote:modified:dir:' . str_replace('/', DIRECTORY_SEPARATOR, 'wp-content/uploads/2026/gallery'),
+            'remote:modified:symlink:' . str_replace('/', DIRECTORY_SEPARATOR, 'wp-content/uploads/current'),
+            'received:wp-content/uploads/2026/old.jpg:deleted',
+        ], $order);
+        $t->same($remoteChanges, $updater->remoteChangeEvents());
+        $t->same([
+            [
+                'folder' => 'wordpress-media',
+                'folderID' => 'wordpress-media',
+                'label' => 'WordPress Media',
+                'action' => 'modified',
+                'type' => 'file',
+                'path' => str_replace('/', DIRECTORY_SEPARATOR, 'wp-content/uploads/2026/hero.jpg'),
+                'modifiedBy' => '202',
+            ],
+            [
+                'folder' => 'wordpress-media',
+                'folderID' => 'wordpress-media',
+                'label' => 'WordPress Media',
+                'action' => 'deleted',
+                'type' => 'file',
+                'path' => str_replace('/', DIRECTORY_SEPARATOR, 'wp-content/uploads/2026/old.jpg'),
+                'modifiedBy' => '202',
+            ],
+            [
+                'folder' => 'wordpress-media',
+                'folderID' => 'wordpress-media',
+                'label' => 'WordPress Media',
+                'action' => 'modified',
+                'type' => 'dir',
+                'path' => str_replace('/', DIRECTORY_SEPARATOR, 'wp-content/uploads/2026/gallery'),
+                'modifiedBy' => '202',
+            ],
+            [
+                'folder' => 'wordpress-media',
+                'folderID' => 'wordpress-media',
+                'label' => 'WordPress Media',
+                'action' => 'modified',
+                'type' => 'symlink',
+                'path' => str_replace('/', DIRECTORY_SEPARATOR, 'wp-content/uploads/current'),
+                'modifiedBy' => '202',
+            ],
+        ], $remoteChanges);
+    },
     'dbUpdaterRoutine flushes at upstream file count limit and emits one received file per batch' => static function (TestRunner $t): void {
         $updater = new PullDbUpdater(disableFsync: true);
 

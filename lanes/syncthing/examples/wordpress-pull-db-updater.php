@@ -33,6 +33,7 @@ try {
     $fsyncs = [];
     $updated = [];
     $received = [];
+    $remoteChanges = [];
     $updater = new PullDbUpdater(
         updateLocalsFromPulling: static function (array $files) use ($state, &$updated): ?Throwable {
             $state->update('local', $files);
@@ -48,6 +49,15 @@ try {
         receivedFile: static function (string $name, bool $deleted) use (&$received): void {
             $received[] = ['name' => $name, 'deleted' => $deleted];
         },
+        remoteChangeDetected: static function (array $event) use (&$remoteChanges): void {
+            $remoteChanges[] = [
+                'action' => $event['action'],
+                'type' => $event['type'],
+                'path' => $event['path'],
+            ];
+        },
+        folderId: 'wordpress-media',
+        folderLabel: 'WordPress Media',
     );
 
     $assembler = new PullTemporaryFile($remote, $root);
@@ -64,6 +74,7 @@ try {
         'changedJobs' => $changed,
         'updateLocalsBatches' => $updated,
         'fsyncedDirectories' => $fsyncs,
+        'remoteChangeDetected' => $remoteChanges,
         'receivedFiles' => $received,
         'localIndexSequenceReset' => $state->deviceFile('local', $remote->name)?->sequence === 0,
         'finalSha256' => hash_file('sha256', $assembler->finalPath()),

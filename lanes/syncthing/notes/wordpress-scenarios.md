@@ -695,16 +695,41 @@ around `performFinish`: pulled `FileInfo` updates are batched with the same
 candidates for handle-file, shortcut-file, and handle-directory jobs,
 sequences are reset to zero before local database update callbacks, timed ticks
 flush partial batches, invalid and metadata-only updates do not emit received
-file markers, and each flushed batch emits only the last received file/delete
-candidate like upstream. This is a static targeted mapping from
+file markers, successful batch updates emit RemoteChangeDetected-style events
+for non-invalid files, and each flushed batch emits only the last received
+file/delete candidate like upstream. This is a static targeted mapping from
 `lib/model/folder_sendrecv.go` `dbUpdaterRoutine`, `lib/model/fileinfobatch.go`,
-and `lib/model/folder.go` `updateLocalsFromPulling`, not additional upstream
-runner parity. `wordpress-pull-db-updater.php` shows a finalized Playground
-media pull being committed into a local WordPress index, with the media parent
-directory fsync boundary and ReceivedFile-style marker recorded.
+and `lib/model/folder.go` `updateLocalsFromPulling`/`emitDiskChangeEvents`,
+not additional upstream runner parity. `wordpress-pull-db-updater.php` shows a
+finalized Playground media pull being committed into a local WordPress index,
+with the media parent directory fsync boundary, RemoteChangeDetected-style
+payload, and ReceivedFile-style marker recorded.
+The finisher lifecycle slice now maps upstream `finisherRoutine` around
+`sharedPullerState.finalClose`: not-ready puller states leave queue/progress
+state untouched, the first closed state completes the pull queue job, successful
+finalization hands `dbUpdateHandleFile` to the DB updater and records
+upstream-shaped block stats, failed final close records a `finishing:` temp pull
+error, normal folders deregister progress-emitter state, receive-encrypted
+folders skip that deregistration branch, and one ItemFinished-style event is
+emitted for each handled state. This is backed by static targeted reads of
+`lib/model/folder_sendrecv.go`, `lib/model/sharedpullerstate.go`, and
+`lib/model/progressemitter.go`, plus a focused upstream pass:
+`go test ./lib/model -run 'TestDeregisterOnFailInCopy|TestDeregisterOnFailInPull' -count=1`.
+`wordpress-pull-finisher.php` shows a finalized Playground media pull completing
+the queue, deregistering progress, emitting the event payload, recording block
+stats, and handing off the database update.
+The folder-error slice now maps upstream `sendReceiveFolder.pull`,
+`pullerIteration`, `newPullError`, and `folder.Errors`: each pull clears
+persistent pull errors, each puller iteration resets `tempPullErrors`, duplicate
+errors for one path keep the first `syncing:` message, context cancellation is
+ignored, only the final iteration's temporary errors are promoted into
+persistent `pullErrors`, `FolderErrors` events include scan and pull errors
+sorted by path, and a pull is in sync only when no items changed and no pull
+errors were promoted. `wordpress-folder-errors.php` shows a failed Playground
+media pull surfacing as a persistent WordPress media folder error while keeping
+the temporary file for retry.
 
 ## Next Task
 
-Target `finisherRoutine` item lifecycle boundaries: `ItemFinished` events,
-progress-emitter deregistration, queue completion, and temp pull error
-recording after successful and failed final close paths.
+Target pullScannerRoutine scan aggregation and deferred post-pull scan
+scheduling for files and directories queued during finalization/deletion.
