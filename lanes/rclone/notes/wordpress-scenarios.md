@@ -8,6 +8,8 @@ Native in-memory provider contract with advertised hash sets and no-hash provide
 
 The chunksize slice adds native upload chunk-size selection for providers with a maximum multipart part count, including unknown-size streaming fallback, MiB rounding, boundary cases, and deterministic fixed part-range planning for known-size WordPress migration archives.
 
+The sequential chunkedreader slice adds native restore-side range reading for WXR artifacts: a reader opens provider ranges lazily, grows sequential chunks up to a cap, honors one-shot custom `RangeSeek` lengths, and surfaces closed/invalid seek errors like upstream rclone.
+
 ## Filtered Backup Example
 
 The fixture in `../fixtures/wordpress-backup-tree.php` models a small WordPress backup set with uploads, cache files, logs, WXR export data, and a SQL dump. The example in `../examples/wordpress-filtered-backup.php` includes uploads plus export/database artifacts while excluding cache, debug logs, and heavyweight design source files before planning changed paths. The current copy-changed test then copies only the included missing/changed artifacts and verifies the next filtered sync is empty.
@@ -108,6 +110,8 @@ The `../examples/wordpress-settier-archive.php` example maps fstest/operations S
 
 The `../examples/wordpress-chunked-archive-upload.php` example maps upstream `fs/chunksize.Calculator` behavior for a large consolidated WordPress migration archive. It raises a 5 MiB default chunk size to 12 MiB so a 120,864,818,840-byte WXR/SQL/uploads archive stays inside a 10,000-part provider limit, while unknown-size streaming uploads retain the configured default chunk size.
 
+The `../examples/wordpress-chunked-wxr-restore.php` example maps upstream sequential `fs/chunkedreader` behavior for WXR restores. It reads an initial header chunk, continues through a grown chunk range, then lazily seeks to the closing `</rss>` range without reopening the provider until bytes are requested.
+
 ## Next Task
 
-Continue into `fs/chunkedreader` sequential `RangeSeek`/chunk-growth behavior using the same in-memory provider, or validate provider-ID duplicate-directory merge against live-provider fixture evidence.
+Continue into `fs/chunkedreader` parallel prefetch/seek behavior, or validate provider-ID duplicate-directory merge against live-provider fixture evidence.
