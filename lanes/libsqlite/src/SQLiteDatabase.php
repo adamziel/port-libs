@@ -3207,6 +3207,31 @@ final class SQLiteDatabase
     }
 
     /**
+     * @param non-empty-array<string, mixed> $equalityPrefix
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameRangeWithPrefix(
+        array $equalityPrefix,
+        ?string $lowerInclusive,
+        ?string $upperBound,
+        ?int $limit = null,
+        bool $upperInclusive = false,
+    ): array {
+        if ($equalityPrefix === []) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed name range lookup requires at least one equality column');
+        }
+
+        return $this->wordpressOptionsByIndexedColumnPrefixRange(
+            $equalityPrefix,
+            'option_name',
+            $lowerInclusive,
+            $upperBound,
+            $limit,
+            $upperInclusive,
+        );
+    }
+
+    /**
      * @return list<SQLiteWordPressOption>
      */
     public function wordpressOptionsByIndexedNameRange(

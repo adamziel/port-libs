@@ -213,6 +213,11 @@ The composite range path now also prunes unrelated b-tree branches before
 reading their pages, so a recovery/import tool can still inspect a narrow
 autoload/name range when an out-of-range index branch is damaged or expensive
 to hydrate.
+Multi-column equality prefixes are now available through
+`wordpressOptionsByIndexedNameRangeWithPrefix()`. A recovery tool can target
+indexes shaped like `wp_options(autoload, option_value, option_name)`, for
+example `autoload='no' AND option_value='cached-feed'` plus a transient
+`option_name` range, and still avoid unrelated or damaged branches.
 
 First-column `IN (...)` option-name lookups now read multiple requested
 options through an `option_name` index, suppress duplicate RHS names the way
@@ -311,6 +316,13 @@ WordPress-oriented SQLite database file, resolves a composite
 value whose names fall between caller-supplied bounds. By default it targets
 non-autoloaded `_transient_` rows, which maps transient cleanup and recovery
 tools that need SQLite index semantics without the PHP SQLite extension.
+
+`examples/wordpress-prefixed-option-name-range.php` reads a WordPress-oriented
+SQLite database file, accepts a JSON equality-prefix object such as
+`{"autoload":"no","option_value":"cached-feed"}`, resolves a composite index
+whose next column is `option_name`, and returns options in the requested name
+range. This maps recovery of a narrow subset of transient/cache rows from
+large or partially damaged option databases.
 
 `examples/wordpress-lowercase-option-lookup.php` reads a WordPress-oriented
 SQLite database file, resolves a first-term
@@ -530,4 +542,4 @@ named `json_extract(column,path)`, `column ->> path`, and `column -> path`
 JSON scalar/fragment buckets; broader JSON path/value semantics such as JSON
 mutation at `[#]`, broader JSONB output/edit behavior beyond the current
 value encoder, and full JSON5 numeric/string edge parity; custom collations;
-and composite-key ranges beyond one equality prefix plus one range column.
+and composite planner shapes outside equality-prefix plus one range column.

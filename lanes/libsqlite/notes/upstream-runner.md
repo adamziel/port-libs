@@ -531,8 +531,8 @@ result limit, returns an empty list for missing first-column values, and also
 uses a safe `WHERE autoload IS NOT NULL` partial index for non-null autoload
 point scans. Remaining index work includes optimized range seeks instead of
 full index traversal, expression indexes beyond `lower(column)`, custom
-collations, and composite ranges beyond one equality prefix plus one range
-column.
+collations, and composite planner shapes outside equality-prefix plus one
+range column.
 
 ## Focused Native Mapping: Composite Index Prefix Constraints
 
@@ -571,8 +571,8 @@ second-column `COLLATE NOCASE` metadata, accepting an implied
 `WHERE autoload IS NOT NULL` partial predicate, and fetching one
 WordPress option through `wp_options(autoload, option_name)` without scanning
 the whole `wp_options` table. Remaining index work includes b-tree seek bounds
-for composite prefixes, composite ranges beyond one equality prefix plus one
-range column, expression indexes beyond `lower(column)`, and custom collations.
+for broader composite prefixes, expression indexes beyond `lower(column)`, and
+custom collations.
 
 ## Focused Native Mapping: First-Column Range Constraints
 
@@ -607,9 +607,8 @@ The native PHP tests now cover a WordPress-shaped transient recovery range
 empty ranges, rowid resolution back through the table b-tree, and safe use of a
 partial `WHERE option_name IS NOT NULL` index for non-null range bounds.
 Remaining range work includes true b-tree lower/upper seek bounds instead of
-full native index traversal, composite ranges beyond one equality prefix plus
-one range column, expression indexes beyond `lower(column)`, and custom
-collations.
+full native index traversal for broader planner shapes, expression indexes
+beyond `lower(column)`, and custom collations.
 
 ## Focused Native Mapping: Open-Ended And Inclusive Range Variants
 
@@ -644,9 +643,8 @@ lower-only ranges, result limits, explicit range-root lookup, safe use of
 the predicate, rejection of unconstrained partial ranges, and descending
 `wp_options(option_name DESC)` index traversal for inclusive bounded scans.
 Remaining range work includes true b-tree lower/upper seek bounds instead of
-full native index traversal, composite ranges beyond one equality prefix plus
-one range column, expression indexes beyond `lower(column)`, and custom
-collations.
+full native index traversal for broader planner shapes, expression indexes
+beyond `lower(column)`, and custom collations.
 
 ## Focused Native Mapping: Comparison And BETWEEN Partial Predicates
 
@@ -689,17 +687,18 @@ predicates, using a WordPress-shaped
 partial index for transient point and range recovery, rejecting the same index
 for out-of-range option names, and using an inclusive `BETWEEN` partial index
 for bounded transient scans. Remaining work includes optimized b-tree seek
-bounds, expression indexes beyond `lower(column)`, custom collations, and
-composite ranges beyond one equality prefix plus one range column.
+bounds for broader planner shapes, expression indexes beyond `lower(column)`,
+and custom collations.
 
 ## Focused Native Mapping: Composite Equality-Prefix Range Constraints
 
-SQLite can use a composite index when the left-most indexed column is
-constrained by equality and the next indexed column has range bounds. This
-slice maps the read-side WordPress shape
-`wp_options(autoload, option_name)`: constrain `autoload` first, then scan
-bounded `option_name` keys for transient-style recovery queries without
-decoding the whole options table.
+SQLite can use a composite index when the left-most indexed column or columns
+are constrained by equality and the next indexed column has range bounds. This
+slice maps the read-side WordPress shapes
+`wp_options(autoload, option_name)` and
+`wp_options(autoload, option_value, option_name)`: constrain the equality
+prefix first, then scan bounded `option_name` keys for transient-style recovery
+queries without decoding the whole options table.
 
 Focused upstream runner:
 
@@ -709,7 +708,8 @@ cd .upstream-cache/libsqlite-build-port-libsqlite
   where.test whereH.test
 ```
 
-Result: 2 Tcl script/permutation runs, 0 errors out of 335 tests in 00:00.
+Result rerun on 2026-05-23 for this multi-equality-prefix slice: 2 Tcl
+script/permutation runs, 0 errors out of 335 tests in 00:00.
 
 Focused upstream fixture boundary:
 
@@ -719,20 +719,21 @@ Focused upstream fixture boundary:
 - `test/whereH.test` covers longer equality prefixes before a range term, such
   as `a=? AND b=? AND c>=?` against a three-column index.
 
-The native PHP tests now cover a WordPress-shaped
-`wp_options(autoload, option_name)` index for non-autoloaded transient range
-recovery, range limits, inclusive and empty same-bound ranges, safe rejection
-when no range bound is provided, and a partial
+The native PHP tests now cover WordPress-shaped
+`wp_options(autoload, option_name)` and
+`wp_options(autoload, option_value, option_name)` indexes for non-autoloaded
+transient range recovery, range limits, inclusive and empty same-bound ranges,
+safe rejection when no range bound is provided, and a partial
 `autoload='no' AND option_name IS NOT NULL` composite index with `NOCASE DESC`
 second-column metadata. This run adds bounded composite b-tree traversal:
 subtrees whose separator-key intervals cannot contain the requested
-`autoload` equality plus `option_name` range are skipped before their pages are
-decoded. A WordPress-shaped fixture keeps the matching transient rows in one
-index branch and makes the unrelated branch invalid, proving the native reader
-does not need healthy out-of-range index pages for constrained recovery.
-Remaining work includes expression indexes beyond `lower(column)`, custom
-collations, expression `IN (...)` lookups, and composite ranges beyond one
-equality prefix plus one range column.
+equality prefix plus `option_name` range are skipped before their pages are
+decoded. WordPress-shaped fixtures keep matching transient rows in one index
+branch and make unrelated branches invalid, proving the native reader does not
+need healthy out-of-range index pages for constrained recovery even with two
+equality columns. Remaining work includes expression indexes beyond the named
+families, custom collations, expression `IN (...)` lookups, and composite range
+planner shapes outside equality-prefix plus one range column.
 
 ## Focused Native Mapping: Equality Partial Predicates
 

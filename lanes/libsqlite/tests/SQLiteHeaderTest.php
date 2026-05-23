@@ -2446,6 +2446,34 @@ return [
         $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
         $t->same(['cached-feed', '1700000000'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
     },
+    'uses multi-column equality prefix and option_name range to scan wordpress options' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage, $indexInteriorPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 4, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_autoload_value_name', 'wp_options', 2, 'CREATE INDEX wp_options_autoload_value_name ON wp_options(autoload, option_value, option_name)'], 2),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $indexInteriorPage([[3, ['no', 'zzzz-out-of-range', 'later_name', 99]]], 5);
+        $page3 = $indexLeafPage([
+            $indexCell(['no', 'cached-feed', '_transient_feed', 1]),
+            $indexCell(['no', 'cached-feed', '_transient_timeout_feed', 2]),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, '_transient_feed', 'cached-feed', 'no'], 1),
+            $schemaCell([null, '_transient_timeout_feed', 'cached-feed', 'no'], 2),
+        ]);
+        $page5 = str_repeat("\0", 512);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $prefix = [
+            'autoload' => 'no',
+            'option_value' => 'cached-feed',
+        ];
+        $transients = $database->wordpressOptionsByIndexedNameRangeWithPrefix($prefix, '_transient_', '_transient`');
+
+        $t->same(2, $database->indexRootPageForPrefixRangeLookup('wp_options', $prefix, 'option_name', '_transient_', '_transient`'));
+        $t->same(['_transient_feed', '_transient_timeout_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $transients));
+        $t->same(['cached-feed', 'cached-feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $transients));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefix([], '_transient_', '_transient`'));
+    },
     'uses partial composite autoload and option_name range indexes when predicates are implied' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
