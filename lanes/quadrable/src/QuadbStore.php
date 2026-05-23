@@ -222,13 +222,17 @@ final class QuadbStore
         $nextLeafNodeId = self::nextLmdbLeafNodeId($leaves);
         $nextInteriorNodeId = self::nextLmdbInteriorNodeId($branches);
         $partialProjectionRoots = [];
+        $partialEventProjectionCache = [];
+        $projectedNodes = [];
         $projectPartialState = function (array $state) use (
             &$leaves,
             &$leafKeys,
             &$branches,
             &$nextLeafNodeId,
             &$nextInteriorNodeId,
-            &$partialProjectionRoots
+            &$partialProjectionRoots,
+            &$partialEventProjectionCache,
+            &$projectedNodes
         ): int {
             $stateKey = hash(
                 'sha256',
@@ -238,7 +242,6 @@ final class QuadbStore
                 return $partialProjectionRoots[$stateKey];
             }
 
-            $projectedNodes = [];
             $partialProjectionRoots[$stateKey] = $this->projectPartialStateLmdbNodes(
                 $state,
                 $leaves,
@@ -246,7 +249,8 @@ final class QuadbStore
                 $branches,
                 $nextLeafNodeId,
                 $nextInteriorNodeId,
-                $projectedNodes
+                $projectedNodes,
+                $partialEventProjectionCache
             );
 
             return $partialProjectionRoots[$stateKey];
@@ -1435,6 +1439,7 @@ final class QuadbStore
      * @param array<int, string> $leafKeys
      * @param array<int, string> $branches
      * @param array<int, array<string, mixed>> $projectedNodes
+     * @param array<string, array{root: int, map: array<int, int>}> $eventProjectionCache
      */
     private function projectPartialStateLmdbNodes(
         array $state,
@@ -1443,7 +1448,8 @@ final class QuadbStore
         array &$branches,
         int &$nextLeafNodeId,
         int &$nextInteriorNodeId,
-        array &$projectedNodes
+        array &$projectedNodes,
+        array &$eventProjectionCache
     ): int {
         if (($state['proofStoragePruned'] ?? false) === true) {
             return $this->projectPartialTreeLmdbNodes(
@@ -1459,24 +1465,41 @@ final class QuadbStore
 
         $current = null;
         $currentProjectedRoot = null;
+        $currentProjectionMap = [];
 
-        foreach ($state['events'] as $event) {
+        foreach ($state['events'] as $eventIndex => $event) {
+            $prefixKey = self::partialEventProjectionKey($state, $eventIndex + 1);
+
             if ($event['type'] === 'proof') {
                 $proof = Proof::decode((string) hex2bin($event['proof']));
                 $imported = SparseTree::importProof($proof, $event['rootHash']);
-                $importedProjectedRoot = $this->projectPartialTreeLmdbNodes(
-                    $imported,
-                    $leaves,
-                    $leafKeys,
-                    $branches,
-                    $nextLeafNodeId,
-                    $nextInteriorNodeId,
-                    $projectedNodes
-                );
 
                 if ($current === null) {
                     $current = $imported;
-                    $currentProjectedRoot = $importedProjectedRoot;
+                    if (isset($eventProjectionCache[$prefixKey])) {
+                        $currentProjectedRoot = $eventProjectionCache[$prefixKey]['root'];
+                        $currentProjectionMap = $eventProjectionCache[$prefixKey]['map'];
+
+                        continue;
+                    }
+
+                    $currentProjectionMap = [];
+                    $currentProjectedRoot = $this->projectPartialTreeLmdbNodes(
+                        $imported,
+                        $leaves,
+                        $leafKeys,
+                        $branches,
+                        $nextLeafNodeId,
+                        $nextInteriorNodeId,
+                        $projectedNodes,
+                        [],
+                        $currentProjectionMap
+                    );
+                    $eventProjectionCache[$prefixKey] = [
+                        'root' => $currentProjectedRoot,
+                        'map' => $currentProjectionMap,
+                    ];
+
                     continue;
                 }
 
@@ -1485,6 +1508,25 @@ final class QuadbStore
                 }
 
                 $current->mergeProof($proof);
+                if (isset($eventProjectionCache[$prefixKey])) {
+                    $currentProjectedRoot = $eventProjectionCache[$prefixKey]['root'];
+                    $currentProjectionMap = $eventProjectionCache[$prefixKey]['map'];
+
+                    continue;
+                }
+
+                $importedProjectionMap = [];
+                $importedProjectedRoot = $this->projectPartialTreeLmdbNodes(
+                    $imported,
+                    $leaves,
+                    $leafKeys,
+                    $branches,
+                    $nextLeafNodeId,
+                    $nextInteriorNodeId,
+                    $projectedNodes,
+                    [],
+                    $importedProjectionMap
+                );
                 $currentProjectedRoot = $this->mergeProjectedProofNodes(
                     (int) $currentProjectedRoot,
                     $importedProjectedRoot,
@@ -1492,6 +1534,12 @@ final class QuadbStore
                     $branches,
                     $nextInteriorNodeId
                 );
+                $currentProjectionMap = [];
+                $eventProjectionCache[$prefixKey] = [
+                    'root' => $currentProjectedRoot,
+                    'map' => $currentProjectionMap,
+                ];
+
                 continue;
             }
 
@@ -1510,7 +1558,30 @@ final class QuadbStore
             $current->applyRawUpdates([
                 $event['keyHash'] => $rawUpdate,
             ]);
-            $currentProjectedRoot = null;
+            if (isset($eventProjectionCache[$prefixKey])) {
+                $currentProjectedRoot = $eventProjectionCache[$prefixKey]['root'];
+                $currentProjectionMap = $eventProjectionCache[$prefixKey]['map'];
+
+                continue;
+            }
+
+            $projectionMap = [];
+            $currentProjectedRoot = $this->projectPartialTreeLmdbNodes(
+                $current,
+                $leaves,
+                $leafKeys,
+                $branches,
+                $nextLeafNodeId,
+                $nextInteriorNodeId,
+                $projectedNodes,
+                $currentProjectionMap,
+                $projectionMap
+            );
+            $currentProjectionMap = $projectionMap;
+            $eventProjectionCache[$prefixKey] = [
+                'root' => $currentProjectedRoot,
+                'map' => $currentProjectionMap,
+            ];
         }
 
         if ($current === null) {
@@ -1548,7 +1619,9 @@ final class QuadbStore
         array &$branches,
         int &$nextLeafNodeId,
         int &$nextInteriorNodeId,
-        array &$projectedNodes
+        array &$projectedNodes,
+        array $reuseNodeIds = [],
+        ?array &$nativeNodeIdMap = null
     ): int {
         $partialSnapshot = $partial->partialStorageSnapshot();
         $idMap = [0 => 0];
@@ -1573,6 +1646,19 @@ final class QuadbStore
 
             foreach ($pending as $nativeNodeId => $entry) {
                 $record = $entry['record'];
+
+                if (isset($reuseNodeIds[$nativeNodeId])) {
+                    $mappedNodeId = $reuseNodeIds[$nativeNodeId];
+                    if ($mappedNodeId !== 0 && !isset($projectedNodes[$mappedNodeId])) {
+                        throw new \RuntimeException('partial proof storage projection references an unknown reusable node');
+                    }
+
+                    $idMap[$nativeNodeId] = $mappedNodeId;
+                    unset($pending[$nativeNodeId]);
+                    $progress = true;
+
+                    continue;
+                }
 
                 if ($entry['kind'] === 'leaf') {
                     $mappedNodeId = $nextLeafNodeId++;
@@ -1629,6 +1715,7 @@ final class QuadbStore
         ksort($branches, SORT_NUMERIC);
 
         $rootNodeId = (int) $partialSnapshot['rootNodeId'];
+        $nativeNodeIdMap = $idMap;
 
         return $idMap[$rootNodeId] ?? 0;
     }
@@ -1751,6 +1838,7 @@ final class QuadbStore
         $nextLeafNodeId = 1;
         $nextInteriorNodeId = TrackedNodeStore::FIRST_INTERIOR_NODE_ID;
         $partialProjectionRoots = [];
+        $partialEventProjectionCache = [];
         $markedRoots = [];
 
         $projectState = function (array $state) use (
@@ -1760,7 +1848,8 @@ final class QuadbStore
             &$projectedNodes,
             &$nextLeafNodeId,
             &$nextInteriorNodeId,
-            &$partialProjectionRoots
+            &$partialProjectionRoots,
+            &$partialEventProjectionCache
         ): int {
             $stateKey = hash(
                 'sha256',
@@ -1777,7 +1866,8 @@ final class QuadbStore
                 $branches,
                 $nextLeafNodeId,
                 $nextInteriorNodeId,
-                $projectedNodes
+                $projectedNodes,
+                $partialEventProjectionCache
             );
 
             return $partialProjectionRoots[$stateKey];
@@ -2224,6 +2314,22 @@ final class QuadbStore
     {
         return 'proof-' . $storageOrdinal . '-'
             . substr(hash('sha256', ($head ?? '[detached]') . "\0" . $storageOrdinal . "\0" . $encodedProof), 0, 24);
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function partialEventProjectionKey(array $state, int $eventCount): string
+    {
+        return (string) $state['storageId']
+            . ':' . $eventCount
+            . ':' . hash(
+                'sha256',
+                json_encode(
+                    array_slice($state['events'], 0, $eventCount),
+                    JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+                )
+            );
     }
 
     /**

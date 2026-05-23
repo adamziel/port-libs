@@ -611,9 +611,11 @@ receive-encrypted temporary files append the FileInfo trailer before promotion,
 successful close renames the temp file into place and emits the
 `dbUpdateHandleFile` update type, conflicting existing regular files are moved
 to `.sync-conflict-YYYYMMDD-HHMMSS-device` siblings before the pulled file is
-published, descendant versions replace without conflict copies, second close
-attempts are no-ops, and failed pulls close while leaving the temporary file
-for a later retry. This is a
+published, tracked existing directories and symlinks are deleted before a
+pulled regular file is promoted, `MaxConflicts` keeps only the newest conflict
+copies after `moveForConflict`, descendant versions replace without conflict
+copies, second close attempts are no-ops, and failed pulls close while leaving
+the temporary file for a later retry. This is a
 static targeted mapping from upstream `sharedpullerstate.go`,
 `sharedpullerstate_test.go`, `folder_sendrecv.go`, and
 `lib/protocol/bep_fileinfo.go`, not a new full upstream runner. The WordPress
@@ -625,6 +627,9 @@ temporarily restoring owner write access, and finalizing back to restricted
 WordPress permissions. `wordpress-pull-conflict-replacement.php` shows a
 concurrent local WordPress media crop retained as a `.sync-conflict` sibling
 before a Playground peer's version is promoted.
+`wordpress-pull-directory-replacement.php` shows a stale generated media
+directory being removed before a Playground archive file is promoted without a
+conflict copy.
 The receive-encrypted variant
 `wordpress-pull-receive-encrypted-finalize.php` shows the trailer appended
 during native temporary-file promotion, with local finalized size and remote
@@ -633,6 +638,6 @@ index size reported separately.
 ## Next Task
 
 Broaden upstream `folder_sendrecv` behavior around unavailable peers,
-versioner/archive replacement during `performFinish`, directory/case-conflict
-replacement, conflict-retention pruning, and database update side effects after
-the native final file promotion succeeds.
+versioner/archive replacement during `performFinish`, case-conflict replacement,
+receive-only changed children, and database update side effects after the native
+final file promotion succeeds.
