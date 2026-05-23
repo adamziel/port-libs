@@ -28,6 +28,8 @@ The lane now also maps `marker/debug/data.py::dump_bbox_debug_data`. `DebugDataE
 
 The lane now also maps `marker/debug/render.py::render_on_image` at the operation-planning boundary. `DebugRenderPlanner` preserves upstream bbox integer casting, `draw_bbox`, scalar/per-box colors, label offsets, white label backgrounds, and zero-size label skipping so a WordPress admin preview can draw the same overlays without PIL or font downloads.
 
+The lane now also maps `marker/debug/data.py::draw_page_debug_images` and `draw_layout_page_debug_images` at the artifact-planning boundary. `DebugPageImagePlanner` preserves the upstream `DEBUG` guard, document-base debug folder, `layout_page_N.png` and `pdf_page_N.png` artifact names, text-line image size, PDF-line text overlays, detector-line boxes, layout labels, order labels, and block overlays for a WordPress admin review preview without PIL.
+
 The lane now also maps `marker_app.py::img_to_html` and `marker_app.py::markdown_insert_images`. `MarkdownImageEmbedder` turns supplied PNG image bytes into upstream-style data URI image HTML and replaces Marker Markdown image spans for WordPress preview/review screens without loading Streamlit or pypdfium.
 
 The lane now also maps `marker_server.py` API/upload behavior. `MarkerServerAdapter` normalizes FastAPI-style request params, validates uploaded PDFs, writes and removes the temporary upload path, returns Marker's local success/error response shape with base64 image payloads, and models Datalab remote polling through a supplied callback rather than running FastAPI, Uvicorn, requests, or Python models.
@@ -131,6 +133,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-debug-bbox-export.php` maps Marker's upstream bbox debug dump into a WordPress review workflow. It writes a `_bbox.json` artifact, exposes layout labels and text-line counts for editorial tooling, and confirms heavy model fields are not stored in the review payload.
 
 `examples/wordpress-debug-render-plan.php` maps Marker's upstream debug overlay renderer into a WordPress review workflow. It emits bbox rectangles, label backgrounds, and label text operations that admin-side preview tooling can draw over a page image without loading Python, PIL, or remote fonts.
+
+`examples/wordpress-debug-page-image-plan.php` maps Marker's upstream debug page image writer into a WordPress review workflow. It emits the document debug folder, layout and PDF debug artifact paths, image dimensions, and overlay operation counts that admin-side preview tooling can render without loading Python, PIL, or remote fonts.
 
 `examples/wordpress-batch-convert-import.php` maps top-level `convert.py` into a WordPress bulk import job. It plans a folder of PDFs, loads a basename-keyed metadata JSON file with per-file titles, runs native min-length preflight, writes per-document Markdown/metadata artifacts, and reports converted/skipped/error counts without loading Python model workers.
 
