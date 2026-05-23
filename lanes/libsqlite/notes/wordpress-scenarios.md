@@ -1038,6 +1038,25 @@ rewritten option through the native table reader. This maps WordPress repair
 preflight where changing a serialized theme-mod/cache option in an
 auto-vacuum SQLite database must not leave stale pointer-map owners behind.
 
+`examples/wordpress-autovacuum-table-root-split-option-replacement-plan.php`
+starts from a WordPress-shaped auto-vacuum SQLite database whose `wp_options`
+table is still a single root leaf. It rewrites `blogname` to a larger value,
+applies the returned header/pointer-map/table page images, verifies that the
+root grew into a table-interior page, and checks that the new child leaf pages
+are `btree-page` pointer-map entries owned by the `wp_options` root. This maps
+WordPress repair preflight where changing one larger option must keep
+auto-vacuum b-tree parent ownership valid even before broader journaling or
+SQL execution support exists.
+
+`examples/wordpress-secure-delete-obsolete-overflow-pages.php` starts from a
+WordPress-shaped SQLite database where a large `wp_options` row stores private
+cache data on overflow pages. It rewrites the option to a small inline value
+with secure-delete planning enabled, applies the returned header/table/freelist
+page images, verifies that obsolete overflow pages are on the freelist, and
+checks that the obsolete overflow page inserted as a freelist leaf has been
+zeroed. This maps repair preflight for sites that require deleted option
+payload fragments to be cleared before those pages are reused.
+
 `examples/wordpress-index-merge-option-replacement-plan.php` starts from a
 multi-page `wp_options(autoload, option_name)` secondary index where changing a
 large cached option from `autoload='yes'` to `autoload='no'` underfills the old
@@ -1063,5 +1082,5 @@ waiting for general SQL UPDATE, journaling, or WAL support.
 ## Next Task
 
 Propagate replacement source-leaf merge/rebalance into non-root parent
-underflow cases, then integrate pointer-map updates into broader auto-vacuum
-table/index page moves before journaling or WAL work.
+underflow cases, then broaden cell-level FAST secure-delete, journaling, and
+WAL behavior beyond page-image preflight.

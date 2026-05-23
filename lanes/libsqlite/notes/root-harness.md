@@ -662,3 +662,95 @@ PID      USER    ELAPSED CMD
 
 This worker did not start a duplicate root harness. Aggregate root status is
 pending supervisor/integrator acceptance of the active run.
+
+## Auto-Vacuum B-Tree Pointer-Map Slice
+
+Focused lane verification for the auto-vacuum b-tree pointer-map ownership
+slice passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1564 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-autovacuum-table-root-split-option-replacement-plan.php
+```
+
+It reported updated page images `[1,2,3,4,5]`, a table-interior `wp_options`
+root at page 3, new child leaf pages 4 and 5, and `btree-page` pointer-map
+entries for pages 4 and 5 pointing back to page 3.
+
+The focused upstream SQLite runner also passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  autovacuum.test incrvacuum.test update.test btree01.test
+```
+
+Result: 0 errors out of 997 tests.
+
+The required duplicate-root preflight was run before any aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It returned active exact root harness PID `3336966 php tools/run-tests.php`.
+Owner sampling showed it was owned by `claude`:
+
+```text
+PID      USER    ELAPSED CMD
+3336966 claude  00:27   php tools/run-tests.php
+```
+
+This worker did not start a duplicate root harness. Aggregate root status is
+pending supervisor/integrator acceptance of the active run.
+
+## Secure-Delete Page-Free Slice
+
+Focused lane verification for the secure-delete page-free slice passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1578 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-secure-delete-obsolete-overflow-pages.php
+```
+
+It reported updated page images `[1,2,3,4]`, obsolete overflow pages `[3,4]`
+on the freelist, zeroed obsolete overflow page `[4]`, and a readable
+rewritten `obsolete_large_cache` option.
+
+The focused upstream SQLite runner also passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  securedel.test securedel2.test delete.test update.test
+```
+
+Result: 0 errors out of 821 tests.
+
+The required duplicate-root preflight was run before the aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It returned no active exact root process, so this worker ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result: 219 test files, 25359 assertions, 0 failures.

@@ -3839,3 +3839,82 @@ freelist, and a readable rewritten option through the composite index.
 Remaining boundaries: non-root parent underflow after source-leaf
 merge/rebalance, broader table/index page move pointer-map updates,
 secure-delete variants, journaling, and WAL remain future slices.
+
+## Focused Native Mapping: Auto-Vacuum B-Tree Pointer Maps For Root Growth
+
+For the bounded auto-vacuum `wp_options` replacement slice where a larger row
+payload grows a table-leaf root into a table-interior root with two new child
+leaf pages, the focused upstream runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  autovacuum.test incrvacuum.test update.test btree01.test
+```
+
+Result: 4 named Tcl scripts / 6 runner script-permutation runs, 0 errors out
+of 997 tests in 00:01. A bounded static scan counted 292 `do_*` Tcl command
+lines in those scripts and 135 targeted pointer-map, balance, and
+auto-vacuum source contract lines in `src/btree.c` and `src/btreeInt.h`.
+
+This maps SQLite's auto-vacuum pointer-map ownership contract for b-tree page
+moves: root b-tree pages use `PTRMAP_ROOTPAGE`, and non-root table/index
+b-tree children use `PTRMAP_BTREE` with the owning parent page number. The
+native PHP planner now derives pointer-map entries from planned table/index
+b-tree page images after inserts or replacements have performed leaf splits,
+root growth, parent-root splits, or bounded non-root parent propagation.
+
+The direct libsqlite harness passed 206 PHP tests with 1564 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-autovacuum-table-root-split-option-replacement-plan.php`
+script ran successfully, reporting updated page images `[1,2,3,4,5]`, a
+table-interior `wp_options` root at page 3, child leaf pages 4 and 5, and
+`btree-page` pointer-map entries for pages 4 and 5 pointing back to page 3.
+
+Remaining boundaries: non-root parent underflow after source-leaf
+merge/rebalance, secure-delete variants, journaling, WAL, and general SQL
+execution remain future slices.
+
+## Focused Native Mapping: Secure-Delete Page-Free Clearing
+
+For the bounded page-free slice where a freed page becomes a leaf entry on an
+existing freelist trunk, the focused upstream runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  securedel.test securedel2.test delete.test update.test
+```
+
+Result: 4 named Tcl scripts / 9 runner script-permutation runs, 0 errors out
+of 821 tests in 00:00. A bounded static scan counted 223 `do_*` Tcl command
+lines in those scripts and 36 targeted `secure_delete`, `BTS_SECURE_DELETE`,
+`BTS_FAST_SECURE`, `freePage2()`, and page-zeroing source contract lines in
+`src/btree.c` and `src/btreeInt.h`.
+
+This maps SQLite's `PRAGMA secure_delete=ON` page-free behavior in
+`freePage2()`: the freed page image is zeroed before freelist metadata is
+updated. In non-secure mode, a page freed as a freelist leaf may avoid writing
+that page body after the trunk receives the leaf pointer.
+
+The direct libsqlite harness passed 208 PHP tests with 1578 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-secure-delete-obsolete-overflow-pages.php` script
+ran successfully, reporting updated page images `[1,2,3,4]`, obsolete
+overflow pages `[3,4]` on the freelist, zeroed obsolete overflow page `[4]`,
+and a readable rewritten `obsolete_large_cache` option.
+
+Remaining boundaries: non-root parent underflow after source-leaf
+merge/rebalance, cell-level FAST secure-delete freeblock clearing, journaling,
+WAL, and general SQL execution remain future slices.

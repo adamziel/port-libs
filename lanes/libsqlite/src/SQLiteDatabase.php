@@ -400,15 +400,15 @@ final class SQLiteDatabase
         );
     }
 
-    public function planPageFree(int $pageNumber): SQLiteFreelistFreePlan
+    public function planPageFree(int $pageNumber, bool $secureDelete = false): SQLiteFreelistFreePlan
     {
-        return $this->planPageFreeList([$pageNumber]);
+        return $this->planPageFreeList([$pageNumber], $secureDelete);
     }
 
     /**
      * @param list<int> $pageNumbers
      */
-    public function planPageFreeList(array $pageNumbers): SQLiteFreelistFreePlan
+    public function planPageFreeList(array $pageNumbers, bool $secureDelete = false): SQLiteFreelistFreePlan
     {
         $pageNumbers = array_values($pageNumbers);
 
@@ -443,6 +443,8 @@ final class SQLiteDatabase
         $updatedFreelistPages = [];
         $leafPageNumbers = [];
         $newTrunkPageNumbers = [];
+        $clearedPageNumbers = [];
+        $clearedPageImages = [];
         $usableSize = $this->usablePageSize();
         $trunkLeafInsertLimit = intdiv($usableSize, 4) - 8;
 
@@ -466,6 +468,10 @@ final class SQLiteDatabase
                     $trunkPageBytes = substr_replace($trunkPageBytes, self::uint32Bytes($pageNumber), 8 + ($leafCount * 4), 4);
                     $updatedFreelistPages[$firstTrunkPage] = $trunkPageBytes;
                     $leafPageNumbers[] = $pageNumber;
+                    if ($secureDelete) {
+                        $clearedPageNumbers[] = $pageNumber;
+                        $clearedPageImages[$pageNumber] = str_repeat("\0", $this->header->pageSize);
+                    }
                     $freelistPageCount++;
                     $alreadyFree[$pageNumber] = true;
                     continue;
@@ -510,6 +516,8 @@ final class SQLiteDatabase
             $firstTrunkPage,
             $freelistPageCount,
             $updatedPointerMapPages,
+            $clearedPageNumbers,
+            $clearedPageImages,
         );
     }
 
@@ -620,6 +628,11 @@ final class SQLiteDatabase
             $allocationPlan?->databasePageCount ?? 0,
             $pageImages === [] ? 0 : max(array_keys($pageImages)),
         );
+        $pageImages = $this->withBtreePointerMapPages($pageImages, $databasePageCount);
+        $databasePageCount = max(
+            $databasePageCount,
+            $pageImages === [] ? 0 : max(array_keys($pageImages)),
+        );
         $pageImages = $this->withOverflowPointerMapPages(
             $pageImages,
             $overflowPageNumbers,
@@ -649,6 +662,7 @@ final class SQLiteDatabase
         string $optionValue,
         ?string $autoload = null,
         bool $allowAppend = true,
+        bool $secureDelete = false,
     ): SQLiteWordPressOptionReplacementPlan {
         $tableRootPage = $this->tableRootPage('wp_options');
         if ($tableRootPage === null) {
@@ -708,7 +722,7 @@ final class SQLiteDatabase
         );
 
         $freeSource = $allocationPlan === null ? $this : $this->withPageImages($allocationPlan->pageImages());
-        $freePlan = $obsoleteOverflowPageNumbers === [] ? null : $freeSource->planPageFreeList($obsoleteOverflowPageNumbers);
+        $freePlan = $obsoleteOverflowPageNumbers === [] ? null : $freeSource->planPageFreeList($obsoleteOverflowPageNumbers, $secureDelete);
         $pageImages = [];
         foreach ($allocationPlan?->pageImages() ?? [] as $pageNumber => $page) {
             $pageImages[$pageNumber] = $page;
@@ -750,6 +764,11 @@ final class SQLiteDatabase
             $this->header->databaseSizePages,
             $allocationPlan?->databasePageCount ?? 0,
             $freePlan?->databasePageCount ?? 0,
+            $pageImages === [] ? 0 : max(array_keys($pageImages)),
+        );
+        $pageImages = $this->withBtreePointerMapPages($pageImages, $databasePageCount);
+        $databasePageCount = max(
+            $databasePageCount,
             $pageImages === [] ? 0 : max(array_keys($pageImages)),
         );
         if ($this->isAutoVacuum() && $overflowPageNumbers !== []) {
@@ -10275,6 +10294,116 @@ final class SQLiteDatabase
         }
 
         return $this->pointerMapPageImagesForUpdates($pageImages, $updates, $databasePageCount);
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @return array<int, string>
+     */
+    private function withBtreePointerMapPages(array $pageImages, int $databasePageCount): array
+    {
+        if (!$this->isAutoVacuum()) {
+            return $pageImages;
+        }
+
+        $plannedDatabase = $this->withPageImages($pageImages);
+        $updates = [];
+        $visitedRoots = [];
+        foreach ($plannedDatabase->schemaRecords() as $record) {
+            $rootPage = $record->rootPage;
+            if ($rootPage === null || $rootPage < 2 || $rootPage > $databasePageCount || isset($visitedRoots[$rootPage])) {
+                continue;
+            }
+            $visitedRoots[$rootPage] = true;
+
+            $visitedPages = [];
+            $plannedDatabase->collectBtreePointerMapUpdates(
+                $rootPage,
+                null,
+                $updates,
+                $visitedPages,
+                $databasePageCount,
+            );
+        }
+
+        if ($updates === []) {
+            return $pageImages;
+        }
+
+        return $this->pointerMapPageImagesForUpdates($pageImages, $updates, $databasePageCount);
+    }
+
+    /**
+     * @param array<int, array{type:int,parent_page_number:int}> $updates
+     * @param array<int, true> $visitedPages
+     */
+    private function collectBtreePointerMapUpdates(
+        int $pageNumber,
+        ?int $parentPageNumber,
+        array &$updates,
+        array &$visitedPages,
+        int $databasePageCount,
+    ): void {
+        if ($pageNumber < 1 || $pageNumber > $databasePageCount) {
+            throw new \InvalidArgumentException("SQLite b-tree page {$pageNumber} is outside the planned database image");
+        }
+        if (isset($visitedPages[$pageNumber])) {
+            throw new \InvalidArgumentException("SQLite planned b-tree pointer-map traversal reached page {$pageNumber} more than once");
+        }
+        if ($this->isPointerMapPage($pageNumber)) {
+            throw new \InvalidArgumentException("SQLite pointer-map page {$pageNumber} cannot be a b-tree page");
+        }
+        $visitedPages[$pageNumber] = true;
+
+        if ($pageNumber > 1) {
+            $updates[$pageNumber] = [
+                'type' => $parentPageNumber === null
+                    ? SQLitePointerMapEntry::ROOT_PAGE
+                    : SQLitePointerMapEntry::BTREE_PAGE,
+                'parent_page_number' => $parentPageNumber ?? 0,
+            ];
+        }
+
+        $page = $this->page($pageNumber);
+        $header = SQLiteBTreePageHeader::parsePage(
+            $page,
+            $this->header->pageSize,
+            $pageNumber === 1 ? 100 : 0,
+        );
+
+        if ($header->pageType === 'table-leaf' || $header->pageType === 'index-leaf') {
+            return;
+        }
+
+        if ($header->pageType === 'table-interior') {
+            if ($header->rightMostPointer === null) {
+                throw new \InvalidArgumentException("SQLite table interior page {$pageNumber} has an invalid right-most pointer");
+            }
+
+            foreach (SQLiteTableInteriorCell::parsePageCells($page, $header) as $cell) {
+                $this->collectBtreePointerMapUpdates($cell->leftChildPage, $pageNumber, $updates, $visitedPages, $databasePageCount);
+            }
+            $this->collectBtreePointerMapUpdates($header->rightMostPointer, $pageNumber, $updates, $visitedPages, $databasePageCount);
+
+            return;
+        }
+
+        if ($header->pageType !== 'index-interior') {
+            throw new \InvalidArgumentException("SQLite page {$pageNumber} is not a b-tree page");
+        }
+        if ($header->rightMostPointer === null) {
+            throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid right-most pointer");
+        }
+
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        foreach (SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
+            if ($cell->leftChildPage === null) {
+                throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid child pointer");
+            }
+
+            $this->collectBtreePointerMapUpdates($cell->leftChildPage, $pageNumber, $updates, $visitedPages, $databasePageCount);
+        }
+        $this->collectBtreePointerMapUpdates($header->rightMostPointer, $pageNumber, $updates, $visitedPages, $databasePageCount);
     }
 
     /**

@@ -4740,6 +4740,54 @@ return [
         $t->same([5, 3, 4], $postDatabase->freelistPageNumbers());
         $t->same([3, 4, 5], $postDatabase->freelistAllocationOrder());
     },
+    'plans sqlite secure-delete freePage2 leaf clearing in non-full freelist trunks' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $oldLeafPage = str_repeat('X', $pageSize);
+        $firstPage = $makeFirstPage($pageSize, 6);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 2), 36, 4);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $emptyPage
+            . $emptyPage
+            . $oldLeafPage
+            . SQLiteFreelistTrunkPage::assemble(null, [3], $pageSize)
+            . $emptyPage,
+        );
+
+        $nonSecurePlan = $database->planPageFree(4);
+        $securePlan = $database->planPageFree(4, true);
+        $postPages = [
+            1 => $database->page(1),
+            2 => $database->page(2),
+            3 => $database->page(3),
+            4 => $database->page(4),
+            5 => $database->page(5),
+            6 => $database->page(6),
+        ];
+        foreach ($securePlan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+
+        $t->same([1, 5], array_keys($nonSecurePlan->pageImages()));
+        $t->same([1, 4, 5], array_keys($securePlan->pageImages()));
+        $t->same([
+            'freed_page_numbers' => [4],
+            'leaf_page_numbers' => [4],
+            'new_trunk_page_numbers' => [],
+            'database_page_count' => 6,
+            'first_freelist_trunk_page' => 5,
+            'freelist_page_count' => 3,
+            'updated_freelist_page_numbers' => [5],
+            'cleared_page_numbers' => [4],
+        ], $securePlan->toArray());
+        $t->same(str_repeat("\0", $pageSize), $securePlan->clearedPageImages[4]);
+        $t->same(str_repeat("\0", $pageSize), $postDatabase->page(4));
+        $t->same([5, 3, 4], $postDatabase->freelistPageNumbers());
+        $t->same([3, 4, 5], $postDatabase->freelistAllocationOrder());
+    },
     'plans sqlite freePage2 new trunk pages for empty freelists' => static function (TestRunner $t) use ($makeFirstPage): void {
         $emptyPage = str_repeat("\0", 512);
         $database = SQLiteDatabase::fromBytes($makeFirstPage(512, 4) . $emptyPage . $emptyPage . $emptyPage);
@@ -5957,6 +6005,53 @@ return [
         $t->same([3, 4], $plan->obsoleteOverflowPageNumbers);
         $t->same([3, 4], $postDatabase->freelistPageNumbers());
         $t->same([4, 3], $postDatabase->freelistAllocationOrder());
+        $t->same(['siteurl', 'obsolete_large_cache'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same('small-cache-value', $options[1]->optionValue);
+        $t->same('no', $options[1]->autoload);
+        $t->same(2, $options[1]->rowId);
+    },
+    'plans wordpress secure-delete replacement while clearing obsolete overflow leaves' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 4));
+
+        $largeValue = str_repeat('obsolete-private-cache:', 58) . 'done';
+        $largePayload = SQLiteRecord::encode([null, 'obsolete_large_cache', $largeValue, 'yes']);
+        $largeLocalLength = SQLiteTableLeafCell::localPayloadLength(strlen($largePayload), $pageSize);
+        $largeOverflowPayload = substr($largePayload, $largeLocalLength);
+        $largeOverflowPages = SQLiteOverflowPage::encodeChainAtPages($largeOverflowPayload, [3, 4], $pageSize);
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, $largePayload, $pageSize, 3),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $tablePage
+            . $largeOverflowPages[3]
+            . $largeOverflowPages[4],
+        );
+
+        $plan = $database->planWordPressOptionReplace('obsolete_large_cache', 'small-cache-value', 'no', true, true);
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $options = $postDatabase->wordpressOptions();
+
+        $t->same([1, 2, 3, 4], array_keys($plan->pageImages()));
+        $t->same([3, 4], $postDatabase->freelistPageNumbers());
+        $t->same(str_repeat("\0", $pageSize), $postDatabase->page(4));
         $t->same(['siteurl', 'obsolete_large_cache'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
         $t->same('small-cache-value', $options[1]->optionValue);
         $t->same('no', $options[1]->autoload);
@@ -7375,6 +7470,58 @@ return [
             InvalidArgumentException::class,
             static fn () => $database->planWordPressOptionReplace('blogname', $replacementValue, 'no', false),
         );
+    },
+    'plans auto-vacuum pointer-map entries for table-root split btree children' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 3);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 52, 4);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                3,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], $pageSize, 100, $firstPage);
+        $pointerMapPage = substr_replace(
+            str_repeat("\0", $pageSize),
+            chr(SQLitePointerMapEntry::ROOT_PAGE) . pack('N', 0),
+            0,
+            5,
+        );
+        $tableRootLeafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'blogname', 'Stale Site', 'yes'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, '_transient_migration_lock', 'old-lock', 'no'])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $pointerMapPage . $tableRootLeafPage);
+
+        $replacementValue = str_repeat('expanded-cache-', 28);
+        $plan = $database->planWordPressOptionReplace('blogname', $replacementValue, 'no');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $rootCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(3), $postDatabase->pageHeader(3));
+        $leftChild = $rootCells[0]->leftChildPage;
+        $rightChild = $postDatabase->pageHeader(3)->rightMostPointer;
+
+        $t->same([1, 2, 3, 4, 5], array_keys($plan->pageImages()));
+        $t->same(5, $plan->databasePageCount);
+        $t->same('root-page', $postDatabase->pointerMapEntryForPage(3)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(3)->parentPageNumber);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage($leftChild)->typeName());
+        $t->same(3, $postDatabase->pointerMapEntryForPage($leftChild)->parentPageNumber);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage($rightChild)->typeName());
+        $t->same(3, $postDatabase->pointerMapEntryForPage($rightChild)->parentPageNumber);
+        $t->same($replacementValue, $postDatabase->tableRowByRowIdByName('wp_options', 2)?->values()[2] ?? null);
     },
     'plans wordpress wp_options replacement with appended overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
