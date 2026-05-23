@@ -10,6 +10,410 @@ use PortLibs\Quadrable\QuadbStore;
 use PortLibs\Quadrable\SparseTree;
 
 return [
+    'native quadb store maps help and version metadata command output' => static function (TestRunner $t): void {
+        $help = QuadbStore::helpCommandOutput();
+
+        $t->same(0, $help['exitCode']);
+        $t->same('', $help['stderr']);
+        $t->true(str_starts_with($help['stdout'], "\n    Usage:\n"));
+        $t->true(str_ends_with($help['stdout'], "      --version      Show version.\n\n"));
+        $t->contains('quadb [options] exportProof [--format=(HashedKeys|FullKeys)]', $help['stdout']);
+        $t->contains('Database directory (default $ENV{QUADB_DIR} || "./quadb-dir/")', $help['stdout']);
+        $t->contains('quadb [options] mineHash <prefix>', $help['stdout']);
+
+        $t->same([
+            'exitCode' => 0,
+            'stdout' => "quadb \n",
+            'stderr' => '',
+        ], QuadbStore::versionCommandOutput());
+        $t->same([
+            'exitCode' => 0,
+            'stdout' => "quadb v1.2.3\n",
+            'stderr' => '',
+        ], QuadbStore::versionCommandOutput('v1.2.3'));
+    },
+    'native quadb store maps no-argument docopt and get command output' => static function (TestRunner $t): void {
+        $noArgs = QuadbStore::noArgumentCommandOutput();
+        $t->same(255, $noArgs['exitCode']);
+        $t->same('Arguments did not match expected patterns', $noArgs['stderr']);
+        $t->true(str_starts_with($noArgs['stdout'], "\n\n    Usage:\n"));
+        $t->true(str_ends_with($noArgs['stdout'], "      --version      Show version.\n\n"));
+
+        $missingDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $missingStore = QuadbStore::getCommandOutput($missingDir, 'wp_options:siteurl');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingStore);
+            $t->true(!is_dir($missingDir), 'missing get command should not create the database directory');
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $missingKey = QuadbStore::getCommandOutput($storeDir, 'wp_options:home');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: key not found in db\n",
+            ], $missingKey);
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($storeDir)->rootText());
+
+            $repo = QuadbStore::open($storeDir);
+            $repo->put('wp_options:siteurl', 'https://example.test');
+            $repo->put('wp_posts:1', 'Published post');
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "https://example.test\n",
+                'stderr' => '',
+            ], QuadbStore::getCommandOutput($storeDir, 'wp_options:siteurl'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: key not found in db\n",
+            ], QuadbStore::getCommandOutput($storeDir, 'wp_options:home'));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
+    'native quadb store maps put and del command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $missingPut = QuadbStore::putCommandOutput(
+                $missingDir,
+                'wp_options:siteurl',
+                'https://example.test'
+            );
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingPut);
+            $t->true(!is_dir($missingDir), 'missing put command should not create the database directory');
+
+            $missingDelete = QuadbStore::deleteCommandOutput($missingDir, 'wp_options:siteurl');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingDelete);
+            $t->true(!is_dir($missingDir), 'missing del command should not create the database directory');
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::putCommandOutput($storeDir, 'wp_options:siteurl', 'https://example.test'));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "https://example.test\n",
+                'stderr' => '',
+            ], QuadbStore::getCommandOutput($storeDir, 'wp_options:siteurl'));
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::putCommandOutput($storeDir, 'wp_options:siteurl', 'https://preview.example.test'));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "https://preview.example.test\n",
+                'stderr' => '',
+            ], QuadbStore::getCommandOutput($storeDir, 'wp_options:siteurl'));
+
+            $rootBeforeMissingDelete = QuadbStore::open($storeDir)->rootText();
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::deleteCommandOutput($storeDir, 'wp_options:home'));
+            $t->same($rootBeforeMissingDelete, QuadbStore::open($storeDir)->rootText());
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::deleteCommandOutput($storeDir, 'wp_options:siteurl'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: key not found in db\n",
+            ], QuadbStore::getCommandOutput($storeDir, 'wp_options:siteurl'));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
+    'native quadb store maps import int command output and stoi-style input' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $missingImport = QuadbStore::importIntegerCommandOutput(
+                $missingDir,
+                "1,wp_options:siteurl=https://example.test\n"
+            );
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingImport);
+            $t->true(!is_dir($missingDir), 'missing import --int command should not create the database directory');
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::importIntegerCommandOutput(
+                $storeDir,
+                "1x,wp_options:siteurl=https://example.test\n"
+            ));
+            $t->same(
+                "1,wp_options:siteurl=https://example.test\n",
+                QuadbStore::open($storeDir)->exportIntegerLines()
+            );
+
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: couldn't find separator in input line\n",
+            ], QuadbStore::importIntegerCommandOutput($storeDir, "missing separator\n"));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::importIntegerCommandOutput($storeDir, "abc,value\n"));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: int range exceeded\n",
+            ], QuadbStore::importIntegerCommandOutput($storeDir, "-1,value\n"));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::importIntegerCommandOutput($storeDir, "2147483648,value\n"));
+            $t->same(
+                "1,wp_options:siteurl=https://example.test\n",
+                QuadbStore::open($storeDir)->exportIntegerLines()
+            );
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
+    'native quadb store maps proof command output for invalid format and hex input' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+        $uppercaseRootDir = quadrableQuadbTempDir();
+        $emptyRootDir = quadrableQuadbTempDir();
+        $emptyPrefixedRootDir = quadrableQuadbTempDir();
+
+        try {
+            $missingImport = QuadbStore::importProofHexCommandOutput($missingDir, 'zz');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingImport);
+            $t->true(!is_dir($missingDir), 'missing importProof command should not create the database directory');
+
+            $source = QuadbStore::init($sourceDir);
+            $source->put('wp_options:siteurl', 'https://example.test');
+            $proofHex = $source->exportProofHex(['wp_options:siteurl'], Proof::ENCODING_FULL_KEYS);
+
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: unknown proof format\n",
+            ], QuadbStore::exportProofCommandOutput($sourceDir, ['wp_options:siteurl'], 'Bad', true));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $proofHex,
+                'stderr' => '',
+            ], QuadbStore::exportProofCommandOutput($sourceDir, ['wp_options:siteurl'], 'FullKeys', true));
+
+            if (!mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            foreach ([
+                '' => 'proof ends prematurely',
+                '0x' => 'proof ends prematurely',
+                'abc' => 'unexpected proof encoding type: 10',
+                'zz' => 'unexpected character in from_hex: 122',
+                '00' => 'proof ends prematurely',
+                '0001' => 'empty proof',
+                '0X00' => 'unexpected character in from_hex: 88',
+                '01000080' => 'premature end of varint',
+            ] as $input => $message) {
+                $t->same([
+                    'exitCode' => 1,
+                    'stdout' => '',
+                    'stderr' => "quadb error: {$message}\n",
+                ], QuadbStore::importProofHexCommandOutput($targetDir, $input));
+                $t->same([
+                    'exitCode' => 1,
+                    'stdout' => '',
+                    'stderr' => "quadb error: {$message}\n",
+                ], QuadbStore::mergeProofHexCommandOutput($targetDir, $input));
+            }
+
+            foreach ([
+                '0X' . $source->tree()->rootHash() => 'unexpected character in from_hex: 88',
+                'zz' => 'unexpected character in from_hex: 122',
+                '0x00' => 'proof invalid',
+                'abc' => 'proof invalid',
+            ] as $rootInput => $message) {
+                $t->same([
+                    'exitCode' => 1,
+                    'stdout' => '',
+                    'stderr' => "quadb error: {$message}\n",
+                ], QuadbStore::importProofHexCommandOutput($targetDir, $proofHex, $rootInput));
+            }
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: empty proof\n",
+            ], QuadbStore::importProofHexCommandOutput($targetDir, '0001', '0x00'));
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($targetDir)->rootText());
+
+            if (!mkdir($uppercaseRootDir, 0755, true) && !is_dir($uppercaseRootDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $uppercaseRoot = QuadbStore::importProofHexCommandOutput(
+                $uppercaseRootDir,
+                $proofHex,
+                '0x' . strtoupper($source->tree()->rootHash())
+            );
+            $t->same(0, $uppercaseRoot['exitCode']);
+            $t->same('', $uppercaseRoot['stdout']);
+            $t->same('', $uppercaseRoot['stderr']);
+            $t->same('https://example.test', QuadbStore::open($uppercaseRootDir)->get('wp_options:siteurl'));
+
+            if (!mkdir($emptyRootDir, 0755, true) && !is_dir($emptyRootDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $emptyRoot = QuadbStore::importProofHexCommandOutput($emptyRootDir, $proofHex, '');
+            $t->same(0, $emptyRoot['exitCode']);
+            $t->same('', $emptyRoot['stdout']);
+            $t->same('', $emptyRoot['stderr']);
+            $t->same('https://example.test', QuadbStore::open($emptyRootDir)->get('wp_options:siteurl'));
+
+            if (!mkdir($emptyPrefixedRootDir, 0755, true) && !is_dir($emptyPrefixedRootDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $emptyPrefixedRoot = QuadbStore::importProofHexCommandOutput($emptyPrefixedRootDir, $proofHex, '0x');
+            $t->same(0, $emptyPrefixedRoot['exitCode']);
+            $t->same('', $emptyPrefixedRoot['stdout']);
+            $t->same('', $emptyPrefixedRoot['stderr']);
+            $t->same('https://example.test', QuadbStore::open($emptyPrefixedRootDir)->get('wp_options:siteurl'));
+
+            $trustedImport = QuadbStore::importProofHexCommandOutput($targetDir, $proofHex, $source->tree()->rootHash());
+            $t->same(0, $trustedImport['exitCode']);
+            $t->same('', $trustedImport['stdout']);
+            $t->same('', $trustedImport['stderr']);
+            $t->same('https://example.test', QuadbStore::open($targetDir)->get('wp_options:siteurl'));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+            quadrableQuadbRemoveDir($uppercaseRootDir);
+            quadrableQuadbRemoveDir($emptyRootDir);
+            quadrableQuadbRemoveDir($emptyPrefixedRootDir);
+        }
+    },
+    'native quadb store maps init streams and advertised length no-op output' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+
+        try {
+            $t->same([
+                'stdout' => "quadb: init'ing directory: {$dir}/\n",
+                'stderr' => '',
+            ], QuadbStore::initCommandOutput($dir));
+
+            $repo = QuadbStore::open($dir);
+            $t->same('', $repo->lengthText());
+            $t->same("Head: master\nRoot: 0x" . HashTree::EMPTY_HASH . " (0)\n", $repo->statusText());
+
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $rootAfterImport = $repo->tree()->rootHash();
+
+            $t->same('', $repo->lengthText());
+            $t->same([
+                'stdout' => '',
+                'stderr' => "quadb: Directory '{$dir}/' already init'ed. Doing nothing.\n",
+            ], QuadbStore::initCommandOutput($dir));
+            $t->same($rootAfterImport, QuadbStore::open($dir)->tree()->rootHash());
+            $t->same('', QuadbStore::open($dir)->lengthText());
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+        }
+    },
+    'native quadb root command maps missing and empty directory startup behavior' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $emptyDir = quadrableQuadbTempDir();
+
+        try {
+            $missing = QuadbStore::rootCommandOutput($missingDir);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missing);
+            $t->true(!is_dir($missingDir), 'missing root command should not create the database directory');
+
+            if (!mkdir($emptyDir, 0755, true) && !is_dir($emptyDir)) {
+                throw new RuntimeException('unable to create empty quadrable temp directory');
+            }
+
+            $empty = QuadbStore::rootCommandOutput($emptyDir);
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '0x' . HashTree::EMPTY_HASH . "\n",
+                'stderr' => '',
+            ], $empty);
+            $t->same(HashTree::EMPTY_HASH, QuadbStore::open($emptyDir)->tree()->rootHash());
+
+            $repo = QuadbStore::open($emptyDir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $rootAfterImport = $repo->tree()->rootHash();
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '0x' . $rootAfterImport . "\n",
+                'stderr' => '',
+            ], QuadbStore::rootCommandOutput($emptyDir));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($emptyDir);
+        }
+    },
     'native quadb store reopens the current named head and integer import export lines' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
 
@@ -598,7 +1002,10 @@ return [
             $t->throws(RuntimeException::class, static fn () => $target->get('wp_posts:1'));
             $t->throws(RuntimeException::class, static fn () => $target->get('wp_posts:404'));
             $t->throws(RuntimeException::class, static fn () => $target->get('wp_options:home'));
-            $t->throws(RuntimeException::class, static fn () => $target->exportLines('|'));
+            $t->same([
+                quadrableQuadbUnknownStringKey('wp_options:home') . '|' . quadrableQuadbUnknownHash((new HashTree())->valueHash('https://example.test')),
+                'wp_options:siteurl|https://example.test',
+            ], quadrableQuadbOutputLines($target->exportLines('|')));
 
             $status = $target->status();
             $t->same(false, $status['detached']);
@@ -611,6 +1018,11 @@ return [
             $t->same('https://example.test', $reopened->get('wp_options:siteurl'));
             $t->same($trustedRoot, $reopened->mergeProofHex($postProofHex));
             $t->same('Published post', $reopened->get('wp_posts:1'));
+            $t->same([
+                'wp_posts:1|Published post',
+                quadrableQuadbUnknownStringKey('wp_options:home') . '|' . quadrableQuadbUnknownHash((new HashTree())->valueHash('https://example.test')),
+                'wp_options:siteurl|https://example.test',
+            ], quadrableQuadbOutputLines($reopened->exportLines('|')));
             $t->same($trustedRoot, QuadbStore::open($targetDir)->status()['rootHash']);
 
             $delegatedProofHex = $reopened->exportProofHex([
@@ -629,6 +1041,34 @@ return [
             $wrongRootProofHex = $source->exportProofHex(['wp_posts:1'], Proof::ENCODING_FULL_KEYS);
             $t->throws(RuntimeException::class, static fn () => $reopened->mergeProofHex($wrongRootProofHex));
             $t->same('Published post', QuadbStore::open($targetDir)->get('wp_posts:1'));
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($targetDir);
+        }
+    },
+    'native quadb store exports integer proof-backed partial heads like quadb export int' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $targetDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importIntegerLines("1,wp_options:siteurl=https://example.test\n2,wp_options:home=https://example.test\n");
+
+            $trustedRoot = $source->tree()->rootHash();
+            $proofHex = $source->exportIntegerProofHex([1, 3]);
+
+            $target = QuadbStore::init($targetDir);
+            $target->checkout('wp-delegated-integer-export');
+            $target->importProofHex($proofHex, $trustedRoot);
+
+            $t->same([
+                '1,wp_options:siteurl=https://example.test',
+                '2,' . quadrableQuadbUnknownHash((new HashTree())->valueHash('wp_options:home=https://example.test')),
+            ], quadrableQuadbOutputLines($target->exportIntegerLines(',')));
+            $t->same([
+                'H(?)=0x020000000000...,wp_options:siteurl=https://example.test',
+                'H(?)=0x040000000000...,' . quadrableQuadbUnknownHash((new HashTree())->valueHash('wp_options:home=https://example.test')),
+            ], quadrableQuadbOutputLines($target->exportLines(',')));
         } finally {
             quadrableQuadbRemoveDir($sourceDir);
             quadrableQuadbRemoveDir($targetDir);
@@ -1673,6 +2113,798 @@ return [
             quadrableQuadbRemoveDir($mixedRestoreDir);
         }
     },
+    'native quadb store merges proofs on raw-restored proof-backed heads after delegated writes' => static function (TestRunner $t): void {
+        $sourceDir = quadrableQuadbTempDir();
+        $proofDir = quadrableQuadbTempDir();
+        $restoreDir = quadrableQuadbTempDir();
+
+        try {
+            $source = QuadbStore::init($sourceDir);
+            $source->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_options:home|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+
+            $trustedRoot = $source->tree()->rootHash();
+            $siteUrlProofHex = $source->exportProofHex(
+                ['wp_options:siteurl'],
+                Proof::ENCODING_FULL_KEYS
+            );
+
+            $proofRepo = QuadbStore::init($proofDir);
+            $proofRepo->checkout('wp-delegated-raw');
+            $proofRepo->importProofHex($siteUrlProofHex, $trustedRoot);
+
+            $rawEntries = quadrableQuadbRawSnapshotHex($proofRepo->lmdbRawEntrySnapshot());
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $rawEntries);
+            $t->same($rawEntries, quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same('wp-delegated-raw', $restored->currentHeadName());
+            $t->same('https://example.test', $restored->get('wp_options:siteurl'));
+            $t->throws(RuntimeException::class, static fn () => $restored->get('wp_options:home'));
+
+            $updatedSiteUrl = 'https://preview.example.test';
+            $restored->put('wp_options:siteurl', $updatedSiteUrl);
+            $updatedRoot = $restored->status()['rootHash'];
+
+            $authoritative = new SparseTree();
+            $authoritative->change()
+                ->put('wp_options:siteurl', $updatedSiteUrl)
+                ->put('wp_options:home', 'https://example.test')
+                ->put('wp_posts:1', 'Published post')
+                ->apply();
+
+            $t->same($updatedRoot, $authoritative->rootHash());
+
+            $rawBeforeMerge = quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot());
+            $nodeCountBeforeMerge = count($rawBeforeMerge['quadrable_nodesLeaf'])
+                + count($rawBeforeMerge['quadrable_nodesInterior']);
+            $homeProofBytes = $authoritative->exportProof(['wp_options:home'])
+                ->encode(Proof::ENCODING_FULL_KEYS);
+
+            $t->same($updatedRoot, $restored->mergeProofBytes($homeProofBytes));
+            $t->same($updatedSiteUrl, $restored->get('wp_options:siteurl'));
+            $t->same('https://example.test', $restored->get('wp_options:home'));
+
+            $rawAfterMerge = quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot());
+            $nodeCountAfterMerge = count($rawAfterMerge['quadrable_nodesLeaf'])
+                + count($rawAfterMerge['quadrable_nodesInterior']);
+            $t->true($nodeCountAfterMerge > $nodeCountBeforeMerge);
+
+            $gc = quadrableQuadbParseGcText($restored->garbageCollectText());
+            $t->true($gc['garbage'] > 0);
+            $t->same($updatedRoot, $restored->status()['rootHash']);
+
+            $reopened = QuadbStore::open($restoreDir);
+            $t->same('wp-delegated-raw', $reopened->currentHeadName());
+            $t->same($updatedRoot, $reopened->status()['rootHash']);
+            $t->same($updatedSiteUrl, $reopened->get('wp_options:siteurl'));
+            $t->same('https://example.test', $reopened->get('wp_options:home'));
+        } finally {
+            quadrableQuadbRemoveDir($sourceDir);
+            quadrableQuadbRemoveDir($proofDir);
+            quadrableQuadbRemoveDir($restoreDir);
+        }
+    },
+    'native quadb store matches upstream raw-restored mergeProof LMDB cursor oracle' => static function (TestRunner $t): void {
+        $restoreDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-raw-restored-merge-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset(
+                    $oracle['fixtureValues'],
+                    $oracle['roots'],
+                    $oracle['beforeUpdate']['entries'],
+                    $oracle['afterUpdateBeforeMerge']['entries'],
+                    $oracle['afterMergeBeforeGc']['entries'],
+                    $oracle['afterGc']['entries'],
+                    $oracle['gc'],
+                    $oracle['updatedRootHex'],
+                    $oracle['mergedRootHex']
+                )
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['roots'])
+                || !is_array($oracle['beforeUpdate']['entries'])
+                || !is_array($oracle['afterUpdateBeforeMerge']['entries'])
+                || !is_array($oracle['afterMergeBeforeGc']['entries'])
+                || !is_array($oracle['afterGc']['entries'])
+                || !is_array($oracle['gc'])
+            ) {
+                throw new RuntimeException('malformed upstream raw-restored mergeProof oracle fixture');
+            }
+
+            $values = $oracle['fixtureValues'];
+            foreach (['siteUrlKey', 'homeKey', 'postKey', 'originalUrl', 'updatedUrl', 'postValue', 'head'] as $key) {
+                if (!isset($values[$key]) || !is_string($values[$key])) {
+                    throw new RuntimeException('malformed upstream raw-restored mergeProof fixture value');
+                }
+            }
+
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $oracle['beforeUpdate']['entries']);
+            $t->same($oracle['beforeUpdate']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same($values['head'], $restored->currentHeadName());
+            $t->same($oracle['roots']['restoredRootHex'], $restored->status()['rootHash']);
+            $t->same($values['originalUrl'], $restored->get($values['siteUrlKey']));
+            $t->throws(RuntimeException::class, static fn () => $restored->get($values['homeKey']));
+
+            $restored->put($values['siteUrlKey'], $values['updatedUrl']);
+            $t->same($oracle['roots']['authoritativeUpdatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['afterUpdateBeforeMerge']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+
+            $authoritative = new SparseTree();
+            $authoritative->change()
+                ->put($values['siteUrlKey'], $values['updatedUrl'])
+                ->put($values['homeKey'], $values['originalUrl'])
+                ->put($values['postKey'], $values['postValue'])
+                ->apply();
+
+            $t->same($oracle['updatedRootHex'], $authoritative->rootHash());
+            $homeProofBytes = $authoritative->exportProof([$values['homeKey']])
+                ->encode(Proof::ENCODING_FULL_KEYS);
+
+            $t->same($oracle['mergedRootHex'], $restored->mergeProofBytes($homeProofBytes));
+            $t->same($oracle['afterMergeBeforeGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same($values['updatedUrl'], $restored->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $restored->get($values['homeKey']));
+
+            $t->same(
+                'Collected ' . $oracle['gc']['garbage'] . '/' . $oracle['gc']['total'] . " nodes\n",
+                $restored->garbageCollectText()
+            );
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+
+            $reopened = QuadbStore::open($restoreDir);
+            $t->same($values['head'], $reopened->currentHeadName());
+            $t->same($oracle['mergedRootHex'], $reopened->status()['rootHash']);
+            $t->same($values['updatedUrl'], $reopened->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $reopened->get($values['homeKey']));
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($reopened->lmdbRawEntrySnapshot()));
+        } finally {
+            quadrableQuadbRemoveDir($restoreDir);
+        }
+    },
+    'native quadb store matches upstream detached raw-restored mergeProof LMDB cursor oracle' => static function (TestRunner $t): void {
+        $restoreDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-detached-raw-restored-merge-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset(
+                    $oracle['fixtureValues'],
+                    $oracle['roots'],
+                    $oracle['beforeUpdate']['entries'],
+                    $oracle['afterUpdateBeforeMerge']['entries'],
+                    $oracle['afterMergeBeforeGc']['entries'],
+                    $oracle['afterGc']['entries'],
+                    $oracle['gc'],
+                    $oracle['updatedRootHex'],
+                    $oracle['mergedRootHex']
+                )
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['roots'])
+                || !is_array($oracle['beforeUpdate']['entries'])
+                || !is_array($oracle['afterUpdateBeforeMerge']['entries'])
+                || !is_array($oracle['afterMergeBeforeGc']['entries'])
+                || !is_array($oracle['afterGc']['entries'])
+                || !is_array($oracle['gc'])
+            ) {
+                throw new RuntimeException('malformed upstream detached raw-restored mergeProof oracle fixture');
+            }
+
+            $values = $oracle['fixtureValues'];
+            foreach (['siteUrlKey', 'homeKey', 'postKey', 'originalUrl', 'updatedUrl', 'postValue'] as $key) {
+                if (!isset($values[$key]) || !is_string($values[$key])) {
+                    throw new RuntimeException('malformed upstream detached raw-restored mergeProof fixture value');
+                }
+            }
+            if (($values['detached'] ?? null) !== true || ($values['head'] ?? null) !== null) {
+                throw new RuntimeException('upstream detached raw-restored mergeProof fixture is not detached');
+            }
+
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $oracle['beforeUpdate']['entries']);
+            $t->same($oracle['beforeUpdate']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->true($restored->isDetachedHead());
+            $t->same(null, $restored->currentHeadName());
+            $t->same($oracle['roots']['restoredRootHex'], $restored->status()['rootHash']);
+            $t->same($values['originalUrl'], $restored->get($values['siteUrlKey']));
+            $t->throws(RuntimeException::class, static fn () => $restored->get($values['homeKey']));
+
+            $restored->put($values['siteUrlKey'], $values['updatedUrl']);
+            $t->true($restored->isDetachedHead());
+            $t->same($oracle['roots']['authoritativeUpdatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['afterUpdateBeforeMerge']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+
+            $authoritative = new SparseTree();
+            $authoritative->change()
+                ->put($values['siteUrlKey'], $values['updatedUrl'])
+                ->put($values['homeKey'], $values['originalUrl'])
+                ->put($values['postKey'], $values['postValue'])
+                ->apply();
+
+            $t->same($oracle['updatedRootHex'], $authoritative->rootHash());
+            $homeProofBytes = $authoritative->exportProof([$values['homeKey']])
+                ->encode(Proof::ENCODING_FULL_KEYS);
+
+            $t->same($oracle['mergedRootHex'], $restored->mergeProofBytes($homeProofBytes));
+            $t->true($restored->isDetachedHead());
+            $t->same($oracle['afterMergeBeforeGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same($values['updatedUrl'], $restored->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $restored->get($values['homeKey']));
+
+            $t->same(
+                'Collected ' . $oracle['gc']['garbage'] . '/' . $oracle['gc']['total'] . " nodes\n",
+                $restored->garbageCollectText()
+            );
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+
+            $reopened = QuadbStore::open($restoreDir);
+            $t->true($reopened->isDetachedHead());
+            $t->same(null, $reopened->currentHeadName());
+            $t->same($oracle['mergedRootHex'], $reopened->status()['rootHash']);
+            $t->same($values['updatedUrl'], $reopened->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $reopened->get($values['homeKey']));
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($reopened->lmdbRawEntrySnapshot()));
+        } finally {
+            quadrableQuadbRemoveDir($restoreDir);
+        }
+    },
+    'native quadb store matches upstream noTrack raw-restored mergeProof LMDB cursor oracle' => static function (TestRunner $t): void {
+        $restoreDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-notrack-raw-restored-merge-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset(
+                    $oracle['fixtureValues'],
+                    $oracle['roots'],
+                    $oracle['beforeUpdate']['entries'],
+                    $oracle['afterUpdateBeforeMerge']['entries'],
+                    $oracle['afterMergeBeforeGc']['entries'],
+                    $oracle['afterGc']['entries'],
+                    $oracle['gc'],
+                    $oracle['updatedRootHex'],
+                    $oracle['mergedRootHex']
+                )
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['roots'])
+                || !is_array($oracle['beforeUpdate']['entries'])
+                || !is_array($oracle['afterUpdateBeforeMerge']['entries'])
+                || !is_array($oracle['afterMergeBeforeGc']['entries'])
+                || !is_array($oracle['afterGc']['entries'])
+                || !is_array($oracle['gc'])
+            ) {
+                throw new RuntimeException('malformed upstream noTrack raw-restored mergeProof oracle fixture');
+            }
+
+            $values = $oracle['fixtureValues'];
+            foreach (['siteUrlKey', 'homeKey', 'postKey', 'originalUrl', 'updatedUrl', 'postValue', 'head'] as $key) {
+                if (!isset($values[$key]) || !is_string($values[$key])) {
+                    throw new RuntimeException('malformed upstream noTrack raw-restored mergeProof fixture value');
+                }
+            }
+            if (($values['noTrackKeys'] ?? null) !== true || ($values['detached'] ?? null) !== false) {
+                throw new RuntimeException('upstream noTrack raw-restored mergeProof fixture is not a named noTrack proof head');
+            }
+
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $oracle['beforeUpdate']['entries'], false);
+            $t->same($oracle['beforeUpdate']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same([], $restored->lmdbRawEntrySnapshot()['quadrable_key']);
+            $t->same($values['head'], $restored->currentHeadName());
+            $t->same($oracle['roots']['restoredRootHex'], $restored->status()['rootHash']);
+            $t->same($values['originalUrl'], $restored->get($values['siteUrlKey']));
+            $t->throws(RuntimeException::class, static fn () => $restored->get($values['homeKey']));
+
+            $restored->put($values['siteUrlKey'], $values['updatedUrl']);
+            $t->same($oracle['roots']['authoritativeUpdatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['afterUpdateBeforeMerge']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same([], $restored->lmdbRawEntrySnapshot()['quadrable_key']);
+
+            $authoritative = new SparseTree();
+            $authoritative->change()
+                ->put($values['siteUrlKey'], $values['updatedUrl'])
+                ->put($values['homeKey'], $values['originalUrl'])
+                ->put($values['postKey'], $values['postValue'])
+                ->apply();
+
+            $t->same($oracle['updatedRootHex'], $authoritative->rootHash());
+            $homeProofBytes = $authoritative->exportProof([$values['homeKey']])->encode();
+
+            $t->same($oracle['mergedRootHex'], $restored->mergeProofBytes($homeProofBytes));
+            $t->same($oracle['afterMergeBeforeGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same([], $restored->lmdbRawEntrySnapshot()['quadrable_key']);
+            $t->same($values['updatedUrl'], $restored->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $restored->get($values['homeKey']));
+            $t->throws(RuntimeException::class, static fn () => $restored->exportProofBytes(
+                [$values['siteUrlKey']],
+                Proof::ENCODING_FULL_KEYS
+            ));
+
+            $t->same(
+                'Collected ' . $oracle['gc']['garbage'] . '/' . $oracle['gc']['total'] . " nodes\n",
+                $restored->garbageCollectText()
+            );
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same([], $restored->lmdbRawEntrySnapshot()['quadrable_key']);
+
+            $reopened = QuadbStore::open($restoreDir, false);
+            $t->same($values['head'], $reopened->currentHeadName());
+            $t->same($oracle['mergedRootHex'], $reopened->status()['rootHash']);
+            $t->same($values['updatedUrl'], $reopened->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $reopened->get($values['homeKey']));
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($reopened->lmdbRawEntrySnapshot()));
+            $t->same([], $reopened->lmdbRawEntrySnapshot()['quadrable_key']);
+        } finally {
+            quadrableQuadbRemoveDir($restoreDir);
+        }
+    },
+    'native quadb store matches upstream sequential raw-restored mergeProof LMDB cursor oracle' => static function (TestRunner $t): void {
+        $restoreDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-sequential-raw-restored-merge-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset(
+                    $oracle['fixtureValues'],
+                    $oracle['roots'],
+                    $oracle['beforeUpdate']['entries'],
+                    $oracle['afterUpdateBeforeFirstMerge']['entries'],
+                    $oracle['afterFirstMergeBeforeSecond']['entries'],
+                    $oracle['afterSecondMergeBeforeGc']['entries'],
+                    $oracle['afterGc']['entries'],
+                    $oracle['gc'],
+                    $oracle['updatedRootHex'],
+                    $oracle['firstMergedRootHex'],
+                    $oracle['secondMergedRootHex']
+                )
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['roots'])
+                || !is_array($oracle['beforeUpdate']['entries'])
+                || !is_array($oracle['afterUpdateBeforeFirstMerge']['entries'])
+                || !is_array($oracle['afterFirstMergeBeforeSecond']['entries'])
+                || !is_array($oracle['afterSecondMergeBeforeGc']['entries'])
+                || !is_array($oracle['afterGc']['entries'])
+                || !is_array($oracle['gc'])
+            ) {
+                throw new RuntimeException('malformed upstream sequential raw-restored mergeProof oracle fixture');
+            }
+
+            $values = $oracle['fixtureValues'];
+            foreach (['siteUrlKey', 'homeKey', 'postKey', 'originalUrl', 'updatedUrl', 'postValue', 'head'] as $key) {
+                if (!isset($values[$key]) || !is_string($values[$key])) {
+                    throw new RuntimeException('malformed upstream sequential raw-restored mergeProof fixture value');
+                }
+            }
+
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $oracle['beforeUpdate']['entries']);
+            $t->same($oracle['beforeUpdate']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same($values['head'], $restored->currentHeadName());
+            $t->same($oracle['roots']['restoredRootHex'], $restored->status()['rootHash']);
+            $t->same($values['originalUrl'], $restored->get($values['siteUrlKey']));
+            $t->throws(RuntimeException::class, static fn () => $restored->get($values['homeKey']));
+            $t->throws(RuntimeException::class, static fn () => $restored->get($values['postKey']));
+
+            $restored->put($values['siteUrlKey'], $values['updatedUrl']);
+            $t->same($oracle['roots']['authoritativeUpdatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same(
+                $oracle['afterUpdateBeforeFirstMerge']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+
+            $authoritative = new SparseTree();
+            $authoritative->change()
+                ->put($values['siteUrlKey'], $values['updatedUrl'])
+                ->put($values['homeKey'], $values['originalUrl'])
+                ->put($values['postKey'], $values['postValue'])
+                ->apply();
+
+            $t->same($oracle['updatedRootHex'], $authoritative->rootHash());
+            $homeProofBytes = $authoritative->exportProof([$values['homeKey']])
+                ->encode(Proof::ENCODING_FULL_KEYS);
+            $postProofBytes = $authoritative->exportProof([$values['postKey']])
+                ->encode(Proof::ENCODING_FULL_KEYS);
+
+            $t->same($oracle['firstMergedRootHex'], $restored->mergeProofBytes($homeProofBytes));
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same(
+                $oracle['afterFirstMergeBeforeSecond']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+            $t->same($values['updatedUrl'], $restored->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $restored->get($values['homeKey']));
+            $t->throws(RuntimeException::class, static fn () => $restored->get($values['postKey']));
+
+            $t->same($oracle['secondMergedRootHex'], $restored->mergeProofBytes($postProofBytes));
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same(
+                $oracle['afterSecondMergeBeforeGc']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+            $t->same($values['updatedUrl'], $restored->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $restored->get($values['homeKey']));
+            $t->same($values['postValue'], $restored->get($values['postKey']));
+
+            $t->same(
+                'Collected ' . $oracle['gc']['garbage'] . '/' . $oracle['gc']['total'] . " nodes\n",
+                $restored->garbageCollectText()
+            );
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+
+            $reopened = QuadbStore::open($restoreDir);
+            $t->same($values['head'], $reopened->currentHeadName());
+            $t->same($oracle['secondMergedRootHex'], $reopened->status()['rootHash']);
+            $t->same($values['updatedUrl'], $reopened->get($values['siteUrlKey']));
+            $t->same($values['originalUrl'], $reopened->get($values['homeKey']));
+            $t->same($values['postValue'], $reopened->get($values['postKey']));
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($reopened->lmdbRawEntrySnapshot()));
+        } finally {
+            quadrableQuadbRemoveDir($restoreDir);
+        }
+    },
+    'native quadb store matches upstream mixed raw-restored mergeProof LMDB cursor oracle' => static function (TestRunner $t): void {
+        $restoreDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-mixed-raw-restored-merge-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset(
+                    $oracle['fixtureValues'],
+                    $oracle['roots'],
+                    $oracle['beforeUpdate']['entries'],
+                    $oracle['afterUpdateBeforeMerge']['entries'],
+                    $oracle['afterMergeBeforeGc']['entries'],
+                    $oracle['afterGc']['entries'],
+                    $oracle['gc'],
+                    $oracle['updatedRootHex'],
+                    $oracle['mergedRootHex']
+                )
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['roots'])
+                || !is_array($oracle['beforeUpdate']['entries'])
+                || !is_array($oracle['afterUpdateBeforeMerge']['entries'])
+                || !is_array($oracle['afterMergeBeforeGc']['entries'])
+                || !is_array($oracle['afterGc']['entries'])
+                || !is_array($oracle['gc'])
+            ) {
+                throw new RuntimeException('malformed upstream mixed raw-restored mergeProof oracle fixture');
+            }
+
+            $values = $oracle['fixtureValues'];
+            foreach ([
+                'binaryKeyHex',
+                'binaryValueHex',
+                'delegatedValueHex',
+                'detachedValueHex',
+                'detachedMergedValueHex',
+                'privateDelegatedValueHex',
+            ] as $key) {
+                if (!isset($values[$key]) || !is_string($values[$key])) {
+                    throw new RuntimeException('malformed upstream mixed raw-restored mergeProof fixture value');
+                }
+            }
+
+            $binaryKey = quadrableQuadbOracleBytes($values['binaryKeyHex']);
+            $binaryValue = quadrableQuadbOracleBytes($values['binaryValueHex']);
+            $delegatedValue = quadrableQuadbOracleBytes($values['delegatedValueHex']);
+            $detachedValue = quadrableQuadbOracleBytes($values['detachedValueHex']);
+            $detachedMergedValue = quadrableQuadbOracleBytes($values['detachedMergedValueHex']);
+            $privateDelegatedValue = quadrableQuadbOracleBytes($values['privateDelegatedValueHex']);
+
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $oracle['beforeUpdate']['entries']);
+            $t->same($oracle['beforeUpdate']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->true($restored->isDetachedHead());
+            $t->same(null, $restored->currentHeadName());
+            $t->same($oracle['roots']['restoredRootHex'], $restored->status()['rootHash']);
+            $t->same($detachedValue, $restored->get($binaryKey));
+
+            $restored->put($binaryKey, $detachedMergedValue);
+            $t->true($restored->isDetachedHead());
+            $t->same($oracle['roots']['authoritativeUpdatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same(
+                $oracle['afterUpdateBeforeMerge']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+
+            $authoritative = new SparseTree();
+            $authoritative->change()
+                ->put('wp_options:plain', 'plain')
+                ->put($binaryKey, $detachedMergedValue)
+                ->put('wp_posts:1', 'Published post')
+                ->put('wp_postmeta:1:_thumbnail_id', '42')
+                ->apply();
+
+            $t->same($oracle['updatedRootHex'], $authoritative->rootHash());
+            $postProofBytes = $authoritative->exportProof(['wp_posts:1'])
+                ->encode(Proof::ENCODING_FULL_KEYS);
+
+            $t->same($oracle['mergedRootHex'], $restored->mergeProofBytes($postProofBytes));
+            $t->true($restored->isDetachedHead());
+            $t->same(
+                $oracle['afterMergeBeforeGc']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+            $t->same($detachedMergedValue, $restored->get($binaryKey));
+            $t->same('Published post', $restored->get('wp_posts:1'));
+
+            $t->same(
+                'Collected ' . $oracle['gc']['garbage'] . '/' . $oracle['gc']['total'] . " nodes\n",
+                $restored->garbageCollectText()
+            );
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+
+            $reopened = QuadbStore::open($restoreDir);
+            $t->true($reopened->isDetachedHead());
+            $t->same(null, $reopened->currentHeadName());
+            $t->same($oracle['mergedRootHex'], $reopened->status()['rootHash']);
+            $t->same($detachedMergedValue, $reopened->get($binaryKey));
+            $t->same('Published post', $reopened->get('wp_posts:1'));
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($reopened->lmdbRawEntrySnapshot()));
+
+            $reopened->checkout('binary-proof');
+            $t->same($delegatedValue, $reopened->get($binaryKey));
+            $reopened->checkout('private-proof');
+            $t->same($privateDelegatedValue, $reopened->get('wp_options:private'));
+            $reopened->checkout('master');
+            $t->same($binaryValue, $reopened->get($binaryKey));
+            $t->same('plain', $reopened->get('wp_options:plain'));
+        } finally {
+            quadrableQuadbRemoveDir($restoreDir);
+        }
+    },
+    'native quadb store matches upstream mixed named raw-restored mergeProof LMDB cursor oracle' => static function (TestRunner $t): void {
+        $restoreDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-mixed-named-raw-restored-merge-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset(
+                    $oracle['fixtureValues'],
+                    $oracle['roots'],
+                    $oracle['beforeUpdate']['entries'],
+                    $oracle['afterUpdateBeforeMerge']['entries'],
+                    $oracle['afterMergeBeforeGc']['entries'],
+                    $oracle['afterGc']['entries'],
+                    $oracle['gc'],
+                    $oracle['updatedRootHex'],
+                    $oracle['mergedRootHex']
+                )
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['roots'])
+                || !is_array($oracle['beforeUpdate']['entries'])
+                || !is_array($oracle['afterUpdateBeforeMerge']['entries'])
+                || !is_array($oracle['afterMergeBeforeGc']['entries'])
+                || !is_array($oracle['afterGc']['entries'])
+                || !is_array($oracle['gc'])
+            ) {
+                throw new RuntimeException('malformed upstream mixed named raw-restored mergeProof oracle fixture');
+            }
+
+            $values = $oracle['fixtureValues'];
+            foreach ([
+                'binaryKeyHex',
+                'binaryValueHex',
+                'delegatedValueHex',
+                'detachedMergedValueHex',
+                'privateDelegatedValueHex',
+            ] as $key) {
+                if (!isset($values[$key]) || !is_string($values[$key])) {
+                    throw new RuntimeException('malformed upstream mixed named raw-restored mergeProof fixture value');
+                }
+            }
+
+            $binaryKey = quadrableQuadbOracleBytes($values['binaryKeyHex']);
+            $binaryValue = quadrableQuadbOracleBytes($values['binaryValueHex']);
+            $delegatedValue = quadrableQuadbOracleBytes($values['delegatedValueHex']);
+            $detachedMergedValue = quadrableQuadbOracleBytes($values['detachedMergedValueHex']);
+            $privateDelegatedValue = quadrableQuadbOracleBytes($values['privateDelegatedValueHex']);
+
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $oracle['beforeUpdate']['entries']);
+            $t->same($oracle['beforeUpdate']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same(false, $restored->isDetachedHead());
+            $t->same('binary-proof', $restored->currentHeadName());
+            $t->same($oracle['roots']['restoredRootHex'], $restored->status()['rootHash']);
+            $t->same($delegatedValue, $restored->get($binaryKey));
+
+            $restored->put($binaryKey, $detachedMergedValue);
+            $t->same(false, $restored->isDetachedHead());
+            $t->same($oracle['roots']['authoritativeUpdatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same(
+                $oracle['afterUpdateBeforeMerge']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+
+            $authoritative = new SparseTree();
+            $authoritative->change()
+                ->put('wp_options:plain', 'plain')
+                ->put($binaryKey, $detachedMergedValue)
+                ->put('wp_posts:1', 'Published post')
+                ->put('wp_postmeta:1:_thumbnail_id', '42')
+                ->apply();
+
+            $t->same($oracle['updatedRootHex'], $authoritative->rootHash());
+            $postProofBytes = $authoritative->exportProof(['wp_posts:1'])
+                ->encode(Proof::ENCODING_FULL_KEYS);
+
+            $t->same($oracle['mergedRootHex'], $restored->mergeProofBytes($postProofBytes));
+            $t->same(false, $restored->isDetachedHead());
+            $t->same(
+                $oracle['afterMergeBeforeGc']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+            $t->same($detachedMergedValue, $restored->get($binaryKey));
+            $t->same('Published post', $restored->get('wp_posts:1'));
+
+            $t->same(
+                'Collected ' . $oracle['gc']['garbage'] . '/' . $oracle['gc']['total'] . " nodes\n",
+                $restored->garbageCollectText()
+            );
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+
+            $reopened = QuadbStore::open($restoreDir);
+            $t->same(false, $reopened->isDetachedHead());
+            $t->same('binary-proof', $reopened->currentHeadName());
+            $t->same($oracle['mergedRootHex'], $reopened->status()['rootHash']);
+            $t->same($detachedMergedValue, $reopened->get($binaryKey));
+            $t->same('Published post', $reopened->get('wp_posts:1'));
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($reopened->lmdbRawEntrySnapshot()));
+
+            $reopened->checkout('private-proof');
+            $t->same($privateDelegatedValue, $reopened->get('wp_options:private'));
+            $reopened->checkout('master');
+            $t->same($binaryValue, $reopened->get($binaryKey));
+            $t->same('plain', $reopened->get('wp_options:plain'));
+        } finally {
+            quadrableQuadbRemoveDir($restoreDir);
+        }
+    },
+    'native quadb store matches upstream mixed noTrack raw-restored mergeProof LMDB cursor oracle' => static function (TestRunner $t): void {
+        $restoreDir = quadrableQuadbTempDir();
+
+        try {
+            $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-mixed-notrack-raw-restored-merge-oracle.json';
+            $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+            if (!is_array($oracle)
+                || !isset(
+                    $oracle['fixtureValues'],
+                    $oracle['roots'],
+                    $oracle['beforeUpdate']['entries'],
+                    $oracle['afterUpdateBeforeMerge']['entries'],
+                    $oracle['afterMergeBeforeGc']['entries'],
+                    $oracle['afterGc']['entries'],
+                    $oracle['gc'],
+                    $oracle['updatedRootHex'],
+                    $oracle['mergedRootHex']
+                )
+                || !is_array($oracle['fixtureValues'])
+                || !is_array($oracle['roots'])
+                || !is_array($oracle['beforeUpdate']['entries'])
+                || !is_array($oracle['afterUpdateBeforeMerge']['entries'])
+                || !is_array($oracle['afterMergeBeforeGc']['entries'])
+                || !is_array($oracle['afterGc']['entries'])
+                || !is_array($oracle['gc'])
+            ) {
+                throw new RuntimeException('malformed upstream mixed noTrack raw-restored mergeProof oracle fixture');
+            }
+
+            $values = $oracle['fixtureValues'];
+            foreach ([
+                'binaryKeyHex',
+                'binaryValueHex',
+                'delegatedValueHex',
+                'privateValueHex',
+                'privatePostValueHex',
+                'privateDelegatedValueHex',
+                'privateMergedValueHex',
+            ] as $key) {
+                if (!isset($values[$key]) || !is_string($values[$key])) {
+                    throw new RuntimeException('malformed upstream mixed noTrack raw-restored mergeProof fixture value');
+                }
+            }
+
+            $binaryKey = quadrableQuadbOracleBytes($values['binaryKeyHex']);
+            $binaryValue = quadrableQuadbOracleBytes($values['binaryValueHex']);
+            $delegatedValue = quadrableQuadbOracleBytes($values['delegatedValueHex']);
+            $privateValue = quadrableQuadbOracleBytes($values['privateValueHex']);
+            $privatePostValue = quadrableQuadbOracleBytes($values['privatePostValueHex']);
+            $privateDelegatedValue = quadrableQuadbOracleBytes($values['privateDelegatedValueHex']);
+            $privateMergedValue = quadrableQuadbOracleBytes($values['privateMergedValueHex']);
+            $privateKeyHex = bin2hex('wp_options:private');
+
+            $restored = QuadbStore::restoreRawEntryDump($restoreDir, $oracle['beforeUpdate']['entries']);
+            $t->same($oracle['beforeUpdate']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same(false, $restored->isDetachedHead());
+            $t->same('private-proof', $restored->currentHeadName());
+            $t->same($oracle['roots']['restoredRootHex'], $restored->status()['rootHash']);
+            $t->same($privateDelegatedValue, $restored->get('wp_options:private'));
+            $t->same(10, count($restored->lmdbRawEntrySnapshot()['quadrable_key']));
+            $t->same(false, in_array(
+                $privateKeyHex,
+                array_column($oracle['beforeUpdate']['entries']['quadrable_key'], 'valueHex'),
+                true
+            ));
+
+            $restored->put('wp_options:private', $privateMergedValue);
+            $t->same(false, $restored->isDetachedHead());
+            $t->same($oracle['roots']['authoritativeUpdatedRootHex'], $restored->status()['rootHash']);
+            $t->same($oracle['updatedRootHex'], $restored->status()['rootHash']);
+            $t->same(
+                $oracle['afterUpdateBeforeMerge']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+            $t->same(10, count($restored->lmdbRawEntrySnapshot()['quadrable_key']));
+            $t->same(false, in_array(
+                $privateKeyHex,
+                array_column($oracle['afterUpdateBeforeMerge']['entries']['quadrable_key'], 'valueHex'),
+                true
+            ));
+
+            $authoritative = new SparseTree();
+            $authoritative->change()
+                ->put('wp_options:private', $privateMergedValue)
+                ->put('wp_posts:private', $privatePostValue)
+                ->apply();
+
+            $t->same($oracle['updatedRootHex'], $authoritative->rootHash());
+            $privatePostProofBytes = $authoritative->exportProof(['wp_posts:private'])->encode();
+
+            $t->same($oracle['mergedRootHex'], $restored->mergeProofBytes($privatePostProofBytes));
+            $t->same(false, $restored->isDetachedHead());
+            $t->same(
+                $oracle['afterMergeBeforeGc']['entries'],
+                quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot())
+            );
+            $t->same(10, count($restored->lmdbRawEntrySnapshot()['quadrable_key']));
+            $t->same($privateMergedValue, $restored->get('wp_options:private'));
+            $t->same($privatePostValue, $restored->get('wp_posts:private'));
+            $t->throws(RuntimeException::class, static fn () => $restored->exportProofBytes(
+                ['wp_options:private'],
+                Proof::ENCODING_FULL_KEYS
+            ));
+
+            $t->same(
+                'Collected ' . $oracle['gc']['garbage'] . '/' . $oracle['gc']['total'] . " nodes\n",
+                $restored->garbageCollectText()
+            );
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($restored->lmdbRawEntrySnapshot()));
+            $t->same(10, count($restored->lmdbRawEntrySnapshot()['quadrable_key']));
+            $t->same(false, in_array(
+                $privateKeyHex,
+                array_column($oracle['afterGc']['entries']['quadrable_key'], 'valueHex'),
+                true
+            ));
+
+            $reopened = QuadbStore::open($restoreDir);
+            $t->same(false, $reopened->isDetachedHead());
+            $t->same('private-proof', $reopened->currentHeadName());
+            $t->same($oracle['mergedRootHex'], $reopened->status()['rootHash']);
+            $t->same($privateMergedValue, $reopened->get('wp_options:private'));
+            $t->same($privatePostValue, $reopened->get('wp_posts:private'));
+            $t->same($oracle['afterGc']['entries'], quadrableQuadbRawSnapshotHex($reopened->lmdbRawEntrySnapshot()));
+
+            $reopened->checkout('private-full');
+            $t->same($privateValue, $reopened->get('wp_options:private'));
+            $reopened->checkout('binary-proof');
+            $t->same($delegatedValue, $reopened->get($binaryKey));
+            $reopened->checkout('master');
+            $t->same($binaryValue, $reopened->get($binaryKey));
+            $t->same('plain', $reopened->get('wp_options:plain'));
+        } finally {
+            quadrableQuadbRemoveDir($restoreDir);
+        }
+    },
     'native quadb store restores portable dumps for mixed full proof detached and noTrack heads' => static function (TestRunner $t): void {
         $dir = quadrableQuadbTempDir();
         $restoreDir = quadrableQuadbTempDir();
@@ -2267,7 +3499,12 @@ function quadrableQuadbDecodeHexProof(string $proofHex): string
 
 function quadrableQuadbUnknownStringKey(string $key): string
 {
-    return 'H(?)=0x' . substr((new HashTree())->keyHash($key), 0, 12) . '...';
+    return quadrableQuadbUnknownHash((new HashTree())->keyHash($key));
+}
+
+function quadrableQuadbUnknownHash(string $hashHex): string
+{
+    return 'H(?)=0x' . substr($hashHex, 0, 12) . '...';
 }
 
 function quadrableQuadbCompositeSuffix(string $label): string

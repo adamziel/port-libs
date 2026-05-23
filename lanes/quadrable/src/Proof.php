@@ -358,6 +358,9 @@ final class Proof
     {
         $result = 0;
         while (true) {
+            if ($offset >= strlen($encoded)) {
+                throw new \RuntimeException('premature end of varint');
+            }
             $byte = self::readByte($encoded, $offset);
             $result = ($result << 7) | ($byte & 0b0111_1111);
             if (($byte & 0b1000_0000) === 0) {

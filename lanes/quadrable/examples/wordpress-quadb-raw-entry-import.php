@@ -11,6 +11,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $sourceDir = sys_get_temp_dir() . '/quadrable-wp-raw-entry-source-' . bin2hex(random_bytes(6));
 $restoreDir = sys_get_temp_dir() . '/quadrable-wp-raw-entry-restore-' . bin2hex(random_bytes(6));
 $upstreamRestoreDir = sys_get_temp_dir() . '/quadrable-wp-raw-entry-upstream-' . bin2hex(random_bytes(6));
+$noTrackRestoreDir = sys_get_temp_dir() . '/quadrable-wp-raw-entry-notrack-' . bin2hex(random_bytes(6));
 
 $cleanup = static function (string $dir): void {
     if (!is_dir($dir)) {
@@ -107,8 +108,46 @@ try {
     $rootAfterDelegatedEdit = $upstream->status()['rootHash'];
     $delegatedProof = Proof::decode($upstream->exportProofBytes([$binaryKey], Proof::ENCODING_FULL_KEYS));
     $authenticatedUpdatedDelegated = SparseTree::importProof($delegatedProof, $rootAfterDelegatedEdit)->get($binaryKey);
+    $authoritativeAfterEdit = new SparseTree();
+    $authoritativeAfterEdit->change()
+        ->put('wp_options:plain', 'plain')
+        ->put($binaryKey, $updatedDelegatedPost)
+        ->put('wp_posts:1', 'Published post')
+        ->put('wp_postmeta:1:_thumbnail_id', '42')
+        ->apply();
+    $authoritativeRootMatches = $authoritativeAfterEdit->rootHash() === $rootAfterDelegatedEdit;
+    $upstream->mergeProofBytes(
+        $authoritativeAfterEdit->exportProof(['wp_options:plain'])->encode(Proof::ENCODING_FULL_KEYS)
+    );
+    $mergedPlainOption = $upstream->get('wp_options:plain');
     $upstream->checkout('private-proof');
     $privateDelegatedOption = $upstream->get('wp_options:private');
+
+    $noTrackOraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-notrack-raw-restored-merge-oracle.json';
+    $noTrackOracle = json_decode((string) file_get_contents($noTrackOraclePath), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($noTrackOracle)
+        || !isset($noTrackOracle['fixtureValues'], $noTrackOracle['beforeUpdate']['entries'], $noTrackOracle['afterGc']['entries'])
+        || !is_array($noTrackOracle['fixtureValues'])
+        || !is_array($noTrackOracle['beforeUpdate']['entries'])
+        || !is_array($noTrackOracle['afterGc']['entries'])
+    ) {
+        throw new RuntimeException('malformed upstream noTrack raw-restored mergeProof oracle fixture');
+    }
+    $noTrackValues = $noTrackOracle['fixtureValues'];
+    $noTrack = QuadbStore::restoreRawEntryDump($noTrackRestoreDir, $noTrackOracle['beforeUpdate']['entries'], false);
+    $noTrackOriginalSiteUrl = $noTrack->get($noTrackValues['siteUrlKey']);
+    $noTrack->put($noTrackValues['siteUrlKey'], $noTrackValues['updatedUrl']);
+    $noTrackAuthoritative = new SparseTree();
+    $noTrackAuthoritative->change()
+        ->put($noTrackValues['siteUrlKey'], $noTrackValues['updatedUrl'])
+        ->put($noTrackValues['homeKey'], $noTrackValues['originalUrl'])
+        ->put($noTrackValues['postKey'], $noTrackValues['postValue'])
+        ->apply();
+    $noTrack->mergeProofBytes(
+        $noTrackAuthoritative->exportProof([$noTrackValues['homeKey']])->encode()
+    );
+    $noTrackGc = $noTrack->garbageCollectText();
+    $noTrackRawAfterGc = $rawSnapshotHex($noTrack->lmdbRawEntrySnapshot());
 
     echo json_encode([
         'scenario' => 'restore WordPress Quadrable stores from raw LMDB cursor entries only',
@@ -132,11 +171,24 @@ try {
             'updatedDelegatedPostHex' => bin2hex($updatedDelegatedPost),
             'updatedProofAuthenticates' => $authenticatedUpdatedDelegated === $updatedDelegatedPost,
             'rootChangedAfterDelegatedEdit' => $rootAfterDelegatedEdit !== $rootBeforeDelegatedEdit,
+            'mergeProofAfterRawRestoredEdit' => [
+                'authoritativeRootMatches' => $authoritativeRootMatches,
+                'mergedPlainOption' => $mergedPlainOption,
+            ],
             'privateDelegatedOptionHex' => bin2hex($privateDelegatedOption),
+        ],
+        'upstreamNoTrackProofRestore' => [
+            'head' => $noTrack->currentHeadName(),
+            'originalSiteUrl' => $noTrackOriginalSiteUrl,
+            'mergedHome' => $noTrack->get($noTrackValues['homeKey']),
+            'keyBucketStayedEmpty' => $noTrackRawAfterGc['quadrable_key'] === [],
+            'afterGcMatchesOracle' => $noTrackRawAfterGc === $noTrackOracle['afterGc']['entries'],
+            'gc' => trim($noTrackGc),
         ],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($sourceDir);
     $cleanup($restoreDir);
     $cleanup($upstreamRestoreDir);
+    $cleanup($noTrackRestoreDir);
 }

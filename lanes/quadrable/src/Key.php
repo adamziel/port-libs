@@ -76,6 +76,45 @@ final class Key
         return $key;
     }
 
+    /**
+     * @return array{input: string, hashHex: string, attempts: int}
+     */
+    public static function mineHashPrefix(string $prefix, int $start = 1, int $maxAttempts = 1000000): array
+    {
+        self::assertBitPrefix($prefix);
+        if ($start < 0) {
+            throw new \InvalidArgumentException('mineHash start must be non-negative');
+        }
+        if ($maxAttempts < 1) {
+            throw new \InvalidArgumentException('mineHash max attempts must be positive');
+        }
+
+        $candidate = $start;
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            $input = (string) $candidate;
+            $hash = self::hash($input);
+            if ($hash->hasBitPrefix($prefix)) {
+                return [
+                    'input' => $input,
+                    'hashHex' => $hash->hex(),
+                    'attempts' => $attempt,
+                ];
+            }
+
+            if ($candidate === PHP_INT_MAX) {
+                break;
+            }
+            $candidate++;
+        }
+
+        throw new \RuntimeException('unable to mine hash prefix within attempt limit');
+    }
+
+    public static function hashMatchesBitPrefix(string $value, string $prefix): bool
+    {
+        return self::hash($value)->hasBitPrefix($prefix);
+    }
+
     public function toInteger(): int
     {
         for ($i = 16; $i < self::BYTE_LENGTH; $i++) {
@@ -94,6 +133,20 @@ final class Key
         $offset = (1 << $valueBits) - 2;
 
         return $payload + $offset;
+    }
+
+    public function hasBitPrefix(string $prefix): bool
+    {
+        self::assertBitPrefix($prefix);
+
+        $length = strlen($prefix);
+        for ($i = 0; $i < $length; $i++) {
+            if ($this->getBit($i) !== (int) $prefix[$i]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function bytes(): string
@@ -150,6 +203,16 @@ final class Key
         }
 
         return $bits;
+    }
+
+    private static function assertBitPrefix(string $prefix): void
+    {
+        if (strlen($prefix) > 256) {
+            throw new \InvalidArgumentException('bit prefix must be at most 256 bits');
+        }
+        if (!preg_match('/^[01]*$/', $prefix)) {
+            throw new \InvalidArgumentException('bit prefix must contain only 0 and 1');
+        }
     }
 
     private function writeBits(int $offset, int $count, int $value): void

@@ -48,6 +48,110 @@ final class QuadbStore
         return $store;
     }
 
+    public static function usageText(): string
+    {
+        return <<<'USAGE'
+
+    Usage:
+      quadb [options] init
+      quadb [options] put [--int] [--] <key> <val>
+      quadb [options] del [--int] [--] <key>
+      quadb [options] get [--int] [--] <key>
+      quadb [options] length
+      quadb [options] export [--sep=<sep>] [--int]
+      quadb [options] import [--sep=<sep>] [--int]
+      quadb [options] root
+      quadb [options] stats
+      quadb [options] status
+      quadb [options] diff <head> [--sep=<sep>]
+      quadb [options] patch [--sep=<sep>]
+      quadb [options] head
+      quadb [options] head rm [<head>]
+      quadb [options] checkout [<head>]
+      quadb [options] fork [<head>] [--from=<from>]
+      quadb [options] gc
+      quadb [options] exportProof [--format=(HashedKeys|FullKeys)] [--hex] [--dump] [--int] [--stdin] [--] [<keys>...]
+      quadb [options] importProof [--root=<root>] [--hex] [--dump]
+      quadb [options] mergeProof [--hex]
+      quadb [options] dumpTree
+      quadb [options] mineHash <prefix>
+
+    Options:
+      --db=<dir>     Database directory (default $ENV{QUADB_DIR} || "./quadb-dir/")
+      --noTrackKeys  Don't store keys in DB (default $ENV{QUADB_NOTRACKKEYS} || false)
+      --int          Keys are in integer format
+      -h --help      Show this screen.
+      --version      Show version.
+
+
+USAGE;
+    }
+
+    /**
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function helpCommandOutput(): array
+    {
+        return [
+            'exitCode' => 0,
+            'stdout' => self::usageText(),
+            'stderr' => '',
+        ];
+    }
+
+    /**
+     * Native command-output shape for invoking `quadb` without a command.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function noArgumentCommandOutput(): array
+    {
+        return [
+            'exitCode' => 255,
+            'stdout' => "\n" . self::usageText(),
+            'stderr' => 'Arguments did not match expected patterns',
+        ];
+    }
+
+    /**
+     * Native command-output shape for `quadb --version`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function versionCommandOutput(string $version = ''): array
+    {
+        return [
+            'exitCode' => 0,
+            'stdout' => 'quadb ' . $version . "\n",
+            'stderr' => '',
+        ];
+    }
+
+    /**
+     * Native command-output shape for `quadb init`. Upstream writes the
+     * already-initialized notice to stderr, so both streams are returned.
+     *
+     * @return array{stdout: string, stderr: string}
+     */
+    public static function initCommandOutput(string $directory, bool $trackKeys = true): array
+    {
+        $alreadyInitialized = is_file(self::statePath($directory));
+        self::init($directory, $trackKeys);
+
+        $displayDirectory = $directory . '/';
+        if ($alreadyInitialized) {
+            return [
+                'stdout' => '',
+                'stderr' => "quadb: Directory '{$displayDirectory}' already init'ed. Doing nothing.\n",
+            ];
+        }
+
+        return [
+            'stdout' => "quadb: init'ing directory: {$displayDirectory}\n",
+            'stderr' => '',
+        ];
+    }
+
     public static function open(string $directory, bool $trackKeys = true): self
     {
         if (!is_dir($directory)) {
@@ -165,6 +269,316 @@ final class QuadbStore
             $partialDetachedHead,
             $trackKeys
         );
+    }
+
+    /**
+     * Native equivalent of `quadb mineHash <prefix>` with a deterministic scan
+     * instead of upstream's random-device loop.
+     */
+    public static function mineHashText(string $prefix, int $start = 1, int $maxAttempts = 1000000): string
+    {
+        $result = Key::mineHashPrefix($prefix, $start, $maxAttempts);
+
+        return $result['input'] . ' -> ' . $result['hashHex'] . "\n";
+    }
+
+    /**
+     * Opens a store with the startup behavior used by non-init `quadb`
+     * commands. Upstream auto-creates the LMDB payload when the directory
+     * already exists, but fails before opening LMDB when the directory itself
+     * is missing.
+     */
+    public static function openForCommand(string $directory, bool $trackKeys = true): self
+    {
+        if (!is_dir($directory)) {
+            throw new \RuntimeException(
+                "Could not access directory '" . self::commandDisplayDirectory($directory) . "': No such file or directory"
+            );
+        }
+
+        if (!is_file(self::statePath($directory))) {
+            return self::init($directory, $trackKeys);
+        }
+
+        return self::open($directory, $trackKeys);
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb root`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function rootCommandOutput(string $directory, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->rootText(),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb get <key>`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function getCommandOutput(string $directory, string $key, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->get($key) . "\n",
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb put <key> <val>`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function putCommandOutput(
+        string $directory,
+        string $key,
+        string $value,
+        bool $trackKeys = true
+    ): array {
+        try {
+            self::openForCommand($directory, $trackKeys)->put($key, $value);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb del <key>`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function deleteCommandOutput(string $directory, string $key, bool $trackKeys = true): array
+    {
+        try {
+            self::openForCommand($directory, $trackKeys)->delete($key);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb import --int`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function importIntegerCommandOutput(
+        string $directory,
+        string $input,
+        string $separator = ',',
+        bool $trackKeys = true
+    ): array {
+        try {
+            self::openForCommand($directory, $trackKeys)->importIntegerLines($input, $separator);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb exportProof`.
+     *
+     * @param list<string> $keys
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function exportProofCommandOutput(
+        string $directory,
+        array $keys,
+        string $format = 'HashedKeys',
+        bool $hex = false,
+        bool $dump = false,
+        bool $integerKeys = false,
+        bool $trackKeys = true
+    ): array {
+        try {
+            $store = self::openForCommand($directory, $trackKeys);
+            if ($integerKeys) {
+                $integers = [];
+                foreach ($keys as $key) {
+                    $integers[] = self::parseQuadbCliIntegerKey((string) $key);
+                }
+                $proof = $store->exportIntegerProof($integers);
+            } else {
+                $proof = $store->exportProof($keys);
+            }
+
+            if ($dump) {
+                return [
+                    'exitCode' => 0,
+                    'stdout' => $proof->dumpText(),
+                    'stderr' => '',
+                ];
+            }
+
+            if ($format === 'HashedKeys') {
+                $encodingType = Proof::ENCODING_HASHED_KEYS;
+            } elseif ($format === 'FullKeys') {
+                $encodingType = Proof::ENCODING_FULL_KEYS;
+            } else {
+                throw new \RuntimeException('unknown proof format');
+            }
+
+            $encodedProof = $proof->encode($encodingType);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => $hex ? '0x' . bin2hex($encodedProof) . "\n" : $encodedProof,
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb importProof --hex`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function importProofHexCommandOutput(
+        string $directory,
+        string $proofHex,
+        ?string $expectedRoot = null,
+        bool $dump = false,
+        bool $trackKeys = true
+    ): array {
+        try {
+            $store = self::openForCommand($directory, $trackKeys);
+            $encodedProof = self::decodeCommandHexText($proofHex);
+            $decodedProof = Proof::decode($encodedProof);
+
+            if ($dump) {
+                return [
+                    'exitCode' => 0,
+                    'stdout' => $decodedProof->dumpText(),
+                    'stderr' => '',
+                ];
+            }
+
+            if ($expectedRoot !== null) {
+                $rootBytes = self::decodeCommandHexText($expectedRoot);
+                if ($rootBytes !== '' && strlen($rootBytes) !== 32) {
+                    if ($store->currentPartialProofState() !== null
+                        || $store->tree()->rootHash() !== HashTree::EMPTY_HASH
+                    ) {
+                        throw new \RuntimeException('current head must be empty before importing a proof');
+                    }
+                    SparseTree::importProof($decodedProof);
+                    throw new \RuntimeException('proof invalid');
+                }
+
+                $store->importProofBytes($encodedProof, $rootBytes === '' ? null : bin2hex($rootBytes));
+
+                return [
+                    'exitCode' => 0,
+                    'stdout' => '',
+                    'stderr' => '',
+                ];
+            }
+
+            return [
+                'exitCode' => 0,
+                'stdout' => $store->importProofBytesOutputText($encodedProof, $expectedRoot),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb mergeProof --hex`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function mergeProofHexCommandOutput(
+        string $directory,
+        string $proofHex,
+        bool $trackKeys = true
+    ): array {
+        try {
+            $store = self::openForCommand($directory, $trackKeys);
+            $encodedProof = self::decodeCommandHexText($proofHex);
+            $proof = Proof::decode($encodedProof);
+            if ($proof->strands === []) {
+                throw new \RuntimeException('empty proof');
+            }
+
+            $store->mergeProofBytes($encodedProof);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
     }
 
     public function directory(): string
@@ -767,6 +1181,11 @@ final class QuadbStore
         return '0x' . $this->currentRootHash() . "\n";
     }
 
+    public function lengthText(): string
+    {
+        return '';
+    }
+
     public function statusText(): string
     {
         $head = $this->isDetachedHead()
@@ -901,10 +1320,18 @@ final class QuadbStore
             $extraRoots[] = $this->detachedHeadNodeId;
         }
 
+        $rawProjectionPartialStorage = $this->hasRawProjectionPartialProofStorage();
         $stats = $this->nodeStore->garbageCollect($extraRoots);
         $partialStats = $this->garbageCollectPartialProofStorage();
         $this->pruneTrackedKeysToStoredLeaves();
         $this->persist();
+
+        // Raw-entry-restored projections already contain the shared LMDB node
+        // id space, including full-head nodes, so their stats are the upstream
+        // bucket stats. The node store GC above still prunes its local copy.
+        if ($rawProjectionPartialStorage && $partialStats['total'] > 0) {
+            return $partialStats;
+        }
 
         return [
             'total' => $stats['total'] + $partialStats['total'],
@@ -974,8 +1401,15 @@ final class QuadbStore
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
         }
-        if ($this->currentPartialProofState() !== null) {
-            throw new \RuntimeException('cannot export all records from a proof-backed partial tree');
+
+        $partialState = $this->currentPartialProofState();
+        if ($partialState !== null) {
+            return $this->exportPartialLines(
+                $this->partialTreeFromState($partialState),
+                $separator,
+                false,
+                $this->partialStateTracksKeys($partialState)
+            );
         }
 
         $output = '';
@@ -1113,11 +1547,9 @@ final class QuadbStore
 
             $key = substr($line, 0, $separatorOffset);
             $value = substr($line, $separatorOffset + strlen($separator));
-            if (!preg_match('/^(0|[1-9][0-9]*)$/', $key)) {
-                throw new \InvalidArgumentException('integer import key must be a non-negative integer');
-            }
+            $integer = self::parseQuadbCliIntegerKey($key);
 
-            $updates[Key::fromInteger((int) $key)->hex()] = [
+            $updates[Key::fromInteger($integer)->hex()] = [
                 'delete' => false,
                 'value' => $value,
             ];
@@ -1147,13 +1579,74 @@ final class QuadbStore
         if ($separator === '') {
             throw new \InvalidArgumentException('separator must be non-empty');
         }
-        if ($this->currentPartialProofState() !== null) {
-            throw new \RuntimeException('cannot export all records from a proof-backed partial tree');
+
+        $partialState = $this->currentPartialProofState();
+        if ($partialState !== null) {
+            return $this->exportPartialLines(
+                $this->partialTreeFromState($partialState),
+                $separator,
+                true,
+                $this->partialStateTracksKeys($partialState)
+            );
         }
 
         $output = '';
         foreach ($this->tree()->orderedEntries() as $entry) {
             $output .= $entry->key()->toInteger() . $separator . $entry->value() . "\n";
+        }
+
+        return $output;
+    }
+
+    private function exportPartialLines(
+        SparseTree $partial,
+        string $separator,
+        bool $integerKeys,
+        bool $trackKeys
+    ): string {
+        $snapshot = $partial->partialStorageSnapshot();
+        $records = [];
+        foreach ($snapshot['leaves'] as $record) {
+            if (!is_array($record)
+                || !isset($record['type'], $record['keyHash'])
+                || !is_string($record['type'])
+            ) {
+                throw new \RuntimeException('partial export leaf record is malformed');
+            }
+
+            $keyHash = self::parseHashHexValue($record['keyHash'], 'partial export key hash');
+            if ($record['type'] !== 'leaf' && $record['type'] !== 'witnessLeaf') {
+                throw new \RuntimeException('partial export encountered an unknown leaf record type');
+            }
+
+            $records[$keyHash] = $record;
+        }
+        ksort($records, SORT_STRING);
+
+        $output = '';
+        foreach ($records as $keyHash => $record) {
+            if ($integerKeys) {
+                $renderedKey = (string) Key::fromHex($keyHash)->toInteger();
+            } elseif ($trackKeys && isset($record['key']) && is_string($record['key']) && $record['key'] !== '') {
+                $renderedKey = $record['key'];
+            } elseif ($trackKeys && isset($this->trackedKeys[$keyHash])) {
+                $renderedKey = $this->trackedKeys[$keyHash];
+            } else {
+                $renderedKey = self::renderUnknownHash($keyHash);
+            }
+
+            if ($record['type'] === 'leaf') {
+                if (!isset($record['value']) || !is_string($record['value'])) {
+                    throw new \RuntimeException('partial export leaf value is malformed');
+                }
+                $renderedValue = $record['value'];
+            } else {
+                $renderedValue = self::renderUnknownHash(
+                    self::parseHashHexValue($record['valueHash'] ?? null, 'partial export witness value hash')
+                );
+            }
+
+            $output .= $renderedKey . $separator . $renderedValue . "\n";
         }
 
         return $output;
@@ -1404,6 +1897,7 @@ final class QuadbStore
             'proofRootHash' => $partial->rootHash(),
             'storageId' => self::partialStorageId($this->currentHead, $storageOrdinal, $encodedProof),
             'storageOrdinal' => $storageOrdinal,
+            'trackKeys' => $this->trackKeys,
             'proofStoragePruned' => false,
             'proofs' => [bin2hex($encodedProof)],
             'updates' => [],
@@ -1449,23 +1943,30 @@ final class QuadbStore
         if ($state === null) {
             throw new \RuntimeException('current head is not a proof-backed partial tree');
         }
-        if (($state['rawProjection'] ?? false) === true) {
-            throw new \RuntimeException('raw-entry-restored proof-backed heads cannot merge proofs without proof event history');
-        }
 
         $partial = $this->partialTreeFromState($state);
         $rootBeforeMerge = $partial->rootHash();
-        $partial->mergeProof(Proof::decode($encodedProof));
+        $proof = Proof::decode($encodedProof);
+        $partial->mergeProof($proof);
 
         $proofHex = bin2hex($encodedProof);
-        $state['proofs'][] = $proofHex;
-        $state['proofStoragePruned'] = false;
-        unset($state['proofStoragePrunedProjection']);
-        $state['events'][] = [
-            'type' => 'proof',
-            'rootHash' => $rootBeforeMerge,
-            'proof' => $proofHex,
-        ];
+        if (($state['rawProjection'] ?? false) === true) {
+            $state['rootHash'] = $partial->rootHash();
+            $state['proofStoragePruned'] = true;
+            $state['proofStoragePrunedProjection'] = $this->rawProjectionAfterProofMerge($state, $proof, $rootBeforeMerge);
+            $state['proofs'] = [];
+            $state['updates'] = [];
+            $state['events'] = [];
+        } else {
+            $state['proofs'][] = $proofHex;
+            $state['proofStoragePruned'] = false;
+            unset($state['proofStoragePrunedProjection']);
+            $state['events'][] = [
+                'type' => 'proof',
+                'rootHash' => $rootBeforeMerge,
+                'proof' => $proofHex,
+            ];
+        }
         $this->storeCurrentPartialProofState($state);
         $this->persist();
 
@@ -1760,6 +2261,11 @@ final class QuadbStore
     private static function statePath(string $directory): string
     {
         return rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . self::STATE_FILE;
+    }
+
+    private static function commandDisplayDirectory(string $directory): string
+    {
+        return $directory . DIRECTORY_SEPARATOR;
     }
 
     /**
@@ -2241,6 +2747,7 @@ final class QuadbStore
                 ($head ?? '[detached]') . "\0" . $storageOrdinal . "\0" . $rootNodeId . "\0" . $rootHash
             ), 0, 32),
             'storageOrdinal' => $storageOrdinal,
+            'trackKeys' => self::rawProjectionSubtreeHasTrackedKeys($rootNodeId, $projectionNodes),
             'proofStoragePruned' => true,
             'proofStoragePrunedProjection' => [
                 'rootNodeId' => $rootNodeId,
@@ -2250,6 +2757,36 @@ final class QuadbStore
             'updates' => [],
             'events' => [],
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $projectionNodes
+     */
+    private static function rawProjectionSubtreeHasTrackedKeys(int $rootNodeId, array $projectionNodes): bool
+    {
+        $visit = static function (int $nodeId) use (&$visit, $projectionNodes): bool {
+            if ($nodeId === 0) {
+                return false;
+            }
+            $node = $projectionNodes[(string) $nodeId] ?? null;
+            if (!is_array($node)) {
+                throw new \RuntimeException('raw projection references an unknown node');
+            }
+
+            if (($node['type'] ?? null) === 'leaf' || ($node['type'] ?? null) === 'witnessLeaf') {
+                return array_key_exists('leafKeyHex', $node);
+            }
+            if (($node['type'] ?? null) === 'witness') {
+                return false;
+            }
+            if (($node['type'] ?? null) === 'branch') {
+                return $visit((int) $node['leftNodeId']) || $visit((int) $node['rightNodeId']);
+            }
+
+            throw new \RuntimeException('unrecognized raw projection node type');
+        };
+
+        return $visit($rootNodeId);
     }
 
     /**
@@ -2500,6 +3037,18 @@ final class QuadbStore
         }
     }
 
+    private function hasRawProjectionPartialProofStorage(): bool
+    {
+        foreach ($this->partialProofHeads as $state) {
+            if (($state['rawProjection'] ?? false) === true) {
+                return true;
+            }
+        }
+
+        return is_array($this->partialDetachedHead)
+            && (($this->partialDetachedHead['rawProjection'] ?? false) === true);
+    }
+
     /**
      * Projects a proof-backed head into upstream-shaped LMDB nodes. Before a
      * native GC pass, proof events are replayed as separate importProof writes
@@ -2523,6 +3072,8 @@ final class QuadbStore
         array &$projectedNodes,
         array &$eventProjectionCache
     ): int {
+        $trackKeys = $this->partialStateTracksKeys($state);
+
         if (($state['proofStoragePruned'] ?? false) === true) {
             if (isset($state['proofStoragePrunedProjection']) && is_array($state['proofStoragePrunedProjection'])) {
                 return $this->applyPrunedPartialProjectionLmdbNodes(
@@ -2532,7 +3083,8 @@ final class QuadbStore
                     $branches,
                     $nextLeafNodeId,
                     $nextInteriorNodeId,
-                    $projectedNodes
+                    $projectedNodes,
+                    $trackKeys
                 );
             }
 
@@ -2543,7 +3095,8 @@ final class QuadbStore
                 $branches,
                 $nextLeafNodeId,
                 $nextInteriorNodeId,
-                $projectedNodes
+                $projectedNodes,
+                trackKeys: $trackKeys
             );
         }
 
@@ -2577,7 +3130,8 @@ final class QuadbStore
                         $nextInteriorNodeId,
                         $projectedNodes,
                         [],
-                        $currentProjectionMap
+                        $currentProjectionMap,
+                        $trackKeys
                     );
                     $eventProjectionCache[$prefixKey] = [
                         'root' => $currentProjectedRoot,
@@ -2609,7 +3163,8 @@ final class QuadbStore
                     $nextInteriorNodeId,
                     $projectedNodes,
                     [],
-                    $importedProjectionMap
+                    $importedProjectionMap,
+                    $trackKeys
                 );
                 $currentProjectedRoot = $this->mergeProjectedProofNodes(
                     (int) $currentProjectedRoot,
@@ -2659,7 +3214,8 @@ final class QuadbStore
                 $nextInteriorNodeId,
                 $projectedNodes,
                 $currentProjectionMap,
-                $projectionMap
+                $projectionMap,
+                $trackKeys
             );
             $currentProjectionMap = $projectionMap;
             $eventProjectionCache[$prefixKey] = [
@@ -2686,7 +3242,8 @@ final class QuadbStore
             $branches,
             $nextLeafNodeId,
             $nextInteriorNodeId,
-            $projectedNodes
+            $projectedNodes,
+            trackKeys: $trackKeys
         );
     }
 
@@ -2705,8 +3262,10 @@ final class QuadbStore
         int &$nextInteriorNodeId,
         array &$projectedNodes,
         array $reuseNodeIds = [],
-        ?array &$nativeNodeIdMap = null
+        ?array &$nativeNodeIdMap = null,
+        ?bool $trackKeys = null
     ): int {
+        $trackKeys ??= $this->trackKeys;
         $partialSnapshot = $partial->partialStorageSnapshot();
         $idMap = [0 => 0];
         $pending = [];
@@ -2749,7 +3308,7 @@ final class QuadbStore
                     $idMap[$nativeNodeId] = $mappedNodeId;
                     $leaves[$mappedNodeId] = self::encodeLmdbPartialLeafNode($record);
                     $projectedNodes[$mappedNodeId] = $record;
-                    if ($this->trackKeys && isset($record['key']) && $record['key'] !== '') {
+                    if ($trackKeys && isset($record['key']) && $record['key'] !== '') {
                         $leafKeys[$mappedNodeId] = $record['key'];
                     }
                     unset($pending[$nativeNodeId]);
@@ -2822,8 +3381,10 @@ final class QuadbStore
         array &$branches,
         int &$nextLeafNodeId,
         int &$nextInteriorNodeId,
-        array &$projectedNodes
+        array &$projectedNodes,
+        ?bool $trackKeys = null
     ): int {
+        $trackKeys ??= $this->trackKeys;
         $rootNodeId = self::parseNonNegativeNodeId($projection['rootNodeId'] ?? 0, 'pruned proof root node id');
         $nodes = $projection['nodes'] ?? [];
         if (!is_array($nodes)) {
@@ -2849,7 +3410,7 @@ final class QuadbStore
                     throw new \RuntimeException('pruned proof projection collides with an existing leaf node id');
                 }
                 $leaves[$nodeId] = $raw;
-                if ($leafKey !== null && $this->trackKeys) {
+                if ($leafKey !== null) {
                     if (isset($leafKeys[$nodeId]) && $leafKeys[$nodeId] !== $leafKey) {
                         throw new \RuntimeException('pruned proof projection collides with an existing tracked key id');
                     }
@@ -2883,6 +3444,19 @@ final class QuadbStore
                 throw new \RuntimeException('pruned proof projection collides with an existing projected node');
             }
             $projectedNodes[$nodeId] = $record;
+        }
+
+        $staleLeafKeys = $projection['staleLeafKeys'] ?? [];
+        if (!is_array($staleLeafKeys)) {
+            throw new \RuntimeException('pruned proof stale tracked keys are malformed');
+        }
+        foreach ($staleLeafKeys as $nodeIdRaw => $leafKeyHex) {
+            $nodeId = self::parseNonNegativeNodeId($nodeIdRaw, 'pruned proof stale tracked-key node id');
+            $leafKey = self::decodeEvenHexBytes($leafKeyHex, 'pruned proof stale tracked key');
+            if (isset($leafKeys[$nodeId]) && $leafKeys[$nodeId] !== $leafKey) {
+                throw new \RuntimeException('pruned proof stale tracked key collides with an existing tracked key id');
+            }
+            $leafKeys[$nodeId] = $leafKey;
         }
 
         ksort($leaves, SORT_NUMERIC);
@@ -3016,6 +3590,7 @@ final class QuadbStore
         $markedRoots = [];
         $partialHeadRootNodeIds = [];
         $partialDetachedRootNodeId = null;
+        $rawProjectionPartialStorage = $this->hasRawProjectionPartialProofStorage();
 
         $projectState = function (array $state) use (
             &$leaves,
@@ -3060,6 +3635,21 @@ final class QuadbStore
             $partialDetachedRootNodeId = $detachedRoot;
             if ($this->currentHead === null) {
                 $markedRoots[] = $detachedRoot;
+            }
+        }
+
+        if ($rawProjectionPartialStorage) {
+            foreach ($this->nodeStore->heads() as $nodeId) {
+                if (isset($projectedNodes[$nodeId])) {
+                    $markedRoots[] = $nodeId;
+                }
+            }
+            if ($this->currentHead === null
+                && $this->partialDetachedHead === null
+                && $this->detachedHeadNodeId !== 0
+                && isset($projectedNodes[$this->detachedHeadNodeId])
+            ) {
+                $markedRoots[] = $this->detachedHeadNodeId;
             }
         }
 
@@ -3129,7 +3719,8 @@ final class QuadbStore
             $state['proofStoragePrunedProjection'] = $this->prunedPartialProjection(
                 $partialHeadRootNodeIds[(string) $head] ?? 0,
                 $projectedNodes,
-                $leafKeys
+                $leafKeys,
+                $this->currentHead === (string) $head && !$this->partialStateTracksKeys($state)
             );
             $this->partialProofHeads[$head] = $state;
         }
@@ -3138,7 +3729,8 @@ final class QuadbStore
             $this->partialDetachedHead['proofStoragePrunedProjection'] = $this->prunedPartialProjection(
                 $partialDetachedRootNodeId ?? 0,
                 $projectedNodes,
-                $leafKeys
+                $leafKeys,
+                $this->currentHead === null && !$this->partialStateTracksKeys($this->partialDetachedHead)
             );
         }
     }
@@ -3149,7 +3741,12 @@ final class QuadbStore
      *
      * @return array{rootNodeId: int, nodes: array<string, array<string, mixed>>}
      */
-    private function prunedPartialProjection(int $rootNodeId, array $projectedNodes, array $leafKeys): array
+    private function prunedPartialProjection(
+        int $rootNodeId,
+        array $projectedNodes,
+        array $leafKeys,
+        bool $preserveStaleLeafKeys = false
+    ): array
     {
         $marked = [];
         $this->markProjectedNodeReachable($rootNodeId, $projectedNodes, $marked);
@@ -3163,10 +3760,25 @@ final class QuadbStore
         }
         ksort($nodes, SORT_NUMERIC);
 
-        return [
+        $projection = [
             'rootNodeId' => $rootNodeId,
             'nodes' => $nodes,
         ];
+
+        if ($preserveStaleLeafKeys) {
+            $staleLeafKeys = [];
+            foreach ($leafKeys as $nodeId => $leafKey) {
+                if (!isset($marked[$nodeId])) {
+                    $staleLeafKeys[(string) $nodeId] = bin2hex($leafKey);
+                }
+            }
+            if ($staleLeafKeys !== []) {
+                ksort($staleLeafKeys, SORT_NUMERIC);
+                $projection['staleLeafKeys'] = $staleLeafKeys;
+            }
+        }
+
+        return $projection;
     }
 
     /**
@@ -3193,6 +3805,7 @@ final class QuadbStore
         $projectedNodes = [];
         $nextLeafNodeId = 1;
         $nextInteriorNodeId = TrackedNodeStore::FIRST_INTERIOR_NODE_ID;
+        $trackKeys = $this->partialStateTracksKeys($state);
 
         $this->applyPrunedPartialProjectionLmdbNodes(
             $state['proofStoragePrunedProjection'],
@@ -3201,7 +3814,8 @@ final class QuadbStore
             $branches,
             $nextLeafNodeId,
             $nextInteriorNodeId,
-            $projectedNodes
+            $projectedNodes,
+            $trackKeys
         );
 
         $reuseNodeIds = [];
@@ -3217,10 +3831,72 @@ final class QuadbStore
             $nextLeafNodeId,
             $nextInteriorNodeId,
             $projectedNodes,
-            $reuseNodeIds
+            $reuseNodeIds,
+            trackKeys: $trackKeys
         );
 
         return $this->allProjectedPartialProjection($rootNodeId, $projectedNodes, $leafKeys);
+    }
+
+    /**
+     * Reprojects a raw-entry-restored partial tree after mergeProof. The newly
+     * imported proof is projected as a separate import first, matching the
+     * upstream storage shape where mergeProof leaves now-unreachable imported
+     * proof nodes for the next GC sweep.
+     *
+     * @param array<string, mixed> $state
+     *
+     * @return array{rootNodeId: int, nodes: array<string, array<string, mixed>>}
+     */
+    private function rawProjectionAfterProofMerge(array $state, Proof $proof, string $rootBeforeMerge): array
+    {
+        if (($state['rawProjection'] ?? false) !== true
+            || !isset($state['proofStoragePrunedProjection'])
+            || !is_array($state['proofStoragePrunedProjection'])
+        ) {
+            throw new \RuntimeException('raw projection state is malformed');
+        }
+
+        $leaves = [];
+        $leafKeys = [];
+        $branches = [];
+        $projectedNodes = [];
+        $nextLeafNodeId = 1;
+        $nextInteriorNodeId = TrackedNodeStore::FIRST_INTERIOR_NODE_ID;
+        $trackKeys = $this->partialStateTracksKeys($state);
+
+        $currentProjectedRoot = $this->applyPrunedPartialProjectionLmdbNodes(
+            $state['proofStoragePrunedProjection'],
+            $leaves,
+            $leafKeys,
+            $branches,
+            $nextLeafNodeId,
+            $nextInteriorNodeId,
+            $projectedNodes,
+            $trackKeys
+        );
+
+        $imported = SparseTree::importProof($proof, $rootBeforeMerge);
+        $importedProjectedRoot = $this->projectPartialTreeLmdbNodes(
+            $imported,
+            $leaves,
+            $leafKeys,
+            $branches,
+            $nextLeafNodeId,
+            $nextInteriorNodeId,
+            $projectedNodes,
+            trackKeys: $trackKeys
+        );
+
+        $mergedProjectedRoot = $this->mergeProjectedProofNodes(
+            $currentProjectedRoot,
+            $importedProjectedRoot,
+            $projectedNodes,
+            $branches,
+            $nextInteriorNodeId
+        );
+
+        return $this->allProjectedPartialProjection($mergedProjectedRoot, $projectedNodes, $leafKeys);
     }
 
     /**
@@ -3374,16 +4050,19 @@ final class QuadbStore
             throw new \RuntimeException('current head is not a proof-backed partial tree');
         }
         $rawProjection = ($state['rawProjection'] ?? false) === true;
+        $trackKeys = $this->partialStateTracksKeys($state);
 
         $keyHash = $this->keyHash($key);
         $partial = $this->partialTreeFromState($state);
-        $partial->applyRawUpdates([
-            $keyHash => [
-                'delete' => $delete,
-                'value' => $value,
-                'key' => $key,
-            ],
-        ]);
+        $rawUpdate = [
+            'delete' => $delete,
+            'value' => $value,
+        ];
+        if ($trackKeys) {
+            $rawUpdate['key'] = $key;
+        }
+
+        $partial->applyRawUpdates([$keyHash => $rawUpdate]);
 
         $state['rootHash'] = $partial->rootHash();
         $update = [
@@ -3391,7 +4070,7 @@ final class QuadbStore
             'keyHash' => $keyHash,
             'value' => $value,
         ];
-        if ($this->trackKeys) {
+        if ($trackKeys) {
             $update['key'] = $key;
         }
 
@@ -3410,7 +4089,7 @@ final class QuadbStore
             ] + $update;
         }
         if (!$delete) {
-            $this->recordStringKeyWrite($key);
+            $this->recordStringKeyWrite($key, $trackKeys);
         }
 
         $this->storeCurrentPartialProofState($state);
@@ -3522,6 +4201,43 @@ final class QuadbStore
         return $decoded;
     }
 
+    private static function decodeCommandHexText(string $input): string
+    {
+        $hex = str_replace([" ", "\t", "\n", "\r", "\f", "\v"], '', $input);
+        if (str_starts_with($hex, '0x')) {
+            $hex = substr($hex, 2);
+        }
+        if (strlen($hex) % 2 !== 0) {
+            $hex = '0' . $hex;
+        }
+
+        $output = '';
+        for ($offset = 0, $length = strlen($hex); $offset < $length; $offset += 2) {
+            $output .= chr(
+                (self::decodeCommandHexNibble($hex[$offset]) << 4)
+                | self::decodeCommandHexNibble($hex[$offset + 1])
+            );
+        }
+
+        return $output;
+    }
+
+    private static function decodeCommandHexNibble(string $char): int
+    {
+        $code = ord($char);
+        if ($code >= 48 && $code <= 57) {
+            return $code - 48;
+        }
+        if ($code >= 97 && $code <= 102) {
+            return $code - 87;
+        }
+        if ($code >= 65 && $code <= 70) {
+            return $code - 55;
+        }
+
+        throw new \RuntimeException('unexpected character in from_hex: ' . $code);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -3564,6 +4280,7 @@ final class QuadbStore
                     $state['rootHash'] . "\0" . $storageOrdinal
                 );
             }
+            $trackKeys = self::parsePartialStateTrackKeys($state, $label);
 
             return [
                 'rawProjection' => true,
@@ -3571,6 +4288,7 @@ final class QuadbStore
                 'proofRootHash' => $proofRootHash,
                 'storageId' => $storageId,
                 'storageOrdinal' => $storageOrdinal,
+                'trackKeys' => $trackKeys,
                 'proofStoragePruned' => true,
                 'proofStoragePrunedProjection' => self::parsePrunedProofProjection(
                     $state['proofStoragePrunedProjection'] ?? null,
@@ -3676,6 +4394,7 @@ final class QuadbStore
         if ($storageId === null) {
             $storageId = self::legacyPartialStorageId($proofRootHash, $proofs, $updates, $events);
         }
+        $trackKeys = self::parsePartialStateTrackKeys($state, $label);
 
         $proofStoragePruned = false;
         if (array_key_exists('proofStoragePruned', $state)) {
@@ -3701,6 +4420,7 @@ final class QuadbStore
             'proofRootHash' => $proofRootHash,
             'storageId' => $storageId,
             'storageOrdinal' => $storageOrdinal,
+            'trackKeys' => $trackKeys,
             'proofStoragePruned' => $proofStoragePruned,
             'proofStoragePrunedProjection' => $proofStoragePrunedProjection,
             'proofs' => $proofs,
@@ -3712,6 +4432,31 @@ final class QuadbStore
     private static function partialStorageOrdinal(array $state): int
     {
         return self::parseNonNegativeNodeId($state['storageOrdinal'] ?? 0, 'partial proof storage ordinal');
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private function partialStateTracksKeys(array $state): bool
+    {
+        $trackKeys = $state['trackKeys'] ?? null;
+
+        return is_bool($trackKeys) ? $trackKeys : $this->trackKeys;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function parsePartialStateTrackKeys(array $state, string $label): ?bool
+    {
+        if (!array_key_exists('trackKeys', $state)) {
+            return null;
+        }
+        if (!is_bool($state['trackKeys'])) {
+            throw new \InvalidArgumentException($label . ' has malformed key tracking mode');
+        }
+
+        return $state['trackKeys'];
     }
 
     private static function partialStorageId(?string $head, int $storageOrdinal, string $encodedProof): string
@@ -3820,13 +4565,32 @@ final class QuadbStore
         }
         ksort($nodes, SORT_NUMERIC);
 
-        return [
+        $parsed = [
             'rootNodeId' => self::parseNonNegativeNodeId(
                 $projection['rootNodeId'],
                 $label . ' pruned proof root node id'
             ),
             'nodes' => $nodes,
         ];
+
+        if (array_key_exists('staleLeafKeys', $projection)) {
+            if (!is_array($projection['staleLeafKeys'])) {
+                throw new \InvalidArgumentException($label . ' has malformed stale tracked keys');
+            }
+
+            $staleLeafKeys = [];
+            foreach ($projection['staleLeafKeys'] as $nodeId => $leafKeyHex) {
+                self::parseNonNegativeNodeId($nodeId, $label . ' stale tracked-key node id');
+                self::decodeEvenHexBytes($leafKeyHex, $label . ' stale tracked key');
+                $staleLeafKeys[(string) $nodeId] = $leafKeyHex;
+            }
+            ksort($staleLeafKeys, SORT_NUMERIC);
+            if ($staleLeafKeys !== []) {
+                $parsed['staleLeafKeys'] = $staleLeafKeys;
+            }
+        }
+
+        return $parsed;
     }
 
     /**
@@ -4035,16 +4799,39 @@ final class QuadbStore
 
     private static function parseProofIntegerLine(string $line): int
     {
-        if (!preg_match('/^(0|[1-9][0-9]*)$/', $line)) {
-            throw new \InvalidArgumentException('exportProof --int stdin key must be a non-negative integer');
+        return self::parseQuadbCliIntegerKey($line);
+    }
+
+    private static function parseQuadbCliIntegerKey(string $text): int
+    {
+        $trimmed = ltrim($text);
+        if (!preg_match('/^[+-]?[0-9]+/', $trimmed, $matches)) {
+            throw new \InvalidArgumentException('stoi');
         }
 
-        $max = (string) Key::MAX_INTEGER;
-        if (strlen($line) > strlen($max) || (strlen($line) === strlen($max) && strcmp($line, $max) > 0)) {
+        $token = $matches[0];
+        $negative = str_starts_with($token, '-');
+        $unsigned = $token;
+        if ($token[0] === '-' || $token[0] === '+') {
+            $unsigned = substr($token, 1);
+        }
+        $unsigned = ltrim($unsigned, '0');
+        if ($unsigned === '') {
+            $unsigned = '0';
+        }
+
+        $limit = $negative ? '2147483648' : '2147483647';
+        if (strlen($unsigned) > strlen($limit)
+            || (strlen($unsigned) === strlen($limit) && strcmp($unsigned, $limit) > 0)
+        ) {
+            throw new \InvalidArgumentException('stoi');
+        }
+
+        if ($negative && $unsigned !== '0') {
             throw new \InvalidArgumentException('int range exceeded');
         }
 
-        return (int) $line;
+        return (int) $token;
     }
 
     private static function parseCompositeIntegerText(string $line, string $label): int
@@ -4155,10 +4942,11 @@ final class QuadbStore
         return $this->trackedKeys[$keyHex] ?? self::renderUnknownKey($keyHex);
     }
 
-    private function recordStringKeyWrite(string $key): void
+    private function recordStringKeyWrite(string $key, ?bool $trackKeys = null): void
     {
+        $trackKeys ??= $this->trackKeys;
         $keyHash = $this->keyHash($key);
-        if ($this->trackKeys) {
+        if ($trackKeys) {
             $this->trackedKeys[$keyHash] = $key;
 
             return;
@@ -4189,7 +4977,14 @@ final class QuadbStore
 
     private static function renderUnknownKey(string $keyHex): string
     {
-        return 'H(?)=0x' . substr($keyHex, 0, 12) . '...';
+        return self::renderUnknownHash($keyHex);
+    }
+
+    private static function renderUnknownHash(string $hashHex): string
+    {
+        self::parseHashHexValue($hashHex, 'unknown rendered hash');
+
+        return 'H(?)=0x' . substr($hashHex, 0, 12) . '...';
     }
 
     /**

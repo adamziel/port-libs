@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Quadrable\Blake2s;
 use PortLibs\Quadrable\Key;
+use PortLibs\Quadrable\QuadbStore;
 use PortLibs\Quadrable\SparseTree;
 
 return [
@@ -89,6 +90,22 @@ return [
         $t->same(1, $key->getBit(0));
         $t->same(1, $key->getBit(9));
         $t->same(0, $key->getBit(10));
+    },
+    'mineHash prefix search maps upstream quadb bit predicate deterministically' => static function (TestRunner $t): void {
+        $result = Key::mineHashPrefix('101010', 1, 200);
+
+        $t->same([
+            'input' => '146',
+            'hashHex' => 'aba72397aa8d459aaf3190fd24625ca5cf09fe3127aa1fb40325eb13c57f1c89',
+            'attempts' => 146,
+        ], $result);
+        $t->true(Key::hashMatchesBitPrefix('146', '101010'));
+        $t->same(false, Key::hashMatchesBitPrefix('145', '101010'));
+        $t->same("146 -> aba72397aa8d459aaf3190fd24625ca5cf09fe3127aa1fb40325eb13c57f1c89\n", QuadbStore::mineHashText('101010', 1, 200));
+
+        $t->throws(InvalidArgumentException::class, static fn () => Key::mineHashPrefix('10x'));
+        $t->throws(InvalidArgumentException::class, static fn () => Key::mineHashPrefix(str_repeat('0', 257)));
+        $t->throws(RuntimeException::class, static fn () => Key::mineHashPrefix('11111111', 1, 1));
     },
     'keepPrefixBits zeroes the suffix in place' => static function (TestRunner $t): void {
         $key = Key::max();
