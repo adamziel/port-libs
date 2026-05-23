@@ -625,6 +625,10 @@ to `.sync-conflict-YYYYMMDD-HHMMSS-device` siblings before the pulled file is
 published, existing regular files are rechecked against the current scanned
 `FileInfo` before any conflict, archive, or overwrite decision so unscanned
 local edits schedule a follow-up scan and leave the pulled temp file reusable,
+case-only target names now follow upstream `TestPullCaseOnlyPerformFinish`:
+case-sensitive finalization can promote the differently cased target, while
+case-detecting finalization returns the upstream `uses different upper or
+lowercase` error without scheduling a scan or emitting a database update,
 tracked existing directories and symlinks are deleted before a
 pulled regular file is promoted, `MaxConflicts` keeps only the newest conflict
 copies after `moveForConflict`, descendant versions replace without conflict
@@ -635,7 +639,9 @@ replacement now preserves unknown or changed children, records upstream-style
 scan requests, and fails with the `contains changed files, scheduling scan`
 error before destructive removal, nondeletable ignored directory children stop
 replacement with the upstream `contains ignored files` error while leaving scan
-requests empty, abandoned Syncthing temporary children can still be removed so
+requests empty, receive-only changed children in a receive-only folder now allow
+directory replacement to finish while scheduling the directory for a later scan
+that can resurrect the local change, abandoned Syncthing temporary children can still be removed so
 replacement can continue, second close attempts are no-ops, and failed pulls close while leaving
 the temporary file for a later retry. This is a
 static targeted mapping from upstream `sharedpullerstate.go`,
@@ -669,6 +675,12 @@ archive remains in its temporary file for retry.
 preserved by ignore rules when a Playground peer offers a replacement archive;
 the pulled archive remains in its temporary file and no scan is scheduled for
 the ignored path.
+`wordpress-pull-receive-only-directory.php` shows a receive-only WordPress media
+directory replaced by a Playground archive while the directory name is scheduled
+for scanning so the local-only editor crop can be resurrected like upstream.
+`wordpress-pull-case-only-conflict.php` shows a case-detecting local-first
+media/plugin sync preserving the existing lowercase asset and the pulled temp
+file while surfacing Syncthing's no-scan case-conflict error.
 `wordpress-pull-unscanned-local-edit.php` shows a WordPress editor's local crop
 preserved when the on-disk file no longer matches the scanned `FileInfo`; the
 remote file stays in `.syncthing.<name>.tmp` and the media path is scheduled
@@ -677,9 +689,22 @@ The receive-encrypted variant
 `wordpress-pull-receive-encrypted-finalize.php` shows the trailer appended
 during native temporary-file promotion, with local finalized size and remote
 index size reported separately.
+The post-promotion database-update slice now maps upstream `dbUpdaterRoutine`
+around `performFinish`: pulled `FileInfo` updates are batched with the same
+1000-file/250 KiB `FileInfoBatch` boundaries, changed directories are fsync
+candidates for handle-file, shortcut-file, and handle-directory jobs,
+sequences are reset to zero before local database update callbacks, timed ticks
+flush partial batches, invalid and metadata-only updates do not emit received
+file markers, and each flushed batch emits only the last received file/delete
+candidate like upstream. This is a static targeted mapping from
+`lib/model/folder_sendrecv.go` `dbUpdaterRoutine`, `lib/model/fileinfobatch.go`,
+and `lib/model/folder.go` `updateLocalsFromPulling`, not additional upstream
+runner parity. `wordpress-pull-db-updater.php` shows a finalized Playground
+media pull being committed into a local WordPress index, with the media parent
+directory fsync boundary and ReceivedFile-style marker recorded.
 
 ## Next Task
 
-Broaden upstream `folder_sendrecv` behavior around case-conflict replacement,
-receive-only changed children, and post-promotion database update/fsync/event
-side effects after native final file promotion succeeds.
+Target `finisherRoutine` item lifecycle boundaries: `ItemFinished` events,
+progress-emitter deregistration, queue completion, and temp pull error
+recording after successful and failed final close paths.

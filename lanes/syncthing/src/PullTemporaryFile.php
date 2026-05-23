@@ -64,6 +64,7 @@ final class PullTemporaryFile
         private readonly ?array $knownDirectoryChildren = null,
         private readonly ?IgnoreMatcher $ignoreMatcher = null,
         private readonly bool $receiveOnlyFolder = false,
+        private readonly bool $detectCaseConflicts = false,
     ) {
         if ($this->file->type !== FileInfo::TYPE_FILE || $this->file->deleted || $this->file->isInvalid()) {
             throw new \InvalidArgumentException('Pull temporary files can only assemble valid regular files');
@@ -207,6 +208,10 @@ final class PullTemporaryFile
         $finalDir = dirname($finalPath);
         if (!is_dir($finalDir) && !mkdir($finalDir, 0777, true) && !is_dir($finalDir)) {
             $this->error = 'creating parent directory failed';
+            return $this->result(closed: true, finalized: false, error: $this->error);
+        }
+
+        if (!$this->checkCaseOnlyFinalPath()) {
             return $this->result(closed: true, finalized: false, error: $this->error);
         }
 
@@ -540,6 +545,32 @@ final class PullTemporaryFile
         return $this->file->inConflictWith($this->currentFile);
     }
 
+    private function checkCaseOnlyFinalPath(): bool
+    {
+        if (
+            !$this->detectCaseConflicts
+            || $this->currentFile === null
+            || $this->currentFile->deleted
+            || $this->currentFile->name === $this->file->name
+            || strcasecmp($this->currentFile->name, $this->file->name) !== 0
+        ) {
+            return true;
+        }
+
+        $finalPath = $this->finalPath();
+        if (file_exists($finalPath) || is_link($finalPath)) {
+            return true;
+        }
+
+        $realPath = $this->absolutePath($this->currentFile->name);
+        if (!file_exists($realPath) && !is_link($realPath)) {
+            return true;
+        }
+
+        $this->error = 'checking existing file: ' . self::caseConflictMessage($this->file->name, $this->currentFile->name);
+        return false;
+    }
+
     private function shouldArchiveExistingFinalFile(): bool
     {
         return $this->archiveRootPath !== null
@@ -706,8 +737,7 @@ final class PullTemporaryFile
         }
         if ($hasReceiveOnlyChanged) {
             $this->addScanName($directoryName);
-            $this->error = 'removing old directory failed';
-            return false;
+            return true;
         }
         if ($hasKnown) {
             $this->error = self::ERR_DIR_NOT_EMPTY;
@@ -852,6 +882,11 @@ final class PullTemporaryFile
         $base = $slash === false ? $name : substr($name, $slash + 1);
 
         return str_contains($base, '.sync-conflict-');
+    }
+
+    private static function caseConflictMessage(string $given, string $real): string
+    {
+        return 'remote "' . $given . '" uses different upper or lowercase characters than local "' . $real . '"; change the casing on either side to match the other';
     }
 
     private function pruneConflicts(): void

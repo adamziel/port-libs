@@ -245,6 +245,69 @@ return [
             syncthing_pull_temp_rm($root);
         }
     },
+    'performFinish promotes case-only replacement on case-sensitive filesystems' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $currentName = 'wp-content/uploads/2026/hero.jpg';
+            $remoteName = 'wp-content/uploads/2026/HERO.JPG';
+            $bytes = str_repeat('case only wordpress media ', 3200);
+            $current = syncthing_pull_temp_file($currentName, $bytes, 0644, 1700001010, VersionVector::fromCounters([101 => 4]));
+            $remote = syncthing_pull_temp_file(
+                $remoteName,
+                $bytes,
+                0644,
+                1700001020,
+                VersionVector::fromCounters([202 => 1]),
+                modifiedBy: 202,
+            );
+            $currentPath = syncthing_pull_temp_write_current_file($root, $current, $bytes);
+
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current);
+            $assembler->writeBlock($remote->blocks[0], $bytes, source: 'pulledCaseOnlyTarget');
+            $result = $assembler->finalize();
+
+            $t->true($result->finalized);
+            $t->same(PullFinalizationResult::DB_UPDATE_HANDLE_FILE, $result->dbUpdateType);
+            $t->same([], $result->scanNames);
+            $t->same($bytes, (string) file_get_contents($assembler->finalPath()));
+            $t->same($bytes, (string) file_get_contents($currentPath));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish reports case conflict without scan on case-detecting filesystems' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $currentName = 'wp-content/uploads/2026/plugin-banner.png';
+            $remoteName = 'wp-content/uploads/2026/Plugin-Banner.png';
+            $bytes = str_repeat('local first plugin banner ', 3200);
+            $current = syncthing_pull_temp_file($currentName, $bytes, 0644, 1700001030, VersionVector::fromCounters([101 => 4]));
+            $remote = syncthing_pull_temp_file(
+                $remoteName,
+                $bytes,
+                0644,
+                1700001040,
+                VersionVector::fromCounters([202 => 1]),
+                modifiedBy: 202,
+            );
+            $currentPath = syncthing_pull_temp_write_current_file($root, $current, $bytes);
+
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current, detectCaseConflicts: true);
+            $assembler->writeBlock($remote->blocks[0], $bytes, source: 'pulledCaseOnlyConflict');
+            $result = $assembler->finalize();
+
+            $t->true($result->closed);
+            $t->true(!$result->finalized);
+            $t->contains('uses different upper or lowercase', $result->error ?? '');
+            $t->same([], $result->scanNames);
+            $t->same('', $result->dbUpdateType);
+            $t->same($bytes, (string) file_get_contents($currentPath));
+            $t->true(!file_exists($assembler->finalPath()));
+            $t->true(file_exists($assembler->tempPath()));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
     'performFinish archives non-conflicting regular replacement when versioner is configured' => static function (TestRunner $t): void {
         $root = syncthing_pull_temp_root();
         try {
@@ -518,6 +581,67 @@ return [
             $t->true(is_dir($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name)));
             $t->same('local private review cache', (string) file_get_contents($ignoredChildPath));
             $t->true(file_exists($assembler->tempPath()));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish treats receive-only changed directory children as scanned resurrection work' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/receive-only-gallery';
+            $receiveOnlyChild = $name . '/local-crop.jpg';
+            $receiveOnlyBytes = str_repeat('local receive-only crop ', 1800);
+            $remoteBytes = str_repeat('remote gallery export archive ', 3000);
+            $current = new FileInfo(
+                name: $name,
+                modifiedS: 1700001850,
+                version: VersionVector::fromCounters([101 => 11]),
+                type: FileInfo::TYPE_DIRECTORY,
+                permissions: 0755,
+                modifiedBy: 101,
+            );
+            $knownReceiveOnlyChild = new FileInfo(
+                name: $receiveOnlyChild,
+                modifiedS: 1700001860,
+                version: VersionVector::fromCounters([101 => 12]),
+                localFlags: FileInfo::FLAG_LOCAL_RECEIVE_ONLY,
+                size: strlen($receiveOnlyBytes),
+                type: FileInfo::TYPE_FILE,
+                permissions: 0644,
+                rawBlockSize: BlockList::MIN_BLOCK_SIZE,
+                modifiedBy: 101,
+            );
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001900,
+                VersionVector::fromCounters([202 => 6]),
+                modifiedBy: 202,
+            );
+            $receiveOnlyChildPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $receiveOnlyChild);
+            if (!mkdir(dirname($receiveOnlyChildPath), 0777, true) && !is_dir(dirname($receiveOnlyChildPath))) {
+                throw new RuntimeException('Failed to create receive-only child directory');
+            }
+            file_put_contents($receiveOnlyChildPath, $receiveOnlyBytes);
+
+            $assembler = new PullTemporaryFile(
+                $remote,
+                $root,
+                currentFile: $current,
+                knownDirectoryChildren: [$knownReceiveOnlyChild],
+                receiveOnlyFolder: true,
+            );
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledReceiveOnlyReplacement');
+            $result = $assembler->finalize();
+
+            $t->true($result->finalized);
+            $t->same([$name], $result->scanNames);
+            $t->same(PullFinalizationResult::DB_UPDATE_HANDLE_FILE, $result->dbUpdateType);
+            $t->same($remoteBytes, (string) file_get_contents($assembler->finalPath()));
+            $t->true(is_file($assembler->finalPath()));
+            $t->true(!file_exists($receiveOnlyChildPath));
+            $t->same(null, $result->error);
         } finally {
             syncthing_pull_temp_rm($root);
         }
