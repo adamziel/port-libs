@@ -220,6 +220,24 @@ npm test -- --grep 'custom video regex|maxElemsToParse|keepClasses'
 5 passing (114ms)
 ```
 
+The Mozilla Hacks `002` developer-article slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep 002
+15 passing (996ms)
+```
+
+This fixture is now copied under `lanes/readability/fixtures/mozilla/002/` and mapped by native PHP tests for metadata/readerable parity, `div#content-main` oracle-root preservation, `article role="article"` retention, 17 syntax-highlighted `<pre>` examples, absolute-origin URL canonicalization, and exclusion of Mozilla Hacks navigation, comments, author sidebar, and legal footer chrome.
+
+The Atlas Obscura `article-author-tag` slice also has targeted upstream runner evidence:
+
+```text
+npm test -- --grep article-author-tag
+17 passing (673ms)
+```
+
+This fixture is now copied under `lanes/readability/fixtures/mozilla/article-author-tag/` and mapped by native PHP tests for metadata/readerable parity, article:author byline metadata, `section#article-body` oracle-root preservation, six retained image payloads, two editorial `<hr>` separators, NBSP-only empty paragraph cleanup, and exclusion of Atlas Obscura header/navigation chrome.
+
 The `charThreshold` retry/null boundary was cross-checked against the upstream implementation with a focused Node oracle in `.upstream-cache/readability`:
 
 ```text
@@ -382,8 +400,10 @@ Current PHP tests map a narrow readerable/extraction slice:
 - Upstream targeted oracle: `npm test -- --grep theverge` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering The Verge content wrapper, pullquote, responsive image, newsletter, and metadata fixture at `test/test-pages/theverge`.
 - Upstream targeted oracle: `npm test -- --grep mozilla-1` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering the Firefox main-content wrapper and trailing Sync CTA cleanup fixture at `test/test-pages/mozilla-1`.
 - Upstream targeted oracle: `npm test -- --grep aclu` passes 19 checks with 0 failures in `.upstream-cache/readability`, covering the ACLU Drupal panel/sidebar wrapper fixture at `test/test-pages/aclu`.
-- Readability-local PHP coverage: 119 behavior tests, 1338 assertions, 0 failures.
-- Root `php tools/run-tests.php`: after `pgrep -af '^php tools/run-tests\.php( |$)'` returned no active runner, this lane started one root run; the harness initially waited on `.upstream-cache/run-tests.lock`, then passed with 193 test files, 21055 assertions, and 0 failures.
+- Upstream targeted oracle: `npm test -- --grep 002` passes 15 checks with 0 failures in `.upstream-cache/readability`, covering the Mozilla Hacks content-main/code-block fixture at `test/test-pages/002`.
+- Upstream targeted oracle: `npm test -- --grep article-author-tag` passes 17 checks with 0 failures in `.upstream-cache/readability`, covering the Atlas Obscura article:author metadata and article-body section fixture at `test/test-pages/article-author-tag`.
+- Readability-local PHP coverage: 121 behavior tests, 1385 assertions, 0 failures.
+- Root `php tools/run-tests.php`: after `pgrep -af '^php tools/run-tests\.php( |$)'` returned no active runner, this lane started one root run; the harness passed with 196 test files, 21507 assertions, and 0 failures.
 - WordPress React/Next migration cleanup: contributor or byline text split by parser comment delimiters serializes as one paragraph block instead of multiple fragment blocks.
 - Mozilla/fixture text projection boundary semantics are now native for the current slice: text-bearing block, table, and list siblings receive separator whitespace after cleanup so expected text does not concatenate across paragraph-heading, paragraph-paragraph, generated-br paragraph, and table-cell boundaries.
 - WordPress block-boundary spacing cleanup: imported article text, search excerpts, and review logs keep paragraph-to-heading and table-cell words separated even when source HTML omits whitespace between adjacent tags.
@@ -474,14 +494,14 @@ Current PHP tests map a narrow readerable/extraction slice:
 
 ## Current Lane Status
 
-- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy-media/table/hidden-node/br/script-style/social/title/body-byline/metadata/section-wrapper/readability-page/publisher cleanup mappings, now including `aclu` Drupal panel/sidebar wrapper cleanup.
-- Native PHP lane tests: 119 passing, 0 failing, 1338 assertions.
-- Latest readability-local verification: `php tools/run-tests.php lanes/readability/tests` passes 1 selected test file, 1338 assertions, and 0 failures.
-- Latest root verification for this lane batch: after `pgrep -af '^php tools/run-tests\.php( |$)'` returned no active runner, root `php tools/run-tests.php` passed with 193 test files, 21055 assertions, and 0 failures.
-- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. Targeted `npm test -- --grep aclu` passes 19 checks in the upstream checkout, in addition to targeted fixture/oracle runs for mozilla-1, citylab-1, keep-images, schema-org-context-object, keep-tabular-data/replace-brs, clean-links, medium-1/2/3, cnet-svg-classes, v8-blog, lazy-image-1, heise, ars-1, guardian-1, nytimes-1/2/3/4/5, bbc-1, cnn, wapo-1/2, yahoo-2/3/4, buzzfeed-1, lemonde-1, telegraph, theverge, parse options, and charThreshold retry/null behavior.
+- Phase: cloned static inventory plus upstream npm runner evidence and Mozilla fixture/JSON-LD/video/lazy-media/table/hidden-node/br/script-style/social/title/body-byline/metadata/section-wrapper/readability-page/publisher cleanup mappings, now including Atlas Obscura `article-author-tag` section-root and separator-block parity.
+- Native PHP lane tests: 121 passing, 0 failing, 1385 assertions.
+- Latest readability-local verification: `php tools/run-tests.php lanes/readability/tests` passes 1 selected test file, 1385 assertions, and 0 failures.
+- Latest root verification for this lane batch: after `pgrep -af '^php tools/run-tests\.php( |$)'` returned no active runner, root `php tools/run-tests.php` passed with 196 test files, 21507 assertions, and 0 failures.
+- Upstream runner verification: `npm test` passes 1984 Mozilla Mocha tests, 0 failures, including the 2026-05-22 WordPress articleBody microdata rerun in 41s. Targeted `npm test -- --grep article-author-tag` passes 17 checks in the upstream checkout, in addition to targeted fixture/oracle runs for 002, aclu, mozilla-1, citylab-1, keep-images, schema-org-context-object, keep-tabular-data/replace-brs, clean-links, medium-1/2/3, cnet-svg-classes, v8-blog, lazy-image-1, heise, ars-1, guardian-1, nytimes-1/2/3/4/5, bbc-1, cnn, wapo-1/2, yahoo-2/3/4, buzzfeed-1, lemonde-1, telegraph, theverge, parse options, and charThreshold retry/null behavior.
 - Blocker: none active for focused readability work; focused lane, targeted upstream oracle, example, and root aggregate verification are green.
-- Current work: native Mozilla `aclu` fixture mapping copies Mozilla source/expected/metadata, preserves ACLU metadata/readerable/text parity, keeps article content nested under Drupal panel/sidebar layout wrappers, removes comments/share/conference chrome, and emits WordPress output with 33 paragraph blocks plus 7 heading blocks and no theme/hero image blocks.
+- Current work: native Mozilla `article-author-tag` fixture mapping copies Mozilla source/expected/metadata, preserves Atlas Obscura metadata/readerable/text parity, keeps `section#article-body` under the optional readability-page oracle wrapper, removes NBSP-only empty paragraphs after editorial `<hr>` separators, retains six image payloads, and emits WordPress output with 30 paragraph blocks plus 2 separator blocks without header/navigation chrome.
 
 ## Next Slice
 
-Map `002` for low-risk long-form Mozilla Hacks/code-block parity, or tackle `engadget` media/gallery parity if there is room for a larger publisher fixture.
+Map `engadget` media/gallery parity or another remaining publisher fixture with a distinct cleanup boundary while preserving the 1984-test upstream denominator.

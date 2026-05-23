@@ -1855,6 +1855,69 @@ return [
         );
         $t->same(false, str_contains($article->contentHtml, 'article-author'), 'body byline node should be removed after extracting itemprop author text');
     },
+    'maps Mozilla article-author-tag fixture with Atlas Obscura article body root' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/article-author-tag';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(['article-body'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/section/@id'));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same(count($attributeValues($expected, '//hr')), count($attributeValues($article->contentHtml, '//hr')));
+        $t->same(30, substr_count($blocks, '<!-- wp:paragraph -->'), 'Atlas Obscura article paragraphs should serialize without source header chrome');
+        $t->same(2, substr_count($blocks, '<!-- wp:separator -->'), 'Atlas Obscura editorial hr separators should become WordPress separator blocks');
+        $t->same(6, count($attributeValues($article->contentHtml, '//img/@src')), 'Atlas Obscura image payloads should remain available for media import review');
+        foreach (['ArticleHeader__byline', 'July 10, 2015', 'Atlas Obscura Trips'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'Atlas Obscura header/navigation chrome should not enter article HTML: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'Atlas Obscura header/navigation chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
+    'maps Mozilla 002 fixture with Mozilla Hacks code blocks and content-main root' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/002';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(['content-main'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/div/@id'));
+        $t->same(['article'], $attributeValues($article->contentHtml, '//div[@id="content-main"]/article/@role'));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(count($attributeValues($expected, '//pre')), count($attributeValues($article->contentHtml, '//pre')));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same(17, substr_count($blocks, '<!-- wp:code -->'), 'Mozilla Hacks syntax examples should become WordPress code blocks');
+        $t->contains('fetch<span>(</span><span>"/data.json"</span>', $blocks);
+        foreach (['Older Article', '2 comments', 'Read more articles by Nikhil Marathe', 'Except where otherwise noted'] as $fragment) {
+            $t->same(false, str_contains($article->text, $fragment), 'Mozilla Hacks navigation/comment/sidebar chrome should not enter article text: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'Mozilla Hacks navigation/comment/sidebar chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
     'extracts WordPress itemprop body bylines without importing byline blocks' => static function (TestRunner $t): void {
         $html = '<html><head><title>Byline Itemprop Import</title></head><body><article>'
             . '<h1>Byline Itemprop Import</h1>'

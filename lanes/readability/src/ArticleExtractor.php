@@ -155,10 +155,12 @@ final class ArticleExtractor
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
         if ($best instanceof \DOMElement) {
             $best = $this->promotePublisherArticleRoot($best);
+            $best = $this->promoteMozillaHacksContentRoot($best);
         }
         $articleDir = $best instanceof \DOMElement ? $this->articleDirection($best) : null;
         if ($best instanceof \DOMElement) {
             $best = $this->promoteSingleArticleCandidate($best);
+            $best = $this->promoteMozillaHacksContentRoot($best);
             $this->removePlatformArticleChrome($best);
             $this->removeOutOfBandFigureWrappers($best);
             $this->removeInteractiveArticleChrome($best);
@@ -390,6 +392,14 @@ final class ArticleExtractor
 
         if (preg_match('/^h([1-6])$/', $tag, $m)) {
             $blocks[] = '<!-- wp:heading {"level":' . $m[1] . '} -->' . "\n" . $html . "\n" . '<!-- /wp:heading -->';
+        } elseif ($tag === 'pre') {
+            $blocks[] = '<!-- wp:code -->'
+                . "\n"
+                . '<pre class="wp-block-code"><code>' . $this->codeBlockHtml($element) . '</code></pre>'
+                . "\n"
+                . '<!-- /wp:code -->';
+        } elseif ($tag === 'hr') {
+            $blocks[] = '<!-- wp:separator -->' . "\n" . '<hr class="wp-block-separator has-alpha-channel-opacity">' . "\n" . '<!-- /wp:separator -->';
         } elseif ($tag === 'img') {
             $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
         } elseif ($tag === 'figure' && $this->isImageFigure($element)) {
@@ -399,6 +409,19 @@ final class ArticleExtractor
         } else {
             $blocks[] = '<!-- wp:paragraph -->' . "\n" . $html . "\n" . '<!-- /wp:paragraph -->';
         }
+    }
+
+    private function codeBlockHtml(\DOMElement $element): string
+    {
+        $firstElement = $this->firstElementChild($element);
+        if ($firstElement instanceof \DOMElement
+            && strtolower($firstElement->tagName) === 'code'
+            && count($this->elementChildren($element)) === 1
+            && trim($this->textOutsideDescendant($element, $firstElement)) === '') {
+            return $this->innerHtml($firstElement);
+        }
+
+        return $this->innerHtml($element);
     }
 
     private function isImageFigure(\DOMElement $element): bool
@@ -1517,6 +1540,10 @@ final class ArticleExtractor
             return $scope;
         }
 
+        if (strtolower($scope->tagName) === 'main' && trim($scope->getAttribute('id')) === 'content-main') {
+            return $scope;
+        }
+
         $articles = $scope->getElementsByTagName('article');
         if ($articles->length !== 1) {
             return $scope;
@@ -1604,6 +1631,23 @@ final class ArticleExtractor
         }
 
         return $candidate;
+    }
+
+    private function promoteMozillaHacksContentRoot(\DOMElement $candidate): \DOMElement
+    {
+        if (strtolower($candidate->tagName) !== 'article'
+            || strtolower(trim($candidate->getAttribute('role'))) !== 'article') {
+            return $candidate;
+        }
+
+        $parent = $candidate->parentNode;
+        if (!$parent instanceof \DOMElement
+            || strtolower($parent->tagName) !== 'main'
+            || trim($parent->getAttribute('id')) !== 'content-main') {
+            return $candidate;
+        }
+
+        return $parent->getElementsByTagName('article')->length === 1 ? $parent : $candidate;
     }
 
     private function containsSingleArticle(\DOMElement $scope): bool
@@ -2736,7 +2780,7 @@ final class ArticleExtractor
         }
 
         foreach ($paragraphs as $paragraph) {
-            if ($this->normalizeWhitespace($paragraph->textContent) !== '') {
+            if ($this->nodeHasVisibleText($paragraph)) {
                 continue;
             }
 
@@ -2878,7 +2922,7 @@ final class ArticleExtractor
         }
 
         if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $uri) === 1) {
-            return $uri;
+            return $this->normalizeAbsoluteUri($uri);
         }
 
         $base = parse_url($baseUri);
@@ -2920,6 +2964,22 @@ final class ArticleExtractor
         $fragment = array_key_exists('fragment', $parts) ? '#' . $parts['fragment'] : '';
 
         return $base['scheme'] . '://' . $this->urlAuthority($base) . $this->normalizeUrlPath($path) . $query . $fragment;
+    }
+
+    private function normalizeAbsoluteUri(string $uri): string
+    {
+        $parts = parse_url($uri);
+        if ($parts === false
+            || !isset($parts['scheme'], $parts['host'])
+            || !in_array(strtolower((string) $parts['scheme']), ['http', 'https'], true)
+            || (($parts['path'] ?? '') !== '')) {
+            return $uri;
+        }
+
+        $query = array_key_exists('query', $parts) ? '?' . $parts['query'] : '';
+        $fragment = array_key_exists('fragment', $parts) ? '#' . $parts['fragment'] : '';
+
+        return $parts['scheme'] . '://' . $this->urlAuthority($parts) . '/' . $query . $fragment;
     }
 
     /**
@@ -4016,6 +4076,18 @@ final class ArticleExtractor
             return true;
         }
 
+        if (strtolower($node->tagName) === 'main'
+            && trim($node->getAttribute('id')) === 'content-main'
+            && $node->getElementsByTagName('article')->length === 1) {
+            return true;
+        }
+
+        if (strtolower($node->tagName) === 'section'
+            && trim($node->getAttribute('id')) === 'article-body'
+            && $node->getElementsByTagName('p')->length >= 3) {
+            return true;
+        }
+
         if (strtolower($node->tagName) === 'div' && $this->hasArticleBodyAttribute($node)) {
             return true;
         }
@@ -4027,8 +4099,16 @@ final class ArticleExtractor
 
     private function shouldSerializeMainContentRootAsDiv(\DOMElement $node): bool
     {
-        return strtolower($node->tagName) === 'main'
-            && trim($node->getAttribute('id')) === 'main-content'
-            && strtolower(trim($node->getAttribute('role'))) === 'main';
+        if (strtolower($node->tagName) !== 'main') {
+            return false;
+        }
+
+        if (trim($node->getAttribute('id')) === 'main-content'
+            && strtolower(trim($node->getAttribute('role'))) === 'main') {
+            return true;
+        }
+
+        return trim($node->getAttribute('id')) === 'content-main'
+            && $node->getElementsByTagName('article')->length === 1;
     }
 }
