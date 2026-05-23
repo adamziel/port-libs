@@ -15,6 +15,32 @@ final class SQLiteIndexCell
     ) {
     }
 
+    public static function encode(
+        string $payload,
+        int $usableSize = 512,
+        ?int $firstOverflowPage = null,
+        ?int $leftChildPage = null,
+    ): string {
+        if ($leftChildPage !== null && $leftChildPage < 1) {
+            throw new \InvalidArgumentException('SQLite index interior cell child page must be positive');
+        }
+
+        $payloadLength = strlen($payload);
+        $localPayloadLength = self::localPayloadLength($payloadLength, $usableSize);
+        $cell = ($leftChildPage === null ? '' : pack('N', $leftChildPage))
+            . SQLiteVarint::encode($payloadLength)
+            . substr($payload, 0, $localPayloadLength);
+
+        if ($localPayloadLength < $payloadLength) {
+            if ($firstOverflowPage === null || $firstOverflowPage < 2) {
+                throw new \InvalidArgumentException('SQLite index overflow cell requires a valid first overflow page');
+            }
+            $cell .= pack('N', $firstOverflowPage);
+        }
+
+        return str_pad($cell, 4, "\0");
+    }
+
     /**
      * @param null|callable(int, int): string $overflowReader
      */

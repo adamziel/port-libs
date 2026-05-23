@@ -11,6 +11,8 @@ use PortLibs\LibSqlite\SQLiteCreateTable;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexColumn;
+use PortLibs\LibSqlite\SQLiteIndexInteriorPage;
+use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJson5Parser;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
@@ -455,6 +457,132 @@ return [
         $t->same(102, SQLiteIndexCell::localPayloadLength(102, 512));
         $t->same(39, SQLiteIndexCell::localPayloadLength(103, 512));
         $t->same(82, SQLiteIndexCell::localPayloadLength(590, 512));
+    },
+    'encodes sqlite index cells including overflow pointers and minimum cell size' => static function (TestRunner $t): void {
+        $payload = SQLiteRecord::encode(['siteurl', 1]);
+        $cell = SQLiteIndexCell::encode($payload);
+        $page = SQLiteIndexLeafPage::assemble([$cell]);
+        $header = SQLiteBTreePageHeader::parsePage($page, 512);
+        $cells = SQLiteIndexCell::parsePageCells($page, $header);
+
+        $overflowPayload = str_repeat('x', 590);
+        $overflow = SQLiteIndexCell::encode($overflowPayload, 512, 7);
+        $localLength = SQLiteIndexCell::localPayloadLength(strlen($overflowPayload), 512);
+
+        $t->same(4, strlen(SQLiteIndexCell::encode('')));
+        $t->same('00000000', bin2hex(SQLiteIndexCell::encode('')));
+        $t->same(['siteurl', 1], $cells[0]->record()->values);
+        $t->same(strlen(SQLiteVarint::encode(strlen($overflowPayload))) + $localLength + 4, strlen($overflow));
+        $t->same('00000007', bin2hex(substr($overflow, -4)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexCell::encode($overflowPayload, 512));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexCell::encode($payload, 512, null, 0));
+    },
+    'assembles wordpress option_name index leaf pages from native index cell encoder' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_option_name',
+                'wp_options',
+                3,
+                'CREATE INDEX wp_options_option_name ON wp_options(option_name)',
+            ])),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                null,
+                'siteurl',
+                'https://example.test',
+                'yes',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                null,
+                'home',
+                'https://example.test/blog',
+                'yes',
+            ])),
+        ]);
+        $indexPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
+        ]);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . $indexPage);
+        $option = $database->wordpressOptionByIndexedName('siteurl');
+
+        $t->same('index-leaf', $database->pageHeader(3)->pageType);
+        $t->same(2, $database->pageHeader(3)->cellCount);
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same('siteurl', $option->optionName);
+        $t->same('https://example.test', $option->optionValue);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::assemble([str_repeat('x', 500), str_repeat('y', 500)]));
+    },
+    'assembles sqlite index interior pages from native index cell encoder' => static function (TestRunner $t): void {
+        $cell = SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 2]), 512, null, 3);
+        $page = SQLiteIndexInteriorPage::assemble([$cell], 5);
+        $header = SQLiteBTreePageHeader::parsePage($page, 512);
+        $cells = SQLiteIndexCell::parsePageCells($page, $header);
+
+        $t->same('index-interior', $header->pageType);
+        $t->same(5, $header->rightMostPointer);
+        $t->same(1, $header->cellCount);
+        $t->same([strlen($page) - strlen($cell)], $header->cellPointers($page));
+        $t->same(3, $cells[0]->leftChildPage);
+        $t->same(['home', 2], $cells[0]->record()->values);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexInteriorPage::assemble([], 0));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexInteriorPage::assemble([str_repeat('x', 500), str_repeat('y', 500)], 3));
+    },
+    'assembles wordpress option_name index interior pages from native index cell encoder' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                4,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+                'index',
+                'wp_options_option_name',
+                'wp_options',
+                2,
+                'CREATE INDEX wp_options_option_name ON wp_options(option_name)',
+            ])),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $indexRootPage = SQLiteIndexInteriorPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 2]), 512, null, 3),
+        ], 5);
+        $leftIndexLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['blogname', 1])),
+        ]);
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'blogname', 'Example Site', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, 'stylesheet', 'twentytwentyfive', 'yes'])),
+        ]);
+        $rightIndexLeafPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 3])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['stylesheet', 4])),
+        ]);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $indexRootPage . $leftIndexLeafPage . $tablePage . $rightIndexLeafPage);
+        $option = $database->wordpressOptionByIndexedName('siteurl');
+        $indexValues = array_map(
+            static fn (SQLiteIndexCell $cell): string => $cell->record()->values[0],
+            $database->indexCells(2),
+        );
+
+        $t->same('index-interior', $database->pageHeader(2)->pageType);
+        $t->same(5, $database->pageHeader(2)->rightMostPointer);
+        $t->same(['blogname', 'home', 'siteurl', 'stylesheet'], $indexValues);
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same('siteurl', $option->optionName);
+        $t->same('https://example.test', $option->optionValue);
     },
     'sqlite records decode core serial types' => static function (TestRunner $t) use ($varint): void {
         $serialTypes = [0, 8, 9, 1, 2, 3, 4, 5, 6, 7, 18, 19];

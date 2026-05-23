@@ -2172,3 +2172,82 @@ fixture that the existing native reader parses back without the PHP SQLite
 extension. The new example
 `examples/wordpress-table-leaf-page-assembly.php` exposes that fixture path for
 WordPress repair/preflight tooling.
+
+## Focused Native Mapping: Index Leaf Assembly
+
+This slice adds the index-b-tree write-side counterpart to the existing native
+index reader. `SQLiteIndexCell::encode()` maps the index payload-length varint,
+optional interior left-child pointer, minimum 4-byte cell size, local payload
+selection, and first-overflow-page pointer boundary. `SQLiteIndexLeafPage`
+assembles clean index-leaf page headers, cell pointer arrays, and packed index
+cell content.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index.test insert.test btree01.test
+```
+
+Result on 2026-05-23: 7 Tcl script/permutation runs, 0 errors out of 809 tests
+in 00:00.
+
+Focused upstream fixture boundary:
+
+- `src/btree.c` `fillInCell()` documents index payload construction,
+  local/overflow payload split, and minimum cell-size behavior.
+- `test/index.test` covers index b-tree creation and persisted index content
+  boundaries.
+- `test/insert.test` covers record payload generation for stored table/index
+  values.
+- `test/btree01.test` stresses b-tree cell construction, update, local payload,
+  and overflow-sized payload integrity boundaries.
+
+The native PHP tests now cover index-cell encoding, overflow pointer
+validation, minimum-size padding, generated index-leaf page headers and cell
+pointers, and a WordPress-shaped three-page `wp_options` fixture where a
+generated `wp_options(option_name)` index page is parsed back and used for an
+indexed `siteurl` lookup without the PHP SQLite extension. The new
+`examples/wordpress-index-leaf-page-assembly.php` script exposes that index
+fixture path for WordPress repair/preflight tooling.
+
+## Focused Native Mapping: Index Interior Assembly
+
+This slice adds clean index-interior page assembly for multi-page generated
+index fixtures. `SQLiteIndexInteriorPage::assemble()` maps SQLite's 12-byte
+index-interior b-tree header, right-most child page pointer, cell pointer
+array, and packed cell content area. It pairs with `SQLiteIndexCell::encode()`
+for cells that carry a 4-byte left-child page pointer plus the encoded index
+record payload.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  index.test insert.test btree01.test
+```
+
+Result on 2026-05-23: 7 Tcl script/permutation runs, 0 errors out of 809 tests
+in 00:00.
+
+Focused upstream fixture boundary:
+
+- `src/btree.c` documents index interior cells as a left-child pointer plus an
+  index payload and enforces the same local/overflow payload boundaries through
+  `fillInCell()`.
+- `test/index.test` covers generated index b-tree content and lookup behavior.
+- `test/insert.test` covers record payload generation for stored index values.
+- `test/btree01.test` stresses b-tree cell construction and multi-page b-tree
+  payload integrity boundaries.
+
+The native PHP tests now cover generated index-interior headers, right-most
+child pointers, interior cell pointer arrays, left-child payload records, and a
+WordPress-shaped five-page `wp_options` fixture whose generated
+`wp_options(option_name)` root is an index-interior page. The native reader
+parses the generated root, walks left child, interior separator, and right
+child in index order, then resolves `siteurl` through the indexed rowid without
+the PHP SQLite extension. The new
+`examples/wordpress-index-interior-page-assembly.php` script exposes that
+multi-page index fixture path for WordPress repair/preflight tooling.

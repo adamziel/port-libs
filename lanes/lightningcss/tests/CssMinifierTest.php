@@ -221,6 +221,46 @@ return [
         );
         $t->same('.foo{font-palette:--Custom}', $minifier->minify('.foo { font-palette: --Custom; }'));
     },
+    'css minifier maps upstream font feature values minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@font-feature-values Fancy Font Name{@styleset{cursive:1;swoopy:7 16}@character-variant{ampersand:1;capital-q:2}@stylistic{two-story-g:1;straight-y:2}@swash{swishy:1;flowing:2}@ornaments{clover:1;fleuron:2}@annotation{circled:1;boxed:2}}',
+            $minifier->minify(
+                '@font-feature-values "Fancy Font Name" { @styleset { cursive: 1; swoopy: 7 16; } @character-variant { ampersand: 1; capital-q: 2; } @stylistic { two-story-g: 1; straight-y: 2; } @swash { swishy: 1; flowing: 2; } @ornaments { clover: 1; fleuron: 2; } @annotation { circled: 1; boxed: 2; } }'
+            )
+        );
+        $t->same(
+            '@font-feature-values Inter,Inter var,Inter var experimental{@styleset{open-digits:1;disambiguation:2;curved-r:3;disambiguation-without-zero:4}@character-variant{alt-one:1;open-four:2;open-six:3;open-nine:4;lower-l-with-tail:5;curved-lower-r:6;german-double-s:7;upper-i-with-serif:8;flat-top-three:9;upper-g-with-spur:10;single-storey-a:11}}',
+            $minifier->minify(
+                '@font-feature-values "Inter", "Inter var", "Inter var experimental" { @styleset { open-digits: 1; disambiguation: 2; curved-r: 3; disambiguation-without-zero: 4; } @character-variant { alt-one: 1; open-four: 2; open-six: 3; open-nine: 4; lower-l-with-tail: 5; curved-lower-r: 6; german-double-s: 7; upper-i-with-serif: 8; flat-top-three: 9; upper-g-with-spur: 10; single-storey-a: 11; } }'
+            )
+        );
+        $t->same(
+            '@font-feature-values Inconsolata LGC{@styleset{alternative-umlaut:1}@character-variant{zero-plain:1 1;zero-dotted:1 2;zero-longslash:1 3;r-with-serif:2 1;eng-descender:3 1;eng-uppercase:3 2;dollar-open:4 1;dollar-oldstyle:4 2;dollar-cifrao:4 2;ezh-no-descender:5 1;ezh-reversed-sigma:5 2;triangle-text-form:6 1;el-with-hook-old:7 1;qa-enlarged-lowercase:8 1;qa-reversed-p:8 2;che-with-hook:9 1;che-with-hook-alt:9 2;ge-with-hook:10 1;ge-with-hook-alt:10 2;ge-with-stroke-and-descender:11 1}}',
+            $minifier->minify(
+                '@font-feature-values "Inconsolata LGC" { @styleset { alternative-umlaut: 1; } @character-variant { zero-plain: 1 1; zero-dotted: 1 2; zero-longslash: 1 3; r-with-serif: 2 1; eng-descender: 3 1; eng-uppercase: 3 2; dollar-open: 4 1; dollar-oldstyle: 4 2; dollar-cifrao: 4 2; ezh-no-descender: 5 1; ezh-reversed-sigma: 5 2; triangle-text-form: 6 1; el-with-hook-old: 7 1; qa-enlarged-lowercase: 8 1; qa-reversed-p: 8 2; che-with-hook: 9 1; che-with-hook-alt: 9 2; ge-with-hook: 10 1; ge-with-hook-alt: 10 2; ge-with-stroke-and-descender: 11 1; } }'
+            )
+        );
+        $t->same(
+            '@font-feature-values Fancy Font Name{@styleset{cursive:1;swoopy:7 16}@character-variant{ampersand:1;capital-q:2}}',
+            $minifier->minify(
+                '@font-feature-values "Fancy Font Name" { @styleset { cursive: 1; swoopy: 7 16; } @character-variant { ampersand: 1; capital-q: 2; } }'
+            )
+        );
+        $t->same(
+            '@font-feature-values foo{@swash{pretty:1;cool:2}}',
+            $minifier->minify('@font-feature-values foo { @swash { pretty: 0; pretty: 1; cool: 2; } }')
+        );
+        $t->same(
+            '@font-feature-values foo{@swash{pretty:1;cool:2}}',
+            $minifier->minify('@font-feature-values foo { @swash { pretty: 1; } @swash { cool: 2; } }')
+        );
+        $t->same(
+            '@font-feature-values foo{@swash{pretty:1;cool:2}}',
+            $minifier->minify('@font-feature-values foo { @swash { pretty: 1; } } @font-feature-values foo { @swash { cool: 2; } }')
+        );
+    },
     'css minifier maps upstream import rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -1408,6 +1448,29 @@ CSS;
 
         $t->same(
             '@font-palette-values --wp-duotone-accent{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4, 3 var(--wp--preset--color--accent)}.wp-block-heading.is-style-color-font{font-palette:--wp-duotone-accent}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress OpenType feature aliases minify and merge without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@font-feature-values "Inter", "Inter Variable" {
+  @styleset {
+    open-digits: 1;
+  }
+  @styleset {
+    disambiguation: 2;
+  }
+}
+
+@font-feature-values "Inter", "Inter Variable" {
+  @character-variant {
+    single-storey-a: 11;
+  }
+}
+CSS;
+
+        $t->same(
+            '@font-feature-values Inter,Inter Variable{@styleset{open-digits:1;disambiguation:2}@character-variant{single-storey-a:11}}',
             (new CssMinifier())->minify($css)
         );
     },

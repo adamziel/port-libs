@@ -80,6 +80,7 @@ final class CssMinifier
         $css = $this->canonicalizeImplicitNestedSelectors($css);
         $css = $this->minifyImportRules($css);
         $css = $this->minifySupportsRules($css);
+        $css = $this->minifyFontFeatureValuesRules($css);
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composeFontDeclarationBlocks($css);
@@ -1864,6 +1865,185 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function minifyFontFeatureValuesRules(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $pending = null;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                break;
+            }
+
+            $preludePrefix = substr($css, $cursor, $open - $cursor);
+            $statementBoundary = $this->lastTopLevelSemicolon($preludePrefix);
+            if ($statementBoundary !== null) {
+                if ($pending !== null) {
+                    $output .= $this->serializeFontFeatureValuesRule($pending['prelude'], $pending['body']);
+                    $pending = null;
+                }
+                $output .= substr($preludePrefix, 0, $statementBoundary + 1);
+                $preludePrefix = substr($preludePrefix, $statementBoundary + 1);
+            }
+
+            $prelude = trim($preludePrefix);
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = substr($css, $open + 1, $close - $open - 1);
+            $fontFeaturePrelude = $this->normalizeFontFeatureValuesPrelude($prelude);
+
+            if ($fontFeaturePrelude !== null) {
+                $body = $this->minifyFontFeatureValuesBody($body);
+                if ($pending !== null && $pending['prelude'] === $fontFeaturePrelude) {
+                    $pending['body'] = $this->mergeFontFeatureValuesBodies($pending['body'], $body);
+                } else {
+                    if ($pending !== null) {
+                        $output .= $this->serializeFontFeatureValuesRule($pending['prelude'], $pending['body']);
+                    }
+                    $pending = ['prelude' => $fontFeaturePrelude, 'body' => $body];
+                }
+            } else {
+                if ($pending !== null) {
+                    $output .= $this->serializeFontFeatureValuesRule($pending['prelude'], $pending['body']);
+                    $pending = null;
+                }
+                $output .= $preludePrefix . '{'
+                    . $this->minifyFontFeatureValuesRules($body)
+                    . '}';
+            }
+
+            $cursor = $close + 1;
+        }
+
+        if ($pending !== null) {
+            $output .= $this->serializeFontFeatureValuesRule($pending['prelude'], $pending['body']);
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    private function normalizeFontFeatureValuesPrelude(string $prelude): ?string
+    {
+        if (preg_match('/^@font-feature-values\b(.*)$/i', trim($prelude), $matches) !== 1) {
+            return null;
+        }
+
+        $families = trim($matches[1]);
+        if ($families === '') {
+            return '@font-feature-values';
+        }
+
+        return '@font-feature-values ' . $this->minifyFontFamilyList($families);
+    }
+
+    private function minifyFontFeatureValuesBody(string $body): string
+    {
+        $features = $this->parseFontFeatureValuesBody($body);
+        if ($features === null) {
+            return $body;
+        }
+
+        return $this->serializeFontFeatureValuesBody($features);
+    }
+
+    /**
+     * @return array{order:list<string>, blocks:array<string, array{order:list<string>, declarations:array<string, array{name:string,value:string,important:bool}>}>}|null
+     */
+    private function parseFontFeatureValuesBody(string $body): ?array
+    {
+        $features = [
+            'order' => [],
+            'blocks' => [],
+        ];
+        $cursor = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($body, '{', $cursor);
+            if ($open === null) {
+                return trim(substr($body, $cursor)) === '' ? $features : null;
+            }
+
+            if (trim(substr($body, $cursor, $open - $cursor)) === '') {
+                return null;
+            }
+
+            $prelude = strtolower(trim(substr($body, $cursor, $open - $cursor)));
+            if (!in_array($prelude, $this->fontFeatureValueBlockNames(), true)) {
+                return null;
+            }
+
+            $close = $this->findMatchingBraceInCss($body, $open);
+            $entries = $this->parseDeclarationEntriesForComposition(substr($body, $open + 1, $close - $open - 1));
+            if ($entries === null) {
+                return null;
+            }
+
+            if (!isset($features['blocks'][$prelude])) {
+                $features['order'][] = $prelude;
+                $features['blocks'][$prelude] = [
+                    'order' => [],
+                    'declarations' => [],
+                ];
+            }
+
+            foreach ($entries as $entry) {
+                if (!isset($features['blocks'][$prelude]['declarations'][$entry['property']])) {
+                    $features['blocks'][$prelude]['order'][] = $entry['property'];
+                }
+                $features['blocks'][$prelude]['declarations'][$entry['property']] = [
+                    'name' => $entry['name'],
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return $features;
+    }
+
+    /**
+     * @param array{order:list<string>, blocks:array<string, array{order:list<string>, declarations:array<string, array{name:string,value:string,important:bool}>}>} $features
+     */
+    private function serializeFontFeatureValuesBody(array $features): string
+    {
+        $parts = [];
+        foreach ($features['order'] as $feature) {
+            $declarations = [];
+            foreach ($features['blocks'][$feature]['order'] as $property) {
+                $entry = $features['blocks'][$feature]['declarations'][$property];
+                $declarations[] = $entry['name'] . ':' . $entry['value'] . ($entry['important'] ? '!important' : '');
+            }
+            $parts[] = $feature . '{' . implode(';', $declarations) . '}';
+        }
+
+        return implode('', $parts);
+    }
+
+    private function mergeFontFeatureValuesBodies(string $first, string $second): string
+    {
+        $features = $this->parseFontFeatureValuesBody($first . $second);
+
+        return $features === null ? $first . $second : $this->serializeFontFeatureValuesBody($features);
+    }
+
+    private function serializeFontFeatureValuesRule(string $prelude, string $body): string
+    {
+        return $prelude . '{' . $body . '}';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fontFeatureValueBlockNames(): array
+    {
+        return ['@styleset', '@character-variant', '@stylistic', '@swash', '@ornaments', '@annotation'];
     }
 
     private function minifyPaletteColorToken(string $color): string
