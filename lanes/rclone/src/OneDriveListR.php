@@ -413,29 +413,31 @@ final class OneDriveListR
     private static function sharedFolderEntries(mixed $listing, string $remote, bool $exposeOneNoteFiles): array
     {
         if (is_callable($listing)) {
-            $entries = [];
-            $result = $listing(
-                $remote,
-                static function (array $batch) use (&$entries): null {
-                    foreach ($batch as $entry) {
-                        if (!$entry instanceof ObjectInfo) {
-                            throw new \InvalidArgumentException('shared-folder ListP batches must contain ObjectInfo entries');
-                        }
-                        $entries[] = $entry;
-                    }
+            $collected = ListHelper::collectWithListP(
+                static function (callable $callback) use ($listing, $remote): void {
+                    $result = $listing(
+                        $remote,
+                        static function (array $batch) use ($callback): null {
+                            $callback($batch);
 
-                    return null;
+                            return null;
+                        },
+                    );
+
+                    if ($result instanceof \Throwable) {
+                        throw $result;
+                    }
+                    if ($result !== null) {
+                        throw new \InvalidArgumentException('shared-folder ListP must return null or Throwable');
+                    }
                 },
             );
 
-            if ($result instanceof \Throwable) {
-                throw $result;
-            }
-            if ($result !== null) {
-                throw new \InvalidArgumentException('shared-folder ListP must return null or Throwable');
+            if ($collected['error'] !== null) {
+                throw $collected['error'];
             }
 
-            return $entries;
+            return $collected['entries'];
         }
 
         if (!is_array($listing)) {

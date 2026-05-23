@@ -98,6 +98,22 @@ function rclone_onedrive_listr_delta_file(int $number, string $parentId = 'root'
     ];
 }
 
+/**
+ * @return array<string, mixed>
+ */
+function rclone_onedrive_listr_child_file(int $number, string $parentId = 'shared-root', string $driveId = 'owner-drive'): array
+{
+    $name = sprintf('asset-%03d.wxr', $number);
+
+    return [
+        'id' => sprintf('asset-%03d', $number),
+        'name' => $name,
+        'size' => $number,
+        'parentReference' => ['driveId' => $driveId, 'id' => $parentId],
+        'file' => ['mimeType' => 'application/rss+xml'],
+    ];
+}
+
 return [
     'onedrive ListR skips duplicate deleted and outside-root delta items while listing shared folders' => static function (TestRunner $t): void {
         $delta = [
@@ -605,6 +621,176 @@ return [
         $t->same('https://graph.example/shared-review/children?page=2', $childTrace['requests'][1]['rootUrl']);
         $t->same('owner-drive#uploads', $childTrace['requests'][2]['directoryId']);
     },
+    'onedrive child ListP provider errors keep flushed batches and suppress pending flush' => static function (TestRunner $t): void {
+        $firstPage = [];
+        for ($i = 1; $i <= 101; $i++) {
+            $firstPage[] = rclone_onedrive_listr_child_file($i);
+        }
+
+        $trace = [];
+        $listP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [
+                    [
+                        'value' => $firstPage,
+                        '@odata.nextLink' => 'https://graph.example/shared-review/children?page=2',
+                    ],
+                    'https://graph.example/shared-review/children?page=2' => [
+                        'error' => 'Graph children failed',
+                    ],
+                ],
+            ],
+            ['site-backups/shared-review' => 'owner-drive#shared-root'],
+            listChunk: 101,
+            trace: $trace,
+        );
+
+        $batches = [];
+        $result = $listP(
+            'site-backups/shared-review',
+            static function (array $batch) use (&$batches): null {
+                $batches[] = rclone_onedrive_listr_names($batch);
+
+                return null;
+            },
+        );
+
+        $t->same("couldn't list files: Graph children failed", $result?->getMessage());
+        $t->same([100], array_map('count', $batches));
+        $t->same('site-backups/shared-review/asset-001.wxr', $batches[0][0]);
+        $t->same('site-backups/shared-review/asset-100.wxr', $batches[0][99]);
+        $t->same([
+            [
+                'rootUrl' => null,
+                'path' => '/children',
+                'parameters' => ['$top' => ['101']],
+                'directoryId' => 'owner-drive#shared-root',
+            ],
+            [
+                'rootUrl' => 'https://graph.example/shared-review/children?page=2',
+                'path' => '',
+                'parameters' => [],
+                'directoryId' => 'owner-drive#shared-root',
+            ],
+        ], $trace['requests']);
+    },
+    'onedrive shared-folder fallback discards child ListP partials on provider error' => static function (TestRunner $t): void {
+        $delta = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $delta[] = rclone_onedrive_listr_delta_file($i, 'backups');
+        }
+        $delta[] = [
+            'id' => 'shared-local',
+            'name' => 'ignored-local-name',
+            'parentReference' => ['driveId' => 'drive', 'id' => 'backups'],
+            'remoteItem' => [
+                'id' => 'shared-root',
+                'name' => 'shared-review',
+                'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-parent'],
+                'folder' => ['childCount' => 100],
+            ],
+        ];
+
+        $children = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $children[] = rclone_onedrive_listr_child_file($i);
+        }
+
+        $childTrace = [];
+        $sharedListP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [
+                    [
+                        'value' => $children,
+                        '@odata.nextLink' => 'https://graph.example/shared-review/children?page=2',
+                    ],
+                    'https://graph.example/shared-review/children?page=2' => [
+                        'error' => 'Graph shared children failed',
+                    ],
+                ],
+            ],
+            ['site-backups/shared-review' => 'owner-drive#shared-root'],
+            listChunk: 100,
+            trace: $childTrace,
+        );
+
+        $listR = OneDriveListR::fromDelta(
+            $delta,
+            'drive#root',
+            ['site-backups' => 'drive#backups'],
+            ['site-backups/shared-review' => $sharedListP],
+        );
+
+        $batches = [];
+        $result = $listR(
+            'site-backups',
+            static function (array $batch) use (&$batches): null {
+                $batches[] = rclone_onedrive_listr_names($batch);
+
+                return null;
+            },
+        );
+
+        $flat = array_merge(...$batches);
+        $t->same("couldn't list files: Graph shared children failed", $result?->getMessage());
+        $t->same([100], array_map('count', $batches));
+        $t->same('site-backups/asset-001.wxr', $batches[0][0]);
+        $t->same('site-backups/asset-100.wxr', $batches[0][99]);
+        $t->same(false, in_array('site-backups/shared-review/', $flat, true));
+        $t->same(false, in_array('site-backups/shared-review/asset-001.wxr', $flat, true));
+        $t->same('https://graph.example/shared-review/children?page=2', $childTrace['requests'][1]['rootUrl']);
+    },
+    'onedrive shared-folder fallback propagates caller callback errors immediately' => static function (TestRunner $t): void {
+        $children = [];
+        for ($i = 1; $i <= 99; $i++) {
+            $children[] = rclone_onedrive_listr_child_file($i);
+        }
+
+        $childTrace = [];
+        $sharedListP = OneDriveListR::listPFromChildPages(
+            [
+                'site-backups/shared-review' => [[
+                    'value' => $children,
+                ]],
+            ],
+            ['site-backups/shared-review' => 'owner-drive#shared-root'],
+            listChunk: 99,
+            trace: $childTrace,
+        );
+
+        $listR = OneDriveListR::fromDelta(
+            [[
+                'id' => 'shared-local',
+                'name' => 'ignored-local-name',
+                'parentReference' => ['driveId' => 'drive', 'id' => 'backups'],
+                'remoteItem' => [
+                    'id' => 'shared-root',
+                    'name' => 'shared-review',
+                    'parentReference' => ['driveId' => 'owner-drive', 'id' => 'shared-parent'],
+                    'folder' => ['childCount' => 99],
+                ],
+            ]],
+            'drive#root',
+            ['site-backups' => 'drive#backups'],
+            ['site-backups/shared-review' => $sharedListP],
+        );
+
+        $batches = [];
+        $result = $listR(
+            'site-backups',
+            static function (array $batch) use (&$batches): Throwable {
+                $batches[] = rclone_onedrive_listr_names($batch);
+
+                return new RuntimeException('restore manifest consumer stopped');
+            },
+        );
+
+        $t->same('restore manifest consumer stopped', $result?->getMessage());
+        $t->same([100], array_map('count', $batches));
+        $t->same('site-backups/shared-review/', $batches[0][0]);
+        $t->same('site-backups/shared-review/asset-099.wxr', $batches[0][99]);
+        $t->same('owner-drive#shared-root', $childTrace['requests'][0]['directoryId']);
+    },
     'wordpress onedrive shared ListR restore example includes shared review artifacts' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-shared-listr-restore.php';
 
@@ -662,5 +848,18 @@ return [
         $t->same(true, $example['sharedListPUsed']);
         $t->same(true, $example['deletedSkipped']);
         $t->same('owner-drive#uploads', $example['childRequests'][2]['directoryId']);
+    },
+    'wordpress onedrive shared ListP error example preserves flushed manifest batch' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-shared-listp-error-preflight.php';
+
+        $t->same('listR-shared-listp-error', $example['source']);
+        $t->same("couldn't list files: Graph shared review page failed", $example['error']);
+        $t->same([100], $example['deliveredBatchSizes']);
+        $t->same(100, $example['manifestCount']);
+        $t->same('site-backups/asset-001.wxr', $example['manifest'][0]);
+        $t->same('site-backups/asset-100.wxr', $example['manifest'][99]);
+        $t->same(true, $example['sharedFolderSuppressed']);
+        $t->same(true, $example['childPartialSuppressed']);
+        $t->same(true, $example['nextLinkReached']);
     },
 ];
