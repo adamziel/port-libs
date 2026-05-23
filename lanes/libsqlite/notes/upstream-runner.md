@@ -2704,6 +2704,38 @@ Per lane instructions, this worker did not start a duplicate root harness. The
 post-change root result is pending supervisor/integrator acceptance of the
 active run.
 
+## Focused Native Mapping: Multi-Page Secondary Index Write Planning
+
+For the bounded multi-page secondary-index write slice on 2026-05-23, the
+focused upstream runner passed `insert.test`, `update.test`, `index.test`, and
+`btree01.test` with 0 errors out of 1084 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test update.test index.test btree01.test
+```
+
+This maps rowid-table INSERT persistence, UPDATE row rewrite behavior, index
+b-tree key ordering, and b-tree cell/page assembly boundaries used by the
+native bounded `wp_options` write planner. The PHP planner can now maintain
+explicit ordinary-column `option_name` and `autoload, option_name` secondary
+indexes whose root is an index-interior page, as long as the affected entry is
+leaf-resident and the target leaf can accept the new record without overflow,
+split, or rebalancing. It still rejects index-overflow records, page splits,
+interior-entry deletion, empty-source-leaf rebalancing, automatic indexes,
+expression indexes, unsafe partial predicates, pointer-map/auto-vacuum,
+journaling, WAL, and general SQL execution.
+
+The direct libsqlite harness passed 176 PHP tests with 1150 assertions and 0
+failures. The new
+`examples/wordpress-multipage-composite-indexed-option-replacement-plan.php`
+script ran successfully, reporting updated table/index leaf page images
+`[2,4,5]`, an `index-interior` root, composite records
+`[no, cron_lock, 1]`, `[no, siteurl, 3]`, `[yes, home, 2]`,
+`[yes, stylesheet, 4]`, and indexed lookup of `siteurl` through
+`wordpressOptionByIndexedAutoloadAndName('no', 'siteurl')`.
+
 For the bounded composite `autoload, option_name` replacement maintenance
 slice on 2026-05-23, the focused upstream runner passed `update.test`,
 `index.test`, `where.test`, `whereH.test`, and `btree01.test` with 0 errors

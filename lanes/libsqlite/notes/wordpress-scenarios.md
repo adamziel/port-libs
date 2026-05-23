@@ -771,6 +771,16 @@ verifies that the option is reachable through
 WordPress repair tools that disable autoload for heavy options while keeping a
 preload-oriented composite index consistent.
 
+`examples/wordpress-multipage-composite-indexed-option-replacement-plan.php`
+starts from a `wp_options` table with a two-level
+`autoload, option_name` secondary index, asks `planWordPressOptionReplace()`
+to rewrite `siteurl` from `autoload='yes'` to `autoload='no'`, applies the
+returned table and two leaf-index page images, and verifies that the
+`index-interior` root still resolves the row through
+`wordpressOptionByIndexedAutoloadAndName('no', 'siteurl')`. This maps larger
+WordPress option tables where repair tooling must update preload indexes
+without collapsing the index tree or invoking the SQLite extension.
+
 `examples/wordpress-replace-obsolete-overflow-option.php` starts from a
 large `wp_options` value stored across overflow pages, asks
 `planWordPressOptionReplace()` for a bounded same-row replacement, applies the
@@ -790,6 +800,6 @@ free-old update order.
 
 ## Next Task
 
-Add bounded multi-page secondary-index insertion/replacement planning or
-explicit page-split rejection coverage before broader pointer-map/auto-vacuum,
-journaling, or WAL work.
+Add bounded same-depth page-split planning for secondary indexes, or broaden
+the current multi-page write planner to safe automatic indexes, before
+pointer-map/auto-vacuum, journaling, or WAL work.

@@ -686,7 +686,6 @@ final class SQLiteDatabase
             self::assertSupportedWordPressWriteIndexColumns($columns);
             self::assertSupportedWordPressWriteIndexPartialPredicate($columns[0]);
 
-            $this->singleLeafIndexHeaderForWrite($record->rootPage);
             $indexes[] = [
                 'record' => $record,
                 'columns' => $columns,
@@ -728,7 +727,6 @@ final class SQLiteDatabase
             self::assertSupportedWordPressWriteIndexColumns($columns);
             self::assertSupportedWordPressWriteIndexPartialPredicate($columns[0]);
 
-            $this->singleLeafIndexHeaderForWrite($record->rootPage);
             $indexes[] = [
                 'record' => $record,
                 'columns' => $columns,
@@ -804,29 +802,15 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException('SQLite wp_options index root page is missing');
             }
 
-            [$indexPage, $indexHeader, $headerOffset] = $this->singleLeafIndexHeaderForWrite($rootPage);
-            $entries = [];
-            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
-            foreach (SQLiteIndexCell::parsePageCells($indexPage, $indexHeader, $this->usablePageSize(), $overflowReader) as $cell) {
-                $recordValues = $cell->record($this->header->textEncoding)->values;
-                if (count($recordValues) < $keyColumnCount + 1) {
-                    throw new \InvalidArgumentException('SQLite wp_options index record must contain all keys and rowid');
-                }
-                $indexRowId = $this->rowIdFromIndexCell($cell);
-                if ($indexRowId === $rowId) {
-                    throw new \InvalidArgumentException("SQLite wp_options index already contains rowid {$rowId}");
-                }
-                $entries[] = [
-                    'values' => array_merge(array_slice($recordValues, 0, $keyColumnCount), [$indexRowId]),
-                    'cell' => substr($indexPage, $cell->offset, $cell->bytesRead),
-                ];
-            }
-
             $newEntryValues = array_merge($indexValues, [$rowId]);
             $newPayload = SQLiteRecord::encode($newEntryValues, $this->header->textEncoding);
             if (SQLiteIndexCell::localPayloadLength(strlen($newPayload), $this->usablePageSize()) !== strlen($newPayload)) {
                 throw new \InvalidArgumentException('SQLite wp_options indexed insert planning does not yet allocate index overflow pages');
             }
+            $this->assertIndexDoesNotContainRowId($rootPage, $rowId);
+
+            $leaf = $this->writableIndexLeafForEntry($rootPage, $newEntryValues, $columns);
+            $entries = $this->writableIndexLeafEntries($leaf['page'], $leaf['header'], $columns);
             $entries[] = [
                 'values' => $newEntryValues,
                 'cell' => SQLiteIndexCell::encode($newPayload, $this->usablePageSize()),
@@ -841,13 +825,7 @@ final class SQLiteDatabase
                 ),
             );
 
-            $pageImages[$rootPage] = SQLiteIndexLeafPage::assemble(
-                array_map(static fn (array $entry): string => $entry['cell'], $entries),
-                $this->header->pageSize,
-                $headerOffset,
-                $indexPage,
-                $this->usablePageSize(),
-            );
+            $pageImages[$leaf['pageNumber']] = $this->assembleWritableIndexLeafPage($entries, $leaf['headerOffset'], $leaf['page']);
         }
 
         ksort($pageImages);
@@ -881,21 +859,16 @@ final class SQLiteDatabase
             $keyColumnCount = count($columns);
             $mutatesKey = $oldValues !== $newValues;
 
-            [$indexPage, $indexHeader, $headerOffset] = $this->singleLeafIndexHeaderForWrite($rootPage);
+            $oldEntryValues = array_merge($oldValues, [$rowId]);
+            $oldLeaf = $this->writableIndexLeafForEntry($rootPage, $oldEntryValues, $columns, true);
             $entries = [];
             $found = false;
-            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
-            foreach (SQLiteIndexCell::parsePageCells($indexPage, $indexHeader, $this->usablePageSize(), $overflowReader) as $cell) {
-                $recordValues = $cell->record($this->header->textEncoding)->values;
-                if (count($recordValues) < $keyColumnCount + 1) {
-                    throw new \InvalidArgumentException('SQLite wp_options index record must contain all keys and rowid');
-                }
-                $indexRowId = $this->rowIdFromIndexCell($cell);
-                $entryValues = array_merge(array_slice($recordValues, 0, $keyColumnCount), [$indexRowId]);
+            foreach ($this->writableIndexLeafEntries($oldLeaf['page'], $oldLeaf['header'], $columns) as $entry) {
+                $indexRowId = $entry['values'][$keyColumnCount] ?? null;
                 if (
                     $indexRowId === $rowId
                     && self::wordPressOptionIndexValuesMatchColumns(
-                        array_slice($recordValues, 0, $keyColumnCount),
+                        array_slice($entry['values'], 0, $keyColumnCount),
                         $oldValues,
                         $columns,
                     )
@@ -908,10 +881,7 @@ final class SQLiteDatabase
                     throw new \InvalidArgumentException("SQLite wp_options index does not reference rowid {$rowId} with the expected key");
                 }
 
-                $entries[] = [
-                    'values' => $entryValues,
-                    'cell' => substr($indexPage, $cell->offset, $cell->bytesRead),
-                ];
+                $entries[] = $entry;
             }
 
             if (!$found) {
@@ -928,6 +898,21 @@ final class SQLiteDatabase
                 throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet allocate index overflow pages');
             }
 
+            $newLeaf = $this->writableIndexLeafForEntry($rootPage, $newEntryValues, $columns);
+            if ($newLeaf['pageNumber'] !== $oldLeaf['pageNumber']) {
+                if ($entries === []) {
+                    throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet rebalance empty index leaf pages');
+                }
+
+                $pageImages[$oldLeaf['pageNumber']] = $this->assembleWritableIndexLeafPage($entries, $oldLeaf['headerOffset'], $oldLeaf['page']);
+                $entries = $this->writableIndexLeafEntries($newLeaf['page'], $newLeaf['header'], $columns);
+                foreach ($entries as $entry) {
+                    if (($entry['values'][$keyColumnCount] ?? null) === $rowId) {
+                        throw new \InvalidArgumentException("SQLite wp_options index already contains rowid {$rowId}");
+                    }
+                }
+            }
+
             $entries[] = [
                 'values' => $newEntryValues,
                 'cell' => SQLiteIndexCell::encode($newPayload, $this->usablePageSize()),
@@ -942,13 +927,7 @@ final class SQLiteDatabase
                 ),
             );
 
-            $pageImages[$rootPage] = SQLiteIndexLeafPage::assemble(
-                array_map(static fn (array $entry): string => $entry['cell'], $entries),
-                $this->header->pageSize,
-                $headerOffset,
-                $indexPage,
-                $this->usablePageSize(),
-            );
+            $pageImages[$newLeaf['pageNumber']] = $this->assembleWritableIndexLeafPage($entries, $newLeaf['headerOffset'], $newLeaf['page']);
         }
 
         ksort($pageImages);
@@ -1005,23 +984,140 @@ final class SQLiteDatabase
         return true;
     }
 
-    /**
-     * @return array{0:string,1:SQLiteBTreePageHeader,2:int}
-     */
-    private function singleLeafIndexHeaderForWrite(int $rootPage): array
+    private function assertIndexDoesNotContainRowId(int $rootPage, int $rowId): void
     {
-        $page = $this->page($rootPage);
-        $headerOffset = $rootPage === 1 ? 100 : 0;
-        $header = SQLiteBTreePageHeader::parsePage(
-            $page,
-            $this->header->pageSize,
-            $headerOffset,
-        );
+        foreach ($this->indexCells($rootPage) as $cell) {
+            if ($this->rowIdFromIndexCell($cell) === $rowId) {
+                throw new \InvalidArgumentException("SQLite wp_options index already contains rowid {$rowId}");
+            }
+        }
+    }
+
+    /**
+     * @param list<mixed> $entryValues
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @return array{pageNumber:int,page:string,header:SQLiteBTreePageHeader,headerOffset:int}
+     */
+    private function writableIndexLeafForEntry(
+        int $rootPage,
+        array $entryValues,
+        array $columns,
+        bool $rejectInteriorMatch = false,
+    ): array {
+        $visited = [];
+        $pageNumber = $rootPage;
+        while (true) {
+            if (isset($visited[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite wp_options index write planning reached page {$pageNumber} more than once");
+            }
+            $visited[$pageNumber] = true;
+
+            $page = $this->page($pageNumber);
+            $headerOffset = $pageNumber === 1 ? 100 : 0;
+            $header = SQLiteBTreePageHeader::parsePage(
+                $page,
+                $this->header->pageSize,
+                $headerOffset,
+            );
+
+            if ($header->pageType === 'index-leaf') {
+                return [
+                    'pageNumber' => $pageNumber,
+                    'page' => $page,
+                    'header' => $header,
+                    'headerOffset' => $headerOffset,
+                ];
+            }
+            if ($header->pageType !== 'index-interior') {
+                throw new \InvalidArgumentException("SQLite page {$pageNumber} is not an index b-tree page");
+            }
+            if ($header->rightMostPointer === null || $header->rightMostPointer < 1) {
+                throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid right-most pointer");
+            }
+
+            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+            foreach (SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
+                if ($cell->leftChildPage === null || $cell->leftChildPage < 1) {
+                    throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid child pointer");
+                }
+
+                $comparison = $this->compareWordPressIndexEntryValues(
+                    $entryValues,
+                    $this->indexEntryValuesForColumns($cell, count($columns)),
+                    $columns,
+                );
+                if ($comparison === 0 && $rejectInteriorMatch) {
+                    throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet delete index entries from interior pages');
+                }
+                if ($comparison < 0) {
+                    $pageNumber = $cell->leftChildPage;
+                    continue 2;
+                }
+            }
+
+            $pageNumber = $header->rightMostPointer;
+        }
+    }
+
+    /**
+     * @param non-empty-list<SQLiteIndexColumn> $columns
+     * @return list<array{values:list<mixed>,cell:string}>
+     */
+    private function writableIndexLeafEntries(string $page, SQLiteBTreePageHeader $header, array $columns): array
+    {
         if ($header->pageType !== 'index-leaf') {
-            throw new \InvalidArgumentException('SQLite wp_options write planning currently requires single-leaf indexes');
+            throw new \InvalidArgumentException('SQLite wp_options index write planning requires leaf page entries');
         }
 
-        return [$page, $header, $headerOffset];
+        $entries = [];
+        $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+        foreach (SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
+            $entries[] = [
+                'values' => $this->indexEntryValuesForColumns($cell, count($columns)),
+                'cell' => substr($page, $cell->offset, $cell->bytesRead),
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function indexEntryValuesForColumns(SQLiteIndexCell $cell, int $keyColumnCount): array
+    {
+        $recordValues = $cell->record($this->header->textEncoding)->values;
+        if (count($recordValues) < $keyColumnCount + 1) {
+            throw new \InvalidArgumentException('SQLite wp_options index record must contain all keys and rowid');
+        }
+
+        return array_merge(array_slice($recordValues, 0, $keyColumnCount), [$this->rowIdFromIndexCell($cell)]);
+    }
+
+    /**
+     * @param list<array{values:list<mixed>,cell:string}> $entries
+     */
+    private function assembleWritableIndexLeafPage(array $entries, int $headerOffset, string $basePage): string
+    {
+        try {
+            return SQLiteIndexLeafPage::assemble(
+                array_map(static fn (array $entry): string => $entry['cell'], $entries),
+                $this->header->pageSize,
+                $headerOffset,
+                $basePage,
+                $this->usablePageSize(),
+            );
+        } catch (\InvalidArgumentException $exception) {
+            if (str_contains($exception->getMessage(), 'overlap')) {
+                throw new \InvalidArgumentException(
+                    'SQLite wp_options indexed write planning does not yet split index leaf pages',
+                    0,
+                    $exception,
+                );
+            }
+
+            throw $exception;
+        }
     }
 
     /**
