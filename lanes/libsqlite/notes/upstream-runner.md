@@ -3755,6 +3755,87 @@ successfully, reporting updated page images `[1,2,3,4,5,6]`, overflow pages
 `[4,5,6]`, pointer-map entries `first-overflow-page -> 3`, `overflow-page ->
 4`, and `overflow-page -> 5`, and a readable `theme_mods_twentyfive` option.
 
-Remaining boundaries: replacement-created overflow chains, table/index page
-move pointer-map updates, secure-delete variants, journaling, and WAL remain
-future slices.
+## Focused Native Mapping: Auto-Vacuum Overflow Replacement Pointer Maps
+
+For the bounded auto-vacuum `wp_options` large replacement slice, the focused
+upstream runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  autovacuum.test incrvacuum.test update.test corrupt3.test
+```
+
+Result: 4 named Tcl scripts / 8 runner script-permutation runs, 0 errors out
+of 791 tests in 00:01. A bounded static scan of those Tcl scripts counted 293
+`do_*` command lines, and a targeted static scan of `src/btree.c` plus
+`src/btreeInt.h` counted 221 pointer-map/overflow/update/freePage2 contract
+lines.
+
+This maps SQLite's auto-vacuum pointer-map behavior when UPDATE rewrites a
+large record: the new overflow chain is allocated before obsolete overflow
+pages are returned to the freelist, the first new overflow page is stored as
+`PTRMAP_OVERFLOW1` with the owning b-tree page as parent, continuation pages
+are stored as `PTRMAP_OVERFLOW2` with the previous overflow page as parent,
+and obsolete overflow pages are rewritten as `PTRMAP_FREEPAGE` when freed.
+
+The native PHP slice now threads those pointer-map page-image updates into
+`planWordPressOptionReplace()` for large replacement-created overflow chains.
+The owner b-tree page is resolved from the planned table image before writing
+pointer-map entries so replacement cells below table splits/growth do not
+inherit a stale root-page owner.
+
+The direct libsqlite harness passed 204 PHP tests with 1539 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-autovacuum-overflow-option-replacement-plan.php` script
+ran successfully, reporting obsolete overflow pages `[4,5]` as `free-page`
+entries, new overflow pages `[6,7,8,9]` with parent links `3,6,7,8`, and a
+readable rewritten `theme_mods_twentyfive` option.
+
+## Focused Native Mapping: Non-Root Composite Index Leaf Merge
+
+For the bounded `wp_options(autoload, option_name)` replacement slice where
+the source leaf sits below a non-root index-interior parent, the focused
+upstream runner passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test btree01.test
+```
+
+Result: 3 named Tcl scripts / 7 runner script-permutation runs, 0 errors out
+of 761 tests in 00:00. A bounded static scan counted 254 `do_*` command lines
+in those Tcl scripts and 56 targeted `balance_*`, `dropCell()`,
+`insertCell()`, `editPage()`, and `freePage2()` source contract lines in
+`src/btree.c`.
+
+This maps SQLite's UPDATE row rewrite behavior, composite index key ordering,
+delete-triggered `balance_nonroot()` leaf merge below an index-interior parent,
+parent divider removal, right-most pointer reassignment, and obsolete page
+release through `freePage2()`.
+
+The native PHP slice now lets a replacement autoload change merge an
+underfilled composite-index source leaf below a non-root parent when the lower
+parent remains sufficiently populated after the divider is removed. The direct
+libsqlite harness passed 205 PHP tests with 1555 assertions and 0 failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests
+```
+
+The new
+`examples/wordpress-nonroot-index-merge-option-replacement-plan.php` script
+ran successfully, reporting updated page images `[1,2,4,5,8,9]`, lower parent
+page 4 with 3 cells and right-most pointer 8, obsolete leaf page 9 on the
+freelist, and a readable rewritten option through the composite index.
+
+Remaining boundaries: non-root parent underflow after source-leaf
+merge/rebalance, broader table/index page move pointer-map updates,
+secure-delete variants, journaling, and WAL remain future slices.

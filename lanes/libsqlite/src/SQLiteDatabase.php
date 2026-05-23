@@ -752,6 +752,23 @@ final class SQLiteDatabase
             $freePlan?->databasePageCount ?? 0,
             $pageImages === [] ? 0 : max(array_keys($pageImages)),
         );
+        if ($this->isAutoVacuum() && $overflowPageNumbers !== []) {
+            $ownerBtreePageNumber = $this->tableLeafPageNumberForRowIdInPlannedImages(
+                $tableRootPage,
+                $matchedRowId,
+                $pageImages,
+            );
+            $pageImages = $this->withOverflowPointerMapPages(
+                $pageImages,
+                $overflowPageNumbers,
+                $ownerBtreePageNumber,
+                $databasePageCount,
+            );
+            $databasePageCount = max(
+                $databasePageCount,
+                $pageImages === [] ? 0 : max(array_keys($pageImages)),
+            );
+        }
 
         return new SQLiteWordPressOptionReplacementPlan(
             $tableRootPage,
@@ -2035,10 +2052,6 @@ final class SQLiteDatabase
         array $entries,
         array $columns,
     ): array {
-        if (($parent['parent'] ?? null) !== null) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning currently merges only leaves below an index root');
-        }
-
         $workingDatabase = $this->withPageImages($pageImages);
         $parentPage = $workingDatabase->page($parent['pageNumber']);
         $parentHeader = SQLiteBTreePageHeader::parsePage(
@@ -2047,7 +2060,10 @@ final class SQLiteDatabase
             $parent['headerOffset'],
         );
         if ($parentHeader->pageType !== 'index-interior' || $parentHeader->rightMostPointer === null || $parentHeader->cellCount < 2) {
-            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning requires a mergeable index root parent');
+            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning requires a mergeable index interior parent');
+        }
+        if (($parent['parent'] ?? null) !== null && $parentHeader->cellCount < 4) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed replacement planning does not yet merge leaves when a non-root parent would underflow');
         }
 
         $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $workingDatabase->readOverflowPayload($firstOverflowPage, $byteCount);
@@ -10259,6 +10275,82 @@ final class SQLiteDatabase
         }
 
         return $this->pointerMapPageImagesForUpdates($pageImages, $updates, $databasePageCount);
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     */
+    private function tableLeafPageNumberForRowIdInPlannedImages(int $rootPageNumber, int $rowId, array $pageImages): int
+    {
+        $visited = [];
+        $pageNumber = $this->findTableLeafPageNumberForRowIdInPlannedImages($rootPageNumber, $rowId, $pageImages, $visited);
+        if ($pageNumber === null) {
+            throw new \InvalidArgumentException("SQLite wp_options replacement rowid {$rowId} is not present in the planned table image");
+        }
+
+        return $pageNumber;
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @param array<int, true> $visited
+     */
+    private function findTableLeafPageNumberForRowIdInPlannedImages(
+        int $pageNumber,
+        int $rowId,
+        array $pageImages,
+        array &$visited,
+    ): ?int {
+        if (isset($visited[$pageNumber])) {
+            throw new \InvalidArgumentException("SQLite planned table traversal reached page {$pageNumber} more than once");
+        }
+        $visited[$pageNumber] = true;
+
+        $page = $pageImages[$pageNumber] ?? $this->page($pageNumber);
+        if (!is_string($page) || strlen($page) !== $this->header->pageSize) {
+            throw new \InvalidArgumentException('SQLite planned table page image length does not match page size');
+        }
+
+        $header = SQLiteBTreePageHeader::parsePage(
+            $page,
+            $this->header->pageSize,
+            $pageNumber === 1 ? 100 : 0,
+        );
+
+        if ($header->pageType === 'table-leaf') {
+            $overflowReader = static fn (int $firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount);
+            foreach (SQLiteTableLeafCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
+                if ($cell->rowId === $rowId) {
+                    return $pageNumber;
+                }
+            }
+
+            return null;
+        }
+        if ($header->pageType !== 'table-interior') {
+            throw new \InvalidArgumentException("SQLite page {$pageNumber} is not a planned table b-tree page");
+        }
+        if ($header->rightMostPointer === null || $header->rightMostPointer < 1) {
+            throw new \InvalidArgumentException("SQLite planned table interior page {$pageNumber} has an invalid right-most pointer");
+        }
+
+        foreach (SQLiteTableInteriorCell::parsePageCells($page, $header) as $interiorCell) {
+            if ($rowId <= $interiorCell->key) {
+                return $this->findTableLeafPageNumberForRowIdInPlannedImages(
+                    $interiorCell->leftChildPage,
+                    $rowId,
+                    $pageImages,
+                    $visited,
+                );
+            }
+        }
+
+        return $this->findTableLeafPageNumberForRowIdInPlannedImages(
+            $header->rightMostPointer,
+            $rowId,
+            $pageImages,
+            $visited,
+        );
     }
 
     /**

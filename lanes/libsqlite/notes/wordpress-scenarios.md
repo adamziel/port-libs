@@ -1026,6 +1026,18 @@ and migration preflight for large theme-mod or cache options on hosts where
 the SQLite extension is unavailable and stale auto-vacuum pointer-map entries
 would make later page moves unsafe.
 
+`examples/wordpress-autovacuum-overflow-option-replacement-plan.php` starts
+from a WordPress-shaped auto-vacuum SQLite database with an existing large
+`theme_mods_twentyfive` option stored on overflow pages. It asks
+`planWordPressOptionReplace()` to rewrite the option to a larger value,
+applies the returned header/pointer-map/table/freelist/overflow page images,
+verifies that obsolete overflow pages are now `free-page` entries, verifies
+that the new overflow chain carries `first-overflow-page` and `overflow-page`
+parent links back to the owning `wp_options` table leaf, and reads the
+rewritten option through the native table reader. This maps WordPress repair
+preflight where changing a serialized theme-mod/cache option in an
+auto-vacuum SQLite database must not leave stale pointer-map owners behind.
+
 `examples/wordpress-index-merge-option-replacement-plan.php` starts from a
 multi-page `wp_options(autoload, option_name)` secondary index where changing a
 large cached option from `autoload='yes'` to `autoload='no'` underfills the old
@@ -1037,8 +1049,19 @@ reachable through the composite index. This maps WordPress cache or migration
 repair tools that need to change autoload state without leaving an invalid
 sparse secondary-index page behind.
 
+`examples/wordpress-nonroot-index-merge-option-replacement-plan.php` starts
+from a deeper `wp_options(autoload, option_name)` secondary index with a root
+interior page, a lower interior parent, and five leaf children. It changes an
+option from `autoload='yes'` to `autoload='no'`, merges the underfilled source
+leaf with its adjacent sibling below that non-root parent, removes the parent
+divider, moves the lower parent's right-most pointer, and verifies that the
+obsolete leaf is now on the freelist while the rewritten option is reachable
+through the composite index. This maps larger WordPress SQLite fallback
+databases where autoload repair must maintain a deeper secondary index without
+waiting for general SQL UPDATE, journaling, or WAL support.
+
 ## Next Task
 
-Broaden replacement source-leaf merge/rebalance to non-root index parents,
-then integrate pointer-map updates into auto-vacuum table/index page moves
-before journaling or WAL work.
+Propagate replacement source-leaf merge/rebalance into non-root parent
+underflow cases, then integrate pointer-map updates into broader auto-vacuum
+table/index page moves before journaling or WAL work.

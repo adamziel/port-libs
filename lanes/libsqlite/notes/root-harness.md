@@ -522,6 +522,52 @@ PID      USER    ELAPSED CMD
 This worker did not start a duplicate root harness. Aggregate root status is
 pending supervisor/integrator acceptance of the active run.
 
+## Non-Root Composite Index Leaf Merge Slice
+
+Focused lane verification for the non-root composite-index source-leaf merge
+slice passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests
+```
+
+Result: 1 test file, 1555 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-nonroot-index-merge-option-replacement-plan.php
+```
+
+It reported updated page images `[1,2,4,5,8,9]`, lower index parent page 4
+with 3 cells and right-most pointer 8, merged leaf page 8 with 3 cells,
+obsolete page 9 on the freelist, and a readable rewritten option with
+`autoload='no'`.
+
+The focused upstream SQLite runner also passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test index.test btree01.test
+```
+
+Result: 0 errors out of 761 tests.
+
+The required duplicate-root preflight was run before the aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It returned no active exact root process, so this worker ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result: 216 test files, 25005 assertions, 0 failures.
+
 ## Auto-Vacuum Overflow Insert Pointer-Map Slice
 
 Focused lane verification for the auto-vacuum overflow insert pointer-map
@@ -567,3 +613,52 @@ php tools/run-tests.php
 ```
 
 Result: 213 test files, 24527 assertions, 0 failures.
+
+## Auto-Vacuum Overflow Replacement Pointer-Map Slice
+
+Focused lane verification for the auto-vacuum overflow replacement pointer-map
+slice passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1539 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-autovacuum-overflow-option-replacement-plan.php
+```
+
+It reported updated page images `[1,2,3,4,6,7,8,9]`, obsolete overflow pages
+`[4,5]` rewritten to `free-page` pointer-map entries, new overflow pages
+`[6,7,8,9]` with parent links `3,6,7,8`, and a readable rewritten
+`theme_mods_twentyfive` option.
+
+The focused upstream SQLite runner also passed:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  autovacuum.test incrvacuum.test update.test corrupt3.test
+```
+
+Result: 0 errors out of 791 tests.
+
+The required duplicate-root preflight was run before any aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It returned active exact root harness PID `3188250 php tools/run-tests.php`.
+Owner sampling showed it was owned by `claude`:
+
+```text
+PID      USER    ELAPSED CMD
+3188250 claude  00:47   php tools/run-tests.php
+```
+
+This worker did not start a duplicate root harness. Aggregate root status is
+pending supervisor/integrator acceptance of the active run.
