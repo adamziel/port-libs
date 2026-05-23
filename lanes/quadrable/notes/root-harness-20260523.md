@@ -273,10 +273,10 @@ The required duplicate-root gate was checked before the repo-wide harness:
 - `pgrep -af '^php tools/run-tests\.php( |$)'`
 - No active exact root harness was reported.
 
-Repo-wide root harness did not pass:
+Repo-wide root harness final sample passed:
 
-- `php tools/run-tests.php` exited 1 with 200 test files, 22,583 assertions, and 36 failures.
-- Visible failures were outside quadrable, all in `lanes/syncthing/tests/FileInfoScannerTest.php`: `FileInfoScanner::walkPath()` received null `$scanNow` in multiple scanner-walk tests, `FileInfoScanner::walkDirectoryChildren()` was undefined in two tests, and normalization-error tests got `TypeError` instead of the expected `RuntimeException`.
-- Post-run duplicate-root samples found active root harness PIDs 2612924, 2613382, and 2614219 owned by `claude`, command `php tools/run-tests.php`.
+- A first root run in this slice failed outside quadrable with 200 test files, 22,583 assertions, and 36 failures in `lanes/syncthing/tests/FileInfoScannerTest.php`.
+- After the focused error-order assertion and a clear duplicate-root gate, a captured final `php tools/run-tests.php` run passed with 200 test files, 22,964 assertions, and 0 failures.
+- The final root log path was `/tmp/quadrable-root-final.Oe8LOt.log`.
 
-No lane commit was made because the repo-wide root harness is red outside quadrable.
+Lane commit was made after the green root sample.
