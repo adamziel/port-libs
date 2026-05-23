@@ -163,6 +163,7 @@ final class ArticleExtractor
             $this->removeOutOfBandFigureWrappers($best);
             $this->removeInteractiveArticleChrome($best);
             $this->removeUnsupportedPublisherVideoPlaceholders($best);
+            $this->removePublisherStoryChrome($best);
             $this->removeNytCollectionChrome($best);
             $this->removeDuplicateTitleHeader($best, $title);
             $this->removeSectionScaffoldHeadings($best);
@@ -1312,7 +1313,7 @@ final class ArticleExtractor
             }
 
             $tag = strtoupper($node->tagName);
-            if ($tag === 'BODY' || $tag === 'A' || $this->hasAncestorTag($node, ['TABLE', 'CODE'])) {
+            if ($tag === 'BODY' || $tag === 'MAIN' || $tag === 'A' || $this->hasAncestorTag($node, ['TABLE', 'CODE'])) {
                 continue;
             }
 
@@ -1655,6 +1656,29 @@ final class ArticleExtractor
         }
 
         foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function removePublisherStoryChrome(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        $remove = [];
+        foreach ($xpath->query(
+            './/*[@id="js-ie-storytop"'
+            . ' or (starts-with(@id, "sa_") and contains(@id, "-img"))'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " cnnplayer ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " cnnVidFooter ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " teads-inread ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " teads-ui-components-label ")]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach (array_reverse($this->uniqueElements($remove)) as $node) {
             $node->parentNode?->removeChild($node);
         }
     }
@@ -2806,7 +2830,9 @@ final class ArticleExtractor
         do {
             $changed = false;
             foreach ($this->singleParagraphDivCandidates($scope) as $node) {
-                if (!$node->parentNode instanceof \DOMNode || $this->hasReadabilityId($node)) {
+                if (!$node->parentNode instanceof \DOMNode
+                    || $this->hasReadabilityId($node)
+                    || trim($node->getAttribute('id')) === 'smartassetcontainer') {
                     continue;
                 }
 
@@ -3675,6 +3701,12 @@ final class ArticleExtractor
 
         $matchString = strtolower($node->getAttribute('class') . ' ' . $node->getAttribute('id'));
         $weight = 0;
+        if (preg_match('/\bstorytext\b/', $matchString) === 1) {
+            $weight += 12000;
+        } elseif (preg_match('/\bstorycontent\b/', $matchString) === 1) {
+            $weight += 6000;
+        }
+
         if (preg_match('/\b(article-body|article__body|entry-content|post-content|article-content)\b/', $matchString) === 1) {
             $weight += 10000;
         }
@@ -3750,6 +3782,11 @@ final class ArticleExtractor
     {
         if (strtolower($node->tagName) === 'article'
             && trim($node->getAttribute('id')) === 'story') {
+            return true;
+        }
+
+        if (strtolower($node->tagName) === 'div'
+            && trim($node->getAttribute('id')) === 'storytext') {
             return true;
         }
 

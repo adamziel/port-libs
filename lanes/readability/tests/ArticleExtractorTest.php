@@ -949,6 +949,37 @@ return [
         $t->same(false, str_contains($article->contentHtml, 'lead-video-placeholder'), 'BBC video placeholder shell should be removed after unsupported iframe cleanup');
         $t->same(false, str_contains($article->contentHtml, '<iframe'), 'unsupported BBC player iframes should not survive extraction');
     },
+    'maps Mozilla cnn fixture with storytext root and widget chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/cnn';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(['storytext'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/div/@id'));
+        $t->same(1, count($attributeValues($article->contentHtml, '//div[@id="smartassetcontainer"]')));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same(1, substr_count($blocks, '<!-- wp:heading {"level":2} -->'), 'CNN story lead should become one heading block');
+        $t->same(14, substr_count($blocks, '<!-- wp:paragraph -->'), 'CNN story paragraphs and retained SmartAsset label should serialize as paragraph blocks');
+        $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'CNN masthead/video/tracker media should not become image blocks');
+        $t->contains('Stanford University', $blocks);
+        foreach (['The priest saving LA', 'Your video will play', 'ADVERTISING', 'inRead invented by Teads', 'Disclosures', 'cnn-logo.png'] as $fragment) {
+            $t->same(false, str_contains($article->text, $fragment), 'CNN widget or masthead chrome should not enter article text: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'CNN widget or masthead chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
     'preserves requested WordPress caption classes without keeping theme classes' => static function (TestRunner $t): void {
         $source = '<html><head><meta property="og:title" content="Caption Class Import"></head><body><article>'
             . '<h1>Caption Class Import</h1>'
