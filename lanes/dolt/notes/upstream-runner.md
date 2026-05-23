@@ -5,6 +5,41 @@
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
 
+## Runner Tooling Refresh 2026-05-23 00:20-00:25 UTC
+
+- Cache inspection before running evidence:
+  - `git -C .upstream-cache/dolt status --short --branch`: expected sparse/no-checkout out-of-cone deletions, plus runner-local `.gocache/`, `.gomodcache/`, `bats-home/`, `tmp/`, and `integration-tests/bats/status-local-fixed.bats`; no delete, reset, or wider checkout was run.
+  - `git -C .upstream-cache/dolt rev-parse HEAD`: `b2274926e0dcd84aab000ee242df5b5e75689eef`.
+  - `git -C .upstream-cache/dolt rev-parse --is-shallow-repository`: `true`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.promisor`: `true`.
+  - `git -C .upstream-cache/dolt config --get remote.origin.partialclonefilter`: `blob:none`.
+  - `git -C .upstream-cache/dolt sparse-checkout list`: `go`, `integration-tests/bats`.
+- Tooling check:
+  - `sudo -n dnf install -y golang bats expect libicu-devel`
+  - Result: `golang`, `bats`, `expect`, and `libicu-devel` were already installed; `Nothing to do.`
+  - Tool probes: `go version go1.26.3-X:nodwarf5 linux/amd64`, `Bats 1.13.0`, `expect version 5.45.4`.
+  - `rpm -q golang golang-bin golang-src bats expect libicu-devel`: `golang-1.26.3-2.fc44.x86_64`, `golang-bin-1.26.3-2.fc44.x86_64`, `golang-src-1.26.3-2.fc44.noarch`, `bats-1.13.0-3.fc44.noarch`, `expect-5.45.4-31.fc44.x86_64`, `libicu-devel-77.1-2.fc44.x86_64`.
+- Cache-local build:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOBIN=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 15m go install -p 1 ./cmd/dolt ./store/cmd/noms ./utils/remotesrv`
+  - Result: exit 0; cache-local `dolt`, `noms`, and `remotesrv` rebuilt.
+  - `env HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home /home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin/dolt version`: `dolt version 2.0.5`.
+- Bounded Go evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 20m go test -p 1 ./libraries/doltcore/diff ./libraries/doltcore/schema ./libraries/doltcore/schema/typecompatibility ./libraries/doltcore/schema/encoding ./libraries/doltcore/table ./libraries/doltcore/table/untyped ./libraries/doltcore/table/untyped/csv ./libraries/doltcore/table/untyped/tabular ./libraries/doltcore/table/untyped/sqlexport ./libraries/doltcore/table/typed/json ./libraries/doltcore/rowconv ./libraries/doltcore/sqle/sqlfmt ./libraries/doltcore/sqle/expreval ./libraries/doltcore/sqle/dtables ./libraries/doltcore/sqle/dtablefunctions ./libraries/doltcore/merge -count=1 -timeout 20m`
+  - Result: exit 0; 14 packages passed, `rowconv` and `sqle/dtables` compiled with no test files, and `merge` passed in `6.062s`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 30m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(PatchTableFunction|PatchTableFunctionPrepared|DoltUserPrivileges)$' -count=1 -timeout 30m -v`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.638s`; this covered `dolt_patch()` unprepared/prepared script tests plus upstream `DoltUserPrivTests`, including database-access denial, table-level SELECT, database-level SELECT, revoke paths, dot-range and three-dot access checks, binary hex SQL patch statements, WORKING/STAGED same-ref no-op rows, and `dolt_patch()` table-function privilege boundaries.
+- Bounded BATS evidence:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 45m bats sql-diff.bats keyless.bats`
+  - Result: exit 0 with plan `1..89`; 79 runnable tests passed and 10 upstream-declared skips remained. The passed cases cover SQL diff INSERT/UPDATE/DELETE/primary-key/DDL/rename/view/all-types/escaping/NULL/stat/skinny/ignore behavior plus keyless create/delete/update/import/export/diff/stat/dolt_diff_/merge/duplicate/cardinality/secondary-index/constraint/unique-index behavior. The skips are upstream-declared for Dolt docs SQL diff, keyless column add/drop diff, keyless SQL diff/patch variants, one incorrect-resolve merge case, replace-into unique-index semantics, bulk-import index error handling, and unique-key representation.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status.bats`
+  - Result: exit 1 with plan `1..1`; pristine `status.bats` still truncates `fhkrvqkng499ht7mrgbif1008ot75sfg` to `qkng499ht7mrgbif1008ot75sfg`, and `dolt reset` reports `branch not found`.
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home BATS_TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/bats-tmp PATH=/home/claude/port-libs/.upstream-cache/dolt/bats-home/go/bin:$PATH timeout 10m bats --filter 'status: dolt reset works with commit hash ref' status-local-fixed.bats`
+  - Result: exit 0 with plan `1..1`; the runner-local fixed helper passed the same commit-hash reset case.
+- Required repository check after this runner metadata update:
+  - `php tools/run-tests.php`
+  - Result: exit 0 with 161 test files, 14,646 assertions, and 0 failures.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, server, or benchmark suites were run.
+
 ## Runner Refresh 2026-05-23 Binary Patch Slice
 
 - Static denominator refresh:
