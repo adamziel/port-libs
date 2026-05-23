@@ -82,7 +82,21 @@ return [
         );
 
         $t->true($result->isClean());
+        $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $result->resolution);
         $t->same("A\nB\n1\n2\n3\n4\n5\n6\n7\n", $result->content);
+    },
+    'text merge auto resolves conflicts with ours theirs and newline-separated union' => static function (TestRunner $t): void {
+        $ours = BlobMerge::mergeText("1\n2\n3", "1\n3\nours", "1\n3\ntheirs", BlobMerge::STYLE_OURS);
+        $theirs = BlobMerge::mergeText("1\n2\n3", "1\n3\nours", "1\n3\ntheirs", BlobMerge::STYLE_THEIRS);
+        $union = BlobMerge::mergeText("b", "ours", "theirs", BlobMerge::STYLE_UNION);
+
+        $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $ours->resolution);
+        $t->same(0, $ours->conflictCount);
+        $t->same("1\n3\nours", $ours->content);
+        $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $theirs->resolution);
+        $t->same("1\n3\ntheirs", $theirs->content);
+        $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $union->resolution);
+        $t->same("ours\ntheirs", $union->content);
     },
     'binary merge defaults to ours as an unresolved conflict' => static function (TestRunner $t): void {
         $result = BlobMerge::mergeBinary("base\0", "ours\0", "theirs\0");
@@ -102,6 +116,18 @@ return [
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-blob-merge.php';
 
         $metadata = BlobMerge::mergeText($fixture['metadata']['base'], $fixture['metadata']['ours'], $fixture['metadata']['theirs']);
+        $deploymentChoice = BlobMerge::mergeText(
+            $fixture['themeDecision']['base'],
+            $fixture['themeDecision']['ours'],
+            $fixture['themeDecision']['theirs'],
+            BlobMerge::STYLE_OURS,
+        );
+        $unionNotes = BlobMerge::mergeText(
+            $fixture['blockNotes']['base'],
+            $fixture['blockNotes']['ours'],
+            $fixture['blockNotes']['theirs'],
+            BlobMerge::STYLE_UNION,
+        );
         $theme = BlobMerge::mergeText(
             $fixture['theme']['base'],
             $fixture['theme']['ours'],
@@ -114,6 +140,11 @@ return [
 
         $t->true($metadata->isClean());
         $t->same($fixture['metadata']['expected'], $metadata->content);
+        $t->true($deploymentChoice->isClean());
+        $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $deploymentChoice->resolution);
+        $t->same($fixture['themeDecision']['ours'], $deploymentChoice->content);
+        $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $unionNotes->resolution);
+        $t->same($fixture['blockNotes']['expectedUnion'], $unionNotes->content);
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $theme->resolution);
         $t->contains('||||||| base/theme.json', $theme->content);
     },

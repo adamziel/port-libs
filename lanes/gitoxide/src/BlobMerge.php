@@ -9,6 +9,8 @@ final class BlobMerge
     public const STYLE_MERGE = 'merge';
     public const STYLE_DIFF3 = 'diff3';
     public const STYLE_UNION = 'union';
+    public const STYLE_OURS = 'ours';
+    public const STYLE_THEIRS = 'theirs';
     public const PICK_ANCESTOR = 'ancestor';
     public const PICK_OURS = 'ours';
     public const PICK_THEIRS = 'theirs';
@@ -23,7 +25,7 @@ final class BlobMerge
         string $theirsLabel = 'theirs',
         int $markerSize = 7,
     ): BlobMergeResult {
-        if (!in_array($style, [self::STYLE_MERGE, self::STYLE_DIFF3, self::STYLE_UNION], true)) {
+        if (!in_array($style, [self::STYLE_MERGE, self::STYLE_DIFF3, self::STYLE_UNION, self::STYLE_OURS, self::STYLE_THEIRS], true)) {
             throw new \InvalidArgumentException("Unsupported text merge style: {$style}");
         }
         if ($markerSize < 1) {
@@ -49,6 +51,7 @@ final class BlobMerge
         $ourIndex = 0;
         $theirIndex = 0;
         $conflicts = 0;
+        $autoResolvedConflicts = 0;
         $newline = self::detectLineEnding($base . $ours . $theirs);
 
         while ($ourIndex < count($ourHunks) || $theirIndex < count($theirHunks)) {
@@ -85,12 +88,25 @@ final class BlobMerge
             $start = min($ourHunk['start'], $theirHunk['start']);
             $end = max($ourHunk['end'], $theirHunk['end']);
             self::appendBase($merged, $baseLines, $basePosition, $start);
+            if ($style === self::STYLE_OURS || $style === self::STYLE_THEIRS) {
+                $chosenHunk = $style === self::STYLE_OURS ? $ourHunk : $theirHunk;
+                array_push($merged, ...self::applyHunksInRange($baseLines, [$chosenHunk], $start, $end));
+                $basePosition = $end;
+                $ourIndex++;
+                $theirIndex++;
+                $autoResolvedConflicts++;
+                continue;
+            }
+
             if ($style === self::STYLE_UNION) {
-                array_push($merged, ...self::applyHunksInRange($baseLines, [$ourHunk], $start, $end));
+                $ourLines = self::applyHunksInRange($baseLines, [$ourHunk], $start, $end);
+                array_push($merged, ...$ourLines);
+                self::assureEndsWithNewline($merged, $newline);
                 array_push($merged, ...self::applyHunksInRange($baseLines, [$theirHunk], $start, $end));
                 $basePosition = $end;
                 $ourIndex++;
                 $theirIndex++;
+                $autoResolvedConflicts++;
                 continue;
             }
 
@@ -111,7 +127,13 @@ final class BlobMerge
 
         self::appendBase($merged, $baseLines, $basePosition, count($baseLines));
 
-        return new BlobMergeResult(implode('', $merged), $conflicts === 0 ? BlobMergeResult::RESOLUTION_COMPLETE : BlobMergeResult::RESOLUTION_CONFLICT, $conflicts);
+        $resolution = match (true) {
+            $conflicts > 0 => BlobMergeResult::RESOLUTION_CONFLICT,
+            $autoResolvedConflicts > 0 => BlobMergeResult::RESOLUTION_AUTO_RESOLVED,
+            default => BlobMergeResult::RESOLUTION_COMPLETE,
+        };
+
+        return new BlobMergeResult(implode('', $merged), $resolution, $conflicts);
     }
 
     public static function mergeBinary(string $base, string $ours, string $theirs, ?string $resolveWith = null): BlobMergeResult
@@ -241,6 +263,22 @@ final class BlobMerge
         for ($i = $start; $i < $end; $i++) {
             $out[] = $base[$i];
         }
+    }
+
+    /**
+     * @param list<string> $out
+     */
+    private static function assureEndsWithNewline(array &$out, string $newline): void
+    {
+        if ($out === []) {
+            return;
+        }
+        $last = $out[array_key_last($out)];
+        if ($last === '' || str_ends_with($last, "\n")) {
+            return;
+        }
+
+        $out[] = $newline;
     }
 
     /**
