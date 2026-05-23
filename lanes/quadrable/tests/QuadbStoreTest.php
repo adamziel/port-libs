@@ -1201,6 +1201,77 @@ return [
             quadrableQuadbRemoveDir($proofDir);
         }
     },
+    'native quadb store preserves numeric head names as LMDB string keys' => static function (TestRunner $t): void {
+        $dir = quadrableQuadbTempDir();
+        $proofDir = quadrableQuadbTempDir();
+
+        try {
+            $repo = QuadbStore::init($dir);
+            $repo->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $masterRoot = $repo->tree()->rootHash();
+            $masterHeadNodeId = $repo->tree()->headNodeId();
+
+            $repo->fork('20260523');
+            $repo->put('wp_posts:1', 'Numeric preview edit');
+            $previewRoot = $repo->tree()->rootHash();
+            $previewHeadNodeId = $repo->tree()->headNodeId();
+            $raw = $repo->lmdbRawEntrySnapshot();
+
+            $t->same('20260523', $repo->currentHeadName());
+            $t->same([
+                [
+                    'key' => 'currHead',
+                    'value' => '20260523',
+                ],
+            ], $raw['quadrable_quadb_state']);
+            $t->same(
+                [
+                    '20260523' => quadrableQuadbPackUint64Le($previewHeadNodeId),
+                    'master' => quadrableQuadbPackUint64Le($masterHeadNodeId),
+                ],
+                quadrableQuadbRawStringEntriesByKey($raw['quadrable_head'])
+            );
+
+            $reopened = QuadbStore::open($dir);
+            $t->same('20260523', $reopened->currentHeadName());
+            $t->same('Numeric preview edit', $reopened->get('wp_posts:1'));
+            $t->same([
+                "=> 20260523 : 0x{$previewRoot} ({$previewHeadNodeId})",
+                "   master : 0x{$masterRoot} ({$masterHeadNodeId})",
+            ], quadrableQuadbOutputLines($reopened->headText()));
+
+            $reopened->checkout('master');
+            $sourceProofHex = $reopened->exportProofHex(
+                ['wp_options:siteurl'],
+                Proof::ENCODING_FULL_KEYS
+            );
+            $proofRepo = QuadbStore::init($proofDir);
+            $proofRepo->checkout('404');
+            $proofRepo->importProofHex($sourceProofHex, $masterRoot);
+
+            $proofRaw = $proofRepo->lmdbRawEntrySnapshot();
+            $t->same('404', $proofRepo->currentHeadName());
+            $t->same('404', $proofRaw['quadrable_head'][0]['key']);
+            $t->same([
+                [
+                    'key' => 'currHead',
+                    'value' => '404',
+                ],
+            ], $proofRaw['quadrable_quadb_state']);
+
+            $proofReopened = QuadbStore::open($proofDir);
+            $t->same('404', $proofReopened->currentHeadName());
+            $t->same('https://example.test', $proofReopened->get('wp_options:siteurl'));
+            $t->contains("=> 404 : 0x{$masterRoot} (", $proofReopened->headText());
+        } finally {
+            quadrableQuadbRemoveDir($dir);
+            quadrableQuadbRemoveDir($proofDir);
+        }
+    },
     'native quadb store exposes proof-backed LMDB bucket layout like upstream importProof' => static function (TestRunner $t): void {
         $sourceDir = quadrableQuadbTempDir();
         $targetDir = quadrableQuadbTempDir();
@@ -1663,6 +1734,23 @@ function quadrableQuadbRawEntriesByKeyHex(array $entries): array
     foreach ($entries as $entry) {
         $indexed[bin2hex($entry['key'])] = $entry['value'];
     }
+
+    return $indexed;
+}
+
+/**
+ * @param list<array{key: string, value: string}> $entries
+ *
+ * @return array<string, string>
+ */
+function quadrableQuadbRawStringEntriesByKey(array $entries): array
+{
+    $indexed = [];
+    foreach ($entries as $entry) {
+        $indexed[$entry['key']] = $entry['value'];
+    }
+
+    ksort($indexed, SORT_STRING);
 
     return $indexed;
 }

@@ -32,7 +32,7 @@ final class TrackedNodeStore
      * @return array{
      *     leaves: array<int, array{keyHash: string, value: string, hash: string}>,
      *     branches: array<int, array{leftNodeId: int, rightNodeId: int, hash: string}>,
-     *     heads: array<string, int>,
+     *     heads: array<int|string, int>,
      *     nextLeafNodeId: int,
      *     nextBranchNodeId: int,
      *     nextMemStoreNodeId: int
@@ -128,11 +128,12 @@ final class TrackedNodeStore
         }
 
         foreach ($snapshot['heads'] as $head => $nodeIdRaw) {
-            if (!is_string($head)) {
+            if (!is_string($head) && !is_int($head)) {
                 throw new \InvalidArgumentException('tracked node store snapshot head names must be strings');
             }
-            self::assertHeadName($head);
-            $store->heads[$head] = self::parseNonNegativeNodeId($nodeIdRaw, 'head node id');
+            $headName = (string) $head;
+            self::assertHeadName($headName);
+            $store->heads[$headName] = self::parseNonNegativeNodeId($nodeIdRaw, 'head node id');
         }
 
         foreach ($store->branches as $branch) {
@@ -198,7 +199,7 @@ final class TrackedNodeStore
     }
 
     /**
-     * @return array<string, int>
+     * @return array<int|string, int>
      */
     public function heads(): array
     {

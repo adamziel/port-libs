@@ -1,15 +1,15 @@
 {
     "schemaVersion": 1,
     "library": "quadrable",
-    "estimatedProgress": 67,
-    "suiteProgress": "cloned upstream runner passes with `make -r test`; 101 PHP behavior tests map upstream-compatible BLAKE2s/key semantics, sparse tree updates, iterator windows, proofs/ranges, proof-backed updates/mergeProof, bounded sync, tracked node ids, file-backed `quadb` command surfaces, upstream-shaped full/proof-backed LMDB bucket values, and raw LMDB entry key/value byte snapshots for integer-key and string-key buckets.",
-    "phpPass": 101,
+    "estimatedProgress": 68,
+    "suiteProgress": "cloned upstream runner passes with `make -r test`; 102 PHP behavior tests map upstream-compatible BLAKE2s/key semantics, sparse tree updates, iterator windows, proofs/ranges, proof-backed updates/mergeProof, bounded sync, tracked node ids, file-backed `quadb` command surfaces, upstream-shaped full/proof-backed LMDB bucket values, raw LMDB entry key/value byte snapshots for integer-key and string-key buckets, and numeric/date-shaped head names preserved as LMDB string keys across reopen.",
+    "phpPass": 102,
     "phpFail": 0,
-    "wordpressScenarios": "Authenticated local-first state sync for Playground snapshots and content databases; examples cover ordered records, proofs/ranges, sync diffs, tracked node ids, file-backed preview heads, proof import/merge/update flows, noTrackKeys privacy behavior, upstream-shaped LMDB bucket inspection via `wordpress-quadb-lmdb-layout.php`, and raw LMDB entry key/value backup manifests via `wordpress-quadb-lmdb-raw-entries.php`.",
-    "phase": "upstream runner pass plus native BLAKE2s/key/sparse-tree/proof/range/sync/tracked-node/file-backed-quadb slices; latest slice adds raw LMDB entry key/value byte snapshots for `quadrable_head`, `quadrable_nodesLeaf`, `quadrable_nodesInterior`, `quadrable_key`, and `quadrable_quadb_state`.",
-    "audit": "audited 2026-05-23: upstream C++ `make -r test` passes all 34 scenarios. Quadrable-only PHP tests pass with 101 behavior tests, 2524 assertions, and 0 failures. `php lanes/quadrable/examples/wordpress-quadb-lmdb-raw-entries.php` runs successfully. Required repo-wide `php tools/run-tests.php` passes with 170 test files, 15764 assertions, and 0 failures.",
-    "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStore`; latest work exposes raw LMDB entry bytes for WordPress backup/migration tooling, including uint64 little-endian node-id keys and text state/head keys.",
-    "blocker": "No current quadrable-specific upstream runner, quadrable-only PHP, example, or repo-wide PHP blocker. Remaining quadrable gap: broader exact LMDB persistence parity beyond the current bucket and raw-entry projection.",
-    "latestCommit": "pending raw-LMDB-entry byte snapshot batch; root PHP harness passed before commit",
-    "nextTask": "Broaden exact LMDB persistence parity with actual LMDB dump/restore evidence or numeric/text head-name edge cases in the raw-entry projection."
+    "wordpressScenarios": "Authenticated local-first state sync for Playground snapshots and content databases; examples cover ordered records, proofs/ranges, sync diffs, tracked node ids, file-backed preview heads, proof import/merge/update flows, noTrackKeys privacy behavior, upstream-shaped LMDB bucket inspection via `wordpress-quadb-lmdb-layout.php`, raw LMDB entry key/value backup manifests via `wordpress-quadb-lmdb-raw-entries.php`, and numeric/date-shaped WordPress preview head names via `wordpress-quadb-numeric-heads.php`.",
+    "phase": "upstream runner pass plus native BLAKE2s/key/sparse-tree/proof/range/sync/tracked-node/file-backed-quadb slices; latest slice preserves numeric/date-shaped full and proof-backed head names as LMDB string keys in raw-entry snapshots and across JSON-backed reopen.",
+    "audit": "audited 2026-05-23: upstream C++ `make -r test` passes all 34 scenarios. Quadrable-only PHP tests pass with 102 behavior tests, 2536 assertions, and 0 failures. `php lanes/quadrable/examples/wordpress-quadb-numeric-heads.php` runs successfully. Required repo-wide `php tools/run-tests.php` passes with 171 test files, 15837 assertions, and 0 failures.",
+    "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStore`; latest work fixes numeric-looking head names so WordPress date/id preview heads and delegated proof heads persist as upstream LMDB string keys instead of PHP integer array keys.",
+    "blocker": "No current quadrable-specific upstream runner, quadrable-only PHP, example, or repo-wide PHP blocker. Remaining quadrable gap: broader exact LMDB persistence parity beyond the current bucket/raw-entry projection and head-name coercion coverage.",
+    "latestCommit": "committed numeric-head LMDB string-key batch; root PHP harness passed before commit",
+    "nextTask": "Broaden exact LMDB persistence parity with actual LMDB dump/restore evidence or additional raw-entry edge cases such as binary-sized values and cursor ordering fixtures."
 }

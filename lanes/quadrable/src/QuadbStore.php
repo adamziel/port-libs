@@ -23,7 +23,7 @@ final class QuadbStore
         private array $trackedKeys = [],
         /** @var array<string, array{integer: int, suffixHex: string}> */
         private array $compositeKeys = [],
-        /** @var array<string, array<string, mixed>> */
+        /** @var array<int|string, array<string, mixed>> */
         private array $partialProofHeads = [],
         /** @var array<string, mixed>|null */
         private ?array $partialDetachedHead = null,
@@ -131,11 +131,12 @@ final class QuadbStore
 
         $partialProofHeads = [];
         foreach ($partialProofHeadsRaw as $head => $partialState) {
-            if (!is_string($head)) {
+            if (!is_string($head) && !is_int($head)) {
                 throw new \InvalidArgumentException('partial proof head names must be strings');
             }
-            self::assertHeadNameValue($head);
-            $partialProofHeads[$head] = self::parsePartialProofState($partialState, 'partial proof head');
+            $headName = (string) $head;
+            self::assertHeadNameValue($headName);
+            $partialProofHeads[$headName] = self::parsePartialProofState($partialState, 'partial proof head');
         }
         ksort($partialProofHeads, SORT_STRING);
 
@@ -175,7 +176,7 @@ final class QuadbStore
      * leaf/interior id ranges.
      *
      * @return array{
-     *     quadrable_head: array<string, string>,
+     *     quadrable_head: array<int|string, string>,
      *     quadrable_nodesLeaf: array<int, string>,
      *     quadrable_nodesInterior: array<int, string>,
      *     quadrable_key: array<int, string>,
@@ -188,7 +189,7 @@ final class QuadbStore
 
         $heads = [];
         foreach ($snapshot['heads'] as $head => $nodeId) {
-            $heads[$head] = self::packUInt64Le((int) $nodeId);
+            $heads[(string) $head] = self::packUInt64Le((int) $nodeId);
         }
         ksort($heads, SORT_STRING);
 
@@ -259,7 +260,7 @@ final class QuadbStore
         $partialEntries = [];
         foreach ($this->partialProofHeads as $head => $partialState) {
             $partialEntries[] = [
-                'head' => $head,
+                'head' => (string) $head,
                 'state' => $partialState,
                 'ordinal' => self::partialStorageOrdinal($partialState),
             ];
@@ -660,16 +661,18 @@ final class QuadbStore
     {
         $heads = [];
         foreach ($this->nodeStore->heads() as $head => $nodeId) {
+            $headName = (string) $head;
             $heads[] = [
-                'head' => $head,
+                'head' => $headName,
                 'nodeId' => $nodeId,
                 'rootHash' => $this->nodeStore->nodeHash($nodeId),
             ];
         }
         foreach ($this->partialProofHeads as $head => $_partialState) {
-            $partialTree = $this->partialTreeForHead($head);
+            $headName = (string) $head;
+            $partialTree = $this->partialTreeForHead($headName);
             $heads[] = [
-                'head' => $head,
+                'head' => $headName,
                 'nodeId' => $partialTree->partialRootNodeId(),
                 'rootHash' => $partialTree->rootHash(),
             ];
@@ -2757,7 +2760,7 @@ final class QuadbStore
     }
 
     /**
-     * @param array<string, string> $bucket
+     * @param array<int|string, string> $bucket
      *
      * @return list<array{key: string, value: string}>
      */
@@ -2767,12 +2770,12 @@ final class QuadbStore
 
         $entries = [];
         foreach ($bucket as $key => $value) {
-            if (!is_string($key)) {
+            if (!is_string($key) && !is_int($key)) {
                 throw new \RuntimeException('LMDB string-key bucket contains a non-string key');
             }
 
             $entries[] = [
-                'key' => $key,
+                'key' => (string) $key,
                 'value' => $value,
             ];
         }
