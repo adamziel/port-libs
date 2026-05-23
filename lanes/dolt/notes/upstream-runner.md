@@ -1,9 +1,31 @@
 # Dolt Upstream Runner Evidence
 
-- Date: 2026-05-22 UTC
+- Date: 2026-05-23 UTC
 - Upstream: `dolthub/dolt`
 - Commit: `b2274926e0dcd84aab000ee242df5b5e75689eef`
 - Cache used by this runner: `.upstream-cache/dolt`
+
+## Runner Refresh 2026-05-23 Patch Generated/Default Column Slice
+
+- Focused upstream source inspection:
+  - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: `GenerateCreateTableColumnDefinition` passes column defaults, generated expressions, virtual/stored generated state, and `ON UPDATE` expressions through the MySQL schema formatter for both `CREATE TABLE` and `ALTER TABLE ... ADD/MODIFY COLUMN` patch rows.
+  - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: non-create/drop schema patch generation only emits `MODIFY COLUMN` when `TypeInfo` changes, so this PHP slice treats default/generated/on-update metadata as part of the focused native column-definition boundary rather than claiming broad upstream schema-diff parity for all column metadata.
+  - `go/libraries/doltcore/sqle/enginetest/dolt_queries_diff.go`: `PatchTableFunctionScriptTests` remains the bounded upstream patch runner denominator for patch row shape, DDL ordering, and WORKING/STAGED revision boundaries.
+- Direct cache-local CLI probes:
+  - Created a temporary Dolt repo with `title varchar(40) default 'untitled'`, a virtual generated `slug`, and `updated timestamp default current_timestamp on update current_timestamp`; then modified the working schema to change `title` to `varchar(80) default 'reviewed'`, change `slug` to a stored generated column, and add `status varchar(20) default 'draft'`.
+  - `dolt_patch('HEAD','WORKING','t')` emitted:
+    - ``ALTER TABLE `t` MODIFY COLUMN `title` varchar(80) DEFAULT 'reviewed';``
+    - ``ALTER TABLE `t` MODIFY COLUMN `slug` varchar(120) GENERATED ALWAYS AS ((concat('wp-',t.id))) STORED;``
+    - ``ALTER TABLE `t` ADD `status` varchar(20) DEFAULT 'draft';``
+  - A create-table probe for `wp_import_queue` confirmed `DEFAULT 'pending'`, ``GENERATED ALWAYS AS ((concat('wp-',`id`))) STORED``, and `DEFAULT 'CURRENT_TIMESTAMP' ON UPDATE CURRENT_TIMESTAMP` formatting in `dolt_patch('HEAD','WORKING','wp_import_queue')`.
+  - A data probe with a generated column confirmed upstream data SQL includes the generated column value in an `UPDATE` row when row values change after a generated-expression schema change.
+- Focused upstream runner:
+  - `env TMPDIR=/home/claude/port-libs/.upstream-cache/dolt/tmp HOME=/home/claude/port-libs/.upstream-cache/dolt/bats-home GOMODCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gomodcache GOCACHE=/home/claude/port-libs/.upstream-cache/dolt/.gocache timeout 10m go test -p 1 ./libraries/doltcore/sqle/enginetest -run 'Test(PatchTableFunction|PatchTableFunctionPrepared)$' -count=1 -timeout 10m`
+  - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.596s`.
+- Native PHP verification after this slice:
+  - Dolt lane-only PHP: `16` Dolt test files, `168` behavior tests, `853` assertions, and `0` failures.
+  - Required root `php tools/run-tests.php`: exit `0` with `174` test files, `16,538` assertions, and `0` failures after lane-status correction.
+- Boundary unchanged: no full `go test ./...`, full BATS directory, live-service, MySQL-server, cloud, Hadoop/parquet, client-compatibility, SQL-server, or benchmark suites were run.
 
 ## Runner Tooling Refresh 2026-05-23 02:23 UTC
 

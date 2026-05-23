@@ -380,6 +380,17 @@ return [
         $t->same(['schema', 'data'], array_column($rows, 'diff_type'));
         $t->same([], $warnings);
     },
+    'dolt patch function call materializes default generated and on update column snapshot deltas' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-generated-default-review.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same($fixture['expectedStatements'], array_column($rows, 'statement'));
+        $t->same(['schema', 'schema', 'schema', 'data'], array_column($rows, 'diff_type'));
+        $t->same([1, 2, 3, 4], array_column($rows, 'statement_order'));
+        $t->same([], $warnings);
+    },
     'dolt patch function call rejects upstream invalid argument boundaries' => static function (TestRunner $t) use ($patchTables): void {
         $call = new PatchFunctionCall();
 
@@ -541,6 +552,16 @@ return [
         $t->same(['schema', 'data'], array_column($output['rows'], 'diff_type'));
         $t->same('ALTER TABLE `wp_postmeta` TARGET_ROW_SIZE=4096;', $output['statements'][0]);
         $t->contains('UPDATE `wp_postmeta` SET `meta_value`=', $output['statements'][1]);
+        $t->same([], $output['warnings']);
+    },
+    'wordpress patch generated default review example exposes import queue ddl' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-generated-default-review.php';
+        $output = require __DIR__ . '/../examples/wordpress-patch-generated-default-review.php';
+
+        $t->same($fixture['expectedStatements'], $output['statements']);
+        $t->same(['schema', 'schema', 'schema', 'data'], array_column($output['rows'], 'diff_type'));
+        $t->contains('GENERATED ALWAYS AS', $output['statements'][1]);
+        $t->contains("DEFAULT 'draft'", $output['statements'][2]);
         $t->same([], $output['warnings']);
     },
 ];

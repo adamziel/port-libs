@@ -16,7 +16,7 @@ final class TableSchema
     public const DATATYPE_COERCION_FAILURE_WARNING = "unable to coerce value from field '%s' into latest column schema";
     public const DEFAULT_TARGET_ROW_SIZE = 2048;
 
-    /** @var list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}> */
+    /** @var list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}> */
     private array $columns;
 
     /** @var list<array{name:non-empty-string, columns:list<non-empty-string>, unique:bool}> */
@@ -33,7 +33,7 @@ final class TableSchema
     private int $targetRowSize;
 
     /**
-     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>}> $columns
+     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null}> $columns
      * @param array{
      *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
      *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>,
@@ -53,7 +53,7 @@ final class TableSchema
     }
 
     /**
-     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>}> $columns
+     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null}> $columns
      * @param array{
      *   indexes?:list<array{name:string, columns:list<string>, unique?:bool}>,
      *   foreignKeys?:list<array{name:string, columns:list<string>, referencedTable:string, referencedColumns:list<string>, onDelete?:string|null, onUpdate?:string|null}>,
@@ -70,9 +70,10 @@ final class TableSchema
     /**
      * Dolt's DiffSchColumns pairs columns by stable column tag and then marks
      * equal-tag columns as modified when name, type, PK membership, or
-     * constraints changed.
+     * constraints, default, generated expression, or on-update expression
+     * changed.
      *
-     * @return list<array{diff_type:string, tag:int, from:array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}|null, to:array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}|null}>
+     * @return list<array{diff_type:string, tag:int, from:array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null, to:array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null}>
      */
     public static function diffColumns(self $from, self $to): array
     {
@@ -227,7 +228,7 @@ final class TableSchema
     }
 
     /**
-     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}>
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}>
      */
     public function columns(): array
     {
@@ -283,7 +284,7 @@ final class TableSchema
     }
 
     /**
-     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}>
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}>
      */
     public function primaryKeyColumns(): array
     {
@@ -307,7 +308,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
      */
     public function columnByTag(int $tag): ?array
     {
@@ -321,7 +322,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
      */
     public function columnByName(string $name): ?array
     {
@@ -388,8 +389,8 @@ final class TableSchema
     }
 
     /**
-     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>}> $columns
-     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}>
+     * @param list<array{name:string, tag:int, type:string, primaryKey?:bool, constraints?:list<string>, default?:string|null, generated?:string|null, generatedStored?:bool, onUpdate?:string|null}> $columns
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}>
      */
     private function normalizeColumns(array $columns): array
     {
@@ -424,6 +425,14 @@ final class TableSchema
                 }
                 $constraints[] = $constraint;
             }
+            $generatedStored = $column['generatedStored'] ?? false;
+            if (!is_bool($generatedStored)) {
+                throw new \InvalidArgumentException("Column {$name} generatedStored must be a boolean.");
+            }
+            $generated = $this->nullableString($column['generated'] ?? null, "Column {$name} generated");
+            if ($generated === null && $generatedStored) {
+                throw new \InvalidArgumentException("Column {$name} generatedStored requires a generated expression.");
+            }
 
             $tags[$tag] = true;
             $names[$lowerName] = true;
@@ -433,6 +442,10 @@ final class TableSchema
                 'type' => $type,
                 'primaryKey' => (bool) ($column['primaryKey'] ?? false),
                 'constraints' => $constraints,
+                'default' => $this->nullableString($column['default'] ?? null, "Column {$name} default"),
+                'generated' => $generated,
+                'generatedStored' => $generatedStored,
+                'onUpdate' => $this->nullableString($column['onUpdate'] ?? null, "Column {$name} onUpdate"),
             ];
         }
 
@@ -616,7 +629,7 @@ final class TableSchema
     }
 
     /**
-     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}>
+     * @return list<array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}>
      */
     private function nonPrimaryKeyColumns(): array
     {
@@ -627,7 +640,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
      */
     private function primaryKeyColumnByTag(int $tag): ?array
     {
@@ -641,7 +654,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
      */
     private function primaryKeyColumnByNameCaseInsensitive(string $name, string $type): ?array
     {
@@ -655,7 +668,7 @@ final class TableSchema
     }
 
     /**
-     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>}|null
+     * @return array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null}|null
      */
     private function nonPrimaryKeyColumnByName(string $name): ?array
     {
@@ -669,8 +682,8 @@ final class TableSchema
     }
 
     /**
-     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>} $fromColumn
-     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>} $toColumn
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $fromColumn
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $toColumn
      * @param list<array{code:int, message:string}> $warnings
      */
     private static function coerceValue(mixed $value, array $fromColumn, array $toColumn, array &$warnings): int|float|string|bool|null

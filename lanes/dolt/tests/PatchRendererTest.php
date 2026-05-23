@@ -64,6 +64,57 @@ return [
         ], array_column($rows, 'statement'));
         $t->same(['schema'], array_column($rows, 'diff_type'));
     },
+    'dolt patch renders default generated and on update column ddl like upstream' => static function (TestRunner $t): void {
+        $from = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'title', 'tag' => 2, 'type' => 'varchar(40)', 'default' => 'untitled'],
+            ['name' => 'slug', 'tag' => 3, 'type' => 'varchar(80)', 'generated' => "(concat('post-',t.id))"],
+            ['name' => 'updated', 'tag' => 4, 'type' => 'timestamp', 'default' => 'CURRENT_TIMESTAMP', 'onUpdate' => 'CURRENT_TIMESTAMP'],
+        ]);
+        $to = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'title', 'tag' => 2, 'type' => 'varchar(80)', 'default' => 'reviewed'],
+            ['name' => 'slug', 'tag' => 3, 'type' => 'varchar(120)', 'generated' => "(concat('wp-',t.id))", 'generatedStored' => true],
+            ['name' => 'updated', 'tag' => 4, 'type' => 'timestamp', 'default' => 'CURRENT_TIMESTAMP', 'onUpdate' => 'CURRENT_TIMESTAMP'],
+            ['name' => 'status', 'tag' => 5, 'type' => 'varchar(20)', 'default' => 'draft'],
+        ]);
+        $createSchema = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'post_name', 'tag' => 2, 'type' => 'varchar(200)', 'default' => 'pending'],
+            ['name' => 'generated_slug', 'tag' => 3, 'type' => 'varchar(255)', 'generated' => "(concat('wp-',`id`))", 'generatedStored' => true],
+            ['name' => 'touched', 'tag' => 4, 'type' => 'timestamp', 'default' => 'CURRENT_TIMESTAMP', 'onUpdate' => 'CURRENT_TIMESTAMP'],
+        ]);
+        $renderer = new PatchRenderer();
+
+        $alterRows = $renderer->rows([[
+            'tableName' => 't',
+            'fromSchema' => $from,
+            'toSchema' => $to,
+        ]], ['fromCommit' => 'HEAD', 'toCommit' => 'WORKING', 'filter' => 'schema']);
+        $createRows = $renderer->rows([[
+            'tableName' => 'wp_import_queue',
+            'fromSchema' => null,
+            'toSchema' => $createSchema,
+        ]], ['fromCommit' => 'HEAD', 'toCommit' => 'WORKING']);
+
+        $t->same([
+            "ALTER TABLE `t` MODIFY COLUMN `title` varchar(80) DEFAULT 'reviewed';",
+            "ALTER TABLE `t` MODIFY COLUMN `slug` varchar(120) GENERATED ALWAYS AS ((concat('wp-',t.id))) STORED;",
+            "ALTER TABLE `t` ADD `status` varchar(20) DEFAULT 'draft';",
+        ], array_column($alterRows, 'statement'));
+        $t->same([
+            "CREATE TABLE `wp_import_queue` (\n"
+            . "  `id` int NOT NULL,\n"
+            . "  `post_name` varchar(200) DEFAULT 'pending',\n"
+            . "  `generated_slug` varchar(255) GENERATED ALWAYS AS ((concat('wp-',`id`))) STORED,\n"
+            . "  `touched` timestamp DEFAULT 'CURRENT_TIMESTAMP' ON UPDATE CURRENT_TIMESTAMP,\n"
+            . "  PRIMARY KEY (`id`)\n"
+            . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_bin;',
+        ], array_column($createRows, 'statement'));
+        $t->throws(InvalidArgumentException::class, static fn () => TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'generatedStored' => true],
+        ]));
+    },
     'dolt patch renders table collation changes like upstream' => static function (TestRunner $t): void {
         $schema = TableSchema::fromColumns([
             ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],

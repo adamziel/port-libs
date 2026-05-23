@@ -215,7 +215,7 @@ final class PatchRenderer
                     . ' RENAME COLUMN ' . $this->quoteIdentifier($fromColumn['name'])
                     . ' TO ' . $this->quoteIdentifier($toColumn['name']) . ';';
             }
-            if ($fromColumn['type'] !== $toColumn['type'] || $fromColumn['constraints'] !== $toColumn['constraints']) {
+            if ($this->columnDefinitionChanged($fromColumn, $toColumn)) {
                 $statements[] = 'ALTER TABLE ' . $this->quoteIdentifier($toTableName)
                     . ' MODIFY COLUMN ' . $this->columnDefinition($toColumn) . ';';
             }
@@ -274,7 +274,7 @@ final class PatchRenderer
     }
 
     /**
-     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>} $column
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $column
      */
     private function columnDefinition(array $column): string
     {
@@ -288,8 +288,51 @@ final class PatchRenderer
             }
             $parts[] = $constraint;
         }
+        if ($column['default'] !== null) {
+            $parts[] = 'DEFAULT ' . $this->columnDefault($column['default']);
+        }
+        if ($column['generated'] !== null) {
+            $parts[] = 'GENERATED ALWAYS AS (' . $column['generated'] . ')';
+            if ($column['generatedStored']) {
+                $parts[] = 'STORED';
+            }
+        }
+        if ($column['onUpdate'] !== null) {
+            $parts[] = 'ON UPDATE ' . $column['onUpdate'];
+        }
 
         return implode(' ', $parts);
+    }
+
+    /**
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $fromColumn
+     * @param array{name:non-empty-string, tag:int, type:non-empty-string, primaryKey:bool, constraints:list<non-empty-string>, default:string|null, generated:string|null, generatedStored:bool, onUpdate:string|null} $toColumn
+     */
+    private function columnDefinitionChanged(array $fromColumn, array $toColumn): bool
+    {
+        return $fromColumn['type'] !== $toColumn['type']
+            || $fromColumn['constraints'] !== $toColumn['constraints']
+            || $fromColumn['default'] !== $toColumn['default']
+            || $fromColumn['generated'] !== $toColumn['generated']
+            || $fromColumn['generatedStored'] !== $toColumn['generatedStored']
+            || $fromColumn['onUpdate'] !== $toColumn['onUpdate'];
+    }
+
+    private function columnDefault(string $default): string
+    {
+        $first = $default[0];
+        $last = $default[strlen($default) - 1];
+        if (
+            $first !== '('
+            && $last !== ')'
+            && $first !== "'"
+            && $last !== "'"
+            && $default !== 'NULL'
+        ) {
+            return $this->quoteSqlString($default);
+        }
+
+        return $default;
     }
 
     private function createTableStatement(string $tableName, TableSchema $schema): string
