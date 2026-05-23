@@ -236,6 +236,13 @@ represented too: immediate attributes attach to autolink nodes, while spaced
 attribute-looking text remains literal. The WordPress fixture uses this path for
 reviewer source links that need stable id, class, data, and title metadata
 without changing ordinary autolink markup.
+The focused `Tests.Readers.Markdown` bare URI autolink extension cases are now
+represented too: plain http(s) source URLs become links, trailing sentence
+punctuation remains outside the anchor, balanced parentheses remain inside the
+destination, uppercase schemes are accepted, and bracketed path text keeps a
+safe percent-encoded destination. The WordPress fixture uses this path for
+legacy import notes where reviewers pasted source URLs without angle brackets
+or Markdown link syntax.
 The focused `Tests.Readers.Markdown` no-links-inside-link-label cases are now
 represented too: autolink-looking source URLs, nested Markdown link syntax, and
 bare URI-looking text remain literal inside the outer reviewer link label. The
@@ -328,6 +335,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - The fixture now includes an attributed autolink source token, exercising
   Pandoc-compatible autolink attrs and WordPress-safe link id/class/data/title
   attributes for migration review tooling.
+- The fixture now includes bare source URL audit notes, exercising
+  Pandoc-compatible bare URI autolinks with trailing punctuation and balanced
+  parenthesized media paths for pasted migration references.
 - The fixture now includes link-label boundary audit notes, exercising Pandoc's
   rule that link-looking syntax remains literal inside an ordinary link label
   instead of creating nested anchors.
@@ -537,8 +547,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   as `AT&amp;T`, while `<` is emitted as `&lt;` instead of being treated as raw
   HTML.
 - Reference audit links render as normal WordPress paragraph links with title
-  attributes preserved, URI autolinks render as escaped clickable URLs, and
-  importer email autolinks render as `mailto:` links without invoking Pandoc.
+  attributes preserved, URI autolinks render as escaped clickable URLs, bare
+  pasted http(s) source URLs become anchors with trailing punctuation kept
+  outside the link, and importer email autolinks render as `mailto:` links
+  without invoking Pandoc.
 - Legacy media and manifest links with spaces render as WordPress-safe
   `%20`-encoded URLs, including split reference definitions whose title is on a
   following line.
@@ -601,6 +613,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the bounded `Tests.Readers.Markdown` backslash-escape cases in link URLs
-and titles, starting with escaped closing parentheses in inline destinations and
-escaped title delimiters in inline/reference links.
+Map the remaining broader `Tests.Readers.Markdown` bare URI extension families:
+doi/git/file/mailto schemes, semicolon/query/fragment variants, and additional
+trailing punctuation boundaries.

@@ -421,6 +421,10 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `Tests.Readers.Markdown` autolink attribute cases: 2 focused cases, now
   mapped by PHP tests for immediate link attribute attachment and spaced
   attribute-looking text remaining literal
+- `Tests.Readers.Markdown` bare URI autolink extension cases: 6 focused cases,
+  now mapped by PHP tests for leading http(s) URLs, query strings with trailing
+  period, surrounding punctuation, uppercase schemes, balanced parentheses, and
+  bracketed paths whose destinations percent-encode square brackets
 - `Tests.Readers.Markdown` no-links-inside-link-label cases: 3 focused cases,
   now mapped by PHP tests for autolinks, inline links, and bare URI-looking
   text staying literal inside ordinary link labels
@@ -490,6 +494,12 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `{#i .j .z k=v}` after `<http://foo.bar>` attaches id/class/key metadata to
   the Link node and replaces the default `uri` class, while a space before the
   attribute spec keeps it as literal text after the autolink.
+- Bare URI autolinks from `Tests.Readers.Markdown` with the
+  `Ext_autolink_bare_uris` extension: leading http(s) source URLs become
+  `uri` links, trailing sentence punctuation stays outside the link, balanced
+  parentheses remain part of the destination, uppercase schemes are accepted,
+  and square brackets in bare paths are percent-encoded for the link
+  destination while remaining visible in the label text.
 - Link-label recursion boundaries from `Tests.Readers.Markdown`: autolinks,
   nested inline links, and bare URI-looking text inside an ordinary link label
   remain literal label text, while non-link inline markup such as emphasis still
@@ -823,6 +833,11 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   Link node, and the spaced attribute-looking form stays literal text. The
   WordPress writer emits safe link id/class/data/title attrs for reviewer
   source links while keeping ordinary URI/e-mail autolinks visually unchanged.
+- The `Tests.Readers.Markdown` bare URI autolink extension slice is now mapped
+  too: leading http(s) URLs, query URLs followed by sentence punctuation,
+  parenthesized URLs, uppercase schemes, balanced parenthesized paths, and
+  bracketed paths produce `uri` links with Pandoc-compatible visible text and
+  safe destinations.
 - The `Tests.Readers.Markdown` no-links-inside-link-label slice is now mapped
   too: `[<https://example.org>](url)`, `[[a](url2)](url)`, and
   `[https://example.org(](url)` each produce one outer Link whose label content
@@ -834,6 +849,7 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 163 behavior tests, 1,680 assertions, and 0 failures after this slice. The
-required repo-wide `php tools/run-tests.php` command was also run after this
-slice and passed with 183 test files, 18,129 assertions, and 0 failures.
+with 164 behavior tests, 1,699 assertions, and 0 failures after this slice. No
+active root harness was found by `pgrep -af '^php tools/run-tests\.php( |$)'`,
+so the required repo-wide `php tools/run-tests.php` command was run and passed
+with 183 test files, 18,316 assertions, and 0 failures.

@@ -8,6 +8,8 @@ Inline media audit: ![thumbnail](https://example.test/uploads/thumb.jpg "Thumbna
 
 Reference audit links: [migration checklist][checklist] and <https://example.test/audit?post=42&status=ready>.
 
+Bare URI audit: http://example.test/import?post=42&stage=bare. Keep (https://example.test/media_(legacy)) visible.
+
 Autolink attribute audit: <https://example.test/review-token>{#review-token .source-link data-source=batch-42 title="Review token"} stays tagged for reviewer tooling.
 
 Link label boundary audit: [<https://example.test/source>](https://example.test/review-label), [[edit link](/wp-admin/post.php?post=42&action=edit)](https://example.test/link-label-audit), and [https://example.test/raw-source(](https://example.test/bare-uri-label) keep source notation literal inside reviewer labels.

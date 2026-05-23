@@ -6207,6 +6207,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $bareUriAutolink = $allowLinks ? $this->tryParseBareUriAutolink($text, $offset) : null;
+            if ($bareUriAutolink !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $bareUriAutolink['node'];
+                $offset = $bareUriAutolink['next'];
+                continue;
+            }
+
             $exampleReference = $this->tryParseNumberedExampleReference($text, $offset);
             if ($exampleReference !== null) {
                 $buffer .= $exampleReference['text'];
@@ -6725,6 +6733,75 @@ final class MarkdownReader
         }
 
         return [$attrs, $offset, null];
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseBareUriAutolink(string $text, int $offset): ?array
+    {
+        if ($this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        $previous = $offset === 0 ? '' : $text[$offset - 1];
+        if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
+            return null;
+        }
+
+        if (preg_match('~\Ghttps?://[^\s<>"\']+~iu', $text, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
+        if ($candidate === '') {
+            return null;
+        }
+
+        $url = $this->normalizeBareUriDestination($candidate);
+        $display = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+
+        return [
+            'node' => new AstNode(
+                'link',
+                [
+                    'url' => $url,
+                    'classes' => ['uri'],
+                ],
+                [new AstNode('text', ['text' => $display])]
+            ),
+            'next' => $offset + strlen($candidate),
+        ];
+    }
+
+    private function trimBareUriAutolinkCandidate(string $candidate): string
+    {
+        do {
+            $previous = $candidate;
+            $candidate = rtrim($candidate, ".,;:!?");
+            foreach ([['(', ')'], ['[', ']'], ['{', '}']] as [$open, $close]) {
+                while (
+                    str_ends_with($candidate, $close)
+                    && substr_count($candidate, $close) > substr_count($candidate, $open)
+                ) {
+                    $candidate = substr($candidate, 0, -1);
+                }
+            }
+        } while ($candidate !== $previous);
+
+        return $candidate;
+    }
+
+    private function normalizeBareUriDestination(string $destination): string
+    {
+        $destination = $this->normalizeLinkDestination($destination);
+
+        return strtr($destination, [
+            '[' => '%5B',
+            ']' => '%5D',
+            '{' => '%7B',
+            '}' => '%7D',
+        ]);
     }
 
     /**

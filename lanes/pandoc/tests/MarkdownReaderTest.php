@@ -722,6 +722,42 @@ return [
         $t->contains('<p><a href="http://foo.bar">http://foo.bar</a> {#i .j .z k=v}</p>', $blocks);
         $t->contains('<p>Reviewer source: <a href="https://example.test/review-token" id="review-token" class="source-link" data-source="batch-42" title="Review token">https://example.test/review-token</a>.</p>', $blocks);
     },
+    'maps upstream markdown reader bare uri autolink extension cases' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n\n", [
+            'http://google.com is a search engine.',
+            'Try this query: http://google.com?search=fish&time=hour.',
+            '(http://google.com).',
+            'HTTPS://GOOGLE.COM,',
+            'http://en.wikipedia.org/wiki/Sprite_(computer_graphics)',
+            'http://en.wikipedia.org/wiki/Sprite_[computer_graphics]',
+        ]));
+        $leading = $document->children[0]->children[0];
+        $query = $document->children[1]->children[1];
+        $parenthesized = $document->children[2]->children[1];
+        $uppercase = $document->children[3]->children[0];
+        $balanced = $document->children[4]->children[0];
+        $bracketed = $document->children[5]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('link', $leading->type);
+        $t->same('http://google.com', $leading->attr('url'));
+        $t->same(['uri'], $leading->attr('classes'));
+        $t->same('http://google.com', $leading->children[0]->attr('text'));
+        $t->same(' is a search engine.', $document->children[0]->children[1]->attr('text'));
+        $t->same('http://google.com?search=fish&time=hour', $query->attr('url'));
+        $t->same('.', $document->children[1]->children[2]->attr('text'));
+        $t->same('http://google.com', $parenthesized->attr('url'));
+        $t->same(').', $document->children[2]->children[2]->attr('text'));
+        $t->same('HTTPS://GOOGLE.COM', $uppercase->attr('url'));
+        $t->same(',', $document->children[3]->children[1]->attr('text'));
+        $t->same('http://en.wikipedia.org/wiki/Sprite_(computer_graphics)', $balanced->attr('url'));
+        $t->same('http://en.wikipedia.org/wiki/Sprite_%5Bcomputer_graphics%5D', $bracketed->attr('url'));
+        $t->same('http://en.wikipedia.org/wiki/Sprite_[computer_graphics]', $bracketed->children[0]->attr('text'));
+        $t->contains('<p><a href="http://google.com">http://google.com</a> is a search engine.</p>', $blocks);
+        $t->contains('<p>Try this query: <a href="http://google.com?search=fish&amp;time=hour">http://google.com?search=fish&amp;time=hour</a>.</p>', $blocks);
+        $t->contains('<p>(<a href="http://google.com">http://google.com</a>).</p>', $blocks);
+        $t->contains('<p><a href="http://en.wikipedia.org/wiki/Sprite_%5Bcomputer_graphics%5D">http://en.wikipedia.org/wiki/Sprite_[computer_graphics]</a></p>', $blocks);
+    },
     'maps upstream markdown reader no links inside link labels' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n\n", [
             '[<https://example.org>](url)',
@@ -4006,6 +4042,7 @@ XML;
         $t->contains('<a href="https://example.test/uploads/legacy%20media%20file.jpg" title="Legacy media file">legacy media file</a>', $blocks);
         $t->contains('<a href="/wp-content/uploads/import%20batch%2042.csv" title="Batch manifest">spaced batch manifest</a>', $blocks);
         $t->contains('<a href="https://example.test/audit?post=42&amp;status=ready">https://example.test/audit?post=42&amp;status=ready</a>', $blocks);
+        $t->contains('<p>Bare URI audit: <a href="http://example.test/import?post=42&amp;stage=bare">http://example.test/import?post=42&amp;stage=bare</a>. Keep (<a href="https://example.test/media_(legacy)">https://example.test/media_(legacy)</a>) visible.</p>', $blocks);
         $t->contains('<a href="https://example.test/review-token" id="review-token" class="source-link" data-source="batch-42" title="Review token">https://example.test/review-token</a>', $blocks);
         $t->contains('<a href="mailto:importer@example.test">importer@example.test</a>', $blocks);
         $t->contains('<a href="http://测.com?测=测">http://测.com?测=测</a>', $blocks);
