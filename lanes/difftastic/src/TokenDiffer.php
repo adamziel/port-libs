@@ -36,9 +36,7 @@ final class TokenDiffer
             $this->isPythonLanguage($options) => '\#[^\r\n]*',
             default => '\/\/[^\r\n]*',
         };
-        $stringPattern = $this->isLispLanguage($options)
-            ? '"(?:\\\\.|[^"\\\\])*"'
-            : '"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'';
+        $stringPattern = $this->stringPattern($options);
         preg_match_all(
             '/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|' . $lineCommentPattern . '|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|' . $stringPattern . '|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||[{}()[\].,;:+*\/<>=!-]|\S/u',
             $source,
@@ -314,6 +312,10 @@ final class TokenDiffer
 
             if ($this->isMakefileLanguage($options)) {
                 return $this->diffMakefileTextAtoms($old, $new);
+            }
+
+            if ($this->isTomlLanguage($options)) {
+                return $this->diffTomlEntries($old, $new);
             }
         }
 
@@ -601,6 +603,489 @@ final class TokenDiffer
     }
 
     /**
+     * Tree-sitter TOML treats quoted strings and table/array delimiters as
+     * structural nodes. The lightweight PHP parser maps the same sample-file
+     * boundary by aligning table-qualified key/value entries before falling
+     * back to top-level array item diffs.
+     *
+     * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
+     */
+    private function diffTomlEntries(string $old, string $new): array
+    {
+        $oldEntries = $this->tomlEntries($old);
+        $newEntries = $this->tomlEntries($new);
+        $newByPath = [];
+        foreach ($newEntries as $index => $entry) {
+            $newByPath[$entry['path']][] = $index;
+        }
+
+        $changes = [];
+        $matchedNewIndexes = [];
+        foreach ($oldEntries as $oldEntry) {
+            $matchIndex = null;
+            foreach ($newByPath[$oldEntry['path']] ?? [] as $candidateIndex) {
+                if (($matchedNewIndexes[$candidateIndex] ?? false) === false) {
+                    $matchIndex = $candidateIndex;
+                    break;
+                }
+            }
+
+            if ($matchIndex === null) {
+                $changes[] = [
+                    'op' => '-',
+                    'path' => $oldEntry['path'],
+                    'text' => $this->tomlEntryText($oldEntry),
+                ];
+                continue;
+            }
+
+            $matchedNewIndexes[$matchIndex] = true;
+            $newEntry = $newEntries[$matchIndex];
+            if ($oldEntry['value'] === $newEntry['value']) {
+                continue;
+            }
+
+            if ($this->isTomlArrayValue($oldEntry['value']) && $this->isTomlArrayValue($newEntry['value'])) {
+                $this->diffTomlArrayItems($oldEntry, $newEntry, $changes);
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '~',
+                'path' => $oldEntry['path'],
+                'old' => $oldEntry['value'],
+                'new' => $newEntry['value'],
+            ];
+        }
+
+        foreach ($newEntries as $index => $entry) {
+            if (($matchedNewIndexes[$index] ?? false) === true) {
+                continue;
+            }
+
+            $changes[] = [
+                'op' => '+',
+                'path' => $entry['path'],
+                'text' => $this->tomlEntryText($entry),
+            ];
+        }
+
+        return $changes;
+    }
+
+    /**
+     * @param array{path:string, value:string} $oldEntry
+     * @param array{path:string, value:string} $newEntry
+     * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
+     */
+    private function diffTomlArrayItems(array $oldEntry, array $newEntry, array &$changes): void
+    {
+        $oldItems = $this->tomlTopLevelArrayItems($oldEntry['value']);
+        $newItems = $this->tomlTopLevelArrayItems($newEntry['value']);
+        if ($oldItems === [] && $newItems === []) {
+            $changes[] = [
+                'op' => '~',
+                'path' => $oldEntry['path'],
+                'old' => $oldEntry['value'],
+                'new' => $newEntry['value'],
+            ];
+
+            return;
+        }
+
+        $table = $this->lcsTable($oldItems, $newItems);
+        $oldIndex = 0;
+        $newIndex = 0;
+        while ($oldIndex < count($oldItems) && $newIndex < count($newItems)) {
+            if ($oldItems[$oldIndex] === $newItems[$newIndex]) {
+                $oldIndex++;
+                $newIndex++;
+                continue;
+            }
+
+            if ($table[$oldIndex + 1][$newIndex] >= $table[$oldIndex][$newIndex + 1]) {
+                $changes[] = [
+                    'op' => '-',
+                    'path' => $oldEntry['path'] . '[' . $oldIndex . ']',
+                    'text' => $oldItems[$oldIndex],
+                ];
+                $oldIndex++;
+            } else {
+                $changes[] = [
+                    'op' => '+',
+                    'path' => $newEntry['path'] . '[' . $newIndex . ']',
+                    'text' => $newItems[$newIndex],
+                ];
+                $newIndex++;
+            }
+        }
+
+        while ($oldIndex < count($oldItems)) {
+            $changes[] = [
+                'op' => '-',
+                'path' => $oldEntry['path'] . '[' . $oldIndex . ']',
+                'text' => $oldItems[$oldIndex],
+            ];
+            $oldIndex++;
+        }
+        while ($newIndex < count($newItems)) {
+            $changes[] = [
+                'op' => '+',
+                'path' => $newEntry['path'] . '[' . $newIndex . ']',
+                'text' => $newItems[$newIndex],
+            ];
+            $newIndex++;
+        }
+    }
+
+    /**
+     * @return list<array{path:string, key:string, value:string, text:string}>
+     */
+    private function tomlEntries(string $source): array
+    {
+        $lines = preg_split('/\r\n|\n|\r/', $source);
+        if ($lines === false) {
+            $lines = [$source];
+        }
+
+        $section = [];
+        $arrayTableIndexes = [];
+        $entries = [];
+        $count = count($lines);
+        for ($index = 0; $index < $count; $index++) {
+            $line = $lines[$index];
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_starts_with($trimmed, '#')) {
+                continue;
+            }
+
+            if (preg_match('/^\[\[?\s*(?<name>[^\]]+?)\s*\]\]?$/', $trimmed, $match) === 1) {
+                $section = $this->tomlDottedPath($match['name']);
+                if (str_starts_with($trimmed, '[[') && str_ends_with($trimmed, ']]') && $section !== []) {
+                    $arrayKey = implode("\0", $section);
+                    $arrayIndex = $arrayTableIndexes[$arrayKey] ?? 0;
+                    $arrayTableIndexes[$arrayKey] = $arrayIndex + 1;
+                    $lastIndex = array_key_last($section);
+                    $section[$lastIndex] = $this->tomlIndexedPathPart($section[$lastIndex], $arrayIndex);
+                }
+                continue;
+            }
+
+            $equalsOffset = $this->tomlAssignmentEqualsOffset($line);
+            if ($equalsOffset === null) {
+                continue;
+            }
+
+            $key = trim(substr($line, 0, $equalsOffset));
+            $value = trim(substr($line, $equalsOffset + 1));
+            $entryLines = [$line];
+
+            $delimiter = $this->tomlMultilineStringDelimiter($value);
+            while ($delimiter !== null && !$this->tomlMultilineStringClosed($value, $delimiter) && $index + 1 < $count) {
+                $index++;
+                $entryLines[] = $lines[$index];
+                $value .= "\n" . $lines[$index];
+            }
+
+            $keyParts = $this->tomlDottedPath($key);
+            $pathParts = array_merge($section, $keyParts);
+            if ($this->isTomlInlineTableValue($value)) {
+                $inlineEntries = $this->tomlInlineTableEntries($pathParts, $value);
+                if ($inlineEntries !== []) {
+                    foreach ($inlineEntries as $inlineEntry) {
+                        $entries[] = $inlineEntry;
+                    }
+                    continue;
+                }
+            }
+
+            $entries[] = [
+                'path' => $this->tomlPath($pathParts),
+                'key' => implode('.', $keyParts),
+                'value' => $value,
+                'text' => implode("\n", $entryLines),
+            ];
+        }
+
+        return $entries;
+    }
+
+    private function tomlAssignmentEqualsOffset(string $line): ?int
+    {
+        $quote = null;
+        $length = strlen($line);
+        for ($index = 0; $index < $length; $index++) {
+            $character = $line[$index];
+            if ($quote !== null) {
+                if ($character === '\\' && $quote === '"' && $index + 1 < $length) {
+                    $index++;
+                    continue;
+                }
+                if ($character === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+                continue;
+            }
+
+            if ($character === '=') {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tomlDottedPath(string $path): array
+    {
+        $parts = [];
+        $current = '';
+        $quote = null;
+        $length = strlen($path);
+        for ($index = 0; $index < $length; $index++) {
+            $character = $path[$index];
+            if ($quote !== null) {
+                if ($character === '\\' && $quote === '"' && $index + 1 < $length) {
+                    $current .= $character . $path[++$index];
+                    continue;
+                }
+                if ($character === $quote) {
+                    $quote = null;
+                    continue;
+                }
+                $current .= $character;
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+                continue;
+            }
+
+            if ($character === '.') {
+                $parts[] = trim($current);
+                $current = '';
+                continue;
+            }
+
+            $current .= $character;
+        }
+
+        $parts[] = trim($current);
+
+        return array_values(array_filter($parts, static fn (string $part): bool => $part !== ''));
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private function tomlPath(array $parts): string
+    {
+        $path = '$toml';
+        foreach ($parts as $part) {
+            $path .= $this->tomlPathPart($part);
+        }
+
+        return $path;
+    }
+
+    private function tomlPathPart(string $part): string
+    {
+        $indexSuffix = '';
+        if (preg_match('/^(?<name>.+)\[(?<index>\d+)\]$/', $part, $match) === 1) {
+            $part = $match['name'];
+            $indexSuffix = '[' . $match['index'] . ']';
+        }
+
+        $prefix = preg_match('/^[A-Za-z0-9_-]+$/', $part) === 1
+            ? '.' . $part
+            : '["' . addcslashes($part, "\\\"") . '"]';
+
+        return $prefix . $indexSuffix;
+    }
+
+    private function tomlIndexedPathPart(string $part, int $index): string
+    {
+        return $part . '[' . $index . ']';
+    }
+
+    private function tomlMultilineStringDelimiter(string $value): ?string
+    {
+        if (str_starts_with($value, '"""')) {
+            return '"""';
+        }
+        if (str_starts_with($value, "'''")) {
+            return "'''";
+        }
+
+        return null;
+    }
+
+    private function tomlMultilineStringClosed(string $value, string $delimiter): bool
+    {
+        $first = strpos($value, $delimiter);
+        if ($first === false) {
+            return false;
+        }
+
+        $last = strrpos($value, $delimiter);
+
+        return $last !== false && $last > $first;
+    }
+
+    /**
+     * @param array{text:string} $entry
+     */
+    private function tomlEntryText(array $entry): string
+    {
+        return trim($entry['text']);
+    }
+
+    private function isTomlArrayValue(string $value): bool
+    {
+        $trimmed = trim($value);
+
+        return str_starts_with($trimmed, '[') && str_ends_with($trimmed, ']');
+    }
+
+    private function isTomlInlineTableValue(string $value): bool
+    {
+        $trimmed = trim($value);
+
+        return str_starts_with($trimmed, '{') && str_ends_with($trimmed, '}');
+    }
+
+    /**
+     * @param list<string> $basePathParts
+     * @return list<array{path:string, key:string, value:string, text:string}>
+     */
+    private function tomlInlineTableEntries(array $basePathParts, string $value): array
+    {
+        $trimmed = trim($value);
+        if (!str_starts_with($trimmed, '{') || !str_ends_with($trimmed, '}')) {
+            return [];
+        }
+
+        $entries = [];
+        foreach ($this->tomlCommaSeparatedTopLevelItems(trim(substr($trimmed, 1, -1))) as $item) {
+            $equalsOffset = $this->tomlAssignmentEqualsOffset($item);
+            if ($equalsOffset === null) {
+                continue;
+            }
+
+            $key = trim(substr($item, 0, $equalsOffset));
+            $fieldValue = trim(substr($item, $equalsOffset + 1));
+            $keyParts = $this->tomlDottedPath($key);
+            $pathParts = array_merge($basePathParts, $keyParts);
+            if ($this->isTomlInlineTableValue($fieldValue)) {
+                $inlineEntries = $this->tomlInlineTableEntries($pathParts, $fieldValue);
+                if ($inlineEntries !== []) {
+                    foreach ($inlineEntries as $inlineEntry) {
+                        $entries[] = $inlineEntry;
+                    }
+                    continue;
+                }
+            }
+
+            $entries[] = [
+                'path' => $this->tomlPath($pathParts),
+                'key' => implode('.', $keyParts),
+                'value' => $fieldValue,
+                'text' => $key . ' = ' . $fieldValue,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tomlTopLevelArrayItems(string $value): array
+    {
+        $trimmed = trim($value);
+        if (!str_starts_with($trimmed, '[') || !str_ends_with($trimmed, ']')) {
+            return [];
+        }
+
+        $inner = trim(substr($trimmed, 1, -1));
+        if ($inner === '') {
+            return [];
+        }
+
+        return $this->tomlCommaSeparatedTopLevelItems($inner);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tomlCommaSeparatedTopLevelItems(string $inner): array
+    {
+        if ($inner === '') {
+            return [];
+        }
+
+        $items = [];
+        $current = '';
+        $quote = null;
+        $depth = 0;
+        $length = strlen($inner);
+        for ($index = 0; $index < $length; $index++) {
+            $character = $inner[$index];
+            if ($quote !== null) {
+                $current .= $character;
+                if ($character === '\\' && $quote === '"' && $index + 1 < $length) {
+                    $current .= $inner[++$index];
+                    continue;
+                }
+                if ($character === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+                $current .= $character;
+                continue;
+            }
+
+            if ($character === '[' || $character === '{') {
+                $depth++;
+                $current .= $character;
+                continue;
+            }
+
+            if ($character === ']' || $character === '}') {
+                $depth = max(0, $depth - 1);
+                $current .= $character;
+                continue;
+            }
+
+            if ($character === ',' && $depth === 0) {
+                $items[] = trim($current);
+                $current = '';
+                continue;
+            }
+
+            $current .= $character;
+        }
+
+        if (trim($current) !== '') {
+            $items[] = trim($current);
+        }
+
+        return $items;
+    }
+
+    /**
      * @param list<array{op:string, path:string, text?:string, old?:string, new?:string}> $changes
      * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
      */
@@ -746,6 +1231,14 @@ final class TokenDiffer
         return in_array(strtolower((string) ($options['language'] ?? '')), ['make', 'makefile', 'mk'], true);
     }
 
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isTomlLanguage(array $options): bool
+    {
+        return strtolower((string) ($options['language'] ?? '')) === 'toml';
+    }
+
     private function formatBinarySize(int $bytes): string
     {
         if ($bytes < 1024) {
@@ -821,10 +1314,42 @@ final class TokenDiffer
             str_starts_with($text, ';') && $this->isLispLanguage($options) => 'comment',
             preg_match('/^[A-Za-z_]/', $text) === 1 => 'identifier',
             preg_match('/^\d/', $text) === 1 => 'number',
-            str_starts_with($text, '"') || (str_starts_with($text, "'") && !$this->isLispReaderQuote($text, $options)) => 'string',
+            $this->isStringToken($text, $options) => 'string',
             isset($delimiterPairs[$text]) || isset($closeDelimiters[$text]) => 'delimiter',
             default => 'punctuation',
         };
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function stringPattern(array $options): string
+    {
+        if ($this->isLispLanguage($options)) {
+            return '"(?:\\\\.|[^"\\\\])*"';
+        }
+
+        if ($this->isRustLanguage($options)) {
+            return '"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\\r\n])\'';
+        }
+
+        return '"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'';
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isStringToken(string $text, array $options): bool
+    {
+        if (str_starts_with($text, '"')) {
+            return true;
+        }
+
+        if (!str_starts_with($text, "'") || $this->isLispReaderQuote($text, $options)) {
+            return false;
+        }
+
+        return !$this->isRustLanguage($options) || strlen($text) > 1;
     }
 
     /**

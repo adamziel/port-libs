@@ -74,6 +74,10 @@ Native language listing now maps upstream `--list-languages` behavior from `test
 
 The WordPress list-languages example applies that to plugin/theme review configuration. It shows how a PHP review surface can expose overrides for `*.blade.php`, generated `*.asset.php`, and `.wp-env` JSON files alongside the native built-in language table.
 
+TOML mode now maps the upstream `sample_files/toml_*.toml` parser sample with table-qualified key paths, scalar value updates, array item insertions/deletions, and multiline string entry deletion. The WordPress plugin TOML config example applies that to release/build/Playground metadata so `requires_wp`, build targets, PHP runtime, plugin lists, and review notes are shown under `$toml...` paths rather than generic line fallback output.
+
+TOML mode now also descends into inline tables and indexes repeated array-table entries. The WordPress plugin release matrix example applies that to `[[plugins]]` release records and nested Playground blueprint metadata, reporting changed plugin slugs, statuses, autoload flags, review labels, PHP/WP versions, and plugin arrays under paths such as `$toml.plugins[1].config.autoload`.
+
 Language detection now applies the same override list before built-in globs, Emacs mode headers, shebangs, Hack/PHP and Objective-C header checks, and XML header detection. The first matching override wins, and `text` intentionally routes a file through plain-text review.
 
 The WordPress language-override directory example applies that to generated block asset metadata and Blade templates. `build/index.asset.php` is reviewed as Text rather than PHP, while `templates/card.blade.php` is reviewed as HTML, so a plugin/theme review UI can make configured language choices once and use them for both catalog display and directory JSON output.
@@ -277,6 +281,8 @@ php lanes/difftastic/examples/wordpress-git-rename-inline-diff.php
 php lanes/difftastic/examples/wordpress-git-common-path-inline-diff.php
 php lanes/difftastic/examples/wordpress-check-only-command.php
 php lanes/difftastic/examples/wordpress-list-languages-command.php
+php lanes/difftastic/examples/wordpress-plugin-toml-config-diff.php
+php lanes/difftastic/examples/wordpress-plugin-release-matrix-toml-diff.php
 php lanes/difftastic/examples/wordpress-language-override-directory-diff.php
 php lanes/difftastic/examples/wordpress-env-language-overrides-command.php
 php lanes/difftastic/examples/wordpress-binary-asset-inline-diff.php
@@ -340,4 +346,4 @@ php lanes/difftastic/examples/wordpress-tsx-tag-highlight-display.php
 
 ## Next Task
 
-Decide whether command-level JSON output should expose syntax-highlight suppression or remain upstream-style metadata-only JSON, then map another parser/display edge such as decorator captures or command JSON directory output.
+Map another parser/display edge such as decorator captures or command JSON directory output.

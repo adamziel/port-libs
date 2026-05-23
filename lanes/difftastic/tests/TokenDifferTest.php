@@ -22,6 +22,17 @@ return [
         $t->same('number', $tokens[5]->kind);
         $t->same('string', $tokens[9]->kind);
     },
+    'tokenizes rust lifetimes separately from character strings' => static function (TestRunner $t): void {
+        $tokens = (new TokenDiffer())->tokenize("fn render<'a>(x: &'a str) { 'x'; }\n", ['language' => 'rust']);
+        $byText = [];
+        foreach ($tokens as $token) {
+            $byText[] = $token->text . ':' . $token->kind;
+        }
+        $encoded = implode("\n", $byText);
+
+        $t->contains("':punctuation\na:identifier\n>:punctuation", $encoded);
+        $t->contains("'x':string", $encoded);
+    },
     'classifies comments and delimiter anchors' => static function (TestRunner $t): void {
         $tokens = (new TokenDiffer())->tokenize('items([1, /* keep */ 2])');
         $kinds = array_map(static fn ($token): string => $token->kind, $tokens);
@@ -472,6 +483,118 @@ return [
         $t->contains('- $[0][1] "bar":"testing"', $encoded);
         $t->contains('+ $[0][1] "zab":"testing"', $encoded);
         $t->contains('+ $[0][2] "woo":["foobar"]', $encoded);
+    },
+    'maps upstream toml sample as table qualified key changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-toml-1.toml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-toml-2.toml');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'toml']);
+        $byPath = [];
+        foreach ($changes as $change) {
+            $byPath[$change['path']][] = $change;
+        }
+
+        $t->same('~', $byPath['$toml.title'][0]['op']);
+        $t->same('"TOML Example"', $byPath['$toml.title'][0]['old']);
+        $t->same('"TOML Example Changed"', $byPath['$toml.title'][0]['new']);
+        $t->same('~', $byPath['$toml.owner.dob'][0]['op']);
+        $t->same('1979-05-27T07:32:00-08:00', $byPath['$toml.owner.dob'][0]['old']);
+        $t->same('2000-01-31T07:32:00-08:00', $byPath['$toml.owner.dob'][0]['new']);
+        $t->same('-', $byPath['$toml.database.ports[1]'][0]['op']);
+        $t->same('8001', $byPath['$toml.database.ports[1]'][0]['text']);
+        $t->same('-', $byPath['$toml.servers.beta.str2'][0]['op']);
+        $t->contains('str2 = """\\', $byPath['$toml.servers.beta.str2'][0]['text']);
+        $t->same('-', $byPath['$toml.servers.beta.path'][0]['op']);
+        $t->same("path = 'C:\\Users\\nodejs\\templates'", $byPath['$toml.servers.beta.path'][0]['text']);
+        $t->true(!isset($byPath['$toml.database.data']), 'Stable nested TOML arrays should stay matched.');
+    },
+    'wordpress plugin toml config reports release and playground changes' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-toml-config-before.toml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-toml-config-after.toml');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'toml']);
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'toml',
+            'title' => 'WordPress plugin TOML config diff',
+        ]);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $toml.requires_wp "6.5" "6.6"', $encoded);
+        $t->contains('- $toml.build.targets[2] "legacy"', $encoded);
+        $t->contains('+ $toml.build.targets[2] "view"', $encoded);
+        $t->contains('~ $toml.playground.php "8.2" "8.3"', $encoded);
+        $t->contains('- $toml.playground.plugins[1] "query-monitor"', $encoded);
+        $t->contains('+ $toml.playground.plugins[1] "wordpress-importer"', $encoded);
+        $t->contains('~ $toml.playground.notes """', $encoded);
+        $t->contains('Review legacy card markup', $encoded);
+        $t->contains('Review modern card markup', $encoded);
+        $t->contains('WordPress plugin TOML config diff', $html);
+        $t->contains('data-path="$toml.build.targets[2]"', $html);
+        $t->true(!str_contains($html, '$text.line'), 'TOML config review should use TOML key paths rather than line fallback paths.');
+    },
+    'wordpress plugin toml example emits escaped syntax-list html' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-plugin-toml-config-diff.php';
+        $output = ob_get_clean();
+
+        $t->true(is_string($output));
+        $t->contains('WordPress plugin TOML config diff', (string) $output);
+        $t->contains('data-path="$toml.requires_wp"', (string) $output);
+        $t->contains('&quot;wordpress-importer&quot;', (string) $output);
+        $t->true(!str_contains((string) $output, '<script'), 'The TOML example should render escaped syntax-list HTML only.');
+    },
+    'maps toml inline tables as nested key changes' => static function (TestRunner $t): void {
+        $before = "temp_targets = { cpu = 79.5, case = 72.0 }\n";
+        $after = "temp_targets = { cpu = 82.0, case = 72.0, gpu = 61.0 }\n";
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'toml']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $toml.temp_targets.cpu 79.5 82.0', $encoded);
+        $t->contains('+ $toml.temp_targets.gpu gpu = 61.0', $encoded);
+        $t->true(!str_contains($encoded, '$toml.temp_targets {'), 'Inline table field edits should not replace the whole TOML table value.');
+        $t->true(!str_contains($encoded, '$toml.temp_targets.case'), 'Stable inline table fields should stay matched.');
+
+        $emptyChanges = (new TokenDiffer())->diffSyntaxLists("settings = {}\n", "settings = { enabled = true }\n", ['language' => 'toml']);
+        $t->same('$toml.settings', $emptyChanges[0]['path']);
+        $t->same('$toml.settings.enabled', $emptyChanges[1]['path']);
+    },
+    'wordpress plugin toml arrays of tables keep release entries indexed' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-release-matrix-before.toml');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-release-matrix-after.toml');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'toml']);
+        $html = (new HtmlDiffRenderer())->renderSyntaxListDiff($before, $after, [
+            'language' => 'toml',
+            'title' => 'WordPress plugin release matrix TOML diff',
+        ]);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => $change['op'] . ' ' . $change['path'] . ' ' . ($change['text'] ?? $change['old'] ?? '') . ' ' . ($change['new'] ?? ''),
+            $changes
+        ));
+
+        $t->contains('~ $toml.plugins[1].slug "query-monitor" "wordpress-importer"', $encoded);
+        $t->contains('~ $toml.plugins[1].status "dev" "required"', $encoded);
+        $t->contains('~ $toml.plugins[1].config.autoload false true', $encoded);
+        $t->contains('~ $toml.plugins[1].config.review "optional" "migration"', $encoded);
+        $t->contains('~ $toml.playground.blueprint.php "8.2" "8.3"', $encoded);
+        $t->contains('- $toml.playground.blueprint.plugins[1] "query-monitor"', $encoded);
+        $t->contains('+ $toml.playground.blueprint.plugins[1] "wordpress-importer"', $encoded);
+        $t->contains('data-path="$toml.plugins[1].config.autoload"', $html);
+        $t->true(!str_contains($encoded, '$toml.plugins.slug'), 'Array table entries should include the table index in TOML paths.');
+    },
+    'wordpress plugin release matrix toml example emits escaped syntax-list html' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-plugin-release-matrix-toml-diff.php';
+        $output = ob_get_clean();
+
+        $t->true(is_string($output));
+        $t->contains('WordPress plugin release matrix TOML diff', (string) $output);
+        $t->contains('data-path="$toml.plugins[1].config.autoload"', (string) $output);
+        $t->contains('&quot;wordpress-importer&quot;', (string) $output);
+        $t->true(!str_contains((string) $output, '<script'), 'The release matrix example should render escaped syntax-list HTML only.');
     },
     'maps upstream slider at end json sample as focused list deletions' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-slider-at-end-1.json');
@@ -3156,6 +3279,31 @@ return [
         $t->contains('||:keyword', $encoded);
         $t->contains('null:keyword', $encoded);
     },
+    'json display renderer maps upstream rust label captures as type highlights' => static function (TestRunner $t): void {
+        $before = "fn render<'a>(title: &'a str) -> &'a str { title }\n";
+        $after = "fn render<'block>(title: &'block str) -> &'block str { title }\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/rust_lifetime_label.rs',
+            'Rust',
+            ['language' => 'rust', 'parseErrorLimit' => 10],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Rust', $decoded['language']);
+        $t->contains('block:type', $encoded);
+        $t->same(3, substr_count($encoded, 'block:type'));
+    },
     'json display renderer leaves unsupported attribute and property captures normal' => static function (TestRunner $t): void {
         $before = ".old { color: red; }\n";
         $after = "@supports (display: grid) { .card { opacity: 1 !important; } }\n";
@@ -3248,6 +3396,14 @@ return [
         $t->true(in_array(['start' => 21, 'end' => 23, 'style' => '1'], $spans, true), 'Operator captures should follow upstream keyword-style handling.');
         $t->true(in_array(['start' => 24, 'end' => 29, 'style' => '1'], $spans, true), 'Boolean captures should follow upstream keyword-style handling.');
         $t->true(in_array(['start' => 33, 'end' => 37, 'style' => '1'], $spans, true), 'Constant captures should follow upstream keyword-style handling.');
+    },
+    'ansi highlighter maps upstream rust label captures as type highlights' => static function (TestRunner $t): void {
+        $line = "fn render<'block>(title: &'block str) -> &'block str { title }";
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'rust']);
+
+        $t->true(in_array(['start' => 11, 'end' => 17, 'style' => '1'], $spans, true), 'Rust lifetime labels should follow upstream label-as-type capture handling.');
+        $t->true(in_array(['start' => 27, 'end' => 32, 'style' => '1'], $spans, true), 'Borrowed lifetime labels should follow upstream label-as-type capture handling.');
+        $t->true(in_array(['start' => 43, 'end' => 48, 'style' => '1'], $spans, true), 'Return lifetime labels should follow upstream label-as-type capture handling.');
     },
     'wordpress parser error ansi command honors syntax highlight control' => static function (TestRunner $t): void {
         $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";

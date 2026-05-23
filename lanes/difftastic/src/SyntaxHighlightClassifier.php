@@ -59,6 +59,10 @@ final class SyntaxHighlightClassifier
             return 'keyword';
         }
 
+        if ($this->isRustLanguage($language) && $this->isRustLifetimeLabel($source, $token->start)) {
+            return 'type';
+        }
+
         if (in_array($lower, $this->languageKeywords($language), true)) {
             return 'keyword';
         }
@@ -114,6 +118,11 @@ final class SyntaxHighlightClassifier
         return in_array($language, ['css', 'scss'], true);
     }
 
+    private function isRustLanguage(string $language): bool
+    {
+        return in_array($language, ['rs', 'rust'], true);
+    }
+
     private function isMarkupTagName(string $source, int $start): bool
     {
         if ($start <= 0) {
@@ -135,6 +144,18 @@ final class SyntaxHighlightClassifier
         $previous = $this->previousNonWhitespaceCharacter($source, $start);
 
         return $previous === '@' || $previous === '!';
+    }
+
+    private function isRustLifetimeLabel(string $source, int $start): bool
+    {
+        if ($start <= 0 || ($source[$start - 1] ?? '') !== "'") {
+            return false;
+        }
+
+        $previous = $start >= 2 ? ($source[$start - 2] ?? '') : '';
+
+        return $previous === ''
+            || preg_match('/[\s<&,(=:]/', $previous) === 1;
     }
 
     private function previousNonWhitespaceCharacter(string $source, int $start): ?string

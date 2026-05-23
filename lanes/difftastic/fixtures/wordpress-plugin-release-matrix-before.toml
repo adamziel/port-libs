@@ -1,0 +1,12 @@
+[[plugins]]
+slug = "gutenberg"
+status = "required"
+config = { autoload = false, review = "manual" }
+
+[[plugins]]
+slug = "query-monitor"
+status = "dev"
+config = { autoload = false, review = "optional" }
+
+[playground]
+blueprint = { php = "8.2", wp = "6.5", plugins = [ "gutenberg", "query-monitor" ] }
