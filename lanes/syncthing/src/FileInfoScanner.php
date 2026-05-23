@@ -597,6 +597,9 @@ final class FileInfoScanner
         if (!$isDirectory && !$isRegularOrSymlink) {
             return true;
         }
+        if ($this->isWindowsPlatform() && is_link($path)) {
+            return true;
+        }
 
         if ($ignoreMatcher !== null) {
             $match = $ignoreMatcher->match($name);

@@ -158,6 +158,47 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'windows scanner walk skips symlink entries instead of emitting FileInfo' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $dir = 'wp-content/uploads/2026/05';
+            syncthing_scanner_write($root, $dir . '/target/original.jpg', 'target media bytes');
+            $linkName = $dir . '/shortcut.jpg';
+            $linkPath = syncthing_scanner_path($root, $linkName);
+            if (!@symlink('target/original.jpg', $linkPath)) {
+                throw new RuntimeException('symlink creation failed');
+            }
+            $dirLinkName = $dir . '/linked-library';
+            $dirLinkPath = syncthing_scanner_path($root, $dirLinkName);
+            if (!@symlink('target', $dirLinkPath)) {
+                throw new RuntimeException('directory symlink creation failed');
+            }
+
+            $posixScanner = new FileInfoScanner($root, platformFamily: 'Linux');
+            $posixFiles = $posixScanner->walk([$dir]);
+            $t->same([
+                $dir,
+                $dirLinkName,
+                $linkName,
+                $dir . '/target',
+                $dir . '/target/original.jpg',
+            ], array_map(static fn (FileInfo $file): string => $file->name, $posixFiles));
+            $t->same(FileInfo::TYPE_SYMLINK, $posixFiles[1]->type);
+            $t->same(FileInfo::TYPE_SYMLINK, $posixFiles[2]->type);
+
+            $windowsScanner = new FileInfoScanner($root, platformFamily: 'Windows');
+            $windowsFiles = $windowsScanner->walk([$dir]);
+            $t->same([
+                $dir,
+                $dir . '/target',
+                $dir . '/target/original.jpg',
+            ], array_map(static fn (FileInfo $file): string => $file->name, $windowsFiles));
+            $t->same([], $windowsScanner->walk([$linkName]));
+            $t->same([], $windowsScanner->walk([$dirLinkName]));
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
     'propagates platform data read errors like upstream CreateFileInfo' => static function (TestRunner $t): void {
         $root = syncthing_scanner_root();
         try {

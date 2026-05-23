@@ -999,6 +999,13 @@ Linux-hosted lane can test the Windows branch without shelling out to Syncthing.
 `wordpress-scanner-windows-exec-bits.php` shows a Windows/IIS-style WordPress
 plugin asset with disk mode `0644` retaining indexed `0755` executable bits and
 avoiding a spurious permission-only scan item.
+The scanner Windows symlink slice now maps the adjacent upstream
+`handleItem`/`walkSymlink` host boundary in `lib/scanner/walk.go`: POSIX scans
+emit symlink `FileInfo` entries without following their targets, while Windows
+scans ignore symlink entries entirely. `wordpress-scanner-windows-symlink-skip.php`
+shows Windows-mode WordPress media scans skipping file and directory symlink
+aliases so they are not advertised as synced content on hosts where upstream
+Syncthing does not support symlinks.
 
 ## Test Run Notes
 
@@ -1144,8 +1151,26 @@ thumbnail `FileInfo`. The required pre-root
 `pgrep -af '^php tools/run-tests\.php( |$)'` check returned no active root
 harness, so this worker ran `php tools/run-tests.php`; it passed 197 test
 files, 21712 assertions, and 0 failures.
+For this scanner Windows symlink batch, targeted upstream reads covered
+`lib/scanner/walk.go` `handleItem` and the Windows-only `walkSymlink` early
+return, plus `lib/scanner/walk_test.go` `TestWalkSymlinkUnix`. The refreshed
+focused upstream command `go test ./lib/scanner -run '^TestWalkSymlinkUnix$'
+-count=1` passed in `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing`
+with `ok github.com/syncthing/syncthing/lib/scanner 0.013s`. The Windows
+branch remains static host-specific evidence, not executed Windows runner
+parity. The focused lane test
+`php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php` passed
+1 file, 113 assertions, and 0 failures; and
+`php lanes/syncthing/examples/wordpress-scanner-windows-symlink-skip.php` ran
+successfully, reporting POSIX symlink entries and Windows-mode skipped symlink
+paths.
+The full lane run `php tools/run-tests.php lanes/syncthing/tests` passed 39
+files, 2115 assertions, and 0 failures. The required pre-root
+`pgrep -af '^php tools/run-tests\.php( |$)'` check returned no active root
+harness, so this worker ran `php tools/run-tests.php`; it passed 198 files,
+21849 assertions, and 0 failures.
 
 ## Next Task
 
-Map another scanner host/permission boundary with executable upstream runner
-evidence, or extend scanner cancellation into resumable scan checkpoints.
+Extend scanner cancellation into resumable scan checkpoints, or map stale
+temporary-file lifetime cleanup during scanner walks.
