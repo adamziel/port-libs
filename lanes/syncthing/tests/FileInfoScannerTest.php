@@ -288,6 +288,43 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'walk skips unchanged current files while preserving local flag changes' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $name = 'wp-content/uploads/2026/05/unchanged.jpg';
+            $bytes = 'stable wordpress media bytes';
+            syncthing_scanner_write($root, $name, $bytes);
+
+            $scanner = new FileInfoScanner($root, localFlags: FileInfo::FLAG_LOCAL_RECEIVE_ONLY);
+            $first = $scanner->walk([$name], hashBlocks: true, blockSize: 8);
+            $t->same(1, count($first));
+            $t->same(FileInfo::FLAG_LOCAL_RECEIVE_ONLY, $first[0]->localFlags);
+            $t->same((new BlockList())->hashBlocks($first[0]->blocks), $first[0]->blocksHash);
+
+            $t->same(null, $scanner->scanIfChanged($name, hashBlocks: true, blockSize: 8, currentFile: $first[0]));
+            $t->same([], $scanner->walk([$name], hashBlocks: true, blockSize: 8, currentFiles: [$first[0]]));
+
+            $ignoredCurrent = new FileInfo(
+                name: $name,
+                modifiedS: $first[0]->modifiedS,
+                size: $first[0]->size,
+                blocksHash: $first[0]->blocksHash,
+                type: FileInfo::TYPE_FILE,
+                permissions: $first[0]->permissions,
+                rawBlockSize: $first[0]->rawBlockSize,
+                blocks: $first[0]->blocks,
+                localFlags: FileInfo::FLAG_LOCAL_IGNORED,
+            );
+            $rescanned = $scanner->walk([$name], hashBlocks: true, blockSize: 8, currentFiles: [$ignoredCurrent]);
+
+            $t->same(1, count($rescanned));
+            $t->same(FileInfo::FLAG_LOCAL_RECEIVE_ONLY, $rescanned[0]->localFlags);
+            $t->same($first[0]->blocksHash, $rescanned[0]->previousBlocksHash);
+            $t->same($first[0]->blocksHash, $rescanned[0]->blocksHash);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
 ];
 
 function syncthing_scanner_root(): string

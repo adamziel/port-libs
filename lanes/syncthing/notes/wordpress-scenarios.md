@@ -946,20 +946,29 @@ current FileInfo state so a WordPress media rescan does not unnecessarily
 change block boundaries for an existing indexed upload. `wordpress-scanner-block-hysteresis.php`
 shows a small local-first media file retaining its prior 256 KiB block size and
 prints the upstream 500 MiB hysteresis cases.
+The scanner unchanged-file slice now maps upstream `walkRegular`,
+`updateFileInfo`, `FileInfo.IsEquivalentOptional`, and `TestWalkReceiveOnly`:
+`FileInfoScanner::walk()` skips current files that are equivalent after
+ignoring block lists, masks the scanner's configured local flags during
+equivalence checks, forces a rescan when a prior ignored state differs from the
+new receive-only state, and carries the prior `blocksHash` into
+`previousBlocksHash` when a rescan is emitted. `wordpress-scanner-unchanged-shortcut.php`
+shows an unchanged WordPress media upload producing no second scan item while a
+prior ignored local state forces a receive-only rescan with conflict lineage.
 
 ## Test Run Notes
 
 On 2026-05-23, the focused scanner tests
 `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php` passed 1
-file, 50 assertions, and 0 failures after adding upstream
-`TestBlocksizeHysteresis` mapping on top of the existing `TestWalkSub`,
+file, 59 assertions, and 0 failures after adding upstream
+`TestWalkReceiveOnly` and `TestBlocksizeHysteresis` mappings on top of the existing `TestWalkSub`,
 `TestRecurseInclude`/`TestIncludedSubdir`, `TestSkipIgnoredDirs`,
 `TestNotExistingError`, and `TestIssue4799` mappings. The focused block-list
 test `php tools/run-tests.php lanes/syncthing/tests/BlockListTest.php` passed 1
 file, 35 assertions, and 0 failures. The focused xattr metadata test
 `php tools/run-tests.php lanes/syncthing/tests/PlatformMetadataApplierTest.php`
 passed 1 file, 24 assertions, and 0 failures. The full Syncthing lane suite
-`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2052
+`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2061
 assertions, and 0 failures. The WordPress example
 `php lanes/syncthing/examples/wordpress-xattr-hard-error-retry.php` ran
 successfully and reported a retryable `setting xattrs: remove
@@ -970,7 +979,10 @@ successfully and emitted the included public upload chain plus a hashed public
 media file while keeping private and internal paths out of the scan. The new
 WordPress example `php lanes/syncthing/examples/wordpress-scanner-block-hysteresis.php`
 ran successfully and reported default 128 KiB block sizing, retained 256 KiB
-current-file sizing, and upstream 500 MiB hysteresis examples.
+current-file sizing, and upstream 500 MiB hysteresis examples. The new
+WordPress example `php lanes/syncthing/examples/wordpress-scanner-unchanged-shortcut.php`
+ran successfully and reported `unchangedSecondScanItems=0`,
+`ignoredPriorStateForcesRescan=true`, and `previousBlocksHashCarried=true`.
 
 Focused upstream `go test ./lib/fs -run '^TestXattr$' -count=1` passed in
 `.upstream-cache/port-go-local-capacity-20260523T0034Z/syncthing` with
@@ -988,15 +1000,23 @@ Focused upstream scanner block-size evidence was refreshed with
 `go test ./lib/scanner -run '^TestBlocksizeHysteresis$' -count=1`, which passed
 in the same hydrated worktree with
 `ok github.com/syncthing/syncthing/lib/scanner 1.556s`.
+Focused upstream scanner unchanged-file evidence was refreshed with
+`go test ./lib/scanner -run '^TestWalkReceiveOnly$' -count=1`, which passed in
+the same hydrated worktree with
+`ok github.com/syncthing/syncthing/lib/scanner 0.007s`.
 
 Before root PHP harnesses, this worker ran the required
 `pgrep -af '^php tools/run-tests\.php( |$)'` check before starting any root
 harness. It returned no active root harness, so this worker ran
-`php tools/run-tests.php`; the root harness passed 189 test files, 20500
+`php tools/run-tests.php`; that root run exited red with 190 test files, 20674
+assertions, and 1 failure in the moving aggregate. A later required pgrep found
+another root harness active as PID 1341411 owned by `claude`, so this worker did
+not start a duplicate root rerun at that time. After the active harness cleared,
+this worker reran `php tools/run-tests.php` captured to
+`.upstream-cache/syncthing-root-rerun.log`; it passed 191 test files, 20725
 assertions, and 0 failures. No Syncthing lane-local test failed.
 
 ## Next Task
 
-Map upstream scanner walk normalization/error reporting and unchanged-file
-short-circuiting against current file state, or extend xattr hard-error behavior
-through `PullItemUpdater` and `PullTemporaryFile` integration tests.
+Map upstream scanner normalization/error reporting, or add scanner
+`IgnorePerms`/mod-time-window parity for current-file equivalence.

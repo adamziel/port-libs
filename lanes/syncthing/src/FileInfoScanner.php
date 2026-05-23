@@ -27,6 +27,8 @@ final class FileInfoScanner
         ?callable $xattrLister = null,
         ?callable $xattrGetter = null,
         ?BlockList $blockList = null,
+        private readonly int $localFlags = 0,
+        private readonly int $modTimeWindowNs = 0,
     ) {
         $realRoot = realpath($rootPath);
         if ($realRoot === false || !is_dir($realRoot)) {
@@ -34,6 +36,9 @@ final class FileInfoScanner
         }
         if ($this->maxSingleXattrSize < 0 || $this->maxTotalXattrSize < 0) {
             throw new \InvalidArgumentException('Xattr size limits must not be negative');
+        }
+        if ($this->localFlags < 0 || $this->modTimeWindowNs < 0) {
+            throw new \InvalidArgumentException('Scanner local flags and modification time window must not be negative');
         }
 
         $this->rootPath = rtrim($realRoot, DIRECTORY_SEPARATOR);
@@ -45,13 +50,27 @@ final class FileInfoScanner
 
     public function scan(string $name, bool $hashBlocks = false, ?int $blockSize = null, ?FileInfo $currentFile = null): FileInfo
     {
-        ProtocolValidation::checkFilename($name);
-        if ($blockSize !== null && $blockSize <= 0) {
-            throw new \InvalidArgumentException('Block size must be positive');
+        $info = $this->scanCandidate($name, $hashBlocks, $blockSize, $currentFile, false);
+        if ($info === null) {
+            throw new \LogicException('Unchanged scanner candidates are disabled for direct scan');
         }
-        if ($currentFile !== null && $currentFile->name !== $name) {
-            throw new \InvalidArgumentException('Current FileInfo must describe the scanned path');
-        }
+
+        return $info;
+    }
+
+    public function scanIfChanged(string $name, bool $hashBlocks = false, ?int $blockSize = null, ?FileInfo $currentFile = null): ?FileInfo
+    {
+        return $this->scanCandidate($name, $hashBlocks, $blockSize, $currentFile, true);
+    }
+
+    private function scanCandidate(
+        string $name,
+        bool $hashBlocks,
+        ?int $blockSize,
+        ?FileInfo $currentFile,
+        bool $skipUnchanged,
+    ): ?FileInfo {
+        $this->assertScanInputs($name, $blockSize, $currentFile);
 
         $path = $this->absolutePath($name);
         $stat = @lstat($path);
@@ -71,6 +90,8 @@ final class FileInfoScanner
                 name: $name,
                 type: FileInfo::TYPE_SYMLINK,
                 noPermissions: true,
+                localFlags: $this->localFlags,
+                previousBlocksHash: $currentFile?->blocksHash ?? '',
                 symlinkTarget: $target,
                 unixOwnerName: $platform['unixOwnerName'],
                 unixGroupName: $platform['unixGroupName'],
@@ -78,23 +99,29 @@ final class FileInfoScanner
                 unixGid: $platform['unixGid'],
                 xattrs: $platform['xattrs'],
             );
+
+            return $skipUnchanged && $currentFile !== null && $this->isUnchanged($currentFile, $info) ? null : $info;
         }
 
         $permissions = (int) $stat['mode'] & 0777;
         $modifiedS = (int) $stat['mtime'];
 
         if (is_dir($path)) {
-            return new FileInfo(
+            $info = new FileInfo(
                 name: $name,
                 modifiedS: $modifiedS,
                 type: FileInfo::TYPE_DIRECTORY,
+                localFlags: $this->localFlags,
                 permissions: $permissions,
+                previousBlocksHash: $currentFile?->blocksHash ?? '',
                 unixOwnerName: $platform['unixOwnerName'],
                 unixGroupName: $platform['unixGroupName'],
                 unixUid: $platform['unixUid'],
                 unixGid: $platform['unixGid'],
                 xattrs: $platform['xattrs'],
             );
+
+            return $skipUnchanged && $currentFile !== null && $this->isUnchanged($currentFile, $info) ? null : $info;
         }
 
         if (!is_file($path)) {
@@ -108,6 +135,26 @@ final class FileInfoScanner
             ? $currentFile->blockSize()
             : null;
         $rawBlockSize = $blockSize ?? BlockList::blockSizeForFileSize($size, $currentBlockSize);
+        $previousBlocksHash = $currentFile?->blocksHash ?? '';
+        $info = new FileInfo(
+            name: $name,
+            modifiedS: $modifiedS,
+            size: $size,
+            type: FileInfo::TYPE_FILE,
+            localFlags: $this->localFlags,
+            permissions: $permissions,
+            rawBlockSize: $rawBlockSize,
+            previousBlocksHash: $previousBlocksHash,
+            unixOwnerName: $platform['unixOwnerName'],
+            unixGroupName: $platform['unixGroupName'],
+            unixUid: $platform['unixUid'],
+            unixGid: $platform['unixGid'],
+            xattrs: $platform['xattrs'],
+        );
+        if ($skipUnchanged && $currentFile !== null && $this->isUnchanged($currentFile, $info)) {
+            return null;
+        }
+
         if ($hashBlocks) {
             $bytes = file_get_contents($path);
             if (!is_string($bytes)) {
@@ -123,8 +170,10 @@ final class FileInfoScanner
             size: $size,
             blocksHash: $blocksHash,
             type: FileInfo::TYPE_FILE,
+            localFlags: $this->localFlags,
             permissions: $permissions,
             rawBlockSize: $rawBlockSize,
+            previousBlocksHash: $previousBlocksHash,
             blocks: $blocks,
             unixOwnerName: $platform['unixOwnerName'],
             unixGroupName: $platform['unixGroupName'],
@@ -132,6 +181,28 @@ final class FileInfoScanner
             unixGid: $platform['unixGid'],
             xattrs: $platform['xattrs'],
         );
+    }
+
+    private function assertScanInputs(string $name, ?int $blockSize, ?FileInfo $currentFile): void
+    {
+        ProtocolValidation::checkFilename($name);
+        if ($blockSize !== null && $blockSize <= 0) {
+            throw new \InvalidArgumentException('Block size must be positive');
+        }
+        if ($currentFile !== null && $currentFile->name !== $name) {
+            throw new \InvalidArgumentException('Current FileInfo must describe the scanned path');
+        }
+    }
+
+    private function isUnchanged(FileInfo $currentFile, FileInfo $scannedFile): bool
+    {
+        return $currentFile->isEquivalent($scannedFile, new FileInfoComparison(
+            modTimeWindowNs: $this->modTimeWindowNs,
+            ignoreBlocks: true,
+            ignoreFlags: $this->localFlags,
+            ignoreOwnership: !$this->scanOwnership,
+            ignoreXattrs: !$this->scanXattrs,
+        ));
     }
 
     /**
@@ -425,7 +496,10 @@ final class FileInfoScanner
             return;
         }
 
-        $results[] = $this->scan($name, $hashBlocks, $blockSize, $currentByName[$name] ?? null);
+        $file = $this->scanIfChanged($name, $hashBlocks, $blockSize, $currentByName[$name] ?? null);
+        if ($file !== null) {
+            $results[] = $file;
+        }
         $seen[$name] = true;
     }
 
