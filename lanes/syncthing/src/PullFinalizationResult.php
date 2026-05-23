@@ -19,11 +19,16 @@ final class PullFinalizationResult
         public readonly string $finalName,
         public readonly array $availableBlockIndexes = [],
         public readonly string $dbUpdateType = '',
+        public readonly int $finalSize = 0,
+        public readonly int $encryptionTrailerSize = 0,
     ) {
         foreach ($this->availableBlockIndexes as $index) {
             if (!is_int($index) || $index < 0) {
                 throw new \InvalidArgumentException('Available block indexes must be non-negative integers');
             }
+        }
+        if ($this->finalSize < 0 || $this->encryptionTrailerSize < 0) {
+            throw new \InvalidArgumentException('Finalized sizes must not be negative');
         }
         if ($this->finalized && $this->dbUpdateType === '') {
             throw new \InvalidArgumentException('Finalized pull results must include a database update type');
@@ -31,7 +36,7 @@ final class PullFinalizationResult
     }
 
     /**
-     * @return array{closed:bool, finalized:bool, error:?string, tempName:string, finalName:string, availableBlockIndexes:list<int>, dbUpdateType:string}
+     * @return array{closed:bool, finalized:bool, error:?string, tempName:string, finalName:string, availableBlockIndexes:list<int>, dbUpdateType:string, finalSize:int, encryptionTrailerSize:int}
      */
     public function toArray(): array
     {
@@ -43,6 +48,8 @@ final class PullFinalizationResult
             'finalName' => $this->finalName,
             'availableBlockIndexes' => $this->availableBlockIndexes,
             'dbUpdateType' => $this->dbUpdateType,
+            'finalSize' => $this->finalSize,
+            'encryptionTrailerSize' => $this->encryptionTrailerSize,
         ];
     }
 }

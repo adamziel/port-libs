@@ -467,6 +467,11 @@ block bytes are finalized with a metadata trailer, the local index keeps the
 trailer bytes while the remote index size strips them, and verification rejects
 extra bytes before the trailer before recovering the plaintext media payload and
 block hash.
+`examples/wordpress-pull-receive-encrypted-finalize.php` shows the same trailer
+boundary through the pull temporary-file promotion path: an encrypted media
+block is written into a `.syncthing` temporary path, the FileInfo trailer is
+appended during final close, the final local size includes the trailer, and
+remote index preparation strips the host-local trailer bytes.
 `examples/wordpress-encrypted-download-progress.php` shows why receive-encrypted
 private media folders do not advertise or accept temporary-block progress:
 encrypted-folder progress is suppressed before a BEP frame or remote progress
@@ -596,20 +601,26 @@ failing validation before an editor laptop supplies verified media bytes, with
 both peer activity counters returning to zero after the request attempts.
 The temporary-finalization slice now maps the adjacent upstream
 `sharedPullerState.tempFile`, `copyDone`, `pullDone`, `finalClose`,
-`performFinish`, and sparse all-zero block boundaries: verified copied and
-pulled blocks are written into Syncthing temporary names, sparse zero blocks are
-marked available without a network request, final close waits until every target
-block is accounted for, successful close renames the temp file into place and
-emits the `dbUpdateHandleFile` update type, second close attempts are no-ops,
-and failed pulls close while leaving the temporary file for a later retry. This
-is a static targeted mapping from upstream `sharedpullerstate.go` and
+`finalizeEncrypted`, `writeEncryptionTrailer`, `performFinish`, and sparse
+all-zero block boundaries: verified copied and pulled blocks are written into
+Syncthing temporary names, sparse zero blocks are marked available without a
+network request, final close waits until every target block is accounted for,
+receive-encrypted temporary files append the FileInfo trailer before promotion,
+successful close renames the temp file into place and emits the
+`dbUpdateHandleFile` update type, second close attempts are no-ops, and failed
+pulls close while leaving the temporary file for a later retry. This is a
+static targeted mapping from upstream `sharedpullerstate.go` and
 `folder_sendrecv.go`, not a new full upstream runner. The WordPress example
 `wordpress-pull-temporary-finalize.php` shows a media file assembled from one
 origin copy, one sparse zero block, and one pulled block before final promotion.
+The receive-encrypted variant
+`wordpress-pull-receive-encrypted-finalize.php` shows the trailer appended
+during native temporary-file promotion, with local finalized size and remote
+index size reported separately.
 
 ## Next Task
 
 Broaden upstream `folder_sendrecv` behavior around unavailable peers,
-receive-encrypted finalization, conflict/versioner replacement during
-`performFinish`, and database update side effects after the native final file
+conflict/versioner replacement during `performFinish`, directory/case-conflict
+replacement, and database update side effects after the native final file
 promotion succeeds.

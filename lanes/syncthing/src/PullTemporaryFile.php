@@ -14,6 +14,10 @@ final class PullTemporaryFile
 
     private bool $closed = false;
 
+    private int $finalSize = 0;
+
+    private int $encryptionTrailerSize = 0;
+
     /**
      * @var array<int, true>
      */
@@ -142,6 +146,13 @@ final class PullTemporaryFile
             return $this->result(closed: true, finalized: false, error: $this->error);
         }
 
+        try {
+            $this->appendEncryptionTrailerIfNeeded();
+        } catch (\Throwable $e) {
+            $this->error = 'finalizing encrypted file: ' . $e->getMessage();
+            return $this->result(closed: true, finalized: false, error: $this->error);
+        }
+
         if (!$this->ignorePerms && !$this->file->noPermissions) {
             @chmod($this->tempPath(), $this->file->permissions & 0777);
         }
@@ -172,6 +183,9 @@ final class PullTemporaryFile
         if ($this->file->modifiedS > 0) {
             @touch($finalPath, $this->file->modifiedS);
         }
+
+        clearstatcache(true, $finalPath);
+        $this->finalSize = max(0, (int) filesize($finalPath));
 
         return $this->result(
             closed: true,
@@ -298,6 +312,45 @@ final class PullTemporaryFile
         return $this->rootPath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
     }
 
+    private function appendEncryptionTrailerIfNeeded(): void
+    {
+        if ($this->file->encryptedPayload === '') {
+            return;
+        }
+
+        $path = $this->tempPath();
+        clearstatcache(true, $path);
+        $size = filesize($path);
+        if ($size === false) {
+            throw new \RuntimeException('could not stat temporary file');
+        }
+        if ($size !== $this->file->size) {
+            throw new \LengthException('encrypted temporary file size does not match FileInfo size');
+        }
+
+        $trailer = ReceiveEncrypted::encryptionTrailer($this->file);
+        $handle = @fopen($path, 'ab');
+        if ($handle === false) {
+            throw new \RuntimeException('could not reopen temporary file for trailer append');
+        }
+
+        try {
+            $remaining = $trailer;
+            while ($remaining !== '') {
+                $written = fwrite($handle, $remaining);
+                if ($written === false || $written === 0) {
+                    throw new \RuntimeException('could not append encrypted FileInfo trailer');
+                }
+                $remaining = substr($remaining, $written);
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        $this->encryptionTrailerSize = strlen($trailer);
+        $this->finalSize = $this->file->size + $this->encryptionTrailerSize;
+    }
+
     private function result(bool $closed, bool $finalized, ?string $error, string $dbUpdateType = ''): PullFinalizationResult
     {
         return new PullFinalizationResult(
@@ -308,6 +361,8 @@ final class PullTemporaryFile
             finalName: $this->file->name,
             availableBlockIndexes: $this->availableBlockIndexes(),
             dbUpdateType: $dbUpdateType,
+            finalSize: $this->finalSize,
+            encryptionTrailerSize: $this->encryptionTrailerSize,
         );
     }
 

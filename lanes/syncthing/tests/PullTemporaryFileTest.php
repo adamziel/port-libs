@@ -5,9 +5,11 @@ declare(strict_types=1);
 use PortLibs\Syncthing\Block;
 use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\BlockPullResult;
+use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
 use PortLibs\Syncthing\PullFinalizationResult;
 use PortLibs\Syncthing\PullTemporaryFile;
+use PortLibs\Syncthing\ReceiveEncrypted;
 use PortLibs\Syncthing\RequestServer;
 use PortLibs\Syncthing\VersionVector;
 
@@ -103,6 +105,58 @@ return [
             $t->true(file_exists($assembler->tempPath()));
             $t->true(!file_exists($finalPath));
             $t->throws(LogicException::class, static fn () => $assembler->writeBlock($file->blocks[0], substr($bytes, 0, $file->blocks[0]->size)));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'receive-encrypted finalization appends FileInfo trailer before promotion' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $plainBytes = str_repeat('private wordpress media export ', 24);
+            $plainBlocks = (new BlockList())->fromBytes($plainBytes, strlen($plainBytes));
+            $plainFile = new FileInfo(
+                name: 'wp-content/uploads/2026/private/finalized-pull.bin',
+                modifiedS: 1700002300,
+                version: VersionVector::fromCounters([77 => 16]),
+                size: strlen($plainBytes),
+                blocksHash: (new BlockList())->hashBlocks($plainBlocks),
+                rawBlockSize: strlen($plainBytes),
+                sequence: 161,
+                blocks: $plainBlocks,
+                modifiedBy: 77,
+            );
+            $folderKey = EncryptionKey::folderKeyFromPassword('wordpress-private-media', 'wordpress media sync secret');
+            $fileKey = ReceiveEncrypted::fileKey($plainFile->name, $folderKey);
+            $encryptedFile = ReceiveEncrypted::encryptFileInfo(
+                $plainFile,
+                $folderKey,
+                str_repeat("\12", ReceiveEncrypted::NONCE_SIZE),
+            );
+            $encryptedData = ReceiveEncrypted::encryptBytes(
+                $plainBytes . str_repeat('P', ReceiveEncrypted::MIN_PADDED_SIZE - strlen($plainBytes)),
+                $fileKey,
+                str_repeat("\13", ReceiveEncrypted::NONCE_SIZE),
+            );
+
+            $assembler = new PullTemporaryFile($encryptedFile, $root);
+            $assembler->writeBlock($encryptedFile->blocks[0], $encryptedData, receiveEncrypted: true, source: 'receiveEncryptedPull');
+
+            $result = $assembler->finalize();
+            $finalBytes = (string) file_get_contents($assembler->finalPath());
+            $verified = ReceiveEncrypted::verifyFinalizedEncryptedFile($finalBytes, $folderKey);
+
+            $t->true($result->closed);
+            $t->true($result->finalized);
+            $t->same(PullFinalizationResult::DB_UPDATE_HANDLE_FILE, $result->dbUpdateType);
+            $t->same($encryptedFile->size, strlen($encryptedData));
+            $t->same($encryptedData, $verified['encryptedData']);
+            $t->same($plainBytes, $verified['plaintext']);
+            $t->same($plainFile->name, $verified['plainFile']->name);
+            $t->same($verified['trailerSize'], $result->encryptionTrailerSize);
+            $t->same(strlen($finalBytes), $result->finalSize);
+            $t->same($encryptedFile->size + $verified['trailerSize'], $result->finalSize);
+            $t->same([0], $result->availableBlockIndexes);
+            $t->same([0 => 'receiveEncryptedPull'], $assembler->sourcesByBlockIndex());
         } finally {
             syncthing_pull_temp_rm($root);
         }
