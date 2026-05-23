@@ -787,6 +787,36 @@ TS,
         $t->true(!str_contains($lowered, 'async function*'));
         $t->true(!str_contains($lowered, ': AsyncGenerator'));
     },
+    'lowers upstream object property async generator expressions through runtime helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+const registry = {
+  stream: async function* (): AsyncGenerator<string> {
+    yield *objectAssets;
+  },
+};
+const computedRegistry = {
+  [streamName]: async function* (): AsyncGenerator<string> {
+    yield *computedAssets;
+  },
+};
+consume({ stream: async function* (): AsyncGenerator<string> {
+  yield *argumentAssets;
+} });
+TS,
+            lowerAsyncGenerators: true
+        );
+
+        $t->contains('const registry = {stream:function() {', $lowered);
+        $t->contains('yield* __yieldStar(objectAssets);', $lowered);
+        $t->contains('const computedRegistry = {[streamName]:function() {', $lowered);
+        $t->contains('yield* __yieldStar(computedAssets);', $lowered);
+        $t->contains('consume({stream:function() {', $lowered);
+        $t->contains('yield* __yieldStar(argumentAssets);', $lowered);
+        $t->true(!str_contains($lowered, ': async function'));
+        $t->true(!str_contains($lowered, 'async function*'));
+        $t->true(!str_contains($lowered, ': AsyncGenerator'));
+    },
     'lowers upstream function scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             'function foo() { using a: Disposable = b; if (nested) { using x: Disposable = y; bar(x); } done(a); }',
@@ -1987,8 +2017,11 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('const asset = __using(_stack2, yield new __await(queue.openNext(metadata.viewScript)), true);', $lowered);
         $t->contains('yield {handle:asset.handle, url:asset.url};', $lowered);
         $t->contains('yield* __yieldStar(queue.extraAssets(metadata.name));', $lowered);
+        $t->contains('const previewStreamMap = {[metadata.name]:function(queue) {', $lowered);
+        $t->contains('const asset = __using(_stack3, yield new __await(queue.openNext(metadata.editorScript)), true);', $lowered);
         $t->contains('consumePreviewStream(metadata.name, function() {', $lowered);
         $t->contains('yield* __yieldStar(stream(queue));', $lowered);
+        $t->contains('consumePreviewStream(metadata.name, previewStreamMap[metadata.name]);', $lowered);
         $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'async function*'));

@@ -3680,12 +3680,33 @@ final class TypeScriptModuleLowerer
             return $close <= $this->withoutTrailingSemicolon($this->findStatementEndForLowering($start));
         }
 
+        if ($previousText === ':') {
+            $open = $this->enclosingOpenPunctuator($async, '{', '}', $start);
+            if ($open === null || !$this->isObjectLiteralExpressionOpen($open)) {
+                return false;
+            }
+
+            $close = $this->findMatchingPunctuator($open, '{', '}');
+
+            return $close <= $this->withoutTrailingSemicolon($this->findStatementEndForLowering($start));
+        }
+
         if ($previousText !== ',') {
             return false;
         }
 
         return $this->enclosingOpenPunctuator($async, '(', ')', $start) !== null
             || $this->enclosingOpenPunctuator($async, '[', ']', $start) !== null;
+    }
+
+    private function isObjectLiteralExpressionOpen(int $open): bool
+    {
+        $before = $this->previousSignificantTokenIndex($open - 1);
+        if ($before === null) {
+            return false;
+        }
+
+        return in_array(($this->tokens[$before] ?? null)?->text, ['=', '(', '[', ',', ':', '?', '=>', 'default', 'return'], true);
     }
 
     private function asyncGeneratorExpressionSeparator(string $prefix): string

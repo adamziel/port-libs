@@ -9,6 +9,13 @@ const previewStreams = [
   },
 ];
 
+const previewStreamMap = {
+  [metadata.name]: async function* (queue): AsyncGenerator<any> {
+    await using asset: AsyncDisposable = await queue.openNext(metadata.editorScript);
+    yield { handle: asset.handle, url: asset.url };
+  },
+};
+
 const settings = {
   name: metadata.name,
   viewScript: metadata.viewScript,
@@ -21,5 +28,6 @@ export async function registerStreamedAssets(queue) {
     });
   }
 
+  consumePreviewStream(metadata.name, previewStreamMap[metadata.name]);
   wp.blocks.registerBlockType(settings.name, settings);
 }
