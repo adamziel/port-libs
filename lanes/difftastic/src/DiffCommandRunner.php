@@ -20,7 +20,7 @@ final class DiffCommandRunner
     }
 
     /**
-     * @param array{checkOnly?: bool, exitCode?: bool, printUnchanged?: bool, language?: string, displayLanguage?: string, display?: string, extraInfo?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, useColor?: bool} $options
+     * @param array{checkOnly?: bool, exitCode?: bool, printUnchanged?: bool, language?: string, displayLanguage?: string, display?: string, extraInfo?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int|string, graphLimit?: int|string, parseErrorLimit?: int|string, useColor?: bool} $options
      * @param array<string, string> $environment
      * @return array{stdout:string, stderr:string, exitCode:int, hasChanges:bool, message:string, language:string}
      */
@@ -78,7 +78,7 @@ final class DiffCommandRunner
     }
 
     /**
-     * @param array{exitCode?: bool, printUnchanged?: bool, language?: string, displayLanguage?: string, display?: string, extraInfo?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, useColor?: bool} $options
+     * @param array{exitCode?: bool, printUnchanged?: bool, language?: string, displayLanguage?: string, display?: string, extraInfo?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int|string, graphLimit?: int|string, parseErrorLimit?: int|string, useColor?: bool} $options
      * @param array<string, string> $environment
      * @return array{stdout:string, stderr:string, exitCode:int, hasChanges:bool, message:string, language:string}
      */
@@ -203,6 +203,36 @@ final class DiffCommandRunner
             $parsed[$spec['optionKey']] = $value;
         }
 
+        foreach ([
+            ['optionKey' => 'byteLimit', 'environmentKey' => 'DFT_BYTE_LIMIT', 'label' => '--byte-limit'],
+            ['optionKey' => 'graphLimit', 'environmentKey' => 'DFT_GRAPH_LIMIT', 'label' => '--graph-limit'],
+            ['optionKey' => 'parseErrorLimit', 'environmentKey' => 'DFT_PARSE_ERROR_LIMIT', 'label' => '--parse-error-limit'],
+        ] as $spec) {
+            $optionKey = $spec['optionKey'];
+            $value = null;
+            $source = null;
+
+            if (array_key_exists($optionKey, $parsed)) {
+                $value = $parsed[$optionKey];
+                $source = $spec['label'];
+            } elseif (array_key_exists($spec['environmentKey'], $environment)) {
+                $value = $environment[$spec['environmentKey']];
+                $source = $spec['environmentKey'];
+            }
+
+            if ($source === null) {
+                continue;
+            }
+
+            $integer = $this->parseNonNegativeInteger($value);
+            if ($integer === null) {
+                $errors[] = "Invalid value '{$this->stringifyOptionValue($value)}' for {$source}: expected a non-negative integer.";
+                continue;
+            }
+
+            $parsed[$optionKey] = $integer;
+        }
+
         if (!array_key_exists('printUnchanged', $parsed) && array_key_exists('DFT_SKIP_UNCHANGED', $environment)) {
             $skipUnchanged = $this->parseBooleanEnvironmentFlag($environment['DFT_SKIP_UNCHANGED']);
             if ($skipUnchanged === null) {
@@ -311,7 +341,7 @@ final class DiffCommandRunner
     }
 
     /**
-     * @param array{languageOverrides?: list<string>, binaryOverrides?: list<string>, ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, stripCr?: bool, forceBinary?: bool, exitCode?: bool} $options
+     * @param array{languageOverrides?: list<string>, binaryOverrides?: list<string>, ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int|string, graphLimit?: int|string, parseErrorLimit?: int|string, stripCr?: bool, forceBinary?: bool, exitCode?: bool} $options
      * @param array<string, string> $environment
      * @return array{stdout:string, stderr:string, exitCode:int, hasChanges:bool, file:array<string, mixed>|null}
      */
@@ -386,6 +416,7 @@ final class DiffCommandRunner
         unset($directoryOptions['exitCode']);
         $directoryOptions['binaryOverrides'] = $parsed['globs'];
         $directoryOptions['languageOverrides'] = $rawLanguageOverrides;
+        $directoryOptions['fileOptions'] = $this->directoryFileOptionsWithCommandLimits($directoryOptions);
         $files = (new DirectoryDiffer(
             new JsonDiffRenderer($this->differ),
             $this->languageCatalog,
@@ -522,6 +553,25 @@ final class DiffCommandRunner
     private function encodeJson(mixed $value): string
     {
         return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    private function directoryFileOptionsWithCommandLimits(array $options): array
+    {
+        $fileOptions = isset($options['fileOptions']) && is_array($options['fileOptions'])
+            ? $options['fileOptions']
+            : [];
+
+        foreach (['byteLimit', 'graphLimit', 'parseErrorLimit'] as $key) {
+            if (array_key_exists($key, $options) && !array_key_exists($key, $fileOptions)) {
+                $fileOptions[$key] = $options[$key];
+            }
+        }
+
+        return $fileOptions;
     }
 
     /**

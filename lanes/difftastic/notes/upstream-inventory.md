@@ -22,6 +22,7 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - The upstream parse-error fallback boundary is inspected through `DEFAULT_PARSE_ERROR_LIMIT`, `to_syntax_with_limit`, `line_parser::change_positions`, and the `tests/cli.rs` `yaml_parse_errors` test with its two `sample_files/cli_tests/bad_yaml_*.yml` fixtures.
 - The upstream byte-limit fallback boundary is inspected through `DEFAULT_BYTE_LIMIT`, `to_tree_with_limit`, `ExceededByteLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
 - The upstream graph-limit fallback boundary is inspected through `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `dijkstra::mark_syntax`, `ExceededGraphLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
+- The upstream command resource-limit environment boundary is inspected through `src/options.rs` `--byte-limit`/`DFT_BYTE_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, and `--parse-error-limit`/`DFT_PARSE_ERROR_LIMIT`, plus `src/main.rs` propagation into `DiffOptions` and text fallback output.
 - The upstream UTF-16 text/binary boundary is inspected through `src/files.rs` `has_utf16_byte_order_mark`, `u16_from_bytes`, and `guess_content`, plus `sample_files/utf16_1.py` / `sample_files/utf16_2.py`.
 - The upstream mostly-valid UTF-8 text/binary boundary is inspected through `src/files.rs` `guess_content` and the `tests/cli.rs` `slightly_invalid_utf8` CLI test, which keeps content with at most two invalid UTF-8/null characters as text before considering Windows-1252 fallback.
 - The upstream binary display and override boundary is inspected through `tests/cli.rs` `binary_changed` and `binary_override`, `src/options.rs` `--override-binary` parsing, `src/main.rs` binary inline messages, `src/display/json.rs` binary status envelope handling, and `src/files.rs` `guess_content` override precedence plus binary content detection.
@@ -211,7 +212,11 @@ Mapped native behavior:
 - File bytes now also map the upstream mostly-valid UTF-8 branch. One or two invalid UTF-8/null characters are decoded with replacement characters before Windows-1252 fallback, so slightly corrupted source/export text stays readable and does not silently become Latin-1 punctuation.
 - Common binary signatures now stop the lossy UTF-8 path before display, explicit and environment-style binary override globs stop text decoding before all content heuristics, invalid binary override globs return upstream-style bad-argument output through the command runner, and inline binary output maps upstream added/removed/modified status messages for binary-vs-binary and binary-vs-empty inputs.
 
-The focused PHP lane test now passes 191 tests and 1018 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, WordPress tabbed block metadata display configuration, and command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior.
+Targeted `src/options.rs` resource-limit environment parsing now maps `DFT_BYTE_LIMIT`, `DFT_GRAPH_LIMIT`, and `DFT_PARSE_ERROR_LIMIT`. The PHP command runner parses caller-supplied environment arrays as non-negative integers, rejects invalid values with exit 2 before review, preserves explicit PHP option precedence, and routes parsed limits into text, JSON file-byte, and directory JSON command review.
+
+The WordPress env resource-limits example applies that slice to block render metadata. A caller-provided `DFT_BYTE_LIMIT=80` forces a bounded text fallback for `wp-content/plugins/acme-card/render-metadata.php`, keeping render callback and support changes reviewable without reading live process environment values.
+
+The focused PHP lane test now passes 194 tests and 1042 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, WordPress tabbed block metadata display configuration, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, and command resource-limit environment parsing for byte/graph/parse fallback budgets.
 
 Before the required root test runner, this lane checked for an active root harness:
 
@@ -219,21 +224,21 @@ Before the required root test runner, this lane checked for an active root harne
 pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
-No active root harness was found, so this lane ran the aggregate root harness. A captured rerun remained red outside this lane:
+No active root harness was found, so this lane ran the aggregate root harness. The first aggregate run was red in the moving tree:
 
 ```text
 php tools/run-tests.php
-FAIL wordpress ssh feature check example resolves approved wrapper without launch (lanes/gitoxide/tests/ReceivePackTransportTest.php)
-187 test files, 20198 assertions, 1 failures
+190 test files, 20591 assertions, 2 failures
 ```
 
-The difftastic-focused test file is green with 191 tests, 1018 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The prior aggregate root result was red due to the unrelated Gitoxide SSH wrapper scenario above; see the latest lane status for the current root-gate sample.
-
-A later final root-gate sample found another active root harness, so this lane did not start any further duplicate root run:
+A second duplicate-root gate was clear, so this lane ran a failure-filtered aggregate rerun. It completed green:
 
 ```text
-1241221 claude Sat May 23 06:32:15 2026 php tools/run-tests.php
+php tools/run-tests.php 2>&1 | awk '/^FAIL /{print; getline; print} /^[0-9]+ test files,/{print}'
+190 test files, 20600 assertions, 0 failures
 ```
+
+The difftastic-focused test file is green with 194 named tests, 1042 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The latest aggregate root harness is green.
 
 The touched WordPress examples also run:
 
@@ -287,8 +292,12 @@ wp-content/plugins/acme-card/src/render.php --- PHP
 Has syntactic changes.
 
 exit_code=1
+php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
+wp-content/plugins/acme-card/render-metadata.php --- Text (127 B exceeded DFT_BYTE_LIMIT)
+...
+exit_code=1
 ```
 
 ## Next Task
 
-Map upstream command resource limit environment values such as `DFT_BYTE_LIMIT`, `DFT_GRAPH_LIMIT`, and `DFT_PARSE_ERROR_LIMIT` into command-runner parsing while preserving caller-provided environment isolation.
+Map remaining upstream command environment display/directory controls such as `DFT_BACKGROUND`, `DFT_SYNTAX_HIGHLIGHT`, and `DFT_SORT_PATHS` while preserving caller-provided environment isolation.

@@ -88,6 +88,10 @@ Command flag parsing now maps upstream `DFT_CHECK_ONLY`, `DFT_EXIT_CODE`, `DFT_S
 
 The WordPress env CI-flags command example applies that to a block render callback gate. A caller-provided environment array requests check-only output, exit-code behavior, comment ignoring, and unchanged-output policy so the escaping API change is reported while comment-only churn remains filtered.
 
+Resource-limit command parsing now maps upstream `DFT_BYTE_LIMIT`, `DFT_GRAPH_LIMIT`, and `DFT_PARSE_ERROR_LIMIT` environment-style configuration from `src/options.rs` and `src/main.rs`. Invalid numeric values return bad-argument status before review, explicit PHP options override caller-provided environment values, and parsed limits are applied to text, JSON file-byte, and directory JSON review paths.
+
+The WordPress env resource-limits command example applies that to block render metadata. A caller-provided `DFT_BYTE_LIMIT=80` forces oversized PHP metadata into escaped line-oriented fallback output, so a review surface can enforce safety budgets without inspecting the live process environment.
+
 Inline binary display now maps upstream `tests/cli.rs` `binary_changed` / `binary_override` and the binary branch in `src/main.rs`. The WordPress binary asset example applies this to `wp-content/plugins/acme-card/assets/logo.png`, showing a path/language header plus `Binary file modified` size metadata for changed plugin media instead of attempting a misleading text diff.
 
 Binary override globs now map upstream `src/options.rs` `--override-binary` and `src/files.rs` `guess_content` precedence before text heuristics. The WordPress binary-override directory example applies this to generated `build/index.min.js` assets, returning a `Binary changed` JSON envelope without text chunks even though the bytes are valid UTF-8 JavaScript.
@@ -310,8 +314,9 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 php lanes/difftastic/examples/wordpress-plugin-directory-json-diff.php
 php lanes/difftastic/examples/wordpress-env-display-options-command.php
 php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
+php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
 ```
 
 ## Next Task
 
-Map upstream command resource limit environment values such as `DFT_BYTE_LIMIT`, `DFT_GRAPH_LIMIT`, and `DFT_PARSE_ERROR_LIMIT` into command-runner parsing while preserving caller-provided environment isolation.
+Map remaining upstream command environment display/directory controls such as `DFT_BACKGROUND`, `DFT_SYNTAX_HIGHLIGHT`, and `DFT_SORT_PATHS` while preserving caller-provided environment isolation.

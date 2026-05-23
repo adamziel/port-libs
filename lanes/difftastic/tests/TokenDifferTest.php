@@ -1433,6 +1433,115 @@ return [
         $t->contains("Invalid value 'maybe' for DFT_STRIP_CR", $result['stderr']);
         $t->contains("Invalid value 'rainbow' for DFT_COLOR", $result['stderr']);
     },
+    'maps upstream command resource limit environment aggregation' => static function (TestRunner $t): void {
+        $runner = new DiffCommandRunner();
+        $before = "<?php\nreturn [\n    'render_callback' => 'acme_render_legacy_card',\n    'supports' => ['html' => false],\n];\n";
+        $after = "<?php\nreturn [\n    'render_callback' => 'acme_render_modern_card',\n    'supports' => ['html' => true, 'align' => ['wide']],\n];\n";
+        $expectedReason = max(strlen($before), strlen($after)) . ' B exceeded DFT_BYTE_LIMIT';
+        $parsed = $runner->parseCommandOptions([
+            'byteLimit' => '96',
+        ], [
+            'DFT_BYTE_LIMIT' => '80',
+            'DFT_GRAPH_LIMIT' => '75',
+            'DFT_PARSE_ERROR_LIMIT' => '2',
+        ]);
+        $result = $runner->runTextDiff($before, $after, 'wp-content/plugins/acme-card/render-metadata.php', 'PHP', [
+            'language' => 'php',
+        ], [
+            'DFT_BYTE_LIMIT' => '80',
+        ]);
+
+        $t->same([], $parsed['errors']);
+        $t->same(96, $parsed['options']['byteLimit']);
+        $t->same(75, $parsed['options']['graphLimit']);
+        $t->same(2, $parsed['options']['parseErrorLimit']);
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $result['exitCode']);
+        $t->same(true, $result['hasChanges']);
+        $t->contains('wp-content/plugins/acme-card/render-metadata.php --- Text (' . $expectedReason . ')', $result['stdout']);
+        $t->contains('acme_render_legacy_card', $result['stdout']);
+        $t->contains('acme_render_modern_card', $result['stdout']);
+    },
+    'rejects invalid command resource limit environment before review' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runTextDiff('old', 'new', 'readme.txt', 'Text', [
+            'language' => 'text',
+        ], [
+            'DFT_BYTE_LIMIT' => 'big',
+            'DFT_GRAPH_LIMIT' => '-1',
+            'DFT_PARSE_ERROR_LIMIT' => '1.5',
+        ]);
+        $explicit = (new DiffCommandRunner())->parseCommandOptions([
+            'graphLimit' => 'wide',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $result['exitCode']);
+        $t->same('', $result['stdout']);
+        $t->same(false, $result['hasChanges']);
+        $t->contains("Invalid value 'big' for DFT_BYTE_LIMIT", $result['stderr']);
+        $t->contains("Invalid value '-1' for DFT_GRAPH_LIMIT", $result['stderr']);
+        $t->contains("Invalid value '1.5' for DFT_PARSE_ERROR_LIMIT", $result['stderr']);
+        $t->contains("Invalid value 'wide' for --graph-limit", implode("\n", $explicit['errors']));
+    },
+    'routes command resource limits into json file and directory review' => static function (TestRunner $t): void {
+        $before = "<?php\nreturn [\n    'render_callback' => 'acme_render_legacy_card',\n    'supports' => ['html' => false],\n];\n";
+        $after = "<?php\nreturn [\n    'render_callback' => 'acme_render_modern_card',\n    'supports' => ['html' => true, 'align' => ['wide']],\n];\n";
+        $expectedLanguage = 'Text (' . max(strlen($before), strlen($after)) . ' B exceeded DFT_BYTE_LIMIT)';
+        $runner = new DiffCommandRunner();
+        $file = $runner->runJsonFileBytesDiff($before, $after, 'wp-content/plugins/acme-card/render-metadata.php', 'PHP', [
+            'language' => 'php',
+            'exitCode' => true,
+        ], [
+            'DFT_BYTE_LIMIT' => '80',
+        ]);
+
+        $root = sys_get_temp_dir() . '/difftastic-command-limits-' . str_replace('.', '-', uniqid('', true));
+        $left = $root . '/before';
+        $right = $root . '/after';
+        $write = static function (string $path, string $contents): void {
+            $directory = dirname($path);
+            if (!is_dir($directory)) {
+                mkdir($directory, 0777, true);
+            }
+            file_put_contents($path, $contents);
+        };
+        $remove = static function (string $path) use (&$remove): void {
+            if (!file_exists($path)) {
+                return;
+            }
+            if (is_dir($path) && !is_link($path)) {
+                foreach (scandir($path) ?: [] as $entry) {
+                    if ($entry !== '.' && $entry !== '..') {
+                        $remove($path . DIRECTORY_SEPARATOR . $entry);
+                    }
+                }
+                rmdir($path);
+                return;
+            }
+            unlink($path);
+        };
+
+        try {
+            $write($left . '/render-metadata.php', $before);
+            $write($right . '/render-metadata.php', $after);
+
+            $directory = $runner->runJsonDirectoryDiff($left, $right, [
+                'sortPaths' => true,
+                'exitCode' => true,
+            ], [
+                'DFT_BYTE_LIMIT' => '80',
+            ]);
+
+            $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $file['exitCode']);
+            $t->same($expectedLanguage, $file['file']['language']);
+            $t->same('changed', $file['file']['status']);
+            $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $directory['exitCode']);
+            $t->same(1, count($directory['files']));
+            $t->same('render-metadata.php', $directory['files'][0]['path']);
+            $t->same($expectedLanguage, $directory['files'][0]['language']);
+            $t->same('changed', $directory['files'][0]['status']);
+        } finally {
+            $remove($root);
+        }
+    },
     'wordpress command env ci flags report escaping changes only' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-render-callback-before.php');
         $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-render-callback-after.php');
