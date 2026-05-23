@@ -8,6 +8,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $sourceDir = sys_get_temp_dir() . '/quadrable-wp-raw-entry-source-' . bin2hex(random_bytes(6));
 $restoreDir = sys_get_temp_dir() . '/quadrable-wp-raw-entry-restore-' . bin2hex(random_bytes(6));
+$upstreamRestoreDir = sys_get_temp_dir() . '/quadrable-wp-raw-entry-upstream-' . bin2hex(random_bytes(6));
 
 $cleanup = static function (string $dir): void {
     if (!is_dir($dir)) {
@@ -79,8 +80,30 @@ try {
     $restored->checkout('master');
     $publishedPost = $restored->get('wp_posts:1');
 
+    $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-dump-restore-oracle.json';
+    $oracle = json_decode((string) file_get_contents($oraclePath), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($oracle)
+        || !isset($oracle['fixtureValues'], $oracle['restored']['entries'])
+        || !is_array($oracle['fixtureValues'])
+        || !is_array($oracle['restored']['entries'])
+    ) {
+        throw new RuntimeException('malformed upstream LMDB dump/restore oracle fixture');
+    }
+
+    $upstream = QuadbStore::restoreRawEntryDump($upstreamRestoreDir, $oracle['restored']['entries']);
+    $upstreamRawEntriesMatchAfterImport = $oracle['restored']['entries'] === $rawSnapshotHex($upstream->lmdbRawEntrySnapshot());
+    $binaryKey = hex2bin($oracle['fixtureValues']['binaryKeyHex']);
+    if (!is_string($binaryKey)) {
+        throw new RuntimeException('malformed upstream binary key fixture');
+    }
+    $detachedDelegatedPost = $upstream->get($binaryKey);
+    $upstream->checkout('binary-proof');
+    $namedDelegatedPost = $upstream->get($binaryKey);
+    $upstream->checkout('private-proof');
+    $privateDelegatedOption = $upstream->get('wp_options:private');
+
     echo json_encode([
-        'scenario' => 'restore a WordPress Quadrable full-head store from raw LMDB cursor entries only',
+        'scenario' => 'restore WordPress Quadrable stores from raw LMDB cursor entries only',
         'rawEntryDigest' => QuadbStore::portableRawEntryDigest($rawEntries),
         'rawEntriesMatchAfterImport' => $rawEntriesMatchAfterImport,
         'roots' => [
@@ -93,8 +116,16 @@ try {
             'previewPost' => $previewPost,
             'publishedPost' => $publishedPost,
         ],
+        'upstreamMixedProofRestore' => [
+            'rawEntryDigest' => QuadbStore::portableRawEntryDigest($oracle['restored']['entries']),
+            'rawEntriesMatchAfterImport' => $upstreamRawEntriesMatchAfterImport,
+            'detachedDelegatedPostHex' => bin2hex($detachedDelegatedPost),
+            'namedDelegatedPostHex' => bin2hex($namedDelegatedPost),
+            'privateDelegatedOptionHex' => bin2hex($privateDelegatedOption),
+        ],
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($sourceDir);
     $cleanup($restoreDir);
+    $cleanup($upstreamRestoreDir);
 }

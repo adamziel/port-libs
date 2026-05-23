@@ -1590,9 +1590,9 @@ return [
             quadrableQuadbRemoveDir($corruptDir);
         }
     },
-    'native quadb store restores upstream full-head LMDB cursor slices and rejects proof witnesses' => static function (TestRunner $t): void {
+    'native quadb store restores upstream full and proof-backed LMDB cursor dumps without portable state' => static function (TestRunner $t): void {
         $restoreDir = quadrableQuadbTempDir();
-        $rejectDir = quadrableQuadbTempDir();
+        $mixedRestoreDir = quadrableQuadbTempDir();
 
         try {
             $oraclePath = dirname(__DIR__) . '/fixtures/upstream-lmdb-dump-restore-oracle.json';
@@ -1618,8 +1618,11 @@ return [
             $binaryKey = quadrableQuadbOracleBytes($values['binaryKeyHex']);
             $binaryValue = quadrableQuadbOracleBytes($values['binaryValueHex']);
             $previewValue = quadrableQuadbOracleBytes($values['previewValueHex']);
+            $delegatedValue = quadrableQuadbOracleBytes($values['delegatedValueHex']);
+            $detachedValue = quadrableQuadbOracleBytes($values['detachedValueHex']);
             $privateValue = quadrableQuadbOracleBytes($values['privateValueHex']);
             $privatePostValue = quadrableQuadbOracleBytes($values['privatePostValueHex']);
+            $privateDelegatedValue = quadrableQuadbOracleBytes($values['privateDelegatedValueHex']);
 
             $t->same('a-preview', $restored->currentHeadName());
             $t->same($previewValue, $restored->get('wp_posts:2'));
@@ -1634,13 +1637,27 @@ return [
             $t->same($privateValue, $restored->get('wp_options:private'));
             $t->same($privatePostValue, $restored->get('wp_posts:private'));
 
-            $t->throws(RuntimeException::class, static fn () => QuadbStore::restoreRawEntryDump(
-                $rejectDir,
-                $oracle['restored']['entries']
+            $mixed = QuadbStore::restoreRawEntryDump($mixedRestoreDir, $oracle['restored']['entries']);
+            $t->same($oracle['restored']['entries'], quadrableQuadbRawSnapshotHex($mixed->lmdbRawEntrySnapshot()));
+            $t->same($oracle['restored']['rawEntryDigest'], QuadbStore::portableRawEntryDigest(
+                quadrableQuadbRawSnapshotHex($mixed->lmdbRawEntrySnapshot())
             ));
+            $t->true($mixed->isDetachedHead());
+            $t->same($detachedValue, $mixed->get($binaryKey));
+
+            $mixed->checkout('binary-proof');
+            $t->same($delegatedValue, $mixed->get($binaryKey));
+            $t->throws(RuntimeException::class, static fn () => $mixed->put($binaryKey, 'blocked'));
+
+            $mixed->checkout('private-proof');
+            $t->same($privateDelegatedValue, $mixed->get('wp_options:private'));
+
+            $mixed->checkout('master');
+            $t->same('plain', $mixed->get('wp_options:plain'));
+            $t->same($binaryValue, $mixed->get($binaryKey));
         } finally {
             quadrableQuadbRemoveDir($restoreDir);
-            quadrableQuadbRemoveDir($rejectDir);
+            quadrableQuadbRemoveDir($mixedRestoreDir);
         }
     },
     'native quadb store restores portable dumps for mixed full proof detached and noTrack heads' => static function (TestRunner $t): void {

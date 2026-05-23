@@ -289,6 +289,215 @@ final class SparseTree
     }
 
     /**
+     * Rebuilds an imported partial tree from persisted storage records. This is
+     * used when restoring upstream LMDB cursor dumps that contain proof-backed
+     * heads but not the original proof event history.
+     *
+     * @param array{
+     *     rootNodeId: int|string,
+     *     leaves: array<int|string, array<string, mixed>>,
+     *     branches: array<int|string, array<string, mixed>>
+     * } $snapshot
+     */
+    public static function fromPartialStorageSnapshot(array $snapshot, ?HashTree $hashTree = null): self
+    {
+        if (!isset($snapshot['rootNodeId'], $snapshot['leaves'], $snapshot['branches'])
+            || !is_array($snapshot['leaves'])
+            || !is_array($snapshot['branches'])
+        ) {
+            throw new \InvalidArgumentException('partial storage snapshot is malformed');
+        }
+
+        $tree = new self($hashTree);
+        $maxNodeId = 0;
+        $leaves = [];
+        foreach ($snapshot['leaves'] as $nodeIdRaw => $record) {
+            $nodeId = self::parseStorageNodeId($nodeIdRaw, 'partial storage leaf node id');
+            if (isset($leaves[$nodeId])) {
+                throw new \InvalidArgumentException('partial storage snapshot contains a duplicate leaf node id');
+            }
+            if ($nodeId >= TrackedNodeStore::FIRST_INTERIOR_NODE_ID
+                && $nodeId < TrackedNodeStore::FIRST_MEMSTORE_NODE_ID
+            ) {
+                throw new \InvalidArgumentException('partial storage leaf node id is in the branch node range');
+            }
+            if (!is_array($record) || !isset($record['type']) || !is_string($record['type'])) {
+                throw new \InvalidArgumentException('partial storage leaf record is malformed');
+            }
+
+            if ($record['type'] === 'leaf') {
+                if (!isset($record['keyHash'], $record['value'], $record['hash'])
+                    || !is_string($record['keyHash'])
+                    || !is_string($record['value'])
+                    || !is_string($record['hash'])
+                ) {
+                    throw new \InvalidArgumentException('partial storage leaf record is malformed');
+                }
+                self::assertHash($record['keyHash']);
+                self::assertHash($record['hash']);
+                $expectedHash = $tree->hashTree->leafHashForKeyHash($record['keyHash'], $record['value']);
+                if ($record['hash'] !== $expectedHash) {
+                    throw new \InvalidArgumentException('partial storage leaf hash does not match key/value bytes');
+                }
+
+                $key = '';
+                if (array_key_exists('key', $record) && $record['key'] !== null) {
+                    if (!is_string($record['key'])) {
+                        throw new \InvalidArgumentException('partial storage leaf key is malformed');
+                    }
+                    if ($record['key'] !== '') {
+                        self::assertNonEmptyKey($record['key']);
+                    }
+                    $key = $record['key'];
+                }
+
+                $leaves[$nodeId] = [
+                    'nodeId' => $nodeId,
+                    'type' => 'leaf',
+                    'keyHash' => $record['keyHash'],
+                    'value' => $record['value'],
+                    'key' => $key,
+                    'hash' => $record['hash'],
+                ];
+            } elseif ($record['type'] === 'witnessLeaf') {
+                if (!isset($record['keyHash'], $record['valueHash'], $record['hash'])
+                    || !is_string($record['keyHash'])
+                    || !is_string($record['valueHash'])
+                    || !is_string($record['hash'])
+                ) {
+                    throw new \InvalidArgumentException('partial storage witness leaf record is malformed');
+                }
+                self::assertHash($record['keyHash']);
+                self::assertHash($record['valueHash']);
+                self::assertHash($record['hash']);
+                $expectedHash = $tree->hashTree->leafHashForKeyHashAndValueHash(
+                    $record['keyHash'],
+                    $record['valueHash']
+                );
+                if ($record['hash'] !== $expectedHash) {
+                    throw new \InvalidArgumentException('partial storage witness leaf hash does not match key/value hashes');
+                }
+
+                $leaves[$nodeId] = [
+                    'nodeId' => $nodeId,
+                    'type' => 'witnessLeaf',
+                    'keyHash' => $record['keyHash'],
+                    'valueHash' => $record['valueHash'],
+                    'hash' => $record['hash'],
+                ];
+            } else {
+                throw new \InvalidArgumentException('partial storage leaf bucket contains an unknown node type');
+            }
+
+            $maxNodeId = max($maxNodeId, $nodeId);
+        }
+
+        $branches = [];
+        foreach ($snapshot['branches'] as $nodeIdRaw => $record) {
+            $nodeId = self::parseStorageNodeId($nodeIdRaw, 'partial storage branch node id');
+            if (isset($leaves[$nodeId]) || isset($branches[$nodeId])) {
+                throw new \InvalidArgumentException('partial storage snapshot contains duplicate node ids');
+            }
+            if ($nodeId < TrackedNodeStore::FIRST_INTERIOR_NODE_ID) {
+                throw new \InvalidArgumentException('partial storage branch node id is in the leaf node range');
+            }
+            if (!is_array($record) || !isset($record['type']) || !is_string($record['type'])) {
+                throw new \InvalidArgumentException('partial storage branch record is malformed');
+            }
+
+            if ($record['type'] === 'witness') {
+                if (!isset($record['hash']) || !is_string($record['hash'])) {
+                    throw new \InvalidArgumentException('partial storage witness branch record is malformed');
+                }
+                self::assertHash($record['hash']);
+                $branches[$nodeId] = [
+                    'nodeId' => $nodeId,
+                    'type' => 'witness',
+                    'hash' => $record['hash'],
+                ];
+            } elseif ($record['type'] === 'branch') {
+                if (!isset($record['leftNodeId'], $record['rightNodeId'], $record['hash'])
+                    || !is_string($record['hash'])
+                ) {
+                    throw new \InvalidArgumentException('partial storage branch record is malformed');
+                }
+                self::assertHash($record['hash']);
+                $leftNodeId = self::parseStorageChildNodeId($record['leftNodeId'], 'partial storage left child node id');
+                $rightNodeId = self::parseStorageChildNodeId($record['rightNodeId'], 'partial storage right child node id');
+                if ($leftNodeId === 0 && $rightNodeId === 0) {
+                    throw new \InvalidArgumentException('partial storage branch must reference at least one child');
+                }
+                $branches[$nodeId] = [
+                    'nodeId' => $nodeId,
+                    'type' => 'branch',
+                    'leftNodeId' => $leftNodeId,
+                    'rightNodeId' => $rightNodeId,
+                    'hash' => $record['hash'],
+                ];
+            } else {
+                throw new \InvalidArgumentException('partial storage interior bucket contains an unknown node type');
+            }
+
+            $maxNodeId = max($maxNodeId, $nodeId);
+        }
+
+        $rootNodeId = self::parseStorageChildNodeId($snapshot['rootNodeId'], 'partial storage root node id');
+        $visiting = [];
+        $build = function (int $nodeId, int $depth) use (&$build, &$visiting, $leaves, $branches, $tree): array {
+            if ($nodeId === 0) {
+                return [
+                    'nodeId' => 0,
+                    'type' => 'empty',
+                    'depth' => $depth,
+                    'hash' => HashTree::EMPTY_HASH,
+                ];
+            }
+            if (isset($visiting[$nodeId])) {
+                throw new \InvalidArgumentException('partial storage snapshot contains a node cycle');
+            }
+
+            if (isset($leaves[$nodeId])) {
+                return ['depth' => $depth] + $leaves[$nodeId];
+            }
+            if (!isset($branches[$nodeId])) {
+                throw new \InvalidArgumentException('partial storage snapshot references an unknown node');
+            }
+
+            $record = $branches[$nodeId];
+            if ($record['type'] === 'witness') {
+                return ['depth' => $depth] + $record;
+            }
+
+            $visiting[$nodeId] = true;
+            $left = $build($record['leftNodeId'], $depth + 1);
+            $right = $build($record['rightNodeId'], $depth + 1);
+            unset($visiting[$nodeId]);
+
+            $expectedHash = $tree->hashTree->branchHash($left['hash'], $right['hash']);
+            if ($record['hash'] !== $expectedHash) {
+                throw new \InvalidArgumentException('partial storage branch hash does not match child nodes');
+            }
+
+            return [
+                'nodeId' => $nodeId,
+                'type' => 'branch',
+                'depth' => $depth,
+                'left' => $left,
+                'right' => $right,
+                'hash' => $record['hash'],
+            ];
+        };
+
+        $tree->partialRoot = $build($rootNodeId, 0);
+        $tree->nextPartialNodeId = max(
+            TrackedNodeStore::FIRST_MEMSTORE_NODE_ID,
+            $maxNodeId >= TrackedNodeStore::FIRST_MEMSTORE_NODE_ID ? $maxNodeId + 1 : TrackedNodeStore::FIRST_MEMSTORE_NODE_ID
+        );
+
+        return $tree;
+    }
+
+    /**
      * @param list<SyncRequest> $requests
      * @param list<Proof> $responses
      */
@@ -610,6 +819,38 @@ final class SparseTree
         if ($key === '') {
             throw new \InvalidArgumentException('zero-length keys not allowed');
         }
+    }
+
+    private static function parseStorageNodeId(mixed $value, string $label): int
+    {
+        $nodeId = self::parseStorageChildNodeId($value, $label);
+        if ($nodeId === 0) {
+            throw new \InvalidArgumentException($label . ' must be positive');
+        }
+
+        return $nodeId;
+    }
+
+    private static function parseStorageChildNodeId(mixed $value, string $label): int
+    {
+        if (is_int($value)) {
+            $nodeId = $value;
+        } elseif (is_string($value) && preg_match('/^(0|[1-9][0-9]*)$/', $value)) {
+            $max = (string) PHP_INT_MAX;
+            if (strlen($value) > strlen($max) || (strlen($value) === strlen($max) && strcmp($value, $max) > 0)) {
+                throw new \InvalidArgumentException($label . ' exceeds PHP integer range');
+            }
+
+            $nodeId = (int) $value;
+        } else {
+            throw new \InvalidArgumentException($label . ' must be a non-negative integer');
+        }
+
+        if ($nodeId < 0) {
+            throw new \InvalidArgumentException($label . ' must be non-negative');
+        }
+
+        return $nodeId;
     }
 
     /**

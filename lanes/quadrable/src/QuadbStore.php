@@ -465,10 +465,10 @@ final class QuadbStore
     }
 
     /**
-     * Restores a store from upstream-shaped LMDB cursor entries alone. This
-     * first slice supports full tracked/noTrack heads and detached full heads;
-     * proof-backed witness records are rejected until their event history can
-     * be reconstructed from raw buckets.
+     * Restores a store from upstream-shaped LMDB cursor entries alone. Full
+     * heads are restored into the tracked node store. Proof-backed heads are
+     * restored as immutable partial projections, preserving raw witness bucket
+     * bytes even though the original proof event history is unavailable.
      *
      * @param array<string, list<array{keyHex: string, valueHex: string}>> $rawEntries
      */
@@ -490,6 +490,8 @@ final class QuadbStore
             $parsed['currentHead'],
             $parsed['detachedHeadNodeId'],
             $parsed['trackedKeys'],
+            partialProofHeads: $parsed['partialProofHeads'],
+            partialDetachedHead: $parsed['partialDetachedHead'],
             trackKeys: $trackKeys
         );
         $store->persist();
@@ -1447,6 +1449,9 @@ final class QuadbStore
         if ($state === null) {
             throw new \RuntimeException('current head is not a proof-backed partial tree');
         }
+        if (($state['rawProjection'] ?? false) === true) {
+            throw new \RuntimeException('raw-entry-restored proof-backed heads cannot merge proofs without proof event history');
+        }
 
         $partial = $this->partialTreeFromState($state);
         $rootBeforeMerge = $partial->rootHash();
@@ -1895,6 +1900,8 @@ final class QuadbStore
      * @return array{
      *     trackedNodeStore: array<string, mixed>,
      *     trackedKeys: array<string, string>,
+     *     partialProofHeads: array<string, array<string, mixed>>,
+     *     partialDetachedHead: ?array<string, mixed>,
      *     currentHead: ?string,
      *     detachedHeadNodeId: int
      * }
@@ -1916,80 +1923,230 @@ final class QuadbStore
         }
         ksort($heads, SORT_STRING);
 
-        $leaves = [];
+        $rawLeaves = [];
         foreach ($rawEntries['quadrable_nodesLeaf'] as $entry) {
             $nodeId = self::parseRawUInt64EntryKey($entry['keyHex'], 'raw LMDB leaf node id');
-            if (isset($leaves[$nodeId])) {
+            if (isset($rawLeaves[$nodeId])) {
                 throw new \InvalidArgumentException('raw LMDB leaf bucket contains a duplicate node id');
             }
 
-            $leaves[$nodeId] = self::decodeRawLmdbLeafNode(
+            $rawLeaves[$nodeId] = self::decodeRawLmdbLeafRecord(
                 self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB leaf value')
             );
         }
-        ksort($leaves, SORT_NUMERIC);
+        ksort($rawLeaves, SORT_NUMERIC);
 
-        $branches = [];
+        $rawBranches = [];
         foreach ($rawEntries['quadrable_nodesInterior'] as $entry) {
             $nodeId = self::parseRawUInt64EntryKey($entry['keyHex'], 'raw LMDB branch node id');
-            if (isset($branches[$nodeId])) {
+            if (isset($rawLeaves[$nodeId]) || isset($rawBranches[$nodeId])) {
                 throw new \InvalidArgumentException('raw LMDB interior bucket contains a duplicate node id');
             }
 
-            $branches[$nodeId] = self::decodeRawLmdbBranchNode(
+            $rawBranches[$nodeId] = self::decodeRawLmdbInteriorRecord(
                 self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB branch value')
             );
         }
-        ksort($branches, SORT_NUMERIC);
+        ksort($rawBranches, SORT_NUMERIC);
 
         $trackedKeys = [];
+        $trackedKeysByNodeId = [];
         foreach ($rawEntries['quadrable_key'] as $entry) {
             $nodeId = self::parseRawUInt64EntryKey($entry['keyHex'], 'raw LMDB tracked-key node id');
-            if (!isset($leaves[$nodeId])) {
+            if (!isset($rawLeaves[$nodeId])) {
                 throw new \InvalidArgumentException('raw LMDB tracked-key bucket references an unknown leaf');
             }
 
             $trackedKey = self::decodeRawEntryHexBytes($entry['valueHex'], 'raw LMDB tracked key');
             SparseTree::assertNonEmptyKey($trackedKey);
             $keyHash = (new HashTree())->keyHash($trackedKey);
-            if ($keyHash !== $leaves[$nodeId]['keyHash']) {
+            if ($keyHash !== $rawLeaves[$nodeId]['keyHash']) {
                 throw new \InvalidArgumentException('raw LMDB tracked key does not match leaf key hash');
+            }
+            if (isset($trackedKeysByNodeId[$nodeId]) && $trackedKeysByNodeId[$nodeId] !== $trackedKey) {
+                throw new \InvalidArgumentException('raw LMDB tracked-key bucket contains a duplicate node id');
             }
             if (isset($trackedKeys[$keyHash]) && $trackedKeys[$keyHash] !== $trackedKey) {
                 throw new \InvalidArgumentException('raw LMDB tracked keys contain a hash collision');
             }
 
             $trackedKeys[$keyHash] = $trackedKey;
+            $trackedKeysByNodeId[$nodeId] = $trackedKey;
         }
         ksort($trackedKeys, SORT_STRING);
+        ksort($trackedKeysByNodeId, SORT_NUMERIC);
 
         [$currentHead, $detachedHeadNodeId] = self::parseRawQuadbState($rawEntries['quadrable_quadb_state']);
 
+        $hashTree = new HashTree();
+        $hashMemo = [0 => HashTree::EMPTY_HASH];
+        $hashVisiting = [];
+        $nodeHash = function (int $nodeId) use (
+            &$nodeHash,
+            &$hashMemo,
+            &$hashVisiting,
+            $rawLeaves,
+            $rawBranches,
+            $hashTree
+        ): string {
+            if (isset($hashMemo[$nodeId])) {
+                return $hashMemo[$nodeId];
+            }
+            if (isset($hashVisiting[$nodeId])) {
+                throw new \InvalidArgumentException('raw LMDB node graph contains a cycle');
+            }
+            if (isset($rawLeaves[$nodeId])) {
+                $leaf = $rawLeaves[$nodeId];
+                if ($leaf['type'] === 'leaf') {
+                    $expectedHash = $hashTree->leafHashForKeyHash($leaf['keyHash'], $leaf['value']);
+                } else {
+                    $expectedHash = $hashTree->leafHashForKeyHashAndValueHash($leaf['keyHash'], $leaf['valueHash']);
+                }
+                if ($leaf['hash'] !== $expectedHash) {
+                    throw new \InvalidArgumentException('raw LMDB leaf hash does not match stored key/value bytes');
+                }
+
+                return $hashMemo[$nodeId] = $leaf['hash'];
+            }
+            if (!isset($rawBranches[$nodeId])) {
+                throw new \InvalidArgumentException('raw LMDB branch references an unknown child');
+            }
+
+            $branch = $rawBranches[$nodeId];
+            if ($branch['type'] === 'witness') {
+                return $hashMemo[$nodeId] = $branch['hash'];
+            }
+
+            $hashVisiting[$nodeId] = true;
+            $expectedHash = $hashTree->branchHash(
+                $nodeHash($branch['leftNodeId']),
+                $nodeHash($branch['rightNodeId'])
+            );
+            unset($hashVisiting[$nodeId]);
+            if ($branch['hash'] !== $expectedHash) {
+                throw new \InvalidArgumentException('raw LMDB branch hash does not match child nodes');
+            }
+
+            return $hashMemo[$nodeId] = $branch['hash'];
+        };
+
+        foreach (array_keys($rawLeaves) as $nodeId) {
+            $nodeHash($nodeId);
+        }
+        foreach (array_keys($rawBranches) as $nodeId) {
+            $nodeHash($nodeId);
+        }
+
+        $witnessMemo = [0 => false];
+        $visiting = [];
+        $subtreeHasWitness = function (int $nodeId) use (
+            &$subtreeHasWitness,
+            &$witnessMemo,
+            &$visiting,
+            $rawLeaves,
+            $rawBranches
+        ): bool {
+            if (isset($witnessMemo[$nodeId])) {
+                return $witnessMemo[$nodeId];
+            }
+            if (isset($visiting[$nodeId])) {
+                throw new \InvalidArgumentException('raw LMDB node graph contains a cycle');
+            }
+            if (isset($rawLeaves[$nodeId])) {
+                return $witnessMemo[$nodeId] = $rawLeaves[$nodeId]['type'] === 'witnessLeaf';
+            }
+            if (!isset($rawBranches[$nodeId])) {
+                throw new \InvalidArgumentException('raw LMDB head references an unknown node');
+            }
+
+            $branch = $rawBranches[$nodeId];
+            if ($branch['type'] === 'witness') {
+                return $witnessMemo[$nodeId] = true;
+            }
+
+            $visiting[$nodeId] = true;
+            $hasWitness = $subtreeHasWitness($branch['leftNodeId'])
+                || $subtreeHasWitness($branch['rightNodeId']);
+            unset($visiting[$nodeId]);
+
+            return $witnessMemo[$nodeId] = $hasWitness;
+        };
+
+        $fullLeaves = [];
+        foreach ($rawLeaves as $nodeId => $leaf) {
+            if ($leaf['type'] !== 'leaf') {
+                continue;
+            }
+            $fullLeaves[$nodeId] = [
+                'keyHash' => $leaf['keyHash'],
+                'value' => $leaf['value'],
+                'hash' => $leaf['hash'],
+            ];
+        }
+        ksort($fullLeaves, SORT_NUMERIC);
+
+        $fullBranches = [];
+        foreach ($rawBranches as $nodeId => $branch) {
+            if ($branch['type'] !== 'branch' || $subtreeHasWitness($nodeId)) {
+                continue;
+            }
+            $fullBranches[$nodeId] = [
+                'leftNodeId' => $branch['leftNodeId'],
+                'rightNodeId' => $branch['rightNodeId'],
+                'hash' => $branch['hash'],
+            ];
+        }
+        ksort($fullBranches, SORT_NUMERIC);
+
+        $projectionNodes = self::rawProjectionNodes($rawLeaves, $rawBranches, $trackedKeysByNodeId);
+        $partialProofHeads = [];
+        $fullHeads = [];
+        $nextStorageOrdinal = 1;
+        foreach ($heads as $head => $nodeId) {
+            if ($nodeId !== 0) {
+                $nodeHash($nodeId);
+            }
+            if ($nodeId !== 0 && $subtreeHasWitness($nodeId)) {
+                $partialProofHeads[$head] = self::rawProjectionPartialState(
+                    $head,
+                    $nodeId,
+                    $nodeHash($nodeId),
+                    $projectionNodes,
+                    $nextStorageOrdinal++
+                );
+                continue;
+            }
+
+            $fullHeads[$head] = $nodeId;
+        }
+        ksort($partialProofHeads, SORT_STRING);
+        ksort($fullHeads, SORT_STRING);
+
+        $partialDetachedHead = null;
+        if ($detachedHeadNodeId !== 0) {
+            $nodeHash($detachedHeadNodeId);
+            if ($subtreeHasWitness($detachedHeadNodeId)) {
+                $partialDetachedHead = self::rawProjectionPartialState(
+                    null,
+                    $detachedHeadNodeId,
+                    $nodeHash($detachedHeadNodeId),
+                    $projectionNodes,
+                    $nextStorageOrdinal
+                );
+                $detachedHeadNodeId = 0;
+            }
+        }
+
         $snapshot = [
-            'leaves' => $leaves,
-            'branches' => $branches,
-            'heads' => $heads,
-            'nextLeafNodeId' => self::nextLmdbLeafNodeId($leaves),
-            'nextBranchNodeId' => self::nextLmdbInteriorNodeId($branches),
+            'leaves' => $fullLeaves,
+            'branches' => $fullBranches,
+            'heads' => $fullHeads,
+            'nextLeafNodeId' => self::nextLmdbLeafNodeId($fullLeaves),
+            'nextBranchNodeId' => self::nextLmdbInteriorNodeId($fullBranches),
             'nextMemStoreNodeId' => TrackedNodeStore::FIRST_MEMSTORE_NODE_ID,
         ];
 
         $nodeStore = TrackedNodeStore::fromSnapshot($snapshot);
-        $hashTree = new HashTree();
-        foreach ($leaves as $leaf) {
-            if ($leaf['hash'] !== $hashTree->leafHashForKeyHash($leaf['keyHash'], $leaf['value'])) {
-                throw new \InvalidArgumentException('raw LMDB leaf hash does not match key/value bytes');
-            }
-        }
-        foreach ($branches as $branch) {
-            if ($branch['hash'] !== $hashTree->branchHash(
-                $nodeStore->nodeHash($branch['leftNodeId']),
-                $nodeStore->nodeHash($branch['rightNodeId'])
-            )) {
-                throw new \InvalidArgumentException('raw LMDB branch hash does not match child nodes');
-            }
-        }
-
         if ($detachedHeadNodeId !== 0) {
             $nodeStore->nodeHash($detachedHeadNodeId);
         }
@@ -1997,8 +2154,101 @@ final class QuadbStore
         return [
             'trackedNodeStore' => $snapshot,
             'trackedKeys' => $trackedKeys,
+            'partialProofHeads' => $partialProofHeads,
+            'partialDetachedHead' => $partialDetachedHead,
             'currentHead' => $currentHead,
             'detachedHeadNodeId' => $detachedHeadNodeId,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rawLeaves
+     * @param array<int, array<string, mixed>> $rawBranches
+     * @param array<int, string> $trackedKeysByNodeId
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function rawProjectionNodes(array $rawLeaves, array $rawBranches, array $trackedKeysByNodeId): array
+    {
+        $nodes = [];
+        foreach ($rawLeaves as $nodeId => $leaf) {
+            if ($leaf['type'] === 'leaf') {
+                $node = [
+                    'type' => 'leaf',
+                    'hash' => $leaf['hash'],
+                    'keyHash' => $leaf['keyHash'],
+                    'valueHex' => bin2hex($leaf['value']),
+                ];
+            } elseif ($leaf['type'] === 'witnessLeaf') {
+                $node = [
+                    'type' => 'witnessLeaf',
+                    'hash' => $leaf['hash'],
+                    'keyHash' => $leaf['keyHash'],
+                    'valueHash' => $leaf['valueHash'],
+                ];
+            } else {
+                throw new \RuntimeException('unrecognized raw LMDB leaf projection node type');
+            }
+
+            if (isset($trackedKeysByNodeId[$nodeId])) {
+                $node['leafKeyHex'] = bin2hex($trackedKeysByNodeId[$nodeId]);
+            }
+
+            $nodes[(string) $nodeId] = $node;
+        }
+
+        foreach ($rawBranches as $nodeId => $branch) {
+            if ($branch['type'] === 'witness') {
+                $nodes[(string) $nodeId] = [
+                    'type' => 'witness',
+                    'hash' => $branch['hash'],
+                ];
+            } elseif ($branch['type'] === 'branch') {
+                $nodes[(string) $nodeId] = [
+                    'type' => 'branch',
+                    'leftNodeId' => $branch['leftNodeId'],
+                    'rightNodeId' => $branch['rightNodeId'],
+                    'hash' => $branch['hash'],
+                ];
+            } else {
+                throw new \RuntimeException('unrecognized raw LMDB interior projection node type');
+            }
+        }
+
+        ksort($nodes, SORT_NUMERIC);
+
+        return $nodes;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $projectionNodes
+     *
+     * @return array<string, mixed>
+     */
+    private static function rawProjectionPartialState(
+        ?string $head,
+        int $rootNodeId,
+        string $rootHash,
+        array $projectionNodes,
+        int $storageOrdinal
+    ): array {
+        return [
+            'rawProjection' => true,
+            'rootHash' => $rootHash,
+            'proofRootHash' => $rootHash,
+            'storageId' => 'raw-entry-' . substr(hash(
+                'sha256',
+                ($head ?? '[detached]') . "\0" . $storageOrdinal . "\0" . $rootNodeId . "\0" . $rootHash
+            ), 0, 32),
+            'storageOrdinal' => $storageOrdinal,
+            'proofStoragePruned' => true,
+            'proofStoragePrunedProjection' => [
+                'rootNodeId' => $rootNodeId,
+                'nodes' => $projectionNodes,
+            ],
+            'proofs' => [],
+            'updates' => [],
+            'events' => [],
         ];
     }
 
@@ -2054,9 +2304,9 @@ final class QuadbStore
     }
 
     /**
-     * @return array{keyHash: string, value: string, hash: string}
+     * @return array<string, mixed>
      */
-    private static function decodeRawLmdbLeafNode(string $value): array
+    private static function decodeRawLmdbLeafRecord(string $value): array
     {
         if (strlen($value) < 72) {
             throw new \InvalidArgumentException('raw LMDB leaf value is too short');
@@ -2064,13 +2314,23 @@ final class QuadbStore
 
         $nodeType = self::unpackUInt64Le(substr($value, 0, 8), 'raw LMDB leaf node type');
         if ($nodeType === self::NODE_TYPE_WITNESS_LEAF) {
-            throw new \RuntimeException('raw LMDB restore does not yet support proof-backed witness leaves');
+            if (strlen($value) !== 104) {
+                throw new \InvalidArgumentException('raw LMDB witness leaf value must be exactly 104 bytes');
+            }
+
+            return [
+                'type' => 'witnessLeaf',
+                'hash' => self::parseRawHashBytes(substr($value, 8, 32), 'raw LMDB witness leaf hash'),
+                'keyHash' => self::parseRawHashBytes(substr($value, 40, 32), 'raw LMDB witness leaf key hash'),
+                'valueHash' => self::parseRawHashBytes(substr($value, 72, 32), 'raw LMDB witness leaf value hash'),
+            ];
         }
         if ($nodeType !== self::NODE_TYPE_LEAF) {
             throw new \InvalidArgumentException('raw LMDB leaf bucket contains a non-leaf node');
         }
 
         return [
+            'type' => 'leaf',
             'hash' => self::parseRawHashBytes(substr($value, 8, 32), 'raw LMDB leaf hash'),
             'keyHash' => self::parseRawHashBytes(substr($value, 40, 32), 'raw LMDB leaf key hash'),
             'value' => substr($value, 72),
@@ -2078,9 +2338,9 @@ final class QuadbStore
     }
 
     /**
-     * @return array{leftNodeId: int, rightNodeId: int, hash: string}
+     * @return array<string, mixed>
      */
-    private static function decodeRawLmdbBranchNode(string $value): array
+    private static function decodeRawLmdbInteriorRecord(string $value): array
     {
         if (strlen($value) !== 48) {
             throw new \InvalidArgumentException('raw LMDB branch value must be exactly 48 bytes');
@@ -2088,7 +2348,15 @@ final class QuadbStore
 
         $firstWord = self::unpackUInt64Le(substr($value, 0, 8), 'raw LMDB branch reference word');
         if ($firstWord === self::NODE_TYPE_WITNESS) {
-            throw new \RuntimeException('raw LMDB restore does not yet support proof-backed witness branches');
+            $secondNodeId = self::unpackUInt64Le(substr($value, 40, 8), 'raw LMDB witness branch padding');
+            if ($secondNodeId !== 0) {
+                throw new \InvalidArgumentException('raw LMDB witness branch record is malformed');
+            }
+
+            return [
+                'type' => 'witness',
+                'hash' => self::parseRawHashBytes(substr($value, 8, 32), 'raw LMDB witness branch hash'),
+            ];
         }
 
         $nodeType = $firstWord & 0xf;
@@ -2118,6 +2386,7 @@ final class QuadbStore
         }
 
         return [
+            'type' => 'branch',
             'leftNodeId' => $leftNodeId,
             'rightNodeId' => $rightNodeId,
             'hash' => self::parseRawHashBytes(substr($value, 8, 32), 'raw LMDB branch hash'),
@@ -2965,6 +3234,17 @@ final class QuadbStore
      */
     private function partialTreeFromState(array $state): SparseTree
     {
+        if (($state['rawProjection'] ?? false) === true) {
+            $partial = SparseTree::fromPartialStorageSnapshot(
+                self::partialStorageSnapshotFromPrunedProjection($state['proofStoragePrunedProjection'])
+            );
+            if ($partial->rootHash() !== $state['rootHash']) {
+                throw new \RuntimeException('raw projection partial proof state root mismatch');
+            }
+
+            return $partial;
+        }
+
         $partial = null;
 
         foreach ($state['events'] as $event) {
@@ -3016,6 +3296,9 @@ final class QuadbStore
         if ($state === null) {
             throw new \RuntimeException('current head is not a proof-backed partial tree');
         }
+        if (($state['rawProjection'] ?? false) === true) {
+            throw new \RuntimeException('raw-entry-restored proof-backed heads cannot be updated without proof event history');
+        }
 
         $keyHash = $this->keyHash($key);
         $partial = $this->partialTreeFromState($state);
@@ -3059,6 +3342,9 @@ final class QuadbStore
         $state = $this->currentPartialProofState();
         if ($state === null) {
             throw new \RuntimeException('current head is not a proof-backed partial tree');
+        }
+        if (($state['rawProjection'] ?? false) === true) {
+            throw new \RuntimeException('raw-entry-restored proof-backed heads cannot be updated without proof event history');
         }
 
         ksort($updates, SORT_STRING);
@@ -3152,6 +3438,61 @@ final class QuadbStore
      */
     private static function parsePartialProofState(mixed $state, string $label): array
     {
+        if (is_array($state) && ($state['rawProjection'] ?? false) === true) {
+            if (!isset($state['rootHash'])
+                || !is_string($state['rootHash'])
+                || !preg_match('/^[0-9a-f]{64}$/', $state['rootHash'])
+                || (($state['proofStoragePruned'] ?? null) !== true)
+            ) {
+                throw new \InvalidArgumentException($label . ' raw projection is malformed');
+            }
+
+            $proofRootHash = $state['proofRootHash'] ?? $state['rootHash'];
+            if (!is_string($proofRootHash) || !preg_match('/^[0-9a-f]{64}$/', $proofRootHash)) {
+                throw new \InvalidArgumentException($label . ' raw projection has malformed proof root');
+            }
+
+            foreach (['proofs', 'updates', 'events'] as $emptyListKey) {
+                if (array_key_exists($emptyListKey, $state)
+                    && (!is_array($state[$emptyListKey]) || $state[$emptyListKey] !== [])
+                ) {
+                    throw new \InvalidArgumentException($label . ' raw projection cannot contain proof event history');
+                }
+            }
+
+            $storageOrdinal = 0;
+            if (array_key_exists('storageOrdinal', $state)) {
+                $storageOrdinal = self::parseNonNegativeNodeId($state['storageOrdinal'], $label . ' storage ordinal');
+            }
+
+            $storageId = $state['storageId'] ?? null;
+            if ($storageId !== null && (!is_string($storageId) || $storageId === '')) {
+                throw new \InvalidArgumentException($label . ' has malformed storage id');
+            }
+            if ($storageId === null) {
+                $storageId = 'raw-entry-' . hash(
+                    'sha256',
+                    $state['rootHash'] . "\0" . $storageOrdinal
+                );
+            }
+
+            return [
+                'rawProjection' => true,
+                'rootHash' => $state['rootHash'],
+                'proofRootHash' => $proofRootHash,
+                'storageId' => $storageId,
+                'storageOrdinal' => $storageOrdinal,
+                'proofStoragePruned' => true,
+                'proofStoragePrunedProjection' => self::parsePrunedProofProjection(
+                    $state['proofStoragePrunedProjection'] ?? null,
+                    $label
+                ),
+                'proofs' => [],
+                'updates' => [],
+                'events' => [],
+            ];
+        }
+
         if (!is_array($state)
             || !isset($state['rootHash'], $state['proofs'])
             || !is_string($state['rootHash'])
@@ -3396,6 +3737,39 @@ final class QuadbStore
                 $label . ' pruned proof root node id'
             ),
             'nodes' => $nodes,
+        ];
+    }
+
+    /**
+     * @param array{rootNodeId: int, nodes: array<string, array<string, mixed>>} $projection
+     *
+     * @return array{rootNodeId: int, leaves: array<string, array<string, mixed>>, branches: array<string, array<string, mixed>>}
+     */
+    private static function partialStorageSnapshotFromPrunedProjection(array $projection): array
+    {
+        $leaves = [];
+        $branches = [];
+        foreach ($projection['nodes'] as $nodeId => $node) {
+            $leafKey = null;
+            $record = self::decodePrunedProjectedNode($node, $leafKey);
+            if ($leafKey !== null) {
+                $record['key'] = $leafKey;
+            }
+
+            if ($record['type'] === 'leaf' || $record['type'] === 'witnessLeaf') {
+                $leaves[(string) $nodeId] = $record;
+                continue;
+            }
+
+            $branches[(string) $nodeId] = $record;
+        }
+        ksort($leaves, SORT_NUMERIC);
+        ksort($branches, SORT_NUMERIC);
+
+        return [
+            'rootNodeId' => $projection['rootNodeId'],
+            'leaves' => $leaves,
+            'branches' => $branches,
         ];
     }
 
