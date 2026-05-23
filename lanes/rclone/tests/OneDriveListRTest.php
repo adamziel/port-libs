@@ -46,6 +46,22 @@ function rclone_onedrive_listr_names(array $entries): array
     );
 }
 
+/**
+ * @return array<string, mixed>
+ */
+function rclone_onedrive_listr_delta_file(int $number, string $parentId = 'root'): array
+{
+    $name = sprintf('asset-%03d.wxr', $number);
+
+    return [
+        'id' => sprintf('asset-%03d', $number),
+        'name' => $name,
+        'size' => $number,
+        'parentReference' => ['driveId' => 'drive', 'id' => $parentId],
+        'file' => ['mimeType' => 'application/rss+xml'],
+    ];
+}
+
 return [
     'onedrive ListR skips duplicate deleted and outside-root delta items while listing shared folders' => static function (TestRunner $t): void {
         $delta = [
@@ -244,6 +260,98 @@ return [
         $t->same('library-drive#wxr', $scoped['entries'][0]->id);
         $t->same('library-drive#backups', $scoped['entries'][0]->parentId);
     },
+    'onedrive paged delta ListR follows nextLink and batches across pages' => static function (TestRunner $t): void {
+        $firstPage = [];
+        for ($i = 1; $i <= 75; $i++) {
+            $firstPage[] = rclone_onedrive_listr_delta_file($i);
+        }
+
+        $secondPage = [];
+        for ($i = 76; $i <= 101; $i++) {
+            $secondPage[] = rclone_onedrive_listr_delta_file($i);
+        }
+
+        $trace = [];
+        $listR = OneDriveListR::fromDeltaPages(
+            [
+                ['value' => $firstPage, '@odata.nextLink' => 'https://graph.example/delta?page=2'],
+                'https://graph.example/delta?page=2' => ['value' => $secondPage],
+            ],
+            'drive#root',
+            listChunk: 75,
+            trace: $trace,
+        );
+
+        $collected = rclone_onedrive_listr_collect($listR);
+
+        $t->same([100, 1], array_map('count', $collected['batches']));
+        $t->same('asset-001.wxr', $collected['batches'][0][0]);
+        $t->same('asset-100.wxr', $collected['batches'][0][99]);
+        $t->same('asset-101.wxr', $collected['batches'][1][0]);
+        $t->same([
+            [
+                'rootUrl' => null,
+                'path' => '/root/delta',
+                'parameters' => ['$top' => ['75']],
+            ],
+            [
+                'rootUrl' => 'https://graph.example/delta?page=2',
+                'path' => '',
+                'parameters' => [],
+            ],
+        ], $trace['requests']);
+        $t->same(['listed' => 101, 'batches' => 2, 'sent' => 101, 'synthesized' => 0, 'syntheticBatches' => 0], $collected['stats']);
+    },
+    'onedrive paged delta ListR returns provider page errors before final flush' => static function (TestRunner $t): void {
+        $firstPage = [];
+        for ($i = 1; $i <= 99; $i++) {
+            $firstPage[] = rclone_onedrive_listr_delta_file($i);
+        }
+
+        $trace = [];
+        $listR = OneDriveListR::fromDeltaPages(
+            [
+                ['value' => $firstPage, '@odata.nextLink' => 'https://graph.example/delta?page=2'],
+                'https://graph.example/delta?page=2' => ['error' => 'Graph delta page failed'],
+            ],
+            'drive#root',
+            listChunk: 99,
+            trace: $trace,
+        );
+
+        $batches = [];
+        $message = null;
+        try {
+            ListDirectory::listRecursiveDirect(
+                $listR,
+                true,
+                '',
+                ListDirectory::LIST_ALL,
+                static function (array $batch) use (&$batches): null {
+                    $batches[] = rclone_onedrive_listr_names($batch);
+
+                    return null;
+                },
+            );
+        } catch (RuntimeException $throwable) {
+            $message = $throwable->getMessage();
+        }
+
+        $t->same("couldn't list files: Graph delta page failed", $message);
+        $t->same([], $batches);
+        $t->same([
+            [
+                'rootUrl' => null,
+                'path' => '/root/delta',
+                'parameters' => ['$top' => ['99']],
+            ],
+            [
+                'rootUrl' => 'https://graph.example/delta?page=2',
+                'path' => '',
+                'parameters' => [],
+            ],
+        ], $trace['requests']);
+    },
     'wordpress onedrive shared ListR restore example includes shared review artifacts' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-shared-listr-restore.php';
 
@@ -261,5 +369,28 @@ return [
         $t->same(true, $example['outsideRootSkipped']);
         $t->same(true, $example['sharedFolderListedConventionally']);
         $t->same('listR', $example['source']);
+    },
+    'wordpress onedrive paged delta restore example follows continuation links' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-delta-paginated-restore.php';
+
+        $t->same('listR-delta-pages', $example['source']);
+        $t->same([100, 5], $example['batchSizes']);
+        $t->same(105, $example['manifestCount']);
+        $t->same('site-backups/database.sql', $example['manifest'][0]);
+        $t->same('site-backups/export.wxr', $example['manifest'][1]);
+        $t->same('site-backups/uploads/image-101.jpg', $example['manifest'][104]);
+        $t->same(true, $example['nextLinkFollowed']);
+        $t->same([
+            [
+                'rootUrl' => null,
+                'path' => '/root/delta',
+                'parameters' => ['$top' => ['75']],
+            ],
+            [
+                'rootUrl' => 'https://graph.example/site-backups/delta?page=2',
+                'path' => '',
+                'parameters' => [],
+            ],
+        ], $example['requests']);
     },
 ];

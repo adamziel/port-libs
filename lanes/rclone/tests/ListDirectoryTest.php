@@ -550,6 +550,109 @@ return [
             static fn (array $entries): RuntimeException => new RuntimeException('callback stopped traversal'),
         ));
     },
+    'ListR selector falls back to Walk when OneDrive delta does not advertise ListR' => static function (TestRunner $t): void {
+        $listCalls = [];
+        $batches = [];
+        $list = static function (string $dir) use (&$listCalls): array {
+            $listCalls[] = $dir;
+
+            return match ($dir) {
+                'site-backups' => [
+                    rclone_list_directory_object('site-backups/export.wxr'),
+                    rclone_list_directory_directory('site-backups/cache'),
+                    rclone_list_directory_directory('site-backups/uploads'),
+                ],
+                'site-backups/uploads' => [
+                    rclone_list_directory_object('site-backups/uploads/hero.jpg'),
+                ],
+                default => throw new RuntimeException("unexpected List call for {$dir}"),
+            };
+        };
+
+        $result = ListDirectory::listRecursive(
+            $list,
+            null,
+            false,
+            'site-backups',
+            -1,
+            ListDirectory::LIST_ALL,
+            static function (array $entries) use (&$batches): null {
+                $batches[] = rclone_list_directory_names($entries);
+
+                return null;
+            },
+            static fn (ObjectInfo $entry): bool => str_ends_with($entry->path, '.wxr')
+                || str_ends_with($entry->path, '.jpg'),
+            static fn (string $remote): bool => $remote !== 'site-backups/cache',
+        );
+
+        $t->same('walk', $result['source']);
+        $t->same('provider-listR-unavailable', $result['reason']);
+        $t->same(['site-backups', 'site-backups/uploads'], $listCalls);
+        $t->same([
+            ['site-backups/export.wxr', 'site-backups/uploads/'],
+            ['site-backups/uploads/hero.jpg'],
+        ], $batches);
+        $t->same(['visited' => 2, 'listed' => 4, 'excluded' => 0, 'skipped' => 0, 'sent' => 3], $result['stats']);
+    },
+    'ListR selector maps upstream fallback gates for bounded exclude and directory filters' => static function (TestRunner $t): void {
+        $list = static fn (string $dir): array => match ($dir) {
+            'site-backups' => [
+                rclone_list_directory_object('site-backups/export.wxr'),
+                rclone_list_directory_object('site-backups/.rclone-ignore'),
+                rclone_list_directory_directory('site-backups/uploads'),
+            ],
+            default => [],
+        };
+        $listR = static fn (string $dir, callable $callback): null => throw new RuntimeException('direct ListR should not be used');
+        $noop = static fn (array $entries): null => null;
+
+        $bounded = ListDirectory::listRecursive(
+            $list,
+            $listR,
+            true,
+            'site-backups',
+            2,
+            ListDirectory::LIST_ALL,
+            $noop,
+        );
+        $excluded = ListDirectory::listRecursive(
+            $list,
+            $listR,
+            true,
+            'site-backups',
+            -1,
+            ListDirectory::LIST_ALL,
+            $noop,
+            excludeIfPresent: ['.rclone-ignore'],
+        );
+        $directoryFiltered = ListDirectory::listRecursive(
+            $list,
+            $listR,
+            false,
+            'site-backups',
+            -1,
+            ListDirectory::LIST_ALL,
+            $noop,
+            static fn (ObjectInfo $entry): bool => true,
+            static fn (string $remote): bool => $remote !== 'site-backups/uploads',
+        );
+        $filesFrom = ListDirectory::listRecursive(
+            $list,
+            $listR,
+            true,
+            'site-backups',
+            -1,
+            ListDirectory::LIST_ALL,
+            $noop,
+            haveFilesFrom: true,
+        );
+
+        $t->same(['walk', 'bounded-recursion'], [$bounded['source'], $bounded['reason']]);
+        $t->same(['walk', 'exclude-if-present'], [$excluded['source'], $excluded['reason']]);
+        $t->same(['walk', 'directory-filters'], [$directoryFiltered['source'], $directoryFiltered['reason']]);
+        $t->same(['walk', 'files-from'], [$filesFrom['source'], $filesFrom['reason']]);
+    },
     'direct ListR preserves provider batches while filtering list types and entries' => static function (TestRunner $t): void {
         $entries = [
             rclone_list_directory_object('a'),
@@ -1026,6 +1129,52 @@ TREE;
         $t->same([''], $listCalls);
         $t->same([''], $listRCalls);
     },
+    'NewDirTree falls back to provider List when files-from filters are active without no-traverse' => static function (TestRunner $t): void {
+        $listCalls = [];
+        $listRCalls = [];
+        $list = static function (string $dir) use (&$listCalls): array {
+            $listCalls[] = $dir;
+
+            return match ($dir) {
+                'site-backups' => [
+                    rclone_list_directory_object('site-backups/export.wxr'),
+                    rclone_list_directory_directory('site-backups/uploads'),
+                ],
+                'site-backups/uploads' => [
+                    rclone_list_directory_object('site-backups/uploads/hero.jpg'),
+                ],
+                default => [],
+            };
+        };
+        $listR = static function (string $dir, callable $callback) use (&$listRCalls): null {
+            $listRCalls[] = $dir;
+            $callback([rclone_list_directory_object('site-backups/should-not-use-listR.wxr')]);
+
+            return null;
+        };
+
+        $tree = ListDirectory::newDirTree(
+            $list,
+            $listR,
+            true,
+            'site-backups',
+            -1,
+            filesFrom: ['site-backups/export.wxr'],
+        );
+
+        $expected = <<<'TREE'
+site-backups/
+  export.wxr
+  uploads/
+site-backups/uploads/
+  hero.jpg
+TREE;
+        $expected .= "\n";
+        $t->same('walk', $tree['source']);
+        $t->same(['site-backups', 'site-backups/uploads'], $listCalls);
+        $t->same([], $listRCalls);
+        $t->same($expected, ListDirectory::formatDirTree($tree['tree']));
+    },
     'NewDirTree no-traverse files-from builds from explicit object lookups only' => static function (TestRunner $t): void {
         $provider = new MemoryProvider();
         $provider->put('site-backups/export.wxr', '<rss>site</rss>');
@@ -1379,6 +1528,31 @@ TREE;
             'site-backups/uploads/2026/05/hero.jpg',
         ], $example['manifest']);
         $t->same(['listed' => 7, 'batches' => 2, 'sent' => 7, 'synthesized' => 0, 'syntheticBatches' => 0], $example['stats']);
+    },
+    'wordpress onedrive disabled delta fallback example uses provider List walk' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-disabled-delta-fallback.php';
+
+        $t->same('walk', $example['source']);
+        $t->same('provider-listR-unavailable', $example['reason']);
+        $t->same(false, $example['listRAdvertised']);
+        $t->same(0, $example['deltaListRCalls']);
+        $t->same([
+            'site-backups',
+            'site-backups/uploads',
+            'site-backups/uploads/2026',
+            'site-backups/uploads/2026/05',
+        ], $example['listCalls']);
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/export.wxr',
+            'site-backups/users.wxr',
+            'site-backups/uploads/',
+            'site-backups/uploads/2026/',
+            'site-backups/uploads/2026/05/',
+            'site-backups/uploads/2026/05/hero.jpg',
+        ], $example['manifest']);
+        $t->same(true, $example['cachePruned']);
+        $t->same(true, $example['generatedFilesBoundedOut']);
     },
     'wordpress files-from no-traverse restore example avoids provider traversal' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-files-from-no-traverse-restore.php';

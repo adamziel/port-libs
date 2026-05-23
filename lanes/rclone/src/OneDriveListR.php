@@ -37,16 +37,57 @@ final class OneDriveListR
         array $sharedFolderListings = [],
         bool $exposeOneNoteFiles = false,
     ): callable {
+        return self::fromDeltaPages(
+            [['value' => $deltaItems]],
+            $rootId,
+            $initialDirectories,
+            $sharedFolderListings,
+            $exposeOneNoteFiles,
+        );
+    }
+
+    /**
+     * Build a ListR callable from Graph delta response pages.
+     *
+     * This models upstream _listAll's continuation loop: the first request uses
+     * /root/delta with $top, each @odata.nextLink becomes the next RootURL with
+     * cleared path/parameters, and final ListHelper.Flush is skipped if a later
+     * provider page errors.
+     *
+     * @param array<int|string, array<string, mixed>> $deltaPages
+     * @param array<string, string> $initialDirectories
+     * @param array<string, list<array<string, mixed>|ObjectInfo>> $sharedFolderListings
+     * @param null|array<string, mixed> $trace
+     * @return callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable)
+     */
+    public static function fromDeltaPages(
+        array $deltaPages,
+        string $rootId,
+        array $initialDirectories = [],
+        array $sharedFolderListings = [],
+        bool $exposeOneNoteFiles = false,
+        int $listChunk = 200,
+        ?array &$trace = null,
+    ): callable {
+        if ($listChunk < 1) {
+            throw new \InvalidArgumentException('OneDrive list chunk must be positive');
+        }
+        if ($trace === null) {
+            $trace = [];
+        }
+
         $pathToId = ['' => $rootId];
         foreach ($initialDirectories as $path => $id) {
             $pathToId[self::normalizePath((string) $path)] = (string) $id;
         }
 
         return static function (string $dir, callable $callback) use (
-            $deltaItems,
+            $deltaPages,
             &$pathToId,
             $sharedFolderListings,
             $exposeOneNoteFiles,
+            $listChunk,
+            &$trace,
         ): ?\Throwable {
             $root = self::normalizePath($dir);
             if (!isset($pathToId[$root])) {
@@ -90,19 +131,35 @@ final class OneDriveListR
             };
 
             try {
-                foreach ($deltaItems as $item) {
-                    self::processDeltaItem(
-                        $item,
+                self::listAllPages(
+                    $deltaPages,
+                    false,
+                    false,
+                    static function (array $item) use (
                         $root,
                         $directoryId,
                         $exposeOneNoteFiles,
                         $helper,
                         $listSharedFolder,
-                        $pathToId,
-                        $idToPath,
-                        $seen,
-                    );
-                }
+                        &$pathToId,
+                        &$idToPath,
+                        &$seen,
+                    ): void {
+                        self::processDeltaItem(
+                            $item,
+                            $root,
+                            $directoryId,
+                            $exposeOneNoteFiles,
+                            $helper,
+                            $listSharedFolder,
+                            $pathToId,
+                            $idToPath,
+                            $seen,
+                        );
+                    },
+                    $listChunk,
+                    $trace,
+                );
 
                 $helper->flush();
 
@@ -111,6 +168,150 @@ final class OneDriveListR
                 return $throwable;
             }
         };
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $pages
+     * @param callable(array<string, mixed>): void $fn
+     * @param array<string, mixed> $trace
+     */
+    private static function listAllPages(
+        array $pages,
+        bool $directoriesOnly,
+        bool $filesOnly,
+        callable $fn,
+        int $listChunk,
+        array &$trace,
+    ): void {
+        $pageKey = self::firstPageKey($pages);
+        $rootUrl = null;
+        $path = '/root/delta';
+        $parameters = ['$top' => [(string) $listChunk]];
+        $trace['requests'] ??= [];
+        $trace['pages'] ??= [];
+
+        while ($pageKey !== null) {
+            $trace['requests'][] = [
+                'rootUrl' => $rootUrl,
+                'path' => $path,
+                'parameters' => $parameters,
+            ];
+            $trace['pages'][] = $pageKey;
+
+            $page = $pages[$pageKey] ?? null;
+            if (!is_array($page)) {
+                throw new \RuntimeException("couldn't list files: missing page for {$pageKey}");
+            }
+
+            $error = self::pageError($page);
+            if ($error !== null) {
+                throw new \RuntimeException("couldn't list files: {$error->getMessage()}", 0, $error);
+            }
+
+            $items = self::pageItems($page);
+            if ($items === []) {
+                break;
+            }
+
+            foreach ($items as $item) {
+                $isFolder = self::folder($item) !== null;
+                if (($isFolder && $filesOnly) || (!$isFolder && $directoriesOnly) || isset($item['deleted'])) {
+                    continue;
+                }
+
+                $fn($item);
+            }
+
+            $nextLink = self::pageNextLink($page);
+            if ($nextLink === '') {
+                break;
+            }
+
+            $nextKey = array_key_exists($nextLink, $pages)
+                ? $nextLink
+                : self::nextSequentialPageKey($pages, $pageKey);
+            if ($nextKey === null) {
+                throw new \RuntimeException("couldn't list files: missing page for {$nextLink}");
+            }
+
+            $pageKey = $nextKey;
+            $rootUrl = $nextLink;
+            $path = '';
+            $parameters = [];
+        }
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $pages
+     */
+    private static function firstPageKey(array $pages): int|string|null
+    {
+        foreach (array_keys($pages) as $key) {
+            return $key;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int|string, array<string, mixed>> $pages
+     */
+    private static function nextSequentialPageKey(array $pages, int|string $currentKey): int|string|null
+    {
+        $returnNext = false;
+        foreach (array_keys($pages) as $key) {
+            if ($returnNext) {
+                return $key;
+            }
+            if ($key === $currentKey) {
+                $returnNext = true;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     */
+    private static function pageError(array $page): ?\Throwable
+    {
+        $error = $page['error'] ?? $page['Error'] ?? null;
+        if ($error instanceof \Throwable) {
+            return $error;
+        }
+        if (is_scalar($error) && (string) $error !== '') {
+            return new \RuntimeException((string) $error);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     * @return list<array<string, mixed>>
+     */
+    private static function pageItems(array $page): array
+    {
+        $items = $page['value'] ?? $page['Value'] ?? [];
+        if (!is_array($items)) {
+            return [];
+        }
+
+        return array_values(array_filter($items, static fn (mixed $item): bool => is_array($item)));
+    }
+
+    /**
+     * @param array<string, mixed> $page
+     */
+    private static function pageNextLink(array $page): string
+    {
+        return self::optionalString(
+            $page['@odata.nextLink']
+                ?? $page['nextLink']
+                ?? $page['NextLink']
+                ?? null,
+        ) ?? '';
     }
 
     /**

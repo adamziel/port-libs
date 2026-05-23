@@ -208,6 +208,10 @@ The `../examples/wordpress-onedrive-shared-listr-restore.php` scenario maps OneD
 
 The `../examples/wordpress-onedrive-delta-resume-cache.php` scenario maps OneDrive's delta-token resume path for change notifications. It extracts a seed token from `@odata.deltaLink`, builds the next `/root/delta?token=...` request, reports changed WXR and upload artifacts relative to `site-backups`, skips root and outside-site changes, and records invalid parent paths as non-fatal skipped entries without live credentials.
 
+The `../examples/wordpress-onedrive-disabled-delta-fallback.php` scenario maps OneDrive's default disabled-delta recursive listing path. Because the backend does not advertise ListR unless the `delta` option is enabled, a filtered `site-backups` restore manifest falls back to ordinary provider `List` traversal, publishes WXR/users WXR/SQL/upload media, prunes cache and generated thumbnail paths, and performs no delta ListR calls without live credentials.
+
+The `../examples/wordpress-onedrive-delta-paginated-restore.php` scenario maps OneDrive's paged delta recursive listing path. It starts with `/root/delta?$top=75`, follows `@odata.nextLink` to a second Graph page by clearing path and parameters, publishes a 105-entry WXR/SQL/uploads restore manifest in upstream `ListHelper` batches of 100 and 5, and does all of this against local fixtures without OAuth or provider credentials.
+
 ## Next Task
 
-Map the disabled-delta fallback where OneDrive does not advertise provider ListR, including the fs/walk/List fallback selection boundaries under filters or bounded recursion.
+Map OneDrive ordinary `ListP`/`listAll` child pagination for shared-folder fallback, including directories-only/files-only filtering and the empty-page nextLink boundary.

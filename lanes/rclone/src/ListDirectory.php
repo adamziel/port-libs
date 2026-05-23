@@ -15,6 +15,81 @@ final class ListDirectory
     public const LIST_ALL = self::LIST_OBJECTS | self::LIST_DIRS;
 
     /**
+     * Model fs/walk.ListR's direct ListR vs Walk fallback selection.
+     *
+     * Upstream falls back to ordinary Walk/List traversal when recursive ListR
+     * is unavailable, disabled by config, blocked by files-from, bounded by
+     * maxLevel, or unsafe with exclude-file/directory-filter configuration.
+     *
+     * @param callable(string): iterable<ObjectInfo> $list
+     * @param null|callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable) $listR
+     * @param callable(list<ObjectInfo>): (null|\Throwable) $callback
+     * @param null|callable(ObjectInfo): bool $includeObject
+     * @param null|callable(string): bool $includeDirectory
+     * @param list<string> $excludeIfPresent
+     * @return array{source: string, reason: string, stats: array<string, int>}
+     */
+    public static function listRecursive(
+        callable $list,
+        ?callable $listR,
+        bool $includeAll,
+        string $path,
+        int $maxLevel,
+        int $listType,
+        callable $callback,
+        ?callable $includeObject = null,
+        ?callable $includeDirectory = null,
+        array $excludeIfPresent = [],
+        bool $haveFilesFrom = false,
+        bool $useListR = true,
+        bool $synthesizeDirs = false,
+    ): array {
+        self::assertListType($listType);
+
+        $fallbackReason = self::listRecursiveFallbackReason(
+            $listR,
+            $maxLevel,
+            $excludeIfPresent,
+            $includeDirectory,
+            $haveFilesFrom,
+            $useListR,
+        );
+
+        if ($fallbackReason === null) {
+            return [
+                'source' => 'listR',
+                'reason' => 'direct-listR',
+                'stats' => self::listRecursiveDirect(
+                    $listR,
+                    $includeAll,
+                    $path,
+                    $listType,
+                    $callback,
+                    $includeObject,
+                    $includeDirectory,
+                    $synthesizeDirs,
+                ),
+            ];
+        }
+
+        return [
+            'source' => 'walk',
+            'reason' => $fallbackReason,
+            'stats' => self::listRecursiveFallback(
+                $list,
+                $includeAll,
+                $path,
+                $maxLevel,
+                $listType,
+                $callback,
+                $includeObject,
+                $includeDirectory,
+                $excludeIfPresent,
+            ),
+        ];
+    }
+
+    /**
      * Model fs/list.DirSorted over a provider List call.
      *
      * Unlike DirSortedFn this returns the sorted entries directly. The provider
@@ -457,28 +532,9 @@ final class ListDirectory
             return null;
         };
 
-        if ($listR !== null && $maxLevel < 0 && $excludeIfPresent === []) {
-            $stats = self::listRecursiveDirect(
-                $listR,
-                $includeAll,
-                $path,
-                self::LIST_ALL,
-                $collector,
-                $includeObject,
-                $includeDirectory,
-                $synthesizeDirs,
-            );
-
-            return [
-                'objects' => $objects,
-                'directories' => $directories,
-                'source' => 'listR',
-                'stats' => $stats,
-            ];
-        }
-
-        $stats = self::listRecursiveFallback(
+        $result = self::listRecursive(
             $list,
+            $listR,
             $includeAll,
             $path,
             $maxLevel,
@@ -487,13 +543,15 @@ final class ListDirectory
             $includeObject,
             $includeDirectory,
             $excludeIfPresent,
+            synthesizeDirs: $synthesizeDirs,
         );
 
         return [
             'objects' => $objects,
             'directories' => $directories,
-            'source' => 'walk',
-            'stats' => $stats,
+            'source' => $result['source'],
+            'reason' => $result['reason'],
+            'stats' => $result['stats'],
         ];
     }
 
@@ -733,7 +791,7 @@ final class ListDirectory
             );
         }
 
-        if ($listR !== null && ($maxLevel < 0 || $maxLevel > 1)) {
+        if ($listR !== null && ($maxLevel < 0 || $maxLevel > 1) && $filesFrom === null) {
             $result = self::dirTreeFromListR(
                 $listR,
                 $includeAll,
@@ -1119,6 +1177,40 @@ final class ListDirectory
         }
 
         return $filtered;
+    }
+
+    /**
+     * @param null|callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable) $listR
+     * @param list<string> $excludeIfPresent
+     */
+    private static function listRecursiveFallbackReason(
+        ?callable $listR,
+        int $maxLevel,
+        array $excludeIfPresent,
+        ?callable $includeDirectory,
+        bool $haveFilesFrom,
+        bool $useListR,
+    ): ?string {
+        if (!$useListR) {
+            return 'listR-disabled';
+        }
+        if ($listR === null) {
+            return 'provider-listR-unavailable';
+        }
+        if ($haveFilesFrom) {
+            return 'files-from';
+        }
+        if ($maxLevel >= 0) {
+            return 'bounded-recursion';
+        }
+        if ($excludeIfPresent !== []) {
+            return 'exclude-if-present';
+        }
+        if ($includeDirectory !== null) {
+            return 'directory-filters';
+        }
+
+        return null;
     }
 
     /**
