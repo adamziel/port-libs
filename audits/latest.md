@@ -1,10 +1,12 @@
-# Independent Audit - 2026-05-23T07:21:10Z
+# Independent Audit - 2026-05-23T07:25:38Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
 lane-status summaries needed to check status alignment, recent Git history
-through `1267695e`, dirty-tree status, active process/test state, and the PHP
-shell-out surface.
+through `37c9d3bf`, dirty-tree status, active process/test state, and the PHP
+shell-out surface. Some manifest/dashboard evidence was first sampled at
+`1267695e`; concurrent commits advanced `HEAD` while this audit was being
+finalized.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 read secrets, inspect process environments, or start a root harness.
@@ -33,17 +35,20 @@ it as temporary fixture/oracle evidence.
      evaluator, integrator, auditor, artifact, and lane-agent loops active for
      many lanes.
    - Evidence: the dirty tree remains broad and non-quiescent at current
-     `HEAD` `1267695e`: `git status --short` reported `855` entries,
-     tracked-only status reported `94` changed files, and
-     `git diff --shortstat` moved during the audit from
+     `HEAD` `37c9d3bf`: status samples moved from `855` default entries and
+     `94` tracked entries to `846` default entries and `78` tracked entries;
+     `git diff --shortstat` moved from
      `94 files changed, 21696 insertions(+), 626 deletions(-)` to
-     `94 files changed, 21808 insertions(+), 626 deletions(-)`.
+     `78 files changed, 19672 insertions(+), 442 deletions(-)`.
    - Evidence: a mid-audit process sample included
      `1471784 php tools/run-tests.php`; the PID exited before owner sampling.
-     Before finishing, the exact duplicate-root gate returned
+     A later exact duplicate-root gate returned
      `1495111 php tools/run-tests.php`, with owner evidence
-     `1495111 claude 1462628 00:13 Rs php tools/run-tests.php`. I did not run
-     a duplicate root harness.
+     `1495111 claude 1462628 00:13 Rs php tools/run-tests.php`. Before the
+     final commit, another exact gate returned `1506734 php tools/run-tests.php`
+     with owner evidence
+     `1506734 claude 1472171 00:14 Rs php tools/run-tests.php`. I did not run a
+     duplicate root harness.
    - Audit judgment: freeze active writers before accepting any root harness,
      dashboard, lane-status, or percentage evidence.
 
@@ -58,7 +63,7 @@ it as temporary fixture/oracle evidence.
      work, blocker, and commit.
    - Evidence: `porting.html:32`-`36` advertises generated time
      `2026-05-23 04:57:16 UTC` and source commit `bda83c6b93d4`, while
-     reviewed `HEAD` is `1267695e`. `porting-summary.json:3`-`4` still
+     reviewed `HEAD` is `37c9d3bf`. `porting-summary.json:3`-`4` still
      reports `bda83c6b93d4865c7edddaf7a680378f347eb4e6`.
    - Evidence: `porting.html:41`-`50` still has compound `Benchmark` and
      `Mapped` columns instead of separate `benchmark source`, `upstream
@@ -70,11 +75,11 @@ it as temporary fixture/oracle evidence.
      Gitoxide `1432 / 2877` versus `1561 / 2877`,
      libsqlite `149 / 1454` versus `180 / 1454`,
      LightningCSS `773 / 3532` versus `864 / 3532`,
-     markerPDF `159 / 78` versus `173 / 234`,
+     markerPDF `159 / 78` versus `175 / 234`,
      Pandoc `426 / 2028` versus `513 / 2028`,
      rclone `291 / 327` versus `360 / 2553`,
      Readability `1031 / 1984` versus `1215 / 1984`, and
-     Syncthing `235 / 658` versus `270 / 658`.
+     Syncthing `235 / 658` versus `273 / 658`.
    - Audit judgment: the public dashboard is an old publish snapshot, not the
      current coordination surface.
 
@@ -216,12 +221,27 @@ Owner evidence:
 
 No duplicate root run was started.
 
+After that PID exited, a later exact duplicate-root gate returned another
+active root harness:
+
+```text
+1506734 php tools/run-tests.php
+```
+
+Owner evidence:
+
+```text
+1506734 claude 1472171 00:14 Rs php tools/run-tests.php
+```
+
+No duplicate root run was started.
+
 Latest dirty-tree samples before this update:
 
 ```text
-git status --short: 855 entries
-git status --short --untracked-files=no: 94 entries
-git diff --shortstat: 94 files changed, 21808 insertions(+), 626 deletions(-)
+git status --short: 846 entries
+git status --short --untracked-files=no: 78 entries
+git diff --shortstat: 78 files changed, 19672 insertions(+), 442 deletions(-)
 ```
 
 ## Recent Git History
@@ -229,16 +249,16 @@ git diff --shortstat: 94 files changed, 21808 insertions(+), 626 deletions(-)
 Recent commits reviewed:
 
 ```text
+37c9d3bf readability: map additional Mozilla fixtures
+9ef2cca7 Port libsqlite index leaf split insert planning
+53385c27 Record lightningcss all reset status
+a6721493 Record pandoc smart punctuation status
+b067aab2 Port lightningcss all reset minifier slice
+d50f586f Refresh independent audit status
+c8d138c1 Port pandoc smart punctuation edge cases
 1267695e Record Syncthing ignore perms commit
 553a0226 Port Syncthing scanner ignore perms window
 c758725c difftastic map display control env options
 845f00b6 Refresh independent audit status
 4a1406b9 libsqlite: add automatic index writes and utf16 records
-8d2f62c8 Refresh independent audit status
-ce19f538 Record syncthing scanner status
-9bc72eb1 Port syncthing scanner unchanged shortcut
-5c6651e5 Refresh independent audit status
-51c63278 Map difftastic command resource limits
-c80373cd Port esbuild decorated class expression lowering
-e5d50bde Refresh independent audit status
 ```
