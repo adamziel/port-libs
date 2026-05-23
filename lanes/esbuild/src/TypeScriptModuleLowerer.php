@@ -18,20 +18,28 @@ final class TypeScriptModuleLowerer
     private bool $useDefineForClassFields = true;
     private bool $minifySyntax = false;
     private bool $lowerUsingDeclarations = false;
+    private bool $lowerAsyncGenerators = false;
     private bool $hasLoweredUsingDeclarations = false;
     private bool $hasLoweredAwaitUsingDeclarations = false;
     private bool $needsUsingHelperRuntime = false;
+    private bool $needsAsyncGeneratorHelperRuntime = false;
     private int $usingScopeCounter = 0;
+    private int $asyncGeneratorForAwaitCounter = 0;
     private string $usingHelperKnownSymbolName = '__knownSymbol';
     private string $usingHelperTypeErrorName = '__typeError';
     private string $usingHelperUsingName = '__using';
     private string $usingHelperCallDisposeName = '__callDispose';
+    private string $asyncGeneratorAwaitName = '__await';
+    private string $asyncGeneratorName = '__asyncGenerator';
+    private string $asyncGeneratorYieldStarName = '__yieldStar';
+    private string $asyncGeneratorForAwaitName = '__forAwait';
 
     public function lower(
         string $source,
         bool $useDefineForClassFields = true,
         bool $minifySyntax = false,
-        bool $lowerUsingDeclarations = false
+        bool $lowerUsingDeclarations = false,
+        bool $lowerAsyncGenerators = false
     ): string
     {
         $this->source = $source;
@@ -40,10 +48,13 @@ final class TypeScriptModuleLowerer
         $this->useDefineForClassFields = $useDefineForClassFields;
         $this->minifySyntax = $minifySyntax;
         $this->lowerUsingDeclarations = $lowerUsingDeclarations;
+        $this->lowerAsyncGenerators = $lowerAsyncGenerators;
         $this->hasLoweredUsingDeclarations = false;
         $this->hasLoweredAwaitUsingDeclarations = false;
         $this->needsUsingHelperRuntime = false;
+        $this->needsAsyncGeneratorHelperRuntime = false;
         $this->usingScopeCounter = 0;
+        $this->asyncGeneratorForAwaitCounter = 0;
         $this->configureHelperNames();
 
         $lines = [];
@@ -101,6 +112,14 @@ final class TypeScriptModuleLowerer
                 [$forOutput, $forEnd] = $forUsingStatement;
                 $lines[] = $forOutput;
                 $i = $forEnd;
+                continue;
+            }
+
+            $asyncGeneratorFunction = $this->lowerAsyncGeneratorFunctionStatementAt($i, $effectiveEnd);
+            if ($asyncGeneratorFunction !== null) {
+                [$functionOutput, $functionEnd] = $asyncGeneratorFunction;
+                $lines[] = $functionOutput;
+                $i = $functionEnd;
                 continue;
             }
 
@@ -206,7 +225,7 @@ final class TypeScriptModuleLowerer
 
         $output = $lines === [] ? '' : implode("\n", $lines) . "\n";
 
-        return $this->needsUsingHelperRuntime ? $this->usingHelperRuntime() . $output : $output;
+        return $this->helperRuntime() . $output;
     }
 
     /**
@@ -699,6 +718,11 @@ final class TypeScriptModuleLowerer
                 }
             }
 
+            $asyncGeneratorMethod = $this->lowerAsyncGeneratorClassMethodMember($start, $end);
+            if ($asyncGeneratorMethod !== null) {
+                return [[$asyncGeneratorMethod], true, [], [], []];
+            }
+
             $methodUsing = $this->lowerClassMethodUsingMember($start, $end);
             if ($methodUsing !== null) {
                 return [[$methodUsing], true, [], [], []];
@@ -850,6 +874,27 @@ final class TypeScriptModuleLowerer
         return implode("\n", $lines);
     }
 
+    private function lowerAsyncGeneratorClassMethodMember(int $start, int $end): ?string
+    {
+        if (!$this->lowerAsyncGenerators) {
+            return null;
+        }
+
+        $bodyOpen = $this->classMethodBodyOpen($start, $end);
+        if ($bodyOpen === null || !$this->isAsyncGeneratorClassMethodHeader($start, $bodyOpen)) {
+            return null;
+        }
+
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $end) {
+            return null;
+        }
+
+        $header = $this->asyncGeneratorMethodRuntimeHeader($start, $bodyOpen - 1);
+
+        return $this->printAsyncGeneratorFunctionLike($header, $bodyOpen + 1, $bodyClose);
+    }
+
     private function classMethodBodyOpen(int $start, int $end): ?int
     {
         $parenDepth = 0;
@@ -907,11 +952,34 @@ final class TypeScriptModuleLowerer
         return false;
     }
 
+    private function isAsyncGeneratorClassMethodHeader(int $start, int $bodyOpen): bool
+    {
+        for ($i = $start; $i < $bodyOpen; $i++) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null || $token->text !== 'async' || !$this->isTopLevelInRange($start, $i)) {
+                continue;
+            }
+
+            $star = $this->tokens[$i + 1] ?? null;
+
+            return $star !== null && $star->text === '*';
+        }
+
+        return false;
+    }
+
     private function printClassMethodHeaderRuntimeRange(int $start, int $end): string
     {
         $header = rtrim($this->printClassMemberRuntimeRange($start, $end), ';');
 
         return preg_replace('/\basync\*/', 'async *', $header) ?? $header;
+    }
+
+    private function asyncGeneratorMethodRuntimeHeader(int $start, int $end): string
+    {
+        $header = $this->printClassMethodHeaderRuntimeRange($start, $end);
+
+        return preg_replace('/\basync\s*\*\s*/', '', $header, 1) ?? $header;
     }
 
     /**
@@ -3496,6 +3564,143 @@ final class TypeScriptModuleLowerer
     /**
      * @return array{0:string, 1:int}|null
      */
+    private function lowerAsyncGeneratorFunctionStatementAt(int $start, int $effectiveEnd): ?array
+    {
+        if (!$this->lowerAsyncGenerators) {
+            return null;
+        }
+
+        for ($async = $start; $async <= $effectiveEnd; $async++) {
+            if (($this->tokens[$async] ?? null)?->text !== 'async' || !$this->isTopLevelInRange($start, $async)) {
+                continue;
+            }
+
+            $previous = $this->previousSignificantTokenIndex($async - 1);
+            if ($previous !== null) {
+                $previousText = ($this->tokens[$previous] ?? null)?->text;
+                if (!in_array($previousText, ['=', 'export', 'default'], true)) {
+                    continue;
+                }
+            }
+
+            $function = $this->asyncGeneratorFunctionAt($async, $effectiveEnd);
+            if ($function === null) {
+                continue;
+            }
+
+            $prefix = $async > $start ? $this->printRuntimeTokenRange($start, $async - 1, $start) : '';
+            $header = $this->asyncGeneratorFunctionRuntimeHeader($function);
+            $replacement = $this->printAsyncGeneratorFunctionLike($header, $function['bodyOpen'] + 1, $function['bodyClose']);
+            $output = $prefix === '' ? $replacement : rtrim($prefix) . ' ' . $replacement;
+
+            if ($function['bodyClose'] + 1 <= $effectiveEnd) {
+                $suffix = $this->printRuntimeTokenRange($function['bodyClose'] + 1, $effectiveEnd, $start);
+                if ($suffix !== '') {
+                    $output .= $suffix;
+                }
+            }
+
+            if ($previous !== null && ($this->tokens[$previous] ?? null)?->text === '=') {
+                $output .= ';';
+            }
+
+            return [$output, $function['bodyClose']];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{async:int, star:int, paramsOpen:int, paramsClose:int, bodyOpen:int, bodyClose:int}|null
+     */
+    private function asyncGeneratorFunctionAt(int $async, int $effectiveEnd): ?array
+    {
+        if (($this->tokens[$async] ?? null)?->text !== 'async'
+            || ($this->tokens[$async + 1] ?? null)?->text !== 'function'
+            || $this->hasLineBreakBetween($async, $async + 1)
+        ) {
+            return null;
+        }
+
+        $star = $async + 2;
+        if (($this->tokens[$star] ?? null)?->text !== '*') {
+            return null;
+        }
+
+        $cursor = $star + 1;
+        if (($this->tokens[$cursor] ?? null)?->kind === 'identifier') {
+            $cursor++;
+        }
+        if (($this->tokens[$cursor] ?? null)?->text !== '(') {
+            return null;
+        }
+
+        $paramsOpen = $cursor;
+        $paramsClose = $this->findMatchingPunctuator($paramsOpen, '(', ')');
+        if ($paramsClose > $effectiveEnd) {
+            return null;
+        }
+
+        $cursor = $paramsClose + 1;
+        if (($this->tokens[$cursor] ?? null)?->text === ':') {
+            $cursor = $this->skipTypeExpression($cursor + 1, $effectiveEnd, ['{']);
+        }
+        if (($this->tokens[$cursor] ?? null)?->text !== '{') {
+            return null;
+        }
+
+        $bodyOpen = $cursor;
+        $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
+        if ($bodyClose > $effectiveEnd) {
+            return null;
+        }
+
+        return [
+            'async' => $async,
+            'star' => $star,
+            'paramsOpen' => $paramsOpen,
+            'paramsClose' => $paramsClose,
+            'bodyOpen' => $bodyOpen,
+            'bodyClose' => $bodyClose,
+        ];
+    }
+
+    /**
+     * @param array{async:int, star:int, paramsOpen:int, paramsClose:int, bodyOpen:int, bodyClose:int} $function
+     */
+    private function asyncGeneratorFunctionRuntimeHeader(array $function): string
+    {
+        $name = $function['star'] + 1 <= $function['paramsOpen'] - 1
+            ? $this->printRuntimeTokenRange($function['star'] + 1, $function['paramsOpen'] - 1, $function['async'])
+            : '';
+        $params = $this->printRuntimeTokenRange($function['paramsOpen'], $function['paramsClose'], $function['async']);
+
+        return 'function' . ($name === '' ? '' : ' ' . $name) . $params;
+    }
+
+    private function printAsyncGeneratorFunctionLike(string $header, int $bodyStart, int $bodyClose): string
+    {
+        $this->needsAsyncGeneratorHelperRuntime = true;
+        [$bodyLines] = $this->lowerAsyncGeneratorBodyStatements($bodyStart, $bodyClose);
+
+        $lines = [$header . ' {', '  return ' . $this->asyncGeneratorName . '(this, null, function* () {'];
+        foreach ($bodyLines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '    ' . $part;
+            }
+        }
+        $lines[] = '  });';
+        $lines[] = '}';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
     private function lowerFunctionBodyUsingStatementAt(int $start, int $effectiveEnd): ?array
     {
         $bodyOpen = $this->findTopLevelBlockOpenBeforeStatementEnd($start);
@@ -3598,11 +3803,18 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            [$bodyLines, $changed] = $this->lowerFunctionBodyUsingStatements(
-                $cursor + 1,
-                $method['bodyClose'],
-                $method['async'],
-            );
+            if ($this->lowerAsyncGenerators && $method['asyncGenerator']) {
+                [$bodyLines, $changed] = $this->lowerAsyncGeneratorBodyStatements(
+                    $cursor + 1,
+                    $method['bodyClose'],
+                );
+            } else {
+                [$bodyLines, $changed] = $this->lowerFunctionBodyUsingStatements(
+                    $cursor + 1,
+                    $method['bodyClose'],
+                    $method['async'],
+                );
+            }
             if (!$changed) {
                 continue;
             }
@@ -3612,6 +3824,7 @@ final class TypeScriptModuleLowerer
                 'bodyOpen' => $cursor,
                 'bodyClose' => $method['bodyClose'],
                 'bodyLines' => $bodyLines,
+                'asyncGenerator' => $this->lowerAsyncGenerators && $method['asyncGenerator'],
             ];
             $cursor = $method['bodyClose'];
         }
@@ -3627,16 +3840,35 @@ final class TypeScriptModuleLowerer
                 $output .= $this->printRuntimeTokenRange($cursor, $method['methodStart'] - 1, $start);
             }
 
-            $output .= rtrim($this->printClassMethodHeaderRuntimeRange($method['methodStart'], $method['bodyOpen'] - 1)) . " {\n";
-            foreach ($method['bodyLines'] as $line) {
-                foreach (explode("\n", $line) as $part) {
-                    if ($part === '') {
-                        continue;
+            $header = $method['asyncGenerator']
+                ? $this->asyncGeneratorMethodRuntimeHeader($method['methodStart'], $method['bodyOpen'] - 1)
+                : rtrim($this->printClassMethodHeaderRuntimeRange($method['methodStart'], $method['bodyOpen'] - 1));
+            if ($method['asyncGenerator']) {
+                $this->needsAsyncGeneratorHelperRuntime = true;
+                $output .= $header . " {\n";
+                $output .= '  return ' . $this->asyncGeneratorName . "(this, null, function* () {\n";
+                foreach ($method['bodyLines'] as $line) {
+                    foreach (explode("\n", $line) as $part) {
+                        if ($part === '') {
+                            continue;
+                        }
+                        $output .= '    ' . $part . "\n";
                     }
-                    $output .= '  ' . $part . "\n";
                 }
+                $output .= "  });\n";
+                $output .= '}';
+            } else {
+                $output .= $header . " {\n";
+                foreach ($method['bodyLines'] as $line) {
+                    foreach (explode("\n", $line) as $part) {
+                        if ($part === '') {
+                            continue;
+                        }
+                        $output .= '  ' . $part . "\n";
+                    }
+                }
+                $output .= '}';
             }
-            $output .= '}';
             $cursor = $method['bodyClose'] + 1;
         }
 
@@ -3652,7 +3884,7 @@ final class TypeScriptModuleLowerer
     }
 
     /**
-     * @return array{methodStart:int, bodyClose:int, async:bool}|null
+     * @return array{methodStart:int, bodyClose:int, async:bool, asyncGenerator:bool}|null
      */
     private function objectLiteralMethodBodyAt(int $statementStart, int $bodyOpen, int $effectiveEnd): ?array
     {
@@ -3692,9 +3924,11 @@ final class TypeScriptModuleLowerer
         }
 
         $methodStart = $nameStart;
+        $isGenerator = false;
         $beforeName = $this->previousSignificantTokenIndex($nameStart - 1);
         if ($beforeName !== null && ($this->tokens[$beforeName] ?? null)?->text === '*') {
             $methodStart = $beforeName;
+            $isGenerator = true;
             $beforeName = $this->previousSignificantTokenIndex($beforeName - 1);
         }
 
@@ -3717,6 +3951,7 @@ final class TypeScriptModuleLowerer
             'methodStart' => $methodStart,
             'bodyClose' => $bodyClose,
             'async' => $isAsync,
+            'asyncGenerator' => $isAsync && $isGenerator,
         ];
     }
 
@@ -4124,6 +4359,235 @@ final class TypeScriptModuleLowerer
         }
 
         return [$this->usingHelperScopeLines($lines, $hasAwaitUsing, $stackName), true, $hasAwaitUsing];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:bool}
+     */
+    private function lowerAsyncGeneratorBodyStatements(int $start, int $bodyClose): array
+    {
+        $lines = [];
+        $changed = false;
+        $hasFunctionScopeUsing = false;
+        $hasAwaitUsing = false;
+        $stackName = null;
+        for ($cursor = $start; $cursor < $bodyClose; $cursor++) {
+            if (($this->tokens[$cursor] ?? null)?->text === ';') {
+                continue;
+            }
+
+            $statementEnd = $this->functionBodyStatementEnd($cursor, $bodyClose);
+            $effectiveEnd = $this->withoutTrailingSemicolon($statementEnd);
+            $this->validateForUsingStatement($cursor, $effectiveEnd);
+
+            $forAwait = $this->lowerAsyncGeneratorForAwaitStatementAt($cursor, $effectiveEnd);
+            if ($forAwait !== null) {
+                [$forOutput, $forEnd] = $forAwait;
+                $lines[] = $forOutput;
+                $changed = true;
+                $cursor = $forEnd;
+                continue;
+            }
+
+            if ($this->isUsingDeclarationStart($cursor)) {
+                $using = $this->parseUsingDeclaration($cursor, $effectiveEnd);
+                if ($stackName === null) {
+                    [$stackName] = $this->nextUsingScopeNames();
+                }
+                $lines[] = 'const ' . $this->printAsyncGeneratorUsingDeclarators($using['declarations'], $using['await'], $stackName) . ';';
+                $hasFunctionScopeUsing = true;
+                $hasAwaitUsing = $hasAwaitUsing || $using['await'];
+                $changed = true;
+                $cursor = $statementEnd;
+                continue;
+            }
+
+            $line = $this->printAsyncGeneratorStatement($cursor, $statementEnd);
+            if ($line !== '') {
+                $lines[] = $line;
+            }
+            $cursor = $statementEnd;
+        }
+
+        if ($hasFunctionScopeUsing) {
+            return [$this->asyncGeneratorUsingHelperScopeLines($lines, $hasAwaitUsing, $stackName), true];
+        }
+
+        return [$lines, $changed || $this->lowerAsyncGenerators];
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private function lowerAsyncGeneratorForAwaitStatementAt(int $start, int $effectiveEnd): ?array
+    {
+        $loop = $this->parseAsyncGeneratorForAwaitLoop($start, $effectiveEnd);
+        if ($loop === null) {
+            return null;
+        }
+
+        [$iterName, $moreName, $tempName, $errorName] = $this->nextAsyncGeneratorForAwaitNames();
+        $iterable = $this->printAsyncGeneratorExpression($loop['iterableStart'], $loop['iterableEnd']);
+        $bodyLines = [];
+        if ($loop['using']) {
+            $bodyLines[] = 'var _' . $loop['name'] . ' = ' . $tempName . '.value;';
+            [$stackName] = $this->nextUsingScopeNames();
+            $nestedLines = [
+                'const ' . $loop['name'] . ' = ' . $this->usingHelperUsingName . '(' . $stackName . ', _' . $loop['name'] . ($loop['awaitUsing'] ? ', true' : '') . ');',
+            ];
+            if ($loop['bodyIsBlock']) {
+                [$innerLines] = $this->lowerAsyncGeneratorBodyStatements($loop['bodyStart'] + 1, $loop['bodyEnd']);
+                foreach ($innerLines as $line) {
+                    $nestedLines[] = $line;
+                }
+            } elseif ($loop['bodyStart'] <= $loop['bodyEnd']) {
+                $nestedLines[] = $this->printAsyncGeneratorStatement($loop['bodyStart'], $loop['bodyEnd']);
+            }
+            foreach ($this->asyncGeneratorUsingHelperScopeLines($nestedLines, $loop['awaitUsing'], $stackName) as $line) {
+                $bodyLines[] = $line;
+            }
+        } else {
+            $bodyLines[] = $loop['kind'] . ' ' . $loop['name'] . ' = ' . $tempName . '.value;';
+            if ($loop['bodyIsBlock']) {
+                [$innerLines] = $this->lowerAsyncGeneratorBodyStatements($loop['bodyStart'] + 1, $loop['bodyEnd']);
+                foreach ($innerLines as $line) {
+                    $bodyLines[] = $line;
+                }
+            } elseif ($loop['bodyStart'] <= $loop['bodyEnd']) {
+                $bodyLines[] = $this->printAsyncGeneratorStatement($loop['bodyStart'], $loop['bodyEnd']);
+            }
+        }
+
+        $lines = [
+            'try {',
+            '  for (var ' . $iterName . ' = ' . $this->asyncGeneratorForAwaitName . '(' . $iterable . '), ' . $moreName . ', ' . $tempName . ', ' . $errorName . '; ' . $moreName . ' = !(' . $tempName . ' = yield new ' . $this->asyncGeneratorAwaitName . '(' . $iterName . '.next())).done; ' . $moreName . ' = false) {',
+        ];
+        foreach ($bodyLines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '    ' . $part;
+            }
+        }
+        $lines[] = '  }';
+        $lines[] = '} catch (' . $tempName . ') {';
+        $lines[] = '  ' . $errorName . ' = [' . $tempName . '];';
+        $lines[] = '} finally {';
+        $lines[] = '  try {';
+        $lines[] = '    ' . $moreName . ' && (' . $tempName . ' = ' . $iterName . '.return) && (yield new ' . $this->asyncGeneratorAwaitName . '(' . $tempName . '.call(' . $iterName . ')));';
+        $lines[] = '  } finally {';
+        $lines[] = '    if (' . $errorName . ')';
+        $lines[] = '      throw ' . $errorName . '[0];';
+        $lines[] = '  }';
+        $lines[] = '}';
+        $this->needsAsyncGeneratorHelperRuntime = true;
+
+        return [implode("\n", $lines), $loop['bodyEnd']];
+    }
+
+    /**
+     * @return array{
+     *   using:bool,
+     *   awaitUsing:bool,
+     *   kind:string,
+     *   name:string,
+     *   iterableStart:int,
+     *   iterableEnd:int,
+     *   bodyStart:int,
+     *   bodyEnd:int,
+     *   bodyIsBlock:bool
+     * }|null
+     */
+    private function parseAsyncGeneratorForAwaitLoop(int $start, int $effectiveEnd): ?array
+    {
+        if (($this->tokens[$start] ?? null)?->text !== 'for'
+            || ($this->tokens[$start + 1] ?? null)?->text !== 'await'
+            || ($this->tokens[$start + 2] ?? null)?->text !== '('
+        ) {
+            return null;
+        }
+
+        $open = $start + 2;
+        $close = $this->findMatchingPunctuator($open, '(', ')');
+        if ($close > $effectiveEnd) {
+            return null;
+        }
+
+        $cursor = $open + 1;
+        $using = false;
+        $awaitUsing = false;
+        $kind = 'let';
+        if (($this->tokens[$cursor] ?? null)?->text === 'await'
+            && ($this->tokens[$cursor + 1] ?? null)?->text === 'using'
+            && !$this->hasLineBreakBetween($cursor, $cursor + 1)
+        ) {
+            $using = true;
+            $awaitUsing = true;
+            $cursor += 2;
+        } elseif (($this->tokens[$cursor] ?? null)?->text === 'using') {
+            $using = true;
+            $cursor++;
+        } elseif (in_array(($this->tokens[$cursor] ?? null)?->text, ['let', 'const', 'var'], true)) {
+            $kind = $this->tokens[$cursor]->text;
+            $cursor++;
+        } else {
+            return null;
+        }
+
+        $name = $this->tokens[$cursor] ?? null;
+        if ($name?->kind !== 'identifier') {
+            return null;
+        }
+        $cursor++;
+
+        if (($this->tokens[$cursor] ?? null)?->text === ':') {
+            $cursor = $this->skipTypeExpression($cursor + 1, $close - 1, ['of']);
+        }
+        if (($this->tokens[$cursor] ?? null)?->text !== 'of') {
+            return null;
+        }
+
+        $iterableStart = $cursor + 1;
+        $iterableEnd = $close - 1;
+        if ($iterableStart > $iterableEnd) {
+            throw new \InvalidArgumentException('Expected iterable after for-await declaration');
+        }
+
+        $bodyStart = $close + 1;
+        $bodyIsBlock = false;
+        if (($this->tokens[$bodyStart] ?? null)?->text === '{') {
+            $bodyEnd = $this->findMatchingPunctuator($bodyStart, '{', '}');
+            if ($bodyEnd > $effectiveEnd) {
+                return null;
+            }
+            $bodyIsBlock = true;
+        } else {
+            $bodyEnd = $effectiveEnd;
+        }
+
+        return [
+            'using' => $using,
+            'awaitUsing' => $awaitUsing,
+            'kind' => $kind,
+            'name' => $name->text,
+            'iterableStart' => $iterableStart,
+            'iterableEnd' => $iterableEnd,
+            'bodyStart' => $bodyStart,
+            'bodyEnd' => $bodyEnd,
+            'bodyIsBlock' => $bodyIsBlock,
+        ];
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:string, 3:string}
+     */
+    private function nextAsyncGeneratorForAwaitNames(): array
+    {
+        $this->asyncGeneratorForAwaitCounter++;
+        $suffix = $this->asyncGeneratorForAwaitCounter === 1 ? '' : (string) $this->asyncGeneratorForAwaitCounter;
+
+        return ['iter' . $suffix, 'more' . $suffix, 'temp' . $suffix, 'error' . $suffix];
     }
 
     private function functionBodyStatementEnd(int $start, int $bodyClose): int
@@ -4819,6 +5283,25 @@ final class TypeScriptModuleLowerer
     }
 
     /**
+     * @param list<array{name:string, valueStart:int, valueEnd:int}> $declarations
+     */
+    private function printAsyncGeneratorUsingDeclarators(
+        array $declarations,
+        bool $isAwaitUsing,
+        string $stackName
+    ): string
+    {
+        $this->needsUsingHelperRuntime = true;
+        $parts = [];
+        foreach ($declarations as $declaration) {
+            $value = $this->printAsyncGeneratorExpression($declaration['valueStart'], $declaration['valueEnd']);
+            $parts[] = $declaration['name'] . ' = ' . $this->usingHelperUsingName . '(' . $stackName . ', ' . $value . ($isAwaitUsing ? ', true' : '') . ')';
+        }
+
+        return implode(', ', $parts);
+    }
+
+    /**
      * @param array{await:bool, declarations:list<array{name:string, valueStart:int, valueEnd:int}>} $using
      */
     private function usingDeclarationsCanSkipUsingMachinery(array $using): bool
@@ -4913,6 +5396,59 @@ final class TypeScriptModuleLowerer
         return implode('', $parts);
     }
 
+    private function printAsyncGeneratorStatement(int $start, int $end): string
+    {
+        $effectiveEnd = $this->withoutTrailingSemicolon($end);
+        if (($this->tokens[$start] ?? null)?->text === 'yield') {
+            if (($this->tokens[$start + 1] ?? null)?->text === '*') {
+                $value = $start + 2 <= $effectiveEnd
+                    ? $this->printAsyncGeneratorExpression($start + 2, $effectiveEnd)
+                    : '';
+
+                return 'yield* ' . $this->asyncGeneratorYieldStarName . '(' . $value . ');';
+            }
+
+            if ($start >= $effectiveEnd) {
+                return 'yield;';
+            }
+
+            return 'yield ' . $this->printAsyncGeneratorExpression($start + 1, $effectiveEnd) . ';';
+        }
+
+        $statement = $this->printAsyncGeneratorExpression($start, $effectiveEnd);
+        if ($statement === '') {
+            return '';
+        }
+
+        if ($this->runtimeStatementNeedsSemicolon($start, $effectiveEnd, $statement)) {
+            $statement .= ';';
+        }
+
+        return $statement;
+    }
+
+    private function printAsyncGeneratorExpression(int $start, int $end): string
+    {
+        $expression = $this->printRuntimeTokenRange($start, $end, $start);
+
+        return $this->rewriteAwaitForAsyncGenerator($expression);
+    }
+
+    private function rewriteAwaitForAsyncGenerator(string $expression): string
+    {
+        if (!str_contains($expression, 'await')) {
+            return $expression;
+        }
+
+        $this->needsAsyncGeneratorHelperRuntime = true;
+
+        return preg_replace_callback(
+            '/\bawait\s+([^,;\n]+?)(?=,|;|$)/',
+            fn (array $match): string => 'yield new ' . $this->asyncGeneratorAwaitName . '(' . trim($match[1]) . ')',
+            $expression,
+        ) ?? $expression;
+    }
+
     /**
      * @return array{0:string, 1:string, 2:string, 3:string, 4:string}
      */
@@ -4953,6 +5489,44 @@ final class TypeScriptModuleLowerer
         if ($hasAwaitUsing) {
             $lines[] = '  var ' . $promise . ' = ' . $this->usingHelperCallDisposeName . '(' . $stack . ', ' . $error . ', ' . $hasError . ');';
             $lines[] = '  ' . $promise . ' && await ' . $promise . ';';
+        } else {
+            $lines[] = '  ' . $this->usingHelperCallDisposeName . '(' . $stack . ', ' . $error . ', ' . $hasError . ');';
+        }
+        $lines[] = '}';
+
+        return $lines;
+    }
+
+    /**
+     * @param list<string> $bodyLines
+     * @return list<string>
+     */
+    private function asyncGeneratorUsingHelperScopeLines(array $bodyLines, bool $hasAwaitUsing, ?string $stackName = null): array
+    {
+        $this->needsUsingHelperRuntime = true;
+        $this->needsAsyncGeneratorHelperRuntime = true;
+        [$stack, $catch, $error, $hasError, $promise] = $stackName === null
+            ? $this->nextUsingScopeNames()
+            : [$stackName, substr($stackName, 6) === '' ? '_' : '_' . substr($stackName, 6), '_error' . substr($stackName, 6), '_hasError' . substr($stackName, 6), '_promise' . substr($stackName, 6)];
+
+        $lines = [
+            'var ' . $stack . ' = [];',
+            'try {',
+        ];
+        foreach ($bodyLines as $line) {
+            foreach (explode("\n", $line) as $part) {
+                if ($part === '') {
+                    continue;
+                }
+                $lines[] = '  ' . $part;
+            }
+        }
+        $lines[] = '} catch (' . $catch . ') {';
+        $lines[] = '  var ' . $error . ' = ' . $catch . ', ' . $hasError . ' = true;';
+        $lines[] = '} finally {';
+        if ($hasAwaitUsing) {
+            $lines[] = '  var ' . $promise . ' = ' . $this->usingHelperCallDisposeName . '(' . $stack . ', ' . $error . ', ' . $hasError . ');';
+            $lines[] = '  ' . $promise . ' && (yield new ' . $this->asyncGeneratorAwaitName . '(' . $promise . '));';
         } else {
             $lines[] = '  ' . $this->usingHelperCallDisposeName . '(' . $stack . ', ' . $error . ', ' . $hasError . ');';
         }
@@ -5030,7 +5604,7 @@ final class TypeScriptModuleLowerer
         $suffixText = $this->joinTopLevelUsingHelperStatements($suffix);
 
         return $prefixText
-            . $this->usingHelperRuntime()
+            . $this->helperRuntime()
             . "var _stack = [];\n"
             . "try {\n"
             . implode("\n", $body) . "\n"
@@ -5508,13 +6082,39 @@ final class TypeScriptModuleLowerer
         ));
     }
 
-    private function usingHelperRuntime(): string
+    private function helperRuntime(): string
+    {
+        if (!$this->needsUsingHelperRuntime && !$this->needsAsyncGeneratorHelperRuntime) {
+            return '';
+        }
+
+        $runtime = $this->helperRuntimePreamble();
+        if ($this->needsUsingHelperRuntime) {
+            $runtime .= $this->usingHelperRuntime();
+        }
+        if ($this->needsAsyncGeneratorHelperRuntime) {
+            $runtime .= $this->asyncGeneratorHelperRuntime();
+        }
+
+        return $runtime;
+    }
+
+    private function helperRuntimePreamble(): string
     {
         return strtr(<<<'JS'
 var %%knownSymbol%% = (name, symbol) => (symbol = Symbol[name]) ? symbol : /* @__PURE__ */ Symbol.for("Symbol." + name);
 var %%typeError%% = (msg) => {
   throw TypeError(msg);
 };
+JS, [
+            '%%knownSymbol%%' => $this->usingHelperKnownSymbolName,
+            '%%typeError%%' => $this->usingHelperTypeErrorName,
+        ]) . "\n";
+    }
+
+    private function usingHelperRuntime(): string
+    {
+        return strtr(<<<'JS'
 var %%using%% = (stack, value, async) => {
   if (value != null) {
     if (typeof value !== "object" && typeof value !== "function") %%typeError%%("Object expected");
@@ -5564,6 +6164,60 @@ JS, [
         ]) . "\n";
     }
 
+    private function asyncGeneratorHelperRuntime(): string
+    {
+        return strtr(<<<'JS'
+var %%await%% = function(promise, isYieldStar) {
+  this[0] = promise;
+  this[1] = isYieldStar;
+};
+var %%asyncGenerator%% = (__this, __arguments, generator) => {
+  var resume = (k, v, yes, no) => {
+    try {
+      var x = generator[k](v), isAwait = (v = x.value) instanceof %%await%%, done = x.done;
+      Promise.resolve(isAwait ? v[0] : v).then((y) => isAwait ? resume(k === "return" ? k : "next", v[1] ? { done: y.done, value: y.value } : y, yes, no) : yes({ value: y, done })).catch((e) => resume("throw", e, yes, no));
+    } catch (e) {
+      no(e);
+    }
+  }, method = (k, call, wait, clear) => it[k] = (x) => (call = new Promise((yes, no, run) => (run = () => resume(k, x, yes, no), q ? q.then(run) : run())), clear = () => q === wait && (q = 0), q = wait = call.then(clear, clear), call), q, it = {};
+  return generator = generator.apply(__this, __arguments), it[%%knownSymbol%%("asyncIterator")] = () => it, method("next"), method("throw"), method("return"), it;
+};
+var %%yieldStar%% = (value) => {
+  var obj = value[%%knownSymbol%%("asyncIterator")], isAwait = false, method, it = {};
+  if (obj == null) {
+    obj = value[%%knownSymbol%%("iterator")]();
+    method = (k) => it[k] = (x) => obj[k](x);
+  } else {
+    obj = obj.call(value);
+    method = (k) => it[k] = (v) => {
+      if (isAwait) {
+        isAwait = false;
+        if (k === "throw") throw v;
+        return v;
+      }
+      isAwait = true;
+      return { done: false, value: new %%await%%(new Promise((resolve) => {
+        var x = obj[k](v);
+        if (!(x instanceof Object)) %%typeError%%("Object expected");
+        resolve(x);
+      }), 1) };
+    };
+  }
+  return it[%%knownSymbol%%("iterator")] = () => it, method("next"), "throw" in obj ? method("throw") : it.throw = (x) => {
+    throw x;
+  }, "return" in obj && method("return"), it;
+};
+var %%forAwait%% = (obj, it, method) => (it = obj[%%knownSymbol%%("asyncIterator")]) ? it.call(obj) : (obj = obj[%%knownSymbol%%("iterator")](), it = {}, method = (key, fn) => (fn = obj[key]) && (it[key] = (arg) => new Promise((yes, no, done) => (arg = fn.call(obj, arg), done = arg.done, Promise.resolve(arg.value).then((value) => yes({ value, done }), no)))), method("next"), method("return"), it);
+JS, [
+            '%%knownSymbol%%' => $this->usingHelperKnownSymbolName,
+            '%%typeError%%' => $this->usingHelperTypeErrorName,
+            '%%await%%' => $this->asyncGeneratorAwaitName,
+            '%%asyncGenerator%%' => $this->asyncGeneratorName,
+            '%%yieldStar%%' => $this->asyncGeneratorYieldStarName,
+            '%%forAwait%%' => $this->asyncGeneratorForAwaitName,
+        ]) . "\n";
+    }
+
     private function configureHelperNames(): void
     {
         $used = $this->sourceIdentifierMap();
@@ -5571,6 +6225,10 @@ JS, [
         $this->usingHelperTypeErrorName = $this->allocateUniqueIdentifier('__typeError', $used);
         $this->usingHelperUsingName = $this->allocateUniqueIdentifier('__using', $used);
         $this->usingHelperCallDisposeName = $this->allocateUniqueIdentifier('__callDispose', $used);
+        $this->asyncGeneratorAwaitName = $this->allocateUniqueIdentifier('__await', $used);
+        $this->asyncGeneratorName = $this->allocateUniqueIdentifier('__asyncGenerator', $used);
+        $this->asyncGeneratorYieldStarName = $this->allocateUniqueIdentifier('__yieldStar', $used);
+        $this->asyncGeneratorForAwaitName = $this->allocateUniqueIdentifier('__forAwait', $used);
     }
 
     /**

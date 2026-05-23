@@ -613,6 +613,93 @@ TS,
         $t->true(!str_contains($lowered, ': AsyncDisposable'));
         $t->true(!str_contains($lowered, ': AsyncGenerator'));
     },
+    'lowers upstream async generator functions through runtime helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+async function* foo(): AsyncGenerator<string> {
+  yield;
+  yield x;
+  yield *x;
+  await using x: AsyncDisposable = await y;
+}
+foo = async function* (): AsyncGenerator<string> {
+  yield *assets;
+}
+TS,
+            lowerUsingDeclarations: true,
+            lowerAsyncGenerators: true
+        );
+
+        $t->contains('var __await = function(promise, isYieldStar) {', $lowered);
+        $t->contains('var __asyncGenerator = (__this, __arguments, generator) => {', $lowered);
+        $t->contains('var __yieldStar = (value) => {', $lowered);
+        $t->contains('function foo() {', $lowered);
+        $t->contains('return __asyncGenerator(this, null, function* () {', $lowered);
+        $t->contains('yield;', $lowered);
+        $t->contains('yield x;', $lowered);
+        $t->contains('yield* __yieldStar(x);', $lowered);
+        $t->contains('const x = __using(_stack2, yield new __await(y), true);', $lowered);
+        $t->contains('_promise2 && (yield new __await(_promise2));', $lowered);
+        $t->contains('foo = function() {', $lowered);
+        $t->contains('yield* __yieldStar(assets);', $lowered);
+        $t->true(!str_contains($lowered, 'async function*'));
+        $t->true(!str_contains($lowered, 'await using'));
+        $t->true(!str_contains($lowered, ': AsyncGenerator'));
+    },
+    'lowers upstream async generator for await bodies through runtime helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+async function* foo() {
+  for await (let item of items) {
+    yield item;
+  }
+  for await (await using asset: AsyncDisposable of assets) {
+    yield asset;
+  }
+}
+TS,
+            lowerUsingDeclarations: true,
+            lowerAsyncGenerators: true
+        );
+
+        $t->contains('var __forAwait = (obj, it, method) =>', $lowered);
+        $t->contains('for (var iter = __forAwait(items), more, temp, error; more = !(temp = yield new __await(iter.next())).done; more = false) {', $lowered);
+        $t->contains('let item = temp.value;', $lowered);
+        $t->contains('yield item;', $lowered);
+        $t->contains('more && (temp = iter.return) && (yield new __await(temp.call(iter)));', $lowered);
+        $t->contains('for (var iter2 = __forAwait(assets), more2, temp2, error2; more2 = !(temp2 = yield new __await(iter2.next())).done; more2 = false) {', $lowered);
+        $t->contains('var _asset = temp2.value;', $lowered);
+        $t->contains('const asset = __using(_stack2, _asset, true);', $lowered);
+        $t->contains('_promise2 && (yield new __await(_promise2));', $lowered);
+        $t->true(!str_contains($lowered, 'for await'));
+    },
+    'lowers upstream class and object async generator methods through runtime helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+class Foo {
+  async *bar(): AsyncGenerator<string> {
+    await using x: AsyncDisposable = await y;
+    yield x;
+  }
+}
+foo = { async *bar(queue): AsyncGenerator<string> {
+  await using x: AsyncDisposable = await y;
+  yield x;
+} }
+TS,
+            lowerUsingDeclarations: true,
+            lowerAsyncGenerators: true
+        );
+
+        $t->contains("class Foo {\n  bar() {\n    return __asyncGenerator(this, null, function* () {", $lowered);
+        $t->contains('foo = {bar(queue) {', $lowered);
+        $t->contains('return __asyncGenerator(this, null, function* () {', $lowered);
+        $t->contains('const x = __using(_stack2, yield new __await(y), true);', $lowered);
+        $t->contains('const x = __using(_stack3, yield new __await(y), true);', $lowered);
+        $t->true(!str_contains($lowered, 'async *bar'));
+        $t->true(!str_contains($lowered, 'await using'));
+        $t->true(!str_contains($lowered, ': AsyncGenerator'));
+    },
     'lowers upstream function scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             'function foo() { using a: Disposable = b; if (nested) { using x: Disposable = y; bar(x); } done(a); }',
@@ -1744,6 +1831,26 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('_promise2 && await _promise2;', $lowered);
         $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+    },
+    'lowers wordpress async generator function asset queue runtime without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-async-generator-function-assets.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true, lowerAsyncGenerators: true);
+
+        $t->contains('import metadata from "./block.json" with { type: "json" };', $lowered);
+        $t->contains('export function streamPreviewAssets(queue) {', $lowered);
+        $t->contains('return __asyncGenerator(this, null, function* () {', $lowered);
+        $t->contains('const asset = __using(_stack2, yield new __await(queue.openNext(metadata.viewScript)), true);', $lowered);
+        $t->contains('yield {handle:asset.handle, url:asset.url};', $lowered);
+        $t->contains('yield* __yieldStar(queue.extraAssets());', $lowered);
+        $t->contains('_promise2 && (yield new __await(_promise2));', $lowered);
+        $t->contains('export async function registerStreamedAssets(queue) {', $lowered);
+        $t->contains('for await (const asset of streamPreviewAssets(queue)) {', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'async function* streamPreviewAssets'));
+        $t->true(!str_contains($lowered, 'await using'));
         $t->true(!str_contains($lowered, ': AsyncDisposable'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
