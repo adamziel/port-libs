@@ -122,6 +122,8 @@ The `../examples/wordpress-parallel-chunked-wxr-restore.php` example maps upstre
 
 The `../examples/wordpress-chunked-reader-factory.php` example maps upstream `fs/chunkedreader.New` selection for WordPress restores. It routes an unknown-size streamed WXR import to sequential range reads and routes a known-size larger WXR/media bundle to parallel range prefetching.
 
+The `../examples/wordpress-listp-batched-manifest.php` example maps upstream `fs/list.Helper` batching for large WordPress backup catalogs. It publishes a 104-entry WXR/SQL/uploads manifest through the upstream 100-entry ListR callback threshold, leaving the final four entries to be sent by `Flush`.
+
 ## Next Task
 
-Validate provider-ID duplicate-directory merge against live-provider fixture evidence, or map another bounded fstest provider contract that does not require live remotes.
+Map another bounded `fs/list` contract such as `filterAndSortDir` direct-entry filtering/sorting or `Sorter` key-function behavior, or validate provider-ID duplicate-directory merge against live-provider fixture evidence.
