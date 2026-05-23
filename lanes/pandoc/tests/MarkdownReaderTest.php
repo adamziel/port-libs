@@ -1798,6 +1798,60 @@ return [
         $t->same(['haskell'], $code->attr('classes'));
         $t->same(" let x = y\nin y +\ny +\ny", $code->attr('text'));
     },
+    'maps upstream markdown literate haskell bird tracks when enabled' => static function (TestRunner $t): void {
+        $default = (new MarkdownReader())->read("> a");
+        $document = (new MarkdownReader(['literateHaskell' => true]))->read("> a\n> b\n\n< c\n\n<div>\nsource note\n</div>");
+        $birdTrack = $document->children[0];
+        $inverseBirdTrack = $document->children[1];
+        $htmlDiv = $document->children[2];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('blockquote', $default->children[0]->type);
+        $t->same(['code_block', 'code_block', 'div'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(['haskell', 'literate'], $birdTrack->attr('classes'));
+        $t->same("a\nb", $birdTrack->attr('text'));
+        $t->same(['haskell'], $inverseBirdTrack->attr('classes'));
+        $t->same('c', $inverseBirdTrack->attr('text'));
+        $t->same('source note', $htmlDiv->children[0]->attr('text'));
+        $t->contains("<pre class=\"wp-block-code\"><code class=\"language-haskell\">a\nb</code></pre>", $blocks);
+        $t->contains('<pre class="wp-block-code"><code class="language-haskell">c</code></pre>', $blocks);
+    },
+    'maps upstream lhs fixture blockquote boundary when literate haskell is enabled' => static function (TestRunner $t): void {
+        $markdown = <<<'MD'
+lhs test
+========
+
+`unsplit` is an arrow that takes a pair of values and combines them to
+return a single value:
+
+> unsplit :: (Arrow a) => (b -> c -> d) -> a (b, c) d
+> unsplit = arr . uncurry
+>           -- arr (\op (x,y) -> x `op` y)
+
+`(***)` combines two arrows into a new arrow by running the two arrows on a
+pair of values.
+
+    f *** g = first f >>> second g
+
+Block quote:
+
+ > foo bar
+MD;
+        $document = (new MarkdownReader(['literateHaskell' => true]))->read($markdown);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(
+            ['heading', 'paragraph', 'code_block', 'paragraph', 'code_block', 'paragraph', 'blockquote'],
+            array_map(static fn (AstNode $node): string => $node->type, $document->children)
+        );
+        $t->same(['haskell', 'literate'], $document->children[2]->attr('classes'));
+        $t->same("unsplit :: (Arrow a) => (b -> c -> d) -> a (b, c) d\nunsplit = arr . uncurry\n          -- arr (\\op (x,y) -> x `op` y)", $document->children[2]->attr('text'));
+        $t->same([], $document->children[4]->attr('classes', []));
+        $t->same('f *** g = first f >>> second g', $document->children[4]->attr('text'));
+        $t->same('foo bar', $document->children[6]->children[0]->attr('text'));
+        $t->contains("<pre class=\"wp-block-code\"><code class=\"language-haskell\">unsplit :: (Arrow a) =&gt; (b -&gt; c -&gt; d) -&gt; a (b, c) d\nunsplit = arr . uncurry\n          -- arr (\\op (x,y) -&gt; x `op` y)</code></pre>", $blocks);
+        $t->contains('<blockquote class="wp-block-quote"><p>foo bar</p></blockquote>', $blocks);
+    },
     'maps upstream testsuite indented code blocks and tab expansion' => static function (TestRunner $t): void {
         $markdown = implode("\n", [
             'Code:',
@@ -4926,6 +4980,22 @@ XML;
 
         $t->contains('<!-- wp:code -->', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-php">do_shortcode(&#039;[legacy-gallery]&#039;);</code></pre>', $blocks);
+    },
+    'writes wordpress literate haskell source docs from import notes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-literate-haskell.md');
+        $document = (new MarkdownReader(['literateHaskell' => true]))->read($fixture);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['heading', 'paragraph', 'code_block', 'code_block', 'div', 'paragraph', 'blockquote'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(['haskell', 'literate'], $document->children[2]->attr('classes'));
+        $t->same("import Text.Pandoc\nrenderBlocks post = writeBlocks post", $document->children[2]->attr('text'));
+        $t->same(['haskell'], $document->children[3]->attr('classes'));
+        $t->same("migrationBatch = 42\nkeepReviewerNotes = True", $document->children[3]->attr('text'));
+        $t->same('Reviewer note stays a quote, not literate code.', $document->children[6]->children[0]->attr('text'));
+        $t->contains('<h1 id="literate-import-notes">Literate Import Notes</h1>', $blocks);
+        $t->contains("<pre class=\"wp-block-code\"><code class=\"language-haskell\">import Text.Pandoc\nrenderBlocks post = writeBlocks post</code></pre>", $blocks);
+        $t->contains("<pre class=\"wp-block-code\"><code class=\"language-haskell\">migrationBatch = 42\nkeepReviewerNotes = True</code></pre>", $blocks);
+        $t->contains('<blockquote class="wp-block-quote"><p>Reviewer note stays a quote, not literate code.</p></blockquote>', $blocks);
     },
     'writes wordpress html reader pre code imports from import notes' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

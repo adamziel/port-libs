@@ -23,6 +23,13 @@ final class MarkdownReader
 
     private bool $resolveFootnoteReferences = true;
 
+    /**
+     * @param array{literateHaskell?: bool} $options
+     */
+    public function __construct(private readonly array $options = [])
+    {
+    }
+
     public function read(string $markdown): AstNode
     {
         $blocks = [];
@@ -51,6 +58,11 @@ final class MarkdownReader
                 $this->flushParagraph($paragraph, $blocks);
                 $this->flushListStack($listStack, $blocks);
                 $blocks[] = $codeBlock;
+                continue;
+            }
+            $literateHaskellCodeBlock = $paragraph === [] && $listStack === [] ? $this->tryReadLiterateHaskellCodeBlock($lines, $index) : null;
+            if ($literateHaskellCodeBlock !== null) {
+                $blocks[] = $literateHaskellCodeBlock;
                 continue;
             }
             $blockQuote = $paragraph === [] && $listStack === [] ? $this->tryReadBlockQuote($lines, $index) : null;
@@ -826,6 +838,59 @@ final class MarkdownReader
         $index = $cursor - 1;
 
         return new AstNode('code_block', $attrs);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadLiterateHaskellCodeBlock(array $lines, int &$index): ?AstNode
+    {
+        if (($this->options['literateHaskell'] ?? false) !== true) {
+            return null;
+        }
+
+        $first = $this->tryParseLiterateHaskellCodeLine($lines[$index] ?? '');
+        if ($first === null) {
+            return null;
+        }
+
+        $marker = $first['marker'];
+        $content = [$first['text']];
+        $cursor = $index + 1;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $next = $this->tryParseLiterateHaskellCodeLine($lines[$cursor]);
+            if ($next === null || $next['marker'] !== $marker) {
+                break;
+            }
+
+            $content[] = $next['text'];
+            $cursor++;
+        }
+
+        $index = $cursor - 1;
+
+        return new AstNode('code_block', [
+            'classes' => $marker === '>' ? ['haskell', 'literate'] : ['haskell'],
+            'attributes' => [],
+            'text' => implode("\n", $content),
+        ]);
+    }
+
+    /**
+     * @return array{marker: string, text: string}|null
+     */
+    private function tryParseLiterateHaskellCodeLine(string $line): ?array
+    {
+        $expanded = $this->expandTabsToSpaces($line);
+        if (preg_match('/^([<>])(?: (.*)|)$/', $expanded, $m) !== 1) {
+            return null;
+        }
+
+        return [
+            'marker' => $m[1],
+            'text' => $m[2] ?? '',
+        ];
     }
 
     /**

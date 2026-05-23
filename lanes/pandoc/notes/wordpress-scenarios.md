@@ -708,9 +708,14 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   intended list item. The fixture maps Pandoc's list issue #1154 shape with
   div/button/div children so migration review markup does not escape the list
   and reorder editorial checklist context.
+- `examples/wordpress-literate-haskell.php` demonstrates source-documentation
+  imports that opt into Pandoc's literate Haskell extension. Bird-track and
+  inverse-bird-track snippets become WordPress code blocks with Haskell
+  language classes, ordinary indented source remains code, and reviewer notes
+  written as one-space-indented block quotes stay WordPress quote blocks instead
+  of being misclassified as literate source.
 
 ## Next Task
 
 Map the adjacent `Tests.Readers.Markdown` unbalanced-bracket/backslash-escape
-group explicitly, or broaden the bounded list raw-HTML support beyond the
-current div/button issue #1154 shape.
+group explicitly.

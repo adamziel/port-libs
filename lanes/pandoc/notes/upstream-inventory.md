@@ -462,10 +462,11 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `benchmark/` files: 1
 - `data/` files: 247
 
-The dashboard denominator is now 2,028 inspected upstream test files/artifacts:
-1,974 under `test/` plus all 54 tracked artifacts under
-`pandoc-lua-engine/test/`. This replaces the earlier 1,979 count that only
-included the five Lua-engine Haskell test modules.
+The lane denominator is now 2,276 inspected upstream test/data/benchmark
+files/artifacts: 1,974 under `test/`, all 54 tracked artifacts under
+`pandoc-lua-engine/test/`, 247 files under `data/`, and one benchmark file
+under `benchmark/`. This replaces the earlier 2,028 count that only included
+the main test tree plus Lua-engine test artifacts.
 
 ## Runner Blocker
 
@@ -951,6 +952,16 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   `<button>...</button>` raw HTML container, and second div as block children
   of the same list item. This prevents the native PHP reader from splitting a
   migration review list into a stray paragraph plus top-level HTML blocks.
+- The adjacent `Tests.Readers.Markdown` `lhs` extension case is now mapped for
+  the bounded bird-track shape: when `MarkdownReader` is constructed with
+  `literateHaskell => true`, `> ` lines become Haskell literate code blocks and
+  `< ` inverse-bird lines become Haskell code blocks, while the default reader
+  still treats `> ` as Markdown block quotes.
+- The upstream `test/lhs-test.markdown+lhs` fixture boundary is now mapped too:
+  column-zero bird-track lines become `["haskell","literate"]` code blocks,
+  the indented ordinary code block remains unclassed code, and the fixture's
+  one-space-indented ` > foo bar` line remains a block quote when
+  `literateHaskell => true`.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
@@ -973,3 +984,24 @@ active root PID `1534970` owned by `claude` (`php tools/run-tests.php`), so no
 duplicate root run was started then. A later exact gate was clear, and
 `php tools/run-tests.php` passed 196 test files, 21,368 assertions, and 0
 failures.
+
+Focused local verification on 2026-05-23 after the literate-Haskell slice:
+`php -l` passed for `MarkdownReader.php`, `MarkdownReaderTest.php`, and
+`examples/wordpress-literate-haskell.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,073
+assertions, and 0 failures.
+
+Required root verification gate on 2026-05-23 found an active exact root
+harness, so this lane did not start a duplicate run: PID `1766434`, owner
+`claude`, PPID `1604183`, elapsed `00:41`, command `php tools/run-tests.php`.
+Root result remains pending for the supervisor/integrator.
+
+Focused local verification on 2026-05-23 after the lhs-test boundary slice:
+`php -l` passed for `MarkdownReader.php`, `MarkdownReaderTest.php`, and
+`examples/wordpress-literate-haskell.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,083
+assertions, and 0 failures.
+
+Required root verification on 2026-05-23: the duplicate-root gate returned
+clear, so `php tools/run-tests.php` was run once and passed 196 test files,
+21,585 assertions, and 0 failures.
