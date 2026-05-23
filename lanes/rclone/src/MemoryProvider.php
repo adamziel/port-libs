@@ -160,7 +160,7 @@ final class MemoryProvider
     public function updateObject(string $path, string $bytes, array $options = []): ObjectInfo
     {
         $path = $this->canonicalPath($path);
-        $this->entry($path);
+        $this->assertObjectWritable($path, $this->entry($path));
         unset($options['sourcePath'], $options['unknownSize']);
 
         return $this->putEntry($path, $this->objectEntry($bytes, $options));
@@ -1763,6 +1763,19 @@ final class MemoryProvider
     {
         if (($entry['metadata']['dropbox_export_type'] ?? '') === 'list-only') {
             throw new \RuntimeException("Object not found: {$path}");
+        }
+        if (($entry['metadata']['package-type'] ?? '') === 'oneNote') {
+            throw new \RuntimeException("can't open a OneNote file");
+        }
+    }
+
+    /**
+     * @param array{metadata: array<string, string>} $entry
+     */
+    private function assertObjectWritable(string $path, array $entry): void
+    {
+        if (($entry['metadata']['package-type'] ?? '') === 'oneNote') {
+            throw new \RuntimeException("can't upload content to a OneNote file");
         }
     }
 

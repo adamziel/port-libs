@@ -6,6 +6,14 @@ namespace PortLibs\Rclone;
 
 final class SyncPlan
 {
+    private const DROPBOX_EXPORT_API_FORMATS = [
+        'markdown' => 'md',
+        'html' => 'html',
+    ];
+    private const ONEDRIVE_DRIVE_TYPE_PERSONAL = 'personal';
+    private const ONEDRIVE_DRIVE_TYPE_BUSINESS = 'business';
+    private const ONEDRIVE_DRIVE_TYPE_SHAREPOINT = 'documentLibrary';
+
     /** @var array<string, bool> */
     private array $interactiveDestructiveSkips = [];
 
@@ -2457,17 +2465,23 @@ final class SyncPlan
      */
     private function providerCopyPreflight(string $provider, array $apiResult): void
     {
-        if (strtolower($provider) !== 'onedrive') {
+        $provider = strtolower($provider);
+        if ($provider === 'dropbox') {
+            $this->assertDropboxKnownExportFormats($apiResult);
+
+            return;
+        }
+        if ($provider !== 'onedrive') {
             return;
         }
 
-        $sourceDriveType = $this->optionalString(
+        $sourceDriveType = $this->onedriveDriveType(
             $apiResult['sourceDriveType']
                 ?? $apiResult['srcDriveType']
                 ?? $apiResult['driveType']
                 ?? null,
         );
-        $destinationDriveType = $this->optionalString(
+        $destinationDriveType = $this->onedriveDriveType(
             $apiResult['destinationDriveType']
                 ?? $apiResult['dstDriveType']
                 ?? $apiResult['targetDriveType']
@@ -2477,8 +2491,8 @@ final class SyncPlan
             return;
         }
 
-        if (($destinationDriveType === 'personal' && $sourceDriveType !== 'personal')
-            || ($destinationDriveType !== 'personal' && $sourceDriveType === 'personal')) {
+        if (($destinationDriveType === self::ONEDRIVE_DRIVE_TYPE_PERSONAL && $sourceDriveType !== self::ONEDRIVE_DRIVE_TYPE_PERSONAL)
+            || ($destinationDriveType !== self::ONEDRIVE_DRIVE_TYPE_PERSONAL && $sourceDriveType === self::ONEDRIVE_DRIVE_TYPE_PERSONAL)) {
             throw new \RuntimeException(MemoryProvider::ERROR_CANT_COPY);
         }
 
@@ -2498,12 +2512,49 @@ final class SyncPlan
                 ?? $apiResult['targetDriveID']
                 ?? null,
         );
-        if ($sourceDriveType === 'business'
-            && $destinationDriveType === 'business'
+        if ($sourceDriveType === self::ONEDRIVE_DRIVE_TYPE_BUSINESS
+            && $destinationDriveType === self::ONEDRIVE_DRIVE_TYPE_BUSINESS
             && $sourceDriveId !== null
             && $destinationDriveId !== null
             && strtolower($sourceDriveId) !== strtolower($destinationDriveId)) {
             throw new \RuntimeException(MemoryProvider::ERROR_CANT_COPY);
+        }
+    }
+
+    private function onedriveDriveType(mixed $value): ?string
+    {
+        $driveType = $this->optionalString($value);
+        if ($driveType === null || $driveType === '') {
+            return null;
+        }
+
+        return match (strtolower($driveType)) {
+            self::ONEDRIVE_DRIVE_TYPE_PERSONAL => self::ONEDRIVE_DRIVE_TYPE_PERSONAL,
+            self::ONEDRIVE_DRIVE_TYPE_BUSINESS => self::ONEDRIVE_DRIVE_TYPE_BUSINESS,
+            'documentlibrary', 'sharepoint' => self::ONEDRIVE_DRIVE_TYPE_SHAREPOINT,
+            default => $driveType,
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     */
+    private function assertDropboxKnownExportFormats(array $apiResult): void
+    {
+        $configured = $apiResult['exportFormats'] ?? $apiResult['export_formats'] ?? null;
+        if (!is_array($configured)) {
+            return;
+        }
+
+        $knownExtensions = array_flip(self::DROPBOX_EXPORT_API_FORMATS);
+        foreach ($configured as $extension) {
+            $extension = $this->optionalString($extension);
+            if ($extension === null || $extension === '') {
+                continue;
+            }
+            if (!isset($knownExtensions[$extension])) {
+                throw new \RuntimeException("dropbox: unknown export format '{$extension}'");
+            }
         }
     }
 
@@ -2605,12 +2656,23 @@ final class SyncPlan
             }
         }
 
+        $systemMetadata = $this->onedriveSystemMetadata($apiResult);
+        if ($systemMetadata !== []) {
+            $metadata += $systemMetadata;
+            if (array_key_exists('package-type', $systemMetadata)) {
+                $refresh[] = 'onedrive:package-metadata';
+            }
+            if (array_diff_key($systemMetadata, ['package-type' => true]) !== []) {
+                $refresh[] = 'onedrive:remoteitem-shared-metadata';
+            }
+        }
+
         return [
             'options' => [
                 'modTime' => $sourceInfo->modTime,
-                'mimeType' => $this->optionalString($apiResult['mimeType'] ?? null) ?? $sourceInfo->mimeType,
+                'mimeType' => $this->onedriveMimeType($apiResult) ?? $sourceInfo->mimeType,
                 'metadata' => $metadata,
-                'id' => $this->optionalString($apiResult['id'] ?? null) ?? $sourceInfo->id,
+                'id' => $this->onedriveNormalizedId($apiResult, $sourceInfo->id),
                 'tier' => $sourceInfo->tier,
                 'hashes' => $this->onedriveHashes($apiResult) + $sourceInfo->hashes,
             ],
@@ -2710,10 +2772,6 @@ final class SyncPlan
             return ['type' => 'list-only', 'apiFormat' => null, 'extension' => null, 'path' => null];
         }
 
-        $known = [
-            'html' => 'html',
-            'markdown' => 'md',
-        ];
         $exportInfo = is_array($apiResult['exportInfo'] ?? null) ? $apiResult['exportInfo'] : [];
         $formatStrings = [];
         $exportAs = $this->optionalString($apiResult['exportAs'] ?? $apiResult['export_as'] ?? $exportInfo['exportAs'] ?? null);
@@ -2734,14 +2792,14 @@ final class SyncPlan
         $dropboxPreferredFormat = null;
         $dropboxPreferredExtension = null;
         foreach ($formatStrings as $format) {
-            if (!isset($known[$format])) {
+            if (!isset(self::DROPBOX_EXPORT_API_FORMATS[$format])) {
                 continue;
             }
             if ($dropboxPreferredFormat === null) {
                 $dropboxPreferredFormat = $format;
-                $dropboxPreferredExtension = $known[$format];
+                $dropboxPreferredExtension = self::DROPBOX_EXPORT_API_FORMATS[$format];
             }
-            $formatsByExtension[$known[$format]] = $format;
+            $formatsByExtension[self::DROPBOX_EXPORT_API_FORMATS[$format]] = $format;
         }
 
         $preferredExtensions = ['html', 'md'];
@@ -2751,7 +2809,7 @@ final class SyncPlan
             foreach ($configured as $extension) {
                 $extension = $this->optionalString($extension);
                 if ($extension !== null && $extension !== '') {
-                    $preferredExtensions[] = ltrim($extension, '.');
+                    $preferredExtensions[] = $extension;
                 }
             }
         }
@@ -2807,7 +2865,11 @@ final class SyncPlan
      */
     private function onedriveHashes(array $apiResult): array
     {
-        $hashSource = is_array($apiResult['hashes'] ?? null) ? $apiResult['hashes'] : $apiResult;
+        $remoteItem = is_array($apiResult['remoteItem'] ?? null) ? $apiResult['remoteItem'] : [];
+        $remoteFile = is_array($remoteItem['file'] ?? null) ? $remoteItem['file'] : [];
+        $hashSource = is_array($apiResult['hashes'] ?? null)
+            ? $apiResult['hashes']
+            : (is_array($remoteFile['hashes'] ?? null) ? $remoteFile['hashes'] : $apiResult);
         $hashes = [];
         foreach ([
             'sha1Hash' => HashType::SHA1,
@@ -2833,6 +2895,186 @@ final class SyncPlan
         }
 
         return $hashes;
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     */
+    private function onedriveMimeType(array $apiResult): ?string
+    {
+        $mimeType = $this->optionalString($apiResult['mimeType'] ?? null);
+        if ($mimeType !== null && $mimeType !== '') {
+            return $mimeType;
+        }
+
+        $remoteItem = is_array($apiResult['remoteItem'] ?? null) ? $apiResult['remoteItem'] : [];
+        $remoteFile = is_array($remoteItem['file'] ?? null) ? $remoteItem['file'] : [];
+        $remoteMimeType = $this->optionalString($remoteFile['mimeType'] ?? null);
+        if ($remoteMimeType !== null && $remoteMimeType !== '') {
+            return $remoteMimeType;
+        }
+
+        $file = is_array($apiResult['file'] ?? null) ? $apiResult['file'] : [];
+
+        return $this->optionalString($file['mimeType'] ?? null);
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     */
+    private function onedrivePackageType(array $apiResult): ?string
+    {
+        $remoteItem = is_array($apiResult['remoteItem'] ?? null) ? $apiResult['remoteItem'] : [];
+        $remotePackage = is_array($remoteItem['package'] ?? null) ? $remoteItem['package'] : [];
+        $remotePackageType = $this->optionalString($remotePackage['type'] ?? $remotePackage['Type'] ?? null);
+        if ($remotePackageType !== null && $remotePackageType !== '') {
+            return $remotePackageType;
+        }
+
+        $package = is_array($apiResult['package'] ?? null) ? $apiResult['package'] : [];
+
+        return $this->optionalString(
+            $package['type']
+                ?? $package['Type']
+                ?? $apiResult['packageType']
+                ?? $apiResult['package_type']
+                ?? null,
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     */
+    private function onedriveNormalizedId(array $apiResult, ?string $fallback): ?string
+    {
+        $remoteItem = is_array($apiResult['remoteItem'] ?? null) ? $apiResult['remoteItem'] : [];
+        $remoteId = $this->optionalString($remoteItem['id'] ?? null);
+        if ($remoteId !== null && $remoteId !== '') {
+            return $this->prefixOneDriveDriveId($remoteId, $remoteItem);
+        }
+
+        $id = $this->optionalString($apiResult['id'] ?? null);
+        if ($id !== null && $id !== '') {
+            return $this->prefixOneDriveDriveId($id, $apiResult);
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function prefixOneDriveDriveId(string $id, array $item): string
+    {
+        if (str_contains($id, '#')) {
+            return $id;
+        }
+
+        $parentReference = is_array($item['parentReference'] ?? null) ? $item['parentReference'] : [];
+        $driveId = $this->optionalString(
+            $parentReference['driveId']
+                ?? $parentReference['driveID']
+                ?? $item['driveId']
+                ?? $item['driveID']
+                ?? null,
+        );
+        if ($driveId === null || $driveId === '') {
+            return $id;
+        }
+
+        return $driveId . '#' . $id;
+    }
+
+    /**
+     * @param array<string, mixed> $apiResult
+     * @return array<string, string>
+     */
+    private function onedriveSystemMetadata(array $apiResult): array
+    {
+        $hasRemoteItem = is_array($apiResult['remoteItem'] ?? null);
+        $hasShared = is_array($apiResult['shared'] ?? null);
+        $packageType = $this->onedrivePackageType($apiResult);
+        if (!$hasRemoteItem && !$hasShared && ($packageType === null || $packageType === '')) {
+            return [];
+        }
+
+        $metadata = [];
+        $normalizedId = $this->onedriveNormalizedId($apiResult, null);
+        if ($normalizedId !== null && $normalizedId !== '') {
+            $metadata['id'] = $normalizedId;
+        }
+
+        $mimeType = $this->onedriveMimeType($apiResult);
+        if ($mimeType !== null && $mimeType !== '') {
+            $metadata['content-type'] = $mimeType;
+        }
+        if ($packageType !== null && $packageType !== '') {
+            $metadata['package-type'] = $packageType;
+        }
+
+        $remoteItem = is_array($apiResult['remoteItem'] ?? null) ? $apiResult['remoteItem'] : [];
+        $createdBy = $this->onedriveIdentityUser($remoteItem['createdBy'] ?? $apiResult['createdBy'] ?? null);
+        if ($createdBy['id'] !== null && $createdBy['id'] !== '') {
+            $metadata['created-by-id'] = $createdBy['id'];
+        }
+        if ($createdBy['displayName'] !== null && $createdBy['displayName'] !== '') {
+            $metadata['created-by-display-name'] = $createdBy['displayName'];
+        }
+
+        $lastModifiedBy = $this->onedriveIdentityUser($remoteItem['lastModifiedBy'] ?? $apiResult['lastModifiedBy'] ?? null);
+        if ($lastModifiedBy['id'] !== null && $lastModifiedBy['id'] !== '') {
+            $metadata['last-modified-by-id'] = $lastModifiedBy['id'];
+        }
+        if ($lastModifiedBy['displayName'] !== null && $lastModifiedBy['displayName'] !== '') {
+            $metadata['last-modified-by-display-name'] = $lastModifiedBy['displayName'];
+        }
+
+        $shared = is_array($apiResult['shared'] ?? null) ? $apiResult['shared'] : [];
+        if ($shared !== []) {
+            $owner = $this->onedriveIdentityUser($shared['owner'] ?? null);
+            if ($owner['id'] !== null && $owner['id'] !== '') {
+                $metadata['shared-owner-id'] = $owner['id'];
+            }
+
+            $sharedBy = $this->onedriveIdentityUser($shared['sharedBy'] ?? $shared['shared_by'] ?? null);
+            if ($sharedBy['id'] !== null && $sharedBy['id'] !== '') {
+                $metadata['shared-by-id'] = $sharedBy['id'];
+            }
+
+            $scope = $this->optionalString($shared['scope'] ?? null);
+            if ($scope !== null && $scope !== '') {
+                $metadata['shared-scope'] = $scope;
+            }
+
+            $sharedTime = $this->optionalString($shared['sharedDateTime'] ?? $shared['shared_date_time'] ?? null);
+            if ($sharedTime !== null && $sharedTime !== '') {
+                $metadata['shared-time'] = $sharedTime;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array{id: ?string, displayName: ?string}
+     */
+    private function onedriveIdentityUser(mixed $identitySet): array
+    {
+        if (!is_array($identitySet)) {
+            return ['id' => null, 'displayName' => null];
+        }
+
+        $user = is_array($identitySet['user'] ?? null) ? $identitySet['user'] : [];
+
+        return [
+            'id' => $this->optionalString($user['id'] ?? $user['ID'] ?? null),
+            'displayName' => $this->optionalString(
+                $user['displayName']
+                    ?? $user['display_name']
+                    ?? $user['DisplayName']
+                    ?? null,
+            ),
+        ];
     }
 
     /**

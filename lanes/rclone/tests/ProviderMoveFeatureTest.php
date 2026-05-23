@@ -637,6 +637,61 @@ return [
         $t->same('list-only', $listOnly->info('exports/site.paper')->metadata['dropbox_export_type']);
         $t->same(-1, $listOnly->info('exports/site.paper')->size);
     },
+    'dropbox export format config prefers configured extension and rejects unknown formats' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site.paper', '<paper>fresh export</paper>', [
+            'metadata' => ['wp-artifact' => 'paper-export'],
+            'id' => 'id:source-paper',
+        ]);
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.paper', 'exports/site.paper', [
+            'provider' => 'dropbox',
+            'apiResult' => [
+                'id' => 'id:dropbox-paper-markdown',
+                'isDownloadable' => false,
+                'exportInfo' => [
+                    'exportAs' => 'html',
+                    'exportOptions' => ['html', 'markdown'],
+                ],
+                'exportFormats' => ['md', 'html'],
+            ],
+        ]);
+
+        $info = $remote->info('exports/site.md');
+        $t->same('exports/site.md', $result['copied']->path);
+        $t->same('markdown', $info->metadata['dropbox_export_format']);
+        $t->same('md', $info->metadata['dropbox_export_extension']);
+        $t->same('exports/site.md', $info->metadata['dropbox_exposed_remote']);
+        $t->same(['exports/site.md', 'library/site.paper'], array_map(static fn ($listed) => $listed->path, $remote->list()));
+
+        $invalid = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $invalid->put('library/site.paper', '<paper>fresh export</paper>');
+        $invalid->put('exports/site.paper', '<paper>previous export</paper>');
+
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($invalid, 'library/site.paper', 'exports/site.paper', [
+                'provider' => 'dropbox',
+                'temporarySuffix' => '.copytmp',
+                'apiResult' => [
+                    'isDownloadable' => false,
+                    'exportInfo' => [
+                        'exportAs' => 'markdown',
+                        'exportOptions' => ['html', 'markdown'],
+                    ],
+                    'exportFormats' => ['pdf'],
+                ],
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same("dropbox: unknown export format 'pdf'", $error?->getMessage());
+        $t->same('<paper>previous export</paper>', $invalid->get('exports/site.paper'));
+        $t->same('<paper>fresh export</paper>', $invalid->get('library/site.paper'));
+        $t->same(false, $invalid->pathExists('exports/site.paper.copytmp'));
+        $t->same(['exports/site.paper', 'library/site.paper'], array_map(static fn ($listed) => $listed->path, $invalid->list()));
+    },
     'dropbox skip exports hides copied paper exports from ordinary listings' => static function (TestRunner $t): void {
         $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
         $remote->put('library/site.paper', '<paper>fresh export</paper>', [
@@ -777,6 +832,121 @@ return [
             'onedrive:metadata-permissions-failok',
         ], $result['metadataRefresh']);
     },
+    'onedrive server side copy exposes remote item shared metadata' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(
+            supportedHashes: new HashSet(HashType::SHA1, HashType::QUICKXOR),
+            serverSideMove: true,
+            serverSideCopy: true,
+        );
+        $remote->put('library/site.wxr', '<rss>fresh shared export</rss>', [
+            'modTime' => '2026-05-22T02:00:00Z',
+            'metadata' => ['wp-artifact' => 'shared-source-wxr'],
+            'id' => 'source-shared-export',
+        ]);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site.wxr', 'exports/site.wxr', [
+            'provider' => 'onedrive',
+            'apiResult' => [
+                'remoteItem' => [
+                    'id' => 'remote-copy-id',
+                    'parentReference' => ['driveId' => 'shared-drive'],
+                    'file' => [
+                        'mimeType' => 'application/rss+xml',
+                        'hashes' => [
+                            'sha1Hash' => strtoupper(hash('sha1', '<rss>fresh shared export</rss>')),
+                            'quickXorHash' => 'fZ63/Cfr5wNPmPRzVwMIyoAHOLw=',
+                        ],
+                    ],
+                    'createdBy' => [
+                        'user' => [
+                            'id' => 'owner-user',
+                            'displayName' => 'Site Owner',
+                        ],
+                    ],
+                    'lastModifiedBy' => [
+                        'user' => [
+                            'id' => 'migration-bot',
+                            'displayName' => 'Migration Bot',
+                        ],
+                    ],
+                ],
+                'shared' => [
+                    'owner' => ['user' => ['id' => 'owner-account']],
+                    'sharedBy' => ['user' => ['id' => 'reviewer-account']],
+                    'scope' => 'users',
+                    'sharedDateTime' => '2026-05-23T08:15:30Z',
+                ],
+            ],
+        ]);
+
+        $info = $remote->info('exports/site.wxr');
+        $t->same('shared-drive#remote-copy-id', $result['copied']->id);
+        $t->same('shared-drive#remote-copy-id', $info->metadata['id']);
+        $t->same('application/rss+xml', $info->mimeType);
+        $t->same('application/rss+xml', $info->metadata['content-type']);
+        $t->same('owner-user', $info->metadata['created-by-id']);
+        $t->same('Site Owner', $info->metadata['created-by-display-name']);
+        $t->same('migration-bot', $info->metadata['last-modified-by-id']);
+        $t->same('Migration Bot', $info->metadata['last-modified-by-display-name']);
+        $t->same('owner-account', $info->metadata['shared-owner-id']);
+        $t->same('reviewer-account', $info->metadata['shared-by-id']);
+        $t->same('users', $info->metadata['shared-scope']);
+        $t->same('2026-05-23T08:15:30Z', $info->metadata['shared-time']);
+        $t->same(hash('sha1', '<rss>fresh shared export</rss>'), $remote->hashes('exports/site.wxr', new HashSet(HashType::SHA1))[HashType::SHA1]);
+        $t->same('7d9eb7fc27ebe7034f98f473570308ca800738bc', $remote->hashes('exports/site.wxr', new HashSet(HashType::QUICKXOR))[HashType::QUICKXOR]);
+        $t->same([
+            'onedrive:async-copy-job',
+            'onedrive:set-source-modtime',
+            'onedrive:remoteitem-shared-metadata',
+        ], $result['metadataRefresh']);
+    },
+    'onedrive remote item package metadata makes onenote copies non-readable' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('library/site-notes.one', 'onenote package bytes', [
+            'modTime' => '2026-05-22T02:00:00Z',
+            'metadata' => ['wp-artifact' => 'migration-notes'],
+            'id' => 'source-notes-package',
+        ]);
+
+        $result = (new SyncPlan())->serverSideCopyReplace($remote, 'library/site-notes.one', 'exports/site-notes.one', [
+            'provider' => 'onedrive',
+            'apiResult' => [
+                'remoteItem' => [
+                    'id' => 'remote-notes-copy',
+                    'parentReference' => ['driveId' => 'shared-drive'],
+                    'package' => ['type' => 'oneNote'],
+                ],
+            ],
+        ]);
+
+        $info = $remote->info('exports/site-notes.one');
+        $openError = null;
+        try {
+            $remote->openReader('exports/site-notes.one');
+        } catch (RuntimeException $throwable) {
+            $openError = $throwable->getMessage();
+        }
+        $updateError = null;
+        try {
+            $remote->updateObject('exports/site-notes.one', 'replacement bytes');
+        } catch (RuntimeException $throwable) {
+            $updateError = $throwable->getMessage();
+        }
+
+        $t->same('shared-drive#remote-notes-copy', $result['copied']->id);
+        $t->same('oneNote', $info->metadata['package-type']);
+        $t->same('shared-drive#remote-notes-copy', $info->metadata['id']);
+        $t->same([
+            'onedrive:async-copy-job',
+            'onedrive:set-source-modtime',
+            'onedrive:package-metadata',
+            'onedrive:remoteitem-shared-metadata',
+        ], $result['metadataRefresh']);
+        $t->same('can\'t open a OneNote file', $openError);
+        $t->same('can\'t upload content to a OneNote file', $updateError);
+        $t->same(['exports/site-notes.one', 'library/site-notes.one'], array_map(static fn ($listed) => $listed->path, $remote->list()));
+    },
     'onedrive server side copy rejects unsupported cross-drive pairs before remove existing' => static function (TestRunner $t): void {
         $cases = [
             [
@@ -813,6 +983,72 @@ return [
             $t->same(false, $remote->pathExists('exports/site.wxr.copytmp'));
             $t->same(['exports/site.wxr', 'library/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list()));
         }
+    },
+    'onedrive sharepoint document library copy gates match upstream drive type rules' => static function (TestRunner $t): void {
+        $remote = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $remote->put('staging/site.wxr', '<rss>fresh sharepoint export</rss>', [
+            'modTime' => '2026-05-23T09:00:00Z',
+            'metadata' => ['wp-artifact' => 'sharepoint-wxr'],
+        ]);
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+
+        $businessToSharePoint = (new SyncPlan())->serverSideCopyReplace($remote, 'staging/site.wxr', 'exports/site.wxr', [
+            'provider' => 'onedrive',
+            'temporarySuffix' => '.copytmp',
+            'apiResult' => [
+                'sourceDriveType' => 'business',
+                'sourceDriveId' => 'business-drive-a',
+                'destinationDriveType' => 'documentLibrary',
+                'destinationDriveId' => 'sharepoint-library-b',
+                'id' => 'copied-business-to-library',
+            ],
+        ]);
+
+        $t->same('copied-business-to-library', $businessToSharePoint['copied']->id);
+        $t->same('exports/site.wxr.copytmp', $businessToSharePoint['savedPath']);
+        $t->same('<rss>fresh sharepoint export</rss>', $remote->get('exports/site.wxr'));
+        $t->same(false, $remote->pathExists('exports/site.wxr.copytmp'));
+
+        $remote->put('exports/site.wxr', '<rss>previous export</rss>');
+        $sharePointToBusiness = (new SyncPlan())->serverSideCopyReplace($remote, 'staging/site.wxr', 'exports/site.wxr', [
+            'provider' => 'onedrive',
+            'temporarySuffix' => '.copytmp',
+            'apiResult' => [
+                'sourceDriveType' => 'sharepoint',
+                'sourceDriveId' => 'sharepoint-library-a',
+                'destinationDriveType' => 'business',
+                'destinationDriveId' => 'business-drive-b',
+                'id' => 'copied-library-to-business',
+            ],
+        ]);
+
+        $t->same('copied-library-to-business', $sharePointToBusiness['copied']->id);
+        $t->same('<rss>fresh sharepoint export</rss>', $remote->get('exports/site.wxr'));
+        $t->same(['exports/site.wxr', 'staging/site.wxr'], array_map(static fn ($info) => $info->path, $remote->list()));
+
+        $blocked = new MemoryProvider(serverSideMove: true, serverSideCopy: true);
+        $blocked->put('staging/site.wxr', '<rss>fresh export</rss>');
+        $blocked->put('exports/site.wxr', '<rss>previous export</rss>');
+        $error = null;
+        try {
+            (new SyncPlan())->serverSideCopyReplace($blocked, 'staging/site.wxr', 'exports/site.wxr', [
+                'provider' => 'onedrive',
+                'temporarySuffix' => '.copytmp',
+                'apiResult' => [
+                    'sourceDriveType' => 'documentLibrary',
+                    'destinationDriveType' => 'personal',
+                    'sourceDriveId' => 'sharepoint-library',
+                    'destinationDriveId' => 'personal-drive',
+                ],
+            ]);
+        } catch (RuntimeException $throwable) {
+            $error = $throwable;
+        }
+
+        $t->same(MemoryProvider::ERROR_CANT_COPY, $error?->getMessage());
+        $t->same('<rss>previous export</rss>', $blocked->get('exports/site.wxr'));
+        $t->same('<rss>fresh export</rss>', $blocked->get('staging/site.wxr'));
+        $t->same(false, $blocked->pathExists('exports/site.wxr.copytmp'));
     },
     'yandex server side copy refreshes object metadata from custom rclone modtime' => static function (TestRunner $t): void {
         $remote = new MemoryProvider(
@@ -1240,11 +1476,42 @@ return [
             'onedrive:metadata-permissions-add-only',
             'onedrive:metadata-permissions-failok',
         ], $example['onedriveFailOkMetadataRefresh']);
+        $t->same('shared-drive#shared-export-copy', $example['onedriveSharedCopiedId']);
+        $t->same([
+            'onedrive:async-copy-job',
+            'onedrive:set-source-modtime',
+            'onedrive:metadata-permissions-add-only',
+            'onedrive:remoteitem-shared-metadata',
+        ], $example['onedriveSharedMetadataRefresh']);
+        $t->same('application/rss+xml', $example['onedriveSharedMimeType']);
+        $t->same('shared-drive#shared-export-copy', $example['onedriveSharedMetadata']['id']);
+        $t->same('site-owner', $example['onedriveSharedMetadata']['created-by-id']);
+        $t->same('Site Owner', $example['onedriveSharedMetadata']['created-by-display-name']);
+        $t->same('migration-bot', $example['onedriveSharedMetadata']['last-modified-by-id']);
+        $t->same('Migration Bot', $example['onedriveSharedMetadata']['last-modified-by-display-name']);
+        $t->same('site-owner-account', $example['onedriveSharedMetadata']['shared-owner-id']);
+        $t->same('reviewer-account', $example['onedriveSharedMetadata']['shared-by-id']);
+        $t->same('users', $example['onedriveSharedMetadata']['shared-scope']);
+        $t->same('2026-05-23T08:15:30Z', $example['onedriveSharedMetadata']['shared-time']);
+        $t->same('shared-drive#shared-notes-copy', $example['onedrivePackageCopiedId']);
+        $t->same('oneNote', $example['onedrivePackageMetadata']['package-type']);
+        $t->same('shared-drive#shared-notes-copy', $example['onedrivePackageMetadata']['id']);
+        $t->same([
+            'onedrive:async-copy-job',
+            'onedrive:set-source-modtime',
+            'onedrive:package-metadata',
+            'onedrive:remoteitem-shared-metadata',
+        ], $example['onedrivePackageMetadataRefresh']);
+        $t->same('can\'t open a OneNote file', $example['onedrivePackageOpenError']);
+        $t->same('can\'t upload content to a OneNote file', $example['onedrivePackageUpdateError']);
         $t->same(hash('md5', '<rss>fresh export</rss>'), $example['yandexMd5']);
         $t->same(['yandex:new-object-metadata-read'], $example['yandexMetadataRefresh']);
         $t->same('exports/site.html', $example['dropboxPaperCopiedPath']);
         $t->same('exportable', $example['dropboxPaperExportType']);
         $t->same(-1, $example['dropboxPaperSize']);
+        $t->same('exports/markdown.md', $example['dropboxMarkdownCopiedPath']);
+        $t->same('markdown', $example['dropboxMarkdownExportFormat']);
+        $t->same('md', $example['dropboxMarkdownExtension']);
         $t->same('hidden', $example['dropboxHiddenExportType']);
         $t->same(false, $example['dropboxHiddenListed']);
         $t->same(false, in_array('exports/hidden.paper', $example['dropboxExportsListing'], true));
@@ -1252,12 +1519,21 @@ return [
         $t->same('list-only', $example['dropboxListOnlyExportType']);
         $t->same(true, $example['dropboxListOnlyListed']);
         $t->same('Object not found: exports/list-only.paper', $example['dropboxListOnlyOpenError']);
+        $t->same("dropbox: unknown export format 'pdf'", $example['dropboxUnknownFormatError']);
+        $t->same('<paper>previous invalid export</paper>', $example['dropboxUnknownFormatPreserved']);
+        $t->same(false, $example['dropboxUnknownFormatTempExists']);
         $t->same('2026-05-23T12:34:56Z', $example['yandexRcloneModified']);
         $t->same('failed to set custom property rclone_modified: custom properties are locked', $example['yandexSetModTimeError']);
         $t->same('failed to parse modtime from "not-a-time": cannot parse as RFC3339Nano', $example['yandexInvalidModTimeError']);
         $t->same('copy failed: too_many_write_operations', $example['dropboxCopyError']);
         $t->same(MemoryProvider::ERROR_CANT_COPY, $example['onedriveAccessDeniedError']);
         $t->same(MemoryProvider::ERROR_CANT_COPY, $example['onedriveCrossDriveError']);
+        $t->same('sharepoint-wxr-copy', $example['onedriveSharePointCopiedId']);
+        $t->same('<rss>fresh export</rss>', $example['onedriveSharePointBytes']);
+        $t->same('exports/sharepoint-site.wxr.wpcopy', $example['onedriveSharePointSavedPath']);
+        $t->same(false, $example['onedriveSharePointTempExists']);
+        $t->same(MemoryProvider::ERROR_CANT_COPY, $example['onedriveSharePointPersonalError']);
+        $t->same('<rss>previous personal export</rss>', $example['onedriveSharePointPersonalPreserved']);
         $t->same('<rss>previous export</rss>', $example['restoredAfterAccessDenied']);
         $t->same('async status result not JSON: "not-json": invalid character', $example['onedriveBadStatusError']);
         $t->same('no ID found in response', $example['sugarsyncMissingIdError']);
