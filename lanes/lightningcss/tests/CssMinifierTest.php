@@ -14,6 +14,14 @@ return [
         $css = '.x { content: "/* not a comment */"; font-family: Open Sans, sans-serif; }';
         $t->same('.x{content:"/* not a comment */";font-family:Open Sans,sans-serif}', (new CssMinifier())->minify($css));
     },
+    'css minifier preserves descendant spaces before functional pseudo classes' => static function (TestRunner $t): void {
+        $css = '.scope :is(.title, .summary) { color: blue; } .scope:not(.is-hidden) { color: red; }';
+
+        $t->same(
+            '.scope :is(.title,.summary){color:#00f}.scope:not(.is-hidden){color:red}',
+            (new CssMinifier())->minify($css)
+        );
+    },
     'css minifier shortens upstream color keywords in declaration values' => static function (TestRunner $t): void {
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));

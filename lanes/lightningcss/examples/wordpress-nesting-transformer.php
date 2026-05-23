@@ -12,6 +12,10 @@ $css = <<<'CSS'
 
   .wp-block-post-title {
     color: red;
+
+    .is-featured & {
+      opacity: .9;
+    }
   }
 
   &:hover .wp-block-post-title {

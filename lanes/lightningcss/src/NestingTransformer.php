@@ -151,9 +151,16 @@ final class NestingTransformer
                 continue;
             }
 
-            $resolved[] = str_contains($nested, '&')
-                ? $this->resolveParentReferences($nested, $parentSelectors)
-                : $this->parentReference($parentSelectors) . ' ' . $nested;
+            if (str_contains($nested, '&')) {
+                if ($this->startsWithCombinator($nested)) {
+                    $nested = '& ' . $nested;
+                }
+
+                $resolved[] = $this->resolveParentReferences($nested, $parentSelectors);
+                continue;
+            }
+
+            $resolved[] = $this->parentReference($parentSelectors) . ' ' . $nested;
         }
 
         if ($resolved === []) {
@@ -193,7 +200,7 @@ final class NestingTransformer
 
             $output .= $this->isAttachedToPreviousSelector($selector, $i)
                 ? $attachedSuffix
-                : $parentReference;
+                : ($this->isFirstNonWhitespaceAt($selector, $i) ? $parentReference : $attachedSuffix);
         }
 
         return $output;
@@ -248,6 +255,24 @@ final class NestingTransformer
         return !ctype_space($previous)
             && !in_array($previous, ['>', '+', '~', '(', ','], true)
             && $previous !== '&';
+    }
+
+    private function isFirstNonWhitespaceAt(string $selector, int $offset): bool
+    {
+        for ($i = 0; $i < $offset; $i++) {
+            if (!ctype_space($selector[$i])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function startsWithCombinator(string $selector): bool
+    {
+        $selector = ltrim($selector);
+
+        return $selector !== '' && in_array($selector[0], ['>', '+', '~'], true);
     }
 
     private function hasTopLevelCombinator(string $selector): bool

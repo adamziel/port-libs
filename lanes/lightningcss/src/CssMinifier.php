@@ -44,6 +44,15 @@ final class CssMinifier
                 continue;
             }
 
+            if ($char === ':' && $pendingSpace && $this->startsFunctionalPseudoClass($css, $i)) {
+                if ($this->needsSelectorDescendantSpaceBeforePseudo($output)) {
+                    $output .= ' ';
+                }
+                $output .= $char;
+                $pendingSpace = false;
+                continue;
+            }
+
             if (str_contains($tight, $char)) {
                 $output = rtrim($output);
                 $output .= $char;
@@ -482,6 +491,22 @@ final class CssMinifier
 
         return (ctype_alnum($previous) || $previous === '_' || $previous === '-' || $previous === '%')
             && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#');
+    }
+
+    private function startsFunctionalPseudoClass(string $css, int $offset): bool
+    {
+        return preg_match('/^:(?:is|where|not|has)\(/i', substr($css, $offset)) === 1;
+    }
+
+    private function needsSelectorDescendantSpaceBeforePseudo(string $output): bool
+    {
+        if ($output === '') {
+            return false;
+        }
+
+        $previous = $output[strlen($output) - 1];
+
+        return !in_array($previous, ['{', ',', '>', '+', '~', '('], true);
     }
 
     private function minifyDeclarationValues(string $css): string

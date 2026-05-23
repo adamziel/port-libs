@@ -100,6 +100,26 @@ CSS;
             $transformer->lower('.foo { color: red; @nest .parent & { color: blue; } }')
         );
     },
+    'nesting transformer maps upstream parent placement and leading combinators' => static function (TestRunner $t): void {
+        $transformer = new NestingTransformer();
+
+        $t->same(
+            '.foo{color:red}.bar .foo{color:#00f}',
+            $transformer->lower('.foo { color: red; .bar & { color: blue; } }')
+        );
+        $t->same(
+            '.foo{color:red}.foo+.bar+.foo{color:#00f}',
+            $transformer->lower('.foo { color: red; + .bar + & { color: blue; } }')
+        );
+        $t->same(
+            '.baz :is(.foo .bar){background:green}',
+            $transformer->lower('.foo .bar { .baz & { background: green; } }')
+        );
+        $t->same(
+            '.baz :is(.foo .bar){background:green}',
+            $transformer->lower('.foo .bar { @nest .baz & { background: green; } }')
+        );
+    },
     'nesting transformer maps upstream nested supports and container lowering' => static function (TestRunner $t): void {
         $transformer = new NestingTransformer();
 
@@ -119,6 +139,10 @@ CSS;
 
   .wp-block-post-title {
     color: red;
+
+    .is-featured & {
+      opacity: .9;
+    }
   }
 
   &:hover .wp-block-post-title {
@@ -134,7 +158,7 @@ CSS;
 CSS;
 
         $t->same(
-            '.wp-block-query{color:#00f}.wp-block-query .wp-block-post-title{color:red}.wp-block-query:hover .wp-block-post-title{text-decoration-color:#ff0}@media (width>=600px){.wp-block-query .wp-block-post-title{color:#00f}}',
+            '.wp-block-query{color:#00f}.wp-block-query .wp-block-post-title{color:red}.is-featured :is(.wp-block-query .wp-block-post-title){opacity:.9}.wp-block-query:hover .wp-block-post-title{text-decoration-color:#ff0}@media (width>=600px){.wp-block-query .wp-block-post-title{color:#00f}}',
             (new NestingTransformer())->lower($css)
         );
     },
