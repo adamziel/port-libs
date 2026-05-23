@@ -4,7 +4,7 @@ Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, selected
 `lanes/*/lane-status.json` files needed to verify status drift, PHP shell-out
 usage in `lanes/`, `tools/`, and `scripts/`, and recent Git history observed
-through `03140c94`.
+through `546dd7b1`.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 or count bridge/generated/oracle tooling as native implementation progress.
@@ -21,7 +21,7 @@ or count bridge/generated/oracle tooling as native implementation progress.
      status, and honest repo-wide test recording.
    - Evidence: `porting.html` and `porting-summary.json` still publish a
      `2026-05-23 03:09:50 UTC` snapshot from `3f4ea3cda693`, while recent
-     history advanced through `03140c94`. Several dashboard counts are now
+     history advanced through `546dd7b1`. Several dashboard counts are now
      stale relative to current manifests: difftastic publishes `139 / 417`
      while the manifest records `mapped: 160`; markerPDF publishes `81 / 78`
      while the manifest records `mapped: 157`; libsqlite publishes
@@ -47,10 +47,12 @@ or count bridge/generated/oracle tooling as native implementation progress.
    - Evidence: while this audit was running, HEAD advanced from the prior audit
      area through `8fe785a4`, `ef1b09ef`, `b1282ff7`, `e8b5bf63`, `7307c161`,
      `08ca6341`, `e7cd718e`, `0dfdae86`, `35b56921`, `b555e29b`,
-     `eaada69c`, and `03140c94`. The latest status sample shows `490` `git status --short`
-     entries, including `44` modified tracked entries and `446` untracked entries;
+     `eaada69c`, `03140c94`, `c0a38e45`, `4ac14262`, `d0826dfd`,
+     `77eb23f5`, and `546dd7b1`. The latest status sample shows `486`
+     `git status --short` entries, including `37` modified tracked entries and
+     `449` untracked entries;
      `git diff --shortstat` reports
-     `44 files changed, 10760 insertions(+), 396 deletions(-)`.
+     `37 files changed, 10156 insertions(+), 267 deletions(-)`.
    - Audit judgment: the root test result below is useful smoke evidence, but
      it should not be treated as a release/integration checkpoint until the
      supervisor freezes writers and accepts/rejects dirty lane batches.
@@ -89,7 +91,7 @@ or count bridge/generated/oracle tooling as native implementation progress.
    - Evidence: Gitoxide's manifest still says required root verification is
      red with 7 LightningCSS/Quadrable failures. Dolt, Gitoxide, and Syncthing
      lane statuses still contain red-root blocker prose, while the required
-     command in this audit exits `0` with `183 test files, 18198 assertions,
+     command in this audit exits `0` with `183 test files, 18228 assertions,
      0 failures`.
    - Audit judgment: status files need a single-source root-test stamp instead
      of stale lane-local prose copied forward across unrelated commits.
@@ -143,11 +145,11 @@ Exact result for this audit:
 
 ```text
 exit status: 0
-183 test files, 18198 assertions, 0 failures
+183 test files, 18228 assertions, 0 failures
 ```
 
 This is a green dirty-worktree sample, not an accepted integration checkpoint,
-because the tree was moving during the audit and still has 490 status entries
+because the tree was moving during the audit and still has 486 status entries
 in the latest sample.
 
 ## Recommended Next Intervention
