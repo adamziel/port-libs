@@ -63,6 +63,11 @@ final class TransitionPrefixer
             $body = substr($css, $open + 1, $close - $open - 1);
             if (str_starts_with($prelude, '@')) {
                 $prelude = $this->rewriteSupportsBackdropFilterPrelude($prelude, $targetOptions);
+                if ($this->isFontPaletteValuesPrelude($prelude)) {
+                    $output .= $this->rewriteFontPaletteValuesRule($prelude, $body, $insideAdvancedColorSupports);
+                    $cursor = $close + 1;
+                    continue;
+                }
                 $output .= $prelude . '{' . $this->rewriteRuleList(
                     $body,
                     $insideAdvancedColorSupports || $this->isAdvancedColorSupportsPrelude($prelude),
@@ -72,6 +77,62 @@ final class TransitionPrefixer
                 $output .= $this->rewriteStyleRule($prelude, $body, $insideAdvancedColorSupports, $targetOptions);
             }
             $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function isFontPaletteValuesPrelude(string $prelude): bool
+    {
+        return preg_match('/^@font-palette-values\b/i', $prelude) === 1;
+    }
+
+    private function rewriteFontPaletteValuesRule(string $prelude, string $body, bool $insideAdvancedColorSupports): string
+    {
+        $entries = $this->parseDeclarations($body);
+        if ($entries === null || $insideAdvancedColorSupports) {
+            return $prelude . '{' . $body . '}';
+        }
+
+        $rewritten = [];
+        $supportEntries = $entries;
+        $changed = false;
+        $needsLabSupport = false;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['property'] !== 'override-colors' || $entry['important']) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $fallback = $this->advancedColorFallbackValue($entry['value']);
+            if ($fallback === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $rewritten[] = $this->entryWithValue($entry, $fallback);
+            $changed = true;
+
+            if ($this->containsCustomPropertyReference($entry['value'])) {
+                $labFallback = $this->advancedColorLabFallbackValue($entry['value'], true);
+                if ($labFallback !== null && $labFallback !== $fallback) {
+                    $supportEntries[$index] = $this->entryWithValue($entry, $labFallback);
+                    $needsLabSupport = true;
+                }
+                continue;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return $prelude . '{' . $body . '}';
+        }
+
+        $output = $prelude . '{' . $this->serializeDeclarations($rewritten) . '}';
+        if ($needsLabSupport) {
+            $output .= '@supports (color:lab(0% 0 0)){' . $prelude . '{' . $this->serializeDeclarations($supportEntries) . '}}';
         }
 
         return $output;

@@ -6,6 +6,20 @@ namespace PortLibs\LightningCSS;
 
 final class CssMinifier
 {
+    /**
+     * @return array{code:string,warnings:list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}>}
+     */
+    public function minifyWithErrorRecovery(string $css, string $filename = '<stdin>'): array
+    {
+        $warnings = [];
+        $css = $this->omitRecoverableInvalidAtRules($css, $filename, $warnings);
+
+        return [
+            'code' => $this->minify($css),
+            'warnings' => $warnings,
+        ];
+    }
+
     public function minify(string $css): string
     {
         $css = $this->stripComments($css);
@@ -79,6 +93,8 @@ final class CssMinifier
         $css = $this->minifyContainerQueries($this->minifyMediaQueries($this->minifyDeclarationValues(str_replace(';}', '}', trim($output)))));
         $css = $this->canonicalizeImplicitNestedSelectors($css);
         $css = $this->minifyImportRules($css);
+        $css = $this->minifyNamespaceRules($css);
+        $css = $this->normalizeNamespaceAttributeSelectors($css);
         $css = $this->minifySupportsRules($css);
         $css = $this->minifyFontFeatureValuesRules($css);
         $css = $this->mergeAdjacentRuleBlocks($css);
@@ -90,9 +106,172 @@ final class CssMinifier
         $css = $this->composeTransitionDeclarationBlocks($css);
 
         $css = $this->composeAnimationDeclarationBlocks($css);
+        $css = $this->minifyPropertyRules($css);
+        $css = $this->validatePageRules($css);
         $css = $this->normalizeScopeRuleSpacing($css);
 
         return $this->compactLegacyPseudoElementColons($css);
+    }
+
+    /**
+     * @param list<array{message:string,type:string,loc:array{filename:string,line:int,column:int}}> $warnings
+     */
+    private function omitRecoverableInvalidAtRules(string $css, string $filename, array &$warnings): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (($invalid = $this->findRecoverableInvalidAtRule($css, $cursor)) !== null) {
+            $output .= substr($css, $cursor, $invalid['start'] - $cursor);
+            $warnings[] = [
+                'message' => 'Unexpected token Function("' . $invalid['function'] . '")',
+                'type' => 'UnexpectedToken',
+                'loc' => $this->sourceLocation($css, $invalid['functionOffset'], $filename),
+            ];
+            $cursor = $invalid['end'];
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    /**
+     * @return array{start:int,end:int,function:string,functionOffset:int}|null
+     */
+    private function findRecoverableInvalidAtRule(string $css, int $start): ?array
+    {
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $i + 2);
+                if ($end === false) {
+                    return null;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char !== '@') {
+                continue;
+            }
+
+            foreach (['@container', '@media'] as $keyword) {
+                if (!$this->startsWithAtKeyword($css, $i, $keyword)) {
+                    continue;
+                }
+
+                $open = $this->findNextTopLevel($css, '{', $i + strlen($keyword));
+                if ($open === null) {
+                    continue;
+                }
+
+                $preludeStart = $i + strlen($keyword);
+                $prelude = substr($css, $preludeStart, $open - $preludeStart);
+                $functionOffset = $keyword === '@container'
+                    ? $this->recoverableContainerFunctionOffset($prelude)
+                    : $this->recoverableMediaFunctionOffset($prelude);
+                if ($functionOffset === null) {
+                    continue;
+                }
+
+                $function = $this->readIdentifier($prelude, $functionOffset);
+                $close = $this->findMatchingBraceInCss($css, $open);
+
+                return [
+                    'start' => $i,
+                    'end' => $close + 1,
+                    'function' => strtolower($function),
+                    'functionOffset' => $preludeStart + $functionOffset,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function startsWithAtKeyword(string $css, int $offset, string $keyword): bool
+    {
+        if (strncasecmp(substr($css, $offset, strlen($keyword)), $keyword, strlen($keyword)) !== 0) {
+            return false;
+        }
+
+        $next = $css[$offset + strlen($keyword)] ?? '';
+
+        return $next === '' || !$this->isIdentifierChar($next);
+    }
+
+    private function recoverableContainerFunctionOffset(string $prelude): ?int
+    {
+        [$name, $condition] = $this->splitContainerNameAndCondition(trim($prelude));
+        if ($condition === null || $condition === '') {
+            return null;
+        }
+
+        $function = $this->wholeContainerConditionFunctionName($condition);
+        if ($function === null || in_array($function, ['style', 'scroll-state'], true)) {
+            return null;
+        }
+
+        $conditionOffset = strpos($prelude, $condition);
+        if ($conditionOffset === false) {
+            return null;
+        }
+
+        return $conditionOffset + (strpos($condition, $function) ?: 0);
+    }
+
+    private function recoverableMediaFunctionOffset(string $prelude): ?int
+    {
+        foreach ($this->splitTopLevel($prelude, ',') as $query) {
+            $trimmed = trim($query);
+            if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\(/', $trimmed, $matches) !== 1) {
+                continue;
+            }
+
+            $queryOffset = strpos($prelude, $query);
+            if ($queryOffset === false) {
+                continue;
+            }
+
+            return $queryOffset + (strpos($query, $matches[1]) ?: 0);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{filename:string,line:int,column:int}
+     */
+    private function sourceLocation(string $source, int $offset, string $filename): array
+    {
+        $before = substr($source, 0, $offset);
+        $line = substr_count($before, "\n") + 1;
+        $lastNewline = strrpos($before, "\n");
+        $column = $lastNewline === false ? strlen($before) : strlen(substr($before, $lastNewline + 1));
+
+        return [
+            'filename' => $filename,
+            'line' => $line,
+            'column' => $column,
+        ];
     }
 
     private function stripComments(string $css): string
@@ -316,6 +495,320 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function minifyNamespaceRules(string $css): string
+    {
+        $output = '';
+        $quote = null;
+        $braceDepth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $seenTopLevelRuleBlock = false;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@namespace')) {
+                if ($seenTopLevelRuleBlock) {
+                    throw new \InvalidArgumentException('Unexpected @namespace rule after style rules');
+                }
+
+                $end = $this->findNextTopLevel($css, ';', $i + strlen('@namespace'));
+                if ($end === null) {
+                    $output .= substr($css, $i);
+                    break;
+                }
+                $output .= $this->minifyNamespaceStatement(substr($css, $i, $end - $i)) . ';';
+                $i = $end;
+                continue;
+            }
+
+            if ($char === '{') {
+                if ($braceDepth === 0) {
+                    $seenTopLevelRuleBlock = true;
+                }
+                $braceDepth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                $output .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $output .= $char;
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                $output .= $char;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function minifyNamespaceStatement(string $statement): string
+    {
+        $rest = trim(substr($statement, strlen('@namespace')));
+        if ($rest === '') {
+            return '@namespace';
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($rest);
+        if (count($tokens) === 1) {
+            return '@namespace ' . $this->minifyNamespaceSourceToken($tokens[0]);
+        }
+        if (count($tokens) === 2) {
+            return '@namespace ' . $tokens[0] . ' ' . $this->minifyNamespaceSourceToken($tokens[1]);
+        }
+
+        return '@namespace ' . $rest;
+    }
+
+    private function minifyNamespaceSourceToken(string $token): string
+    {
+        if ($this->startsUrlFunction($token, 0)) {
+            [$url, $offset] = $this->readFunctionRaw($token, 0);
+            if ($offset === strlen($token) - 1) {
+                $value = $this->cssUrlTokenValue($url);
+                if ($value !== null) {
+                    return '"' . str_replace('"', '\\"', $value) . '"';
+                }
+            }
+        }
+
+        if (($token[0] ?? '') === '"' || ($token[0] ?? '') === "'") {
+            return $this->normalizeCssStringToken($token);
+        }
+
+        return $token;
+    }
+
+    private function normalizeNamespaceAttributeSelectors(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $preludeStart = $this->findPreludeStart($css, $cursor, $open);
+            $output .= substr($css, $cursor, $preludeStart - $cursor);
+
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            if ($this->isStyleRulePrelude($prelude)) {
+                $prelude = $this->normalizeSelectorAttributeSelectors($prelude);
+            }
+
+            $output .= $prelude . '{';
+            $cursor = $open + 1;
+        }
+
+        return $output;
+    }
+
+    private function findPreludeStart(string $css, int $start, int $open): int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $preludeStart = $start;
+
+        for ($i = $start; $i < $open; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth === 0 && $bracketDepth === 0 && ($char === ';' || $char === '}')) {
+                $preludeStart = $i + 1;
+            }
+        }
+
+        return $preludeStart;
+    }
+
+    private function isStyleRulePrelude(string $prelude): bool
+    {
+        $trimmed = trim($prelude);
+
+        return $trimmed !== '' && $trimmed[0] !== '@';
+    }
+
+    private function normalizeSelectorAttributeSelectors(string $selector): string
+    {
+        $output = '';
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $selector[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[' && $parenDepth === 0) {
+                $close = $this->findSelectorAttributeClose($selector, $i);
+                if ($close !== null) {
+                    $content = substr($selector, $i + 1, $close - $i - 1);
+                    $output .= '[' . $this->normalizeAttributeSelectorContent($content) . ']';
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function findSelectorAttributeClose(string $selector, int $open): ?int
+    {
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = $open + 1; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === ']') {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizeAttributeSelectorContent(string $content): string
+    {
+        if (preg_match('/^(.+?)\s*([~|^$*]?=)\s*(.+?)(?:\s+([a-zA-Z]))?$/s', trim($content), $matches) !== 1) {
+            return $content;
+        }
+
+        $name = trim($matches[1]);
+        if (str_starts_with($name, '|')) {
+            $name = substr($name, 1);
+        }
+
+        $value = trim($matches[3]);
+        if (($value[0] ?? '') === '"' || ($value[0] ?? '') === "'") {
+            $value = $this->normalizeCssStringToken($value);
+        } elseif (preg_match('/^[-_a-zA-Z0-9]+$/', $value) === 1) {
+            $value = '"' . str_replace('"', '\\"', $value) . '"';
+        }
+
+        $flag = isset($matches[4]) && $matches[4] !== '' ? ' ' . strtolower($matches[4]) : '';
+
+        return $name . $matches[2] . $value . $flag;
     }
 
     private function minifyImportStatement(string $statement): string
@@ -1399,12 +1892,76 @@ final class CssMinifier
         $value = $this->minifyListStyleValue($property, $value);
         $value = $this->minifyContainerDeclarationValue($property, $value);
         $value = $this->minifyFontValue($property, $value);
+        $value = $this->minifyColorSchemeValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
+        $value = $this->minifyBoxLengthListValue($property, $value);
         if (!str_starts_with($property, '--') && !$this->isFontFamilySensitiveProperty($property)) {
             $value = $this->minifyColorKeywords($value);
         }
 
         return $value;
+    }
+
+    private function minifyColorSchemeValue(string $property, string $value): string
+    {
+        if (strtolower($property) !== 'color-scheme') {
+            return $value;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        foreach ($tokens as $token) {
+            if (str_contains($token, '(')) {
+                return trim($value);
+            }
+        }
+
+        $tokens = array_map(static fn (string $token): string => strtolower($token), $tokens);
+        $unknown = array_diff($tokens, ['light', 'dark', 'only']);
+        if ($unknown === [] && (in_array('light', $tokens, true) || in_array('dark', $tokens, true))) {
+            $ordered = [];
+            if (in_array('light', $tokens, true)) {
+                $ordered[] = 'light';
+            }
+            if (in_array('dark', $tokens, true)) {
+                $ordered[] = 'dark';
+            }
+            if (in_array('only', $tokens, true)) {
+                $ordered[] = 'only';
+            }
+
+            return implode(' ', $ordered);
+        }
+
+        return implode(' ', $tokens);
+    }
+
+    private function minifyBoxLengthListValue(string $property, string $value): string
+    {
+        $property = strtolower($property);
+        if ($property !== 'margin' && $property !== 'padding' && !preg_match('/^(?:margin|padding|inset)(?:-|$)/', $property)) {
+            return $value;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return $value;
+        }
+
+        return implode(' ', array_map(fn (string $token): string => $this->minifyLengthToken($token), $tokens));
+    }
+
+    private function minifyLengthToken(string $token): string
+    {
+        $token = strtolower(trim($token));
+        if (preg_match('/^[+-]?0(?:\.0+)?[a-z%]+$/', $token) === 1) {
+            return '0';
+        }
+
+        return $this->minifyNumericDimensionToken($token);
     }
 
     private function minifyFontValue(string $property, string $value): string
@@ -2037,6 +2594,347 @@ final class CssMinifier
     private function serializeFontFeatureValuesRule(string $prelude, string $body): string
     {
         return $prelude . '{' . $body . '}';
+    }
+
+    private function minifyPropertyRules(string $css): string
+    {
+        $parts = [];
+        $propertyIndexes = [];
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $parts[] = substr($css, $cursor);
+                break;
+            }
+
+            $preludePrefix = substr($css, $cursor, $open - $cursor);
+            $statementBoundary = $this->lastTopLevelSemicolon($preludePrefix);
+            $statementPrefix = '';
+            if ($statementBoundary !== null) {
+                $statementPrefix = substr($preludePrefix, 0, $statementBoundary + 1);
+                $preludePrefix = substr($preludePrefix, $statementBoundary + 1);
+            }
+
+            $prelude = trim($preludePrefix);
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = substr($css, $open + 1, $close - $open - 1);
+
+            $propertyName = $this->propertyRuleName($prelude);
+            if ($propertyName !== null) {
+                if ($statementPrefix !== '') {
+                    $parts[] = $statementPrefix;
+                }
+                $serialized = $this->serializePropertyRule($propertyName, $body);
+                if (isset($propertyIndexes[$propertyName])) {
+                    $parts[$propertyIndexes[$propertyName]] = $serialized;
+                } else {
+                    $propertyIndexes[$propertyName] = count($parts);
+                    $parts[] = $serialized;
+                }
+            } else {
+                $parts[] = $statementPrefix . $preludePrefix . '{' . $this->minifyPropertyRules($body) . '}';
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return implode('', $parts);
+    }
+
+    private function validatePageRules(string $css): string
+    {
+        $cursor = 0;
+        while (($position = $this->findAtKeywordInCss($css, '@page', $cursor)) !== null) {
+            $open = $this->findNextTopLevel($css, '{', $position + strlen('@page'));
+            if ($open === null) {
+                $cursor = $position + strlen('@page');
+                continue;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $this->validatePageRuleBody(substr($css, $open + 1, $close - $open - 1), false);
+            $cursor = $close + 1;
+        }
+
+        return $css;
+    }
+
+    private function validatePageRuleBody(string $body, bool $insideMarginBox): void
+    {
+        $cursor = 0;
+        while (($open = $this->findNextTopLevel($body, '{', $cursor)) !== null) {
+            $prefix = substr($body, $cursor, $open - $cursor);
+            $lastSemicolon = strrpos($prefix, ';');
+            $lastClose = strrpos($prefix, '}');
+            $preludeStart = max($lastSemicolon === false ? -1 : $lastSemicolon, $lastClose === false ? -1 : $lastClose) + 1;
+            $prelude = trim(substr($prefix, $preludeStart));
+            $close = $this->findMatchingBraceInCss($body, $open);
+
+            if (str_starts_with($prelude, '@')) {
+                $name = $this->pageNestedAtRuleName($prelude);
+                if ($name === null || $insideMarginBox || !$this->isPageMarginAtRule($name)) {
+                    throw new \InvalidArgumentException('Invalid @page nested at-rule: ' . ($name ?? $prelude));
+                }
+
+                $this->validatePageRuleBody(substr($body, $open + 1, $close - $open - 1), true);
+            }
+
+            $cursor = $close + 1;
+        }
+    }
+
+    private function pageNestedAtRuleName(string $prelude): ?string
+    {
+        if (preg_match('/^@([_a-zA-Z][-_a-zA-Z0-9]*)\b/', trim($prelude), $matches) !== 1) {
+            return null;
+        }
+
+        return strtolower($matches[1]);
+    }
+
+    private function isPageMarginAtRule(string $name): bool
+    {
+        return in_array($name, [
+            'top-left-corner',
+            'top-left',
+            'top-center',
+            'top-right',
+            'top-right-corner',
+            'bottom-left-corner',
+            'bottom-left',
+            'bottom-center',
+            'bottom-right',
+            'bottom-right-corner',
+            'left-top',
+            'left-middle',
+            'left-bottom',
+            'right-top',
+            'right-middle',
+            'right-bottom',
+        ], true);
+    }
+
+    private function propertyRuleName(string $prelude): ?string
+    {
+        if (preg_match('/^@property\b(.*)$/i', trim($prelude), $matches) !== 1) {
+            return null;
+        }
+
+        $name = trim($matches[1]);
+        if (preg_match('/^--[-_a-zA-Z0-9]+$/', $name) !== 1) {
+            throw new \InvalidArgumentException("Invalid @property name: {$name}");
+        }
+
+        return $name;
+    }
+
+    private function serializePropertyRule(string $name, string $body): string
+    {
+        $descriptors = $this->parsePropertyRuleDescriptors($body);
+        $syntax = $descriptors['syntax'] ?? null;
+        $inherits = $descriptors['inherits'] ?? null;
+        if ($syntax === null || $inherits === null) {
+            throw new \InvalidArgumentException("@property {$name} requires syntax and inherits descriptors");
+        }
+
+        $syntaxValue = $this->normalizePropertySyntax($syntax);
+        $syntaxGrammar = $this->cssStringTokenValue($syntaxValue);
+        $hasInitialValue = array_key_exists('initial-value', $descriptors);
+        if (!$hasInitialValue && trim($syntaxGrammar) !== '*') {
+            throw new \InvalidArgumentException("@property {$name} requires an initial-value descriptor for syntax {$syntaxValue}");
+        }
+
+        $parts = [
+            'syntax:' . $syntaxValue,
+            'inherits:' . $this->normalizePropertyInherits($inherits),
+        ];
+
+        if ($hasInitialValue) {
+            $parts[] = 'initial-value:' . $this->minifyPropertyInitialValue($syntaxGrammar, $descriptors['initial-value']);
+        }
+
+        return '@property ' . $name . '{' . implode(';', $parts) . '}';
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parsePropertyRuleDescriptors(string $body): array
+    {
+        $descriptors = [];
+        foreach ($this->splitTopLevel($body, ';') as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+
+            $colon = $this->findTopLevelColon($part);
+            if ($colon === null) {
+                throw new \InvalidArgumentException("Invalid @property descriptor: {$part}");
+            }
+
+            $name = strtolower(trim(substr($part, 0, $colon)));
+            $value = trim(substr($part, $colon + 1));
+            if ($name === '') {
+                throw new \InvalidArgumentException("Invalid @property descriptor: {$part}");
+            }
+            $descriptors[$name] = $value;
+        }
+
+        return $descriptors;
+    }
+
+    private function normalizePropertySyntax(string $value): string
+    {
+        if (!$this->isQuotedStringToken($value)) {
+            throw new \InvalidArgumentException('@property syntax must be a string');
+        }
+
+        $syntax = $this->cssStringTokenValue($value);
+        $syntax = trim(preg_replace('/\s+/', ' ', $syntax) ?? $syntax);
+        $syntax = preg_replace('/\s*\|\s*/', '|', $syntax) ?? $syntax;
+        $syntax = preg_replace('/\s*([#+])\s*/', '$1', $syntax) ?? $syntax;
+
+        return $this->quoteCssString($syntax);
+    }
+
+    private function normalizePropertyInherits(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (!in_array($value, ['true', 'false'], true)) {
+            throw new \InvalidArgumentException("@property inherits must be true or false: {$value}");
+        }
+
+        return $value;
+    }
+
+    private function minifyPropertyInitialValue(string $syntax, string $value): string
+    {
+        $value = trim($value);
+        $syntax = trim($syntax);
+        $normalizedSyntax = strtolower(str_replace(' ', '', $syntax));
+
+        if ($value === '') {
+            if ($normalizedSyntax === '*') {
+                return '';
+            }
+
+            throw new \InvalidArgumentException("@property initial-value cannot be empty for syntax {$syntax}");
+        }
+
+        if ($normalizedSyntax === '*') {
+            return $value;
+        }
+
+        if ($normalizedSyntax === '<color>#') {
+            return implode(',', array_map(
+                fn (string $part): string => $this->minifyPropertyColorInitialValue($part),
+                $this->splitTopLevel($value, ',')
+            ));
+        }
+
+        if ($normalizedSyntax === '<color>+') {
+            return implode(' ', array_map(
+                fn (string $part): string => $this->minifyPropertyColorInitialValue($part),
+                $this->splitWhitespaceTopLevel($value)
+            ));
+        }
+
+        if (str_contains($normalizedSyntax, '<color>')) {
+            return $this->minifyPropertyColorInitialValue($value);
+        }
+
+        if (str_contains($normalizedSyntax, '<length>')) {
+            if (str_contains($normalizedSyntax, '|none') && strcasecmp($value, 'none') === 0) {
+                return 'none';
+            }
+            if (stripos($value, 'var(') !== false || !$this->isPropertyLengthValue($value)) {
+                throw new \InvalidArgumentException("@property initial-value does not match {$syntax}: {$value}");
+            }
+
+            return $this->minifyNumericDimensionToken($value);
+        }
+
+        if ($normalizedSyntax === '<string>') {
+            if (!$this->isQuotedStringToken($value)) {
+                throw new \InvalidArgumentException("@property initial-value does not match {$syntax}: {$value}");
+            }
+
+            return $this->normalizeCssStringToken($value);
+        }
+
+        if ($normalizedSyntax === '<time>') {
+            if (!$this->isTimeValue($value)) {
+                throw new \InvalidArgumentException("@property initial-value does not match {$syntax}: {$value}");
+            }
+
+            return $this->minifyTimeValue($value);
+        }
+
+        if ($normalizedSyntax === '<url>') {
+            if (preg_match('/^url\(/i', $value) !== 1) {
+                throw new \InvalidArgumentException("@property initial-value does not match {$syntax}: {$value}");
+            }
+
+            return $this->normalizeCssUrlToken($value, false);
+        }
+
+        if ($normalizedSyntax === '<image>') {
+            return $this->minifyColorKeywords($this->minifyImageSetFunctions($value));
+        }
+
+        return $this->minifyColorKeywords($value);
+    }
+
+    private function minifyPropertyColorInitialValue(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '' || stripos($value, 'var(') !== false || preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+)?$/', $value) === 1) {
+            throw new \InvalidArgumentException("@property initial-value is not a color: {$value}");
+        }
+
+        if (preg_match('/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i', $value) === 1) {
+            return $this->compressHexColor($value);
+        }
+
+        $minified = $this->minifyColorKeywords($value);
+        if ($minified !== $value
+            || preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $value) === 1
+            || $this->isPropertyColorKeyword($value)
+        ) {
+            return $minified;
+        }
+
+        throw new \InvalidArgumentException("@property initial-value is not a color: {$value}");
+    }
+
+    private function isPropertyColorKeyword(string $value): bool
+    {
+        return in_array(strtolower(trim($value)), [
+            'aqua',
+            'black',
+            'blue',
+            'chartreuse',
+            'cornflowerblue',
+            'currentcolor',
+            'cyan',
+            'fuchsia',
+            'green',
+            'lime',
+            'magenta',
+            'red',
+            'transparent',
+            'white',
+            'yellow',
+        ], true);
+    }
+
+    private function isPropertyLengthValue(string $value): bool
+    {
+        return preg_match('/^[+-]?(?:0|(?:\d+|\d*\.\d+)(?:px|em|rem|vh|vw|vmin|vmax|ch|ex|lh|rlh|cm|mm|q|in|pt|pc|%)?)$/i', trim($value)) === 1;
     }
 
     /**
@@ -8521,6 +9419,37 @@ final class CssMinifier
 
         return ($previous === '' || !$this->isIdentifierChar($previous))
             && ($next === '' || !$this->isIdentifierChar($next));
+    }
+
+    private function findAtKeywordInCss(string $css, string $keyword, int $start): ?int
+    {
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = $start; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '@' && $this->startsAtKeyword($css, $i, $keyword)) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     /**

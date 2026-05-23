@@ -212,6 +212,31 @@ CSS;
             (new TransitionPrefixer())->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { --foo: oklab(59.686% 0.1009 0.1192); } }')
         );
     },
+    'transition prefixer maps upstream font palette values advanced color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@font-palette-values --Cooler{font-family:Handover Sans;base-palette:3;override-colors:1 #2b0c09,3 #ee00be;override-colors:1 #2b0c09,3 lch(50.998% 135.363 338)}',
+            $prefixer->prefixForTargets(
+                '@font-palette-values --Cooler { font-family: Handover Sans; base-palette: 3; override-colors: 1 rgb(43, 12, 9), 3 lch(50.998% 135.363 338); }',
+                ['chrome' => 90]
+            )
+        );
+        $t->same(
+            '@font-palette-values --Cooler{font-family:Handover Sans;base-palette:3;override-colors:1 var(--foo),3 #ee00be}@supports (color:lab(0% 0 0)){@font-palette-values --Cooler{font-family:Handover Sans;base-palette:3;override-colors:1 var(--foo),3 lab(50.998% 125.506 -50.7078)}}',
+            $prefixer->prefixForTargets(
+                '@font-palette-values --Cooler { font-family: Handover Sans; base-palette: 3; override-colors: 1 var(--foo), 3 lch(50.998% 135.363 338); }',
+                ['chrome' => 90]
+            )
+        );
+        $t->same(
+            '@supports (color:lab(0% 0 0)){@font-palette-values --Cooler{font-family:Handover Sans;base-palette:3;override-colors:1 var(--foo),3 lab(50.998% 125.506 -50.7078)}}',
+            $prefixer->prefixForTargets(
+                '@supports (color: lab(0% 0 0)) { @font-palette-values --Cooler { font-family: Handover Sans; base-palette: 3; override-colors: 1 var(--foo), 3 lab(50.998% 125.506 -50.7078); } }',
+                ['chrome' => 90]
+            )
+        );
+    },
     'transition prefixer maps upstream filter and backdrop-filter prefixing' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

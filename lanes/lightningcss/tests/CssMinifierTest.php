@@ -82,6 +82,26 @@ return [
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
     },
+    'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{color-scheme:normal}', $minifier->minify('.foo { color-scheme: normal; }'));
+        $t->same('.foo{color-scheme:light}', $minifier->minify('.foo { color-scheme: light; }'));
+        $t->same('.foo{color-scheme:dark}', $minifier->minify('.foo { color-scheme: dark; }'));
+        $t->same('.foo{color-scheme:light dark}', $minifier->minify('.foo { color-scheme: light dark; }'));
+        $t->same('.foo{color-scheme:light dark}', $minifier->minify('.foo { color-scheme: dark light; }'));
+        $t->same('.foo{color-scheme:light only}', $minifier->minify('.foo { color-scheme: only light; }'));
+        $t->same('.foo{color-scheme:dark only}', $minifier->minify('.foo { color-scheme: only dark; }'));
+        $t->same('.foo{color-scheme:inherit}', $minifier->minify('.foo { color-scheme: inherit; }'));
+        $t->same(':root{color-scheme:unset}', $minifier->minify(':root { color-scheme: unset; }'));
+        $t->same('.foo{color-scheme:unknow}', $minifier->minify('.foo { color-scheme: unknow; }'));
+        $t->same('.foo{color-scheme:only}', $minifier->minify('.foo { color-scheme: only; }'));
+        $t->same('.foo{color-scheme:dark foo}', $minifier->minify('.foo { color-scheme: dark foo; }'));
+        $t->same('.foo{color-scheme:normal dark}', $minifier->minify('.foo { color-scheme: normal dark; }'));
+        $t->same('.foo{color-scheme:light dark only}', $minifier->minify('.foo { color-scheme: dark light only; }'));
+        $t->same('.foo{color-scheme:foo bar light}', $minifier->minify('.foo { color-scheme: foo bar light; }'));
+        $t->same('.foo{color-scheme:only foo dark bar}', $minifier->minify('.foo { color-scheme: only foo dark bar; }'));
+    },
     'css minifier maps upstream font-family string serialization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -261,6 +281,80 @@ return [
             $minifier->minify('@font-feature-values foo { @swash { pretty: 1; } } @font-feature-values foo { @swash { cool: 2; } }')
         );
     },
+    'css minifier maps upstream property rule minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@property --property-name{syntax:"<color>";inherits:false;initial-value:#ff0}',
+            $minifier->minify("@property --property-name { syntax: '<color>'; inherits: false; initial-value: yellow; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"*";inherits:false;initial-value:}',
+            $minifier->minify("@property --property-name { syntax: '*'; inherits: false; initial-value: ; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"*";inherits:false;initial-value:}',
+            $minifier->minify("@property --property-name { syntax: '*'; inherits: false; initial-value:; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"*";inherits:false;initial-value:foo bar}',
+            $minifier->minify("@property --property-name { syntax: '*'; inherits: false; initial-value: foo bar; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"<length>";inherits:true;initial-value:25px}',
+            $minifier->minify("@property --property-name { syntax: '<length>'; inherits: true; initial-value: 25px; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"<string>";inherits:true;initial-value:"hi"}',
+            $minifier->minify('@property --property-name { syntax: \'<string>\'; inherits: true; initial-value: "hi"; }')
+        );
+        $t->same(
+            '@property --property-name{syntax:"*";inherits:false}',
+            $minifier->minify("@property --property-name { syntax: '*'; inherits: false; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"custom|<color>";inherits:false;initial-value:#ff0}',
+            $minifier->minify("@property --property-name { syntax: 'custom | <color>'; inherits: false; initial-value: yellow; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"<time>";inherits:false;initial-value:1s}',
+            $minifier->minify("@property --property-name { syntax: '<time>'; inherits: false; initial-value: 1000ms; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"<url>";inherits:false;initial-value:url(foo.png)}',
+            $minifier->minify('@property --property-name { syntax: \'<url>\'; inherits: false; initial-value: url("foo.png"); }')
+        );
+        $t->same(
+            '@property --property-name{syntax:"<image>";inherits:false;initial-value:linear-gradient(#ff0,#00f)}',
+            $minifier->minify("@property --property-name { syntax: '<image>'; inherits: false; initial-value: linear-gradient(yellow, blue); }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"<image>";inherits:false;initial-value:linear-gradient(#ff0,#00f)}',
+            $minifier->minify("@property --property-name { initial-value: linear-gradient(yellow, blue); inherits: false; syntax: '<image>'; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"<color>#";inherits:false;initial-value:#ff0,#00f}',
+            $minifier->minify("@property --property-name { syntax: '<color>#'; inherits: false; initial-value: yellow, blue; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"<color>+";inherits:false;initial-value:#ff0 #00f}',
+            $minifier->minify("@property --property-name { syntax: '<color>+'; inherits: false; initial-value: yellow blue; }")
+        );
+        $t->same(
+            '@property --property-name{syntax:"<color>";inherits:true;initial-value:#00f}.foo{color:var(--property-name)}',
+            $minifier->minify("@property --property-name { syntax: '<color>'; inherits: false; initial-value: yellow; } .foo { color: var(--property-name); } @property --property-name { syntax: '<color>'; inherits: true; initial-value: blue; }")
+        );
+    },
+    'css minifier maps upstream property rule validation errors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@property --property-name { syntax: '<color>'; inherits: false; initial-value: 25px; }"));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@property --property-name { syntax: '<length>'; inherits: false; initial-value: var(--some-value); }"));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@property --property-name { syntax: '<color>'; inherits: false; }"));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@property --property-name { syntax: '*'; }"));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@property --property-name { inherits: false; }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@property property-name { syntax: '*'; inherits: false; }"));
+    },
     'css minifier maps upstream physical and logical inset composition' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -278,6 +372,61 @@ return [
         $t->same(
             '.foo{inset:4px;inset-inline:4px 5px}',
             $minifier->minify('.foo { inset-block-start: 2px; inset-block-end: 3px; inset: 4px; inset-inline-start: 4px; inset-inline-end: 5px; }')
+        );
+    },
+    'css minifier maps upstream page rule minification and validation' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('@page{margin:.5cm}', $minifier->minify('@page {margin: 0.5cm}'));
+        $t->same('@page:left{margin:.5cm}', $minifier->minify('@page :left {margin: 0.5cm}'));
+        $t->same('@page:right{margin:.5cm}', $minifier->minify('@page :right {margin: 0.5cm}'));
+        $t->same('@page LandscapeTable{margin:.5cm}', $minifier->minify('@page LandscapeTable {margin: 0.5cm}'));
+        $t->same(
+            '@page CompanyLetterHead:first{margin:.5cm}',
+            $minifier->minify('@page CompanyLetterHead:first {margin: 0.5cm}')
+        );
+        $t->same('@page:first{margin:.5cm}', $minifier->minify('@page:first {margin: 0.5cm}'));
+        $t->same('@page:blank:first{margin:.5cm}', $minifier->minify('@page :blank:first {margin: 0.5cm}'));
+        $t->same('@page toc,index{margin:.5cm}', $minifier->minify('@page toc, index {margin: 0.5cm}'));
+        $t->same(
+            '@page:right{@bottom-left{margin:10pt}}',
+            $minifier->minify('@page :right { @bottom-left { margin: 10pt; } }')
+        );
+        $t->same(
+            '@page:right{margin:1in;@bottom-left{margin:10pt}}',
+            $minifier->minify('@page :right { margin: 1in; @bottom-left { margin: 10pt; } }')
+        );
+
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@page { @foo { margin: 1in; } }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@page { @top-left-corner { @bottom-left { margin: 1in; } } }'));
+    },
+    'css minifier maps upstream namespace rule minification and ordering' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('@namespace "http://toto.example.org";', $minifier->minify('@namespace url(http://toto.example.org);'));
+        $t->same('@namespace "http://toto.example.org";', $minifier->minify('@namespace "http://toto.example.org";'));
+        $t->same('@namespace toto "http://toto.example.org";', $minifier->minify('@namespace toto "http://toto.example.org";'));
+        $t->same('@namespace toto "http://toto.example.org";', $minifier->minify('@namespace toto url(http://toto.example.org);'));
+        $t->same(
+            '@namespace "http://example.com/foo";x{color:red}',
+            $minifier->minify('@namespace "http://example.com/foo"; x { color: red; }')
+        );
+        $t->same(
+            '@namespace toto "http://toto.example.org";toto|x{color:red}[toto|att="val"]{color:#00f}',
+            $minifier->minify('@namespace toto "http://toto.example.org"; toto|x { color: red; } [toto|att=val] { color: blue }')
+        );
+        $t->same(
+            '@namespace "http://example.com/foo";|x{color:red}[att="val"]{color:#00f}',
+            $minifier->minify('@namespace "http://example.com/foo"; |x { color: red; } [|att=val] { color: blue }')
+        );
+        $t->same(
+            '@namespace "http://example.com/foo";*|x{color:red}[*|att="val"]{color:#00f}',
+            $minifier->minify('@namespace "http://example.com/foo"; *|x { color: red; } [*|att=val] { color: blue }')
+        );
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $minifier->minify('.foo { color: red } @namespace "http://example.com/foo";')
         );
     },
     'css minifier maps upstream import rule minification' => static function (TestRunner $t): void {
@@ -1043,6 +1192,37 @@ CSS;
             $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));
         }
     },
+    'css minifier maps upstream media and container error recovery option' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@container unknown(foo) {}'));
+
+        $container = $minifier->minifyWithErrorRecovery("\n@container unknown(foo) {}\n.ok { color: yellow; }", 'wp.css');
+        $t->same('.ok{color:#ff0}', $container['code']);
+        $t->same(
+            [
+                [
+                    'message' => 'Unexpected token Function("unknown")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'wp.css', 'line' => 2, 'column' => 11],
+                ],
+            ],
+            $container['warnings']
+        );
+
+        $media = $minifier->minifyWithErrorRecovery('@media unknown(foo) {} .ok { color: yellow; }', 'media.css');
+        $t->same('.ok{color:#ff0}', $media['code']);
+        $t->same(
+            [
+                [
+                    'message' => 'Unexpected token Function("unknown")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'media.css', 'line' => 1, 'column' => 7],
+                ],
+            ],
+            $media['warnings']
+        );
+    },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -1415,6 +1595,26 @@ CSS;
             (new CssMinifier())->minify($css)
         );
     },
+    'wordpress editor color scheme values minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+:root {
+  color-scheme: dark light only;
+}
+
+.editor-styles-wrapper.is-light-theme {
+  color-scheme: only light;
+}
+
+.editor-styles-wrapper.is-dark-theme {
+  color-scheme: only dark;
+}
+CSS;
+
+        $t->same(
+            ':root{color-scheme:light dark only}.editor-styles-wrapper.is-light-theme{color-scheme:light only}.editor-styles-wrapper.is-dark-theme{color-scheme:dark only}',
+            (new CssMinifier())->minify($css)
+        );
+    },
     'wordpress block interaction transition shorthands minify without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-button.is-style-slide .wp-element-button {
@@ -1512,6 +1712,36 @@ CSS;
 
         $t->same(
             '@font-feature-values Inter,Inter Variable{@styleset{open-digits:1;disambiguation:2}@character-variant{single-storey-a:11}}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress registered design tokens minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@property --wp--custom--card-accent {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: yellow;
+}
+
+.wp-block-query .wp-block-post {
+  color: var(--wp--custom--card-accent);
+}
+
+@property --wp--custom--card-accent {
+  initial-value: blue;
+  inherits: true;
+  syntax: '<color>';
+}
+
+@property --wp--custom--motion-duration {
+  syntax: '<time>';
+  inherits: false;
+  initial-value: 1000ms;
+}
+CSS;
+
+        $t->same(
+            '@property --wp--custom--card-accent{syntax:"<color>";inherits:true;initial-value:#00f}.wp-block-query .wp-block-post{color:var(--wp--custom--card-accent)}@property --wp--custom--motion-duration{syntax:"<time>";inherits:false;initial-value:1s}',
             (new CssMinifier())->minify($css)
         );
     },
@@ -1652,6 +1882,45 @@ CSS;
 
         $t->same(
             '@layer blocks;@import "./blocks/query-card.css" supports(display:grid) screen and (width>=600px);.wp-block-query{color:#ff0}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress svg namespace selectors minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@namespace svg url(http://www.w3.org/2000/svg);
+@namespace xlink url(http://www.w3.org/1999/xlink);
+
+.wp-block-navigation svg|svg {
+  fill: currentColor;
+}
+
+.wp-block-social-links svg|a[xlink|href=icon] {
+  color: yellow;
+}
+CSS;
+
+        $t->same(
+            '@namespace svg "http://www.w3.org/2000/svg";@namespace xlink "http://www.w3.org/1999/xlink";.wp-block-navigation svg|svg{fill:currentColor}.wp-block-social-links svg|a[xlink|href="icon"]{color:#ff0}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress print export page rules minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@page chapter:left {
+  margin: 0.5in;
+  @bottom-left {
+    content: "Chapter";
+    margin: 10pt;
+  }
+}
+
+@page toc, index {
+  margin: 0.5cm;
+}
+CSS;
+
+        $t->same(
+            '@page chapter:left{margin:.5in;@bottom-left{content:"Chapter";margin:10pt}}@page toc,index{margin:.5cm}',
             (new CssMinifier())->minify($css)
         );
     },
