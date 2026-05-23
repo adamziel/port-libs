@@ -500,6 +500,11 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   source render as escaped WordPress-safe markup, preserving technical import
   notes for later MathJax/KaTeX or citation-processing passes without shelling
   out to Pandoc.
+- Raw TeX macro definitions from Markdown imports now stay as escaped TeX code
+  blocks, and subsequent math using a one-argument macro expands before
+  WordPress output. This preserves reviewer-visible source definitions while
+  making the rendered math handoff match Pandoc's `markdown-reader-more`
+  fixture behavior.
 - HTML entity text and comparison characters render as normal escaped
   WordPress paragraph text: `AT&amp;T` is decoded into the AST and emitted once
   as `AT&amp;T`, while `<` is emitted as `&lt;` instead of being treated as raw
@@ -524,6 +529,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   core WordPress table blocks with `<thead>`, `<tbody>`, aligned cells,
   optional `<colgroup>` widths, a figcaption where present, escaped emphasis,
   links, and code spans without invoking Pandoc.
+- Rectangular Pandoc grid-table import queues render as core WordPress table
+  blocks with upstream-style grid widths, header/headless table shapes,
+  right/left/center alignment markers, scalar multiline cells, Unicode source
+  text, and empty cells preserved without invoking Pandoc.
 - Legacy simple-table source totals render as core WordPress table blocks with
   inferred alignment styles and captions without invoking Pandoc.
 - Wrapped multiline review tables render as core WordPress table blocks with
@@ -540,5 +549,5 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 ## Next Task
 
 Map another bounded Markdown reader fixture shard from
-`test/markdown-reader-more.txt/native`, with priority on raw TeX
-environment/macros before broadening into grid tables.
+`test/markdown-reader-more.txt/native`, with priority on deferred grid-table
+multiple-block cells and row/column spans.

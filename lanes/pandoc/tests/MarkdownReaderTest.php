@@ -242,6 +242,61 @@ return [
         $t->contains('Cat    & 1      \\\\ \hline', $table->attr('tex'));
         $t->same('horizontal_rule', $document->children[2]->type);
     },
+    'maps upstream markdown reader more raw tex environments and macros' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '## Raw ConTeXt environments',
+            '',
+            '\placeformula \startformula',
+            '   L_{1} = L_{2}',
+            '   \stopformula',
+            '',
+            '\start[a2]',
+            '\start[a2]',
+            '\stop[a2]',
+            '\stop[a2]',
+            '',
+            '## Raw LaTeX environments',
+            '',
+            '\begin{center}',
+            '\begin{tikzpicture}[baseline={([yshift=+-.5ex]current bounding box.center)}, level distance=24pt]',
+            '\Tree [.{S} [.NP John\index{i} ] [.VP [.V likes ] [.NP himself\index{i,*j} ]]]',
+            '\end{tikzpicture}',
+            '\end{center}',
+            '',
+            '## Macros',
+            '',
+            '\newcommand{\tuple}[1]{\langle #1 \rangle}',
+            '',
+            '$\tuple{x,y}$',
+        ]));
+        $contextFormula = $document->children[1];
+        $contextParagraph = $document->children[2];
+        $contextStartStop = $document->children[3];
+        $latexCenter = $document->children[5];
+        $macro = $document->children[7];
+        $macroMath = $document->children[8]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('raw_tex', $contextFormula->type);
+        $t->same('\placeformula \startformula', $contextFormula->attr('tex'));
+        $t->same('paragraph', $contextParagraph->type);
+        $t->same('L_{1} = L_{2} \stopformula', $contextParagraph->attr('text'));
+        $t->same('raw_tex', $contextParagraph->children[1]->type);
+        $t->same('\stopformula', $contextParagraph->children[1]->attr('tex'));
+        $t->same('raw_tex', $contextStartStop->type);
+        $t->same('context:a2', $contextStartStop->attr('environment'));
+        $t->same('\start[a2]' . "\n" . '\start[a2]' . "\n" . '\stop[a2]' . "\n" . '\stop[a2]', $contextStartStop->attr('tex'));
+        $t->same('raw_tex', $latexCenter->type);
+        $t->same('center', $latexCenter->attr('environment'));
+        $t->contains('\begin{tikzpicture}[baseline={([yshift=+-.5ex]current bounding box.center)}, level distance=24pt]', $latexCenter->attr('tex'));
+        $t->same('raw_tex', $macro->type);
+        $t->same('newcommand', $macro->attr('command'));
+        $t->same('\newcommand{\tuple}[1]{\langle #1 \rangle}', $macro->attr('tex'));
+        $t->same('math', $macroMath->type);
+        $t->same('\langle x,y \rangle', $macroMath->attr('text'));
+        $t->contains('<pre class="wp-block-code"><code class="language-tex">\newcommand{\tuple}[1]{\langle #1 \rangle}</code></pre>', $blocks);
+        $t->contains('<span class="math inline">\(\langle x,y \rangle\)</span>', $blocks);
+    },
     'maps upstream testsuite special characters unicode entities and escapes' => static function (TestRunner $t): void {
         $markdown = implode("\n\n", [
             '# Special Characters',
@@ -582,6 +637,121 @@ return [
         $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $lineBlock->children[5]->children));
         $t->contains('<p>But can a bee be said to be<br/>' . str_repeat($nbsp, 4) . 'or not to be an entire bee,', $blocks);
         $t->contains('<br/><br/>Continuation line<br/>' . str_repeat($nbsp, 2) . 'and another</p>', $blocks);
+    },
+    'maps upstream markdown reader more rectangular grid tables' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '## Grid Tables',
+            '',
+            '+------------------+-----------+------------+',
+            '| col 1            | col 2     | col 3      |',
+            '+==================+===========+============+',
+            '| r1 a             | b         | c          |',
+            '| r1 bis           | b 2       | c 2        |',
+            '+------------------+-----------+------------+',
+            '| r2 d             | e         | f          |',
+            '+------------------+-----------+------------+',
+            '',
+            'Headless',
+            '',
+            '+------------------+-----------+------------+',
+            '| r1 a             | b         | c          |',
+            '| r1 bis           | b 2       | c 2        |',
+            '+------------------+-----------+------------+',
+            '| r2 d             | e         | f          |',
+            '+------------------+-----------+------------+',
+            '',
+            'With alignments',
+            '',
+            '+------------------+-----------+------------+',
+            '| col 1            | col 2     | col 3      |',
+            '+=================:+:==========+:==========:+',
+            '| r1 a             | b         | c          |',
+            '| r1 bis           | b 2       | c 2        |',
+            '+------------------+-----------+------------+',
+            '| r2 d             | e         | f          |',
+            '+------------------+-----------+------------+',
+            '',
+            'Headless with alignments',
+            '',
+            '+-----------------:+:----------+:----------:+',
+            '| r1 a             | b         | c          |',
+            '| r1 bis           | b 2       | c 2        |',
+            '+------------------+-----------+------------+',
+            '| r2 d             | e         | f          |',
+            '+------------------+-----------+------------+',
+            '',
+            'Spaces at ends of lines',
+            '',
+            '+------------------+-----------+------------+  ',
+            '| r1 a             | b         | c          |',
+            '| r1 bis           | b 2       | c 2        | ',
+            '+------------------+-----------+------------+',
+            '| r2 d             | e         | f          |',
+            '+------------------+-----------+------------+',
+            '',
+            'East Asian characters have double width',
+            '',
+            '+--+----+',
+            '|魚|fish|',
+            '+--+----+',
+            '',
+            'Zero-width space in German',
+            '',
+            '+-------+-------+',
+            '|German |English|',
+            '+-------+-------+',
+            '|Auf‌lage|edition|',
+            '+-------+-------+',
+            '',
+            'Zero-width non-joiner in Persian',
+            '',
+            '+-------+---------+',
+            '|می‌خواهم|I want to|',
+            '+-------+---------+',
+            '',
+            'Empty cells',
+            '',
+            '+---+---+',
+            '|   |   |',
+            '+---+---+',
+        ]));
+        $headed = $document->children[1];
+        $headless = $document->children[3];
+        $aligned = $document->children[5];
+        $alignedHeadless = $document->children[7];
+        $trailingSpaces = $document->children[9];
+        $eastAsian = $document->children[11];
+        $zeroWidth = $document->children[13];
+        $persian = $document->children[15];
+        $emptyCells = $document->children[17];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $headed->type);
+        $t->same([19 / 72, 12 / 72, 13 / 72], $headed->attr('widths'));
+        $t->same(['default', 'default', 'default'], $headed->attr('alignments'));
+        $t->same('col 1', $headed->children[0]->children[0]->children[0]->attr('text'));
+        $t->same("r1 a\nr1 bis", $headed->children[1]->children[0]->children[0]->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $headed->children[1]->children[0]->children[0]->children));
+        $t->same('f', $headed->children[1]->children[1]->children[2]->attr('text'));
+        $t->same([], $headless->children[0]->children);
+        $t->same("c\nc 2", $headless->children[1]->children[0]->children[2]->attr('text'));
+        $t->same(['right', 'left', 'center'], $aligned->attr('alignments'));
+        $t->same('col 2', $aligned->children[0]->children[0]->children[1]->attr('text'));
+        $t->same([], $alignedHeadless->children[0]->children);
+        $t->same(['right', 'left', 'center'], $alignedHeadless->attr('alignments'));
+        $t->same('r2 d', $trailingSpaces->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('魚', $eastAsian->children[1]->children[0]->children[0]->attr('text'));
+        $t->same([3 / 72, 5 / 72], $eastAsian->attr('widths'));
+        $t->same("Auf\u{200C}lage", $zeroWidth->children[1]->children[1]->children[0]->attr('text'));
+        $t->same('می‌خواهم', $persian->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('I want to', $persian->children[1]->children[0]->children[1]->attr('text'));
+        $t->same('', $emptyCells->children[1]->children[0]->children[0]->attr('text'));
+        $t->same([], $emptyCells->children[1]->children[0]->children[0]->children);
+        $t->contains('<colgroup><col style="width:26.3889%"/><col style="width:16.6667%"/><col style="width:18.0556%"/></colgroup>', $blocks);
+        $t->contains('<th style="text-align:right">col 1</th><th style="text-align:left">col 2</th><th style="text-align:center">col 3</th>', $blocks);
+        $t->contains("<td style=\"text-align:right\">r1 a\nr1 bis</td><td style=\"text-align:left\">b\nb 2</td><td style=\"text-align:center\">c\nc 2</td>", $blocks);
+        $t->contains('<td>魚</td><td>fish</td>', $blocks);
+        $t->contains('<td></td><td></td>', $blocks);
     },
     'maps upstream testsuite ampersand links and autolinks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
@@ -3719,6 +3889,16 @@ XML;
         $t->contains('<tr><td>Posts</td><td>42</td><td>This long reviewer note should keep the wide column for migration summaries</td></tr>', $blocks);
         $t->contains('<tr><td>Media</td><td>7</td><td>Check <code>alt</code> text before publish</td></tr>', $blocks);
     },
+    'writes wordpress grid table blocks for legacy import queues' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
+
+        $t->contains('<p>Grid table import queue:</p>', $blocks);
+        $t->contains('<table><colgroup><col style="width:26.3889%"/><col style="width:16.6667%"/><col style="width:18.0556%"/></colgroup><thead>', $blocks);
+        $t->contains('<th style="text-align:right">Source</th><th style="text-align:left">Count</th><th style="text-align:center">Status</th>', $blocks);
+        $t->contains('<td style="text-align:right">Posts</td><td style="text-align:left">42</td><td style="text-align:center">ready</td>', $blocks);
+        $t->contains("<td style=\"text-align:right\">Media files</td><td style=\"text-align:left\">108</td><td style=\"text-align:center\">needs alt\ntext</td>", $blocks);
+    },
     'writes wordpress simple table blocks for legacy import totals' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
         $blocks = (new WordPressBlockWriter())->write((new MarkdownReader())->read($fixture));
@@ -3779,6 +3959,8 @@ XML;
 
         $t->contains('<span class="math inline">\(x \in y\)</span>', $blocks);
         $t->contains('<span class="pandoc-raw-tex">\cite[22-23]{smith.1899}</span>', $blocks);
+        $t->contains('<pre class="wp-block-code"><code class="language-tex">\newcommand{\wptuple}[1]{\langle #1 \rangle}</code></pre>', $blocks);
+        $t->contains('<span class="math inline">\(\langle post_id,media_id \rangle\)</span>', $blocks);
         $t->contains('<span class="math display">\[\alpha + \omega \times x^2\]</span>', $blocks);
         $t->contains('<pre class="wp-block-code"><code class="language-tex">\begin{tabular}{|l|l|}\hline', $blocks);
         $t->contains('Field &amp; Value \\\\ \hline', $blocks);

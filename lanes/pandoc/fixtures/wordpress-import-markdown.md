@@ -61,6 +61,12 @@ Entity import note: AT&amp;T sponsor text and 4 < 5 comparator stay visible for 
 
 Migration math note: $x \in y$ and \cite[22-23]{smith.1899} stay visible for reviewer checks.
 
+Reviewer math macro:
+
+\newcommand{\wptuple}[1]{\langle #1 \rangle}
+
+$\wptuple{post_id,media_id}$
+
 Display math for import proof:
 $$\alpha + \omega \times x^2$$
 
@@ -406,6 +412,17 @@ Import field widths:
  |---------|----------|---------------------------------------|
 | Posts | 42 | This long reviewer note should keep the wide column for migration summaries |
 | Media | 7 | Check `alt` text before publish |
+
+Grid table import queue:
+
++------------------+-----------+------------+
+| Source           | Count     | Status     |
++=================:+:==========+:==========:+
+| Posts            | 42        | ready      |
++------------------+-----------+------------+
+| Media files      | 108       | needs alt  |
+|                  |           | text       |
++------------------+-----------+------------+
 
 Legacy source totals:
 

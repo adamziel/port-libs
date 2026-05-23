@@ -124,6 +124,30 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   inspected in this run: upstream lines 451-516 show one `LineBlock` with
   seven line entries, including nonbreaking-space indentation counts of 4, 8,
   12, and 2 before the visible text.
+- `test/markdown-reader-more.txt` raw TeX environment and macro slices
+  inspected in this run: upstream lines 20-37 cover Raw ConTeXt and Raw LaTeX
+  environments, and lines 136-140 cover a `\newcommand` macro followed by math
+  using the macro.
+- `test/markdown-reader-more.native` corresponding rendered AST slices
+  inspected in this run: upstream lines 61-94 show one `\placeformula
+  \startformula` `RawBlock`, one paragraph ending with a `\stopformula`
+  `RawInline`, one nested `\start[a2]`/`\stop[a2]` `RawBlock`, and one nested
+  LaTeX `center`/`tikzpicture` `RawBlock`; upstream lines 296-300 show a
+  `\newcommand{\tuple}[1]{\langle #1 \rangle}` `RawBlock` and later math
+  expanded to `\langle x,y \rangle`.
+- `test/markdown-reader-more.txt` rectangular grid-table slice inspected in
+  this run: 74 mapped Markdown lines from the Grid Tables section cover the
+  simple headed table, headless table, aligned headed table, aligned headless
+  table, trailing-space table, East Asian width table, zero-width German and
+  Persian text cases, and empty cells. The multiple-block cell case and the two
+  row/column-span cases in the same upstream section are counted as inspected
+  but deferred.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: 642 mapped native AST lines show Pandoc `Table`
+  nodes with `ColWidth` values derived from grid widths divided by 72, default
+  and right/left/center alignments, `TableHead []` for headless cases,
+  `SoftBreak` entries inside multiline scalar cells, Unicode text cells, and
+  empty `Cell ... []` bodies.
 - `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
   lines covering 11 upstream pipe tables, including captioned, uncaptioned,
   headerless, side-less, one-column, no-body, relative-width, and tricky
@@ -713,6 +737,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 149 behavior tests, 1,429 assertions, and 0 failures after this slice. The
-required repo-wide `php tools/run-tests.php` command passed after the lane
-edits with 172 test files, 16,029 assertions, and 0 failures.
+with 154 behavior tests, 1,500 assertions, and 0 failures after this slice. The
+required repo-wide `php tools/run-tests.php` command passed with 174 test
+files, 16,538 assertions, and 0 failures.

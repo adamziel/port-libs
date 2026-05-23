@@ -18,6 +18,9 @@ final class MarkdownReader
     /** @var array<int, int> */
     private array $exampleNumbersByLine = [];
 
+    /** @var array<string, array{arity:int, template:string}> */
+    private array $rawTexMacros = [];
+
     private bool $resolveFootnoteReferences = true;
 
     public function read(string $markdown): AstNode
@@ -25,11 +28,12 @@ final class MarkdownReader
         $blocks = [];
         $paragraph = [];
         $listStack = [];
-        $lines = preg_split('/\R/', rtrim($markdown, "\r\n")) ?: [];
+        $lines = preg_split('/\R/u', rtrim($markdown, "\r\n")) ?: [];
         $previousReferenceLinks = $this->referenceLinks;
         $previousFootnoteDefinitions = $this->footnoteDefinitions;
         $previousExampleReferences = $this->exampleReferences;
         $previousExampleNumbersByLine = $this->exampleNumbersByLine;
+        $previousRawTexMacros = $this->rawTexMacros;
         $documentAttrs = [];
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
@@ -133,6 +137,13 @@ final class MarkdownReader
                 $blocks[] = $rawTexBlock;
                 continue;
             }
+            $gridTable = $this->tryReadGridTable($lines, $index);
+            if ($gridTable !== null) {
+                $this->flushParagraph($paragraph, $blocks);
+                $this->flushListStack($listStack, $blocks);
+                $blocks[] = $gridTable;
+                continue;
+            }
             $simpleTable = $this->tryReadSimpleTable($lines, $index);
             if ($simpleTable !== null) {
                 $this->flushParagraph($paragraph, $blocks);
@@ -217,6 +228,7 @@ final class MarkdownReader
         $this->footnoteDefinitions = $previousFootnoteDefinitions;
         $this->exampleReferences = $previousExampleReferences;
         $this->exampleNumbersByLine = $previousExampleNumbersByLine;
+        $this->rawTexMacros = $previousRawTexMacros;
 
         return $document;
     }
@@ -3332,6 +3344,31 @@ final class MarkdownReader
     private function tryReadRawTexBlock(array $lines, int &$index): ?AstNode
     {
         $line = $lines[$index] ?? '';
+        $macro = $this->tryReadRawTexMacroDefinition($line);
+        if ($macro !== null) {
+            $this->rawTexMacros[$macro['name']] = [
+                'arity' => $macro['arity'],
+                'template' => $macro['template'],
+            ];
+
+            return new AstNode('raw_tex', [
+                'tex' => trim($line),
+                'command' => $macro['command'],
+            ]);
+        }
+
+        if (preg_match('/^ {0,3}\\\\placeformula\s+\\\\startformula(?:\s.*)?$/', $line) === 1) {
+            return new AstNode('raw_tex', [
+                'tex' => trim($line),
+                'environment' => 'context-formula',
+            ]);
+        }
+
+        $contextBlock = $this->tryReadContextStartStopBlock($lines, $index);
+        if ($contextBlock !== null) {
+            return $contextBlock;
+        }
+
         if (preg_match('/^ {0,3}\\\\begin\{([^}\s]+)\}/', $line, $m) !== 1) {
             return null;
         }
@@ -3356,6 +3393,253 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array{command:string, name:string, arity:int, template:string}|null
+     */
+    private function tryReadRawTexMacroDefinition(string $line): ?array
+    {
+        if (
+            preg_match(
+                '/^ {0,3}\\\\((?:re)?newcommand|providecommand)\{\\\\([A-Za-z]+)\}(?:\[(\d+)])?(?:\[[^\]\r\n]*])?\{((?:\\\\.|[^{}])*)\}[ \t]*$/',
+                $line,
+                $m
+            ) !== 1
+        ) {
+            return null;
+        }
+
+        return [
+            'command' => $m[1],
+            'name' => $m[2],
+            'arity' => isset($m[3]) && $m[3] !== '' ? (int) $m[3] : 0,
+            'template' => $m[4],
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadContextStartStopBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}\\\\start\[([^\]\r\n]+)]\s*$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $environment = $m[1];
+        $content = [];
+        $depth = 0;
+        $cursor = $index;
+        $count = count($lines);
+        $startPattern = '/^ {0,3}\\\\start\[' . preg_quote($environment, '/') . ']\s*$/';
+        $stopPattern = '/^ {0,3}\\\\stop\[' . preg_quote($environment, '/') . ']\s*$/';
+
+        while ($cursor < $count) {
+            $current = rtrim($lines[$cursor]);
+            if (preg_match($startPattern, $current) === 1) {
+                $depth++;
+            }
+
+            $content[] = $current;
+
+            if (preg_match($stopPattern, $current) === 1) {
+                $depth--;
+                if ($depth === 0) {
+                    $index = $cursor;
+
+                    return new AstNode('raw_tex', [
+                        'tex' => implode("\n", $content),
+                        'environment' => 'context:' . $environment,
+                    ]);
+                }
+            }
+
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadGridTable(array $lines, int &$index): ?AstNode
+    {
+        $firstBoundary = $this->parseGridTableBoundary($lines[$index] ?? '');
+        if ($firstBoundary === null) {
+            return null;
+        }
+
+        $cursor = $index + 1;
+        $count = count($lines);
+        $columnCount = count($firstBoundary['widths']);
+        $alignments = $firstBoundary['alignments'];
+        $widths = $firstBoundary['widths'];
+        $headerCells = null;
+        $bodyRows = [];
+        $sawHeader = false;
+
+        while ($cursor < $count) {
+            $sectionLines = [];
+            while ($cursor < $count && $this->isGridTableContentLine($lines[$cursor])) {
+                $sectionLines[] = $lines[$cursor];
+                $cursor++;
+            }
+
+            if ($sectionLines === [] || $cursor >= $count) {
+                return null;
+            }
+
+            $boundary = $this->parseGridTableBoundary($lines[$cursor]);
+            if ($boundary === null || count($boundary['widths']) !== $columnCount) {
+                return null;
+            }
+
+            $cells = $this->mergeGridTableSectionLines($sectionLines, $columnCount);
+            if ($cells === null || $this->gridTableCellsNeedBlockParsing($cells)) {
+                return null;
+            }
+
+            if (!$sawHeader && $boundary['header']) {
+                $headerCells = $cells;
+                $alignments = $boundary['alignments'];
+                $widths = $boundary['widths'];
+                $sawHeader = true;
+                $cursor++;
+                continue;
+            }
+
+            $bodyRows[] = $cells;
+            $cursor++;
+            if ($cursor < $count && $this->isGridTableContentLine($lines[$cursor])) {
+                continue;
+            }
+
+            [$caption, $next] = $this->readTableCaption($lines, $cursor);
+            $index = $next - 1;
+
+            return $this->buildSimpleTable($headerCells, $bodyRows, $alignments, $caption, $widths);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{alignments:list<string>, widths:list<float>, header:bool}|null
+     */
+    private function parseGridTableBoundary(string $line): ?array
+    {
+        $line = rtrim($this->expandTabsToSpaces($line));
+        if (preg_match('/^ {0,3}(\+[-=:]+(?:\+[-=:]+)+\+)$/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $parts = explode('+', substr($m[1], 1, -1));
+        if ($parts === []) {
+            return null;
+        }
+
+        $header = false;
+        $alignments = [];
+        $widths = [];
+        foreach ($parts as $part) {
+            if ($part === '' || preg_match('/^:?[-=]+:?$/', $part) !== 1) {
+                return null;
+            }
+
+            $usesHeaderMarker = str_contains($part, '=');
+            $usesBodyMarker = str_contains($part, '-');
+            if ($usesHeaderMarker && $usesBodyMarker) {
+                return null;
+            }
+            $header = $header || $usesHeaderMarker;
+
+            $left = str_starts_with($part, ':');
+            $right = str_ends_with($part, ':');
+            $alignments[] = match (true) {
+                $left && $right => 'center',
+                $left => 'left',
+                $right => 'right',
+                default => 'default',
+            };
+            $widths[] = (strlen($part) + 1) / 72;
+        }
+
+        if ($header) {
+            foreach ($parts as $part) {
+                if (!str_contains($part, '=')) {
+                    return null;
+                }
+            }
+        }
+
+        return [
+            'alignments' => $alignments,
+            'widths' => $widths,
+            'header' => $header,
+        ];
+    }
+
+    private function isGridTableContentLine(string $line): bool
+    {
+        return preg_match('/^ {0,3}\|.*\|\s*$/', $this->expandTabsToSpaces($line)) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>|null
+     */
+    private function mergeGridTableSectionLines(array $lines, int $columnCount): ?array
+    {
+        $cells = array_fill(0, $columnCount, '');
+        foreach ($lines as $line) {
+            $parts = $this->splitGridTableContentLine($line, $columnCount);
+            if ($parts === null) {
+                return null;
+            }
+
+            $this->mergeSimpleTableCellsInto($cells, $parts);
+        }
+
+        return $cells;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function splitGridTableContentLine(string $line, int $columnCount): ?array
+    {
+        $line = rtrim($this->expandTabsToSpaces($line));
+        $line = preg_replace('/^ {0,3}/', '', $line, 1) ?? $line;
+        if ($line === '' || $line[0] !== '|' || $line[strlen($line) - 1] !== '|') {
+            return null;
+        }
+
+        $parts = explode('|', substr($line, 1, -1));
+        if (count($parts) !== $columnCount) {
+            return null;
+        }
+
+        return array_map(static fn (string $part): string => trim($part), $parts);
+    }
+
+    /**
+     * @param list<string> $cells
+     */
+    private function gridTableCellsNeedBlockParsing(array $cells): bool
+    {
+        foreach ($cells as $cell) {
+            $cellLines = preg_split('/\R/u', $cell) ?: [];
+            foreach ($cellLines as $line) {
+                if (preg_match('/^(?:#{1,6}\s+|[-*+]\s+|\d{1,9}[.)]\s+)/', trim($line)) === 1) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -5976,7 +6260,7 @@ final class MarkdownReader
 
             return [
                 'node' => new AstNode('math', [
-                    'text' => trim(substr($text, $offset + 2, $end - $offset - 2)),
+                    'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 2, $end - $offset - 2))),
                     'display' => true,
                 ]),
                 'next' => $end + 2,
@@ -5995,7 +6279,7 @@ final class MarkdownReader
 
         return [
             'node' => new AstNode('math', [
-                'text' => trim(substr($text, $offset + 1, $end - $offset - 1)),
+                'text' => $this->expandRawTexMathMacros(trim(substr($text, $offset + 1, $end - $offset - 1))),
                 'display' => false,
             ]),
             'next' => $end + 1,
@@ -6042,6 +6326,112 @@ final class MarkdownReader
         return $previous === '' || ctype_space($previous) || ctype_digit($next);
     }
 
+    private function expandRawTexMathMacros(string $math): string
+    {
+        if ($this->rawTexMacros === []) {
+            return $math;
+        }
+
+        $expanded = $math;
+        for ($iteration = 0; $iteration < 5; $iteration++) {
+            $next = $this->expandRawTexMathMacrosOnce($expanded);
+            if ($next === $expanded) {
+                break;
+            }
+            $expanded = $next;
+        }
+
+        return $expanded;
+    }
+
+    private function expandRawTexMathMacrosOnce(string $math): string
+    {
+        $output = '';
+        $offset = 0;
+        $length = strlen($math);
+
+        while ($offset < $length) {
+            if (
+                ($math[$offset] ?? '') === '\\'
+                && preg_match('/\G\\\\([A-Za-z]+)/', $math, $m, 0, $offset) === 1
+                && isset($this->rawTexMacros[$m[1]])
+            ) {
+                $macro = $this->rawTexMacros[$m[1]];
+                $cursor = $offset + strlen($m[0]);
+                $args = [];
+                for ($argument = 0; $argument < $macro['arity']; $argument++) {
+                    $parsed = $this->readTexBraceArgument($math, $cursor);
+                    if ($parsed === null) {
+                        break;
+                    }
+                    $args[] = $parsed['value'];
+                    $cursor = $parsed['next'];
+                }
+
+                if (count($args) === $macro['arity']) {
+                    $output .= $this->renderRawTexMacroTemplate($macro['template'], $args);
+                    $offset = $cursor;
+                    continue;
+                }
+            }
+
+            $output .= $math[$offset];
+            $offset++;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{value:string, next:int}|null
+     */
+    private function readTexBraceArgument(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '{') {
+            return null;
+        }
+
+        $depth = 0;
+        $length = strlen($text);
+        for ($cursor = $offset; $cursor < $length; $cursor++) {
+            if ($text[$cursor] === '\\') {
+                $cursor++;
+                continue;
+            }
+
+            if ($text[$cursor] === '{') {
+                $depth++;
+                continue;
+            }
+
+            if ($text[$cursor] !== '}') {
+                continue;
+            }
+
+            $depth--;
+            if ($depth === 0) {
+                return [
+                    'value' => substr($text, $offset + 1, $cursor - $offset - 1),
+                    'next' => $cursor + 1,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function renderRawTexMacroTemplate(string $template, array $args): string
+    {
+        foreach ($args as $index => $argument) {
+            $template = str_replace('#' . ($index + 1), $argument, $template);
+        }
+
+        return $template;
+    }
+
     /**
      * @return array{node: AstNode, next: int}|null
      */
@@ -6049,6 +6439,13 @@ final class MarkdownReader
     {
         if (($text[$offset] ?? '') !== '\\' || $this->isEscapedInlinePosition($text, $offset)) {
             return null;
+        }
+
+        if (preg_match('/\G\\\\(stopformula)\b/', $text, $m, 0, $offset) === 1) {
+            return [
+                'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
+                'next' => $offset + strlen($m[0]),
+            ];
         }
 
         if (
@@ -6394,6 +6791,9 @@ final class MarkdownReader
         $previous = $offset > 0 ? $text[$offset - 1] : '';
         $nextOffset = $offset + $size;
         $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
+        if ($this->isAsciiAlnum($previous) && ($next === '{' || $next === '}')) {
+            return false;
+        }
 
         return !$this->isAsciiAlnum($previous) || !$this->isAsciiAlnum($next);
     }
@@ -6407,6 +6807,9 @@ final class MarkdownReader
         $previous = $offset > 0 ? $text[$offset - 1] : '';
         $nextOffset = $offset + $size;
         $next = $nextOffset < strlen($text) ? $text[$nextOffset] : '';
+        if (($previous === '{' || $previous === '}') && $this->isAsciiAlnum($next)) {
+            return false;
+        }
 
         return !$this->isAsciiAlnum($previous) || !$this->isAsciiAlnum($next);
     }
