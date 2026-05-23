@@ -10,6 +10,6 @@
     "audit": "audited 2026-05-23: local PHP lane and root coverage green after this slice; no upstream runner parity",
     "currentWork": "Native MarkdownReader now maps the bounded upstream HTML-reader Links section from test/html-reader.html/native. Explicit anchors preserve href/title metadata including decoded entities and ampersands, empty hrefs stay empty, reference-looking text stays literal, link-looking code spans/blocks do not autolink, and mixed bare text before <p> or <blockquote> is split into a native HTML-reader paragraph before the following block.",
     "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 138 tests with 1,247 assertions and 0 failures. The required exact repo-wide php tools/run-tests.php command was run on 2026-05-23 after this lane slice and passed with 159 test files, 14,522 assertions, and 0 failures. Full upstream Pandoc runner remains unexecuted because upstream test-pandoc/test-pandoc-lua-engine must be built as Haskell Tasty executables from a full checkout, the upstream cache is blob-filtered/no-checkout with mass working-tree deletions, and running Cabal would require hydrating the broad checkout plus downloading/building Pandoc's dependency graph. ghc 9.10.3 and cabal 3.12.1.0 are on PATH, stack is not.",
-    "latestCommit": "9b40e11",
+    "latestCommit": "13ca281",
     "nextTask": "Map the next bounded HTML-reader Images slice from test/html-reader.html/native, starting with standalone <img> paragraphs, inline image spans, alt/title metadata, and WordPress image block output."
 }
