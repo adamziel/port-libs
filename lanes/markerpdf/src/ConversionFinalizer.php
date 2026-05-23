@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace PortLibs\MarkerPDF;
 
+use InvalidArgumentException;
+
 final class ConversionFinalizer
 {
     private MarkdownPostProcessor $markdown;
@@ -41,6 +43,7 @@ final class ConversionFinalizer
      * @param list<array<string, mixed>> $pages
      * @param list<string> $badSpanIds
      * @param array<string, mixed> $metadata
+     * @param list<list<mixed>> $imagePayloads
      * @return array{
      *     pages: list<array<string, mixed>>,
      *     merged_pages: list<list<array<string, mixed>>>,
@@ -54,7 +57,8 @@ final class ConversionFinalizer
         array $pages,
         array $badSpanIds = [],
         ?MarkerSettings $settings = null,
-        array $metadata = []
+        array $metadata = [],
+        array $imagePayloads = []
     ): array {
         $settings ??= new MarkerSettings();
 
@@ -63,6 +67,10 @@ final class ConversionFinalizer
             $metadata['block_stats'] = [];
         }
         $pages = $this->identifyAndIndentCodeBlocks($pages, $metadata);
+        if ($settings->extractImages() && $imagePayloads !== []) {
+            $pages = $this->insertSuppliedImagePayloads($pages, $imagePayloads);
+            $metadata['block_stats']['images'] = count($this->imageExtractor->imagesToDict($pages));
+        }
         $pages = $this->headingCleaner->splitHeadingBlocks(
             $pages,
             (float) $settings->get('BBOX_INTERSECTION_THRESH')
@@ -91,6 +99,34 @@ final class ConversionFinalizer
             'images' => $settings->extractImages() ? $this->imageExtractor->imagesToDict($pages) : [],
             'metadata' => $metadata,
         ];
+    }
+
+    /**
+     * Native supplied-payload boundary for marker.images.extract::extract_images.
+     *
+     * Upstream renders image regions after bad span types are filtered, then
+     * inserts Marker Markdown image spans before heading splitting and final
+     * Markdown assembly. This method accepts the rendered page image payloads
+     * that pypdfium/PIL would otherwise create.
+     *
+     * @param list<array<string, mixed>> $pages
+     * @param list<list<mixed>> $imagePayloads
+     * @return list<array<string, mixed>>
+     */
+    private function insertSuppliedImagePayloads(array $pages, array $imagePayloads): array
+    {
+        foreach ($imagePayloads as $pageIndex => $payloads) {
+            if (!is_array($payloads) || !array_is_list($payloads)) {
+                throw new InvalidArgumentException('Supplied image payloads must be a list per page.');
+            }
+            if (!isset($pages[$pageIndex]) || !is_array($pages[$pageIndex])) {
+                throw new InvalidArgumentException('Supplied image payloads must match an extracted page index.');
+            }
+
+            $pages[$pageIndex] = $this->imageExtractor->insertImagePlaceholders($pages[$pageIndex], $payloads);
+        }
+
+        return $pages;
     }
 
     /**
