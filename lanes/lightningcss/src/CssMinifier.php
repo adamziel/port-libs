@@ -83,6 +83,7 @@ final class CssMinifier
         $css = $this->minifyFontFeatureValuesRules($css);
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
+        $css = $this->composePositionDeclarationBlocks($css);
         $css = $this->composeFontDeclarationBlocks($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
@@ -5097,6 +5098,32 @@ final class CssMinifier
         return $output;
     }
 
+    private function composePositionDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composePositionDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composePositionDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
     private function composeFontDeclarationBlocks(string $css): string
     {
         $output = '';
@@ -5153,6 +5180,181 @@ final class CssMinifier
         $this->rewriteContainerGroup($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function composePositionDeclarationList(string $body): string
+    {
+        if (!$this->containsPositionInsetDeclarationName($body)) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewritePositionInsetGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function containsPositionInsetDeclarationName(string $body): bool
+    {
+        return stripos($body, 'inset') !== false
+            || preg_match('/(?:^|;)(?:top|right|bottom|left):/i', $body) === 1;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewritePositionInsetGroup(array &$entries): void
+    {
+        $this->rewritePhysicalInsetGroup($entries);
+        $this->rewriteLogicalInsetAxisGroup($entries, 'inset-block', 'inset-block-start', 'inset-block-end');
+        $this->rewriteLogicalInsetAxisGroup($entries, 'inset-inline', 'inset-inline-start', 'inset-inline-end');
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewritePhysicalInsetGroup(array &$entries): void
+    {
+        $components = [
+            'top' => 'top',
+            'right' => 'right',
+            'bottom' => 'bottom',
+            'left' => 'left',
+        ];
+        $relevant = array_merge(array_values($components), ['inset']);
+        $latest = [];
+        $lastInset = null;
+
+        foreach ($entries as $index => $entry) {
+            if (str_starts_with($entry['property'], 'inset-block') || str_starts_with($entry['property'], 'inset-inline')) {
+                return;
+            }
+            if ($entry['drop'] || !in_array($entry['property'], $relevant, true)) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === 'inset') {
+                $lastInset = $index;
+                continue;
+            }
+            $latest[$entry['property']] = $index;
+        }
+
+        if ($lastInset !== null) {
+            foreach ($components as $property) {
+                foreach ($entries as $index => $entry) {
+                    if (!$entry['drop'] && $entry['property'] === $property && $index < $lastInset) {
+                        $entries[$index]['drop'] = true;
+                    }
+                }
+                if (isset($latest[$property]) && $latest[$property] < $lastInset) {
+                    unset($latest[$property]);
+                }
+            }
+        }
+
+        foreach (array_values($components) as $property) {
+            if (!isset($latest[$property])) {
+                return;
+            }
+        }
+
+        $included = array_values($latest);
+        $replaceAt = min($included);
+        foreach ($entries as $index => $entry) {
+            if (in_array($entry['property'], array_values($components), true)) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+        if ($lastInset !== null && $lastInset < $replaceAt) {
+            $entries[$lastInset]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => 'inset',
+            'name' => 'inset',
+            'value' => $this->serializeBoxShorthandValues(
+                $entries[$latest['top']]['value'],
+                $entries[$latest['right']]['value'],
+                $entries[$latest['bottom']]['value'],
+                $entries[$latest['left']]['value']
+            ),
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteLogicalInsetAxisGroup(array &$entries, string $shorthand, string $start, string $end): void
+    {
+        $latestStart = null;
+        $latestEnd = null;
+        $reset = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !in_array($entry['property'], ['inset', $shorthand, $start, $end], true)) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === 'inset' || $entry['property'] === $shorthand) {
+                $reset = $reset === null ? $index : max($reset, $index);
+                continue;
+            }
+            if ($entry['property'] === $start) {
+                $latestStart = $index;
+            } elseif ($entry['property'] === $end) {
+                $latestEnd = $index;
+            }
+        }
+
+        if ($reset !== null) {
+            foreach ($entries as $index => $entry) {
+                if (!$entry['drop'] && ($entry['property'] === $start || $entry['property'] === $end) && $index < $reset) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+            if ($latestStart !== null && $latestStart < $reset) {
+                $latestStart = null;
+            }
+            if ($latestEnd !== null && $latestEnd < $reset) {
+                $latestEnd = null;
+            }
+        }
+
+        if ($latestStart === null || $latestEnd === null) {
+            return;
+        }
+
+        $replaceAt = min($latestStart, $latestEnd);
+        foreach ($entries as $index => $entry) {
+            if ($entry['property'] === $start || $entry['property'] === $end) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+        if ($reset !== null && $entries[$reset]['property'] === $shorthand && $reset < $replaceAt) {
+            $entries[$reset]['drop'] = true;
+        }
+
+        $entries[$replaceAt] = [
+            'property' => $shorthand,
+            'name' => $shorthand,
+            'value' => $this->serializeAxisShorthandValues(
+                $entries[$latestStart]['value'],
+                $entries[$latestEnd]['value']
+            ),
+            'important' => false,
+            'drop' => false,
+        ];
     }
 
     /**
@@ -5343,6 +5545,26 @@ final class CssMinifier
         $type = strtolower(trim($type));
 
         return $type === 'normal' ? $name : $name . '/' . $type;
+    }
+
+    private function serializeBoxShorthandValues(string $top, string $right, string $bottom, string $left): string
+    {
+        if ($top === $right && $top === $bottom && $top === $left) {
+            return $top;
+        }
+        if ($top === $bottom && $right === $left) {
+            return $top . ' ' . $right;
+        }
+        if ($right === $left) {
+            return $top . ' ' . $right . ' ' . $bottom;
+        }
+
+        return $top . ' ' . $right . ' ' . $bottom . ' ' . $left;
+    }
+
+    private function serializeAxisShorthandValues(string $start, string $end): string
+    {
+        return $start === $end ? $start : $start . ' ' . $end;
     }
 
     private function composeTransitionDeclarationList(string $body): string

@@ -261,6 +261,25 @@ return [
             $minifier->minify('@font-feature-values foo { @swash { pretty: 1; } } @font-feature-values foo { @swash { cool: 2; } }')
         );
     },
+    'css minifier maps upstream physical and logical inset composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{inset:0}', $minifier->minify('.foo { top: 0; left: 0; bottom: 0; right: 0; }'));
+        $t->same('.foo{inset:2px 4px}', $minifier->minify('.foo { top: 2px; left: 4px; bottom: 2px; right: 4px; }'));
+        $t->same('.foo{inset:1px 4px 3px 2px}', $minifier->minify('.foo { top: 1px; left: 2px; bottom: 3px; right: 4px; }'));
+        $t->same(
+            '.foo{inset-block:2px;inset-inline:4px}',
+            $minifier->minify('.foo { inset-block-start: 2px; inset-block-end: 2px; inset-inline-start: 4px; inset-inline-end: 4px; }')
+        );
+        $t->same(
+            '.foo{inset-block:2px 3px;inset-inline:4px 5px}',
+            $minifier->minify('.foo { inset-block-start: 2px; inset-block-end: 3px; inset-inline-start: 4px; inset-inline-end: 5px; }')
+        );
+        $t->same(
+            '.foo{inset:4px;inset-inline:4px 5px}',
+            $minifier->minify('.foo { inset-block-start: 2px; inset-block-end: 3px; inset: 4px; inset-inline-start: 4px; inset-inline-end: 5px; }')
+        );
+    },
     'css minifier maps upstream import rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -1311,6 +1330,28 @@ CSS;
         $css = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.css');
         $expected = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-theme.min.css');
         $t->same(trim($expected), (new CssMinifier())->minify($css));
+    },
+    'wordpress cover overlay insets compose without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover .wp-block-cover__background {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+}
+
+.wp-block-cover.alignwide .wp-block-cover__inner-container {
+  inset-block-start: var(--wp--preset--spacing--40);
+  inset-block-end: var(--wp--preset--spacing--40);
+  inset-inline-start: 24px;
+  inset-inline-end: 32px;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover .wp-block-cover__background{inset:0}.wp-block-cover.alignwide .wp-block-cover__inner-container{inset-block:var(--wp--preset--spacing--40);inset-inline:24px 32px}',
+            (new CssMinifier())->minify($css)
+        );
     },
     'wordpress fluid block spacing math functions minify without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
