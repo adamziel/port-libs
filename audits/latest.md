@@ -1,10 +1,10 @@
-# Independent Audit - 2026-05-23T06:43:27Z
+# Independent Audit - 2026-05-23T06:49:16Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
 lane-status summaries needed to check status alignment, recent Git history
-through `b63b8f3459dc`, dirty-tree status, active process/test state, and the
-PHP shell-out surface.
+through `4e9d95e0` plus this audit follow-up, dirty-tree status, active
+process/test state, and the PHP shell-out surface.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
 read secrets, inspect process environments, or start a root harness.
@@ -29,18 +29,22 @@ it as temporary fixture/oracle evidence.
      sampling found watchdog, capacity, dashboard, evaluator, integrator,
      auditor, lane-agent, capacity/artifact agents, two exact root harnesses,
      and a focused markerPDF test process active at the same time.
-   - Evidence: `HEAD` moved during this audit from `cddabe76` to
-     `b63b8f3459dc`; latest samples showed `767` default
-     `git status --short` entries, `88` tracked changed entries, and
-     `88 files changed, 19403 insertions(+), 599 deletions(-)`.
+   - Evidence: `HEAD` moved during this audit from `cddabe76` through
+     `b63b8f34`, `51858b39`, `cc6816bb`, `10cdf74f`, `5c03e2be`,
+     audit commit `b5127b50`, `b81b54d7`, and `4e9d95e0` before this
+     follow-up. Latest samples showed `746` default `git status --short`
+     entries, `73` tracked changed entries, and `73 files changed, 18035
+     insertions(+), 539 deletions(-)`.
    - Required duplicate-root gate: `pgrep -af
-     '^php tools/run-tests\.php( |$)'` returned active root PIDs `1281798`
-     and `1281936`, so I did not start a duplicate root harness.
+     '^php tools/run-tests\.php( |$)'` initially returned active root PIDs
+     `1281798` and `1281936`; a later sample returned active root PID
+     `1301820`, so I did not start a duplicate root harness.
    - Owner evidence:
 
      ```text
      1281798 claude   1225389       00:13 Rs   php tools/run-tests.php
      1281936 claude   1253900       00:10 Ss   php tools/run-tests.php
+     1301820 claude   1276501       00:08 Rs   php tools/run-tests.php
      ```
 
    - Audit judgment: freeze active writers and duplicate loops before treating
@@ -55,7 +59,8 @@ it as temporary fixture/oracle evidence.
      phase, audit, current work, blocker, and commit.
    - Evidence: the dashboard still advertises generated time
      `2026-05-23 04:57:16 UTC` and source commit `bda83c6b93d4`, while
-     reviewed `HEAD` is `b63b8f3459dc`.
+     reviewed lane/status history has advanced through `4e9d95e0` plus this
+     audit follow-up.
    - Evidence: the table has compound `Benchmark` and `Mapped` columns instead
      of separate `benchmark source`, `upstream denominator`, `mapped tests`,
      and `PHP pass/fail` columns, so consumers cannot validate denominator
@@ -63,12 +68,12 @@ it as temporary fixture/oracle evidence.
    - Evidence: current manifests disagree with the published rows: Difftastic
      `191 / 556-ish` mapped versus dashboard `160 / 417`, Dolt `303 / 613`
      versus `242 / 613`, esbuild `178 / 2567` versus `164 / 2567`,
-     Gitoxide `1516 / 2877` versus `1432 / 2877`, libsqlite `173 / 1454`
-     versus `149 / 1454`, LightningCSS `845 / 3532` versus `773 / 3532`,
-     markerPDF `170 / 78-ish` versus `159 / 78`, Pandoc `506 / 2028`
+     Gitoxide `1516 / 2877` versus `1432 / 2877`, libsqlite `176 / 1454`
+     versus `149 / 1454`, LightningCSS `850 / 3532` versus `773 / 3532`,
+     markerPDF `171 / 78-ish` versus `159 / 78`, Pandoc `507 / 2028`
      versus `426 / 2028`, rclone `345 / 2553` versus `291 / 327`,
-     Readability `1164 / 1984` versus `1031 / 1984`, and Syncthing
-     `264 / 658` versus `235 / 658`.
+     Readability `1179 / 1984` versus `1031 / 1984`, and Syncthing
+     `266 / 658` versus `235 / 658`.
    - Audit judgment: the public dashboard is an old publish snapshot, not the
      current coordination surface.
 
@@ -85,8 +90,8 @@ it as temporary fixture/oracle evidence.
      Pandoc, plus integrator/auditor/artifact/capacity loops.
    - Evidence: the dashboard average is `68.8%`, current manifests have much
      larger mapped counts than the Active Lanes estimates imply, and the
-     latest `progress.md` audit paragraph still describes prior PID `1246555`
-     instead of the current duplicate-root PIDs.
+     latest `progress.md` audit paragraph needed another update because
+     status/history moved again while the audit was being committed.
    - Audit judgment: `progress.md` should be regenerated from one frozen
      snapshot after active writers stop, not patched piecemeal from moving
      lane-local status.
@@ -191,11 +196,12 @@ Required duplicate-root check before any root run:
 pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
-Active result during this audit:
+Active results observed during this audit:
 
 ```text
 1281798 php tools/run-tests.php
 1281936 php tools/run-tests.php
+1301820 php tools/run-tests.php
 ```
 
 Owner evidence:
@@ -203,11 +209,12 @@ Owner evidence:
 ```text
 1281798 claude   1225389       00:13 Rs   php tools/run-tests.php
 1281936 claude   1253900       00:10 Ss   php tools/run-tests.php
+1301820 claude   1276501       00:08 Rs   php tools/run-tests.php
 ```
 
-A later exact duplicate-root sample was clear, but active writer/process
-sampling and `HEAD` movement still made the tree unstable for an accepted root
-baseline.
+A middle exact duplicate-root sample was clear, but the latest exact sample
+returned PID `1301820`. Active writer/process sampling and `HEAD` movement
+still made the tree unstable for an accepted root baseline.
 
 I did not run `php tools/run-tests.php`.
 
@@ -216,6 +223,13 @@ I did not run `php tools/run-tests.php`.
 Recent commits reviewed:
 
 ```text
+4e9d95e0 Port Syncthing scanner block-size hysteresis
+b81b54d7 Stamp difftastic lane status
+b5127b50 Refresh independent audit status
+5c03e2be Stamp esbuild lane status
+10cdf74f Advance esbuild decorated class lowering
+cc6816bb difftastic map command environment options
+51858b39 Stamp rclone lane status
 b63b8f34 Advance rclone command operation slices
 cddabe76 Refresh independent audit status
 c236031b Stamp libsqlite lane status
@@ -224,10 +238,6 @@ c236031b Stamp libsqlite lane status
 1ae44f9f Stamp readability lane status
 625f9cdf Advance LightningCSS light-dark fallbacks
 e800c009 Advance readability publisher fixture parity
-4f2d1199 Record esbuild lane status
-cefc9ad3 Advance esbuild TypeScript class lowering
-5bdb07ef Refresh independent audit status
-b3bf404c Refresh independent audit status
 ```
 
 ## Recommended Next Intervention
