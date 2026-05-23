@@ -20,7 +20,7 @@ final class DiffCommandRunner
     }
 
     /**
-     * @param array{checkOnly?: bool, exitCode?: bool, printUnchanged?: bool, language?: string, displayLanguage?: string, display?: string, extraInfo?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int|string, graphLimit?: int|string, parseErrorLimit?: int|string, useColor?: bool} $options
+     * @param array{checkOnly?: bool, exitCode?: bool, printUnchanged?: bool, language?: string, displayLanguage?: string, display?: string, extraInfo?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, backgroundColor?: string, syntaxHighlight?: bool|string, sortPaths?: bool, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int|string, graphLimit?: int|string, parseErrorLimit?: int|string, useColor?: bool} $options
      * @param array<string, string> $environment
      * @return array{stdout:string, stderr:string, exitCode:int, hasChanges:bool, message:string, language:string}
      */
@@ -48,7 +48,7 @@ final class DiffCommandRunner
                 'displayLanguage' => $analysis['language'],
                 'useColor' => $options['useColor'] ?? false,
             ];
-            foreach (['extraInfo', 'tabWidth', 'contextLines', 'stripCr', 'columnWidth'] as $key) {
+            foreach (['extraInfo', 'tabWidth', 'contextLines', 'stripCr', 'columnWidth', 'backgroundColor', 'syntaxHighlight'] as $key) {
                 if (array_key_exists($key, $options)) {
                     $rendererOptions[$key] = $options[$key];
                 }
@@ -78,7 +78,7 @@ final class DiffCommandRunner
     }
 
     /**
-     * @param array{exitCode?: bool, printUnchanged?: bool, language?: string, displayLanguage?: string, display?: string, extraInfo?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int|string, graphLimit?: int|string, parseErrorLimit?: int|string, useColor?: bool} $options
+     * @param array{exitCode?: bool, printUnchanged?: bool, language?: string, displayLanguage?: string, display?: string, extraInfo?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, backgroundColor?: string, syntaxHighlight?: bool|string, sortPaths?: bool, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int|string, graphLimit?: int|string, parseErrorLimit?: int|string, useColor?: bool} $options
      * @param array<string, string> $environment
      * @return array{stdout:string, stderr:string, exitCode:int, hasChanges:bool, message:string, language:string}
      */
@@ -95,7 +95,7 @@ final class DiffCommandRunner
     }
 
     /**
-     * @param array{display?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string} $options
+     * @param array{display?: string, tabWidth?: int|string, contextLines?: int|string, columnWidth?: int|string, width?: int|string, terminalWidth?: int|string, backgroundColor?: string, syntaxHighlight?: bool|string} $options
      * @param array<string, string> $environment
      * @return array{options:array<string, mixed>, errors:list<string>}
      */
@@ -171,6 +171,45 @@ final class DiffCommandRunner
             $parsed['display'] = $display;
         }
 
+        $backgroundSource = null;
+        $background = null;
+        if (array_key_exists('backgroundColor', $parsed)) {
+            $backgroundSource = '--background';
+            $background = $parsed['backgroundColor'];
+        } elseif (array_key_exists('DFT_BACKGROUND', $environment)) {
+            $backgroundSource = 'DFT_BACKGROUND';
+            $background = $environment['DFT_BACKGROUND'];
+        }
+
+        if ($backgroundSource !== null) {
+            if (!is_string($background) || !in_array($background, ['dark', 'light'], true)) {
+                $errors[] = "Invalid value '{$this->stringifyOptionValue($background)}' for {$backgroundSource}: expected dark or light.";
+            } else {
+                $parsed['backgroundColor'] = $background;
+            }
+        }
+
+        $syntaxSource = null;
+        $syntaxHighlight = null;
+        if (array_key_exists('syntaxHighlight', $parsed)) {
+            $syntaxSource = '--syntax-highlight';
+            $syntaxHighlight = $parsed['syntaxHighlight'];
+        } elseif (array_key_exists('DFT_SYNTAX_HIGHLIGHT', $environment)) {
+            $syntaxSource = 'DFT_SYNTAX_HIGHLIGHT';
+            $syntaxHighlight = $environment['DFT_SYNTAX_HIGHLIGHT'];
+        }
+
+        if ($syntaxSource !== null) {
+            $parsedSyntaxHighlight = is_bool($syntaxHighlight)
+                ? $syntaxHighlight
+                : $this->parseOnOffFlag($syntaxHighlight);
+            if ($parsedSyntaxHighlight === null) {
+                $errors[] = "Invalid value '{$this->stringifyOptionValue($syntaxHighlight)}' for {$syntaxSource}: expected on or off.";
+            } else {
+                $parsed['syntaxHighlight'] = $parsedSyntaxHighlight;
+            }
+        }
+
         return ['options' => $parsed, 'errors' => $errors];
     }
 
@@ -189,6 +228,7 @@ final class DiffCommandRunner
             ['optionKey' => 'checkOnly', 'environmentKey' => 'DFT_CHECK_ONLY'],
             ['optionKey' => 'exitCode', 'environmentKey' => 'DFT_EXIT_CODE'],
             ['optionKey' => 'ignoreComments', 'environmentKey' => 'DFT_IGNORE_COMMENTS'],
+            ['optionKey' => 'sortPaths', 'environmentKey' => 'DFT_SORT_PATHS'],
         ] as $spec) {
             if (array_key_exists($spec['optionKey'], $parsed) || !array_key_exists($spec['environmentKey'], $environment)) {
                 continue;
@@ -389,7 +429,7 @@ final class DiffCommandRunner
     }
 
     /**
-     * @param array{printUnchanged?: bool, sortPaths?: bool, languageOverrides?: list<string>, binaryOverrides?: list<string>, fileOptions?: array<string, mixed>, exitCode?: bool} $options
+     * @param array{printUnchanged?: bool, sortPaths?: bool, languageOverrides?: list<string>, binaryOverrides?: list<string>, fileOptions?: array<string, mixed>, exitCode?: bool, backgroundColor?: string, syntaxHighlight?: bool|string} $options
      * @param array<string, string> $environment
      * @return array{stdout:string, stderr:string, exitCode:int, hasChanges:bool, files:list<array<string, mixed>>}
      */
@@ -627,6 +667,19 @@ final class DiffCommandRunner
         return match (strtolower(trim($value))) {
             '1', 'true', 'yes', 'on' => true,
             '0', 'false', 'no', 'off' => false,
+            default => null,
+        };
+    }
+
+    private function parseOnOffFlag(mixed $value): ?bool
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+
+        return match (strtolower(trim($value))) {
+            'on' => true,
+            'off' => false,
             default => null,
         };
     }

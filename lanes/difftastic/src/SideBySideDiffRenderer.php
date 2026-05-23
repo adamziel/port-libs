@@ -17,7 +17,7 @@ final class SideBySideDiffRenderer
     }
 
     /**
-     * @param array{tabWidth?: int, columnWidth?: int, contextLines?: int, showBoth?: bool, stripCr?: bool, useColor?: bool} $options
+     * @param array{tabWidth?: int, columnWidth?: int, contextLines?: int, showBoth?: bool, stripCr?: bool, useColor?: bool, backgroundColor?: string, syntaxHighlight?: bool} $options
      */
     public function renderTextDiff(string $old, string $new, array $options = []): string
     {
@@ -32,11 +32,12 @@ final class SideBySideDiffRenderer
         $contextLines = max(0, (int) ($options['contextLines'] ?? self::DEFAULT_CONTEXT_LINES));
         $showBoth = (bool) ($options['showBoth'] ?? false);
         $useColor = (bool) ($options['useColor'] ?? false);
+        $backgroundColor = $this->backgroundColor($options['backgroundColor'] ?? 'dark');
         if (!$showBoth && $old === '' && $new !== '') {
-            return $this->renderSingleColumnTextDiff($new, $tabWidth, $useColor, 'right');
+            return $this->renderSingleColumnTextDiff($new, $tabWidth, $useColor, 'right', $backgroundColor);
         }
         if (!$showBoth && $new === '' && $old !== '') {
-            return $this->renderSingleColumnTextDiff($old, $tabWidth, $useColor, 'left');
+            return $this->renderSingleColumnTextDiff($old, $tabWidth, $useColor, 'left', $backgroundColor);
         }
 
         $oldLines = $old === '' ? [] : $this->displayLines($old);
@@ -66,6 +67,7 @@ final class SideBySideDiffRenderer
                     $tabWidth,
                     'left',
                     $useColor,
+                    $backgroundColor,
                 );
             $rhsParts = $newLineNumber === null
                 ? ['']
@@ -76,6 +78,7 @@ final class SideBySideDiffRenderer
                     $tabWidth,
                     'right',
                     $useColor,
+                    $backgroundColor,
                 );
             $partCount = max(count($lhsParts), count($rhsParts));
 
@@ -87,10 +90,10 @@ final class SideBySideDiffRenderer
                     ? $this->formatLineNumber($newLineNumber, $lineNumberWidth)
                     : $this->formatContinuationLineNumber($lineNumberWidth);
                 if ($useColor && $lhsHasNovel) {
-                    $lhsNumber = $this->ansiNovel($lhsNumber, 'left', true);
+                    $lhsNumber = $this->ansiNovel($lhsNumber, 'left', true, $backgroundColor);
                 }
                 if ($useColor && $rhsHasNovel) {
-                    $rhsNumber = $this->ansiNovel($rhsNumber, 'right', true);
+                    $rhsNumber = $this->ansiNovel($rhsNumber, 'right', true, $backgroundColor);
                 }
                 $lhsText = $lhsParts[$part] ?? str_repeat(' ', $columnWidth);
                 $rhsText = $rhsParts[$part] ?? '';
@@ -102,7 +105,7 @@ final class SideBySideDiffRenderer
         return implode("\n", $rows) . "\n";
     }
 
-    private function renderSingleColumnTextDiff(string $source, int $tabWidth, bool $useColor, string $side): string
+    private function renderSingleColumnTextDiff(string $source, int $tabWidth, bool $useColor, string $side, string $backgroundColor): string
     {
         $lines = explode("\n", $source);
         $lineNumberWidth = max(1, strlen((string) count($lines)));
@@ -112,9 +115,9 @@ final class SideBySideDiffRenderer
             $lineNumber = $this->formatLineNumber($index, $lineNumberWidth);
             $displayLine = str_replace("\t", str_repeat(' ', $tabWidth), $line);
             if ($useColor) {
-                $lineNumber = $this->ansiNovel($lineNumber, $side, true);
+                $lineNumber = $this->ansiNovel($lineNumber, $side, true, $backgroundColor);
                 if ($displayLine !== '') {
-                    $displayLine = $this->ansiNovel($displayLine, $side);
+                    $displayLine = $this->ansiNovel($displayLine, $side, false, $backgroundColor);
                 }
             }
 
@@ -186,6 +189,7 @@ final class SideBySideDiffRenderer
         int $tabWidth,
         string $side,
         bool $useColor,
+        string $backgroundColor,
     ): array {
         if (!$useColor) {
             return $this->splitLineForDisplay($line, $maxWidth, $tabWidth, $side);
@@ -206,7 +210,7 @@ final class SideBySideDiffRenderer
             }
 
             $rawPart = substr($line, $offset, $nextOffset - $offset);
-            $displayPart = $this->displayPartWithNovelSpans($line, $offset, $nextOffset, $spans, $tabWidth, $side);
+            $displayPart = $this->displayPartWithNovelSpans($line, $offset, $nextOffset, $spans, $tabWidth, $side, $backgroundColor);
             $padding = max(0, $maxWidth - $this->displayWidth($rawPart, $tabWidth));
             if ($side === 'left') {
                 $displayPart .= str_repeat(' ', $padding);
@@ -294,6 +298,7 @@ final class SideBySideDiffRenderer
         array $spans,
         int $tabWidth,
         string $side,
+        string $backgroundColor,
     ): string {
         $cursor = $start;
         $display = '';
@@ -312,6 +317,7 @@ final class SideBySideDiffRenderer
                 $this->expandTabs(substr($line, $spanStart, $spanEnd - $spanStart), $tabWidth),
                 $side,
                 true,
+                $backgroundColor,
             );
             $cursor = $spanEnd;
         }
@@ -485,16 +491,24 @@ final class SideBySideDiffRenderer
         return str_replace("\t", str_repeat(' ', $tabWidth), $text);
     }
 
-    private function ansiNovel(string $text, string $side, bool $bold = false): string
+    private function ansiNovel(string $text, string $side, bool $bold = false, string $backgroundColor = 'dark'): string
     {
         if ($text === '') {
             return '';
         }
 
-        $color = $side === 'left' ? '31' : '32';
+        $color = match ($side) {
+            'left' => $backgroundColor === 'dark' ? '91' : '31',
+            default => $backgroundColor === 'dark' ? '92' : '32',
+        };
         $prefix = $bold ? '1;' : '';
 
         return "\033[" . $prefix . $color . 'm' . $text . "\033[0m";
+    }
+
+    private function backgroundColor(mixed $value): string
+    {
+        return $value === 'light' ? 'light' : 'dark';
     }
 
     private function byteOffsetForWidth(string $text, int $startOffset, int $maxWidth, int $tabWidth): int

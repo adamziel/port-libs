@@ -16,7 +16,7 @@ final class InlineDiffRenderer
     }
 
     /**
-     * @param array{path?: string, language?: string, displayLanguage?: string, extraInfo?: string, tabWidth?: int, contextLines?: int, stripCr?: bool, useColor?: bool} $options
+     * @param array{path?: string, language?: string, displayLanguage?: string, extraInfo?: string, tabWidth?: int, contextLines?: int, stripCr?: bool, useColor?: bool, backgroundColor?: string, syntaxHighlight?: bool} $options
      */
     public function renderTextDiff(string $old, string $new, array $options = []): string
     {
@@ -40,32 +40,33 @@ final class InlineDiffRenderer
         $language = (string) ($options['displayLanguage'] ?? $this->displayLanguageName($options['language'] ?? 'text'));
         $extraInfo = isset($options['extraInfo']) ? (string) $options['extraInfo'] : null;
         $useColor = (bool) ($options['useColor'] ?? false);
+        $backgroundColor = $this->backgroundColor($options['backgroundColor'] ?? 'dark');
         $output = '';
         $hunkTotal = count($hunks);
 
         foreach ($hunks as $index => [$start, $end]) {
             $hunkNumber = $index + 1;
-            $output .= $this->formatHeader($path, $language, $hunkNumber, $hunkTotal, $extraInfo, $useColor) . "\n";
+            $output .= $this->formatHeader($path, $language, $hunkNumber, $hunkTotal, $extraInfo, $useColor, $backgroundColor) . "\n";
 
             $beforeStart = max(0, $start - $contextLines);
             for ($pairIndex = $beforeStart; $pairIndex < $start; $pairIndex++) {
                 $oldLineNumber = $pairs[$pairIndex][0];
                 if ($oldLineNumber !== null) {
-                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], false, $tabWidth, $useColor);
+                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], false, $tabWidth, $useColor, $backgroundColor);
                 }
             }
 
             for ($pairIndex = $start; $pairIndex <= $end; $pairIndex++) {
                 $oldLineNumber = $pairs[$pairIndex][0];
                 if ($oldLineNumber !== null) {
-                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], true, $tabWidth, $useColor);
+                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], true, $tabWidth, $useColor, $backgroundColor);
                 }
             }
 
             for ($pairIndex = $start; $pairIndex <= $end; $pairIndex++) {
                 $newLineNumber = $pairs[$pairIndex][1];
                 if ($newLineNumber !== null) {
-                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], true, $tabWidth, $useColor);
+                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], true, $tabWidth, $useColor, $backgroundColor);
                 }
             }
 
@@ -73,7 +74,7 @@ final class InlineDiffRenderer
             for ($pairIndex = $end + 1; $pairIndex <= $afterEnd; $pairIndex++) {
                 $newLineNumber = $pairs[$pairIndex][1];
                 if ($newLineNumber !== null) {
-                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], false, $tabWidth, $useColor);
+                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], false, $tabWidth, $useColor, $backgroundColor);
                 }
             }
 
@@ -85,7 +86,7 @@ final class InlineDiffRenderer
 
     /**
      * @param list<string> $gitArguments
-     * @param array{path?: string, language?: string, displayLanguage?: string, extraInfo?: string, tabWidth?: int, contextLines?: int, stripCr?: bool, useColor?: bool} $options
+     * @param array{path?: string, language?: string, displayLanguage?: string, extraInfo?: string, tabWidth?: int, contextLines?: int, stripCr?: bool, useColor?: bool, backgroundColor?: string, syntaxHighlight?: bool} $options
      */
     public function renderGitExternalTextDiff(string $old, string $new, array $gitArguments, array $options = []): string
     {
@@ -96,7 +97,7 @@ final class InlineDiffRenderer
 
     /**
      * @param list<string> $pathArguments
-     * @param array{path?: string, language?: string, displayLanguage?: string, extraInfo?: string, tabWidth?: int, contextLines?: int, stripCr?: bool, useColor?: bool} $options
+     * @param array{path?: string, language?: string, displayLanguage?: string, extraInfo?: string, tabWidth?: int, contextLines?: int, stripCr?: bool, useColor?: bool, backgroundColor?: string, syntaxHighlight?: bool} $options
      */
     public function renderPathArgumentsTextDiff(
         string $old,
@@ -120,14 +121,14 @@ final class InlineDiffRenderer
     }
 
     /**
-     * @param array{path?: string, extraInfo?: string, useColor?: bool} $options
+     * @param array{path?: string, extraInfo?: string, useColor?: bool, backgroundColor?: string} $options
      */
     public function renderBinaryDiff(string $oldBytes, string $newBytes, array $options = []): string
     {
         $path = (string) ($options['path'] ?? '(stdin)');
         $extraInfo = isset($options['extraInfo']) ? (string) $options['extraInfo'] : null;
         $useColor = (bool) ($options['useColor'] ?? false);
-        $output = $this->formatHeader($path, 'Binary', 1, 1, $extraInfo, $useColor) . "\n";
+        $output = $this->formatHeader($path, 'Binary', 1, 1, $extraInfo, $useColor, $this->backgroundColor($options['backgroundColor'] ?? 'dark')) . "\n";
 
         if ($oldBytes === $newBytes) {
             return $output . "No changes.\n\n";
@@ -152,7 +153,7 @@ final class InlineDiffRenderer
 
     /**
      * @param list<string> $gitArguments
-     * @param array{path?: string, extraInfo?: string, useColor?: bool} $options
+     * @param array{path?: string, extraInfo?: string, useColor?: bool, backgroundColor?: string} $options
      */
     public function renderGitExternalBinaryDiff(string $oldBytes, string $newBytes, array $gitArguments, array $options = []): string
     {
@@ -168,10 +169,11 @@ final class InlineDiffRenderer
         int $hunkTotal = 1,
         ?string $extraInfo = null,
         bool $useColor = false,
+        string $backgroundColor = 'dark',
     ): string {
         $divider = $hunkTotal === 1 ? '' : $hunkNumber . '/' . $hunkTotal . ' --- ';
         $displayPath = $useColor
-            ? $this->ansiHeaderPath($path, $hunkNumber)
+            ? $this->ansiHeaderPath($path, $hunkNumber, $backgroundColor)
             : $path;
         $trailer = ' --- ' . $divider . $language;
         if ($useColor) {
@@ -338,12 +340,12 @@ final class InlineDiffRenderer
         return $merged;
     }
 
-    private function formatInlineLine(string $side, int $lineNumber, string $line, bool $isNovel, int $tabWidth, bool $useColor): string
+    private function formatInlineLine(string $side, int $lineNumber, string $line, bool $isNovel, int $tabWidth, bool $useColor, string $backgroundColor): string
     {
         $lineNumberText = (string) ($lineNumber + 1) . ' ';
         if ($useColor) {
             $lineNumberText = $isNovel
-                ? $this->ansiNovelLineNumber($lineNumberText, $side)
+                ? $this->ansiNovelLineNumber($lineNumberText, $side, $backgroundColor)
                 : $this->ansiDim($lineNumberText);
         }
 
@@ -378,18 +380,28 @@ final class InlineDiffRenderer
         };
     }
 
-    private function ansiHeaderPath(string $text, int $hunkNumber): string
+    private function ansiHeaderPath(string $text, int $hunkNumber, string $backgroundColor): string
     {
-        $style = $hunkNumber === 1 ? '1;33' : '1';
+        $style = $hunkNumber === 1
+            ? ($backgroundColor === 'dark' ? '1;93' : '1;33')
+            : '1';
 
         return "\033[" . $style . 'm' . $text . "\033[0m";
     }
 
-    private function ansiNovelLineNumber(string $text, string $side): string
+    private function ansiNovelLineNumber(string $text, string $side, string $backgroundColor): string
     {
-        $color = $side === 'left' ? '31' : '32';
+        $color = match ($side) {
+            'left' => $backgroundColor === 'dark' ? '91' : '31',
+            default => $backgroundColor === 'dark' ? '92' : '32',
+        };
 
         return "\033[1;" . $color . 'm' . $text . "\033[0m";
+    }
+
+    private function backgroundColor(mixed $value): string
+    {
+        return $value === 'light' ? 'light' : 'dark';
     }
 
     private function ansiDim(string $text): string

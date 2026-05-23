@@ -987,12 +987,12 @@ return [
             ],
         );
 
-        $t->contains("\033[1;31m1 \033[0m", $display);
-        $t->contains("\033[1;32m1 \033[0m", $display);
-        $t->contains("'\033[1;31mlegacy\033[0m-card'", $display);
-        $t->contains("'\033[1;32mmodern\033[0m-card'", $display);
-        $t->true(!str_contains($display, "\033[1;31mrender_block"), 'Stable source before the novel word should not be colored as deleted.');
-        $t->true(!str_contains($display, "\033[1;32m-card"), 'Stable suffix after the novel word should not be colored as inserted.');
+        $t->contains("\033[1;91m1 \033[0m", $display);
+        $t->contains("\033[1;92m1 \033[0m", $display);
+        $t->contains("'\033[1;91mlegacy\033[0m-card'", $display);
+        $t->contains("'\033[1;92mmodern\033[0m-card'", $display);
+        $t->true(!str_contains($display, "\033[1;91mrender_block"), 'Stable source before the novel word should not be colored as deleted.');
+        $t->true(!str_contains($display, "\033[1;92m-card"), 'Stable suffix after the novel word should not be colored as inserted.');
     },
     'wordpress highlighted side by side review colors only changed copy' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-readme-footer-before.txt');
@@ -1003,10 +1003,10 @@ return [
             'useColor' => true,
         ]);
 
-        $t->contains("\033[1;31mlegacy\033[0m", $display);
-        $t->contains("\033[1;32mmodern\033[0m", $display);
+        $t->contains("\033[1;91mlegacy\033[0m", $display);
+        $t->contains("\033[1;92mmodern\033[0m", $display);
         $t->contains('Frequently Asked Questions', $display);
-        $t->true(!str_contains($display, "\033[1;32mFrequently"), 'Stable readme footer context should remain uncolored in highlighted side-by-side output.');
+        $t->true(!str_contains($display, "\033[1;92mFrequently"), 'Stable readme footer context should remain uncolored in highlighted side-by-side output.');
     },
     'maps upstream side by side default context lines' => static function (TestRunner $t): void {
         $beforeLines = array_map(static fn (int $line): string => 'stable-' . str_pad((string) $line, 2, '0', STR_PAD_LEFT), range(1, 20));
@@ -1092,10 +1092,10 @@ return [
             ],
         );
 
-        $t->contains("\033[1;33mwp-content/plugins/acme-card/readme.txt\033[0m\033[2m --- Text\033[0m", $display);
+        $t->contains("\033[1;93mwp-content/plugins/acme-card/readme.txt\033[0m\033[2m --- Text\033[0m", $display);
         $t->contains("\033[2mRenamed from readme-old.txt to readme.txt\033[0m", $display);
-        $t->contains("\033[1;31m1 \033[0m   label:    legacy", $display);
-        $t->contains("   \033[1;32m1 \033[0mlabel:    modern", $display);
+        $t->contains("\033[1;91m1 \033[0m   label:    legacy", $display);
+        $t->contains("   \033[1;92m1 \033[0mlabel:    modern", $display);
         $t->true(!str_contains($display, "\t"), 'Inline display replaces tabs before rendering lines.');
     },
     'maps upstream git style new file arguments without permission warning' => static function (TestRunner $t): void {
@@ -1327,6 +1327,32 @@ return [
         $t->same(1, $overridden['options']['contextLines']);
         $t->same(4, $overridden['options']['tabWidth']);
     },
+    'maps upstream background syntax and sort path environment aggregation' => static function (TestRunner $t): void {
+        $runner = new DiffCommandRunner();
+        $parsed = $runner->parseCommandOptions([], [
+            'DFT_BACKGROUND' => 'dark',
+            'DFT_SYNTAX_HIGHLIGHT' => 'off',
+            'DFT_SORT_PATHS' => 'on',
+        ]);
+        $overridden = $runner->parseCommandOptions([
+            'backgroundColor' => 'light',
+            'syntaxHighlight' => true,
+            'sortPaths' => false,
+        ], [
+            'DFT_BACKGROUND' => 'dark',
+            'DFT_SYNTAX_HIGHLIGHT' => 'off',
+            'DFT_SORT_PATHS' => 'on',
+        ]);
+
+        $t->same([], $parsed['errors']);
+        $t->same('dark', $parsed['options']['backgroundColor']);
+        $t->same(false, $parsed['options']['syntaxHighlight']);
+        $t->same(true, $parsed['options']['sortPaths']);
+        $t->same([], $overridden['errors']);
+        $t->same('light', $overridden['options']['backgroundColor']);
+        $t->same(true, $overridden['options']['syntaxHighlight']);
+        $t->same(false, $overridden['options']['sortPaths']);
+    },
     'maps upstream command display environment into side by side output' => static function (TestRunner $t): void {
         $before = "stable 1\nstable 2\nlabel:\told\nstable 4\n";
         $after = "stable 1\nstable 2\nlabel:\tnew\nstable 4\n";
@@ -1347,6 +1373,33 @@ return [
         $t->true(!str_contains($result['stdout'], 'stable 1'), 'DFT_CONTEXT=0 should omit distant stable lines before the changed row.');
         $t->true(!str_contains($result['stdout'], 'stable 4'), 'DFT_CONTEXT=0 should omit distant stable lines after the changed row.');
     },
+    'maps upstream background environment into colored side by side output' => static function (TestRunner $t): void {
+        $before = "render_label('legacy-card');\n";
+        $after = "render_label('modern-card');\n";
+        $dark = (new DiffCommandRunner())->runTextDiff($before, $after, 'src/render.php', 'PHP', [
+            'language' => 'php',
+        ], [
+            'DFT_DISPLAY' => 'side-by-side',
+            'DFT_CONTEXT' => '0',
+            'DFT_COLOR' => 'always',
+            'DFT_BACKGROUND' => 'dark',
+        ]);
+        $light = (new DiffCommandRunner())->runTextDiff($before, $after, 'src/render.php', 'PHP', [
+            'language' => 'php',
+        ], [
+            'DFT_DISPLAY' => 'side-by-side',
+            'DFT_CONTEXT' => '0',
+            'DFT_COLOR' => 'always',
+            'DFT_BACKGROUND' => 'light',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $dark['exitCode']);
+        $t->same('', $dark['stderr']);
+        $t->contains("\033[1;91mlegacy\033[0m", $dark['stdout']);
+        $t->contains("\033[1;92mmodern\033[0m", $dark['stdout']);
+        $t->contains("\033[1;31mlegacy\033[0m", $light['stdout']);
+        $t->contains("\033[1;32mmodern\033[0m", $light['stdout']);
+    },
     'rejects invalid display option environment before review' => static function (TestRunner $t): void {
         $result = (new DiffCommandRunner())->runTextDiff('old', 'new', 'readme.txt', 'Text', [
             'language' => 'text',
@@ -1358,6 +1411,22 @@ return [
         $t->same('', $result['stdout']);
         $t->same(false, $result['hasChanges']);
         $t->contains("Invalid value 'wide' for DFT_WIDTH", $result['stderr']);
+    },
+    'rejects invalid command display controls environment before review' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runTextDiff('old', 'new', 'readme.txt', 'Text', [
+            'language' => 'text',
+        ], [
+            'DFT_BACKGROUND' => 'sepia',
+            'DFT_SYNTAX_HIGHLIGHT' => 'maybe',
+            'DFT_SORT_PATHS' => 'sometimes',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $result['exitCode']);
+        $t->same('', $result['stdout']);
+        $t->same(false, $result['hasChanges']);
+        $t->contains("Invalid value 'sepia' for DFT_BACKGROUND", $result['stderr']);
+        $t->contains("Invalid value 'maybe' for DFT_SYNTAX_HIGHLIGHT", $result['stderr']);
+        $t->contains("Invalid value 'sometimes' for DFT_SORT_PATHS", $result['stderr']);
     },
     'maps upstream command boolean environment aggregation' => static function (TestRunner $t): void {
         $runner = new DiffCommandRunner();
@@ -1615,6 +1684,57 @@ return [
             $withUnchanged = $differ->diffDirectories($left, $right, ['printUnchanged' => true]);
             $withUnchangedPaths = array_column($withUnchanged, 'path');
             $t->contains('same.txt', implode("\n", $withUnchangedPaths));
+        } finally {
+            $remove($root);
+        }
+    },
+    'maps upstream sort paths environment into directory review order' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/difftastic-sort-paths-' . str_replace('.', '-', uniqid('', true));
+        $left = $root . '/before';
+        $right = $root . '/after';
+        $write = static function (string $path, string $contents): void {
+            $directory = dirname($path);
+            if (!is_dir($directory)) {
+                mkdir($directory, 0777, true);
+            }
+            file_put_contents($path, $contents);
+        };
+        $remove = static function (string $path) use (&$remove): void {
+            if (!file_exists($path)) {
+                return;
+            }
+            if (is_dir($path) && !is_link($path)) {
+                foreach (scandir($path) ?: [] as $entry) {
+                    if ($entry !== '.' && $entry !== '..') {
+                        $remove($path . DIRECTORY_SEPARATOR . $entry);
+                    }
+                }
+                rmdir($path);
+                return;
+            }
+            unlink($path);
+        };
+
+        try {
+            $write($left . '/wp-content/plugins/acme-card/z-deleted.php', "<?php\nreturn 'legacy';\n");
+            $write($right . '/wp-content/plugins/acme-card/a-created.php', "<?php\nreturn 'modern';\n");
+
+            $unsorted = (new DiffCommandRunner())->runJsonDirectoryDiff($left, $right, [], [
+                'DFT_SORT_PATHS' => 'false',
+            ]);
+            $sorted = (new DiffCommandRunner())->runJsonDirectoryDiff($left, $right, [], [
+                'DFT_SORT_PATHS' => 'true',
+            ]);
+
+            $t->same(DiffCommandRunner::EXIT_SUCCESS, $sorted['exitCode']);
+            $t->same([
+                'wp-content/plugins/acme-card/z-deleted.php',
+                'wp-content/plugins/acme-card/a-created.php',
+            ], array_column($unsorted['files'], 'path'));
+            $t->same([
+                'wp-content/plugins/acme-card/a-created.php',
+                'wp-content/plugins/acme-card/z-deleted.php',
+            ], array_column($sorted['files'], 'path'));
         } finally {
             $remove($root);
         }

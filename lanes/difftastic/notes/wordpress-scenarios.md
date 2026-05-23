@@ -84,6 +84,10 @@ Display option command parsing now maps upstream `DFT_DISPLAY`, `DFT_CONTEXT`, `
 
 The WordPress env display-options command example applies that to tabbed `block.json` review. A caller-provided environment array selects `side-by-side-show-both`, zero context, two-space tab expansion, and a narrow width so changed `title`, `viewScriptModule`, and `supports.html` metadata are wrapped deterministically without inspecting the live process environment.
 
+Display-control command parsing now maps upstream `DFT_BACKGROUND`, `DFT_SYNTAX_HIGHLIGHT`, and `DFT_SORT_PATHS` environment-style configuration from `src/options.rs`, `src/main.rs`, and `src/display/style.rs`. Invalid background, syntax-highlight, or sort-path values return bad-argument status before review, and explicit PHP options override caller-provided environment values.
+
+The WordPress env display-controls command example applies that to PHP render callback review and generated asset/template directory review. A caller-provided environment array selects dark-background bright ANSI colors, validates `DFT_SYNTAX_HIGHLIGHT=off`, and sorts directory JSON paths without inspecting the live process environment.
+
 Command flag parsing now maps upstream `DFT_CHECK_ONLY`, `DFT_EXIT_CODE`, `DFT_SKIP_UNCHANGED`, `DFT_IGNORE_COMMENTS`, `DFT_STRIP_CR`, and `DFT_COLOR` environment-style configuration from `src/options.rs`, `src/main.rs`, and `src/display/style.rs`. Invalid values return bad-argument status before review, and explicit PHP options override caller-provided environment values.
 
 The WordPress env CI-flags command example applies that to a block render callback gate. A caller-provided environment array requests check-only output, exit-code behavior, comment ignoring, and unchanged-output policy so the escaping API change is reported while comment-only churn remains filtered.
@@ -313,10 +317,11 @@ php lanes/difftastic/examples/wordpress-legacy-encoding-display.php
 php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 php lanes/difftastic/examples/wordpress-plugin-directory-json-diff.php
 php lanes/difftastic/examples/wordpress-env-display-options-command.php
+php lanes/difftastic/examples/wordpress-env-display-controls-command.php
 php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
 php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
 ```
 
 ## Next Task
 
-Map remaining upstream command environment display/directory controls such as `DFT_BACKGROUND`, `DFT_SYNTAX_HIGHLIGHT`, and `DFT_SORT_PATHS` while preserving caller-provided environment isolation.
+Map deeper upstream syntax-highlight visual token styling beyond novel spans, or add the guarded `DFT_UNSTABLE` JSON display command mode while preserving caller-provided environment isolation.
