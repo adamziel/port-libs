@@ -1239,6 +1239,62 @@ class Foo {
 }
 JS . "\n", $lowerer->lower('class Foo { accessor x = y }'));
     },
+    'erases upstream decorated typescript auto accessor types' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  @x accessor y;
+}
+JS . "\n", $lowerer->lower('class Foo { @x accessor y: any }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  @x static accessor y;
+}
+JS . "\n", $lowerer->lower('class Foo { @x static accessor y?: any }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  @x accessor #y;
+}
+JS . "\n", $lowerer->lower('class Foo { @x accessor #y: any }'));
+    },
+    'erases upstream typescript decorator type arguments on class members' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  @x y;
+}
+JS . "\n", $lowerer->lower('class Foo { @x<{}> y: any }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  @x() y;
+}
+JS . "\n", $lowerer->lower('class Foo { @x<{}>() y: any }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  @x @y z;
+}
+JS . "\n", $lowerer->lower('class Foo { @x<{}> @y<[], () => {}> z: any }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  @x() @y() z;
+}
+JS . "\n", $lowerer->lower('class Foo { @x<{}>() @y<[], () => {}>() z: any }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  @x.y z;
+}
+JS . "\n", $lowerer->lower('class Foo { @x<{}>.y<[], () => {}> z: any }'));
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { @x<{}>().y<[], () => {}>() z: any }'));
+    },
     'rejects malformed upstream typescript auto accessors' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1307,6 +1363,47 @@ class Foo {
   }
 }
 JS . "\n", $lowerer->lower('class Foo { static foo: number = 0 }', false));
+    },
+    'lowers upstream static class fields after class for es2021 targets' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+}
+Foo.foo = 0;
+JS . "\n", $lowerer->lower('class Foo { static foo: number = 0 }', false, targetYear: 2021));
+
+        $t->same(<<<'JS'
+var _a;
+_a = x();
+class Foo {
+}
+Foo[_a] = 1;
+JS . "\n", $lowerer->lower('class Foo { static [x()] = 1 }', false, targetYear: 2021));
+
+        $t->same(<<<'JS'
+var _a, _b, _c;
+class Foo {
+  constructor() {
+    this[_a] = 1;
+  }
+  [a()]() {}
+  [(b(), _a = c(), d())]() {}
+  static [(e(), _b = f(), _c = g(), h(), _c)]() {}
+}
+Foo[_b] = 1;
+JS . "\n", $lowerer->lower(<<<'TS'
+class Foo {
+  [a()]() {}
+  [b()];
+  [c()] = 1;
+  [d()]() {}
+  static [e()];
+  static [f()] = 1;
+  static [g()]() {}
+  [h()];
+}
+TS, false, targetYear: 2021));
     },
     'caches upstream computed class field keys in assign semantics mode' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
@@ -1792,6 +1889,10 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->contains('register(config = this.settings) {wp.blocks.registerBlockType(this.blockName, config);}', $lowered);
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
+
+        $legacyLowered = (new TypeScriptModuleLowerer())->lower($source, false, targetYear: 2021);
+        $t->contains('CardBlockController.metadata = metadata;', $legacyLowered);
+        $t->true(!str_contains($legacyLowered, 'static {'));
     },
     'lowers wordpress computed class field asset keys without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-computed-class-fields.ts');
@@ -1910,9 +2011,10 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $lowered = (new TypeScriptModuleLowerer())->lower($source);
 
         $t->contains('class CardBlockAccessorController {', $lowered);
+        $t->contains('const trackAccessor = () => (value) => value;', $lowered);
         $t->contains('static accessor controllerVersion = "1";', $lowered);
         $t->contains('accessor assetHandle = metadata.name;', $lowered);
-        $t->contains('accessor settings = {supports:{html:false}, viewScript:"file:./view.js",};', $lowered);
+        $t->contains('@trackAccessor() accessor settings = {supports:{html:false}, viewScript:"file:./view.js",};', $lowered);
         $t->contains('accessor [assetKey("worker")] = "file:./card-worker.js";', $lowered);
         $t->contains('accessor #blockName = metadata.name;', $lowered);
         $t->contains('wp.blocks.registerBlockType(this.#blockName, this.settings);', $lowered);

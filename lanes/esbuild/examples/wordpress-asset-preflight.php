@@ -70,6 +70,7 @@ $ambientExportsLowered = (new TypeScriptModuleLowerer())->lower($ambientExportsT
 $classDeclareLowered = (new TypeScriptModuleLowerer())->lower($classDeclareTypeScriptSource);
 $constructorPropertiesLowered = (new TypeScriptModuleLowerer())->lower($constructorPropertiesTypeScriptSource);
 $classFieldsAssignLowered = (new TypeScriptModuleLowerer())->lower($classFieldsAssignTypeScriptSource, false);
+$classFieldsAssignLegacyLowered = (new TypeScriptModuleLowerer())->lower($classFieldsAssignTypeScriptSource, false, targetYear: 2021);
 $computedClassFieldsLowered = (new TypeScriptModuleLowerer())->lower($computedClassFieldsTypeScriptSource, false);
 $computedSuperLowered = (new TypeScriptModuleLowerer())->lower($computedSuperTypeScriptSource, false);
 $conditionalSuperLowered = (new TypeScriptModuleLowerer())->lower($conditionalSuperTypeScriptSource, false);
@@ -135,6 +136,7 @@ printf("WordPress TypeScript ambient export declaration bytes: %d\n", strlen($am
 printf("WordPress TypeScript declared class field bytes: %d\n", strlen($classDeclareLowered));
 printf("WordPress TypeScript constructor property bytes: %d\n", strlen($constructorPropertiesLowered));
 printf("WordPress TypeScript class field assign-semantics bytes: %d\n", strlen($classFieldsAssignLowered));
+printf("WordPress TypeScript ES2021 static field bytes: %d\n", strlen($classFieldsAssignLegacyLowered));
 printf("WordPress TypeScript computed class field bytes: %d\n", strlen($computedClassFieldsLowered));
 printf("WordPress TypeScript computed super controller bytes: %d\n", strlen($computedSuperLowered));
 printf("WordPress TypeScript conditional super controller bytes: %d\n", strlen($conditionalSuperLowered));

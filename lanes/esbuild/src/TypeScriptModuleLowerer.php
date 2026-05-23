@@ -19,6 +19,7 @@ final class TypeScriptModuleLowerer
     private bool $minifySyntax = false;
     private bool $lowerUsingDeclarations = false;
     private bool $lowerAsyncGenerators = false;
+    private int $targetYear = 2022;
     private bool $hasLoweredUsingDeclarations = false;
     private bool $hasLoweredAwaitUsingDeclarations = false;
     private bool $needsUsingHelperRuntime = false;
@@ -39,7 +40,8 @@ final class TypeScriptModuleLowerer
         bool $useDefineForClassFields = true,
         bool $minifySyntax = false,
         bool $lowerUsingDeclarations = false,
-        bool $lowerAsyncGenerators = false
+        bool $lowerAsyncGenerators = false,
+        int $targetYear = 2022
     ): string
     {
         $this->source = $source;
@@ -49,6 +51,7 @@ final class TypeScriptModuleLowerer
         $this->minifySyntax = $minifySyntax;
         $this->lowerUsingDeclarations = $lowerUsingDeclarations;
         $this->lowerAsyncGenerators = $lowerAsyncGenerators;
+        $this->targetYear = $targetYear;
         $this->hasLoweredUsingDeclarations = false;
         $this->hasLoweredAwaitUsingDeclarations = false;
         $this->needsUsingHelperRuntime = false;
@@ -394,8 +397,21 @@ final class TypeScriptModuleLowerer
             }
 
             if ($depth === 0) {
+                if ($text === '<' && ($this->tokens[$i - 1] ?? null)?->kind === 'identifier') {
+                    $typeArgumentsEnd = $this->typeParameterListEnd($i, $count);
+                    if ($typeArgumentsEnd > $i) {
+                        $i = $typeArgumentsEnd;
+                    }
+                }
+
                 $next = $this->tokens[$i + 1] ?? null;
+                if ($text === ')' && $next?->text === '.') {
+                    throw new \InvalidArgumentException('JavaScript decorator syntax does not allow "." after a call expression');
+                }
                 if ($next !== null && in_array($next->text, ['@', 'declare', 'export', 'abstract', 'class'], true)) {
+                    return $i;
+                }
+                if (!in_array($text, ['.', '?.'], true) && $next !== null && $this->canStartDecoratedClassMember($next)) {
                     return $i;
                 }
                 if ($this->hasLineBreakBetween($i, $i + 1)) {
@@ -405,6 +421,19 @@ final class TypeScriptModuleLowerer
         }
 
         throw new \InvalidArgumentException('Unterminated TypeScript decorator');
+    }
+
+    private function canStartDecoratedClassMember(Token $token): bool
+    {
+        if ($token->kind === 'private_identifier') {
+            return true;
+        }
+
+        if ($token->text === '*') {
+            return true;
+        }
+
+        return $token->kind === 'identifier';
     }
 
     private function ambientDeclarationEnd(int $keywordIndex): int
@@ -508,7 +537,7 @@ final class TypeScriptModuleLowerer
         }
 
         $bodyClose = $this->findMatchingPunctuator($bodyOpen, '{', '}');
-        [$members, $hasTypeScriptMemberSyntax, $fieldKeyTemps, $fieldKeyPrelude] = $this->lowerClassMembers(
+        [$members, $hasTypeScriptMemberSyntax, $fieldKeyTemps, $fieldKeyPrelude, $afterClassStaticAssignments] = $this->lowerClassMembers(
             $bodyOpen + 1,
             $bodyClose,
             $this->classHeaderHasExtends($cursor, $bodyOpen),
@@ -543,6 +572,18 @@ final class TypeScriptModuleLowerer
             $classOutput = $prefix . "\n" . $classOutput;
         }
 
+        if ($afterClassStaticAssignments !== []) {
+            $className = $this->classDeclarationName($cursor, $bodyOpen);
+            if ($className === null) {
+                throw new \InvalidArgumentException('Cannot lower static class fields outside an anonymous class');
+            }
+
+            $classOutput .= "\n" . implode("\n", $this->staticFieldAssignmentStatements(
+                $className,
+                $afterClassStaticAssignments,
+            ));
+        }
+
         return [$classOutput, $bodyClose];
     }
 
@@ -572,14 +613,25 @@ final class TypeScriptModuleLowerer
         return false;
     }
 
+    private function classDeclarationName(int $classIndex, int $bodyOpen): ?string
+    {
+        $name = $this->tokens[$classIndex + 1] ?? null;
+        if ($name === null || $name->kind !== 'identifier' || $name->text === 'extends') {
+            return null;
+        }
+
+        return $name->text;
+    }
+
     /**
-     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>}
+     * @return array{0:list<string>, 1:bool, 2:list<string>, 3:list<string>, 4:list<string>}
      */
     private function lowerClassMembers(int $start, int $end, bool $hasExtends): array
     {
         $members = [];
         $instanceAssignments = [];
         $staticAssignments = [];
+        $afterClassStaticAssignments = [];
         $fieldKeyTemps = [];
         $fieldKeyPrelude = [];
         $pendingFieldKeyEffects = [];
@@ -618,7 +670,11 @@ final class TypeScriptModuleLowerer
                 }
             }
             if ($hasOutputMember && $staticAssignments !== []) {
-                $members[] = $this->staticFieldAssignmentBlock($staticAssignments);
+                if ($this->shouldLowerStaticFieldAssignmentsOutsideClass()) {
+                    array_push($afterClassStaticAssignments, ...$staticAssignments);
+                } else {
+                    $members[] = $this->staticFieldAssignmentBlock($staticAssignments);
+                }
                 $staticAssignments = [];
             }
 
@@ -674,10 +730,14 @@ final class TypeScriptModuleLowerer
         }
 
         if ($this->useDefineForClassFields === false && $staticAssignments !== []) {
-            $members[] = $this->staticFieldAssignmentBlock($staticAssignments);
+            if ($this->shouldLowerStaticFieldAssignmentsOutsideClass()) {
+                array_push($afterClassStaticAssignments, ...$staticAssignments);
+            } else {
+                $members[] = $this->staticFieldAssignmentBlock($staticAssignments);
+            }
         }
 
-        return [$members, $hasTypeScriptMemberSyntax, $fieldKeyTemps, $fieldKeyPrelude];
+        return [$members, $hasTypeScriptMemberSyntax, $fieldKeyTemps, $fieldKeyPrelude, $afterClassStaticAssignments];
     }
 
     /**
@@ -1337,7 +1397,11 @@ final class TypeScriptModuleLowerer
 
             if ($i === $keyOpen) {
                 $text = '[' . $replacement . ']';
-                if ($previous !== null && ($this->needsSpace($previous, $text) || in_array($previous, ['accessor', 'static'], true))) {
+                if ($previous !== null && (
+                    $this->needsSpace($previous, $text)
+                    || in_array($previous, ['accessor', 'static'], true)
+                    || $this->startsAfterLeadingDecorator($i, $start, $effectiveEnd)
+                )) {
                     $parts[] = ' ';
                 }
                 $parts[] = $text;
@@ -1353,7 +1417,10 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            if ($token->text === '<' && $this->isClassMemberTypeParameterList($i, $start, $effectiveEnd)) {
+            if ($token->text === '<' && (
+                $this->isDecoratorTypeArgumentList($i, $start, $effectiveEnd)
+                || $this->isClassMemberTypeParameterList($i, $start, $effectiveEnd)
+            )) {
                 $i = $this->typeParameterListEnd($i, $effectiveEnd);
                 continue;
             }
@@ -1382,7 +1449,11 @@ final class TypeScriptModuleLowerer
                 $text = $this->quoteJsString($this->stringTokenValue($token));
             }
 
-            if ($previous !== null && ($this->needsSpace($previous, $text) || ($previous === 'static' && $text === '['))) {
+            if ($previous !== null && (
+                $this->needsSpace($previous, $text)
+                || ($previous === 'static' && $text === '[')
+                || $this->startsAfterLeadingDecorator($i, $start, $effectiveEnd)
+            )) {
                 $parts[] = ' ';
             }
             $parts[] = $text;
@@ -1509,6 +1580,23 @@ final class TypeScriptModuleLowerer
         $lines[] = '}';
 
         return implode("\n", $lines);
+    }
+
+    private function shouldLowerStaticFieldAssignmentsOutsideClass(): bool
+    {
+        return $this->useDefineForClassFields === false && $this->targetYear < 2022;
+    }
+
+    /**
+     * @param list<string> $assignments
+     * @return list<string>
+     */
+    private function staticFieldAssignmentStatements(string $className, array $assignments): array
+    {
+        return array_map(
+            static fn (string $assignment): string => preg_replace('/^this(?=\.|\[|#)/', $className, $assignment) ?? $assignment,
+            $assignments,
+        );
     }
 
     /**
@@ -2483,7 +2571,10 @@ final class TypeScriptModuleLowerer
             ) {
                 return true;
             }
-            if ($token->text === '<' && $this->isClassMemberTypeParameterList($i, $start, $end)) {
+            if ($token->text === '<' && (
+                $this->isDecoratorTypeArgumentList($i, $start, $end)
+                || $this->isClassMemberTypeParameterList($i, $start, $end)
+            )) {
                 return true;
             }
         }
@@ -2518,7 +2609,9 @@ final class TypeScriptModuleLowerer
         $braceDepth = 0;
         for ($i = $start; $i < $end; $i++) {
             $text = $this->tokens[$i]->text;
-            if ($text === '(') {
+            if ($parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0 && $text === '@') {
+                $i = $this->decoratorEnd($i);
+            } elseif ($text === '(') {
                 $parenDepth++;
             } elseif ($text === ')') {
                 $parenDepth--;
@@ -2704,7 +2797,10 @@ final class TypeScriptModuleLowerer
                 continue;
             }
 
-            if ($token->text === '<' && $this->isClassMemberTypeParameterList($i, $start, $effectiveEnd)) {
+            if ($token->text === '<' && (
+                $this->isDecoratorTypeArgumentList($i, $start, $effectiveEnd)
+                || $this->isClassMemberTypeParameterList($i, $start, $effectiveEnd)
+            )) {
                 $i = $this->typeParameterListEnd($i, $effectiveEnd);
                 continue;
             }
@@ -2733,7 +2829,10 @@ final class TypeScriptModuleLowerer
                 $text = $this->quoteJsString($this->stringTokenValue($token));
             }
 
-            if ($previous !== null && $this->needsSpace($previous, $text)) {
+            if ($previous !== null && (
+                $this->needsSpace($previous, $text)
+                || $this->startsAfterLeadingDecorator($i, $start, $effectiveEnd)
+            )) {
                 $parts[] = ' ';
             }
             $parts[] = $text;
@@ -2854,6 +2953,67 @@ final class TypeScriptModuleLowerer
         $close = $this->typeParameterListEnd($index, $end);
 
         return $close > $index && ($this->tokens[$close + 1] ?? null)?->text === '(';
+    }
+
+    private function isDecoratorTypeArgumentList(int $index, int $start, int $end): bool
+    {
+        if (($this->tokens[$index] ?? null)?->text !== '<') {
+            return false;
+        }
+
+        $cursor = $start;
+        while ($cursor <= $end && ($this->tokens[$cursor] ?? null)?->text === '@') {
+            $decoratorEnd = $this->decoratorEnd($cursor);
+            if ($index > $cursor && $index <= $decoratorEnd) {
+                if (!$this->isTopLevelInRange($cursor, $index)) {
+                    return false;
+                }
+
+                $previous = $this->tokens[$index - 1] ?? null;
+                if ($previous === null || !in_array($previous->kind, ['identifier', 'private_identifier'], true)) {
+                    return false;
+                }
+
+                $close = $this->typeParameterListEnd($index, $decoratorEnd + 1);
+
+                return $close > $index;
+            }
+
+            $cursor = $decoratorEnd + 1;
+        }
+
+        return false;
+    }
+
+    private function startsAfterLeadingDecorator(int $index, int $start, int $end): bool
+    {
+        $cursor = $start;
+        while ($cursor <= $end && ($this->tokens[$cursor] ?? null)?->text === '@') {
+            $decoratorEnd = $this->decoratorEnd($cursor);
+            $afterDecorator = $decoratorEnd + 1;
+            if ($index === $afterDecorator) {
+                return true;
+            }
+
+            $onlySkippedModifiers = $afterDecorator < $index;
+            for ($modifier = $afterDecorator; $modifier < $index; $modifier++) {
+                $token = $this->tokens[$modifier] ?? null;
+                if ($token?->kind !== 'identifier'
+                    || !in_array($token->text, ['abstract', 'override', 'private', 'protected', 'public', 'readonly'], true)
+                ) {
+                    $onlySkippedModifiers = false;
+                    break;
+                }
+            }
+
+            if ($onlySkippedModifiers) {
+                return true;
+            }
+
+            $cursor = $decoratorEnd + 1;
+        }
+
+        return false;
     }
 
     private function classMemberMarkerStartsMethod(int $index, int $start, int $end): bool
