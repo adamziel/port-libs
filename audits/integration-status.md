@@ -1,5 +1,77 @@
 # Integration Status
 
+## Integration Hold - 2026-05-23T21:57:00Z
+
+No lane worker output was integrated by this pass. No lane implementation files
+were staged, `php tools/generate-dashboard.php` was not run, no dashboard
+artifacts were accepted, no push was attempted, and no upstream parity claim is
+accepted from this moving dirty tree.
+
+Inputs reviewed: `goal.md`, `progress.md`, `git status --short --branch`,
+recent `git log --oneline --decorate -30`, current
+`.tmux-team/logs/port-*.log` mtimes/tails for active and just-finished workers,
+dirty lane files shown by Git, active tmux/process state, current root/focused
+PHP runner sampling, Dolt implementation/runner state, and the existing
+integration status artifact.
+
+Current snapshot:
+
+- `HEAD` stayed at `10eba61cd25e` (`Record integration hold status`) during
+  this pass; branch status was `main...origin/main [ahead 551, behind 68]`.
+- Dirty tree counts continued to move while sampled: the default
+  `git status --short` count moved from `5712` rows at `21:56:25Z` to `5714`
+  rows at `21:57:00Z`; tracked dirty rows stayed at `267`; `git diff
+  --shortstat` moved from `267 files changed, 109922 insertions(+), 11685
+  deletions(-)` to `267 files changed, 110043 insertions(+), 11735
+  deletions(-)`.
+- Dirty rows span every priority lane: Difftastic `170`, Dolt `83`, esbuild
+  `25`, Gitoxide `117`, libsqlite `72`, LightningCSS `108`, markerPDF `163`,
+  Pandoc `48`, Quadrable `72`, rclone `84`, Readability `171`, and Syncthing
+  `108`, plus active audit/control/script/dashboard artifacts.
+- Active tmux/process sampling still showed all main lane agents plus auditor,
+  evaluator, dashboard updater, team watchdog, capacity controller/executor,
+  selector/feeder sessions, another integrator, upstream Dolt BATS, and
+  capacity helper sessions. This is not the documented two implementation
+  lanes plus one auditor cap.
+- Exact PHP runner sampling at `21:56:25Z` found no-argument root harness PID
+  `2005954` running `php tools/run-tests.php` and focused Syncthing shard PID
+  `2031500`. By `21:57:00Z` no exact `php tools/run-tests.php` PID was
+  returned, but the dirty tree had already moved.
+- The current dirty-root evidence
+  `.tmux-team/logs/port-capacity-feed-dirty-root-2e7b9ed4a709-620759b3f4b9.log`
+  completed green after this worker sampled it: `php tools/run-tests.php` exit
+  `0`, `291` test files, `38983` assertions, and `0` failures. This worker did
+  not start that command and did not wait on `.upstream-cache/run-tests.lock`;
+  because the dirty worktree was moving before and after the run, it is not an
+  accepted integration snapshot.
+- Just-finished focused shards were green but not sufficient for integration:
+  Quadrable focused PHP exited `0` with `12` files / `4591` assertions,
+  Readability focused PHP exited `0` with `1` file / `2857` assertions,
+  Pandoc focused PHP exited `0` with `1` file / `2573` assertions, and
+  Syncthing dirty focused shards part01 through part05 exited `0` with
+  `16` / `16` / `16` / `16` / `11` files and `1088` / `805` / `656` / `981`
+  / `614` assertions.
+- Dolt remains skipped. A Dolt BATS runner was active during sampling, and the
+  Dolt implementation and runner sessions are active against overlapping Dolt
+  metadata/source files.
+
+Decision: the tree is too active for a trustworthy lane acceptance snapshot, so
+all priority lanes were skipped as active or unsafe: Difftastic, Dolt, esbuild,
+Gitoxide, libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone,
+Readability, and Syncthing. Capacity/control script changes and generated
+dashboard/status artifacts were also skipped because active control loops are
+operating against the same files.
+
+Next safe integration point: freeze or let finish active lane agents, Dolt
+implementation/runner work, capacity work, dashboard/evaluator/auditor/
+integrator loops, focused PHP shards, upstream runners, and any active
+no-argument root harness. Then confirm `HEAD`, tracked status, diff shortstat,
+exact PHP runner PIDs, upstream runner PIDs, and relevant log mtimes are
+unchanged across two polls before accepting one coherent lane batch. The
+accepting worker should run focused lane inspection/tests, one serialized
+`php tools/run-tests.php`, full `git diff --check`, and dashboard regeneration
+from that same accepted snapshot.
+
 ## Integration Hold - 2026-05-23T21:52:44Z
 
 No lane worker output was integrated by this pass. No lane implementation files
