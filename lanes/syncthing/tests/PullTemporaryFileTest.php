@@ -209,6 +209,93 @@ return [
             syncthing_pull_temp_rm($root);
         }
     },
+    'performFinish deletes tracked directory before regular file promotion' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/gallery';
+            $remoteBytes = str_repeat('remote media export zip ', 4000);
+            $current = new FileInfo(
+                name: $name,
+                modifiedS: 1700001200,
+                version: VersionVector::fromCounters([101 => 5]),
+                type: FileInfo::TYPE_DIRECTORY,
+                permissions: 0755,
+                modifiedBy: 101,
+            );
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001300,
+                VersionVector::fromCounters([202 => 1]),
+                modifiedBy: 202,
+            );
+            $finalPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+            if (!mkdir($finalPath . DIRECTORY_SEPARATOR . 'thumbs', 0777, true) && !is_dir($finalPath . DIRECTORY_SEPARATOR . 'thumbs')) {
+                throw new RuntimeException('Failed to create old directory tree');
+            }
+            file_put_contents($finalPath . DIRECTORY_SEPARATOR . 'thumbs' . DIRECTORY_SEPARATOR . 'stale.jpg', 'old generated thumbnail');
+
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current);
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledDirectoryReplacement');
+            $result = $assembler->finalize();
+
+            $t->true($result->finalized);
+            $t->same(null, $result->conflictName);
+            $t->same([], $result->scanNames);
+            $t->true(is_file($finalPath));
+            $t->same($remoteBytes, (string) file_get_contents($finalPath));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'moveForConflict prunes older conflict copies past maxConflicts' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/rotating-hero.jpg';
+            $localBytes = str_repeat('local wordpress crop ', 3500);
+            $remoteBytes = str_repeat('remote playground crop ', 3500);
+            $current = syncthing_pull_temp_file($name, $localBytes, 0644, 1700001400, VersionVector::fromCounters([101 => 6]));
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001500,
+                VersionVector::fromCounters([202 => 3]),
+                modifiedBy: 202,
+            );
+            $finalPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name);
+            if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
+                throw new RuntimeException('Failed to create final parent directory');
+            }
+            file_put_contents($finalPath, $localBytes);
+
+            $olderName = 'wp-content/uploads/2026/rotating-hero.sync-conflict-20260101-000000-101.jpg';
+            $newerName = 'wp-content/uploads/2026/rotating-hero.sync-conflict-20260201-000000-101.jpg';
+            foreach ([$olderName => 'older conflict', $newerName => 'newer conflict'] as $conflictName => $bytes) {
+                $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $conflictName);
+                file_put_contents($path, $bytes);
+            }
+
+            $timestamp = strtotime('2026-03-01 12:00:00 UTC');
+            if ($timestamp === false) {
+                throw new RuntimeException('Failed to create conflict timestamp');
+            }
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current, maxConflicts: 2, conflictTimestamp: $timestamp);
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledNewestConflict');
+            $result = $assembler->finalize();
+            $expectedNewName = 'wp-content/uploads/2026/rotating-hero.sync-conflict-' . date('Ymd-His', $timestamp) . '-202.jpg';
+
+            $t->true($result->finalized);
+            $t->same($expectedNewName, $result->conflictName);
+            $t->true(!file_exists($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $olderName)));
+            $t->true(file_exists($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $newerName)));
+            $t->same($localBytes, (string) file_get_contents($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $expectedNewName)));
+            $t->same($remoteBytes, (string) file_get_contents($finalPath));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
     'failed block pulls close but leave temporary file reusable' => static function (TestRunner $t): void {
         $root = syncthing_pull_temp_root();
         try {

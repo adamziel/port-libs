@@ -177,6 +177,12 @@ final class PullTemporaryFile
             return $this->result(closed: true, finalized: false, error: $this->error);
         }
 
+        if ((is_link($finalPath) || is_dir($finalPath)) && $this->shouldDeleteExistingNonRegular()) {
+            if (!$this->deleteExistingNonRegular($finalPath)) {
+                return $this->result(closed: true, finalized: false, error: $this->error);
+            }
+        }
+
         if (is_link($finalPath) || is_dir($finalPath)) {
             $this->error = 'existing final path is not a regular file';
             return $this->result(closed: true, finalized: false, error: $this->error);
@@ -470,6 +476,52 @@ final class PullTemporaryFile
         }
 
         return $this->file->inConflictWith($this->currentFile);
+    }
+
+    private function shouldDeleteExistingNonRegular(): bool
+    {
+        return $this->currentFile !== null
+            && ($this->currentFile->isDirectory() || $this->currentFile->isSymlink());
+    }
+
+    private function deleteExistingNonRegular(string $path): bool
+    {
+        if (is_link($path)) {
+            if (!unlink($path)) {
+                $this->error = 'removing old symlink failed';
+                return false;
+            }
+
+            return true;
+        }
+
+        if (!is_dir($path)) {
+            return true;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($iterator as $entry) {
+            $entryPath = $entry->getPathname();
+            if ($entry->isDir() && !$entry->isLink()) {
+                if (!rmdir($entryPath)) {
+                    $this->error = 'removing old directory child failed';
+                    return false;
+                }
+            } elseif (!unlink($entryPath)) {
+                $this->error = 'removing old directory child failed';
+                return false;
+            }
+        }
+
+        if (!rmdir($path)) {
+            $this->error = 'removing old directory failed';
+            return false;
+        }
+
+        return true;
     }
 
     private function modifiedByLabel(): string
