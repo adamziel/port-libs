@@ -10,6 +10,8 @@ The lane now also maps the upstream `pdftext` dictionary boundary from `marker/p
 
 The lane now also maps the supplied-data boundary of `marker/pdf/extract_text.py::get_text_blocks`. `PdfTextDocumentExtractor` applies upstream `start_page`/`max_pages` page-range semantics to supplied pdftext dictionaries, restarts span IDs relative to the selected range, preserves original PDF page numbers, and carries PDF TOC metadata for partial WordPress imports.
 
+The lane now also maps `marker/pdf/extract_text.py::naive_get_text` and `get_length_of_text`. `PdfTextExtractor` appends one newline per extracted page-text boundary, trims before length counting, and exposes the same preflight value that top-level `convert.py --min_length` uses before queuing heavier model work.
+
 The lane now also maps `marker/schema/page.py` page helper properties. `PageInspector` flattens page lines, filters nonblank lines and spans, extracts font-size and line-height distributions, and exposes Marker's `prelim_text` view for WordPress review metadata before editorial handoff.
 
 The lane now also maps focused `marker/schema/block.py` block-structure helpers. `BlockStructure` computes line-derived block bboxes, splits a PDF text block at an upstream-style line index boundary, and reports the first-span x-coordinate needed by import review tooling.
@@ -33,6 +35,8 @@ The lane now also maps `marker/debug/render.py::render_on_image` at the operatio
 The lane now also maps `marker/debug/data.py::draw_page_debug_images` and `draw_layout_page_debug_images` at the artifact-planning boundary. `DebugPageImagePlanner` preserves the upstream `DEBUG` guard, document-base debug folder, `layout_page_N.png` and `pdf_page_N.png` artifact names, text-line image size, PDF-line text overlays, detector-line boxes, layout labels, order labels, and block overlays for a WordPress admin review preview without PIL.
 
 The lane now also maps `marker_app.py::img_to_html` and `marker_app.py::markdown_insert_images`. `MarkdownImageEmbedder` turns supplied PNG image bytes into upstream-style data URI image HTML and replaces Marker Markdown image spans for WordPress preview/review screens without loading Streamlit or pypdfium.
+
+The lane now also maps `marker_app.py::open_pdf`, `page_count`, and `get_page_image` at the upload-preview boundary. `MarkerAppPreview` counts PDF pages from uploaded bytes, preserves direct or inherited page boxes, and emits the pypdfium-style page index, scale, RGB conversion, default annotation mode, and rendered-size metadata a WordPress review screen needs before any raster preview adapter runs.
 
 The lane now also maps `marker_server.py` API/upload behavior. `MarkerServerAdapter` normalizes FastAPI-style request params, validates uploaded PDFs, writes and removes the temporary upload path, returns Marker's local success/error response shape with base64 image payloads, and models Datalab remote polling through a supplied callback rather than running FastAPI, Uvicorn, requests, or Python models.
 
@@ -73,6 +77,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-pdftext-block-import.php` maps Marker's upstream pdftext dictionary conversion into a shared-hosting WordPress import path. It accepts already-supplied pdftext output, produces Marker's Page/Block/Line/Span shape natively, normalizes span text, preserves font metadata, and feeds Gutenberg paragraph rendering without loading the Python pdftext, pypdfium, or Surya stacks.
 
 `examples/wordpress-pdftext-page-range-import.php` maps Marker's upstream `get_text_blocks` page-range boundary into a partial WordPress import path. It selects only the requested pages from supplied pdftext dictionaries, preserves page metadata and TOC review comments, and emits Gutenberg paragraph blocks without loading pdftext, pypdfium, or Surya.
+
+`examples/wordpress-text-length-preflight.php` maps Marker's upstream `get_length_of_text` boundary into a WordPress import queue preflight. It records the native naive text, trimmed text length, min-length threshold, and whether the PDF should enter the heavier conversion queue.
 
 `examples/wordpress-page-inspection-preflight.php` maps Marker's upstream Page helper properties into a WordPress review preflight. It records nonblank line/span counts, font-size and line-height distributions, and the upstream `prelim_text` page view as block metadata before content is sent to editorial review.
 
@@ -133,6 +139,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-image-import.php` maps Marker's upstream image insertion path into a Gutenberg image-block import. It uses deterministic `page_image_index.png` filenames, Figure/Picture layout-box matching, intersecting text-span removal, and Marker-style Markdown image spans before rendering a core image block. The native slice intentionally stops before raster crop rendering because upstream delegates that work to `pypdfium2` and PIL.
 
 `examples/wordpress-markdown-image-preview.php` maps Marker's Streamlit preview image embedding into a WordPress review path. It accepts Marker-style image Markdown plus supplied PNG bytes and emits a core HTML block containing the upstream-style base64 data URI preview image.
+
+`examples/wordpress-marker-app-preview.php` maps Marker's Streamlit PDF upload preview into a WordPress review path. It accepts uploaded PDF bytes, reports the upstream page count and one-based selected page, and records the pypdfium-style zero-based page index, render scale, RGB output, default annotation mode, and rendered preview dimensions without loading Streamlit or pypdfium.
 
 `examples/wordpress-marker-api-upload.php` maps Marker's FastAPI upload endpoint into a WordPress import endpoint. It accepts an uploaded PDF payload, applies the upstream `application/pdf` guard, writes a temporary file for the supplied native converter, returns the upstream local response shape, and verifies the upload is cleaned up after conversion.
 

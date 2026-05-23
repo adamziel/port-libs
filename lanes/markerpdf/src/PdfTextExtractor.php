@@ -29,6 +29,36 @@ final class PdfTextExtractor
     }
 
     /**
+     * Native boundary for marker.pdf.extract_text::naive_get_text.
+     *
+     * Upstream asks pypdfium for bounded text per page and appends a newline
+     * after each page. Here each extractable content stream is treated as the
+     * supplied native page boundary used by the lightweight PDF fixtures.
+     */
+    public function naiveGetText(string $pdfBytes): string
+    {
+        $text = '';
+        foreach ($this->extractPageTexts($pdfBytes) as $pageText) {
+            $text .= $pageText . "\n";
+        }
+
+        return $text;
+    }
+
+    /**
+     * Native boundary for marker.pdf.extract_text::get_length_of_text.
+     */
+    public function getLengthOfText(string $filepath): int
+    {
+        $bytes = @file_get_contents($filepath);
+        if (!is_string($bytes)) {
+            throw new \InvalidArgumentException('Unable to read PDF text-length source: ' . $filepath);
+        }
+
+        return $this->length(trim($this->naiveGetText($bytes)));
+    }
+
+    /**
      * @return list<string>
      */
     public function extractTextLines(string $pdfBytes): array
@@ -43,6 +73,19 @@ final class PdfTextExtractor
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPageTexts(string $pdfBytes): array
+    {
+        $pages = [];
+        foreach ($this->streams($pdfBytes) as $stream) {
+            $pages[] = implode("\n", $this->textLinesFromContentStream($stream));
+        }
+
+        return $pages;
     }
 
     /**
@@ -386,5 +429,14 @@ final class PdfTextExtractor
                 default => chr(octdec($match[1])),
             };
         }, $value) ?? $value;
+    }
+
+    private function length(string $text): int
+    {
+        if (function_exists('mb_strlen')) {
+            return mb_strlen($text, 'UTF-8');
+        }
+
+        return strlen($text);
     }
 }

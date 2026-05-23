@@ -8,6 +8,16 @@ $pdfWithContent = static function (string $content): string {
     return "%PDF-1.4\n1 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
 };
 
+$pdfWithStreams = static function (array $streams): string {
+    $pdf = "%PDF-1.4\n";
+    foreach (array_values($streams) as $index => $content) {
+        $objectNumber = $index + 1;
+        $pdf .= "{$objectNumber} 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n";
+    }
+
+    return $pdf . "%%EOF";
+};
+
 return [
     'extracts literal and array text operators from content streams' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT /F1 12 Tf 72 720 Td (Hello \\(WP\\)) Tj [(Data) 120 ( Liberation)] TJ ET";
@@ -36,5 +46,23 @@ return [
 
         $lines = (new PdfTextExtractor())->extractTextLines($fixture);
         $t->same(['WP Migration', 'Clean blocks from PDF imports', 'Media library captions'], $lines);
+    },
+    'replays upstream naive_get_text page suffix and get_length_of_text trim boundary' => static function (TestRunner $t) use ($pdfWithStreams): void {
+        $pdf = $pdfWithStreams([
+            'BT (First page) Tj T* (Second line) Tj ET',
+            'BT (Second page) Tj ET',
+        ]);
+        $extractor = new PdfTextExtractor();
+        $expectedText = "First page\nSecond line\nSecond page\n";
+
+        $t->same($expectedText, $extractor->naiveGetText($pdf));
+
+        $path = sys_get_temp_dir() . '/markerpdf-text-length-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, $pdf);
+        try {
+            $t->same(strlen(trim($expectedText)), $extractor->getLengthOfText($path));
+        } finally {
+            @unlink($path);
+        }
     },
 ];
