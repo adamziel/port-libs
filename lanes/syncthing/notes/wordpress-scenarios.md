@@ -742,8 +742,21 @@ media file for a deferred scan. This is backed by static targeted reads of
 `wordpress-post-pull-scan-scheduler.php` shows a local-first WordPress media
 edit and stale Playground export folder remaining unscheduled while the pull is
 open, then being emitted as one de-duplicated post-pull scan batch.
+The directory/symlink item lifecycle slice now maps upstream `handleDir`,
+`handleSymlink`, and `handleSymlinkCheckExisting`: native PHP creates or updates
+WordPress upload directories and symlink aliases, emits ItemStarted and
+ItemFinished payloads with upstream `dir`/`symlink` update types, schedules
+`dbUpdateHandleDir` and `dbUpdateHandleSymlink`, moves a conflicting regular
+file to a `.sync-conflict` sibling before replacing it with a remote directory,
+queues the conflict copy for scan, and treats empty symlink targets as
+incompatible entries without scheduling a database update. This is backed by
+static targeted reads plus a focused upstream pass:
+`go test ./lib/model -run 'TestCopyOwner|TestSRConflictReplaceFileByDir|TestSRConflictReplaceFileByLink|TestPullCaseOnlyDir|TestPullCaseOnlySymlink' -count=1`.
+`wordpress-directory-symlink-lifecycle.php` shows a Playground peer creating a
+dated upload directory and a `current/latest` symlink while the native DB updater
+records the remote-change and fsync boundaries.
 
 ## Next Task
 
-Target handleDir/handleSymlink directory and symlink update lifecycle, including
-ItemStarted/ItemFinished payloads and dbUpdate scheduling boundaries.
+Target deleteFile/deleteDir lifecycle and dbUpdateDeleteFile/dbUpdateDeleteDir
+boundaries, including delete-behind-symlink no-scan behavior.
