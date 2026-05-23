@@ -370,6 +370,352 @@ return [
         $t->same(['update'], array_column($withMetadata['permissionWrite']['operations'], 'action'));
         $t->same(true, $withMetadata['queuedPermissionsCleared']);
     },
+    'onedrive object metadata flow refreshes permissions before set and cleans versions last' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::objectMetadataFlow(
+            'exports/site.wxr',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+                'permissions' => '[{"id":"reviewer","roles":["write"],"grantedToV2":{"user":{"id":"reviewer@example.com"}}}]',
+            ],
+            [
+                'normalizedId' => 'business-drive#site-wxr',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'metadataPermissions' => 'read,write',
+                'currentPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['read'], 'grantedToV2' => ['user' => ['id' => 'stale@example.com']]],
+                ],
+                'refreshBeforePermissions' => [
+                    ['id' => 'owner', 'roles' => ['owner']],
+                    ['id' => 'reviewer', 'roles' => ['read'], 'grantedToV2' => ['user' => ['id' => 'reviewer@example.com']]],
+                ],
+                'refreshedPermissions' => [
+                    ['id' => 'owner', 'roles' => ['owner']],
+                    ['id' => 'reviewer', 'roles' => ['write']],
+                ],
+                'noVersions' => true,
+            ],
+        );
+
+        $t->same([
+            'get-current-metadata',
+            'refresh-permissions-before-set',
+            'set-metadata',
+            'write-object-metadata',
+            'write-permissions',
+            'refresh-permissions-after-write',
+            'clear-queued-permissions',
+            'set-system-metadata',
+            'set-object-metadata',
+            'delete-versions',
+        ], $flow['sequence']);
+        $t->same(['mtime', 'permissions'], $flow['writeableMetadata']);
+        $t->same(['mtime'], $flow['apiMetadata']);
+        $t->same(['update'], array_column($flow['permissionWrite']['operations'], 'action'));
+        $t->same(['owner', 'reviewer'], array_column($flow['permissions'], 'id'));
+        $t->same(true, $flow['objectReturned']);
+        $t->same(true, $flow['systemMetadataSet']);
+        $t->same(true, $flow['objectMetadataSet']);
+        $t->same(true, $flow['versionsDeleteAttempted']);
+        $t->same(true, $flow['versionsDeleted']);
+        $t->same(null, $flow['error']);
+    },
+    'onedrive object permissions only metadata reaches no api metadata boundary after refresh' => static function (TestRunner $t): void {
+        $object = OneDrivePermissionPlanner::objectMetadataFlow(
+            'exports/review.wxr',
+            [
+                'permissions' => '[{"roles":["read"],"grantedToIdentitiesV2":[{"user":{"id":"reviewer@example.com"}}]}]',
+            ],
+            [
+                'normalizedId' => 'business-drive#review-wxr',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'metadataPermissions' => 'read,write',
+                'refreshBeforePermissions' => [
+                    ['id' => 'owner', 'roles' => ['owner']],
+                ],
+            ],
+        );
+        $directory = OneDrivePermissionPlanner::directoryMetadataFlow(
+            'site-backups/review',
+            [
+                'permissions' => '[{"roles":["read"],"grantedToIdentitiesV2":[{"user":{"id":"reviewer@example.com"}}]}]',
+            ],
+            [
+                'exists' => true,
+                'directoryId' => 'business-drive#review-dir',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'metadataPermissions' => 'read,write',
+            ],
+        );
+
+        $t->same([
+            'get-current-metadata',
+            'refresh-permissions-before-set',
+            'set-metadata',
+            'write-object-metadata',
+        ], $object['sequence']);
+        $t->same('exports/review.wxr: no writeable metadata found', $object['error']);
+        $t->same(null, $object['permissionWrite']);
+        $t->same(false, $object['queuedPermissionsCleared']);
+        $t->same(['find-dir:exists', 'update-dir'], $directory['sequence']);
+        $t->same('site-backups/review: no writeable metadata found', $directory['error']);
+    },
+    'onedrive object metadata no versions failure happens after metadata cache update' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::objectMetadataFlow(
+            'exports/site.wxr',
+            [
+                'btime' => '2026-05-23T09:00:00Z',
+                'mtime' => '2026-05-23T10:00:00Z',
+            ],
+            [
+                'metadataPermissions' => 'write',
+                'noVersions' => true,
+                'deleteVersionsError' => 'Graph versions denied',
+            ],
+        );
+
+        $t->same([
+            'get-current-metadata',
+            'set-metadata',
+            'write-object-metadata',
+            'set-system-metadata',
+            'set-object-metadata',
+            'delete-versions',
+        ], $flow['sequence']);
+        $t->same(true, $flow['objectReturned']);
+        $t->same(true, $flow['systemMetadataSet']);
+        $t->same(true, $flow['objectMetadataSet']);
+        $t->same(true, $flow['versionsDeleteAttempted']);
+        $t->same(false, $flow['versionsDeleted']);
+        $t->same('exports/site.wxr: Failed to remove versions: Graph versions denied', $flow['error']);
+    },
+    'onedrive object metadata with no writeable fields is a no op after current metadata read' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::objectMetadataFlow(
+            'exports/site.wxr',
+            [
+                'content-type' => 'application/rss+xml',
+                'description' => 'skipped by upstream',
+            ],
+            [
+                'metadataPermissions' => 'read',
+                'refreshBeforePermissions' => [
+                    ['id' => 'owner', 'roles' => ['owner']],
+                ],
+            ],
+        );
+
+        $t->same([
+            'get-current-metadata',
+            'refresh-permissions-before-set',
+            'set-metadata',
+            'no-writeable-metadata-noop',
+        ], $flow['sequence']);
+        $t->same([], $flow['writeableMetadata']);
+        $t->same(null, $flow['error']);
+        $t->same(false, $flow['objectReturned']);
+        $t->same(['owner'], array_column($flow['permissions'], 'id'));
+    },
+    'onedrive fetch metadata wraps source metadata read failures' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::fetchAndUpdateMetadataFlow(
+            'exports/site.wxr',
+            null,
+            [
+                'sourceMetadataError' => 'metadata mapper failed for source WXR',
+            ],
+        );
+
+        $t->same(['get-source-metadata-options'], $flow['sequence']);
+        $t->same(
+            'failed to read metadata from source object: metadata mapper failed for source WXR',
+            $flow['error'],
+        );
+        $t->same(false, $flow['infoReturned']);
+        $t->same(false, $flow['modTimeSetAttempted']);
+    },
+    'onedrive fetch metadata nil source falls back to set modtime and suppresses no versions cleanup errors' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::fetchAndUpdateMetadataFlow(
+            'exports/site.wxr',
+            null,
+            [
+                'noVersions' => true,
+                'deleteVersionsError' => 'Graph versions denied',
+            ],
+        );
+
+        $t->same([
+            'get-source-metadata-options',
+            'set-modtime',
+            'delete-versions-after-set-modtime',
+        ], $flow['sequence']);
+        $t->same(true, $flow['modTimeSetAttempted']);
+        $t->same(true, $flow['modTimeSet']);
+        $t->same(true, $flow['infoReturned']);
+        $t->same(true, $flow['versionsDeleteAttempted']);
+        $t->same(false, $flow['versionsDeleted']);
+        $t->same(['exports/site.wxr: Failed to remove versions: Graph versions denied'], $flow['suppressedErrors']);
+        $t->same(null, $flow['error']);
+    },
+    'onedrive upload singlepart wraps fetch metadata errors and skips final metadata cache update' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::uploadSinglepartMetadataFlow(
+            'exports/site.wxr',
+            null,
+            [
+                'sourceMetadataError' => 'source metadata read denied',
+            ],
+        );
+
+        $t->same([
+            'upload-singlepart',
+            'set-upload-metadata',
+            'fetch-and-update-metadata',
+            'get-source-metadata-options',
+        ], $flow['sequence']);
+        $t->same(
+            'failed to fetch and update metadata: failed to read metadata from source object: source metadata read denied',
+            $flow['error'],
+        );
+        $t->same(false, $flow['infoReturned']);
+        $t->same(false, $flow['fetch']['infoReturned']);
+    },
+    'onedrive upload multipart updates permissions after chunk metadata and final cache set' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::uploadMultipartMetadataFlow(
+            'exports/site.wxr',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+                'permissions' => '[{"id":"reviewer","roles":["write"],"grantedToV2":{"user":{"id":"reviewer@example.com"}}}]',
+            ],
+            [
+                'size' => 8 * 1024 * 1024,
+                'normalizedId' => 'business-drive#site-wxr',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'metadataPermissions' => 'read,write',
+                'currentPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['read'], 'grantedToV2' => ['user' => ['id' => 'stale@example.com']]],
+                ],
+                'refreshBeforePermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['read'], 'grantedToV2' => ['user' => ['id' => 'reviewer@example.com']]],
+                ],
+                'refreshedPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['write']],
+                ],
+            ],
+        );
+
+        $t->same([
+            'upload-multipart',
+            'create-upload-session',
+            'get-source-metadata-options',
+            'create-session:api-metadata',
+            'upload-fragments',
+            'set-upload-metadata',
+            'update-metadata-for-permissions',
+            'get-current-metadata',
+            'refresh-permissions-before-set',
+            'set-metadata',
+            'write-object-metadata',
+            'write-permissions',
+            'refresh-permissions-after-write',
+            'clear-queued-permissions',
+            'set-system-metadata',
+            'set-object-metadata',
+            'set-upload-metadata-after-permission-update',
+        ], $flow['sequence']);
+        $t->same(true, $flow['needsUpdatePermissions']);
+        $t->same(true, $flow['initialMetadataSet']);
+        $t->same(true, $flow['finalMetadataSet']);
+        $t->same(true, $flow['infoReturned']);
+        $t->same(true, $flow['updateReturnedInfo']);
+        $t->same(false, $flow['updateErrorIgnored']);
+        $t->same(['update'], array_column($flow['metadataUpdate']['permissionWrite']['operations'], 'action'));
+        $t->same(null, $flow['error']);
+    },
+    'onedrive upload multipart skips permission update when metadata permissions write is disabled' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::uploadMultipartMetadataFlow(
+            'exports/site.wxr',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+                'permissions' => '[{"roles":["read"],"grantedToIdentitiesV2":[{"user":{"id":"reviewer@example.com"}}]}]',
+            ],
+            [
+                'metadataPermissions' => 'read',
+            ],
+        );
+
+        $t->same([
+            'upload-multipart',
+            'create-upload-session',
+            'get-source-metadata-options',
+            'create-session:api-metadata',
+            'upload-fragments',
+            'set-upload-metadata',
+        ], $flow['sequence']);
+        $t->same(false, $flow['needsUpdatePermissions']);
+        $t->same(true, $flow['initialMetadataSet']);
+        $t->same(false, $flow['finalMetadataSet']);
+        $t->same(true, $flow['infoReturned']);
+        $t->same(false, $flow['updateReturnedInfo']);
+    },
+    'onedrive upload multipart permission only metadata returns update error before final cache set' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::uploadMultipartMetadataFlow(
+            'exports/review.wxr',
+            [
+                'permissions' => '[{"roles":["read"],"grantedToIdentitiesV2":[{"user":{"id":"reviewer@example.com"}}]}]',
+            ],
+            [
+                'normalizedId' => 'business-drive#review-wxr',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'metadataPermissions' => 'read,write',
+                'refreshBeforePermissions' => [
+                    ['id' => 'owner', 'roles' => ['owner']],
+                ],
+            ],
+        );
+
+        $t->same([
+            'upload-multipart',
+            'create-upload-session',
+            'get-source-metadata-options',
+            'create-session:api-metadata',
+            'upload-fragments',
+            'set-upload-metadata',
+            'update-metadata-for-permissions',
+            'get-current-metadata',
+            'refresh-permissions-before-set',
+            'set-metadata',
+            'write-object-metadata',
+            'cancel-upload-session',
+        ], $flow['sequence']);
+        $t->same(true, $flow['needsUpdatePermissions']);
+        $t->same(true, $flow['initialMetadataSet']);
+        $t->same(false, $flow['finalMetadataSet']);
+        $t->same(false, $flow['infoReturned']);
+        $t->same(false, $flow['updateReturnedInfo']);
+        $t->same(true, $flow['sessionCancelled']);
+        $t->same('exports/review.wxr: no writeable metadata found', $flow['error']);
+    },
+    'onedrive upload multipart ignores permission write error when update returned item info' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::uploadMultipartMetadataFlow(
+            'exports/site.wxr',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+                'permissions' => '[{"roles":["read"],"grantedToIdentitiesV2":[{"user":{"id":"reviewer@example.com"}}]}]',
+            ],
+            [
+                'normalizedId' => 'business-drive#site-wxr',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'metadataPermissions' => 'write',
+                'operationErrors' => ['add:*' => 'Graph invite throttled'],
+            ],
+        );
+
+        $t->same('set-upload-metadata-after-permission-update', $flow['sequence'][11]);
+        $t->same(true, $flow['updateReturnedInfo']);
+        $t->same(true, $flow['updateErrorIgnored']);
+        $t->same('failed to process permissions: failed to set permissions: Graph invite throttled', $flow['ignoredUpdateError']);
+        $t->same(true, $flow['finalMetadataSet']);
+        $t->same(true, $flow['infoReturned']);
+        $t->same(false, $flow['sessionCancelled']);
+        $t->same(null, $flow['error']);
+    },
     'wordpress onedrive permission write plan example keeps owner and plans review changes' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-permission-write-plan.php';
 
@@ -393,5 +739,55 @@ return [
         $t->same('site-backups/review: no writeable metadata found', $example['permissionsOnlyError']);
         $t->same(['update'], $example['updateActions']);
         $t->same(true, $example['updatedQueuedCleared']);
+    },
+    'wordpress onedrive object metadata update example records refresh and version cleanup' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-object-metadata-update.php';
+
+        $t->same('onedrive-object-metadata-update', $example['source']);
+        $t->same('refresh-permissions-before-set', $example['updateSequence'][1]);
+        $t->same('delete-versions', $example['updateSequence'][9]);
+        $t->same(['owner', 'reviewer'], $example['updatedPermissionIds']);
+        $t->same(true, $example['versionsDeleted']);
+        $t->same([
+            'get-current-metadata',
+            'refresh-permissions-before-set',
+            'set-metadata',
+            'write-object-metadata',
+        ], $example['permissionsOnlySequence']);
+        $t->same('exports/review.wxr: no writeable metadata found', $example['permissionsOnlyError']);
+        $t->same('delete-versions', $example['deleteVersionsSequence'][5]);
+        $t->same('exports/site.wxr: Failed to remove versions: Graph versions denied', $example['deleteVersionsError']);
+        $t->same(true, $example['metadataWasCachedBeforeVersionCleanup']);
+    },
+    'wordpress onedrive upload metadata fallback example records modtime fallback and wrapped errors' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-upload-metadata-fallback.php';
+
+        $t->same('onedrive-upload-metadata-fallback', $example['source']);
+        $t->same([
+            'get-source-metadata-options',
+            'set-modtime',
+            'delete-versions-after-set-modtime',
+        ], $example['plainFetchSequence']);
+        $t->same(true, $example['plainUploadSetsFetchedMetadata']);
+        $t->same(['exports/site.wxr: Failed to remove versions: Graph versions denied'], $example['plainSuppressedErrors']);
+        $t->same(
+            'failed to fetch and update metadata: failed to read metadata from source object: metadata mapper denied site-export.wxr',
+            $example['wrappedReadError'],
+        );
+    },
+    'wordpress onedrive multipart upload metadata example records permission boundaries' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-multipart-upload-metadata.php';
+
+        $t->same('onedrive-multipart-upload-metadata', $example['source']);
+        $t->same('update-metadata-for-permissions', $example['successfulSequence'][6]);
+        $t->same('set-upload-metadata-after-permission-update', $example['successfulSequence'][16]);
+        $t->same(['update'], $example['successfulPermissionActions']);
+        $t->same(true, $example['successfulFinalMetadataSet']);
+        $t->same('exports/review.wxr: no writeable metadata found', $example['permissionsOnlyError']);
+        $t->same(false, $example['permissionsOnlyFinalMetadataSet']);
+        $t->same(true, $example['permissionsOnlyCancelled']);
+        $t->same('failed to process permissions: failed to set permissions: Graph invite throttled', $example['ignoredPermissionError']);
+        $t->same(true, $example['ignoredPermissionErrorReturnedSuccess']);
+        $t->same(true, $example['ignoredPermissionErrorFinalMetadataSet']);
     },
 ];

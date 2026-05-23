@@ -197,6 +197,409 @@ final class OneDrivePermissionPlanner
     }
 
     /**
+     * @param array<string, string> $metadata
+     * @param array{normalizedId?: string, normalizedID?: string, objectId?: string, id?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool, noVersions?: bool, deleteVersionsError?: string} $options
+     * @return array<string, mixed>
+     */
+    public static function objectMetadataFlow(string $remote, array $metadata, array $options = []): array
+    {
+        $mode = (string) ($options['metadataPermissions'] ?? $options['metadata_permissions'] ?? 'write');
+        $needsPermissions = array_key_exists('permissions', $metadata) && self::modeHas($mode, 'write');
+        $writeable = self::writeableMetadataKeys($metadata, $mode);
+        $apiMetadata = array_values(array_intersect($writeable, ['mtime', 'btime']));
+        $normalizedId = self::optionalString(
+            $options['normalizedId']
+                ?? $options['normalizedID']
+                ?? $options['objectId']
+                ?? $options['id']
+                ?? null,
+        ) ?? 'object:' . $remote;
+        $permissions = self::normalizePermissions($options['currentPermissions'] ?? []);
+
+        $flow = [
+            'remote' => $remote,
+            'normalizedId' => $normalizedId,
+            'writeableMetadata' => $writeable,
+            'apiMetadata' => $apiMetadata,
+            'needsUpdatePermissions' => $needsPermissions,
+            'sequence' => [
+                'get-current-metadata',
+            ],
+            'permissionWrite' => null,
+            'permissions' => $permissions,
+            'queuedPermissionsCleared' => false,
+            'objectReturned' => false,
+            'systemMetadataSet' => false,
+            'objectMetadataSet' => false,
+            'versionsDeleteAttempted' => false,
+            'versionsDeleted' => false,
+            'error' => null,
+        ];
+
+        if (self::modeHas($mode, 'read')) {
+            $flow['sequence'][] = 'refresh-permissions-before-set';
+            $refreshBeforeError = self::optionalString($options['refreshBeforeError'] ?? null);
+            if ($refreshBeforeError !== null && $refreshBeforeError !== '') {
+                $flow['error'] = 'failed to get permissions: ' . $refreshBeforeError;
+
+                return $flow;
+            }
+
+            $permissions = is_array($options['refreshBeforePermissions'] ?? null)
+                ? self::normalizePermissions($options['refreshBeforePermissions'])
+                : $permissions;
+            $flow['permissions'] = $permissions;
+        }
+
+        $queuedPermissions = [];
+        if ($needsPermissions) {
+            $queuedPermissions = self::decodePermissionsMetadata($metadata['permissions']);
+        }
+
+        $flow['sequence'][] = 'set-metadata';
+        if ($writeable === []) {
+            $flow['sequence'][] = 'no-writeable-metadata-noop';
+
+            return $flow;
+        }
+
+        $flow['sequence'][] = 'write-object-metadata';
+        if ($apiMetadata === []) {
+            $flow['error'] = $remote . ': no writeable metadata found';
+
+            return $flow;
+        }
+
+        if ($needsPermissions) {
+            $flow['sequence'][] = 'write-permissions';
+            $permissionWrite = self::writePermissions($permissions, $queuedPermissions, [
+                'driveType' => $options['driveType'] ?? null,
+                'metadataPermissions' => $mode,
+                'normalizedId' => $normalizedId,
+                'failOk' => (bool) ($options['failOk'] ?? self::modeHas($mode, 'failok')),
+                'operationErrors' => is_array($options['operationErrors'] ?? null) ? $options['operationErrors'] : [],
+                'refreshedPermissions' => is_array($options['refreshedPermissions'] ?? null)
+                    ? $options['refreshedPermissions']
+                    : $queuedPermissions,
+                'refreshError' => $options['refreshError'] ?? null,
+            ]);
+            if ($permissionWrite['refreshAttempted']) {
+                $flow['sequence'][] = 'refresh-permissions-after-write';
+            }
+            if ($permissionWrite['queuedPermissionsCleared']) {
+                $flow['sequence'][] = 'clear-queued-permissions';
+            }
+
+            $flow['permissionWrite'] = $permissionWrite;
+            $flow['permissions'] = $permissionWrite['permissions'];
+            $flow['queuedPermissionsCleared'] = $permissionWrite['queuedPermissionsCleared'];
+            $flow['error'] = $permissionWrite['error'];
+            if ($flow['error'] !== null) {
+                return $flow;
+            }
+        }
+
+        $flow['sequence'][] = 'set-system-metadata';
+        $flow['sequence'][] = 'set-object-metadata';
+        $flow['systemMetadataSet'] = true;
+        $flow['objectMetadataSet'] = true;
+        $flow['objectReturned'] = true;
+
+        if ((bool) ($options['noVersions'] ?? false)) {
+            $flow['sequence'][] = 'delete-versions';
+            $flow['versionsDeleteAttempted'] = true;
+            $deleteVersionsError = self::optionalString($options['deleteVersionsError'] ?? null);
+            if ($deleteVersionsError !== null && $deleteVersionsError !== '') {
+                $flow['error'] = $remote . ': Failed to remove versions: ' . $deleteVersionsError;
+
+                return $flow;
+            }
+
+            $flow['versionsDeleted'] = true;
+        }
+
+        return $flow;
+    }
+
+    /**
+     * @param array<string, string>|null $sourceMetadata Null models --metadata disabled or a source without metadata.
+     * @param array{sourceMetadataError?: string, metadataReadError?: string, hasObjectMetadata?: bool, noVersions?: bool, setModTimeError?: string, deleteVersionsError?: string, normalizedId?: string, normalizedID?: string, objectId?: string, id?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
+     * @return array<string, mixed>
+     */
+    public static function fetchAndUpdateMetadataFlow(string $remote, ?array $sourceMetadata, array $options = []): array
+    {
+        $flow = [
+            'remote' => $remote,
+            'sourceMetadataPresent' => $sourceMetadata !== null,
+            'sequence' => [
+                'get-source-metadata-options',
+            ],
+            'metadataUpdate' => null,
+            'infoReturned' => false,
+            'modTimeSetAttempted' => false,
+            'modTimeSet' => false,
+            'versionsDeleteAttempted' => false,
+            'versionsDeleted' => false,
+            'suppressedErrors' => [],
+            'error' => null,
+        ];
+
+        $sourceMetadataError = self::optionalString(
+            $options['sourceMetadataError']
+                ?? $options['metadataReadError']
+                ?? null,
+        );
+        if ($sourceMetadataError !== null && $sourceMetadataError !== '') {
+            $flow['error'] = 'failed to read metadata from source object: ' . $sourceMetadataError;
+
+            return $flow;
+        }
+
+        if ($sourceMetadata === null) {
+            $flow['sequence'][] = 'set-modtime';
+            $flow['modTimeSetAttempted'] = true;
+
+            if ((bool) ($options['noVersions'] ?? false)) {
+                $flow['sequence'][] = 'delete-versions-after-set-modtime';
+                $flow['versionsDeleteAttempted'] = true;
+                $deleteVersionsError = self::optionalString($options['deleteVersionsError'] ?? null);
+                if ($deleteVersionsError !== null && $deleteVersionsError !== '') {
+                    $flow['suppressedErrors'][] = $remote . ': Failed to remove versions: ' . $deleteVersionsError;
+                } else {
+                    $flow['versionsDeleted'] = true;
+                }
+            }
+
+            $setModTimeError = self::optionalString($options['setModTimeError'] ?? null);
+            if ($setModTimeError !== null && $setModTimeError !== '') {
+                $flow['error'] = $setModTimeError;
+
+                return $flow;
+            }
+
+            $flow['modTimeSet'] = true;
+            $flow['infoReturned'] = true;
+
+            return $flow;
+        }
+
+        if (!(bool) ($options['hasObjectMetadata'] ?? true)) {
+            $flow['sequence'][] = 'new-object-metadata';
+        }
+
+        $metadataUpdate = self::objectMetadataFlow($remote, $sourceMetadata, $options);
+        $flow['sequence'] = array_merge($flow['sequence'], $metadataUpdate['sequence']);
+        $flow['metadataUpdate'] = $metadataUpdate;
+        $flow['infoReturned'] = (bool) $metadataUpdate['objectReturned'];
+        $flow['error'] = $metadataUpdate['error'];
+
+        return $flow;
+    }
+
+    /**
+     * @param array<string, string>|null $sourceMetadata Null models --metadata disabled or a source without metadata.
+     * @param array{uploadError?: string, setUploadedMetadataError?: string, setFetchedMetadataError?: string, sourceMetadataError?: string, metadataReadError?: string, hasObjectMetadata?: bool, noVersions?: bool, setModTimeError?: string, deleteVersionsError?: string, normalizedId?: string, normalizedID?: string, objectId?: string, id?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
+     * @return array<string, mixed>
+     */
+    public static function uploadSinglepartMetadataFlow(string $remote, ?array $sourceMetadata, array $options = []): array
+    {
+        $flow = [
+            'remote' => $remote,
+            'sequence' => [
+                'upload-singlepart',
+            ],
+            'fetch' => null,
+            'infoReturned' => false,
+            'versionsDeleteAttempted' => false,
+            'versionsDeleted' => false,
+            'suppressedErrors' => [],
+            'error' => null,
+        ];
+
+        $uploadError = self::optionalString($options['uploadError'] ?? null);
+        if ($uploadError !== null && $uploadError !== '') {
+            $flow['error'] = $uploadError;
+
+            return $flow;
+        }
+
+        $flow['sequence'][] = 'set-upload-metadata';
+        $setUploadedMetadataError = self::optionalString($options['setUploadedMetadataError'] ?? null);
+        if ($setUploadedMetadataError !== null && $setUploadedMetadataError !== '') {
+            $flow['error'] = $setUploadedMetadataError;
+
+            return $flow;
+        }
+
+        $flow['sequence'][] = 'fetch-and-update-metadata';
+        $fetch = self::fetchAndUpdateMetadataFlow($remote, $sourceMetadata, $options);
+        $flow['fetch'] = $fetch;
+        $flow['sequence'] = array_merge($flow['sequence'], $fetch['sequence']);
+        $flow['versionsDeleteAttempted'] = $fetch['versionsDeleteAttempted'];
+        $flow['versionsDeleted'] = $fetch['versionsDeleted'];
+        $flow['suppressedErrors'] = $fetch['suppressedErrors'];
+
+        if ($fetch['error'] !== null) {
+            $flow['error'] = 'failed to fetch and update metadata: ' . $fetch['error'];
+
+            return $flow;
+        }
+
+        if ($fetch['infoReturned']) {
+            $flow['sequence'][] = 'set-upload-metadata-from-fetch';
+            $setFetchedMetadataError = self::optionalString($options['setFetchedMetadataError'] ?? null);
+            if ($setFetchedMetadataError !== null && $setFetchedMetadataError !== '') {
+                $flow['error'] = $setFetchedMetadataError;
+
+                return $flow;
+            }
+        }
+
+        $flow['infoReturned'] = $fetch['infoReturned'];
+
+        return $flow;
+    }
+
+    /**
+     * @param array<string, string>|null $sourceMetadata Null models --metadata disabled or a source without metadata.
+     * @param array{size?: int, uploadError?: string, createSessionError?: string, uploadFragmentError?: string, setUploadedMetadataError?: string, setFinalMetadataError?: string, sourceMetadataError?: string, metadataReadError?: string, normalizedId?: string, normalizedID?: string, objectId?: string, id?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool, noVersions?: bool, deleteVersionsError?: string} $options
+     * @return array<string, mixed>
+     */
+    public static function uploadMultipartMetadataFlow(string $remote, ?array $sourceMetadata, array $options = []): array
+    {
+        $mode = (string) ($options['metadataPermissions'] ?? $options['metadata_permissions'] ?? 'write');
+        $writeable = $sourceMetadata === null ? [] : self::writeableMetadataKeys($sourceMetadata, $mode);
+        $apiMetadata = array_values(array_intersect($writeable, ['mtime', 'btime']));
+        $needsPermissions = $sourceMetadata !== null
+            && array_key_exists('permissions', $sourceMetadata)
+            && self::modeHas($mode, 'write');
+
+        $flow = [
+            'remote' => $remote,
+            'sourceMetadataPresent' => $sourceMetadata !== null,
+            'writeableMetadata' => $writeable,
+            'apiMetadata' => $apiMetadata,
+            'needsUpdatePermissions' => $needsPermissions,
+            'sequence' => [
+                'upload-multipart',
+            ],
+            'metadataUpdate' => null,
+            'initialMetadataSet' => false,
+            'finalMetadataSet' => false,
+            'infoReturned' => false,
+            'updateReturnedInfo' => false,
+            'updateErrorIgnored' => false,
+            'ignoredUpdateError' => null,
+            'sessionCancelled' => false,
+            'error' => null,
+        ];
+
+        $size = (int) ($options['size'] ?? 8 * 1024 * 1024);
+        if ($size <= 0) {
+            $flow['error'] = 'unknown-sized upload not supported';
+
+            return $flow;
+        }
+
+        $flow['sequence'][] = 'create-upload-session';
+        $flow['sequence'][] = 'get-source-metadata-options';
+        $sourceMetadataError = self::optionalString(
+            $options['sourceMetadataError']
+                ?? $options['metadataReadError']
+                ?? null,
+        );
+        if ($sourceMetadataError !== null && $sourceMetadataError !== '') {
+            $flow['error'] = 'failed to read metadata from source object: ' . $sourceMetadataError;
+
+            return $flow;
+        }
+
+        if ($writeable !== []) {
+            $flow['sequence'][] = 'create-session:api-metadata';
+        }
+
+        $createSessionError = self::optionalString($options['createSessionError'] ?? null);
+        if ($createSessionError !== null && $createSessionError !== '') {
+            $flow['error'] = $createSessionError;
+
+            return $flow;
+        }
+
+        $flow['sequence'][] = 'upload-fragments';
+        $uploadFragmentError = self::optionalString($options['uploadFragmentError'] ?? $options['uploadError'] ?? null);
+        if ($uploadFragmentError !== null && $uploadFragmentError !== '') {
+            $flow['sessionCancelled'] = true;
+            $flow['sequence'][] = 'cancel-upload-session';
+            $flow['error'] = $uploadFragmentError;
+
+            return $flow;
+        }
+
+        $flow['sequence'][] = 'set-upload-metadata';
+        $setUploadedMetadataError = self::optionalString($options['setUploadedMetadataError'] ?? null);
+        if ($setUploadedMetadataError !== null && $setUploadedMetadataError !== '') {
+            $flow['infoReturned'] = true;
+            $flow['sessionCancelled'] = true;
+            $flow['sequence'][] = 'cancel-upload-session';
+            $flow['error'] = $setUploadedMetadataError;
+
+            return $flow;
+        }
+        $flow['initialMetadataSet'] = true;
+
+        if (!$needsPermissions) {
+            $flow['infoReturned'] = true;
+
+            return $flow;
+        }
+
+        $flow['sequence'][] = 'update-metadata-for-permissions';
+        $metadataUpdate = self::objectMetadataFlow($remote, $sourceMetadata, $options);
+        $flow['metadataUpdate'] = $metadataUpdate;
+        $flow['sequence'] = array_merge($flow['sequence'], $metadataUpdate['sequence']);
+
+        $updateReturnedInfo = (bool) $metadataUpdate['objectReturned'];
+        if (!$updateReturnedInfo
+            && $metadataUpdate['error'] !== null
+            && $metadataUpdate['apiMetadata'] !== []
+            && is_array($metadataUpdate['permissionWrite'] ?? null)) {
+            $updateReturnedInfo = true;
+        }
+        $flow['updateReturnedInfo'] = $updateReturnedInfo;
+
+        if (!$updateReturnedInfo) {
+            $flow['sessionCancelled'] = $metadataUpdate['error'] !== null;
+            if ($flow['sessionCancelled']) {
+                $flow['sequence'][] = 'cancel-upload-session';
+            }
+            $flow['error'] = $metadataUpdate['error'];
+
+            return $flow;
+        }
+
+        if ($metadataUpdate['error'] !== null) {
+            $flow['updateErrorIgnored'] = true;
+            $flow['ignoredUpdateError'] = $metadataUpdate['error'];
+        }
+
+        $flow['sequence'][] = 'set-upload-metadata-after-permission-update';
+        $setFinalMetadataError = self::optionalString($options['setFinalMetadataError'] ?? null);
+        if ($setFinalMetadataError !== null && $setFinalMetadataError !== '') {
+            $flow['infoReturned'] = true;
+            $flow['sessionCancelled'] = true;
+            $flow['sequence'][] = 'cancel-upload-session';
+            $flow['error'] = $setFinalMetadataError;
+
+            return $flow;
+        }
+
+        $flow['finalMetadataSet'] = true;
+        $flow['infoReturned'] = true;
+
+        return $flow;
+    }
+
+    /**
      * @param list<array<string, mixed>> $currentPermissions
      * @param array<string, mixed> $metadata
      * @param array{driveType?: string, metadataPermissions?: string, addOnly?: bool, operationErrors?: array<string, string>} $options

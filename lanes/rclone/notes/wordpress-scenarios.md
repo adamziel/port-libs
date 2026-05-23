@@ -224,6 +224,12 @@ The `../examples/wordpress-onedrive-permission-write-plan.php` scenario maps One
 
 The `../examples/wordpress-onedrive-permission-refresh-dir-metadata.php` scenario maps OneDrive permission write execution and directory metadata sequencing for a migration review folder. It creates `site-backups/review` with WXR reviewer permissions, records the pre-write permission refresh and post-write refreshed-permission materialization, shows that existing-directory permissions-only metadata cannot reach permission writing because the directory metadata PATCH has no mtime/btime payload, and then updates reviewer access after btime/mtime metadata is patched without OAuth or live provider credentials.
 
+The `../examples/wordpress-onedrive-object-metadata-update.php` scenario maps OneDrive object `updateMetadata` sequencing for a migration WXR review export. It refreshes reviewer permissions before metadata `Set`, updates object mtime plus reviewer permissions, records refreshed permission IDs, shows that permissions-only object metadata fails before permission writing because Graph has no file-system metadata PATCH payload, and proves `NoVersions` cleanup runs after object metadata has already been cached, all without OAuth or live provider credentials.
+
+The `../examples/wordpress-onedrive-upload-metadata-fallback.php` scenario maps OneDrive `fetchAndUpdateMetadata` and `uploadSinglepart` sequencing for WXR upload preflights. It shows that absent source metadata falls back to `setModTime`, that `NoVersions` cleanup failures are suppressed on plain modtime repairs, and that source metadata mapper failures are wrapped by the upload path without OAuth or live provider credentials.
+
+The `../examples/wordpress-onedrive-multipart-upload-metadata.php` scenario maps OneDrive `uploadMultipart` metadata sequencing for large WXR upload preflights. It shows reviewer permissions written after chunk upload when `metadata_permissions` includes write, the permissions-only no-API-metadata failure before the final cache update, and the upstream multipart quirk where a permission write error is ignored when `updateMetadata` still returns item info, all without OAuth or live provider credentials.
+
 ## Next Task
 
-Map the next OneDrive metadata edge: object `updateMetadata` permission refresh before `Set`, including permissions-only object metadata behavior versus directory `updateDir`, and `NoVersions` cleanup ordering after successful metadata writes.
+Map the next OneDrive update path edge: ordinary `Object.Update` choosing singlepart vs multipart upload, including OneNote guard behavior, unknown-size boundaries, and metadata propagation into the selected upload path.
