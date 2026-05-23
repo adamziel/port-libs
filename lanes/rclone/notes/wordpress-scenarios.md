@@ -132,6 +132,10 @@ The `../examples/wordpress-dirsortedfn-restore-manifest.php` example maps upstre
 
 The `../examples/wordpress-dirsorted-restore-manifest.php` example maps upstream `fs/list.DirSorted` over a provider `List` fallback. It returns direct provider entries as objects, counts the raw listing before filters, applies whole-directory exclude-if-present behavior for a cache marker, and publishes a restore-priority WordPress manifest without requiring a backend `ListP` implementation.
 
+The `../examples/wordpress-walk-recursive-restore-manifest.php` example maps upstream `fs/walk` traversal over provider `List` fallback. It recursively walks a `site-backups` tree to a bounded depth, publishes SQL, primary WXR, users WXR, and upload directories/files in restore-priority order, prunes cache contents marked by `.rclone-ignore`, and stops before generated thumbnail leaves beyond the configured max depth.
+
+The `../examples/wordpress-direct-listr-bucket-manifest.php` example maps upstream direct `fs/walk` `ListR` plus `dirMap` behavior for bucket-based providers. It accepts arbitrary recursive provider batches, preserves backend callback order before publish sorting, synthesizes missing upload parent directories after the recursive listing completes, and publishes SQL, primary WXR, users WXR, and uploads in restore-priority order.
+
 ## Next Task
 
-Map `fs/walk` recursive listing integration over `DirSorted`/`ListR` fallback, including max-depth traversal, excluded-directory pruning, and provider callback error propagation.
+Map `fs/walk` `walkRDirTree` / `NewDirTree` direct-ListR behavior, including arbitrary recursive order normalization, maxLevel tree truncation, excluded-object parent preservation, and exclude-file pruning.

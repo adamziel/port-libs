@@ -335,6 +335,405 @@ return [
         ]], $sent);
         $t->same(['listed' => 2, 'pages' => 1, 'excludedPages' => 0, 'sent' => 2], $stats);
     },
+    'walk over DirSorted visits parents before children and honors max level' => static function (TestRunner $t): void {
+        $listCalls = [];
+        $list = static function (string $dir) use (&$listCalls): array {
+            $listCalls[] = $dir;
+
+            return match ($dir) {
+                '' => [
+                    rclone_list_directory_object('A'),
+                    rclone_list_directory_directory('a'),
+                ],
+                'a' => [
+                    rclone_list_directory_object('a/B'),
+                    rclone_list_directory_directory('a/b'),
+                ],
+                'a/b' => [
+                    rclone_list_directory_object('a/b/C'),
+                    rclone_list_directory_directory('a/b/c'),
+                ],
+                default => throw new RuntimeException("unexpected List call for {$dir}"),
+            };
+        };
+        $visited = [];
+
+        $stats = ListDirectory::walk(
+            $list,
+            false,
+            '',
+            2,
+            static function (string $dir, array $entries, ?Throwable $error) use (&$visited): null {
+                $visited[$dir] = rclone_list_directory_names($entries);
+
+                return null;
+            },
+            static fn (ObjectInfo $entry): bool => true,
+            static fn (string $remote): bool => true,
+        );
+
+        $t->same(['', 'a'], array_keys($visited));
+        $t->same(['A', 'a/'], $visited['']);
+        $t->same(['a/B', 'a/b/'], $visited['a']);
+        $t->same(['', 'a'], $listCalls);
+        $t->same(['visited' => 2, 'listed' => 4, 'excluded' => 0, 'skipped' => 0], $stats);
+    },
+    'walk skip dir suppresses child traversal without returning an error' => static function (TestRunner $t): void {
+        $listCalls = [];
+        $list = static function (string $dir) use (&$listCalls): array {
+            $listCalls[] = $dir;
+
+            return match ($dir) {
+                '' => [rclone_list_directory_directory('a')],
+                'a' => [rclone_list_directory_directory('a/b')],
+                'a/b' => [rclone_list_directory_object('a/b/C')],
+                default => throw new RuntimeException("unexpected List call for {$dir}"),
+            };
+        };
+        $visited = [];
+
+        $stats = ListDirectory::walk(
+            $list,
+            true,
+            '',
+            -1,
+            static function (string $dir, array $entries, ?Throwable $error) use (&$visited): ?string {
+                $visited[] = $dir;
+
+                return $dir === 'a' ? ListDirectory::ERROR_SKIP_DIR : null;
+            },
+        );
+
+        $t->same(['', 'a'], $visited);
+        $t->same(['', 'a'], $listCalls);
+        $t->same(['visited' => 2, 'listed' => 2, 'excluded' => 0, 'skipped' => 1], $stats);
+    },
+    'walk passes provider errors to callback so they can be masked or returned' => static function (TestRunner $t): void {
+        $maskedErrors = [];
+        $masked = ListDirectory::walk(
+            static fn (string $dir): array => throw new RuntimeException("provider List failed for {$dir}"),
+            true,
+            '',
+            -1,
+            static function (string $dir, array $entries, ?Throwable $error) use (&$maskedErrors): null {
+                $maskedErrors[] = [$dir, $error?->getMessage(), count($entries)];
+
+                return null;
+            },
+        );
+
+        $t->same([['', 'provider List failed for ', 0]], $maskedErrors);
+        $t->same(['visited' => 1, 'listed' => 0, 'excluded' => 0, 'skipped' => 0], $masked);
+        $t->throws(RuntimeException::class, static fn () => ListDirectory::walk(
+            static fn (string $dir): array => throw new RuntimeException("provider List failed for {$dir}"),
+            true,
+            '',
+            -1,
+            static fn (string $dir, array $entries, ?Throwable $error): ?Throwable => $error,
+        ));
+    },
+    'walk prunes exclude marker directories while includeAll bypasses markers' => static function (TestRunner $t): void {
+        $list = static function (string $dir): array {
+            return match ($dir) {
+                'site-backups' => [
+                    rclone_list_directory_directory('site-backups/cache'),
+                    rclone_list_directory_directory('site-backups/uploads'),
+                ],
+                'site-backups/cache' => [
+                    rclone_list_directory_object('site-backups/cache/.rclone-ignore'),
+                    rclone_list_directory_object('site-backups/cache/object-cache.php'),
+                ],
+                'site-backups/uploads' => [
+                    rclone_list_directory_object('site-backups/uploads/hero.jpg'),
+                ],
+                default => throw new RuntimeException("unexpected List call for {$dir}"),
+            };
+        };
+        $visited = [];
+        $stats = ListDirectory::walk(
+            $list,
+            false,
+            'site-backups',
+            -1,
+            static function (string $dir, array $entries, ?Throwable $error) use (&$visited): null {
+                $visited[$dir] = rclone_list_directory_paths($entries);
+
+                return null;
+            },
+            static fn (ObjectInfo $entry): bool => true,
+            static fn (string $remote): bool => true,
+            ['.rclone-ignore'],
+        );
+
+        $t->same([], $visited['site-backups/cache']);
+        $t->same(['site-backups/uploads/hero.jpg'], $visited['site-backups/uploads']);
+        $t->same(['visited' => 3, 'listed' => 5, 'excluded' => 1, 'skipped' => 0], $stats);
+
+        $includeAll = [];
+        ListDirectory::walk(
+            $list,
+            true,
+            'site-backups/cache',
+            -1,
+            static function (string $dir, array $entries, ?Throwable $error) use (&$includeAll): null {
+                $includeAll[$dir] = rclone_list_directory_paths($entries);
+
+                return null;
+            },
+            null,
+            null,
+            ['.rclone-ignore'],
+        );
+
+        $t->same([
+            'site-backups/cache/.rclone-ignore',
+            'site-backups/cache/object-cache.php',
+        ], $includeAll['site-backups/cache']);
+    },
+    'ListR fallback over Walk filters entry types and returns delayed list errors' => static function (TestRunner $t): void {
+        $list = static function (string $dir): array {
+            return match ($dir) {
+                '' => [
+                    rclone_list_directory_object('root.txt'),
+                    rclone_list_directory_directory('good'),
+                    rclone_list_directory_directory('broken'),
+                ],
+                'good' => [
+                    rclone_list_directory_object('good/export.wxr'),
+                    rclone_list_directory_directory('good/uploads'),
+                ],
+                'good/uploads' => [
+                    rclone_list_directory_object('good/uploads/hero.jpg'),
+                ],
+                'broken' => throw new RuntimeException('provider List failed for broken'),
+                default => throw new RuntimeException("unexpected List call for {$dir}"),
+            };
+        };
+        $batches = [];
+        $errorMessage = null;
+
+        try {
+            ListDirectory::listRecursiveFallback(
+                $list,
+                true,
+                '',
+                -1,
+                ListDirectory::LIST_OBJECTS,
+                static function (array $entries) use (&$batches): null {
+                    $batches[] = rclone_list_directory_paths($entries);
+
+                    return null;
+                },
+            );
+        } catch (RuntimeException $throwable) {
+            $errorMessage = $throwable->getMessage();
+        }
+
+        $t->same('provider List failed for broken', $errorMessage);
+        $t->same([
+            ['root.txt'],
+            ['good/export.wxr'],
+            ['good/uploads/hero.jpg'],
+        ], array_values(array_filter($batches, static fn (array $batch): bool => $batch !== [])));
+    },
+    'ListR fallback propagates callback errors before completing traversal' => static function (TestRunner $t): void {
+        $t->throws(RuntimeException::class, static fn () => ListDirectory::listRecursiveFallback(
+            static fn (string $dir): array => [
+                rclone_list_directory_object('root.txt'),
+                rclone_list_directory_directory('next'),
+            ],
+            true,
+            '',
+            -1,
+            ListDirectory::LIST_ALL,
+            static fn (array $entries): RuntimeException => new RuntimeException('callback stopped traversal'),
+        ));
+    },
+    'direct ListR preserves provider batches while filtering list types and entries' => static function (TestRunner $t): void {
+        $entries = [
+            rclone_list_directory_object('a'),
+            rclone_list_directory_object('b'),
+            rclone_list_directory_directory('dir'),
+            rclone_list_directory_object('dir/a'),
+            rclone_list_directory_object('dir/b'),
+            rclone_list_directory_object('dir/c'),
+        ];
+        $calls = [];
+        $listR = static function (string $dir, callable $callback) use (&$calls, $entries): null {
+            $calls[] = $dir;
+            $callback($entries);
+
+            return null;
+        };
+        $allFiltered = [];
+        $stats = ListDirectory::listRecursiveDirect(
+            $listR,
+            false,
+            '',
+            ListDirectory::LIST_ALL,
+            static function (array $batch) use (&$allFiltered): null {
+                $allFiltered[] = rclone_list_directory_paths($batch);
+
+                return null;
+            },
+            static fn (ObjectInfo $entry): bool => $entry->path === 'b' || $entry->path === 'dir/b',
+            static fn (string $remote): bool => true,
+        );
+
+        $t->same([['b', 'dir', 'dir/b']], $allFiltered);
+        $t->same(['listed' => 6, 'batches' => 1, 'sent' => 3, 'synthesized' => 0, 'syntheticBatches' => 0], $stats);
+
+        $objectsOnly = [];
+        ListDirectory::listRecursiveDirect(
+            $listR,
+            true,
+            '',
+            ListDirectory::LIST_OBJECTS,
+            static function (array $batch) use (&$objectsOnly): null {
+                $objectsOnly[] = rclone_list_directory_paths($batch);
+
+                return null;
+            },
+        );
+
+        $t->same([['a', 'b', 'dir/a', 'dir/b', 'dir/c']], $objectsOnly);
+        $t->same(['', ''], $calls);
+    },
+    'direct ListR synthesizes bucket parents after raw recursive batches' => static function (TestRunner $t): void {
+        $entries = [
+            rclone_list_directory_object('a'),
+            rclone_list_directory_object('b'),
+            rclone_list_directory_object('dir/a'),
+            rclone_list_directory_object('dir/b'),
+            rclone_list_directory_object('dir/subdir/c'),
+            rclone_list_directory_directory('dir/subdir'),
+        ];
+        $listR = static function (string $dir, callable $callback) use ($entries): null {
+            $selected = array_values(array_filter(
+                $entries,
+                static fn (ObjectInfo $entry): bool => $dir === ''
+                    || $entry->path === $dir
+                    || str_starts_with($entry->path, $dir . '/'),
+            ));
+            $callback($selected);
+
+            return null;
+        };
+        $batches = [];
+        $stats = ListDirectory::listRecursiveDirect(
+            $listR,
+            true,
+            '',
+            ListDirectory::LIST_ALL,
+            static function (array $batch) use (&$batches): null {
+                $batches[] = rclone_list_directory_names($batch);
+
+                return null;
+            },
+            synthesizeDirs: true,
+        );
+
+        $t->same([
+            ['a', 'b', 'dir/a', 'dir/b', 'dir/subdir/c', 'dir/subdir/'],
+            ['dir/'],
+        ], $batches);
+        $t->same(['listed' => 6, 'batches' => 1, 'sent' => 7, 'synthesized' => 1, 'syntheticBatches' => 1], $stats);
+
+        $subdirBatches = [];
+        $subdirStats = ListDirectory::listRecursiveDirect(
+            $listR,
+            false,
+            'dir',
+            ListDirectory::LIST_ALL,
+            static function (array $batch) use (&$subdirBatches): null {
+                $subdirBatches[] = rclone_list_directory_names($batch);
+
+                return null;
+            },
+            static fn (ObjectInfo $entry): bool => $entry->path === 'dir/b',
+            static fn (string $remote): bool => true,
+            true,
+        );
+
+        $t->same([['dir/b', 'dir/subdir/']], $subdirBatches);
+        $t->same(['listed' => 4, 'batches' => 1, 'sent' => 2, 'synthesized' => 0, 'syntheticBatches' => 0], $subdirStats);
+    },
+    'direct ListR batches synthesized missing parents at upstream helper threshold' => static function (TestRunner $t): void {
+        $entries = [];
+        for ($i = 1; $i <= 101; $i++) {
+            $entries[] = rclone_list_directory_object(sprintf('site/parent-%03d/file.txt', $i));
+        }
+        $batches = [];
+
+        $stats = ListDirectory::listRecursiveDirect(
+            static function (string $dir, callable $callback) use ($entries): null {
+                $callback($entries);
+
+                return null;
+            },
+            true,
+            'site',
+            ListDirectory::LIST_ALL,
+            static function (array $batch) use (&$batches): null {
+                $batches[] = rclone_list_directory_paths($batch);
+
+                return null;
+            },
+            synthesizeDirs: true,
+        );
+
+        $t->same(3, count($batches));
+        $t->same(101, count($batches[0]));
+        $t->same(100, count($batches[1]));
+        $t->same(1, count($batches[2]));
+        $t->same('site/parent-001', $batches[1][0]);
+        $t->same('site/parent-100', $batches[1][99]);
+        $t->same('site/parent-101', $batches[2][0]);
+        $t->same(['listed' => 101, 'batches' => 1, 'sent' => 202, 'synthesized' => 101, 'syntheticBatches' => 2], $stats);
+    },
+    'direct ListR propagates provider and callback errors before synthetic parent flush' => static function (TestRunner $t): void {
+        $afterProviderBatches = [];
+        $t->throws(RuntimeException::class, static function () use (&$afterProviderBatches): void {
+            ListDirectory::listRecursiveDirect(
+                static function (string $dir, callable $callback): RuntimeException {
+                    $callback([rclone_list_directory_object('site/uploads/hero.jpg')]);
+
+                    return new RuntimeException('provider ListR failed');
+                },
+                true,
+                'site',
+                ListDirectory::LIST_ALL,
+                static function (array $batch) use (&$afterProviderBatches): null {
+                    $afterProviderBatches[] = rclone_list_directory_paths($batch);
+
+                    return null;
+                },
+                synthesizeDirs: true,
+            );
+        });
+        $t->same([['site/uploads/hero.jpg']], $afterProviderBatches);
+
+        $afterCallbackBatches = [];
+        $t->throws(RuntimeException::class, static function () use (&$afterCallbackBatches): void {
+            ListDirectory::listRecursiveDirect(
+                static function (string $dir, callable $callback): null {
+                    $callback([rclone_list_directory_object('site/uploads/hero.jpg')]);
+
+                    return null;
+                },
+                true,
+                'site',
+                ListDirectory::LIST_ALL,
+                static function (array $batch) use (&$afterCallbackBatches): RuntimeException {
+                    $afterCallbackBatches[] = rclone_list_directory_paths($batch);
+
+                    return new RuntimeException('callback stopped traversal');
+                },
+                synthesizeDirs: true,
+            );
+        });
+        $t->same([['site/uploads/hero.jpg']], $afterCallbackBatches);
+    },
     'wordpress direct backup manifest example filters and sorts one listed directory' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-list-filter-sort.php';
 
@@ -379,5 +778,40 @@ return [
             'site-backups/cache/.rclone-ignore',
             'site-backups/cache/object-cache.php',
         ], $example['cacheIncludeAll']);
+    },
+    'wordpress recursive walk restore manifest example prunes cache and respects max depth' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-walk-recursive-restore-manifest.php';
+
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/export.wxr',
+            'site-backups/users.wxr',
+            'site-backups/uploads/',
+            'site-backups/uploads/2026/',
+            'site-backups/uploads/2026/05/',
+            'site-backups/uploads/2026/05/generated/',
+            'site-backups/uploads/2026/05/hero.jpg',
+            'site-backups/uploads/2026/05/hero.webp',
+        ], $example['manifest']);
+        $t->same(['visited' => 5, 'listed' => 12, 'excluded' => 1, 'skipped' => 0, 'sent' => 10], $example['stats']);
+        $t->same(true, $example['cachePruned']);
+        $t->same(true, $example['maxDepthStoppedBeforeGeneratedFiles']);
+    },
+    'wordpress direct ListR bucket manifest example synthesizes missing upload parents' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-direct-listr-bucket-manifest.php';
+
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/export.wxr',
+            'site-backups/users.wxr',
+            'site-backups/uploads/',
+            'site-backups/uploads/2026/',
+            'site-backups/uploads/2026/05/',
+            'site-backups/uploads/2026/05/hero.jpg',
+        ], $example['manifest']);
+        $t->same([3, 2, 2], $example['batchSizes']);
+        $t->same(['listed' => 5, 'batches' => 2, 'sent' => 7, 'synthesized' => 2, 'syntheticBatches' => 1], $example['stats']);
+        $t->same(true, $example['uploadsParentSynthesized']);
+        $t->same(true, $example['providerOrderPreservedBeforePublishSort']);
     },
 ];
