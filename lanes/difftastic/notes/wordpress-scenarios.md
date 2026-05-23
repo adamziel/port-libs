@@ -146,6 +146,10 @@ JavaScript mode now also maps upstream parse-error fallback semantics from `DEFA
 
 Supported-language byte-limit fallback now maps upstream `DEFAULT_BYTE_LIMIT`, `to_tree_with_limit`, and `TextFallback` behavior. The WordPress render metadata example lowers the limit to exercise the path with a bounded PHP block metadata change: render callback and support changes are shown as escaped `$text.line[...]` changes, and JSON display labels the file as `Text (... exceeded DFT_BYTE_LIMIT)` instead of attempting an incomplete structural diff.
 
+Huge multi-line byte-limit fallback now maps the upstream `huge_cpp_*.cpp` stress metadata without copying the 22 MB fixtures into this lane. Text fallback, compact JSON display, and side-by-side display share a native line differ that keeps exact LCS for small inputs and switches to bounded prefix/suffix plus unique-line anchors for larger line sets.
+
+The WordPress generated C++ build artifact example applies that to plugin build output under `wp-content/plugins/acme-card/build/generated`. Separated generated asset edits and an inserted view asset stay visible as line-oriented fallback changes, while retained generated rows stay out of JSON chunks.
+
 Supported-language graph-limit fallback now maps upstream `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `ExceededGraphLimit`, and `TextFallback` behavior. The WordPress block variation example lowers the graph limit to exercise the path with a bounded `registerBlockVariation` change: variation insertions and edits are shown as escaped `$text.line[...]` changes, and JSON display labels the file as `Text (exceeded DFT_GRAPH_LIMIT)` instead of attempting a partial structural `$js.array[...]` diff after the graph budget is exceeded.
 
 Strip-CR normalization now maps upstream `--strip-cr=on` default behavior from `src/options.rs` and `src/main.rs`. The WordPress CRLF render example compares a Windows-edited plugin render file against LF-only output and returns an unchanged compact JSON status by default, while `stripCr => false` preserves CR-only changes for callers that explicitly review line endings.
@@ -200,6 +204,7 @@ php lanes/difftastic/examples/wordpress-hook-registration-js-diff.php
 php lanes/difftastic/examples/wordpress-block-registration-functions-js-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-syntax-error-js-diff.php
 php lanes/difftastic/examples/wordpress-byte-limit-fallback-diff.php
+php lanes/difftastic/examples/wordpress-generated-cpp-byte-limit-diff.php
 php lanes/difftastic/examples/wordpress-graph-limit-fallback-diff.php
 php lanes/difftastic/examples/wordpress-python-migration-if-diff.php
 php lanes/difftastic/examples/wordpress-python-loop-migration-diff.php
@@ -238,4 +243,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map another upstream large-file display boundary such as `huge_cpp_*.cpp` byte-limit metadata or broaden side-by-side hunk/context behavior without hydrating huge blobs into lane artifacts.
+Broaden upstream side-by-side hunk/context behavior now that long_line and huge_cpp large-file boundaries are mapped without copying huge blobs.

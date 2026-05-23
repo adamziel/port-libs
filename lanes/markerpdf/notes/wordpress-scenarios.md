@@ -42,6 +42,8 @@ The lane now also maps `marker_server.py` API/upload behavior. `MarkerServerAdap
 
 The lane now also maps `marker/models.py` and `marker/utils.py` at the model-loading preflight boundary. `ModelPipelinePlanner` records the upstream `PYTORCH_ENABLE_MPS_FALLBACK` environment flag, setup helper loader and processor attachment semantics, `load_all_models` load order versus the returned `model_lst` order consumed by `convert_single_pdf`, explicit device/dtype propagation, and CUDA-only cache cleanup without importing Python, Torch, Surya, Texify, or tabled models.
 
+The lane now also maps `marker/logger.py`, `run_marker_app.py`, and `marker_app.py` runtime environment setup. `MarkerRuntimePlanner` records Marker's root/logging/warning suppression choices, Streamlit command, `IN_STREAMLIT=true` and `PDFTEXT_CPU_WORKERS=1` overrides, and Marker app import-time `PYTORCH_ENABLE_MPS_FALLBACK=1` metadata for a WordPress import worker without launching Streamlit, Python, or model code.
+
 The lane now also maps the early `marker/convert.py::convert_single_pdf` orchestration boundary. `CorePdfConverter` applies metadata language override, engine-specific OCR language normalization, OCR-all-pages folding, filetype metadata, unsupported-filetype short-circuiting, supplied page/TOC metadata, and low-resolution image render planning before handing supplied pages to a native downstream pipeline.
 
 The lane now also maps a document-level supplied-boundary conversion path for `marker/convert.py::convert_single_pdf`. `SuppliedDocumentConverter` composes supplied pdftext page dictionaries, layout predictions, ordering predictions, recognized table dictionaries, table Markdown insertion, supplied image payloads, and the late finalizer into a BenchmarkRunner-ready native callback without loading pdftext, pypdfium2, Surya, tabled, Texify, Torch, or Nougat.
@@ -102,7 +104,7 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-ocr-triage.php` maps Marker's upstream OCR heuristics into a pre-render import decision. It uses text quality, detected-line coverage, all-empty document detection, and force-OCR flags to send scanned or garbled pages to OCR before Gutenberg block conversion while leaving clean extracted pages on the native text path.
 
-`examples/wordpress-ocr-language-preflight.php` maps Marker's upstream OCR language normalization into multilingual import metadata. It converts human language names from a WordPress PDF metadata file to OCRmyPDF/Tesseract codes, applies Marker's default English fallback when languages are omitted, and rejects invalid engine-specific codes before the OCR handoff.
+`examples/wordpress-ocr-language-preflight.php` maps Marker's upstream OCR language normalization and Surya language-token boundary into multilingual import metadata. It converts human language names from a WordPress PDF metadata file to OCRmyPDF/Tesseract or Surya codes, applies Marker's default English fallback when languages are omitted, emits Surya tokenizer language-token IDs for review metadata, and rejects invalid engine-specific codes before the OCR handoff.
 
 `examples/wordpress-ocr-detection-preflight.php` maps Marker's upstream `surya_detection` boundary into a WordPress detection preflight. It accepts supplied Surya text-line predictions, attaches them to `page.text_lines` with upstream zip semantics, checks whether the detected text lines cover the extracted PDF line boxes, and preserves those boxes as review metadata before deciding whether a page needs OCR.
 
@@ -172,8 +174,10 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-model-preflight.php` maps Marker's upstream model loader utilities into a WordPress import worker preflight. It emits the model setup load order, the returned `convert_single_pdf` model-list order, deferred Python loader names, checkpoint/device/dtype arguments, MPS fallback environment metadata, and CUDA cache cleanup plan without loading or shelling out to the upstream model stack.
 
+`examples/wordpress-marker-runtime-preflight.php` maps Marker's upstream logger and Streamlit launcher runtime boundary into a WordPress import worker preflight. It emits the Streamlit command and environment overlay that upstream would use, records suppressed third-party loggers and FutureWarning filtering, and keeps the slice native by not launching Streamlit, FastAPI, Python, or model code.
+
 `examples/wordpress-filetype-preflight.php` maps Marker's upstream filetype detection into a WordPress upload preflight. It accepts a real PDF fixture by magic bytes and rejects a ZIP-like `.pdf` payload before heavier conversion steps run.
 
 ## Next Task
 
-Next bounded task: after the unrelated aggregate esbuild/libsqlite root-test failures are cleared, commit the supplied-document plus supplied-image-extraction slice and feed `SuppliedDocumentConverter` fuller `multicolcnn.pdf` or `switch_trans.pdf` supplied dictionaries/excerpts to increase document-level benchmark parity.
+Next bounded task: feed `SuppliedDocumentConverter` fuller `multicolcnn.pdf` or `switch_trans.pdf` supplied dictionaries/excerpts to increase document-level benchmark parity.

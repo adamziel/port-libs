@@ -8,6 +8,9 @@ use InvalidArgumentException;
 
 final class OcrLanguage
 {
+    private const SURYA_TOTAL_TOKENS = 65536;
+    private const SURYA_TOKEN_OFFSET = 3;
+
     /**
      * Pinned to surya-ocr 0.6.13, the version locked by markerPDF at
      * da6a2f5c9a7b1e92c82d85fbcf3680a79dd28a34.
@@ -109,6 +112,109 @@ final class OcrLanguage
         'xh' => 'Xhosa',
         'yi' => 'Yiddish',
         'zh' => 'Chinese',
+    ];
+
+    /**
+     * Copied from surya.model.recognition.config::LANGUAGE_MAP in the
+     * surya-ocr 0.6.13 wheel locked by markerPDF.
+     *
+     * @var array<string, int>
+     */
+    private const SURYA_LANGUAGE_MAP = [
+        'af' => 0,
+        'am' => 1,
+        'ar' => 2,
+        'as' => 3,
+        'az' => 4,
+        'be' => 5,
+        'bg' => 6,
+        'bn' => 7,
+        'br' => 8,
+        'bs' => 9,
+        'ca' => 10,
+        'cs' => 11,
+        'cy' => 12,
+        'da' => 13,
+        'de' => 14,
+        'el' => 15,
+        'en' => 16,
+        'eo' => 17,
+        'es' => 18,
+        'et' => 19,
+        'eu' => 20,
+        'fa' => 21,
+        'fi' => 22,
+        'fr' => 23,
+        'fy' => 24,
+        'ga' => 25,
+        'gd' => 26,
+        'gl' => 27,
+        'gu' => 28,
+        'ha' => 29,
+        'he' => 30,
+        'hi' => 31,
+        'hr' => 32,
+        'hu' => 33,
+        'hy' => 34,
+        'id' => 35,
+        'is' => 36,
+        'it' => 37,
+        'ja' => 38,
+        'jv' => 39,
+        'ka' => 40,
+        'kk' => 41,
+        'km' => 42,
+        'kn' => 43,
+        'ko' => 44,
+        'ku' => 45,
+        'ky' => 46,
+        'la' => 47,
+        'lo' => 48,
+        'lt' => 49,
+        'lv' => 50,
+        'mg' => 51,
+        'mk' => 52,
+        'ml' => 53,
+        'mn' => 54,
+        'mr' => 55,
+        'ms' => 56,
+        'my' => 57,
+        'ne' => 58,
+        'nl' => 59,
+        'no' => 60,
+        'om' => 61,
+        'or' => 62,
+        'pa' => 63,
+        'pl' => 64,
+        'ps' => 65,
+        'pt' => 66,
+        'ro' => 67,
+        'ru' => 68,
+        'sa' => 69,
+        'sd' => 70,
+        'si' => 71,
+        'sk' => 72,
+        'sl' => 73,
+        'so' => 74,
+        'sq' => 75,
+        'sr' => 76,
+        'su' => 77,
+        'sv' => 78,
+        'sw' => 79,
+        'ta' => 80,
+        'te' => 81,
+        'th' => 82,
+        'tl' => 83,
+        'tr' => 84,
+        'ug' => 85,
+        'uk' => 86,
+        'ur' => 87,
+        'uz' => 88,
+        'vi' => 89,
+        'xh' => 90,
+        'yi' => 91,
+        'zh' => 92,
+        '_math' => 93,
     ];
 
     /**
@@ -295,6 +401,39 @@ final class OcrLanguage
         $this->validateLangs($normalized, $ocrEngine);
 
         return $normalized;
+    }
+
+    /**
+     * Native boundary for marker.ocr.lang::langs_to_ids.
+     *
+     * Upstream calls Surya's tokenizer with list(set($langs)); that makes token
+     * order an implementation detail. This port returns stable first-seen order
+     * while preserving the same unique token-id set.
+     *
+     * @param list<string> $langs Surya language codes such as "en" or "_math".
+     * @return list<int>
+     */
+    public function langTokenIds(array $langs): array
+    {
+        $unique = [];
+        foreach ($langs as $lang) {
+            $lang = (string) $lang;
+            if (array_key_exists($lang, $unique)) {
+                continue;
+            }
+            if (!isset(self::SURYA_LANGUAGE_MAP[$lang])) {
+                throw new InvalidArgumentException("Invalid language code {$lang} for Surya tokenizer");
+            }
+            $unique[$lang] = true;
+        }
+
+        $offset = self::SURYA_TOTAL_TOKENS + self::SURYA_TOKEN_OFFSET;
+        $tokens = [];
+        foreach (array_keys($unique) as $lang) {
+            $tokens[] = self::SURYA_LANGUAGE_MAP[$lang] + $offset;
+        }
+
+        return $tokens;
     }
 
     /**

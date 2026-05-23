@@ -25,6 +25,19 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $languages->validateLangs(['zz'], 'surya'));
         $t->throws(InvalidArgumentException::class, static fn () => $languages->validateLangs(['zzz'], 'ocrmypdf'));
     },
+    'maps Surya language codes to locked tokenizer ids with unique language semantics' => static function (TestRunner $t): void {
+        $languages = new OcrLanguage();
+
+        $tokens = $languages->langTokenIds(['en', 'es', 'en', '_math']);
+
+        $t->same([65555, 65557, 65632], $tokens);
+        $t->same([65557, 65555], $languages->langTokenIds(['es', 'en']));
+    },
+    'rejects invalid Surya tokenizer language codes before OCR handoff' => static function (TestRunner $t): void {
+        $languages = new OcrLanguage();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $languages->langTokenIds(['en', 'zzz']));
+    },
     'keeps lower-case Tesseract language names invalid like marker ocr lang' => static function (TestRunner $t): void {
         $languages = new OcrLanguage();
 
@@ -64,5 +77,19 @@ return [
             ],
             $preflight
         );
+    },
+    'adds Surya tokenizer metadata to a WordPress OCR preflight' => static function (TestRunner $t): void {
+        $languages = new OcrLanguage();
+        $codes = $languages->normalizeAndValidate(['English', 'Spanish'], 'surya');
+
+        $t->same([
+            'ocr_engine' => 'surya',
+            'languages' => ['en', 'es'],
+            'lang_token_ids' => [65555, 65557],
+        ], [
+            'ocr_engine' => 'surya',
+            'languages' => $codes,
+            'lang_token_ids' => $languages->langTokenIds($codes ?? []),
+        ]);
     },
 ];

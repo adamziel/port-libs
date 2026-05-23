@@ -16,7 +16,7 @@ $workingSchema = TableSchema::fromColumns([
     ['name' => 'queue_id', 'tag' => 1, 'type' => 'bigint', 'primaryKey' => true],
     ['name' => 'source_post_id', 'tag' => 2, 'type' => 'bigint'],
     ['name' => 'post_name', 'tag' => 3, 'type' => 'varchar(240)', 'default' => 'reviewed'],
-    ['name' => 'import_slug', 'tag' => 4, 'type' => 'varchar(255)', 'generated' => "(concat('import-',source_post_id,'-',post_name))", 'generatedStored' => true],
+    ['name' => 'import_slug', 'tag' => 4, 'type' => 'varchar(320)', 'generated' => "(concat('import-',source_post_id,'-',post_name))", 'generatedStored' => true],
     ['name' => 'touched', 'tag' => 5, 'type' => 'timestamp', 'default' => 'CURRENT_TIMESTAMP', 'onUpdate' => 'CURRENT_TIMESTAMP'],
     ['name' => 'review_status', 'tag' => 6, 'type' => 'varchar(20)', 'default' => 'draft'],
 ]);
@@ -59,7 +59,7 @@ return [
     ],
     'expectedStatements' => [
         "ALTER TABLE `wp_import_queue` MODIFY COLUMN `post_name` varchar(240) DEFAULT 'reviewed';",
-        "ALTER TABLE `wp_import_queue` MODIFY COLUMN `import_slug` varchar(255) GENERATED ALWAYS AS ((concat('import-',source_post_id,'-',post_name))) STORED;",
+        "ALTER TABLE `wp_import_queue` MODIFY COLUMN `import_slug` varchar(320) GENERATED ALWAYS AS ((concat('import-',source_post_id,'-',post_name))) STORED;",
         "ALTER TABLE `wp_import_queue` ADD `review_status` varchar(20) DEFAULT 'draft';",
         "UPDATE `wp_import_queue` SET `post_name`='hello-world-reviewed',`import_slug`='import-501-hello-world-reviewed' WHERE `queue_id`=1;",
     ],

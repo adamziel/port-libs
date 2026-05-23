@@ -391,6 +391,16 @@ return [
         $t->same([1, 2, 3, 4], array_column($rows, 'statement_order'));
         $t->same([], $warnings);
     },
+    'dolt patch function call omits metadata-only column snapshot deltas' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-metadata-only-column-review.php';
+        $warnings = [];
+
+        $rows = (new PatchFunctionCall())->rows([], $fixture['arguments'], $fixture['options'], $warnings);
+
+        $t->same($fixture['expectedStatements'], array_column($rows, 'statement'));
+        $t->same([], $rows);
+        $t->same([], $warnings);
+    },
     'dolt patch function call rejects upstream invalid argument boundaries' => static function (TestRunner $t) use ($patchTables): void {
         $call = new PatchFunctionCall();
 
@@ -562,6 +572,14 @@ return [
         $t->same(['schema', 'schema', 'schema', 'data'], array_column($output['rows'], 'diff_type'));
         $t->contains('GENERATED ALWAYS AS', $output['statements'][1]);
         $t->contains("DEFAULT 'draft'", $output['statements'][2]);
+        $t->same([], $output['warnings']);
+    },
+    'wordpress patch metadata-only column review example stays empty like upstream' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/wp-patch-metadata-only-column-review.php';
+        $output = require __DIR__ . '/../examples/wordpress-patch-metadata-only-column-review.php';
+
+        $t->same($fixture['expectedStatements'], $output['statements']);
+        $t->same([], $output['rows']);
         $t->same([], $output['warnings']);
     },
 ];

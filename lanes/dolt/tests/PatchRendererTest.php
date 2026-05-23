@@ -115,6 +115,72 @@ return [
             ['name' => 'id', 'tag' => 1, 'type' => 'int', 'generatedStored' => true],
         ]));
     },
+    'dolt patch omits metadata-only column and check constraint patch rows like upstream' => static function (TestRunner $t): void {
+        $fromColumns = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'title', 'tag' => 2, 'type' => 'varchar(80)', 'default' => 'untitled'],
+            ['name' => 'slug', 'tag' => 3, 'type' => 'varchar(120)', 'generated' => "(concat('wp-',id))"],
+            ['name' => 'updated', 'tag' => 4, 'type' => 'timestamp', 'default' => 'CURRENT_TIMESTAMP'],
+            ['name' => 'status', 'tag' => 5, 'type' => 'varchar(20)'],
+        ]);
+        $toColumns = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'title', 'tag' => 2, 'type' => 'varchar(80)', 'default' => 'reviewed'],
+            ['name' => 'slug', 'tag' => 3, 'type' => 'varchar(120)', 'generated' => "(concat('import-',id))", 'generatedStored' => true],
+            ['name' => 'updated', 'tag' => 4, 'type' => 'timestamp', 'default' => 'CURRENT_TIMESTAMP', 'onUpdate' => 'CURRENT_TIMESTAMP'],
+            ['name' => 'status', 'tag' => 5, 'type' => 'varchar(20)', 'constraints' => ['not_null']],
+        ]);
+        $withoutCheck = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'status', 'tag' => 2, 'type' => 'varchar(20)'],
+        ]);
+        $withCheck = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'status', 'tag' => 2, 'type' => 'varchar(20)'],
+        ], [
+            'checks' => [[
+                'name' => 'status_chk',
+                'expression' => "(`status` in ('ready','failed'))",
+            ]],
+        ]);
+        $modifiedCheck = TableSchema::fromColumns([
+            ['name' => 'id', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],
+            ['name' => 'status', 'tag' => 2, 'type' => 'varchar(20)'],
+        ], [
+            'checks' => [[
+                'name' => 'status_chk',
+                'expression' => "(`status` in ('queued','ready','failed'))",
+                'enforced' => false,
+            ]],
+        ]);
+        $renderer = new PatchRenderer();
+
+        $metadataRows = $renderer->rows([[
+            'tableName' => 'wp_import_queue',
+            'fromSchema' => $fromColumns,
+            'toSchema' => $toColumns,
+        ]], ['filter' => 'schema']);
+        $addCheckRows = $renderer->rows([[
+            'tableName' => 'wp_import_queue',
+            'fromSchema' => $withoutCheck,
+            'toSchema' => $withCheck,
+        ]], ['filter' => 'schema']);
+        $modifyCheckRows = $renderer->rows([[
+            'tableName' => 'wp_import_queue',
+            'fromSchema' => $withCheck,
+            'toSchema' => $modifiedCheck,
+        ]], ['filter' => 'schema']);
+        $dropCheckRows = $renderer->rows([[
+            'tableName' => 'wp_import_queue',
+            'fromSchema' => $withCheck,
+            'toSchema' => $withoutCheck,
+        ]], ['filter' => 'schema']);
+
+        $t->same([], $metadataRows);
+        $t->same([], $addCheckRows);
+        $t->same([], $modifyCheckRows);
+        $t->same([], $dropCheckRows);
+    },
     'dolt patch renders table collation changes like upstream' => static function (TestRunner $t): void {
         $schema = TableSchema::fromColumns([
             ['name' => 'pk', 'tag' => 1, 'type' => 'int', 'primaryKey' => true],

@@ -310,12 +310,7 @@ final class PatchRenderer
      */
     private function columnDefinitionChanged(array $fromColumn, array $toColumn): bool
     {
-        return $fromColumn['type'] !== $toColumn['type']
-            || $fromColumn['constraints'] !== $toColumn['constraints']
-            || $fromColumn['default'] !== $toColumn['default']
-            || $fromColumn['generated'] !== $toColumn['generated']
-            || $fromColumn['generatedStored'] !== $toColumn['generatedStored']
-            || $fromColumn['onUpdate'] !== $toColumn['onUpdate'];
+        return $fromColumn['type'] !== $toColumn['type'];
     }
 
     private function columnDefault(string $default): string

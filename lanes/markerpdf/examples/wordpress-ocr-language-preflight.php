@@ -15,10 +15,15 @@ $languages = new OcrLanguage();
 $documents = [];
 
 foreach ($metadata as $filename => $item) {
+    $suryaLanguages = $languages->normalizeAndValidate($item['languages'] ?? ['English'], 'surya') ?? ['en'];
     $documents[] = [
         'filename' => $filename,
         'ocrEngine' => 'ocrmypdf',
         'languages' => $languages->normalizeAndValidate($item['languages'], 'ocrmypdf'),
+        'suryaReview' => [
+            'languages' => $suryaLanguages,
+            'langTokenIds' => $languages->langTokenIds($suryaLanguages),
+        ],
     ];
 }
 

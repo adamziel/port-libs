@@ -1223,7 +1223,21 @@
     - Result: `ok github.com/dolthub/dolt/go/libraries/doltcore/sqle/enginetest 0.598s`.
   - Native Dolt PHP lane rerun after this slice passed with 16 Dolt test files, 136 behavior tests, 710 assertions, and 0 failures.
 
+- Fresh 2026-05-23 `dolt_patch()` metadata-only column/check-constraint boundary refresh:
+  - Focused upstream source reads:
+    - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: non-create/non-drop patch generation only appends `MODIFY COLUMN` when `TypeInfo` changes, while defaults, generated expressions, on-update expressions, and nullability are formatter fields used when a supported CREATE/ADD/MODIFY row is already emitted.
+    - `go/libraries/doltcore/sqle/sqlfmt/schema_fmt.go`: `GenerateCreateTableStatement()` appends check constraints for create-table output, but `generateNonCreateNonDropTableSqlSchemaDiff()` has no add/drop/modify check-constraint patch branch.
+    - `integration-tests/bats/sql-check-constraints.bats`: upstream add/drop check-constraint enforcement and survival behavior, used as support for the schema metadata boundary rather than as patch-row evidence.
+  - Direct cache-local CLI probes:
+    - `dolt_patch('HEAD','WORKING','foo')` after `ALTER TABLE foo ADD CONSTRAINT status_chk CHECK (...)` returned only the CSV header.
+    - `dolt_patch('HEAD','WORKING','foo')` after `ALTER TABLE foo DROP CONSTRAINT status_chk` returned only the CSV header.
+    - `dolt_patch('HEAD','WORKING','q')` after `ALTER TABLE q ALTER COLUMN title SET DEFAULT 'reviewed'` returned only the CSV header.
+    - `dolt_patch('HEAD','WORKING','q')` after `ALTER TABLE q MODIFY COLUMN title varchar(100) DEFAULT 'reviewed'` emitted ``ALTER TABLE `q` MODIFY COLUMN `title` varchar(100) DEFAULT 'reviewed';``.
+    - `dolt_patch('HEAD','WORKING','q')` after `ALTER TABLE q MODIFY COLUMN slug varchar(320) GENERATED ALWAYS AS (...) STORED` emitted a generated-column `MODIFY COLUMN` row.
+  - Native Dolt PHP lane rerun after this slice passed with 16 Dolt test files, 171 behavior tests, 863 assertions, and 0 failures.
+
 - `php tools/run-tests.php`
+  - Required rerun after the metadata-only column/check-constraint patch boundary slice passed with 176 test files, 16,734 assertions, and 0 failures.
   - Required rerun after native `dolt_patch()` argument-boundary slice passed with 157 test files, 14,252 assertions, and 0 failures; exact rerun after final lane-status metadata passed with 157 test files, 14,270 assertions, and 0 failures.
   - Required rerun after native `dolt_patch()` patch-row rendering initially failed outside Dolt in `lanes/esbuild/tests/TypeScriptModuleLowererTest.php` (`keeps upstream local exports outside top level using helper scopes`); Dolt tests reached by that run passed. Immediate rerun passed with 153 test files, 13,910 assertions, and 0 failures.
   - Initial required rerun after the 2026-05-22 22:12 UTC runner/tooling metadata refresh exited 1 with 138 test files, 12,225 assertions, and 1 failure; the streamed output did not retain the specific failing assertion.
