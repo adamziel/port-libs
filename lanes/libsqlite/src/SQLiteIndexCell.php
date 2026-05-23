@@ -42,6 +42,35 @@ final class SQLiteIndexCell
     }
 
     /**
+     * @return array{cell: string, overflowPages: list<string>, localPayloadLength: int}
+     */
+    public static function encodeWithOverflowPages(
+        string $payload,
+        int $firstOverflowPage,
+        int $pageSize = 512,
+        ?int $usableSize = null,
+        ?int $leftChildPage = null,
+    ): array {
+        $usableSize ??= $pageSize;
+        $localPayloadLength = self::localPayloadLength(strlen($payload), $usableSize);
+        if ($localPayloadLength === strlen($payload)) {
+            return [
+                'cell' => self::encode($payload, $usableSize, null, $leftChildPage),
+                'overflowPages' => [],
+                'localPayloadLength' => $localPayloadLength,
+            ];
+        }
+
+        $overflowPayload = substr($payload, $localPayloadLength);
+
+        return [
+            'cell' => self::encode($payload, $usableSize, $firstOverflowPage, $leftChildPage),
+            'overflowPages' => SQLiteOverflowPage::encodeChain($overflowPayload, $firstOverflowPage, $pageSize, $usableSize),
+            'localPayloadLength' => $localPayloadLength,
+        ];
+    }
+
+    /**
      * @param null|callable(int, int): string $overflowReader
      */
     public static function parse(

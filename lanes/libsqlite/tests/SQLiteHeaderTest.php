@@ -16,6 +16,7 @@ use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJson5Parser;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
+use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
@@ -434,6 +435,21 @@ return [
         $t->same(39, SQLiteTableLeafCell::localPayloadLength(478, 512));
         $t->same(78, SQLiteTableLeafCell::localPayloadLength(586, 512));
     },
+    'encodes sqlite overflow page chains with upstream next page pointers' => static function (TestRunner $t): void {
+        $pages = SQLiteOverflowPage::encodeChain(str_repeat('a', 509), 7);
+
+        $t->same(0, SQLiteOverflowPage::requiredPageCount(0));
+        $t->same(1, SQLiteOverflowPage::requiredPageCount(508));
+        $t->same(2, SQLiteOverflowPage::requiredPageCount(509));
+        $t->same(2, count($pages));
+        $t->same(512, strlen($pages[0]));
+        $t->same('00000008', bin2hex(substr($pages[0], 0, 4)));
+        $t->same('00000000', bin2hex(substr($pages[1], 0, 4)));
+        $t->same(str_repeat('a', 508), substr($pages[0], 4, 508));
+        $t->same('a', substr($pages[1], 4, 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowPage::encodeChain('x', 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowPage::requiredPageCount(-1));
+    },
     'parses sqlite index leaf and interior cells' => static function (TestRunner $t) use ($indexCell, $indexLeafPage, $indexInteriorPage): void {
         $leafPage = $indexLeafPage([
             $indexCell(['home', 2]),
@@ -476,6 +492,25 @@ return [
         $t->same('00000007', bin2hex(substr($overflow, -4)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexCell::encode($overflowPayload, 512));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexCell::encode($payload, 512, null, 0));
+    },
+    'assembles sqlite index leaf overflow pages from native encoders' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $largeKey = str_repeat('plugin-option-', 50);
+        $payload = SQLiteRecord::encode([$largeKey, 42]);
+        $allocation = SQLiteIndexCell::encodeWithOverflowPages($payload, 3);
+        $indexPage = SQLiteIndexLeafPage::assemble([$allocation['cell']]);
+        $database = SQLiteDatabase::fromBytes(
+            $makeFirstPage(512, 2 + count($allocation['overflowPages']))
+            . $indexPage
+            . implode('', $allocation['overflowPages']),
+        );
+        $cells = $database->indexCells(2);
+
+        $t->same(2, count($allocation['overflowPages']));
+        $t->same(SQLiteIndexCell::localPayloadLength(strlen($payload), 512), $allocation['localPayloadLength']);
+        $t->same('00000004', bin2hex(substr($allocation['overflowPages'][0], 0, 4)));
+        $t->same('00000000', bin2hex(substr($allocation['overflowPages'][1], 0, 4)));
+        $t->same(1, count($cells));
+        $t->same([$largeKey, 42], $cells[0]->record()->values);
     },
     'assembles wordpress option_name index leaf pages from native index cell encoder' => static function (TestRunner $t) use ($makeFirstPage): void {
         $schemaPage = SQLiteTableLeafPage::assemble([
@@ -660,6 +695,37 @@ return [
         $t->same('844a05', bin2hex(substr($overflow, 0, 3)));
         $t->same('00000003', bin2hex(substr($overflow, -4)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafCell::encode(5, $overflowPayload, 512));
+    },
+    'assembles wordpress table leaf overflow pages from native cell encoders' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $largeValue = str_repeat('wp-cache-fragment:', 28) . 'end';
+        $payload = SQLiteRecord::encode([
+            null,
+            'large_autoloaded_cache',
+            $largeValue,
+            'yes',
+        ]);
+        $allocation = SQLiteTableLeafCell::encodeWithOverflowPages(1, $payload, 3);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], 512, 100, $makeFirstPage(512, 2 + count($allocation['overflowPages'])));
+        $tablePage = SQLiteTableLeafPage::assemble([$allocation['cell']]);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tablePage . implode('', $allocation['overflowPages']));
+        $options = $database->wordpressOptions();
+
+        $t->same(3, $database->pageCount());
+        $t->same(1, count($allocation['overflowPages']));
+        $t->same(SQLiteTableLeafCell::localPayloadLength(strlen($payload), 512), $allocation['localPayloadLength']);
+        $t->same('00000000', bin2hex(substr($allocation['overflowPages'][0], 0, 4)));
+        $t->same(1, count($options));
+        $t->same('large_autoloaded_cache', $options[0]->optionName);
+        $t->same($largeValue, $options[0]->optionValue);
+        $t->same('yes', $options[0]->autoload);
     },
     'assembles wordpress wp_options table leaf pages from native record and cell encoders' => static function (TestRunner $t) use ($makeFirstPage): void {
         $schemaCell = SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([

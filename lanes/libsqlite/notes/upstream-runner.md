@@ -2251,3 +2251,45 @@ child in index order, then resolves `siteurl` through the indexed rowid without
 the PHP SQLite extension. The new
 `examples/wordpress-index-interior-page-assembly.php` script exposes that
 multi-page index fixture path for WordPress repair/preflight tooling.
+
+## Focused Native Mapping: Overflow Page Chain Assembly
+
+This slice adds the write-side overflow-page chain primitive that pairs with
+the existing native overflow reader. `SQLiteOverflowPage::encodeChain()` emits
+SQLite overflow pages with a 4-byte big-endian next-page pointer followed by
+up to `usableSize - 4` payload bytes. `SQLiteTableLeafCell` and
+`SQLiteIndexCell` now expose `encodeWithOverflowPages()` helpers that split
+cell payloads using the same local-payload formulas as the reader, then return
+the encoded cell plus sequential overflow pages.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test btree01.test corrupt3.test
+```
+
+Result on 2026-05-23: 7 Tcl script/permutation runs, 0 errors out of 547 tests
+in 00:00.
+
+Focused upstream fixture boundary:
+
+- `src/btree.c` `fillInCell()` writes local payload bytes first, stores the
+  first overflow page number at the end of the local cell, and then writes
+  each overflow page with its next-page pointer at byte 0 and payload at byte
+  4.
+- `test/insert.test` keeps record payload generation and persisted insert
+  behavior in scope for generated table/index cells.
+- `test/btree01.test` stresses b-tree updates with overflow-sized payloads and
+  integrity checks.
+- `test/corrupt3.test` verifies the on-disk pointer location for a one-page
+  overflow chain and malformed overflow-chain boundaries.
+
+The native PHP tests now cover required overflow page counts, next-page
+pointer bytes, table-leaf overflow page assembly parsed back through
+`wordpressOptions()`, and index-leaf overflow page assembly parsed through
+`indexCells()`. The new
+`examples/wordpress-overflow-page-assembly.php` script emits a WordPress-shaped
+`wp_options` row whose `option_value` spills to overflow pages, then reads it
+back without the PHP SQLite extension.
