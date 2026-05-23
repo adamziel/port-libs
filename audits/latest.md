@@ -1,4 +1,4 @@
-# Independent Audit - 2026-05-23T07:51:45Z
+# Independent Audit - 2026-05-23T07:53:15Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
@@ -39,7 +39,9 @@ it as temporary fixture/oracle evidence.
      root harness PID `1817316 php tools/run-tests.php`, with owner evidence
      `1817316 claude 1604004 00:16 Rs php tools/run-tests.php`. A later exact
      sample was clear, but active writer/update loops and new commits were
-     still landing.
+     still landing. A post-commit handoff sample then found active exact root
+     PID `1897942`, with owner evidence
+     `1897942 claude 1783950 00:23 Rs php tools/run-tests.php`.
    - Audit judgment: freeze active writers and root loops before accepting any
      root harness, dashboard, lane-status, manifest percentage, or progress
      estimate.
@@ -206,6 +208,17 @@ No root run was started because an exact root harness was already active and
 active writer/update loops made the broad dirty worktree non-quiescent. A later
 exact duplicate-root sample was clear, but the tree was still not stable enough:
 active worker/update loops persisted and `HEAD` had advanced to `f4d7e836`.
+A post-commit handoff sample then found another active exact root harness:
+
+```text
+1897942 php tools/run-tests.php
+```
+
+Owner evidence:
+
+```text
+1897942 claude 1783950 00:23 Rs php tools/run-tests.php
+```
 
 Latest dirty-tree samples before this update:
 
