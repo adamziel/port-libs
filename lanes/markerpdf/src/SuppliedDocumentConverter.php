@@ -62,6 +62,9 @@ final class SuppliedDocumentConverter
      *     table_rendered_image_sizes?: array<int, array{width?: int|float, height?: int|float}|list<int|float>>,
      *     table_dpi?: int|float,
      *     table_intersection_threshold?: int|float,
+     *     table_detector_cells?: list<list<array<string, mixed>>>,
+     *     table_ocr_text_lines?: list<list<string|array{text?: string}>>,
+     *     table_detect_boxes?: bool,
      *     equation_predictions?: list<string>,
      *     equation_results?: list<array<string, mixed>>,
      *     equation_model_max_tokens?: int,
@@ -186,6 +189,28 @@ final class SuppliedDocumentConverter
                 $this->listOption($options, 'table_rendered_image_sizes'),
                 $this->numericOption($options, 'table_dpi', 192.0)
             );
+            $detectorCells = $this->listOption($options, 'table_detector_cells');
+            $ocrTextLines = $this->listOption($options, 'table_ocr_text_lines');
+            $detectBoxes = (bool) ($options['table_detect_boxes'] ?? $options['ocr_all_pages'] ?? false);
+            if ($detectorCells !== [] || $ocrTextLines !== [] || $detectBoxes) {
+                $cells = $this->tableRecognizer->getCells(
+                    $tablePlan['table_bboxes'],
+                    $tablePlan['image_sizes'],
+                    $tablePlan['text_lines'],
+                    $detectorCells,
+                    $detectBoxes
+                );
+                $recognizedTables = $this->tableRecognizer->recognizeTables(
+                    $cells['table_cells'],
+                    $cells['needs_ocr'],
+                    $recognizedTables,
+                    $ocrTextLines
+                );
+                $metadata['table_needs_ocr'] = $cells['needs_ocr'];
+                $metadata['table_detect_boxes'] = $detectBoxes;
+                $metadata['table_cell_counts'] = array_map(static fn (array $cells): int => count($cells), $cells['table_cells']);
+                $metadata['supplied_boundaries'][] = 'table-cell-routing';
+            }
             $recognition = $this->tableRecognizer->formatRecognizedTables($recognizedTables, $tablePlan['image_sizes']);
             $markdownTables = $recognition['markdown_tables'];
             $metadata['table_plan'] = $this->tablePlanMetadata($tablePlan);

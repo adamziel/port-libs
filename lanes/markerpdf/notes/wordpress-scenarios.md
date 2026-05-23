@@ -46,7 +46,7 @@ The lane now also maps `marker/logger.py`, `run_marker_app.py`, and `marker_app.
 
 The lane now also maps the early `marker/convert.py::convert_single_pdf` orchestration boundary. `CorePdfConverter` applies metadata language override, engine-specific OCR language normalization, OCR-all-pages folding, filetype metadata, unsupported-filetype short-circuiting, supplied page/TOC metadata, and low-resolution image render planning before handing supplied pages to a native downstream pipeline.
 
-The lane now also maps a document-level supplied-boundary conversion path for `marker/convert.py::convert_single_pdf`. `SuppliedDocumentConverter` composes supplied pdftext page dictionaries, layout predictions, ordering predictions, recognized table dictionaries, table Markdown insertion, supplied image payloads, upstream-shaped no-OCR `ocr_stats`, the upstream zero-extracted-block short-circuit after OCR, and the late finalizer into a BenchmarkRunner-ready native callback without loading pdftext, pypdfium2, Surya, tabled, Texify, Torch, or Nougat.
+The lane now also maps a document-level supplied-boundary conversion path for `marker/convert.py::convert_single_pdf`. `SuppliedDocumentConverter` composes supplied pdftext page dictionaries, layout predictions, ordering predictions, recognized table dictionaries, table Markdown insertion, supplied image payloads, upstream-shaped no-OCR `ocr_stats`, the upstream zero-extracted-block short-circuit after OCR, and the late finalizer into a BenchmarkRunner-ready native callback without loading pdftext, pypdfium2, Surya, tabled, Texify, Torch, or Nougat. The `switch_trans.pdf` supplied page slice uses that path to replace extracted Contents text with one upstream-shaped recognized Markdown table for a Gutenberg TOC/table preview, and the forced-OCR table slice routes supplied detector cells plus OCR text through the upstream `get_cells`/`recognize_tables` boundary when `OCR_ALL_PAGES` forces table cell redetection.
 
 The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and `#` escaping. That gives the WordPress import path a native cleanup step before block rendering.
 
@@ -75,6 +75,10 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-multicolcnn-supplied-benchmark.php` maps a fuller upstream `multicolcnn.pdf` supplied-dictionary excerpt into a WordPress Data Liberation quality gate. It imports supplied pdftext/layout/order payloads for the title, authors, abstract, and introduction, preserves no-OCR `ocr_stats`, keeps Python-style hyphen title casing for `Perspective-Free`, and reports a `0.9778095238095238` score against the committed surrogate threshold.
 
 `examples/wordpress-switch-transformers-supplied-benchmark.php` maps a fuller upstream `switch_trans.pdf` supplied-dictionary excerpt into a WordPress Data Liberation quality gate. It imports supplied pdftext/layout/order payloads for the title, authors, abstract, and introduction, preserves styled emphasis from pdftext spans, and reports a `0.8827096774193548` score against the committed surrogate threshold.
+
+`examples/wordpress-switch-transformers-toc-table-import.php` maps the upstream committed Marker `switch_trans.pdf` Contents table page slice into a WordPress Data Liberation TOC review. It imports supplied pdftext/layout/order/recognized-table payloads, replaces the raw extracted TOC lines with one recognized Markdown table, emits a Gutenberg table preview, and reports a `0.527` score against the inspected Marker output excerpt.
+
+`examples/wordpress-forced-ocr-table-import.php` maps forced table cell redetection for scanned PDFs. It imports supplied detector cells and supplied OCR text, records `needs_ocr` metadata, and renders a Gutenberg-ready Markdown table without requiring Python model workers on shared hosting.
 
 `examples/upstream-surrogate-score.php` scores small README-linked surrogate pairs sampled from Marker's committed `data/examples/marker` and `data/examples/nougat` outputs. These remain useful comparison fixtures alongside the now-inspected external CI benchmark archive.
 
@@ -188,4 +192,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Next bounded task: map a table-of-contents/table-heavy `switch_trans.pdf` page slice, or acquire an actual upstream benchmark excerpt with Formula regions to replace the synthetic supplied-equation fixture.
+Next bounded task: acquire or derive an actual upstream Formula region benchmark excerpt, or expand `switch_trans.pdf` table coverage to Table 1/2/9 with recognized numeric cells and captions.

@@ -156,6 +156,81 @@ return [
             unlink($path);
         }
     },
+    'routes forced OCR table cells through supplied detector output before formatting' => static function (TestRunner $t) use ($pdftextPage): void {
+        $path = sys_get_temp_dir() . '/markerpdf-forced-ocr-table-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% forced OCR table supplied pipeline\n%%EOF");
+        try {
+            $page = $pdftextPage(0, [
+                ['text' => 'Scanned table review', 'bbox' => [72.0, 48.0, 300.0, 68.0], 'font' => 'Heading-Bold', 'weight' => 700, 'size' => 18],
+                ['text' => 'Feature Status Images Needs OCR review', 'bbox' => [72.0, 180.0, 360.0, 214.0]],
+            ]);
+            $layout = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['label' => 'Title', 'bbox' => [72.0, 48.0, 300.0, 68.0]],
+                    ['label' => 'Table', 'bbox' => [72.0, 180.0, 360.0, 240.0]],
+                ],
+            ];
+            $order = [
+                'image_bbox' => [0.0, 0.0, 612.0, 792.0],
+                'bboxes' => [
+                    ['position' => 0, 'bbox' => [72.0, 48.0, 300.0, 68.0]],
+                    ['position' => 1, 'bbox' => [72.0, 180.0, 360.0, 240.0]],
+                ],
+            ];
+            $recognizedTable = [
+                'rows' => [
+                    ['row_id' => 0, 'bbox' => [0.0, 0.0, 240.0, 30.0]],
+                    ['row_id' => 1, 'bbox' => [0.0, 40.0, 240.0, 70.0]],
+                ],
+                'cols' => [
+                    ['col_id' => 0, 'bbox' => [0.0, 0.0, 110.0, 80.0]],
+                    ['col_id' => 1, 'bbox' => [120.0, 0.0, 240.0, 80.0]],
+                ],
+            ];
+            $detectorCells = [[
+                ['bbox' => [10.0, 5.0, 100.0, 25.0], 'text' => null],
+                ['bbox' => [130.0, 5.0, 230.0, 25.0], 'text' => null],
+                ['bbox' => [10.0, 45.0, 100.0, 65.0], 'text' => null],
+                ['bbox' => [130.0, 45.0, 230.0, 65.0], 'text' => null],
+            ]];
+
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                [$page],
+                [
+                    'metadata' => ['languages' => ['English']],
+                    'layout_results' => [$layout],
+                    'order_results' => [$order],
+                    'recognized_tables' => [$recognizedTable],
+                    'table_text_lines' => [['blocks' => [
+                        ['bbox' => [72.0, 180.0, 360.0, 214.0], 'text' => 'Feature Status Images Needs OCR review'],
+                    ]]],
+                    'table_detector_cells' => $detectorCells,
+                    'table_ocr_text_lines' => [[
+                        ['text' => 'Feature'],
+                        ['text' => 'Status'],
+                        ['text' => 'Images'],
+                        ['text' => 'Needs OCR review'],
+                    ]],
+                    'table_rendered_image_sizes' => [['width' => 612, 'height' => 792]],
+                    'ocr_all_pages' => true,
+                ],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $t->contains('# Scanned Table Review', $result['text']);
+            $t->contains('| Feature | Status           |', $result['text']);
+            $t->contains('| Images  | Needs OCR review |', $result['text']);
+            $t->same(['layout', 'order', 'table-cell-routing', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same([true], $result['metadata']['table_needs_ocr']);
+            $t->same(true, $result['metadata']['table_detect_boxes']);
+            $t->same([4], $result['metadata']['table_cell_counts']);
+            $t->same('Needs OCR review', $result['metadata']['table_assigned_cells'][0][3]['text']);
+        } finally {
+            unlink($path);
+        }
+    },
     'converts a fuller multicolcnn supplied dictionary excerpt with upstream finalization metadata' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/upstream-multicolcnn-supplied-document.php';
         $path = sys_get_temp_dir() . '/markerpdf-multicolcnn-supplied-' . bin2hex(random_bytes(4)) . '.pdf';
@@ -229,6 +304,43 @@ return [
             $t->same(1, $result['metadata']['context']['lowres_image_count']);
             $t->same('Abstract', $result['metadata']['pdf_toc'][0]['title']);
             $t->same('Switch Transformers: Scaling To Trillion Parameter Models With Simple And Efficient Sparsity', $result['metadata']['computed_toc'][0]['title']);
+        } finally {
+            unlink($path);
+        }
+    },
+    'converts the switch transformer contents table page slice through supplied table recognition' => static function (TestRunner $t): void {
+        $fixture = require __DIR__ . '/../fixtures/upstream-switch-transformers-toc-table-supplied-document.php';
+        $path = sys_get_temp_dir() . '/markerpdf-switch-transformers-toc-table-' . bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n% switch transformer toc table supplied fixture\n%%EOF");
+
+        try {
+            $result = (new SuppliedDocumentConverter())->convert(
+                $path,
+                $fixture['pdftextPages'],
+                $fixture['options'],
+                new MarkerSettings(['EXTRACT_IMAGES' => false])
+            );
+
+            $score = (new BenchmarkScorer())->scoreText(
+                $result['text'],
+                $fixture['markerExcerpt'],
+                $fixture['chunkLength']
+            );
+
+            $t->same($fixture['expectedMarkdown'], $result['text']);
+            $t->contains('## Contents', $result['text']);
+            $t->contains('| 2.1 | Simplifying Sparse Routing', $result['text']);
+            $t->contains('Expert\\-Parallelism', $result['text']);
+            $t->true($score > $fixture['scoreThreshold']);
+            $t->same(['layout', 'order', 'table-recognition', 'table-formatting'], $result['metadata']['supplied_boundaries']);
+            $t->same(1, $result['metadata']['block_stats']['table']);
+            $t->same(1, $result['metadata']['inserted_tables']);
+            $t->same([1], $result['metadata']['table_plan']['table_counts']);
+            $t->same([0], $result['metadata']['table_plan']['doc_indexes']);
+            $t->same('Preventing Token Dropping with No-Token-Left-Behind', $result['metadata']['table_assigned_cells'][0][19]['text']);
+            $t->same([3], $result['metadata']['table_assigned_cells'][0][8]['col_ids']);
+            $t->same('Contents', $result['metadata']['computed_toc'][2]['title']);
+            $t->same(33, $result['context']['document_page_count']);
         } finally {
             unlink($path);
         }
