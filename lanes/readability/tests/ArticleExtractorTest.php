@@ -700,6 +700,108 @@ return [
         $t->same(false, str_contains($article->text, 'Support The Guardian'), 'Guardian contribution chrome should not enter article text');
         $t->same(false, str_contains($article->text, 'Eleanor Ainge Roy'), 'byline metadata should not be duplicated in article text');
     },
+    'maps Mozilla nytimes-1 fixture with rich figure caption and hidden feedback cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/nytimes-1';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true, ['caption']);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($attributeValues($expected, '//figure/@id'), $attributeValues($article->contentHtml, '//figure/@id'));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//img/@data-mediaviewer-caption'), $attributeValues($article->contentHtml, '//img/@data-mediaviewer-caption'));
+        $t->same($attributeValues($expected, '//img/@data-mediaviewer-credit'), $attributeValues($article->contentHtml, '//img/@data-mediaviewer-credit'));
+        $t->same($attributeValues($expected, '//figcaption/@class'), $attributeValues($article->contentHtml, '//figcaption/@class'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//figcaption')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//figcaption')),
+            'the NYT caption text and credit holder should retain upstream structure',
+        );
+        $t->same(1, substr_count($blocks, '<!-- wp:image -->'), 'NYT figure should serialize as one WordPress image block');
+        $t->contains('United Nations peacekeepers at a refugee camp in Sudan on Monday', $blocks);
+        $t->contains('Ashraf Shazly/Agence France-Presse', $blocks);
+        $t->same(false, str_contains($article->contentHtml, 'feedback-link'), 'hidden NYT feedback prompt should be removed like upstream visible-content cleanup');
+        $t->same(false, str_contains($article->text, 'We’re interested in your feedback'), 'hidden NYT feedback copy should not enter migrated article text');
+    },
+    'maps Mozilla nytimes-2 fixture with continuation links and hidden story interrupters' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/nytimes-2';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true, ['caption']);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(['story'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/article/@id'));
+        $t->same($attributeValues($expected, '//figure/@id'), $attributeValues($article->contentHtml, '//figure/@id'));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//img/@data-mediaviewer-credit'), $attributeValues($article->contentHtml, '//img/@data-mediaviewer-credit'));
+        $t->same($attributeValues($expected, '//figcaption/@class'), $attributeValues($article->contentHtml, '//figcaption/@class'));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//a[contains(., "Continue reading the main story")]/@href')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//a[contains(., "Continue reading the main story")]/@href')),
+            'NYT continuation anchors should match the upstream fixture boundary',
+        );
+        $t->same($attributeValues($expected, '//p/@id'), $attributeValues($article->contentHtml, '//p/@id'));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(1, substr_count($blocks, '<!-- wp:image -->'), 'NYT lead figure should serialize as one WordPress image block');
+        $t->same(23, substr_count($blocks, '<!-- wp:paragraph -->'), 'NYT body and continuation-link paragraphs should serialize as paragraph blocks');
+        $t->same(false, str_contains($article->text, 'Advertisement'), 'hidden NYT ad interrupters should not enter article text');
+        $t->same(false, str_contains($article->contentHtml, 'story-ad'), 'hidden NYT story ad containers should be removed');
+        $t->same(false, str_contains($article->text, 'Justice Department Toughened Approach'), 'related story rail should not enter imported article text');
+    },
+    'maps Mozilla telegraph fixture with text sections and publisher media chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/telegraph';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same(6, count($attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/div')));
+        $t->same([], $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'Telegraph image interrupter sections should not become WordPress image blocks');
+        $t->same(13, substr_count($blocks, '<!-- wp:paragraph -->'), 'Telegraph text sections should serialize as paragraph blocks');
+        $t->same(false, str_contains($article->text, 'HARARE HERALD'), 'lead media credit should not enter article text');
+        $t->same(false, str_contains($article->text, 'Related Topics'), 'related-topic chrome should not enter article text');
+        $t->same(false, str_contains($article->text, 'Show comments'), 'comment chrome should not enter article text');
+    },
     'preserves requested WordPress caption classes without keeping theme classes' => static function (TestRunner $t): void {
         $source = '<html><head><meta property="og:title" content="Caption Class Import"></head><body><article>'
             . '<h1>Caption Class Import</h1>'

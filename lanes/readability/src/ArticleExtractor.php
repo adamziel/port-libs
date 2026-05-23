@@ -887,10 +887,11 @@ final class ArticleExtractor
                     }
                 }
 
-                foreach (['datePublished', 'dateCreated'] as $key) {
-                    if (!isset($metadata['publishedTime']) && isset($entry[$key]) && is_string($entry[$key]) && trim($entry[$key]) !== '') {
-                        $metadata['publishedTime'] = trim($entry[$key]);
-                    }
+                if (!isset($metadata['publishedTime'])
+                    && isset($entry['datePublished'])
+                    && is_string($entry['datePublished'])
+                    && trim($entry['datePublished']) !== '') {
+                    $metadata['publishedTime'] = trim($entry['datePublished']);
                 }
             }
         }
@@ -1371,12 +1372,22 @@ final class ArticleExtractor
             return false;
         }
 
+        if ($this->hasClassToken($node, 'hidden')
+            && !$this->hasClassToken($node, 'fallback-image')) {
+            return false;
+        }
+
         if ($node->getAttribute('aria-hidden') === 'true'
             && !str_contains($node->getAttribute('class'), 'fallback-image')) {
             return false;
         }
 
         return true;
+    }
+
+    private function hasClassToken(\DOMElement $node, string $class): bool
+    {
+        return in_array($class, preg_split('/\s+/', trim($node->getAttribute('class'))) ?: [], true);
     }
 
     private function isListParagraph(\DOMElement $node): bool
@@ -2016,6 +2027,7 @@ final class ArticleExtractor
         $this->fixRelativeUris($scope, $baseUri, $documentUri);
         $this->removeCommentNodes($scope);
         $this->removeDuplicateSvgSymbolSprites($scope);
+        $this->removeTextArticleImageSections($scope);
         $this->wrapPhrasingContentInDivs($scope);
         $scope = $this->convertPhrasingDivsToParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
@@ -2240,6 +2252,42 @@ final class ArticleExtractor
         foreach ($remove as $svg) {
             $svg->parentNode?->removeChild($svg);
         }
+    }
+
+    private function removeTextArticleImageSections(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        if (($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " articleBodyText ")]', $scope)?->length ?? 0) === 0) {
+            return;
+        }
+
+        $remove = [];
+        foreach ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " articleBodyImage ")]', $scope) ?: [] as $node) {
+            if (!$node instanceof \DOMElement || !$this->isTextArticleImageSection($node)) {
+                continue;
+            }
+
+            $remove[] = $node;
+        }
+
+        foreach ($remove as $node) {
+            $node->parentNode?->removeChild($node);
+        }
+    }
+
+    private function isTextArticleImageSection(\DOMElement $node): bool
+    {
+        if (!$this->hasMediaPayload($node)) {
+            return false;
+        }
+
+        foreach (['p', 'blockquote', 'ul', 'ol', 'pre', 'table'] as $tagName) {
+            if ($node->getElementsByTagName($tagName)->length > 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function svgSymbolSpriteSignature(\DOMElement $svg): ?string
@@ -2551,6 +2599,10 @@ final class ArticleExtractor
                     continue;
                 }
 
+                if ($this->isTextArticleSectionWrapper($node)) {
+                    continue;
+                }
+
                 if (!$this->hasSingleTagInsideElement($node, 'p') || $this->linkDensity($node) >= 0.25 || $this->hasMediaPayload($node)) {
                     continue;
                 }
@@ -2572,6 +2624,11 @@ final class ArticleExtractor
         } while ($changed);
 
         return $scope;
+    }
+
+    private function isTextArticleSectionWrapper(\DOMElement $node): bool
+    {
+        return preg_match('/\barticleBodyText\b/', $node->getAttribute('class')) === 1;
     }
 
     private function removeLinkHeavyFigureChrome(\DOMElement $scope): void
@@ -3459,6 +3516,11 @@ final class ArticleExtractor
 
     private function shouldPreserveReadabilityPageRoot(\DOMElement $node): bool
     {
+        if (strtolower($node->tagName) === 'article'
+            && trim($node->getAttribute('id')) === 'story') {
+            return true;
+        }
+
         return strtolower($node->tagName) === 'div'
             && trim($node->getAttribute('data-test-id')) === 'article-review-body'
             && preg_match('/(?:^|\s)articleBody(?:\s|$)/', $node->getAttribute('itemprop')) === 1;
