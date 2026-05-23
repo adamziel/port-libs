@@ -137,6 +137,21 @@ return [
             ],
         ], $plan['operations']);
     },
+    'does not index colors when upstream would draw no operations' => static function (TestRunner $t): void {
+        $planner = new DebugRenderPlanner();
+
+        $t->same([], $planner->renderOnImagePlan([[1, 2, 3, 4]], color: [], drawBbox: false)['operations']);
+        $t->same(
+            [],
+            $planner->renderOnImagePlan(
+                [[1, 2, 3, 4]],
+                ['skipped'],
+                color: [],
+                drawBbox: false,
+                textSizer: static fn (string $label, int $fontSize): array => [0, 10]
+            )['operations']
+        );
+    },
     'reports the same missing-list boundaries as upstream index access' => static function (TestRunner $t): void {
         $planner = new DebugRenderPlanner();
 

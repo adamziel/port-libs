@@ -32,14 +32,13 @@ final class DebugRenderPlanner
         $operations = [];
         foreach (array_values($bboxes) as $index => $rawBbox) {
             $bbox = $this->intBbox($rawBbox);
-            $itemColor = $this->colorAt($color, $index);
 
             if ($drawBbox) {
                 $operations[] = [
                     'type' => 'rectangle',
                     'role' => 'bbox',
                     'bbox' => $bbox,
-                    'outline' => $itemColor,
+                    'outline' => $this->colorAt($color, $index),
                     'width' => 1,
                 ];
             }
@@ -57,6 +56,7 @@ final class DebugRenderPlanner
                 continue;
             }
 
+            $itemColor = $this->colorAt($color, $index);
             $textPosition = [$bbox[0] + $labelOffset, $bbox[1] + $labelOffset];
             $labelBox = [
                 $textPosition[0],
