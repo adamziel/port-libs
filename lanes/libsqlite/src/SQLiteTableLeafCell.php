@@ -15,6 +15,28 @@ final class SQLiteTableLeafCell
     ) {
     }
 
+    public static function encode(int $rowId, string $payload, int $usableSize = 512, ?int $firstOverflowPage = null): string
+    {
+        if ($rowId < 0) {
+            throw new \InvalidArgumentException('SQLite table leaf rowid encoding currently supports non-negative rowids only');
+        }
+
+        $payloadLength = strlen($payload);
+        $localPayloadLength = self::localPayloadLength($payloadLength, $usableSize);
+        $cell = SQLiteVarint::encode($payloadLength)
+            . SQLiteVarint::encode($rowId)
+            . substr($payload, 0, $localPayloadLength);
+
+        if ($localPayloadLength < $payloadLength) {
+            if ($firstOverflowPage === null || $firstOverflowPage < 2) {
+                throw new \InvalidArgumentException('SQLite table leaf overflow cell requires a valid first overflow page');
+            }
+            $cell .= pack('N', $firstOverflowPage);
+        }
+
+        return str_pad($cell, 4, "\0");
+    }
+
     /**
      * @param null|callable(int, int): string $overflowReader
      */

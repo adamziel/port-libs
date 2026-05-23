@@ -20,6 +20,7 @@ use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
+use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
 use PortLibs\LibSqlite\SQLiteVarint;
@@ -475,6 +476,94 @@ return [
         $t->same($serialTypes, $record->serialTypes);
         $t->same([null, 0, 1, -2, -2, -2, -2, -2, -2, 1.5, "\x00A\xff", 'abc'], $record->values);
         $t->same(strlen($payload), $record->bytesRead);
+    },
+    'encodes sqlite records using upstream serial type widths' => static function (TestRunner $t): void {
+        $values = [
+            null,
+            0,
+            1,
+            -128,
+            -129,
+            32767,
+            32768,
+            8388607,
+            8388608,
+            2147483647,
+            2147483648,
+            140737488355327,
+            140737488355328,
+            -140737488355328,
+            1.5,
+            SQLiteRecord::blob("\x00A"),
+            'abc',
+        ];
+
+        $payload = SQLiteRecord::encode($values);
+        $record = SQLiteRecord::parse($payload);
+
+        $t->same([0, 8, 9, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 5, 7, 16, 19], $record->serialTypes);
+        $t->same($values[0], $record->values[0]);
+        $t->same(0, $record->values[1]);
+        $t->same(1, $record->values[2]);
+        $t->same(-128, $record->values[3]);
+        $t->same(-129, $record->values[4]);
+        $t->same(140737488355328, $record->values[12]);
+        $t->same(-140737488355328, $record->values[13]);
+        $t->same(1.5, $record->values[14]);
+        $t->same("\x00A", $record->values[15]);
+        $t->same('abc', $record->values[16]);
+    },
+    'encodes sqlite record headers whose size varint expands' => static function (TestRunner $t): void {
+        $payload = SQLiteRecord::encode(array_fill(0, 130, null));
+        $record = SQLiteRecord::parse($payload);
+
+        $t->same([132, 2], SQLiteVarint::decode($payload));
+        $t->same(array_fill(0, 130, 0), $record->serialTypes);
+        $t->same(array_fill(0, 130, null), $record->values);
+    },
+    'encodes sqlite table leaf cells including overflow pointers and minimum cell size' => static function (TestRunner $t): void {
+        $tiny = SQLiteTableLeafCell::encode(1, '');
+        $overflowPayload = str_repeat('x', 586);
+        $overflow = SQLiteTableLeafCell::encode(5, $overflowPayload, 512, 3);
+
+        $t->same(4, strlen($tiny));
+        $t->same('00010000', bin2hex($tiny));
+        $t->same(85, strlen($overflow));
+        $t->same('844a05', bin2hex(substr($overflow, 0, 3)));
+        $t->same('00000003', bin2hex(substr($overflow, -4)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafCell::encode(5, $overflowPayload, 512));
+    },
+    'assembles wordpress wp_options table leaf pages from native record and cell encoders' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $schemaCell = SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+            'table',
+            'wp_options',
+            'wp_options',
+            2,
+            'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+        ]));
+        $siteUrlCell = SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+            null,
+            'siteurl',
+            'https://example.test',
+            'yes',
+        ]));
+        $homeCell = SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([
+            null,
+            'home',
+            'https://example.test',
+            'yes',
+        ]));
+
+        $page1 = SQLiteTableLeafPage::assemble([$schemaCell], 512, 100, $makeFirstPage(512, 2));
+        $page2 = SQLiteTableLeafPage::assemble([$siteUrlCell, $homeCell]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2);
+        $options = $database->wordpressOptions();
+
+        $t->same('table-leaf', $database->pageHeader(2)->pageType);
+        $t->same(2, $database->pageHeader(2)->cellCount);
+        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same(['https://example.test', 'https://example.test'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionValue, $options));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::assemble([str_repeat('x', 500), str_repeat('y', 500)]));
     },
     'decodes sqlite_schema table records from a first-page table leaf cell' => static function (TestRunner $t) use ($makeFirstPage, $varint, $recordPayload): void {
         $payload = $recordPayload(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text)']);

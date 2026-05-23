@@ -2129,3 +2129,46 @@ branch before page decoding. The example
 `examples/wordpress-custom-collation-prefix-option-name-range.php` maps this
 to plugin/cache recovery where a site-specific grouping column uses slug-like
 custom comparison.
+
+## Focused Native Mapping: Record And Table Leaf Assembly
+
+This slice adds the first bounded write-side page primitive beyond varint
+preflight. `SQLiteRecord::encode()` maps SQLite record serial-type selection,
+header-size varint growth, signed integer widths, floating point payloads,
+text payloads, and explicit BLOB payloads. `SQLiteTableLeafCell::encode()`
+maps the table-leaf payload-length/rowid prefix, minimum 4-byte cell size, and
+local payload plus first-overflow-page pointer boundary. `SQLiteTableLeafPage`
+assembles clean table-leaf page headers, cell pointer arrays, and packed cell
+content while preserving the 100-byte database header on page 1.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  insert.test btree01.test
+```
+
+Result on 2026-05-23: 4 Tcl script/permutation runs, 0 errors out of 538
+tests in 00:01.
+
+Focused upstream fixture boundary:
+
+- `src/vdbe.c`/`src/vdbeaux.c` document `OP_MakeRecord` serial types,
+  integer-width thresholds, and record-header sizing.
+- `src/btree.c` `fillInCell()` documents the table-leaf payload-length and
+  rowid varint header, minimum local cell size, and local/overflow payload
+  split.
+- `test/insert.test` verifies persisted inserted rows across common table
+  storage classes and defaults.
+- `test/btree01.test` stresses b-tree cell construction, update, local payload,
+  and overflow-sized payload integrity boundaries.
+
+The native PHP tests now cover record encoding across serial types 0, 1, 2, 3,
+4, 5, 6, 7, 8, 9, text, and BLOB, including a record header that grows to a
+two-byte size varint; table-leaf cell assembly with padding and overflow
+pointer validation; and an assembled two-page WordPress-shaped `wp_options`
+fixture that the existing native reader parses back without the PHP SQLite
+extension. The new example
+`examples/wordpress-table-leaf-page-assembly.php` exposes that fixture path for
+WordPress repair/preflight tooling.

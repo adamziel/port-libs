@@ -17,6 +17,39 @@ final class SQLiteRecord
     ) {
     }
 
+    public static function blob(string $bytes): SQLiteBlobValue
+    {
+        return new SQLiteBlobValue($bytes);
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    public static function encode(array $values, int $textEncoding = 1): string
+    {
+        if ($textEncoding !== 1) {
+            throw new \InvalidArgumentException('SQLite record encoding currently supports UTF-8 text only');
+        }
+
+        $serialTypeBytes = '';
+        $body = '';
+        foreach ($values as $value) {
+            [$serialType, $bytes] = self::serialTypeAndBytes($value);
+            $serialTypeBytes .= SQLiteVarint::encode($serialType);
+            $body .= $bytes;
+        }
+
+        $headerSize = strlen($serialTypeBytes) + 1;
+        while (true) {
+            $encodedHeaderSize = SQLiteVarint::encode($headerSize);
+            $actualHeaderSize = strlen($encodedHeaderSize) + strlen($serialTypeBytes);
+            if ($actualHeaderSize === $headerSize) {
+                return $encodedHeaderSize . $serialTypeBytes . $body;
+            }
+            $headerSize = $actualHeaderSize;
+        }
+    }
+
     public static function parse(string $payload, int $textEncoding = 1): self
     {
         [$headerSize, $headerSizeBytes] = SQLiteVarint::decode($payload, 0);
@@ -47,6 +80,73 @@ final class SQLiteRecord
         }
 
         return new self($values, $serialTypes, $dataOffset);
+    }
+
+    /**
+     * @return array{0:int,1:string}
+     */
+    private static function serialTypeAndBytes(mixed $value): array
+    {
+        if ($value === null) {
+            return [0, ''];
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return [12 + (strlen($value->bytes) * 2), $value->bytes];
+        }
+        if (is_int($value)) {
+            return self::integerSerialTypeAndBytes($value);
+        }
+        if (is_float($value)) {
+            return [7, pack('E', $value)];
+        }
+        if (is_string($value)) {
+            return [13 + (strlen($value) * 2), $value];
+        }
+
+        throw new \InvalidArgumentException('Unsupported SQLite record value type');
+    }
+
+    /**
+     * @return array{0:int,1:string}
+     */
+    private static function integerSerialTypeAndBytes(int $value): array
+    {
+        if ($value === 0) {
+            return [8, ''];
+        }
+        if ($value === 1) {
+            return [9, ''];
+        }
+
+        $magnitude = $value < 0 ? ~$value : $value;
+        if ($magnitude <= 127) {
+            return [1, self::signedIntegerBytes($value, 1)];
+        }
+        if ($magnitude <= 32767) {
+            return [2, self::signedIntegerBytes($value, 2)];
+        }
+        if ($magnitude <= 8388607) {
+            return [3, self::signedIntegerBytes($value, 3)];
+        }
+        if ($magnitude <= 2147483647) {
+            return [4, self::signedIntegerBytes($value, 4)];
+        }
+        if ($magnitude <= 140737488355327) {
+            return [5, self::signedIntegerBytes($value, 6)];
+        }
+
+        return [6, self::signedIntegerBytes($value, 8)];
+    }
+
+    private static function signedIntegerBytes(int $value, int $bytes): string
+    {
+        $encoded = '';
+        for ($i = 0; $i < $bytes; $i++) {
+            $encoded = chr($value & 0xff) . $encoded;
+            $value >>= 8;
+        }
+
+        return $encoded;
     }
 
     /**
