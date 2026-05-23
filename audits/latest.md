@@ -1,9 +1,9 @@
-# Independent Audit - 2026-05-23T08:21:00Z
+# Independent Audit - 2026-05-23T08:23:03Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
 lane-status summaries needed to check alignment, recent Git history through
-`fde2332a`, dirty-tree status, active process/test state, and PHP shell-out
+`015cebea`, dirty-tree status, active process/test state, and PHP shell-out
 surface.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
@@ -35,9 +35,9 @@ it as temporary fixture/oracle evidence.
      `port-markerpdf`, `port-rclone`, `port-libsqlite`, `port-quadrable`,
      `port-syncthing`, `port-lightningcss`, `port-pandoc`, `port-gitoxide`,
      and `port-esbuild`.
-   - Evidence: latest samples at `HEAD` `fde2332a` reported `1002`
-     default `git status --short` entries, `101` tracked changed files, and
-     `101 files changed, 23127 insertions(+), 776 deletions(-)`.
+   - Evidence: latest samples at `HEAD` `015cebea` reported `1014`
+     default `git status --short` entries, `102` tracked changed files, and
+     `102 files changed, 23131 insertions(+), 642 deletions(-)`.
    - Audit judgment: freeze active writers and status publishers before
      accepting any root run, dashboard, lane-status, manifest percentage, or
      progress estimate.
@@ -57,10 +57,11 @@ it as temporary fixture/oracle evidence.
    - Requirement at risk: `goal.md:29`, `goal.md:48`, and `goal.md:49`
      require small reviewable slices with passing tests, verified integration,
      cleanup, and honest failure records.
-   - Evidence: the latest required duplicate-root gate returned no active exact
-     `php tools/run-tests.php` process, but no root run was started because
-     `HEAD` had moved repeatedly during this audit and active writer/update
-     loops were still present.
+   - Evidence: the required duplicate-root gate returned no active exact
+     `php tools/run-tests.php` process before the audit commit, but no root run
+     was started because `HEAD` had moved repeatedly during this audit and
+     active writer/update loops were still present. A post-commit handoff
+     sample then found active exact root PID `2143115`, owned by `claude`.
    - Evidence: lane statuses mix green aggregate anecdotes with pending or
      duplicate-gated root states: examples include Difftastic `197` files,
      Gitoxide `198` files, LightningCSS/libsqlite `197` files, Pandoc `198`
@@ -82,7 +83,7 @@ it as temporary fixture/oracle evidence.
      work, blocker, and commit.
    - Evidence: `porting.html:32`-`36` advertises generated time
      `2026-05-23 04:57:16 UTC` and source commit `bda83c6b93d4`, while the
-     reviewed `HEAD` is `fde2332a`. Both `porting.html` and
+     reviewed `HEAD` is `015cebea`. Both `porting.html` and
      `porting-summary.json` are also dirty in the worktree.
    - Evidence: `porting.html:41`-`50` still has compound `Benchmark` and
      `Mapped` columns instead of separate benchmark source, upstream
@@ -151,7 +152,7 @@ it as temporary fixture/oracle evidence.
      libsqlite `90`, Difftastic `70`, Dolt `71`, and Readability `73`.
    - Evidence: several `latestCommit` fields are not actionable commit ids:
      `lanes/gitoxide/lane-status.json:13` says `eaccd414 - current repository
-     HEAD` even though current `HEAD` is `fde2332a`; rclone, Readability,
+     HEAD` even though current `HEAD` is `015cebea`; rclone, Readability,
      Quadrable, libsqlite, markerPDF, and Dolt explicitly describe uncommitted
      or pending lane batches.
    - Audit judgment: update `progress.md` from the same accepted snapshot as
@@ -210,10 +211,16 @@ Result:
 (no output)
 ```
 
+Post-commit handoff sample:
+
+```text
+2143115 php tools/run-tests.php
+```
+
 Owner evidence:
 
 ```text
-not applicable; no exact root process was returned by pgrep
+2143115 claude 2004264 00:17 Rs php tools/run-tests.php
 ```
 
 No root run was started. Although the latest duplicate-root gate was clear, the
@@ -224,9 +231,9 @@ the worktree remained a large dirty aggregate.
 Latest dirty-tree samples:
 
 ```text
-git status --short: 1002 entries
-git status --short --untracked-files=no: 101 entries
-git diff --shortstat: 101 files changed, 23127 insertions(+), 776 deletions(-)
+git status --short: 1014 entries
+git status --short --untracked-files=no: 102 entries
+git diff --shortstat: 102 files changed, 23131 insertions(+), 642 deletions(-)
 ```
 
 Active process evidence:
@@ -263,6 +270,7 @@ Active process evidence:
 Recent commits reviewed:
 
 ```text
+015cebea Refresh independent audit status
 fde2332a difftastic map parser syntax highlights
 571fc383 Record syncthing scanner skip status
 f9c992a6 Map syncthing Windows symlink scanner skip
