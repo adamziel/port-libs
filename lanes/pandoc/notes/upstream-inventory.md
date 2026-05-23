@@ -139,15 +139,30 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   this run: 74 mapped Markdown lines from the Grid Tables section cover the
   simple headed table, headless table, aligned headed table, aligned headless
   table, trailing-space table, East Asian width table, zero-width German and
-  Persian text cases, and empty cells. The multiple-block cell case and the two
-  row/column-span cases in the same upstream section are counted as inspected
-  but deferred.
+  Persian text cases, and empty cells.
 - `test/markdown-reader-more.native` corresponding rendered AST slice
   inspected in this run: 642 mapped native AST lines show Pandoc `Table`
   nodes with `ColWidth` values derived from grid widths divided by 72, default
   and right/left/center alignments, `TableHead []` for headless cases,
   `SoftBreak` entries inside multiline scalar cells, Unicode text cells, and
   empty `Cell ... []` bodies.
+- `test/markdown-reader-more.txt` grid-table multiple-block cell case
+  inspected in this run: upstream lines 252-261 cover a rectangular grid table
+  whose cells contain Markdown headings, paragraph-separated text caused by an
+  empty interior cell line, bullet-list items, and scalar multiline text.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 987-1087 show a headless `Table` whose
+  first body row contains `Header` plus `Para` block children in each cell, and
+  whose second body row contains two `Para` blocks, one `BulletList`, and one
+  scalar `Plain` cell with `SoftBreak` entries.
+- `test/markdown-reader-more.txt` remaining grid-table span cases inspected in
+  this run: upstream lines 290-313 cover a row/column-span table plus a complex
+  multi-row header table.
+- `test/markdown-reader-more.native` corresponding rendered AST slice
+  inspected in this run: upstream lines 1260-1492 show a header `Cell` with
+  `ColSpan 2`, a body `Cell` with `RowSpan 3`, and a complex two-row
+  `TableHead` whose `Location` header has `RowSpan 2` and whose temperature
+  header has `ColSpan 3`.
 - `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
   lines covering 11 upstream pipe tables, including captioned, uncaptioned,
   headerless, side-less, one-column, no-body, relative-width, and tricky
@@ -737,6 +752,6 @@ The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 154 behavior tests, 1,500 assertions, and 0 failures after this slice. The
-required repo-wide `php tools/run-tests.php` command passed with 174 test
-files, 16,538 assertions, and 0 failures.
+with 157 behavior tests, 1,554 assertions, and 0 failures after this slice. The
+required repo-wide `php tools/run-tests.php` command was also run and passed
+with 177 test files, 16,983 assertions, and 0 failures.

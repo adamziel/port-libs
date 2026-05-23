@@ -424,6 +424,29 @@ Grid table import queue:
 |                  |           | text       |
 +------------------+-----------+------------+
 
+Grid table block-rich import queue:
+
++------------------+-----------+------------+
+| # Source         | # Count   | # Status   |
+| Source           | Count     | Status     |
++------------------+-----------+------------+
+| Posts            | - 42      | ready      |
+|                  | - staged  | for import |
+| Review notes     | - signed  | today      |
++------------------+-----------+------------+
+
+Grid table span import queue:
+
++---------------------+----------+
+| Review scope        | Batch 42 |
++=============+=======+==========+
+|             | posts | ready    |
+| Media audit +-------+----------+
+| 2026-05     | files | pending  |
+|             +-------+----------+
+|             | links | queued   |
++-------------+-------+----------+
+
 Legacy source totals:
 
     Field Count    Status

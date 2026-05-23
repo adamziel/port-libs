@@ -3467,6 +3467,19 @@ final class MarkdownReader
      */
     private function tryReadGridTable(array $lines, int &$index): ?AstNode
     {
+        $rectangular = $this->tryReadRectangularGridTable($lines, $index);
+        if ($rectangular instanceof AstNode) {
+            return $rectangular;
+        }
+
+        return $this->tryReadSpannedGridTable($lines, $index);
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadRectangularGridTable(array $lines, int &$index): ?AstNode
+    {
         $firstBoundary = $this->parseGridTableBoundary($lines[$index] ?? '');
         if ($firstBoundary === null) {
             return null;
@@ -3477,7 +3490,7 @@ final class MarkdownReader
         $columnCount = count($firstBoundary['widths']);
         $alignments = $firstBoundary['alignments'];
         $widths = $firstBoundary['widths'];
-        $headerCells = null;
+        $headerRow = null;
         $bodyRows = [];
         $sawHeader = false;
 
@@ -3497,13 +3510,13 @@ final class MarkdownReader
                 return null;
             }
 
-            $cells = $this->mergeGridTableSectionLines($sectionLines, $columnCount);
-            if ($cells === null || $this->gridTableCellsNeedBlockParsing($cells)) {
+            $cellLines = $this->splitGridTableSectionCellLines($sectionLines, $columnCount);
+            if ($cellLines === null) {
                 return null;
             }
 
             if (!$sawHeader && $boundary['header']) {
-                $headerCells = $cells;
+                $headerRow = $this->buildGridTableRow($cellLines, true);
                 $alignments = $boundary['alignments'];
                 $widths = $boundary['widths'];
                 $sawHeader = true;
@@ -3511,7 +3524,7 @@ final class MarkdownReader
                 continue;
             }
 
-            $bodyRows[] = $cells;
+            $bodyRows[] = $this->buildGridTableRow($cellLines, false);
             $cursor++;
             if ($cursor < $count && $this->isGridTableContentLine($lines[$cursor])) {
                 continue;
@@ -3520,10 +3533,98 @@ final class MarkdownReader
             [$caption, $next] = $this->readTableCaption($lines, $cursor);
             $index = $next - 1;
 
-            return $this->buildSimpleTable($headerCells, $bodyRows, $alignments, $caption, $widths);
+            return $this->buildGridTable($headerRow, $bodyRows, $alignments, $caption, $widths);
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadSpannedGridTable(array $lines, int &$index): ?AstNode
+    {
+        $tableLines = $this->collectSpannedGridTableLines($lines, $index);
+        if ($tableLines === null || !$this->gridTableLinesContainSpans($tableLines)) {
+            return null;
+        }
+
+        $positions = $this->spannedGridTableColumnPositions($tableLines);
+        if (count($positions) < 3) {
+            return null;
+        }
+
+        $events = $this->spannedGridTableEvents($tableLines, $positions);
+        if (count($events) < 2 || $events[0]['line'] !== 0) {
+            return null;
+        }
+
+        $lastEvent = $events[count($events) - 1];
+        if ($lastEvent['line'] !== count($tableLines) - 1) {
+            return null;
+        }
+
+        $headerBoundaryIndex = null;
+        $alignments = array_fill(0, count($positions) - 1, 'default');
+        foreach ($events as $eventIndex => $event) {
+            if ($eventIndex === 0 || !$this->spannedGridEventCoversAllColumns($event)) {
+                continue;
+            }
+
+            if (in_array('header', $event['markers'], true)) {
+                $headerBoundaryIndex = $eventIndex;
+                $alignments = $this->spannedGridTableAlignments($tableLines[$event['line']], $positions);
+                break;
+            }
+        }
+
+        if ($headerBoundaryIndex === null) {
+            return null;
+        }
+
+        $headerRows = [];
+        $bodyRows = [];
+        $covered = [];
+        $rowBandCount = count($events) - 1;
+        $columnCount = count($positions) - 1;
+        for ($rowIndex = 0; $rowIndex < $rowBandCount; $rowIndex++) {
+            $isHeader = $rowIndex < $headerBoundaryIndex;
+            $rowCells = [];
+            for ($columnIndex = 0; $columnIndex < $columnCount; $columnIndex++) {
+                if (($covered[$rowIndex][$columnIndex] ?? false) === true) {
+                    continue;
+                }
+
+                if (!$events[$rowIndex]['coverage'][$columnIndex]) {
+                    return null;
+                }
+
+                $colspan = $this->spannedGridTableCellColspan($tableLines[$events[$rowIndex]['line']], $positions, $columnIndex);
+                $rowspan = $this->spannedGridTableCellRowspan($events, $rowIndex, $columnIndex, $colspan);
+                for ($coveredRow = $rowIndex + 1; $coveredRow < $rowIndex + $rowspan; $coveredRow++) {
+                    for ($coveredColumn = $columnIndex; $coveredColumn < $columnIndex + $colspan; $coveredColumn++) {
+                        $covered[$coveredRow][$coveredColumn] = true;
+                    }
+                }
+
+                $cellLines = $this->spannedGridTableCellLines($tableLines, $events, $positions, $rowIndex, $columnIndex, $rowspan, $colspan);
+                $rowCells[] = $this->buildGridTableCell($cellLines, $isHeader, $rowspan, $colspan);
+                $columnIndex += $colspan - 1;
+            }
+
+            $row = new AstNode('table_row', ['header' => $isHeader], $rowCells);
+            if ($isHeader) {
+                $headerRows[] = $row;
+            } else {
+                $bodyRows[] = $row;
+            }
+        }
+
+        $cursor = $index + count($tableLines);
+        [$caption, $next] = $this->readTableCaption($lines, $cursor);
+        $index = $next - 1;
+
+        return $this->buildGridTableRows($headerRows, $bodyRows, $alignments, $caption, $this->spannedGridTableWidths($positions));
     }
 
     /**
@@ -3582,6 +3683,310 @@ final class MarkdownReader
         ];
     }
 
+    /**
+     * @param list<string> $lines
+     * @return list<string>|null
+     */
+    private function collectSpannedGridTableLines(array $lines, int $index): ?array
+    {
+        if ($this->parseGridTableBoundary($lines[$index] ?? '') === null) {
+            return null;
+        }
+
+        $tableLines = [];
+        $cursor = $index;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $line = $this->normalizeSpannedGridTableLine($lines[$cursor]);
+            if (!$this->isSpannedGridTableLine($line)) {
+                break;
+            }
+
+            $tableLines[] = $line;
+            $cursor++;
+        }
+
+        return count($tableLines) >= 3 ? $tableLines : null;
+    }
+
+    private function normalizeSpannedGridTableLine(string $line): string
+    {
+        $line = rtrim($this->expandTabsToSpaces($line));
+
+        return preg_replace('/^ {0,3}/', '', $line, 1) ?? $line;
+    }
+
+    private function isSpannedGridTableLine(string $line): bool
+    {
+        if ($line === '') {
+            return false;
+        }
+
+        if ($line[0] === '+') {
+            return preg_match('/^\+(?:[-=:]+\+)+$/', $line) === 1;
+        }
+
+        return $line[0] === '|' && preg_match('/[|+]\s*$/', $line) === 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function gridTableLinesContainSpans(array $lines): bool
+    {
+        $positionSets = [];
+        foreach ($lines as $line) {
+            if ($line[0] === '|' && preg_match('/\+[-=:]+\+/', $line) === 1) {
+                return true;
+            }
+
+            $positions = $this->spannedGridTableHorizontalPlusPositions($line);
+            if ($positions !== []) {
+                $positionSets[implode(',', $positions)] = true;
+            }
+        }
+
+        return count($positionSets) > 1;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<int>
+     */
+    private function spannedGridTableColumnPositions(array $lines): array
+    {
+        $positions = [];
+        foreach ($lines as $line) {
+            foreach ($this->spannedGridTableHorizontalPlusPositions($line) as $position) {
+                $positions[$position] = true;
+            }
+        }
+
+        $positions = array_keys($positions);
+        sort($positions, SORT_NUMERIC);
+
+        return array_values($positions);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function spannedGridTableHorizontalPlusPositions(string $line): array
+    {
+        $positions = [];
+        $chars = $this->unicodeChars($line);
+        $count = count($chars);
+        for ($offset = 0; $offset < $count; $offset++) {
+            if ($chars[$offset] !== '+') {
+                continue;
+            }
+
+            $before = $chars[$offset - 1] ?? '';
+            $after = $chars[$offset + 1] ?? '';
+            if ($this->isGridHorizontalChar($before) || $this->isGridHorizontalChar($after)) {
+                $positions[] = $offset;
+            }
+        }
+
+        return $positions;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<int> $positions
+     * @return list<array{line:int, coverage:list<bool>, markers:list<string>}>
+     */
+    private function spannedGridTableEvents(array $lines, array $positions): array
+    {
+        $events = [];
+        foreach ($lines as $lineIndex => $line) {
+            $coverage = [];
+            $markers = [];
+            $sawCoverage = false;
+            for ($columnIndex = 0; $columnIndex < count($positions) - 1; $columnIndex++) {
+                $marker = $this->spannedGridTableBoundaryMarker($line, $positions[$columnIndex], $positions[$columnIndex + 1]);
+                $coverage[] = $marker !== null;
+                $markers[] = $marker ?? 'none';
+                $sawCoverage = $sawCoverage || $marker !== null;
+            }
+
+            if ($sawCoverage) {
+                $events[] = [
+                    'line' => $lineIndex,
+                    'coverage' => $coverage,
+                    'markers' => $markers,
+                ];
+            }
+        }
+
+        return $events;
+    }
+
+    private function spannedGridTableBoundaryMarker(string $line, int $start, int $end): ?string
+    {
+        if ($end <= $start + 1) {
+            return null;
+        }
+
+        $inner = $this->spannedGridTableInnerSegment($line, $start, $end);
+        if ($inner === '' || preg_match('/^[-=:]+$/', $inner) !== 1 || preg_match('/[-=]/', $inner) !== 1) {
+            return null;
+        }
+
+        return str_contains($inner, '=') ? 'header' : 'body';
+    }
+
+    private function isGridHorizontalChar(string $char): bool
+    {
+        return $char === '-' || $char === '=' || $char === ':';
+    }
+
+    /**
+     * @param array{line:int, coverage:list<bool>, markers:list<string>} $event
+     */
+    private function spannedGridEventCoversAllColumns(array $event): bool
+    {
+        foreach ($event['coverage'] as $covered) {
+            if (!$covered) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<int> $positions
+     * @return list<string>
+     */
+    private function spannedGridTableAlignments(string $line, array $positions): array
+    {
+        $alignments = [];
+        for ($columnIndex = 0; $columnIndex < count($positions) - 1; $columnIndex++) {
+            $part = $this->spannedGridTableInnerSegment($line, $positions[$columnIndex], $positions[$columnIndex + 1]);
+            $left = str_starts_with($part, ':');
+            $right = str_ends_with($part, ':');
+            $alignments[] = match (true) {
+                $left && $right => 'center',
+                $left => 'left',
+                $right => 'right',
+                default => 'default',
+            };
+        }
+
+        return $alignments;
+    }
+
+    /**
+     * @param list<int> $positions
+     */
+    private function spannedGridTableCellColspan(string $eventLine, array $positions, int $columnIndex): int
+    {
+        $chars = $this->unicodeChars($eventLine);
+        $columnCount = count($positions) - 1;
+        $colspan = 1;
+        while (
+            $columnIndex + $colspan < $columnCount
+            && ($chars[$positions[$columnIndex + $colspan]] ?? '') !== '+'
+        ) {
+            $colspan++;
+        }
+
+        return $colspan;
+    }
+
+    /**
+     * @param list<array{line:int, coverage:list<bool>, markers:list<string>}> $events
+     */
+    private function spannedGridTableCellRowspan(array $events, int $rowIndex, int $columnIndex, int $colspan): int
+    {
+        $rowspan = 1;
+        while ($rowIndex + $rowspan < count($events) - 1) {
+            $boundary = $events[$rowIndex + $rowspan];
+            $covered = true;
+            for ($column = $columnIndex; $column < $columnIndex + $colspan; $column++) {
+                if (!$boundary['coverage'][$column]) {
+                    $covered = false;
+                    break;
+                }
+            }
+
+            if ($covered) {
+                break;
+            }
+
+            $rowspan++;
+        }
+
+        return $rowspan;
+    }
+
+    /**
+     * @param list<string> $tableLines
+     * @param list<array{line:int, coverage:list<bool>, markers:list<string>}> $events
+     * @param list<int> $positions
+     * @return list<string>
+     */
+    private function spannedGridTableCellLines(array $tableLines, array $events, array $positions, int $rowIndex, int $columnIndex, int $rowspan, int $colspan): array
+    {
+        $lines = [];
+        $top = $events[$rowIndex]['line'];
+        $bottom = $events[$rowIndex + $rowspan]['line'];
+        $start = $positions[$columnIndex];
+        $end = $positions[$columnIndex + $colspan];
+        for ($lineIndex = $top + 1; $lineIndex < $bottom; $lineIndex++) {
+            $lines[] = $this->spannedGridTableSlice($tableLines[$lineIndex], $start, $end);
+        }
+
+        return $lines;
+    }
+
+    private function spannedGridTableSlice(string $line, int $start, int $end): string
+    {
+        $chars = $this->unicodeChars($line);
+        $slice = '';
+        for ($offset = $start + 1; $offset < $end; $offset++) {
+            $slice .= $chars[$offset] ?? ' ';
+        }
+
+        return $slice;
+    }
+
+    private function spannedGridTableInnerSegment(string $line, int $start, int $end): string
+    {
+        $chars = $this->unicodeChars($line);
+        $segment = '';
+        for ($offset = $start + 1; $offset < $end; $offset++) {
+            $segment .= $chars[$offset] ?? ' ';
+        }
+
+        return $segment;
+    }
+
+    /**
+     * @param list<int> $positions
+     * @return list<float>
+     */
+    private function spannedGridTableWidths(array $positions): array
+    {
+        $widths = [];
+        for ($index = 0; $index < count($positions) - 1; $index++) {
+            $widths[] = ($positions[$index + 1] - $positions[$index]) / 72;
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function unicodeChars(string $line): array
+    {
+        $chars = preg_split('//u', $line, -1, PREG_SPLIT_NO_EMPTY);
+
+        return $chars === false ? str_split($line) : $chars;
+    }
+
     private function isGridTableContentLine(string $line): bool
     {
         return preg_match('/^ {0,3}\|.*\|\s*$/', $this->expandTabsToSpaces($line)) === 1;
@@ -3589,18 +3994,20 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
-     * @return list<string>|null
+     * @return list<list<string>>|null
      */
-    private function mergeGridTableSectionLines(array $lines, int $columnCount): ?array
+    private function splitGridTableSectionCellLines(array $lines, int $columnCount): ?array
     {
-        $cells = array_fill(0, $columnCount, '');
+        $cells = array_fill(0, $columnCount, []);
         foreach ($lines as $line) {
             $parts = $this->splitGridTableContentLine($line, $columnCount);
             if ($parts === null) {
                 return null;
             }
 
-            $this->mergeSimpleTableCellsInto($cells, $parts);
+            foreach ($parts as $cellIndex => $part) {
+                $cells[$cellIndex][] = $part;
+            }
         }
 
         return $cells;
@@ -3626,20 +4033,72 @@ final class MarkdownReader
     }
 
     /**
-     * @param list<string> $cells
+     * @param list<string> $lines
      */
-    private function gridTableCellsNeedBlockParsing(array $cells): bool
+    private function mergeGridTableCellLines(array $lines): string
     {
-        foreach ($cells as $cell) {
-            $cellLines = preg_split('/\R/u', $cell) ?: [];
-            foreach ($cellLines as $line) {
-                if (preg_match('/^(?:#{1,6}\s+|[-*+]\s+|\d{1,9}[.)]\s+)/', trim($line)) === 1) {
-                    return true;
-                }
+        $cell = '';
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
             }
+
+            $cell = $cell === '' ? $line : $cell . "\n" . $line;
+        }
+
+        return $cell;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function gridTableCellNeedsBlockParsing(array $lines): bool
+    {
+        $sawContent = false;
+        $sawBlankAfterContent = false;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                if ($sawContent) {
+                    $sawBlankAfterContent = true;
+                }
+                continue;
+            }
+
+            if (preg_match('/^(?:#{1,6}\s+|[-*+]\s+|\d{1,9}[.)]\s+)/', $line) === 1) {
+                return true;
+            }
+
+            if ($sawBlankAfterContent) {
+                return true;
+            }
+
+            $sawContent = true;
         }
 
         return false;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<AstNode>
+     */
+    private function readGridTableCellBlocks(array $lines): array
+    {
+        while ($lines !== [] && trim($lines[0]) === '') {
+            array_shift($lines);
+        }
+        while ($lines !== [] && trim($lines[count($lines) - 1]) === '') {
+            array_pop($lines);
+        }
+
+        if ($lines === []) {
+            return [];
+        }
+
+        return $this->read(implode("\n", $lines))->children;
     }
 
     /**
@@ -4098,6 +4557,87 @@ final class MarkdownReader
         }
 
         return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param AstNode|null $headerRow
+     * @param list<AstNode> $bodyRows
+     * @param list<string> $alignments
+     * @param list<float>|null $widths
+     */
+    private function buildGridTable(?AstNode $headerRow, array $bodyRows, array $alignments, string $caption, ?array $widths): AstNode
+    {
+        return $this->buildGridTableRows($headerRow instanceof AstNode ? [$headerRow] : [], $bodyRows, $alignments, $caption, $widths);
+    }
+
+    /**
+     * @param list<AstNode> $headerRows
+     * @param list<AstNode> $bodyRows
+     * @param list<string> $alignments
+     * @param list<float>|null $widths
+     */
+    private function buildGridTableRows(array $headerRows, array $bodyRows, array $alignments, string $caption, ?array $widths): AstNode
+    {
+        $children = [];
+        if ($headerRows !== []) {
+            $children[] = new AstNode('table_head', [], $headerRows);
+        } else {
+            $children[] = new AstNode('table_head');
+        }
+
+        $children[] = new AstNode('table_body', [], $bodyRows);
+
+        $attrs = [
+            'caption' => $caption,
+            'alignments' => $alignments,
+        ];
+        if ($caption !== '') {
+            $attrs['captionInlines'] = $this->parseInlines($caption);
+        }
+        if ($widths !== null) {
+            $attrs['widths'] = $widths;
+        }
+
+        return new AstNode('table', $attrs, $children);
+    }
+
+    /**
+     * @param list<string> $cellLines
+     */
+    private function buildGridTableCell(array $cellLines, bool $header, int $rowspan = 1, int $colspan = 1): AstNode
+    {
+        $text = $this->mergeGridTableCellLines($cellLines);
+        $attrs = [
+            'text' => $text,
+            'header' => $header,
+        ];
+        if ($rowspan > 1) {
+            $attrs['rowspan'] = $rowspan;
+        }
+        if ($colspan > 1) {
+            $attrs['colspan'] = $colspan;
+        }
+
+        return new AstNode(
+            'table_cell',
+            $attrs,
+            $this->gridTableCellNeedsBlockParsing($cellLines)
+                ? $this->readGridTableCellBlocks($cellLines)
+                : $this->parseInlines($text)
+        );
+    }
+
+    /**
+     * @param list<list<string>> $cellLinesByColumn
+     */
+    private function buildGridTableRow(array $cellLinesByColumn, bool $header): AstNode
+    {
+        $children = [];
+        foreach ($cellLinesByColumn as $cellLines) {
+            $children[] = $this->buildGridTableCell($cellLines, $header);
+        }
+
+        return new AstNode('table_row', ['header' => $header], $children);
     }
 
     /**

@@ -376,6 +376,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   caption, plus a wrapped multiline review-note table with colgroup widths,
   exercising gridless table imports from older Pandoc-compatible exports that
   do not use pipe-table syntax.
+- The fixture now includes a Markdown grid-table span import queue based on the
+  upstream row/column-span shape, exercising colspan and rowspan preservation in
+  WordPress table block output without shelling out to Pandoc.
 - The fixture now includes a short-caption LaTeX table import that keeps a
   compact reviewer label (`Batch 42`) while rendering the longer handoff
   caption in the WordPress table figcaption.
@@ -533,6 +536,14 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   blocks with upstream-style grid widths, header/headless table shapes,
   right/left/center alignment markers, scalar multiline cells, Unicode source
   text, and empty cells preserved without invoking Pandoc.
+- Block-rich Pandoc grid-table import queues now preserve headings, paragraphs,
+  and bullet lists inside table cells while keeping scalar multiline cells
+  compact. This maps the upstream multiple-block cell case and gives migration
+  reviewers WordPress table output without flattening cell-level structure.
+- Pandoc grid-table span import queues now preserve omitted interior column
+  dividers as `colspan` metadata, partial horizontal separators as `rowspan`
+  metadata, and the adjacent complex multi-row header shape as a WordPress table
+  head with spanning header cells.
 - Legacy simple-table source totals render as core WordPress table blocks with
   inferred alignment styles and captions without invoking Pandoc.
 - Wrapped multiline review tables render as core WordPress table blocks with
@@ -549,5 +560,5 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 ## Next Task
 
 Map another bounded Markdown reader fixture shard from
-`test/markdown-reader-more.txt/native`, with priority on deferred grid-table
-multiple-block cells and row/column spans.
+`test/markdown-reader-more.txt/native`, starting with the post-grid entities in
+links/titles and parentheses-in-URLs cases.

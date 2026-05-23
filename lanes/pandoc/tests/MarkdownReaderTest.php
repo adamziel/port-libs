@@ -753,6 +753,112 @@ return [
         $t->contains('<td>魚</td><td>fish</td>', $blocks);
         $t->contains('<td></td><td></td>', $blocks);
     },
+    'maps upstream markdown reader more grid tables with multiple block children' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Multiple blocks in a cell',
+            '',
+            '+------------------+-----------+------------+',
+            '| # col 1          | # col 2   | # col 3    |',
+            '| col 1            | col 2     | col 3      |',
+            '+------------------+-----------+------------+',
+            '| r1 a             | - b       | c          |',
+            '|                  | - b 2     | c 2        |',
+            '| r1 bis           | - b 2     | c 2        |',
+            '+------------------+-----------+------------+',
+        ]));
+        $table = $document->children[1];
+        $firstRow = $table->children[1]->children[0];
+        $secondRow = $table->children[1]->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same([], $table->children[0]->children);
+        $t->same([19 / 72, 12 / 72, 13 / 72], $table->attr('widths'));
+        $t->same(['heading', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $firstRow->children[0]->children));
+        $t->same(1, $firstRow->children[0]->children[0]->attr('level'));
+        $t->same('col-1', $firstRow->children[0]->children[0]->attr('id'));
+        $t->same('col 1', $firstRow->children[0]->children[0]->attr('text'));
+        $t->same('col 1', $firstRow->children[0]->children[1]->attr('text'));
+        $t->same(['paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $secondRow->children[0]->children));
+        $t->same('r1 a', $secondRow->children[0]->children[0]->attr('text'));
+        $t->same('r1 bis', $secondRow->children[0]->children[1]->attr('text'));
+        $t->same('bullet_list', $secondRow->children[1]->children[0]->type);
+        $t->same(3, count($secondRow->children[1]->children[0]->children));
+        $t->same('b 2', $secondRow->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(['text', 'softbreak', 'text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $secondRow->children[2]->children));
+        $t->same("c\nc 2\nc 2", $secondRow->children[2]->attr('text'));
+        $t->contains('<td><h1 id="col-1">col 1</h1><p>col 1</p></td>', $blocks);
+        $t->contains('<td><p>r1 a</p><p>r1 bis</p></td><td><ul><li>b</li><li>b 2</li><li>b 2</li></ul></td>', $blocks);
+    },
+    'maps upstream markdown reader more grid table row and column spans' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Table with cells spanning multiple rows or columns:',
+            '',
+            '+---------------------+----------+',
+            '| Property            | Earth    |',
+            '+=============+=======+==========+',
+            '|             | min   | -89.2 °C |',
+            '| Temperature +-------+----------+',
+            '| 1961-1990   | mean  | 14 °C    |',
+            '|             +-------+----------+',
+            '|             | min   | 56.7 °C  |',
+            '+-------------+-------+----------+',
+        ]));
+        $table = $document->children[1];
+        $headRow = $table->children[0]->children[0];
+        $body = $table->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same([14 / 72, 8 / 72, 11 / 72], $table->attr('widths'));
+        $t->same(2, count($headRow->children));
+        $t->same(2, $headRow->children[0]->attr('colspan'));
+        $t->same('Property', $headRow->children[0]->attr('text'));
+        $t->same('Earth', $headRow->children[1]->attr('text'));
+        $t->same(3, count($body->children));
+        $t->same(3, count($body->children[0]->children));
+        $t->same(2, count($body->children[1]->children));
+        $t->same(2, count($body->children[2]->children));
+        $t->same(3, $body->children[0]->children[0]->attr('rowspan'));
+        $t->same("Temperature\n1961-1990", $body->children[0]->children[0]->attr('text'));
+        $t->same(['text', 'softbreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $body->children[0]->children[0]->children));
+        $t->same('mean', $body->children[1]->children[0]->attr('text'));
+        $t->same('56.7 °C', $body->children[2]->children[1]->attr('text'));
+        $t->contains('<th colspan="2">Property</th><th>Earth</th>', $blocks);
+        $t->contains("<td rowspan=\"3\">Temperature\n1961-1990</td><td>min</td><td>-89.2 °C</td>", $blocks);
+        $t->contains('<tr><td>mean</td><td>14 °C</td></tr><tr><td>min</td><td>56.7 °C</td></tr>', $blocks);
+    },
+    'maps upstream markdown reader more grid table complex header spans' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Table with complex header:',
+            '',
+            '+---------------------+-----------------------+',
+            '| Location            | Temperature 1961-1990 |',
+            '|                     | in degree Celsius     |',
+            '|                     +-------+-------+-------+',
+            '|                     | min   | mean  | max   |',
+            '+=====================+=======+=======+=======+',
+            '| Antarctica          | -89.2 | N/A   | 19.8  |',
+            '+---------------------+-------+-------+-------+',
+            '| Earth               | -89.2 | 14    | 56.7  |',
+            '+---------------------+-------+-------+-------+',
+        ]));
+        $table = $document->children[1];
+        $head = $table->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table', $table->type);
+        $t->same([22 / 72, 8 / 72, 8 / 72, 8 / 72], $table->attr('widths'));
+        $t->same(2, count($head->children));
+        $t->same(2, $head->children[0]->children[0]->attr('rowspan'));
+        $t->same('Location', $head->children[0]->children[0]->attr('text'));
+        $t->same(3, $head->children[0]->children[1]->attr('colspan'));
+        $t->same("Temperature 1961-1990\nin degree Celsius", $head->children[0]->children[1]->attr('text'));
+        $t->same(['min', 'mean', 'max'], array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $head->children[1]->children));
+        $t->contains("<th rowspan=\"2\">Location</th><th colspan=\"3\">Temperature 1961-1990\nin degree Celsius</th>", $blocks);
+        $t->contains('<tr><th>min</th><th>mean</th><th>max</th></tr>', $blocks);
+        $t->contains('<tr><td>Earth</td><td>-89.2</td><td>14</td><td>56.7</td></tr>', $blocks);
+    },
     'maps upstream testsuite ampersand links and autolinks' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(implode("\n", [
             "Here's a [link with an ampersand in the URL][1].",
@@ -3898,6 +4004,13 @@ XML;
         $t->contains('<th style="text-align:right">Source</th><th style="text-align:left">Count</th><th style="text-align:center">Status</th>', $blocks);
         $t->contains('<td style="text-align:right">Posts</td><td style="text-align:left">42</td><td style="text-align:center">ready</td>', $blocks);
         $t->contains("<td style=\"text-align:right\">Media files</td><td style=\"text-align:left\">108</td><td style=\"text-align:center\">needs alt\ntext</td>", $blocks);
+        $t->contains('<p>Grid table block-rich import queue:</p>', $blocks);
+        $t->contains('<td><h1 id="source">Source</h1><p>Source</p></td><td><h1 id="count">Count</h1><p>Count</p></td><td><h1 id="status">Status</h1><p>Status</p></td>', $blocks);
+        $t->contains('<td><p>Posts</p><p>Review notes</p></td><td><ul><li>42</li><li>staged</li><li>signed</li></ul></td>', $blocks);
+        $t->contains('<p>Grid table span import queue:</p>', $blocks);
+        $t->contains('<th colspan="2">Review scope</th><th>Batch 42</th>', $blocks);
+        $t->contains("<td rowspan=\"3\">Media audit\n2026-05</td><td>posts</td><td>ready</td>", $blocks);
+        $t->contains('<tr><td>files</td><td>pending</td></tr><tr><td>links</td><td>queued</td></tr>', $blocks);
     },
     'writes wordpress simple table blocks for legacy import totals' => static function (TestRunner $t): void {
         $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');

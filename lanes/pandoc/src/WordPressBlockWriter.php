@@ -750,7 +750,7 @@ final class WordPressBlockWriter
             }
             if ($block->type === 'heading') {
                 $level = (int) $block->attr('level', 2);
-                $html .= '<h' . $level . '>' . $this->renderInlines($block) . '</h' . $level . '>';
+                $html .= '<h' . $level . $this->renderHeadingAttrs($block) . '>' . $this->renderInlines($block) . '</h' . $level . '>';
                 continue;
             }
             if ($block->type === 'bullet_list') {
