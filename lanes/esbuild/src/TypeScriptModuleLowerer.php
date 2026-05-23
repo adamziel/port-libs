@@ -708,6 +708,10 @@ final class TypeScriptModuleLowerer
 
         if (!in_array('declare', $modifiers, true)) {
             if ($cursor > $end) {
+                if ($accessorModifierIndex !== false) {
+                    return [[$this->printClassMemberRange($start, $end)], true, [], [], []];
+                }
+
                 return [[$this->printClassMemberRange($start, $end)], false, [], [], []];
             }
 
@@ -811,7 +815,7 @@ final class TypeScriptModuleLowerer
         }
 
         $cursor = $nameEnd + 1;
-        $transformed = array_intersect($modifiers, ['abstract', 'override', 'private', 'protected', 'public', 'readonly']) !== [];
+        $transformed = true;
         if (($this->tokens[$cursor] ?? null)?->text === '?' || ($this->tokens[$cursor] ?? null)?->text === '!') {
             $transformed = true;
             $cursor++;

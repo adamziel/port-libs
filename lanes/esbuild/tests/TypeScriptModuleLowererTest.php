@@ -1200,6 +1200,45 @@ JS . "\n", $lowerer->lower('class Foo { readonly accessor x }'));
         $t->same("let x;\n", $lowerer->lower('let x: { accessor x }'));
         $t->same("let x;\n", $lowerer->lower('let x: { static accessor x }'));
     },
+    'normalizes upstream plain typescript auto accessor fields' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor;
+}
+JS . "\n", $lowerer->lower('class Foo { accessor }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor x;
+}
+JS . "\n", $lowerer->lower('class Foo { accessor x }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  static accessor x;
+}
+JS . "\n", $lowerer->lower('class Foo { static accessor x }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor [x];
+}
+JS . "\n", $lowerer->lower('class Foo { accessor [x] }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor #x;
+}
+JS . "\n", $lowerer->lower('class Foo { accessor #x }'));
+
+        $t->same(<<<'JS'
+class Foo {
+  accessor x = y;
+}
+JS . "\n", $lowerer->lower('class Foo { accessor x = y }'));
+    },
     'rejects malformed upstream typescript auto accessors' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -1871,6 +1910,8 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $lowered = (new TypeScriptModuleLowerer())->lower($source);
 
         $t->contains('class CardBlockAccessorController {', $lowered);
+        $t->contains('static accessor controllerVersion = "1";', $lowered);
+        $t->contains('accessor assetHandle = metadata.name;', $lowered);
         $t->contains('accessor settings = {supports:{html:false}, viewScript:"file:./view.js",};', $lowered);
         $t->contains('accessor [assetKey("worker")] = "file:./card-worker.js";', $lowered);
         $t->contains('accessor #blockName = metadata.name;', $lowered);
