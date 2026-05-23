@@ -150,6 +150,69 @@ CSS;
             $transformer->lower('.foo { @container (min-width: 100px) { grid-auto-flow: column; &article > figure { color: red; } } }')
         );
     },
+    'nesting transformer maps upstream nested layer lowering' => static function (TestRunner $t): void {
+        $transformer = new NestingTransformer();
+
+        $t->same(
+            '.foo{display:grid}@layer test{.foo{grid-auto-flow:column}}',
+            $transformer->lower('.foo { display: grid; @layer test { grid-auto-flow: column; } }')
+        );
+        $t->same(
+            '.foo{display:grid}@layer{.foo{grid-auto-flow:column}}',
+            $transformer->lower('.foo { display: grid; @layer { grid-auto-flow: column; } }')
+        );
+    },
+    'nesting transformer maps upstream namespace-attached selector lowering' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@namespace "http://example.com/foo";
+@namespace toto "http://toto.example.org";
+
+.foo {
+  &div {
+    color: red;
+  }
+
+  &* {
+    color: green;
+  }
+
+  &|x {
+    color: red;
+  }
+
+  &*|x {
+    color: green;
+  }
+
+  &toto|x {
+    color: red;
+  }
+}
+CSS;
+
+        $t->same(
+            '@namespace "http://example.com/foo";@namespace toto "http://toto.example.org";div.foo{color:red}*.foo{color:green}|x.foo{color:red}*|x.foo{color:green}toto|x.foo{color:red}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
+    'nesting transformer recovers invalid styled-jsx placeholder media query' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.container {
+  padding: 3rem;
+
+  @media (max-width: --styled-jsx-placeholder-0__) {
+    .responsive {
+      color: purple;
+    }
+  }
+}
+CSS;
+
+        $t->same(
+            '.container{padding:3rem}@media (width<=--styled-jsx-placeholder-0__){.container .responsive{color:purple}}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
     'nesting transformer maps upstream nested scope boundary lowering' => static function (TestRunner $t): void {
         $transformer = new NestingTransformer();
 
@@ -210,6 +273,22 @@ CSS;
 
         $t->same(
             '.wp-block-button:before,.wp-block-button:after{content:"";border-color:#ff0}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
+    'wordpress nested layer rules lower for block theme delivery' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-query {
+  @layer theme.blocks {
+    & .wp-block-post-title {
+      color: yellow;
+    }
+  }
+}
+CSS;
+
+        $t->same(
+            '@layer theme.blocks{.wp-block-query .wp-block-post-title{color:#ff0}}',
             (new NestingTransformer())->lower($css)
         );
     },

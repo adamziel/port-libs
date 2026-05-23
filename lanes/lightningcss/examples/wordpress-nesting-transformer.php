@@ -43,6 +43,12 @@ $css = <<<'CSS'
     }
   }
 
+  @layer theme.blocks {
+    & .wp-block-post-title {
+      border-color: yellow;
+    }
+  }
+
   @container (min-width: 320px) {
     &article > .wp-block-post-title {
       font-size: clamp(1.25rem, 2cqw, 2rem);

@@ -53,6 +53,15 @@ final class CssMinifier
                 continue;
             }
 
+            if ($char === '&' && $pendingSpace && $this->isSelectorContextAhead($css, $i)) {
+                if ($this->needsSelectorDescendantSpaceBeforeParentReference($output)) {
+                    $output .= ' ';
+                }
+                $output .= $char;
+                $pendingSpace = false;
+                continue;
+            }
+
             if (str_contains($tight, $char)) {
                 $output = rtrim($output);
                 $output .= $char;
@@ -599,6 +608,17 @@ final class CssMinifier
     }
 
     private function needsSelectorDescendantSpaceBeforePseudo(string $output): bool
+    {
+        if ($output === '') {
+            return false;
+        }
+
+        $previous = $output[strlen($output) - 1];
+
+        return !in_array($previous, ['{', ',', '>', '+', '~', '('], true);
+    }
+
+    private function needsSelectorDescendantSpaceBeforeParentReference(string $output): bool
     {
         if ($output === '') {
             return false;

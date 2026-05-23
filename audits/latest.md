@@ -3,7 +3,8 @@
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, lane status
 files needed to check status drift, bridge/shell-out usage in PHP files, and
-recent Git history through `HEAD` `db58be0`.
+recent Git history through observed movement from `HEAD` `db58be0` to
+`e734cd5` before this audit commit.
 
 I did not edit lane implementation files, launch agents or tmux sessions, or
 push. The only intended writes from this pass are this audit and the
@@ -23,7 +24,10 @@ audit-status/next-intervention text in `progress.md`.
      `encodePrunedProjectedNode()`. The current sample also shows `362`
      `git status --short` entries, `77` tracked modified files, and
      `git diff --shortstat` reports `77 files changed, 10100 insertions(+), 295
-     deletions(-)`.
+     deletions(-)`. During finalization, `HEAD` advanced through `0f66687` and
+     `e734cd5` markerPDF commits before this audit commit; no post-`e734cd5`
+     root rerun was performed, so the captured result remains an audit sample,
+     not a final baseline.
    - Goal requirement at risk: `goal.md:29` requires small reviewable slices with
      passing tests; `goal.md:48` requires verification before integration; and
      `goal.md:49` requires repo-wide failures to be recorded honestly.

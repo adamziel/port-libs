@@ -22,6 +22,22 @@ return [
             (new CssMinifier())->minify($css)
         );
     },
+    'css minifier preserves upstream no-target nested parent-reference spaces' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{color:#00f;@nest .bar &{color:red;&.baz{color:green}}}',
+            $minifier->minify('.foo { color: blue; @nest .bar & { color: red; &.baz { color: green; } } }')
+        );
+        $t->same(
+            '.error,.invalid{&:hover>.baz{color:red}}',
+            $minifier->minify('.error, .invalid { &:hover > .baz { color: red; } }')
+        );
+        $t->same(
+            '.scope{.parent &{color:red}:not(&){color:#00f}}',
+            $minifier->minify('.scope { .parent & { color: red; } :not(&) { color: blue; } }')
+        );
+    },
     'css minifier maps upstream legacy pseudo-element colon compaction' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
