@@ -3418,7 +3418,7 @@ final class TypeScriptModuleLowerer
         }
 
         $first = ($this->tokens[$start] ?? null)?->text;
-        if ($first !== '{' && $first !== 'if') {
+        if (!in_array($first, ['{', 'if', 'while', 'for'], true)) {
             return null;
         }
 

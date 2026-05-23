@@ -483,6 +483,41 @@ TS,
         $t->contains('var _promise2 = __callDispose(_stack2, _error2, _hasError2);', $awaitLowered);
         $t->contains('_promise2 && await _promise2;', $awaitLowered);
     },
+    'lowers upstream control flow block scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
+        $lowered = (new TypeScriptModuleLowerer())->lower(
+            <<<'TS'
+async function hydrateAssets(queue) {
+  while (queue.hasMore()) {
+    await using asset: AsyncDisposable = queue.openNext();
+    register(asset);
+  }
+  for (const item of queue.items) {
+    using preview: Disposable = item.preview();
+    queuePreview(preview);
+  }
+  for await (const item of queue.remoteItems) {
+    await using remote: AsyncDisposable = item.openRemote();
+    queueRemote(remote);
+  }
+}
+TS,
+            lowerUsingDeclarations: true
+        );
+
+        $t->contains('var __using = (stack, value, async) => {', $lowered);
+        $t->contains("while (queue.hasMore()) {\n    var _stack2 = [];", $lowered);
+        $t->contains('const asset = __using(_stack2, queue.openNext(), true);', $lowered);
+        $t->contains('var _promise2 = __callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('_promise2 && await _promise2;', $lowered);
+        $t->contains("for (const item of queue.items) {\n    var _stack3 = [];", $lowered);
+        $t->contains('const preview = __using(_stack3, item.preview());', $lowered);
+        $t->contains('__callDispose(_stack3, _error3, _hasError3);', $lowered);
+        $t->contains("for await (const item of queue.remoteItems) {\n    var _stack4 = [];", $lowered);
+        $t->contains('const remote = __using(_stack4, item.openRemote(), true);', $lowered);
+        $t->contains('var _promise4 = __callDispose(_stack4, _error4, _hasError4);', $lowered);
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+        $t->true(!str_contains($lowered, ': Disposable'));
+    },
     'lowers upstream function scoped using declarations through explicit resource helpers' => static function (TestRunner $t): void {
         $lowered = (new TypeScriptModuleLowerer())->lower(
             'function foo() { using a: Disposable = b; if (nested) { using x: Disposable = y; bar(x); } done(a); }',
@@ -1600,5 +1635,21 @@ JS . "\n", $lowerer->lower('class A extends B { #x = 1; y = 2; constructor() { s
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, ': Disposable'));
         $t->true(!str_contains($lowered, 'satisfies'));
+    },
+    'lowers wordpress async asset queue using cleanup without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-while-using-assets.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, lowerUsingDeclarations: true);
+
+        $t->contains('import metadata from "./block.json" with { type: "json" };', $lowered);
+        $t->contains('export async function registerQueuedAssets(queue) {', $lowered);
+        $t->contains('while (queue.hasMore()) {', $lowered);
+        $t->contains('const asset = __using(_stack2, await queue.openNext(metadata.viewScript), true);', $lowered);
+        $t->contains('registerAsset(asset.handle, asset.url);', $lowered);
+        $t->contains('var _promise2 = __callDispose(_stack2, _error2, _hasError2);', $lowered);
+        $t->contains('_promise2 && await _promise2;', $lowered);
+        $t->contains('wp.blocks.registerBlockType(settings.name, settings);', $lowered);
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, ': AsyncDisposable'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
     },
 ];
