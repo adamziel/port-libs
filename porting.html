@@ -27,13 +27,13 @@
   <header>
     <h1>Native PHP Porting Progress</h1>
     <div class="summary">
-      <span>Average progress: <strong>78.1%</strong></span>
+      <span>Average progress: <strong>78.3%</strong></span>
       <span>Lanes: <strong>12</strong></span>
-      <span>Generated: <strong>2026-05-23 09:10:33 UTC</strong></span>
-      <span>Snapshot: <strong>dashboard-publish-20260523T090948Z 75bddbff6f57</strong></span>
+      <span>Generated: <strong>2026-05-23 09:19:59 UTC</strong></span>
+      <span>Snapshot: <strong>dashboard-publish-20260523T091944Z a1af8ce1b1ba</strong></span>
     </div>
   </header>
-  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit 75bddbff6f57; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
+  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit a1af8ce1b1ba; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
   <div class="table-wrap">
   <table>
     <thead>
@@ -51,7 +51,7 @@
       </tr>
     </thead>
     <tbody>
-<tr><th scope="row">difftastic<br><a href="lanes/difftastic/lane-status.json">status</a> | <a href="lanes/difftastic/UPSTREAM_TEST_MANIFEST.json">manifest</a></th><td><meter min="0" max="100" value="71"></meter> <strong>71.0%</strong><br>cloned-static-inventory</td><td>cloned-static-inventory<br>583 benchmark | <a href="https://github.com/Wilfred/difftastic">upstream</a></td><td>211 pass / 0 fail<br>211 / 583 mapped</td><td>1 / 1</td><td>cloned static inventory plus native tokenizer/differ, c...</td><td>2026-05-23: focused `php tools/run-tests....</td><td>A shared native SyntaxHighlightClassifier now maps the inspected upstream tree_highlights...</td><td>upstream runner parity unavailable</td><td>committ</td></tr>
+<tr><th scope="row">difftastic<br><a href="lanes/difftastic/lane-status.json">status</a> | <a href="lanes/difftastic/UPSTREAM_TEST_MANIFEST.json">manifest</a></th><td><meter min="0" max="100" value="74"></meter> <strong>74.0%</strong><br>cloned-static-inventory</td><td>cloned-static-inventory<br>583 benchmark | <a href="https://github.com/Wilfred/difftastic">upstream</a></td><td>220 pass / 0 fail<br>220 / 583 mapped</td><td>1 / 1</td><td>cloned static inventory plus native tokenizer/differ, T...</td><td>2026-05-23: focused `php tools/run-tests....</td><td>The native TOML entry parser maps inline table fields, inline array fields, and indexed `...</td><td>upstream runner parity unavailable</td><td>impleme</td></tr>
 <tr><th scope="row">dolt<br><a href="lanes/dolt/lane-status.json">status</a> | <a href="lanes/dolt/UPSTREAM_TEST_MANIFEST.json">manifest</a></th><td><meter min="0" max="100" value="64"></meter> <strong>64.0%</strong><br>cloned-static-inventory-plus-bounded-upstream-runner</td><td>cloned-static-inventory-plus-bounded-upstream-runner<br>613 benchmark | <a href="https://github.com/dolthub/dolt">upstream</a></td><td>206 pass / 0 fail<br>303 / 613 mapped</td><td>1 / 1</td><td>cloned static upstream inventory + bounded diff/schema/...</td><td>audited 2026-05-23</td><td>Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-k...</td><td>upstream runner parity unavailable</td><td>951fc89</td></tr>
 <tr><th scope="row">esbuild<br><a href="lanes/esbuild/lane-status.json">status</a> | <a href="lanes/esbuild/UPSTREAM_TEST_MANIFEST.json">manifest</a></th><td><meter min="0" max="100" value="64"></meter> <strong>64.0%</strong><br>cloned-static-inventory-plus-make-test-runner-evidence</td><td>cloned-static-inventory-plus-make-test-runner-evidence<br>2,567 benchmark | <a href="https://github.com/evanw/esbuild">upstream</a></td><td>197 pass / 0 fail<br>197 / 2,567 mapped</td><td>1 / 1</td><td>cloned static inventory plus upstream make-test runner...</td><td>verified 2026-05-23: upstream make test p...</td><td>Native TypeScript module lowering now extends opt-in unsupported-target decorator helper...</td><td>No current esbuild implementation blocker.</td><td>current</td></tr>
 <tr><th scope="row">gitoxide<br><a href="lanes/gitoxide/lane-status.json">status</a> | <a href="lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json">manifest</a></th><td><meter min="0" max="100" value="96"></meter> <strong>96.0%</strong><br>targeted-object-ref-commit-token-iterator-commit-write-...</td><td>targeted-object-ref-commit-token-iterator-commit-write-...<br>2877 benchmark | <a href="https://github.com/GitoxideLabs/gitoxide">upstream</a></td><td>2646 pass / 0 fail<br>1432 / 2877 mapped</td><td>1 / 1</td><td>targeted upstream inventory and native PHP behavior sli...</td><td>audited 2026-05-23</td><td>Prepared loose-reference deletes now create rollbackable delete locks, report upstream-sh...</td><td>cargo runner not executed</td><td>77eb23f</td></tr>
