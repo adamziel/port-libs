@@ -22,6 +22,8 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - The upstream parser syntax-highlight boundary is inspected through `src/parse/tree_sitter_parser.rs` `tree_highlights`, where `tag`, `constructor`, and `label` captures become `Type`, `keyword`/`operator`/`variable.builtin`-style captures become `Keyword`, strings and comments are preserved by capture family, and HTML sub-language raw text receives CSS/JavaScript highlight metadata before `src/display/style.rs` applies ANSI styling or `src/display/json.rs` serializes highlight labels. Targeted static counts for this slice are 65 `highlight_query` config entries, 4 `parse_as` sub-language entries, and 19 vendored highlight query files.
 - The upstream JavaScript/TypeScript uppercase highlight boundary is inspected through difftastic `Cargo.toml` dependency pins plus targeted primary query reads: `tree-sitter-javascript` `v0.25.0` `queries/highlights.scm` marks any uppercase identifier as `@constructor` and all-caps identifiers as `@constant`, while `tree-sitter-typescript` `v0.23.2` `queries/highlights.scm` marks uppercase identifiers as `@type`. Difftastic's `tree_highlights` promotes constructor/type captures to `AtomKind::Type` and checks keyword/constant captures first when serializing atoms.
 - The upstream JavaScript builtin-variable highlight boundary is inspected through the exact `tree-sitter-javascript` `v0.25.0` `queries/highlights.scm` dependency read. That query marks `arguments`, `module`, `console`, `window`, and `document` as `@variable.builtin`; difftastic's `tree_highlights` promotes `variable.builtin` into the keyword bucket while leaving `function.builtin` captures such as `require` outside the promoted set.
+- The upstream Python keyword/builtin-function highlight boundary is inspected through difftastic's `Cargo.toml` `tree-sitter-python = "0.25.0"` pin, `Cargo.lock` checksum `6bf85fd39652e740bf60f46f4cda9492c3a9ad75880575bf14960f775cb74a1c`, and the exact crate `queries/highlights.scm` downloaded to `.upstream-cache/difftastic-crates/tree-sitter-python-0.25.0`. The query marks `global`, `nonlocal`, `match`, and `case` as `@keyword`, `True`/`False`/`None` as `@constant.builtin`, and builtin calls such as `print`, `len`, and `dict` as `@function.builtin`; difftastic's `tree_highlights` promotes keyword/constant captures but leaves `function.builtin` outside the serialized display highlight enum.
+- The upstream Ruby keyword/constant/operator highlight boundary is inspected through difftastic's `Cargo.toml` `tree-sitter-ruby = "0.23.1"` pin, `Cargo.lock` checksum `be0484ea4ef6bb9c575b4fdabde7e31340a8d2dbc7d52b321ac83da703249f95`, the Ruby `TreeSitterConfig` in `src/parse/tree_sitter_parser.rs`, and the exact crate `queries/highlights.scm` downloaded to `.upstream-cache/difftastic-crates/tree-sitter-ruby-0.23.1`. The query marks Ruby keywords as `@keyword`, all-caps constants and `nil`/`true`/`false` as `@constant`, CamelCase constants as `@constructor`, `=` as `@operator`, comments as `@comment`, and `require` as `@function.method.builtin`; difftastic promotes keyword/constant/operator captures, promotes constructors to type, preserves comments, and leaves function captures normal.
 - The upstream parse-error fallback boundary is inspected through `DEFAULT_PARSE_ERROR_LIMIT`, `to_syntax_with_limit`, `line_parser::change_positions`, and the `tests/cli.rs` `yaml_parse_errors` test with its two `sample_files/cli_tests/bad_yaml_*.yml` fixtures.
 - The upstream byte-limit fallback boundary is inspected through `DEFAULT_BYTE_LIMIT`, `to_tree_with_limit`, `ExceededByteLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
 - The upstream graph-limit fallback boundary is inspected through `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `dijkstra::mark_syntax`, `ExceededGraphLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
@@ -46,7 +48,7 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - The Python block-header boundary is inspected through the upstream `Python` tree-sitter configuration and a targeted directory fixture pair, `sample_files/dir_1/has_many_hunk.py` / `sample_files/dir_2/has_many_hunk.py`, where `function041` changes only its signature while neighboring functions stay stable.
 - The Python compound-clause boundary is inspected through the upstream `Python` tree-sitter configuration and mapped locally for `elif`, `else`, `try`, `except`, and `finally` clauses, with continuation clauses attached to the preceding compound statement path.
 
-This gives the lane 584 inspected behavior artifacts for the current cloned static denominator: 144 Rust test/test-case attributes, 111 golden output pairs, 114 numbered sample fixture pairs, 4 directory fixture pairs, 35 parser corpus files, 139 vendored parser example source files, 19 vendored highlight query files, 7 targeted syntax-highlight source/config/query boundaries, 3 targeted strip-CR source files, 2 targeted Makefile CLI fixture files, 2 targeted changes-at-end CLI fixture files, 2 targeted tab-width display source files, and 3 targeted unstable JSON display source files. The JavaScript/TypeScript uppercase highlight slice also inspected two exact-version parser dependency query files pinned by difftastic's Cargo manifest, and the builtin-variable slice inspected the exact JavaScript highlight query boundary for `variable.builtin`.
+This gives the lane 586 inspected behavior artifacts for the current cloned static denominator: 144 Rust test/test-case attributes, 111 golden output pairs, 114 numbered sample fixture pairs, 4 directory fixture pairs, 35 parser corpus files, 139 vendored parser example source files, 19 vendored highlight query files, 9 targeted syntax-highlight source/config/query boundaries, 3 targeted strip-CR source files, 2 targeted Makefile CLI fixture files, 2 targeted changes-at-end CLI fixture files, 2 targeted tab-width display source files, and 3 targeted unstable JSON display source files. The JavaScript/TypeScript uppercase highlight slice also inspected two exact-version parser dependency query files pinned by difftastic's Cargo manifest, the builtin-variable slice inspected the exact JavaScript highlight query boundary for `variable.builtin`, the Python keyword/builtin slice inspected the exact tree-sitter-python crate query boundary for `keyword`, `constant.builtin`, and `function.builtin`, and the Ruby keyword/constant slice inspected the exact tree-sitter-ruby crate query boundary for `keyword`, `constant`, `constructor`, `operator`, `comment`, and `function.method.builtin`.
 
 ## Runner Status
 
@@ -246,6 +248,12 @@ Targeted JavaScript/TypeScript syntax highlighting now also maps the upstream up
 
 Targeted JavaScript/TypeScript syntax highlighting now also maps upstream `variable.builtin` captures from the exact `tree-sitter-javascript` `v0.25.0` highlight query used by difftastic. Inserted `window`, `document`, `console`, `module`, and `arguments` spans are serialized and ANSI-styled as `keyword`, while ordinary WordPress globals such as `wp` and `function.builtin` captures such as `require` remain normal. The WordPress browser-globals display example applies this to `wp-content/plugins/acme-card/src/browser-globals.js`.
 
+Targeted Python syntax highlighting now maps the decorator/constructor edge from difftastic's `tree_highlights` capture promotion plus the exact `tree-sitter-python` `v0.25.0` highlight query. Uppercase Python identifiers such as `CacheWarmup` and `MigrationRunner` are promoted through the upstream `@constructor` to `type` path, while decorator `@function` and `function.builtin` captures such as `staticmethod` remain normal because upstream does not promote function captures into the display highlight enum. The WordPress Python decorator display example applies this to `wp-content/plugins/acme-migrator/tools/migrate_posts.py`.
+
+Targeted Python syntax highlighting now also maps the exact `tree-sitter-python` `v0.25.0` keyword and builtin-function boundary. The native PHP classifier emits `keyword` spans for `global`, `nonlocal`, `match`, `case`, and `True`/`False`/`None` constant captures, while keeping builtin function-call captures such as `print(...)`, `len(...)`, and `dict(...)` normal because upstream `function.builtin` is not promoted into the display highlight enum. The WordPress Python keyword/builtin display example applies this to `wp-content/plugins/acme-migrator/tools/migrate_blocks.py`.
+
+Targeted Ruby syntax highlighting now maps the exact `tree-sitter-ruby` `v0.23.1` keyword, constant, operator, constructor, comment, and function-method boundary. The native PHP tokenizer treats Ruby `#` lines as comments, emits `keyword` spans for `class`, `def`, `do`, `next`, `unless`, `rescue`, `nil`, and all-caps constants such as `DEFAULT_LIMIT`, emits `type` spans for CamelCase constants such as `ImportRunner` and `StandardError`, and keeps builtin method calls such as `require` normal because upstream function captures are not promoted into the display highlight enum. The WordPress Ruby migration helper example applies this to `wp-content/plugins/acme-migrator/tools/import_posts.rb`.
+
 Targeted TOML parser semantics now map the upstream `sample_files/toml_*.toml` pair, `src/parse/tree_sitter_parser.rs` `Toml` configuration, and `sample_files/compare.expected` golden hash `e1002ceba14d973fcc8abc23619e65b0`. The native syntax-list path aligns table-qualified key/value entries, reports scalar updates under `$toml.<table>.<key>`, diffs top-level array items such as `ports`, and preserves deleted multiline strings and literal path strings as TOML entries instead of only reporting bracketed array churn.
 
 The WordPress plugin TOML config fixture applies that slice to release/build/Playground metadata. It reports `requires_wp`, build target, PHP runtime, plugin list, and multiline review-note changes through `$toml...` paths, and `examples/wordpress-plugin-toml-config-diff.php` renders those changes as escaped syntax-list HTML for browser review surfaces.
@@ -254,7 +262,7 @@ The TOML path slice now also descends into inline tables, mapping the same upstr
 
 The WordPress plugin release matrix fixture applies the inline-table behavior to repeated `[[plugins]]` array-table entries and nested Playground blueprint metadata. Repeated plugin entries now carry indexed paths such as `$toml.plugins[1].config.autoload`, so a release review can distinguish changed plugin records instead of collapsing repeated `slug`/`status` keys.
 
-The focused PHP lane test now passes 231 tests and 1260 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, guarded JSON directory command print-unchanged/skip-unchanged behavior, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, source-wide tree-sitter-error ANSI styling, parser-specific tag/CSS keyword highlighting in ANSI and JSON output, TypeScript constructor/custom-type highlighting in ANSI and JSON output, JavaScript uppercase constructor/type and all-caps constant highlight priority in ANSI and JSON output, JavaScript variable.builtin highlight priority in ANSI and JSON output, keyword-ish boolean/constant/operator highlighting, normal attribute/property/function.builtin boundaries, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, command resource-limit environment parsing for byte/graph/parse fallback budgets, the TOML table/key syntax-list slice, and the TOML inline-table/array-table slice.
+The focused PHP lane test now passes 240 tests and 1341 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, guarded JSON directory command print-unchanged/skip-unchanged behavior, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, source-wide tree-sitter-error ANSI styling, parser-specific tag/CSS keyword highlighting in ANSI and JSON output, TypeScript constructor/custom-type highlighting in ANSI and JSON output, JavaScript uppercase constructor/type and all-caps constant highlight priority in ANSI and JSON output, JavaScript variable.builtin highlight priority in ANSI and JSON output, Python constructor/decorator highlight priority in ANSI and JSON output, Python keyword/constant and builtin-function normal-boundary highlighting, Ruby keyword/constant/operator/constructor highlighting with function-method builtins left normal, keyword-ish boolean/constant/operator highlighting, normal attribute/property/function/function.builtin boundaries, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, command resource-limit environment parsing for byte/graph/parse fallback budgets, the TOML table/key syntax-list slice, and the TOML inline-table/array-table slice.
 
 Before the required root test runner, this lane checked for an active root harness:
 
@@ -262,14 +270,30 @@ Before the required root test runner, this lane checked for an active root harne
 pgrep -af '^php tools/run-tests\.php( |$)'
 ```
 
-For this JavaScript builtin-variable highlight slice, that command returned no output, so this lane started the aggregate root harness once. The aggregate run completed green:
+For this Python decorator highlight slice, that command returned an active root harness, so this lane did not start a duplicate aggregate run:
+
+```text
+2953989 php tools/run-tests.php
+2953989 claude 00:26 Rs php tools/run-tests.php
+```
+
+The difftastic-focused test file is green with 234 named tests, 1270 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. No difftastic-local PHP blocker is present for this slice.
+
+A later handoff duplicate-root sample still found active root harnesses, so this lane initially left aggregate root verification pending:
+
+```text
+2970899 php tools/run-tests.php
+2970907 php tools/run-tests.php
+2970899 claude 00:10 R php tools/run-tests.php
+2970907 claude 00:09 Ss php tools/run-tests.php
+```
+
+After the duplicate-root gate cleared, this lane started one aggregate run. It completed green:
 
 ```text
 php tools/run-tests.php
-205 test files, 23772 assertions, 0 failures
+209 test files, 24067 assertions, 0 failures
 ```
-
-The difftastic-focused test file is green with 231 named tests, 1260 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. No difftastic-local PHP blocker is present for this slice.
 
 The touched WordPress examples also run:
 
@@ -379,8 +403,83 @@ php lanes/difftastic/examples/wordpress-block-registry-highlight-display.php | p
 wp-content/plugins/acme-card/src/block-registry.js JavaScript changed
 php lanes/difftastic/examples/wordpress-browser-globals-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . $decoded["status"] . "\n";'
 wp-content/plugins/acme-card/src/browser-globals.js JavaScript changed
+php lanes/difftastic/examples/wordpress-python-decorator-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . $decoded["status"] . "\n"; foreach ($decoded["chunks"] as $chunk) { foreach ($chunk as $line) { foreach (($line["rhs"]["changes"] ?? []) as $change) { if (in_array($change["content"], ["CacheWarmup", "staticmethod", "MigrationRunner"], true)) { echo $change["content"] . ":" . $change["highlight"] . "\n"; } } } }'
+wp-content/plugins/acme-migrator/tools/migrate_posts.py Python changed
+CacheWarmup:type
+staticmethod:normal
+MigrationRunner:type
+```
+
+For this Python keyword/builtin highlight slice, the exact duplicate-root gate was clear:
+
+```text
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+The difftastic-focused test file is green with 237 named tests, 1299 assertions, and 0 failures via:
+
+```text
+php tools/run-tests.php lanes/difftastic/tests
+```
+
+The new WordPress example emits valid JSON and the expected highlight boundary:
+
+```text
+php lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . $decoded["status"] . "\n"; foreach ($decoded["chunks"] as $chunk) { foreach ($chunk as $line) { foreach (($line["rhs"]["changes"] ?? []) as $change) { if (in_array($change["content"], ["nonlocal", "match", "case", "True", "print", "len", "dict"], true)) { echo $change["content"] . ":" . $change["highlight"] . "\n"; } } } }'
+wp-content/plugins/acme-migrator/tools/migrate_blocks.py Python changed
+nonlocal:keyword
+match:keyword
+case:keyword
+True:keyword
+dict:normal
+print:normal
+len:normal
+```
+
+Because no duplicate root harness was active, this lane ran one aggregate root harness. It failed outside difftastic:
+
+```text
+php tools/run-tests.php
+211 test files, 24211 assertions, 1 failures
+FAIL maps upstream markdown writer shortcut reference link boundaries (lanes/pandoc/tests/MarkdownReaderTest.php)
+```
+
+For this Ruby keyword/constant highlight slice, the exact duplicate-root gate was clear:
+
+```text
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+The difftastic-focused test file is green with 240 named tests, 1341 assertions, and 0 failures via:
+
+```text
+php tools/run-tests.php lanes/difftastic/tests
+```
+
+The new WordPress Ruby example emits valid JSON and the expected highlight boundary:
+
+```text
+php lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . $decoded["status"] . "\n"; foreach ($decoded["chunks"] as $chunk) { foreach ($chunk as $line) { foreach (($line["rhs"]["changes"] ?? []) as $change) { if (in_array($change["content"], ["class", "ImportRunner", "DEFAULT_LIMIT", "def", "do", "next", "unless", "rescue", "nil", "require"], true)) { echo $change["content"] . ":" . $change["highlight"] . "\n"; } } } }'
+wp-content/plugins/acme-migrator/tools/import_posts.rb Ruby changed
+class:keyword
+ImportRunner:type
+DEFAULT_LIMIT:keyword
+nil:keyword
+def:keyword
+do:keyword
+next:keyword
+unless:keyword
+rescue:keyword
+require:normal
+```
+
+Because no duplicate root harness was active, this lane ran one aggregate root harness. It completed green:
+
+```text
+php tools/run-tests.php
+213 test files, 24473 assertions, 0 failures
 ```
 
 ## Next Task
 
-Map another parser/display highlight edge such as decorator captures.
+Tighten Python type-annotation context for builtin type names or map Ruby `def`/`end` structural delimiters.

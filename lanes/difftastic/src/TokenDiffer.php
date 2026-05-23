@@ -34,6 +34,7 @@ final class TokenDiffer
         $lineCommentPattern = match (true) {
             $this->isLispLanguage($options) => ';[^\r\n]*|\/\/[^\r\n]*',
             $this->isPythonLanguage($options) => '\#[^\r\n]*',
+            $this->isRubyLanguage($options) => '\#[^\r\n]*',
             default => '\/\/[^\r\n]*',
         };
         $stringPattern = $this->stringPattern($options);
@@ -1310,7 +1311,7 @@ final class TokenDiffer
             str_starts_with($text, '/*'),
             str_starts_with($text, '//'),
             str_starts_with($text, '<!--'),
-            str_starts_with($text, '#') && $this->isPythonLanguage($options),
+            str_starts_with($text, '#') && ($this->isPythonLanguage($options) || $this->isRubyLanguage($options)),
             str_starts_with($text, ';') && $this->isLispLanguage($options) => 'comment',
             preg_match('/^[A-Za-z_]/', $text) === 1 => 'identifier',
             preg_match('/^\d/', $text) === 1 => 'number',
@@ -5280,6 +5281,14 @@ final class TokenDiffer
     private function isPythonLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['py', 'python'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isRubyLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['rb', 'ruby'], true);
     }
 
     /**

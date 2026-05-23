@@ -75,11 +75,27 @@ final class SyntaxHighlightClassifier
             }
         }
 
+        if ($this->isRubyLanguage($language) && $this->isRubyAllCapsConstantIdentifier($token->text)) {
+            return 'keyword';
+        }
+
+        if ($this->isPythonLanguage($language) && $this->isPythonBuiltinFunctionCall($source, $token)) {
+            return 'normal';
+        }
+
         if (in_array($lower, $this->languageKeywords($language), true)) {
             return 'keyword';
         }
 
         if (in_array($lower, $this->languageTypes($language), true)) {
+            return 'type';
+        }
+
+        if ($this->isPythonLanguage($language) && $this->isUppercaseIdentifier($token->text)) {
+            return 'type';
+        }
+
+        if ($this->isRubyLanguage($language) && $this->isUppercaseIdentifier($token->text)) {
             return 'type';
         }
 
@@ -110,7 +126,9 @@ final class SyntaxHighlightClassifier
             'php',
             'python',
             'py',
+            'rb',
             'rs',
+            'ruby',
             'rust',
             'ts',
             'tsx',
@@ -133,6 +151,16 @@ final class SyntaxHighlightClassifier
     private function isRustLanguage(string $language): bool
     {
         return in_array($language, ['rs', 'rust'], true);
+    }
+
+    private function isPythonLanguage(string $language): bool
+    {
+        return in_array($language, ['python', 'py'], true);
+    }
+
+    private function isRubyLanguage(string $language): bool
+    {
+        return in_array($language, ['rb', 'ruby'], true);
     }
 
     private function isJavaScriptLikeLanguage(string $language): bool
@@ -180,9 +208,43 @@ final class SyntaxHighlightClassifier
         return preg_match('/^[A-Z_][A-Z0-9_]+$/', $text) === 1;
     }
 
+    private function isRubyAllCapsConstantIdentifier(string $text): bool
+    {
+        return preg_match('/^[A-Z_][A-Z0-9_]+$/', $text) === 1;
+    }
+
     private function isJavaScriptBuiltinVariable(string $text): bool
     {
         return in_array($text, ['arguments', 'module', 'console', 'window', 'document'], true);
+    }
+
+    private function isPythonBuiltinFunctionCall(string $source, Token $token): bool
+    {
+        if (!in_array($token->text, $this->pythonBuiltinFunctionNames(), true)) {
+            return false;
+        }
+
+        return $this->nextNonWhitespaceCharacter($source, $token->end) === '(';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function pythonBuiltinFunctionNames(): array
+    {
+        return [
+            '__import__', 'abs', 'all', 'any', 'ascii', 'bin', 'bool',
+            'breakpoint', 'bytearray', 'bytes', 'callable', 'chr',
+            'classmethod', 'compile', 'complex', 'delattr', 'dict', 'dir',
+            'divmod', 'enumerate', 'eval', 'exec', 'filter', 'float',
+            'format', 'frozenset', 'getattr', 'globals', 'hasattr', 'hash',
+            'help', 'hex', 'id', 'input', 'int', 'isinstance', 'issubclass',
+            'iter', 'len', 'list', 'locals', 'map', 'max', 'memoryview',
+            'min', 'next', 'object', 'oct', 'open', 'ord', 'pow', 'print',
+            'property', 'range', 'repr', 'reversed', 'round', 'set',
+            'setattr', 'slice', 'sorted', 'staticmethod', 'str', 'sum',
+            'super', 'tuple', 'type', 'vars', 'zip',
+        ];
     }
 
     private function isUppercaseIdentifier(string $text): bool
@@ -193,6 +255,21 @@ final class SyntaxHighlightClassifier
     private function previousNonWhitespaceCharacter(string $source, int $start): ?string
     {
         for ($index = $start - 1; $index >= 0; $index--) {
+            $character = $source[$index];
+            if ($character === ' ' || $character === "\t" || $character === "\n" || $character === "\r") {
+                continue;
+            }
+
+            return $character;
+        }
+
+        return null;
+    }
+
+    private function nextNonWhitespaceCharacter(string $source, int $start): ?string
+    {
+        $length = strlen($source);
+        for ($index = $start; $index < $length; $index++) {
             $character = $source[$index];
             if ($character === ' ' || $character === "\t" || $character === "\n" || $character === "\r") {
                 continue;
@@ -228,9 +305,10 @@ final class SyntaxHighlightClassifier
             ],
             'python', 'py' => [
                 'and', 'as', 'assert', 'async', 'await', 'break', 'class',
-                'continue', 'def', 'del', 'elif', 'else', 'except', 'finally',
-                'false', 'for', 'from', 'if', 'import', 'in', 'is', 'lambda',
-                'none', 'not', 'or', 'pass', 'raise', 'return', 'true', 'try',
+                'continue', 'case', 'def', 'del', 'elif', 'else', 'except',
+                'exec', 'finally', 'false', 'for', 'from', 'global', 'if',
+                'import', 'in', 'is', 'lambda', 'match', 'none', 'nonlocal',
+                'not', 'or', 'pass', 'print', 'raise', 'return', 'true', 'try',
                 'while', 'with', 'yield',
             ],
             'rust', 'rs' => [
@@ -238,6 +316,13 @@ final class SyntaxHighlightClassifier
                 'false', 'fn', 'for', 'if', 'impl', 'let', 'loop', 'match', 'mod',
                 'mut', 'pub', 'return', 'self', 'static', 'struct', 'super',
                 'trait', 'true', 'type', 'unsafe', 'use', 'where', 'while',
+            ],
+            'ruby', 'rb' => [
+                'alias', 'and', 'begin', 'break', 'case', 'class', 'def', 'do',
+                'else', 'elsif', 'end', 'ensure', 'false', 'for', 'if', 'in',
+                'module', 'next', 'nil', 'or', 'private', 'protected', 'public',
+                'rescue', 'retry', 'return', 'then', 'true', 'unless', 'until',
+                'when', 'while', 'yield',
             ],
             'yaml', 'yml' => ['false', 'null', 'true'],
             default => [],

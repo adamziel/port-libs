@@ -258,6 +258,12 @@ JavaScript and TypeScript syntax highlighting now maps upstream uppercase identi
 
 JavaScript and TypeScript syntax highlighting now also maps upstream `variable.builtin` captures from the exact tree-sitter JavaScript query used by difftastic. The WordPress browser-globals example emits `window`, `document`, `console`, `module`, and `arguments` as `keyword` spans while leaving `wp` and `require` normal, so block review UIs can distinguish host globals from ordinary plugin namespaces without a browser-side parser.
 
+Python syntax highlighting now maps the upstream constructor/decorator capture edge. The WordPress Python decorator example emits `CacheWarmup` and `MigrationRunner` as `type` spans while keeping `staticmethod` normal, so migration tooling review data can style imported helper classes without incorrectly promoting builtin function decorators.
+
+Python syntax highlighting now also maps the upstream keyword and builtin-function boundary from the exact tree-sitter Python query. The WordPress Python keyword/builtin example emits `nonlocal`, `match`, `case`, and `True` as `keyword` spans while keeping `print`, `len`, and `dict` calls normal, so migration helper review data can highlight control-flow semantics without over-styling ordinary builtin calls.
+
+Ruby syntax highlighting now maps the upstream keyword, constant, operator, constructor, and function-method boundary from the exact tree-sitter Ruby query. The WordPress Ruby migration helper example emits `class`, `def`, `do`, `next`, `unless`, `rescue`, and `nil` as `keyword` spans, `ImportRunner` as a `type` span, `DEFAULT_LIMIT` as a keyword constant, and `require` as normal, so migration-script review data can style Ruby control flow without over-styling builtin method calls.
+
 Compact JSON display now also maps upstream `src/display/json.rs` `tree_sitter_error` highlight output for parser-error atoms. The WordPress parser-error display example compares block registration JavaScript with an extra `}` and, when the parse-error budget allows structural display, exposes that delimiter as a `tree_sitter_error` span for editor review tools instead of treating it as ordinary punctuation.
 
 JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The WordPress block editor TSX fixture applies this to an `edit.tsx` sidebar control change, reporting the `PanelBody` title and `initialOpen` attribute change while keeping the retained `TextControl` tag out of the rendered change stream.
@@ -354,8 +360,11 @@ php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
 php lanes/difftastic/examples/wordpress-tsx-tag-highlight-display.php
 php lanes/difftastic/examples/wordpress-block-controller-highlight-display.php
 php lanes/difftastic/examples/wordpress-block-registry-highlight-display.php
+php lanes/difftastic/examples/wordpress-python-decorator-highlight-display.php
+php lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php
+php lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php
 ```
 
 ## Next Task
 
-Map another parser/display highlight edge such as decorator captures.
+Tighten Python type-annotation context for builtin type names or map Ruby `def`/`end` structural delimiters.

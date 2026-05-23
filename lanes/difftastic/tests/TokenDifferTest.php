@@ -3439,6 +3439,111 @@ return [
         $t->contains('block:type', $encoded);
         $t->same(3, substr_count($encoded, 'block:type'));
     },
+    'json display renderer maps upstream python constructor decorators as type highlights' => static function (TestRunner $t): void {
+        $before = "def migrate_post(post):\n    return post\n";
+        $after = "@CacheWarmup\n"
+            . "@staticmethod\n"
+            . "def migrate_post(post):\n"
+            . "    return MigrationRunner(post)\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/python_decorator_highlight.py',
+            'Python',
+            ['language' => 'python'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Python', $decoded['language']);
+        $t->contains('CacheWarmup:type', $encoded);
+        $t->contains('staticmethod:normal', $encoded);
+        $t->contains('MigrationRunner:type', $encoded);
+    },
+    'json display renderer maps upstream python keyword and builtin function boundary' => static function (TestRunner $t): void {
+        $before = "def migrate_post(post):\n    return post\n";
+        $after = "global migration_report\n"
+            . "nonlocal migrated\n"
+            . "match state:\n"
+            . "    case True:\n"
+            . "        print(len(posts))\n"
+            . "        return dict(post)\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/python_keyword_builtin_highlight.py',
+            'Python',
+            ['language' => 'python'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Python', $decoded['language']);
+        foreach (['global', 'nonlocal', 'match', 'case', 'True'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['print', 'len', 'dict'] as $builtin) {
+            $t->contains("{$builtin}:normal", $encoded);
+        }
+    },
+    'json display renderer maps upstream ruby keyword constant and constructor captures' => static function (TestRunner $t): void {
+        $before = "puts 'legacy'\n";
+        $after = "module AcmeTools\n"
+            . "  class ImportRunner\n"
+            . "    DEFAULT_LIMIT = nil\n"
+            . "    def self.call(records)\n"
+            . "      records.each do |record|\n"
+            . "        next unless record[:post_type]\n"
+            . "      end\n"
+            . "    rescue StandardError\n"
+            . "      require 'json'\n"
+            . "    end\n"
+            . "  end\n"
+            . "end\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/ruby_highlight.rb',
+            'Ruby',
+            ['language' => 'ruby'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Ruby', $decoded['language']);
+        foreach (['module', 'class', 'def', 'do', 'next', 'unless', 'end', 'rescue', 'nil'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        $t->contains('DEFAULT_LIMIT:keyword', $encoded);
+        $t->contains('ImportRunner:type', $encoded);
+        $t->contains('StandardError:type', $encoded);
+        $t->contains('require:normal', $encoded);
+        $t->contains('self:normal', $encoded);
+    },
     'json display renderer leaves unsupported attribute and property captures normal' => static function (TestRunner $t): void {
         $before = ".old { color: red; }\n";
         $after = "@supports (display: grid) { .card { opacity: 1 !important; } }\n";
@@ -3568,6 +3673,50 @@ return [
         $t->true(in_array(['start' => 11, 'end' => 17, 'style' => '1'], $spans, true), 'Rust lifetime labels should follow upstream label-as-type capture handling.');
         $t->true(in_array(['start' => 27, 'end' => 32, 'style' => '1'], $spans, true), 'Borrowed lifetime labels should follow upstream label-as-type capture handling.');
         $t->true(in_array(['start' => 43, 'end' => 48, 'style' => '1'], $spans, true), 'Return lifetime labels should follow upstream label-as-type capture handling.');
+    },
+    'ansi highlighter maps upstream python constructor decorator captures' => static function (TestRunner $t): void {
+        $line = '@CacheWarmup';
+        $builtinLine = '@staticmethod';
+        $highlighter = new AnsiSyntaxHighlighter();
+        $constructorSpans = $highlighter->spansForLine($line, ['language' => 'python']);
+        $builtinSpans = $highlighter->spansForLine($builtinLine, ['language' => 'python']);
+
+        $t->true(in_array(['start' => 1, 'end' => 12, 'style' => '1'], $constructorSpans, true), 'Uppercase Python decorator identifiers should follow upstream constructor-as-type handling.');
+        $t->same([], $builtinSpans, 'Function/function.builtin decorator captures should remain normal because upstream does not promote them into the display highlight enum.');
+    },
+    'ansi highlighter maps upstream python keywords but leaves builtin calls normal' => static function (TestRunner $t): void {
+        $line = 'match state: case True: print(len(posts)); dict(post)';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'python']);
+
+        foreach (['match', 'case', 'True'] as $keyword) {
+            $start = strpos($line, $keyword);
+            $t->true($start !== false, "Fixture should contain {$keyword}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($keyword), 'style' => '1'], $spans, true), "{$keyword} should follow upstream keyword/constant capture handling.");
+        }
+
+        foreach (['print', 'len', 'dict'] as $builtin) {
+            $start = strpos($line, $builtin);
+            $t->true($start !== false, "Fixture should contain {$builtin}.");
+            $t->true(!in_array(['start' => $start, 'end' => $start + strlen($builtin), 'style' => '1'], $spans, true), "{$builtin} should remain normal because upstream function.builtin captures are not promoted into display highlights.");
+        }
+    },
+    'ansi highlighter maps upstream ruby keywords constants and constructors' => static function (TestRunner $t): void {
+        $line = "class ImportRunner; DEFAULT_LIMIT = nil; def call; end; require 'json'";
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'ruby']);
+
+        foreach (['class', 'DEFAULT_LIMIT', '=', 'nil', 'def', 'end'] as $keyword) {
+            $start = strpos($line, $keyword);
+            $t->true($start !== false, "Fixture should contain {$keyword}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($keyword), 'style' => '1'], $spans, true), "{$keyword} should follow upstream keyword/constant/operator capture handling.");
+        }
+
+        $constructorStart = strpos($line, 'ImportRunner');
+        $t->true($constructorStart !== false, 'Fixture should contain ImportRunner.');
+        $t->true(in_array(['start' => $constructorStart, 'end' => $constructorStart + strlen('ImportRunner'), 'style' => '1'], $spans, true), 'Ruby constants should follow upstream constructor/type capture handling.');
+
+        $requireStart = strpos($line, 'require');
+        $t->true($requireStart !== false, 'Fixture should contain require.');
+        $t->true(!in_array(['start' => $requireStart, 'end' => $requireStart + strlen('require'), 'style' => '1'], $spans, true), 'Ruby function.method.builtin captures should remain normal because upstream does not promote function captures into display highlights.');
     },
     'wordpress parser error ansi command honors syntax highlight control' => static function (TestRunner $t): void {
         $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";
@@ -3871,6 +4020,75 @@ return [
         $t->contains('module:keyword', $encoded);
         $t->contains('arguments:keyword', $encoded);
         $t->contains('wp:normal', $encoded);
+    },
+    'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-python-decorator-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-migrator/tools/migrate_posts.py', $decoded['path']);
+        $t->contains('CacheWarmup:type', $encoded);
+        $t->contains('MigrationRunner:type', $encoded);
+        $t->contains('staticmethod:normal', $encoded);
+    },
+    'wordpress python keyword builtin display follows upstream highlight boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-python-keyword-builtin-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-migrator/tools/migrate_blocks.py', $decoded['path']);
+        foreach (['nonlocal', 'match', 'case', 'True'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['print', 'len', 'dict'] as $builtin) {
+            $t->contains("{$builtin}:normal", $encoded);
+        }
+    },
+    'wordpress ruby migration helper display follows upstream keyword boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-ruby-migration-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-migrator/tools/import_posts.rb', $decoded['path']);
+        foreach (['class', 'def', 'do', 'next', 'unless', 'rescue', 'nil'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        $t->contains('ImportRunner:type', $encoded);
+        $t->contains('DEFAULT_LIMIT:keyword', $encoded);
+        $t->contains('require:normal', $encoded);
     },
     'wordpress tsx tag highlight display exposes component tags as types' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-tsx-tag-highlight-before.tsx');
