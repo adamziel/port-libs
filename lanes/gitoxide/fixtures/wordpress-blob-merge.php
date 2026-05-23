@@ -26,6 +26,18 @@ return [
         'theirs' => "layout: wide\ncolor: green\nspacing: fluid\n",
         'expectedZealousDiff3' => "layout: wide\n<<<<<<< ours/theme.json\ncolor: blue\n||||||| base/theme.json\nlayout: content\ncolor: base\nspacing: normal\n=======\ncolor: green\n>>>>>>> theirs/theme.json\nspacing: fluid\n",
     ],
+    'spacingAmbiguity' => [
+        'base' => "<!-- wp:heading {\"level\":1} -->\n\n<!-- wp:separator -->\n<!-- wp:paragraph -->\n\n",
+        'ours' => "\n\n<!-- wp:separator -->\n<!-- wp:paragraph -->\n",
+        'theirs' => "<!-- wp:heading {\"level\":1} -->\n\n<!-- wp:paragraph -->\n\n",
+        'expected' => "\n\n<!-- wp:paragraph -->\n",
+    ],
+    'mixedLineEndings' => [
+        'base' => "<!-- wp:paragraph -->\r\n<!-- wp:group -->\r\n<!-- wp:separator -->",
+        'ours' => "<!-- wp:paragraph -->\r\n<!-- wp:group -->\n<!-- wp:heading -->",
+        'theirs' => "<!-- wp:paragraph -->\r\n<!-- wp:group -->\n<!-- wp:spacer -->",
+        'expected' => "<!-- wp:paragraph -->\r\n<!-- wp:group -->\n<<<<<<< ours/post.html\n<!-- wp:heading -->\n=======\n<!-- wp:spacer -->\n>>>>>>> theirs/post.html\n",
+    ],
     'theme' => [
         'base' => "{\n  \"version\": 2,\n  \"settings\": {\n    \"color\": \"base\"\n  }\n}\n",
         'ours' => "{\n  \"version\": 2,\n  \"settings\": {\n    \"color\": \"blue\"\n  }\n}\n",

@@ -86,6 +86,22 @@ final class BlobMerge
                 continue;
             }
 
+            if (self::isContextDuplicateInsertionBeforeDeletion($ourHunk, $theirHunk, $baseLines, $basePosition)) {
+                self::appendBase($merged, $baseLines, $basePosition, $ourHunk['start']);
+                array_push($merged, ...$ourHunk['replacement']);
+                $basePosition = $ourHunk['end'];
+                $ourIndex++;
+                continue;
+            }
+
+            if (self::isContextDuplicateInsertionBeforeDeletion($theirHunk, $ourHunk, $baseLines, $basePosition)) {
+                self::appendBase($merged, $baseLines, $basePosition, $theirHunk['start']);
+                array_push($merged, ...$theirHunk['replacement']);
+                $basePosition = $theirHunk['end'];
+                $theirIndex++;
+                continue;
+            }
+
             $start = min($ourHunk['start'], $theirHunk['start']);
             $end = max($ourHunk['end'], $theirHunk['end']);
             self::appendBase($merged, $baseLines, $basePosition, $start);
@@ -102,11 +118,17 @@ final class BlobMerge
 
             if ($style === self::STYLE_UNION) {
                 $contracted = self::contractCommonLines($ourLines, $theirLines);
+                $conflictNewline = self::detectConflictLineEnding(
+                    $contracted['prefix'],
+                    [],
+                    $contracted['left'],
+                    $newline,
+                );
                 array_push($merged, ...$contracted['prefix'], ...$contracted['left']);
-                self::assureEndsWithNewline($merged, $newline);
+                self::assureEndsWithNewline($merged, $conflictNewline);
                 array_push($merged, ...$contracted['right']);
                 if ($contracted['suffix'] !== []) {
-                    self::assureEndsWithNewline($merged, $newline);
+                    self::assureEndsWithNewline($merged, $conflictNewline);
                     array_push($merged, ...$contracted['suffix']);
                 }
                 $basePosition = $end;
@@ -124,10 +146,22 @@ final class BlobMerge
                 $ourConflictLines = $contracted['left'];
                 $theirConflictLines = $contracted['right'];
                 $suffixLines = $contracted['suffix'];
+                $conflictNewline = self::detectConflictLineEnding(
+                    $contracted['prefix'],
+                    array_slice($baseLines, $basePosition, max(0, $start - $basePosition)),
+                    $ourConflictLines,
+                    $newline,
+                );
             } else {
                 $ourConflictLines = $ourLines;
                 $theirConflictLines = $theirLines;
                 $suffixLines = [];
+                $conflictNewline = self::detectConflictLineEnding(
+                    [],
+                    array_slice($baseLines, $basePosition, max(0, $start - $basePosition)),
+                    $ourConflictLines,
+                    $newline,
+                );
             }
 
             if ($ourConflictLines === [] && $theirConflictLines === []) {
@@ -138,16 +172,20 @@ final class BlobMerge
                 continue;
             }
 
-            self::assureEndsWithNewline($merged, $newline);
-            $merged[] = str_repeat('<', $markerSize) . ' ' . $oursLabel . $newline;
+            self::assureEndsWithNewline($merged, $conflictNewline);
+            $merged[] = str_repeat('<', $markerSize) . ' ' . $oursLabel . $conflictNewline;
             array_push($merged, ...$ourConflictLines);
             if ($style === self::STYLE_DIFF3 || $style === self::STYLE_ZEALOUS_DIFF3) {
-                $merged[] = str_repeat('|', $markerSize) . ' ' . $baseLabel . $newline;
+                $ancestorNewline = self::detectLineEndingFromLines(array_slice($baseLines, $start, max(0, $end - $start))) ?? $conflictNewline;
+                self::assureEndsWithNewline($merged, $ancestorNewline);
+                $merged[] = str_repeat('|', $markerSize) . ' ' . $baseLabel . $ancestorNewline;
                 self::appendBase($merged, $baseLines, $start, $end);
             }
-            $merged[] = str_repeat('=', $markerSize) . $newline;
+            self::assureEndsWithNewline($merged, $conflictNewline);
+            $merged[] = str_repeat('=', $markerSize) . $conflictNewline;
             array_push($merged, ...$theirConflictLines);
-            $merged[] = str_repeat('>', $markerSize) . ' ' . $theirsLabel . $newline;
+            self::assureEndsWithNewline($merged, $conflictNewline);
+            $merged[] = str_repeat('>', $markerSize) . ' ' . $theirsLabel . $conflictNewline;
             array_push($merged, ...$suffixLines);
             $basePosition = $end;
             $ourIndex++;
@@ -317,6 +355,24 @@ final class BlobMerge
     }
 
     /**
+     * @param array{start:int,end:int,replacement:list<string>} $insertion
+     * @param array{start:int,end:int,replacement:list<string>} $deletion
+     * @param list<string> $base
+     */
+    private static function isContextDuplicateInsertionBeforeDeletion(array $insertion, array $deletion, array $base, int $basePosition): bool
+    {
+        if ($insertion['start'] !== $insertion['end']
+            || $deletion['start'] !== $insertion['start']
+            || $deletion['replacement'] !== []
+            || $basePosition >= $insertion['start']
+            || $insertion['replacement'] === []) {
+            return false;
+        }
+
+        return $insertion['replacement'] === array_slice($base, $basePosition, $insertion['start'] - $basePosition);
+    }
+
+    /**
      * @param list<string> $out
      * @param list<string> $base
      */
@@ -368,5 +424,39 @@ final class BlobMerge
         $n = strpos($text, "\n");
 
         return $rn !== false && $rn === $n - 1 ? "\r\n" : "\n";
+    }
+
+    /**
+     * @param list<string> $front
+     * @param list<string> $ancestorBefore
+     * @param list<string> $ours
+     */
+    private static function detectConflictLineEnding(array $front, array $ancestorBefore, array $ours, string $fallback): string
+    {
+        foreach ([$front, $ancestorBefore, $ours] as $lines) {
+            $detected = self::detectLineEndingFromLines($lines);
+            if ($detected !== null) {
+                return $detected;
+            }
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private static function detectLineEndingFromLines(array $lines): ?string
+    {
+        for ($i = count($lines) - 1; $i >= 0; $i--) {
+            if (str_ends_with($lines[$i], "\n")) {
+                return str_ends_with($lines[$i], "\r\n") ? "\r\n" : "\n";
+            }
+            if ($i > 0 && str_ends_with($lines[$i - 1], "\n")) {
+                return str_ends_with($lines[$i - 1], "\r\n") ? "\r\n" : "\n";
+            }
+        }
+
+        return null;
     }
 }

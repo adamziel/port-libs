@@ -39,6 +39,20 @@ $theme = BlobMerge::mergeText(
     'ours/theme.json',
     'theirs/theme.json',
 );
+$spacingAmbiguity = BlobMerge::mergeText(
+    $fixture['spacingAmbiguity']['base'],
+    $fixture['spacingAmbiguity']['ours'],
+    $fixture['spacingAmbiguity']['theirs'],
+);
+$mixedLineEndings = BlobMerge::mergeText(
+    $fixture['mixedLineEndings']['base'],
+    $fixture['mixedLineEndings']['ours'],
+    $fixture['mixedLineEndings']['theirs'],
+    BlobMerge::STYLE_MERGE,
+    'base/post.html',
+    'ours/post.html',
+    'theirs/post.html',
+);
 
 echo 'metadata=' . $metadata->resolution . "\n";
 echo 'metadata-content=' . str_replace("\n", '|', trim($metadata->content)) . "\n";
@@ -50,3 +64,7 @@ echo 'zealous-theme=' . $zealousTheme->resolution . "\n";
 echo 'zealous-theme-content=' . str_replace("\n", '|', trim($zealousTheme->content)) . "\n";
 echo 'theme=' . $theme->resolution . "\n";
 echo 'theme-conflicts=' . $theme->conflictCount . "\n";
+echo 'spacing-ambiguity=' . $spacingAmbiguity->resolution . "\n";
+echo 'spacing-ambiguity-content=' . str_replace("\n", '|', $spacingAmbiguity->content) . "\n";
+echo 'mixed-line-endings=' . $mixedLineEndings->resolution . "\n";
+echo 'mixed-line-endings-content=' . str_replace(["\r", "\n"], ['\\r', '|'], $mixedLineEndings->content) . "\n";

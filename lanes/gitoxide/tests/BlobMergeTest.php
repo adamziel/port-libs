@@ -102,6 +102,37 @@ return [
         $t->same(BlobMergeResult::RESOLUTION_AUTO_RESOLVED, $union->resolution);
         $t->same("layout: wide\ncolor: blue\ncolor: green\nspacing: fluid\n", $union->content);
     },
+    'text merge maps upstream blank line false-conflict regression' => static function (TestRunner $t): void {
+        $result = BlobMerge::mergeText(
+            "alpha_x\n\nbravo_x\ncharlie_x\n\n",
+            "\n\nbravo_x\ncharlie_x\n",
+            "alpha_x\n\ncharlie_x\n\n",
+            BlobMerge::STYLE_MERGE,
+            'base',
+            'ours',
+            'theirs',
+        );
+
+        $t->same(BlobMergeResult::RESOLUTION_COMPLETE, $result->resolution);
+        $t->same(0, $result->conflictCount);
+        $t->same("\n\ncharlie_x\n", $result->content);
+    },
+    'text merge maps upstream marker newline handling baseline' => static function (TestRunner $t): void {
+        $base = "1\r\n2\r\n3";
+        $ours = "1\r\n2\n4";
+        $theirs = "1\r\n2\n5";
+        $baseLabel = 'complex/marker-newline-handling-lf2/base.blob';
+        $oursLabel = 'complex/marker-newline-handling-lf2/ours.blob';
+        $theirsLabel = 'complex/marker-newline-handling-lf2/theirs.blob';
+
+        $merge = BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_MERGE, $baseLabel, $oursLabel, $theirsLabel);
+        $diff3 = BlobMerge::mergeText($base, $ours, $theirs, BlobMerge::STYLE_DIFF3, $baseLabel, $oursLabel, $theirsLabel);
+
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $merge->resolution);
+        $t->same("1\r\n2\n<<<<<<< {$oursLabel}\n4\n=======\n5\n>>>>>>> {$theirsLabel}\n", $merge->content);
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $diff3->resolution);
+        $t->same("1\r\n<<<<<<< {$oursLabel}\r\n2\n4\r\n||||||| {$baseLabel}\r\n2\r\n3\r\n=======\r\n2\n5\r\n>>>>>>> {$theirsLabel}\r\n", $diff3->content);
+    },
     'text merge auto resolves conflicts with ours theirs and newline-separated union' => static function (TestRunner $t): void {
         $ours = BlobMerge::mergeText("1\n2\n3", "1\n3\nours", "1\n3\ntheirs", BlobMerge::STYLE_OURS);
         $theirs = BlobMerge::mergeText("1\n2\n3", "1\n3\nours", "1\n3\ntheirs", BlobMerge::STYLE_THEIRS);
@@ -163,6 +194,20 @@ return [
             'ours/theme.json',
             'theirs/theme.json',
         );
+        $spacingAmbiguity = BlobMerge::mergeText(
+            $fixture['spacingAmbiguity']['base'],
+            $fixture['spacingAmbiguity']['ours'],
+            $fixture['spacingAmbiguity']['theirs'],
+        );
+        $mixedLineEndings = BlobMerge::mergeText(
+            $fixture['mixedLineEndings']['base'],
+            $fixture['mixedLineEndings']['ours'],
+            $fixture['mixedLineEndings']['theirs'],
+            BlobMerge::STYLE_MERGE,
+            'base/post.html',
+            'ours/post.html',
+            'theirs/post.html',
+        );
 
         $t->true($metadata->isClean());
         $t->same($fixture['metadata']['expected'], $metadata->content);
@@ -175,5 +220,9 @@ return [
         $t->same($fixture['themeSharedDecision']['expectedZealousDiff3'], $zealous->content);
         $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $theme->resolution);
         $t->contains('||||||| base/theme.json', $theme->content);
+        $t->true($spacingAmbiguity->isClean());
+        $t->same($fixture['spacingAmbiguity']['expected'], $spacingAmbiguity->content);
+        $t->same(BlobMergeResult::RESOLUTION_CONFLICT, $mixedLineEndings->resolution);
+        $t->same($fixture['mixedLineEndings']['expected'], $mixedLineEndings->content);
     },
 ];
