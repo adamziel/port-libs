@@ -805,6 +805,40 @@ return [
         $t->same(false, str_contains($article->text, 'Why Are New York City’s Streets Always Under Construction?'), 'related interactive card should not enter article text');
         $t->same(false, str_contains($article->contentHtml, 'nyc101-01-videoLarge'), 'related-card image should not survive as migrated media');
     },
+    'maps Mozilla nytimes-4 fixture with debt article graphics and related-link cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/nytimes-4';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true, ['caption']);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['lang'], $article->lang);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same(['story'], $attributeValues($article->contentHtml, '//div[@id="readability-page-1"]/article/@id'));
+        $t->same($attributeValues($expected, '//figure/@itemid'), $attributeValues($article->contentHtml, '//figure/@itemid'));
+        $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
+        $t->same($attributeValues($expected, '//img/@srcset'), $attributeValues($article->contentHtml, '//img/@srcset'));
+        $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
+        $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
+        $t->same(count($attributeValues($expected, '//h2')), count($attributeValues($article->contentHtml, '//h2')));
+        $t->same(1, substr_count($blocks, '<!-- wp:image -->'), 'NYT debt fixture lead figure should serialize as one WordPress image block');
+        $t->same(47, substr_count($blocks, '<!-- wp:paragraph -->'), 'NYT debt fixture article/header/print paragraphs should serialize without related cards');
+        $t->contains('Interest payments on the federal debt could surpass the Defense Department budget in 2023', $blocks);
+        $t->same(false, str_contains($article->text, 'Annual interest payments on the national debt'), 'ai2html debt chart leadins should not enter article text');
+        $t->same(false, str_contains($article->text, 'Trump Administration Mulls a Unilateral Tax Cut'), 'NYT RelatedLinks cards should not enter article text');
+        $t->same(false, str_contains($article->contentHtml, 'module=RelatedLinks'), 'NYT RelatedLinks anchors should be removed while preserving the section label');
+        $t->same(false, str_contains($article->contentHtml, 'data-testid="share-tools"'), 'NYT share toolbars should not survive article cleanup');
+        $t->same(false, str_contains($article->text, 'Advertisement'), 'NYT bottom ad slug should not enter article text');
+    },
     'maps Mozilla telegraph fixture with text sections and publisher media chrome cleanup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/telegraph';
         $source = (string) file_get_contents($fixture . '/source.html');

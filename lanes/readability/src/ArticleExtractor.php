@@ -153,6 +153,9 @@ final class ArticleExtractor
 
         $title = $this->title($xpath, $dom, $metaValues, $jsonLdMetadata);
         $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
+        if ($best instanceof \DOMElement) {
+            $best = $this->promotePublisherArticleRoot($best);
+        }
         $articleDir = $best instanceof \DOMElement ? $this->articleDirection($best) : null;
         if ($best instanceof \DOMElement) {
             $best = $this->promoteSingleArticleCandidate($best);
@@ -1518,6 +1521,27 @@ final class ArticleExtractor
         return $article;
     }
 
+    private function promotePublisherArticleRoot(\DOMElement $candidate): \DOMElement
+    {
+        if (strtolower($candidate->tagName) !== 'section'
+            || !str_contains(strtolower($candidate->getAttribute('itemprop')), 'articlebody')) {
+            return $candidate;
+        }
+
+        for ($parent = $candidate->parentNode; $parent instanceof \DOMElement; $parent = $parent->parentNode) {
+            if (strtolower($parent->tagName) !== 'article') {
+                continue;
+            }
+
+            if (trim($parent->getAttribute('id')) === 'story'
+                && $parent->getElementsByTagName('header')->length > 0) {
+                return $parent;
+            }
+        }
+
+        return $candidate;
+    }
+
     private function containsSingleArticle(\DOMElement $scope): bool
     {
         $articles = $scope->getElementsByTagName('article');
@@ -1576,6 +1600,18 @@ final class ArticleExtractor
             }
         }
 
+        foreach ($xpath->query('.//*[@data-testid="share-tools"]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " interactive-embedded ") and contains(concat(" ", normalize-space(@class), " "), " custom-graphic-container ")]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
         foreach ($xpath->query('.//a[@href]', $scope) ?: [] as $node) {
             if (!$node instanceof \DOMElement) {
                 continue;
@@ -1585,7 +1621,8 @@ final class ArticleExtractor
             if (str_contains($href, '/share/')
                 || str_contains($href, 'source=post_actions_')
                 || str_contains($href, 'source=post_sidebar')
-                || str_contains($href, 'source=follow_footer')) {
+                || str_contains($href, 'source=follow_footer')
+                || str_contains($href, 'module=relatedlinks')) {
                 $remove[] = $node;
             }
         }
