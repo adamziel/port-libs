@@ -12,7 +12,7 @@ final class HtmlDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, title?: string} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, stripCr?: bool, title?: string} $options
      */
     public function renderTokenDiff(string $old, string $new, array $options = []): string
     {
@@ -25,7 +25,7 @@ final class HtmlDiffRenderer
     }
 
     /**
-     * @param array{splitNumbers?: bool, title?: string} $options
+     * @param array{splitNumbers?: bool, stripCr?: bool, title?: string} $options
      */
     public function renderWordDiff(string $old, string $new, array $options = []): string
     {
@@ -38,7 +38,7 @@ final class HtmlDiffRenderer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, title?: string} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, stripCr?: bool, title?: string} $options
      */
     public function renderSyntaxListDiff(string $old, string $new, array $options = []): string
     {

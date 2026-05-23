@@ -37,6 +37,18 @@ return [
         $t->true($differ->hasChanges($old, $new));
         $t->same(false, $differ->hasChanges($old, $new, ['ignoreComments' => true]));
     },
+    'maps upstream strip cr default for multiline comment atoms' => static function (TestRunner $t): void {
+        $before = "/**\r\n * Legacy block copy.\r\n */\r\nrender_card();\r\n";
+        $after = "/**\n * Legacy block copy.\n */\nrender_card();\n";
+        $differ = new TokenDiffer();
+
+        $t->same(false, $differ->hasChanges($before, $after, ['language' => 'php']));
+        $t->same(true, $differ->hasChanges($before, $after, [
+            'language' => 'php',
+            'stripCr' => false,
+        ]));
+        $t->same([], $differ->diffSyntaxLists($before, $after, ['language' => 'php']));
+    },
     'ignores trailing commas before closing delimiters' => static function (TestRunner $t): void {
         $differ = new TokenDiffer();
         $old = 'const blocks = ["core/paragraph", "core/image"];';
@@ -1654,6 +1666,30 @@ return [
         $t->contains('lhs legacy:comment', $encoded);
         $t->contains('rhs modern:comment', $encoded);
         $t->true(!str_contains($encoded, 'legacy:normal'), 'Changed WordPress doc-comment copy should not lose comment highlighting.');
+    },
+    'wordpress crlf only render comments are unchanged by default' => static function (TestRunner $t): void {
+        $before = "<?php\r\n/**\r\n * Render the card block.\r\n */\r\nfunction acme_render_card(): string {\r\n    return '<section>Card</section>';\r\n}\r\n";
+        $after = "<?php\n/**\n * Render the card block.\n */\nfunction acme_render_card(): string {\n    return '<section>Card</section>';\n}\n";
+        $renderer = new JsonDiffRenderer();
+
+        $default = $renderer->fileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/render.php',
+            'PHP',
+            ['language' => 'php'],
+        );
+        $preservedCr = $renderer->fileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/render.php',
+            'PHP',
+            ['language' => 'php', 'stripCr' => false],
+        );
+
+        $t->same('unchanged', $default['status']);
+        $t->same('changed', $preservedCr['status']);
+        $t->true(isset($preservedCr['chunks']), 'Disabling stripCr should preserve CRLF-only changes for callers that need them.');
     },
     'yaml mode tokenizes block scalar bodies as multiline strings' => static function (TestRunner $t): void {
         $tokens = (new TokenDiffer())->tokenize("run: |\n  set -x\n  wp plugin list\nnext: true\n", ['language' => 'yaml']);

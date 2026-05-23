@@ -175,11 +175,13 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, stripCr?: bool} $options
      * @return list<array{op:string, text:string}>
      */
     public function diff(string $old, string $new, array $options = []): array
     {
+        $old = $this->normalizeTextForDiff($old, $options);
+        $new = $this->normalizeTextForDiff($new, $options);
         $a = array_map(static fn (Token $token): string => $token->text, $this->tokensForDiff($old, $options));
         $b = array_map(static fn (Token $token): string => $token->text, $this->tokensForDiff($new, $options));
 
@@ -264,11 +266,13 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{splitNumbers?: bool} $options
+     * @param array{splitNumbers?: bool, stripCr?: bool} $options
      * @return list<array{op:string, text:string}>
      */
     public function diffWords(string $old, string $new, array $options = []): array
     {
+        $old = $this->normalizeTextForDiff($old, $options);
+        $new = $this->normalizeTextForDiff($new, $options);
         $splitNumbers = ($options['splitNumbers'] ?? false) === true;
         $a = $splitNumbers ? $this->splitWordsAndNumbers($old) : $this->splitWords($old);
         $b = $splitNumbers ? $this->splitWordsAndNumbers($new) : $this->splitWords($new);
@@ -277,7 +281,7 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, stripCr?: bool} $options
      */
     public function hasChanges(string $old, string $new, array $options = []): bool
     {
@@ -291,11 +295,13 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, stripCr?: bool} $options
      * @return list<array{op:string, path:string, text?:string, old?:string, new?:string}>
      */
     public function diffSyntaxLists(string $old, string $new, array $options = []): array
     {
+        $old = $this->normalizeTextForDiff($old, $options);
+        $new = $this->normalizeTextForDiff($new, $options);
         if ($old !== $new) {
             if ($this->isPlainTextLanguage($options)) {
                 return $this->diffPlainTextLines($old, $new);
@@ -364,20 +370,26 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
+     * @param array{language?: string, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int, stripCr?: bool} $options
      */
     public function textFallbackReason(string $old, string $new, array $options = [], ?string $languageName = null): ?string
     {
+        $old = $this->normalizeTextForDiff($old, $options);
+        $new = $this->normalizeTextForDiff($new, $options);
+
         return $this->byteLimitFallbackReason($old, $new, $options)
             ?? $this->syntaxErrorFallbackReason($old, $new, $options, $languageName)
             ?? $this->graphLimitFallbackReason($old, $new, $options);
     }
 
     /**
-     * @param array{language?: string, byteLimit?: int} $options
+     * @param array{language?: string, byteLimit?: int, stripCr?: bool} $options
      */
     public function byteLimitFallbackReason(string $old, string $new, array $options = []): ?string
     {
+        $old = $this->normalizeTextForDiff($old, $options);
+        $new = $this->normalizeTextForDiff($new, $options);
+
         if (!$this->usesTextFallback($options)) {
             return null;
         }
@@ -393,10 +405,13 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{language?: string, parseErrorLimit?: int} $options
+     * @param array{language?: string, parseErrorLimit?: int, stripCr?: bool} $options
      */
     public function syntaxErrorFallbackReason(string $old, string $new, array $options = [], ?string $languageName = null): ?string
     {
+        $old = $this->normalizeTextForDiff($old, $options);
+        $new = $this->normalizeTextForDiff($new, $options);
+
         if (!$this->usesParseErrorFallback($options)) {
             return null;
         }
@@ -413,10 +428,13 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{language?: string, ignoreComments?: bool, ignoreTrailingCommas?: bool, graphLimit?: int} $options
+     * @param array{language?: string, ignoreComments?: bool, ignoreTrailingCommas?: bool, graphLimit?: int, stripCr?: bool} $options
      */
     public function graphLimitFallbackReason(string $old, string $new, array $options = []): ?string
     {
+        $old = $this->normalizeTextForDiff($old, $options);
+        $new = $this->normalizeTextForDiff($new, $options);
+
         if (!$this->usesTextFallback($options)) {
             return null;
         }
@@ -462,7 +480,7 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{language?: string} $options
+     * @param array{language?: string, stripCr?: bool} $options
      */
     public function syntaxErrorCount(string $source, array $options = []): int
     {
@@ -470,11 +488,13 @@ final class TokenDiffer
     }
 
     /**
-     * @param array{language?: string} $options
+     * @param array{language?: string, stripCr?: bool} $options
      * @return list<array{start:int, end:int, text:string}>
      */
     public function syntaxErrorSpans(string $source, array $options = []): array
     {
+        $source = $this->normalizeTextForDiff($source, $options);
+
         if (!$this->usesParseErrorFallback($options)) {
             return [];
         }
@@ -525,6 +545,22 @@ final class TokenDiffer
         usort($errors, static fn (array $a, array $b): int => [$a['start'], $a['end']] <=> [$b['start'], $b['end']]);
 
         return $errors;
+    }
+
+    /**
+     * Difftastic's CLI defaults to `--strip-cr=on`, removing carriage
+     * returns before parsing so CRLF-only edits do not become structural
+     * string/comment churn.
+     *
+     * @param array{stripCr?: bool} $options
+     */
+    public function normalizeTextForDiff(string $source, array $options = []): string
+    {
+        if (($options['stripCr'] ?? true) === false) {
+            return $source;
+        }
+
+        return str_replace("\r", '', $source);
     }
 
     /**

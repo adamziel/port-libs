@@ -108,6 +108,8 @@ Supported-language byte-limit fallback now maps upstream `DEFAULT_BYTE_LIMIT`, `
 
 Supported-language graph-limit fallback now maps upstream `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `ExceededGraphLimit`, and `TextFallback` behavior. The WordPress block variation example lowers the graph limit to exercise the path with a bounded `registerBlockVariation` change: variation insertions and edits are shown as escaped `$text.line[...]` changes, and JSON display labels the file as `Text (exceeded DFT_GRAPH_LIMIT)` instead of attempting a partial structural `$js.array[...]` diff after the graph budget is exceeded.
 
+Strip-CR normalization now maps upstream `--strip-cr=on` default behavior from `src/options.rs` and `src/main.rs`. The WordPress CRLF render example compares a Windows-edited plugin render file against LF-only output and returns an unchanged compact JSON status by default, while `stripCr => false` preserves CR-only changes for callers that explicitly review line endings.
+
 File-content decoding now maps upstream `src/files.rs` UTF-16 byte-order-mark handling and the `sample_files/utf16_*.py` pair. The WordPress UTF-16 WXR example compares byte-order-marked export XML bytes and renders `_old_builder`, `_wp_page_template`, and `_thumbnail_id` postmeta changes as normal XML JSON chunks instead of reporting the export as a binary file.
 
 File-content decoding now also maps the upstream `src/files.rs` Windows-1252 fallback branch and `sample_files/windows1251_*.txt`. The WordPress legacy encoded readme example compares plugin metadata bytes from an ISO-8859-1/Windows-1252 source, keeps decoded text such as `müller`, `Löst`, and `Blöcke` readable, and reports `alte` to `moderne` release copy as normal text chunks instead of a binary status.
@@ -161,6 +163,7 @@ php lanes/difftastic/examples/wordpress-block-import-attributes-ts-diff.php
 php lanes/difftastic/examples/wordpress-block-dynamic-metadata-ts-display.php
 php lanes/difftastic/examples/wordpress-typescript-highlight-display.php
 php lanes/difftastic/examples/wordpress-tree-sitter-error-display.php
+php lanes/difftastic/examples/wordpress-strip-cr-display.php
 php lanes/difftastic/examples/wordpress-block-edit-jsx-diff.php
 php lanes/difftastic/examples/wordpress-block-editor-whitespace-tsx-diff.php
 php lanes/difftastic/examples/wordpress-block-style-css-diff.php
