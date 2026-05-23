@@ -511,6 +511,7 @@ final class TypeScriptModuleLowerer
     {
         $cursor = $start;
         $hasTypeScriptClassSyntax = false;
+        [$decoratorTexts, $decoratorSkipRanges, $cursor] = $this->classStatementDecorators($cursor);
         if (($this->tokens[$cursor] ?? null)?->text === 'export') {
             if ($this->hasLineBreakBetween($cursor, $cursor + 1)) {
                 return null;
@@ -522,6 +523,12 @@ final class TypeScriptModuleLowerer
                 }
                 $cursor++;
             }
+            [$afterExportDecorators, $afterExportSkipRanges, $cursor] = $this->classStatementDecorators($cursor);
+            if ($decoratorTexts !== [] && $afterExportDecorators !== []) {
+                throw new \InvalidArgumentException('Decorators are not valid here');
+            }
+            array_push($decoratorTexts, ...$afterExportDecorators);
+            $decoratorSkipRanges += $afterExportSkipRanges;
         }
 
         if (($this->tokens[$cursor] ?? null)?->text === 'abstract') {
@@ -586,7 +593,11 @@ final class TypeScriptModuleLowerer
             $fieldKeyExtendsPrelude,
             $extendsTemp,
             $defaultClassName,
+            $decoratorSkipRanges,
         );
+        if ($decoratorTexts !== []) {
+            $header = implode(' ', $decoratorTexts) . ' ' . $header;
+        }
         $lines = [$header . ' {'];
         foreach ($members as $member) {
             foreach (explode("\n", $member) as $line) {
@@ -618,6 +629,24 @@ final class TypeScriptModuleLowerer
         }
 
         return [$classOutput, $bodyClose];
+    }
+
+    /**
+     * @return array{0:list<string>, 1:array<int, int>, 2:int}
+     */
+    private function classStatementDecorators(int $start): array
+    {
+        $texts = [];
+        $skipRanges = [];
+        $cursor = $start;
+        while (($this->tokens[$cursor] ?? null)?->text === '@') {
+            $end = $this->decoratorEnd($cursor);
+            $texts[] = rtrim($this->printClassMemberRuntimeRange($cursor, $end), ';');
+            $skipRanges[$cursor] = $end;
+            $cursor = $end + 1;
+        }
+
+        return [$texts, $skipRanges, $cursor];
     }
 
     private function isExportDefaultClassStatement(int $start): bool
@@ -2710,11 +2739,17 @@ final class TypeScriptModuleLowerer
         array $extendsPrelude = [],
         ?string $extendsTemp = null,
         ?string $anonymousClassName = null,
+        array $skipRanges = [],
     ): string
     {
         $parts = [];
         $previous = null;
         for ($i = $start; $i < $bodyOpen; $i++) {
+            if (isset($skipRanges[$i])) {
+                $i = $skipRanges[$i];
+                continue;
+            }
+
             $token = $this->tokens[$i] ?? null;
             if ($token === null) {
                 continue;

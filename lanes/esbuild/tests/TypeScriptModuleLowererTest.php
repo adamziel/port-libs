@@ -1295,6 +1295,29 @@ JS . "\n", $lowerer->lower('class Foo { @x<{}>.y<[], () => {}> z: any }'));
 
         $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('class Foo { @x<{}>().y<[], () => {}>() z: any }'));
     },
+    'keeps upstream class decorators on lowered class statements' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+@x class Foo {
+  y;
+}
+JS . "\n", $lowerer->lower('@x class Foo { y: any }'));
+
+        $t->same(<<<'JS'
+@x export class Foo {
+  y;
+}
+JS . "\n", $lowerer->lower('export @x class Foo { y: any }'));
+
+        $t->same(<<<'JS'
+@blockController(metadata) class Foo {
+}
+Foo.settings = metadata;
+JS . "\n", $lowerer->lower('@blockController<BlockConfiguration>(metadata) class Foo { static settings: BlockConfiguration = metadata }', false, targetYear: 2021));
+
+        $t->throws(InvalidArgumentException::class, static fn (): string => $lowerer->lower('@x export @y class Foo { y: any }'));
+    },
     'rejects malformed upstream typescript auto accessors' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -2199,6 +2222,19 @@ JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, '?:'));
         $t->true(!str_contains($lowered, '!:'));
+    },
+    'lowers wordpress decorated block controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-decorated-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false, targetYear: 2021);
+
+        $t->contains('@blockController(metadata) class DecoratedBlockController {', $lowered);
+        $t->contains('DecoratedBlockController.settings = {supports:{html:false}, viewScript:"file:./view.js",};', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, DecoratedBlockController.settings);', $lowered);
+        $t->true(strpos($lowered, '@blockController(metadata) class DecoratedBlockController') < strpos($lowered, 'DecoratedBlockController.settings ='));
+        $t->true(!str_contains($lowered, '@blockController<BlockConfiguration>'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, 'static {'));
     },
     'lowers wordpress using disposable asset handles without node' => static function (TestRunner $t): void {
         $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-using-disposable.ts');
