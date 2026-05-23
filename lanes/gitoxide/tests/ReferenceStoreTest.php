@@ -317,10 +317,41 @@ return [
         $t->same($new, $packed->find('refs/heads/main')->targetObjectId());
         $t->same($other, $packed->find('refs/heads/side')->targetObjectId());
         $t->same(false, is_file($dir . '/refs/heads/main'));
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
         $t->contains(
             "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tpack deployment branch\n",
             (string) $store->reflogContents('refs/heads/main'),
         );
+    },
+    'reference store packed update refuses stale packed refs lock without side effects' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-lock-collision-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        $packedContents = "{$old} refs/heads/main\n{$other} refs/heads/side\n";
+        file_put_contents($dir . '/packed-refs', $packedContents);
+        file_put_contents($dir . '/packed-refs.lock', 'held by another transaction');
+        $store = ReferenceStore::at($dir);
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->update(
+                'refs/heads/main',
+                ReferenceTarget::object($new),
+                ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+                ReferenceTarget::object($old),
+                false,
+                'sha1',
+                null,
+                '',
+                false,
+                ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+            ),
+        );
+
+        $t->same($packedContents, file_get_contents($dir . '/packed-refs'));
+        $t->same('held by another transaction', file_get_contents($dir . '/packed-refs.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/main'));
+        $t->same(null, $store->reflogContents('refs/heads/main'));
+        $t->same($old, PackedReferences::open($dir . '/packed-refs')->find('refs/heads/main')->targetObjectId());
     },
     'reference store packed update mode refreshes stale packed refs even when loose value already matches' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-stale-refresh-' . bin2hex(random_bytes(4));
@@ -547,6 +578,7 @@ return [
         $store->deleteReference('refs/heads/main');
 
         $t->same(false, is_file($dir . '/packed-refs'));
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
         $t->same(null, $store->tryFind('refs/heads/main'));
     },
     'namespaced reference transactions are transparent like upstream gix ref' => static function (TestRunner $t) use ($old): void {
@@ -621,6 +653,25 @@ return [
         $t->same(true, is_file($heldLock));
         $t->same(false, is_file($dir . '/refs/heads/a/c/ref.lock'));
         $t->same(false, is_dir($dir . '/refs/heads/a/c'));
+    },
+    'prepared reference transaction refuses packed refs lock before loose locks' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-packed-lock-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs.lock', 'packed transaction in progress');
+        $store = new ReferenceStore($dir);
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->prepareLooseUpdateTransaction([
+                'refs/heads/a/b/ref' => ReferenceTarget::object($old),
+                'refs/heads/a/c/ref' => ReferenceTarget::object($new),
+            ]),
+        );
+
+        $t->same('packed transaction in progress', file_get_contents($dir . '/packed-refs.lock'));
+        $t->same(false, is_dir($dir . '/refs'));
+        $t->same(null, $store->tryFind('refs/heads/a/b/ref'));
+        $t->same(null, $store->tryFind('refs/heads/a/c/ref'));
     },
     'reference store recovers empty directory blockers when creating loose refs' => static function (TestRunner $t): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-empty-dir-blocker-' . bin2hex(random_bytes(4));
@@ -715,6 +766,10 @@ return [
             (string) $summary['productionReflog'],
         );
         $t->contains($fixture['message'], (string) $summary['productionReflog']);
+        $t->same($fixture['packedRefs'], $summary['lockedPackedRefsAfterFailure']);
+        $t->same($fixture['expectedPackedLockFailurePrefix'], substr($summary['packedLockFailure'], 0, strlen($fixture['expectedPackedLockFailurePrefix'])));
+        $t->same(true, $summary['packedLockStillPresent']);
+        $t->same(false, $summary['lockedLooseProductionExists']);
         $t->contains('peel a packed release tag', $summary['wordpressUse']);
     },
 ];

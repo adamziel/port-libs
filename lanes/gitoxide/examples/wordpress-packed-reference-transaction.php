@@ -71,6 +71,29 @@ $release = $store->update(
 
 $packed = PackedReferences::open($dir . '/packed-refs');
 
+$lockedDir = sys_get_temp_dir() . '/port-libs-wp-packed-ref-lock-' . bin2hex(random_bytes(4));
+mkdir($lockedDir, 0777, true);
+file_put_contents($lockedDir . '/packed-refs', $fixture['packedRefs']);
+file_put_contents($lockedDir . '/packed-refs.lock', 'held by another deployment');
+$lockedStore = ReferenceStore::at($lockedDir);
+$packedLockFailure = null;
+try {
+    $lockedStore->update(
+        $fixture['productionRef'],
+        ReferenceTarget::object($fixture['newProductionCommit']),
+        ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+        ReferenceTarget::object($fixture['oldProductionCommit']),
+        false,
+        'sha1',
+        null,
+        '',
+        false,
+        ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+    );
+} catch (RuntimeException $exception) {
+    $packedLockFailure = $exception->getMessage();
+}
+
 return [
     'productionRef' => $updated->name,
     'productionCommit' => $updated->targetObjectId(),
@@ -86,5 +109,9 @@ return [
     'looseReleaseTagExists' => is_file($dir . '/' . $fixture['releaseRef']),
     'reviewRefStillExists' => $store->tryFind($fixture['reviewRef']) !== null,
     'productionReflog' => $store->reflogContents($fixture['productionRef']),
+    'packedLockFailure' => $packedLockFailure,
+    'packedLockStillPresent' => is_file($lockedDir . '/packed-refs.lock'),
+    'lockedPackedRefsAfterFailure' => file_get_contents($lockedDir . '/packed-refs'),
+    'lockedLooseProductionExists' => is_file($lockedDir . '/' . $fixture['productionRef']),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

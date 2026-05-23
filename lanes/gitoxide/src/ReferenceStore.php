@@ -56,6 +56,10 @@ final class ReferenceStore
      */
     public function prepareLooseUpdateTransaction(array $updates, string $algorithm = 'sha1'): PreparedReferenceTransaction
     {
+        if (is_file($this->packedRefsLockPath()) || is_dir($this->packedRefsLockPath())) {
+            throw new \RuntimeException('The lock for the packed-ref file could not be obtained');
+        }
+
         $locks = [];
 
         try {
@@ -821,32 +825,85 @@ final class ReferenceStore
 
         ksort($byName, SORT_STRING);
 
-        if ($byName === []) {
-            if (is_file($this->packedRefsPath()) && !unlink($this->packedRefsPath())) {
-                throw new \RuntimeException('Unable to remove empty packed-refs file');
-            }
-            $this->packed = null;
-            return;
-        }
+        $lock = $this->acquirePackedRefsLock();
+        $committed = false;
 
-        $contents = "# pack-refs with: peeled fully-peeled sorted \n";
-        foreach ($byName as $reference) {
-            $contents .= $reference->target->value . ' ' . $reference->name . "\n";
-            if ($reference->peeledObjectId !== null) {
-                $contents .= '^' . $reference->peeledObjectId . "\n";
+        try {
+            if ($byName === []) {
+                if (is_file($this->packedRefsPath()) && !unlink($this->packedRefsPath())) {
+                    throw new \RuntimeException('Unable to remove empty packed-refs file');
+                }
+
+                $this->closePackedRefsLock($lock);
+                $lock = null;
+                if (is_file($this->packedRefsLockPath()) && !unlink($this->packedRefsLockPath())) {
+                    throw new \RuntimeException('Unable to remove packed-refs lock file');
+                }
+
+                $this->packed = null;
+                $committed = true;
+                return;
+            }
+
+            $contents = "# pack-refs with: peeled fully-peeled sorted \n";
+            foreach ($byName as $reference) {
+                $contents .= $reference->target->value . ' ' . $reference->name . "\n";
+                if ($reference->peeledObjectId !== null) {
+                    $contents .= '^' . $reference->peeledObjectId . "\n";
+                }
+            }
+
+            if (fwrite($lock, $contents) !== strlen($contents)) {
+                throw new \RuntimeException('Unable to write packed-refs lock file');
+            }
+            if (!fflush($lock)) {
+                throw new \RuntimeException('Unable to flush packed-refs lock file');
+            }
+            $this->closePackedRefsLock($lock);
+            $lock = null;
+
+            if (!rename($this->packedRefsLockPath(), $this->packedRefsPath())) {
+                throw new \RuntimeException('Unable to commit packed-refs lock file');
+            }
+
+            $this->packed = PackedReferences::fromBytes($contents, $algorithm);
+            $committed = true;
+        } finally {
+            if (is_resource($lock)) {
+                fclose($lock);
+            }
+            if (!$committed && is_file($this->packedRefsLockPath())) {
+                @unlink($this->packedRefsLockPath());
             }
         }
+    }
 
+    /**
+     * @return resource
+     */
+    private function acquirePackedRefsLock()
+    {
         $directory = dirname($this->packedRefsPath());
         if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
             throw new \RuntimeException("Unable to create packed-refs directory: {$directory}");
         }
 
-        if (file_put_contents($this->packedRefsPath(), $contents) === false) {
-            throw new \RuntimeException('Unable to rewrite packed-refs file');
+        $lock = @fopen($this->packedRefsLockPath(), 'x');
+        if ($lock === false) {
+            throw new \RuntimeException('The lock for the packed-ref file could not be obtained');
         }
 
-        $this->packed = PackedReferences::fromBytes($contents, $algorithm);
+        return $lock;
+    }
+
+    /**
+     * @param resource $lock
+     */
+    private function closePackedRefsLock($lock): void
+    {
+        if (!fclose($lock)) {
+            throw new \RuntimeException('Unable to close packed-refs lock file');
+        }
     }
 
     private function packedReferenceForUpdate(
@@ -917,6 +974,11 @@ final class ReferenceStore
     private function packedRefsPath(): string
     {
         return rtrim($this->gitDirectory, '/\\') . '/packed-refs';
+    }
+
+    private function packedRefsLockPath(): string
+    {
+        return $this->packedRefsPath() . '.lock';
     }
 
     private function referencePath(string $physicalName): string

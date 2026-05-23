@@ -33,5 +33,6 @@ return [
         'refs/heads/production',
         'refs/tags/wp-release-v2026.05',
     ],
-    'wordpressUse' => 'A WordPress deployment tool can promote a packed production branch, prune a reviewed plugin branch, peel a packed release tag through native object lookup, and retain a reflog audit trail without invoking git update-ref or pack-refs.',
+    'expectedPackedLockFailurePrefix' => 'The lock for the packed-ref file could not be obtained',
+    'wordpressUse' => 'A WordPress deployment tool can promote a packed production branch, prune a reviewed plugin branch, peel a packed release tag through native object lookup, retain a reflog audit trail, and refuse a concurrent packed-ref deployment lock before leaving partial loose or packed refs without invoking git update-ref or pack-refs.',
 ];
