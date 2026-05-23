@@ -6057,6 +6057,73 @@ return [
             static fn () => $database->planWordPressOptionReplace('blogname', $replacementValue, 'no', false),
         );
     },
+    'plans wordpress replacement by growing a table leaf root' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
+                'table',
+                'wp_options',
+                'wp_options',
+                2,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ])),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 2));
+        $tableRootLeafPage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'blogname', 'Stale Site', 'yes'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, '_transient_migration_lock', 'old-lock', 'no'])),
+        ], $pageSize);
+        $database = SQLiteDatabase::fromBytes($schemaPage . $tableRootLeafPage);
+
+        $replacementValue = str_repeat('expanded-cache-', 28);
+        $plan = $database->planWordPressOptionReplace('blogname', $replacementValue, 'no');
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $options = $postDatabase->wordpressOptions();
+        $rootCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(2), $postDatabase->pageHeader(2));
+        $leftLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(3), $postDatabase->pageHeader(3), $pageSize);
+        $rightLeafCells = SQLiteTableLeafCell::parsePageCells($postDatabase->page(4), $postDatabase->pageHeader(4), $pageSize);
+
+        $t->same([1, 2, 3, 4], array_keys($plan->pageImages()));
+        $t->same(4, $plan->databasePageCount);
+        $t->same(2, $plan->tableRootPage);
+        $t->same(2, $plan->rowId);
+        $t->same(strlen(SQLiteRecord::encode([null, 'blogname', $replacementValue, 'no'])), $plan->localPayloadLength);
+        $t->same('table-interior', $postDatabase->pageHeader(2)->pageType);
+        $t->same(1, $postDatabase->pageHeader(2)->cellCount);
+        $t->same(4, $postDatabase->pageHeader(2)->rightMostPointer);
+        $t->same([3], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $rootCells));
+        $t->same([1], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $rootCells));
+        $t->same([1], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $leftLeafCells));
+        $t->same([2, 3], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $rightLeafCells));
+        $t->same(['siteurl', 'blogname', '_transient_migration_lock'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $options));
+        $t->same($replacementValue, $options[1]->optionValue);
+        $t->same('no', $options[1]->autoload);
+        $t->same([
+            'table_root_page' => 2,
+            'rowid' => 2,
+            'option_name' => 'blogname',
+            'autoload' => 'no',
+            'overflow_page_numbers' => [],
+            'obsolete_overflow_page_numbers' => [],
+            'local_payload_length' => strlen(SQLiteRecord::encode([null, 'blogname', $replacementValue, 'no'])),
+            'database_page_count' => 4,
+            'updated_page_numbers' => [1, 2, 3, 4],
+        ], $plan->toArray());
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $database->planWordPressOptionReplace('blogname', $replacementValue, 'no', false),
+        );
+    },
     'plans wordpress wp_options replacement with appended overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $emptyPage = str_repeat("\0", $pageSize);

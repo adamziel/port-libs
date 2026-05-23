@@ -96,3 +96,40 @@ php tools/run-tests.php
 ```
 
 Result observed by this worker: 198 test files, 22295 assertions, 0 failures.
+
+## Table Root Leaf Growth Replacement Slice
+
+Focused lane verification for the table-root leaf growth replacement slice
+passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 1321 assertions, 0 failures.
+
+The WordPress example also ran successfully:
+
+```sh
+php lanes/libsqlite/examples/wordpress-table-root-split-option-replacement-plan.php
+```
+
+It reported updated page images `[1,2,3,4]`, database page count `4`, a
+`table-interior` root at page 2, split leaf pages 3 and 4 with 1 and 2 cells,
+and a rewritten `blogname` option with `autoload='no'`.
+
+The required duplicate-root preflight was run before the aggregate harness:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+```
+
+It initially returned active root PID `2482310 php tools/run-tests.php`, but
+that process exited before owner sampling. A second exact preflight returned
+no active root process, so this worker ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result observed by this worker: 199 test files, 22444 assertions, 0 failures.

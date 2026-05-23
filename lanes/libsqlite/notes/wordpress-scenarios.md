@@ -883,6 +883,15 @@ maps larger WordPress SQLite fallback/repair tools that need to change a
 single option below an interior table root without the SQLite extension and
 before full pager/journal support exists.
 
+`examples/wordpress-table-root-split-option-replacement-plan.php` starts from
+a small `wp_options` table whose root is still a single table leaf. It asks
+`planWordPressOptionReplace()` for a larger `blogname` rewrite, applies the
+returned header/root/new-leaf page images, and verifies that page 2 has grown
+into a `table-interior` root over split leaf pages 3 and 4 while every option
+row remains readable in rowid order. This maps small WordPress SQLite
+databases that cross the first table b-tree depth boundary during a repair or
+migration preflight without the SQLite extension.
+
 `examples/wordpress-table-leaf-split-option-replacement-plan.php` starts from
 a `wp_options` table whose root is a table-interior page and whose left child
 leaf becomes too full after a larger `blogname` replacement. It asks

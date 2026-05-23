@@ -2737,6 +2737,61 @@ Per lane instructions, this worker did not start a duplicate root harness. The
 post-change root result is pending supervisor/integrator acceptance of the
 active run.
 
+## Focused Native Mapping: Table Root Leaf Growth Replacement
+
+For the bounded table-root leaf growth replacement slice on 2026-05-23, the
+focused upstream runner passed `update.test`, `insert.test`, `btree01.test`,
+and `rowid.test` with 0 errors out of 1070 tests:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  update.test insert.test btree01.test rowid.test
+```
+
+This maps UPDATE row rewrite behavior, rowid lookup/comparison boundaries,
+table b-tree root growth after a larger row payload, and b-tree page/cell
+assembly used by the native bounded `wp_options` replacement planner when a
+single table-leaf root must become an interior table root.
+
+The PHP planner now splits the overfull table-root leaf into two newly
+allocated table leaves, writes a one-cell table-interior root with the left
+leaf's maximum rowid as the separator, updates the returned database page
+count through allocation planning, and preserves all `wp_options` rows in
+rowid traversal order. It still rejects non-root table/index parent split
+propagation, table leaf rebalancing beyond the bounded root-parent cases,
+pointer-map/auto-vacuum, journaling, WAL, and general SQL execution.
+
+The direct libsqlite harness passed 191 PHP tests with 1321 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-table-root-split-option-replacement-plan.php`
+script ran successfully, reporting updated page images `[1,2,3,4]`, a
+`table-interior` root at page 2, split leaf counts 1 and 2, and a rewritten
+`blogname` option with `autoload='no'`.
+
+Before starting the root harness, the required duplicate-root preflight first
+found an active aggregate PID that exited before owner sampling:
+
+```sh
+pgrep -af '^php tools/run-tests\.php( |$)'
+# 2482310 php tools/run-tests.php
+ps -o pid,user,etime,cmd -p 2482310
+# process exited before owner details could be read
+```
+
+A second exact preflight returned no active root harness, so this worker ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 199 test files, 22444 assertions, 0 failures.
+
 ## Focused Native Mapping: Table Leaf Split During Replacement
 
 For the bounded table-leaf split replacement slice on 2026-05-23, the focused
@@ -2755,8 +2810,8 @@ existing leaf. The native PHP slice now assembles table-interior pages and can
 rewrite a `wp_options` row below a table-interior root by splitting the target
 table leaf, allocating the new leaf page, and updating the root separator keys
 and right-most child pointer. The implementation remains intentionally bounded:
-non-root table parent split propagation and table-root leaf growth remain
-future slices.
+non-root table parent split propagation and broader table-leaf rebalancing
+remain future slices.
 
 Focused lane verification passed:
 

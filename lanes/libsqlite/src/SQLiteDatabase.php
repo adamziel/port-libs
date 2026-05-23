@@ -832,7 +832,7 @@ final class SQLiteDatabase
     ): array {
         $parent = $leaf['parent'];
         if ($parent === null) {
-            throw new \InvalidArgumentException('SQLite wp_options table replacement planning does not yet grow table leaf root pages');
+            return $this->withGrownRootWritableTableLeafPage($pageImages, $rootPage, $leaf, $entries, $allowAppend);
         }
         if ($parent['pageNumber'] !== $rootPage) {
             throw new \InvalidArgumentException('SQLite wp_options table replacement planning does not yet split non-root table parent pages');
@@ -877,6 +877,69 @@ final class SQLiteDatabase
             $leaf['pageNumber'],
             $newLeafPageNumber,
             $leftMaxRowId,
+        );
+        ksort($pageImages);
+
+        return $pageImages;
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @param array{pageNumber:int,page:string,headerOffset:int} $leaf
+     * @param list<array{rowid:int,cell:string}> $entries
+     * @return array<int, string>
+     */
+    private function withGrownRootWritableTableLeafPage(
+        array $pageImages,
+        int $rootPage,
+        array $leaf,
+        array $entries,
+        bool $allowAppend,
+    ): array {
+        if ($leaf['pageNumber'] !== $rootPage) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning can grow only a table leaf root page');
+        }
+
+        [$leftEntries, $rightEntries] = $this->partitionWritableTableLeafEntriesForSplit(
+            $entries,
+            0,
+            str_repeat("\0", $this->header->pageSize),
+        );
+        $leftMaxRowId = $leftEntries[count($leftEntries) - 1]['rowid'];
+
+        $workingDatabase = $this->withPageImages($pageImages);
+        $allocationPlan = $workingDatabase->planPageAllocation(2, $allowAppend);
+        foreach ($allocationPlan->pageImages() as $pageNumber => $page) {
+            $pageImages[$pageNumber] = $page;
+        }
+        $allocatedPageNumbers = array_values($allocationPlan->allocatedPageNumbers);
+        $leftLeafPageNumber = $allocatedPageNumbers[0] ?? null;
+        $rightLeafPageNumber = $allocatedPageNumbers[1] ?? null;
+        if ($leftLeafPageNumber === null || $rightLeafPageNumber === null) {
+            throw new \InvalidArgumentException('SQLite wp_options table replacement planning could not allocate root split leaf pages');
+        }
+
+        $pageImages[$leftLeafPageNumber] = SQLiteTableLeafPage::assemble(
+            array_map(static fn (array $entry): string => $entry['cell'], $leftEntries),
+            $this->header->pageSize,
+            0,
+            str_repeat("\0", $this->header->pageSize),
+            $this->usablePageSize(),
+        );
+        $pageImages[$rightLeafPageNumber] = SQLiteTableLeafPage::assemble(
+            array_map(static fn (array $entry): string => $entry['cell'], $rightEntries),
+            $this->header->pageSize,
+            0,
+            str_repeat("\0", $this->header->pageSize),
+            $this->usablePageSize(),
+        );
+        $pageImages[$rootPage] = SQLiteTableInteriorPage::assemble(
+            [SQLiteTableInteriorCell::encode($leftLeafPageNumber, $leftMaxRowId)],
+            $rightLeafPageNumber,
+            $this->header->pageSize,
+            $leaf['headerOffset'],
+            $leaf['page'],
+            $this->usablePageSize(),
         );
         ksort($pageImages);
 
