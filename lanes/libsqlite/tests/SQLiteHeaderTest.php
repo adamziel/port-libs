@@ -9,6 +9,7 @@ use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteCreateIndex;
 use PortLibs\LibSqlite\SQLiteCreateTable;
 use PortLibs\LibSqlite\SQLiteDatabase;
+use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexColumn;
 use PortLibs\LibSqlite\SQLiteIndexInteriorPage;
@@ -258,7 +259,25 @@ return [
         $t->same(4096, $parsed->pageSize);
         $t->same(1, $parsed->writeVersion);
         $t->same(2, $parsed->databaseSizePages);
+        $t->same(0, $parsed->firstFreelistTrunkPage);
+        $t->same(0, $parsed->freelistPageCount);
         $t->same(1, $parsed->textEncoding);
+    },
+    'parses sqlite database freelist header fields' => static function (TestRunner $t): void {
+        $header = str_repeat("\0", 100);
+        $header = substr_replace($header, "SQLite format 3\0", 0, 16);
+        $header = substr_replace($header, pack('n', 1024), 16, 2);
+        $header[18] = "\x01";
+        $header[19] = "\x01";
+        $header = substr_replace($header, pack('N', 8), 28, 4);
+        $header = substr_replace($header, pack('N', 5), 32, 4);
+        $header = substr_replace($header, pack('N', 4), 36, 4);
+        $header = substr_replace($header, pack('N', 1), 56, 4);
+
+        $parsed = SQLiteHeader::parse($header);
+
+        $t->same(5, $parsed->firstFreelistTrunkPage);
+        $t->same(4, $parsed->freelistPageCount);
     },
     'sqlite varints decode one and multi byte values' => static function (TestRunner $t): void {
         $t->same([127, 1], SQLiteVarint::decode("\x7f"));
@@ -350,6 +369,77 @@ return [
             ['offset' => 470, 'size' => 16, 'end_offset' => 486, 'next_offset' => null],
         ], array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $freeblocks));
         $t->same(429, $header->freeSpaceBytes($page));
+    },
+    'parses sqlite freelist trunk pages and allocation order' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $firstPage = $makeFirstPage(512, 8);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 36, 4);
+        $page2 = str_repeat("\0", 512);
+        $page3 = str_repeat("\0", 512);
+        $page4 = str_repeat("\0", 512);
+        $page5 = SQLiteFreelistTrunkPage::assemble(6, [3, 7, 4]);
+        $page6 = SQLiteFreelistTrunkPage::assemble(null, []);
+        $page7 = str_repeat("\0", 512);
+        $page8 = str_repeat("\0", 512);
+        $database = SQLiteDatabase::fromBytes($firstPage . $page2 . $page3 . $page4 . $page5 . $page6 . $page7 . $page8);
+
+        $trunkPages = $database->freelistTrunkPages();
+
+        $t->same(2, count($trunkPages));
+        $t->same([
+            'page_number' => 5,
+            'next_trunk_page' => 6,
+            'leaf_page_numbers' => [3, 7, 4],
+            'page_count' => 4,
+            'allocation_order' => [3, 4, 7, 5],
+        ], $trunkPages[0]->toArray());
+        $t->same([5, 3, 7, 4, 6], $database->freelistPageNumbers());
+        $t->same([3, 4, 7, 5, 6], $database->freelistAllocationOrder());
+        $t->same([3, 4], $database->freelistAllocationOrder(2));
+    },
+    'rejects corrupt sqlite freelist trunk metadata' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $countTooSmall = $makeFirstPage(512, 5);
+        $countTooSmall = substr_replace($countTooSmall, pack('N', 4), 32, 4);
+        $countTooSmall = substr_replace($countTooSmall, pack('N', 2), 36, 4);
+        $database = SQLiteDatabase::fromBytes(
+            $countTooSmall
+            . str_repeat("\0", 512)
+            . str_repeat("\0", 512)
+            . SQLiteFreelistTrunkPage::assemble(null, [2, 3])
+            . str_repeat("\0", 512),
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $database->freelistTrunkPages());
+
+        $duplicate = $makeFirstPage(512, 5);
+        $duplicate = substr_replace($duplicate, pack('N', 4), 32, 4);
+        $duplicate = substr_replace($duplicate, pack('N', 3), 36, 4);
+        $duplicateTrunk = str_repeat("\0", 512);
+        $duplicateTrunk = substr_replace($duplicateTrunk, pack('N', 0), 0, 4);
+        $duplicateTrunk = substr_replace($duplicateTrunk, pack('N', 2), 4, 4);
+        $duplicateTrunk = substr_replace($duplicateTrunk, pack('N', 2), 8, 4);
+        $duplicateTrunk = substr_replace($duplicateTrunk, pack('N', 2), 12, 4);
+        $duplicateDatabase = SQLiteDatabase::fromBytes(
+            $duplicate
+            . str_repeat("\0", 512)
+            . str_repeat("\0", 512)
+            . $duplicateTrunk
+            . str_repeat("\0", 512),
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $duplicateDatabase->freelistTrunkPages());
+
+        $badLeafCount = $makeFirstPage(512, 4);
+        $badLeafCount = substr_replace($badLeafCount, pack('N', 4), 32, 4);
+        $badLeafCount = substr_replace($badLeafCount, pack('N', 1), 36, 4);
+        $badTrunk = str_repeat("\0", 512);
+        $badTrunk = substr_replace($badTrunk, pack('N', 0), 0, 4);
+        $badTrunk = substr_replace($badTrunk, pack('N', 200), 4, 4);
+        $badLeafCountDatabase = SQLiteDatabase::fromBytes(
+            $badLeafCount
+            . str_repeat("\0", 512)
+            . str_repeat("\0", 512)
+            . $badTrunk,
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $badLeafCountDatabase->freelistTrunkPages());
     },
     'rejects corrupt sqlite btree freeblock chains' => static function (TestRunner $t): void {
         $overlap = str_repeat("\0", 512);
@@ -449,6 +539,29 @@ return [
         $t->same('a', substr($pages[1], 4, 1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowPage::encodeChain('x', 1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteOverflowPage::requiredPageCount(-1));
+    },
+    'encodes sqlite overflow chains at reusable page numbers with reserved bytes' => static function (TestRunner $t): void {
+        $payload = str_repeat('A', 496) . str_repeat('B', 496) . 'C';
+        $pages = SQLiteOverflowPage::encodeChainAtPages($payload, [7, 4, 9], 512, 500);
+
+        $t->same([7, 4, 9], array_keys($pages));
+        $t->same(4, unpack('N', substr($pages[7], 0, 4))[1]);
+        $t->same(9, unpack('N', substr($pages[4], 0, 4))[1]);
+        $t->same(0, unpack('N', substr($pages[9], 0, 4))[1]);
+        $t->same(str_repeat('A', 496), substr($pages[7], 4, 496));
+        $t->same(str_repeat('B', 496), substr($pages[4], 4, 496));
+        $t->same('C', substr($pages[9], 4, 1));
+        $t->same(str_repeat("\0", 12), substr($pages[7], 500, 12));
+        $t->same(str_repeat("\0", 12), substr($pages[4], 500, 12));
+        $t->same(str_repeat("\0", 12), substr($pages[9], 500, 12));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SQLiteOverflowPage::encodeChainAtPages($payload, [7, 7, 9], 512, 500),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SQLiteOverflowPage::encodeChainAtPages($payload, [7, 9], 512, 500),
+        );
     },
     'parses sqlite index leaf and interior cells' => static function (TestRunner $t) use ($indexCell, $indexLeafPage, $indexInteriorPage): void {
         $leafPage = $indexLeafPage([
@@ -4045,6 +4158,48 @@ return [
         $t->same(1100, strlen($options[0]->optionValue));
         $t->same($largeValue, $options[0]->optionValue);
     },
+    'reads wordpress overflow values from reusable pages with reserved bytes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload): void {
+        $largeValue = str_repeat('X', 1600);
+        $payload = $recordPayload([null, 'freelist_cache', $largeValue, 'yes']);
+        $usableSize = 500;
+        $localPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
+        $cell = SQLiteTableLeafCell::encode(1, $payload, $usableSize, 5);
+        $overflowPages = SQLiteOverflowPage::encodeChainAtPages(
+            substr($payload, $localPayloadLength),
+            [5, 3, 7],
+            512,
+            $usableSize,
+        );
+
+        $firstPage = $makeFirstPage(512, 7);
+        $firstPage[20] = "\x0c";
+        $page1 = SQLiteTableLeafPage::assemble([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $firstPage, $usableSize);
+        $page2 = SQLiteTableLeafPage::assemble([$cell], 512, 0, null, $usableSize);
+        $emptyPage = str_repeat("\0", 512);
+
+        $database = SQLiteDatabase::fromBytes(
+            $page1
+            . $page2
+            . $overflowPages[3]
+            . $emptyPage
+            . $overflowPages[5]
+            . $emptyPage
+            . $overflowPages[7],
+        );
+        $options = $database->wordpressOptions();
+
+        $t->same(500, $database->usablePageSize());
+        $t->same(3, count($overflowPages));
+        $t->same(3, unpack('N', substr($overflowPages[5], 0, 4))[1]);
+        $t->same(7, unpack('N', substr($overflowPages[3], 0, 4))[1]);
+        $t->same(0, unpack('N', substr($overflowPages[7], 0, 4))[1]);
+        $t->same(str_repeat("\0", 12), substr($overflowPages[5], 500, 12));
+        $t->same(1, count($options));
+        $t->same('freelist_cache', $options[0]->optionName);
+        $t->same($largeValue, $options[0]->optionValue);
+    },
     'rejects sqlite overflow chains that end before the payload is complete' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
         $largeValue = str_repeat('B', 1100);
         $payload = $recordPayload([null, 'broken_blob', $largeValue, 'yes']);
@@ -4058,6 +4213,65 @@ return [
         $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptions());
+    },
+    'plans wordpress overflow reuse from sqlite freelist trunk metadata' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload): void {
+        $usableSize = 500;
+        $preFirstPage = $makeFirstPage(512, 7);
+        $preFirstPage[20] = "\x0c";
+        $preFirstPage = substr_replace($preFirstPage, pack('N', 5), 32, 4);
+        $preFirstPage = substr_replace($preFirstPage, pack('N', 4), 36, 4);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $preFirstPage, $usableSize);
+        $emptyPage = str_repeat("\0", 512);
+        $preDatabase = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage
+            . SQLiteFreelistTrunkPage::assemble(null, [3, 7, 4], 512, $usableSize)
+            . $emptyPage
+            . $emptyPage,
+        );
+
+        $largeValue = str_repeat('reused-page:', 80);
+        $payload = $recordPayload([null, 'planned_freelist_cache', $largeValue, 'yes']);
+        $localPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
+        $overflowPayload = substr($payload, $localPayloadLength);
+        $requiredOverflowPages = SQLiteOverflowPage::requiredPageCount(strlen($overflowPayload), 512, $usableSize);
+        $reusablePages = $preDatabase->freelistAllocationOrder($requiredOverflowPages);
+        $cell = SQLiteTableLeafCell::encode(1, $payload, $usableSize, $reusablePages[0]);
+        $overflowPages = SQLiteOverflowPage::encodeChainAtPages($overflowPayload, $reusablePages, 512, $usableSize);
+
+        $postFirstPage = $makeFirstPage(512, 7);
+        $postFirstPage[20] = "\x0c";
+        $postFirstPage = substr_replace($postFirstPage, pack('N', 5), 32, 4);
+        $postFirstPage = substr_replace($postFirstPage, pack('N', 2), 36, 4);
+        $postSchemaPage = SQLiteTableLeafPage::assemble([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $postFirstPage, $usableSize);
+        $postTablePage = SQLiteTableLeafPage::assemble([$cell], 512, 0, null, $usableSize);
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= 7; $pageNumber++) {
+            $postPages[$pageNumber] = $emptyPage;
+        }
+        $postPages[1] = $postSchemaPage;
+        $postPages[2] = $postTablePage;
+        foreach ($overflowPages as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postPages[5] = SQLiteFreelistTrunkPage::assemble(null, [7], 512, $usableSize);
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $options = $postDatabase->wordpressOptions();
+
+        $t->same(2, $requiredOverflowPages);
+        $t->same([3, 4], $reusablePages);
+        $t->same(4, unpack('N', substr($overflowPages[3], 0, 4))[1]);
+        $t->same(0, unpack('N', substr($overflowPages[4], 0, 4))[1]);
+        $t->same([7, 5], $postDatabase->freelistAllocationOrder());
+        $t->same(1, count($options));
+        $t->same('planned_freelist_cache', $options[0]->optionName);
+        $t->same($largeValue, $options[0]->optionValue);
     },
     'database reader rejects missing pages during btree traversal' => static function (TestRunner $t) use ($makeFirstPage, $tableInteriorPage): void {
         $page1 = $tableInteriorPage([[2, 1]], 3, 512, 100, $makeFirstPage(512, 1));

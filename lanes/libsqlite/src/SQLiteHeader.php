@@ -12,6 +12,8 @@ final class SQLiteHeader
         public readonly int $readVersion,
         public readonly int $reservedSpace,
         public readonly int $databaseSizePages,
+        public readonly int $firstFreelistTrunkPage,
+        public readonly int $freelistPageCount,
         public readonly int $textEncoding,
     ) {
     }
@@ -37,8 +39,9 @@ final class SQLiteHeader
             ord($firstPage[19]),
             ord($firstPage[20]),
             unpack('N', substr($firstPage, 28, 4))[1],
+            unpack('N', substr($firstPage, 32, 4))[1],
+            unpack('N', substr($firstPage, 36, 4))[1],
             unpack('N', substr($firstPage, 56, 4))[1],
         );
     }
 }
-

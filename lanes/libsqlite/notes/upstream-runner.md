@@ -2293,3 +2293,105 @@ pointer bytes, table-leaf overflow page assembly parsed back through
 `examples/wordpress-overflow-page-assembly.php` script emits a WordPress-shaped
 `wp_options` row whose `option_value` spills to overflow pages, then reads it
 back without the PHP SQLite extension.
+
+## Focused Native Mapping: Reusable Overflow Page Numbers
+
+This slice extends overflow-page assembly from sequentially appended pages to
+caller-supplied page numbers. SQLite can satisfy overflow allocations from the
+database freelist, so overflow chains are not guaranteed to be contiguous. The
+new `SQLiteOverflowPage::encodeChainAtPages()` helper writes the same 4-byte
+big-endian next-page pointer and `usableSize - 4` payload chunks, but follows
+the supplied page-number order and leaves reserved bytes untouched.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  pageropt.test corrupt3.test btree01.test
+```
+
+Result on 2026-05-23: 5 Tcl script/permutation runs, 0 errors out of 225 tests
+in 00:00.
+
+Focused upstream fixture boundary:
+
+- `test/pageropt.test` explicitly moves pages from the freelist into an
+  overflow chain for a large inserted record.
+- `src/btree.c` `allocateBtreePage()` documents that pages may be reused from
+  the freelist before appending new pages.
+- `src/btree.c` `fillInCell()` documents overflow next-page pointer writes and
+  the `usableSize - 4` payload chunk boundary.
+- `test/corrupt3.test` keeps malformed overflow-chain pointer behavior in
+  scope, and `test/btree01.test` keeps b-tree overflow payload integrity in
+  scope.
+
+The native PHP tests now cover non-contiguous overflow chains such as
+`5 -> 3 -> 7 -> 0`, duplicate/wrong page-number rejection, reserved-byte page
+tails, and a WordPress-shaped `wp_options` fixture with a 12-byte reserved
+tail per page that still parses back through `wordpressOptions()` without the
+PHP SQLite extension. The new
+`examples/wordpress-overflow-page-freelist-reuse.php` script exposes that
+fixture path for repair/preflight tooling. The follow-up freelist metadata
+slice now chooses reusable page numbers from an actual database image instead
+of requiring callers to supply them manually.
+
+## Focused Native Mapping: Freelist Trunk Metadata
+
+This slice maps SQLite's file-level freelist metadata. `SQLiteHeader` now
+reads the first freelist trunk page number at header offset 32 and total
+freelist page count at offset 36. `SQLiteFreelistTrunkPage` parses trunk pages
+where the first big-endian integer points at the next trunk and the second
+big-endian integer is the count of leaf page pointers beginning at byte 8.
+`SQLiteDatabase::freelistTrunkPages()` walks that chain, rejects loops,
+duplicates, out-of-range page numbers, oversized leaf counts, and header-count
+mismatches. `freelistAllocationOrder()` models SQLite's ordinary
+`BTALLOC_ANY` behavior for planning reusable pages: first leaf, remaining
+leaves in last-entry replacement order, then the emptied trunk page.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick \
+  pageropt.test corrupt2.test btree01.test
+```
+
+Result on 2026-05-23: 4 Tcl script/permutation runs, 0 errors out of 274 tests
+in 00:00.
+
+Focused upstream fixture boundary:
+
+- `src/btree.c` `allocateBtreePage()` documents header offsets 32 and 36,
+  trunk next-page pointers, trunk leaf counts, leaf page extraction, and the
+  last-leaf replacement order used when allocating ordinary freelist leaves.
+- `src/btree.c` `freePage2()` documents how pages become a new trunk or a leaf
+  on the first trunk and why modern SQLite leaves six trunk slots unused for
+  old-reader compatibility.
+- `test/corrupt2.test` verifies that integrity checks catch a header freelist
+  count smaller than the actual freelist chain.
+- `test/pageropt.test` keeps freelist-to-overflow reuse in scope for large
+  record writes, and `test/btree01.test` keeps overflow payload integrity in
+  scope.
+
+The native PHP tests now cover header freelist fields, trunk next-page and
+leaf-count parsing, multi-trunk traversal, allocation-order planning,
+corrupt-count detection, duplicate page detection, oversized leaf-count
+rejection, and a WordPress-shaped repair preflight where a large
+`wp_options.option_value` chooses pages from the parsed freelist, writes a
+two-page overflow chain, updates remaining freelist metadata, and parses the
+option back through the native reader. The new
+`examples/wordpress-freelist-overflow-repair-plan.php` script exposes that
+flow for recovery tooling without requiring the PHP SQLite extension.
+
+## Root Harness Coordination
+
+Before starting the root harness for this lane run,
+`pgrep -af '^php tools/run-tests\.php( |$)'` returned no active process. This
+worker then ran:
+
+```sh
+php tools/run-tests.php
+```
+
+Result on 2026-05-23: 183 test files, 18644 assertions, 0 failures.

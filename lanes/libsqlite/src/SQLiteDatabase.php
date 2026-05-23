@@ -71,6 +71,105 @@ final class SQLiteDatabase
     }
 
     /**
+     * @return list<SQLiteFreelistTrunkPage>
+     */
+    public function freelistTrunkPages(): array
+    {
+        $expectedPageCount = $this->header->freelistPageCount;
+        $firstTrunkPage = $this->header->firstFreelistTrunkPage;
+        if ($expectedPageCount === 0) {
+            if ($firstTrunkPage !== 0) {
+                throw new \InvalidArgumentException('SQLite freelist header points at a trunk page but has zero free pages');
+            }
+
+            return [];
+        }
+        if ($firstTrunkPage < 2) {
+            throw new \InvalidArgumentException('SQLite freelist header has free pages but no valid first trunk page');
+        }
+
+        $trunkPages = [];
+        $seenPages = [];
+        $actualPageCount = 0;
+        $pageNumber = $firstTrunkPage;
+        while ($pageNumber !== 0) {
+            if (isset($seenPages[$pageNumber])) {
+                throw new \InvalidArgumentException("SQLite freelist loops at page {$pageNumber}");
+            }
+
+            $trunkPage = SQLiteFreelistTrunkPage::parse(
+                $pageNumber,
+                $this->page($pageNumber),
+                $this->usablePageSize(),
+                $this->pageCount(),
+            );
+            $trunkPages[] = $trunkPage;
+            $seenPages[$pageNumber] = 'trunk';
+            $actualPageCount++;
+
+            foreach ($trunkPage->leafPageNumbers as $leafPageNumber) {
+                if (isset($seenPages[$leafPageNumber])) {
+                    throw new \InvalidArgumentException("SQLite freelist page {$leafPageNumber} appears more than once");
+                }
+                $seenPages[$leafPageNumber] = 'leaf';
+                $actualPageCount++;
+            }
+            if ($actualPageCount > $expectedPageCount) {
+                throw new \InvalidArgumentException("SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}");
+            }
+
+            $pageNumber = $trunkPage->nextTrunkPage ?? 0;
+        }
+
+        if ($actualPageCount !== $expectedPageCount) {
+            throw new \InvalidArgumentException("SQLite freelist size is {$actualPageCount} but should be {$expectedPageCount}");
+        }
+
+        return $trunkPages;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function freelistPageNumbers(): array
+    {
+        $pageNumbers = [];
+        foreach ($this->freelistTrunkPages() as $trunkPage) {
+            $pageNumbers[] = $trunkPage->pageNumber;
+            foreach ($trunkPage->leafPageNumbers as $leafPageNumber) {
+                $pageNumbers[] = $leafPageNumber;
+            }
+        }
+
+        return $pageNumbers;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function freelistAllocationOrder(?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite freelist allocation order limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $pageNumbers = [];
+        foreach ($this->freelistTrunkPages() as $trunkPage) {
+            foreach ($trunkPage->allocationOrder() as $pageNumber) {
+                $pageNumbers[] = $pageNumber;
+                if ($limit !== null && count($pageNumbers) >= $limit) {
+                    return $pageNumbers;
+                }
+            }
+        }
+
+        return $pageNumbers;
+    }
+
+    /**
      * @return list<SQLiteSchemaRecord>
      */
     public function schemaRecords(): array
