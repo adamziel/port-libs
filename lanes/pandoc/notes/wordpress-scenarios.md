@@ -518,6 +518,18 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 - Legacy media and manifest links with spaces render as WordPress-safe
   `%20`-encoded URLs, including split reference definitions whose title is on a
   following line.
+- Legacy source links whose destinations, titles, or autolink text contain
+  HTML entities now decode to the same native URL/title/label text Pandoc
+  reports, then render through WordPress escaping once. Parenthesized campaign
+  URLs and nested parenthesized reference destinations also remain intact, so
+  import-review links such as `/hi(there)` and `hi_(there_(nested))` do not get
+  truncated at the first closing parenthesis.
+- Backslash-heavy source link labels now preserve escaped visible punctuation
+  and reviewer-visible raw TeX commands inside the linked text, unresolved
+  reference-looking source markers fall back to bracketed emphasized text,
+  citation-adjacent shortcut links keep the source link clickable while leaving
+  the citation marker visible, and empty reference placeholders render as empty
+  `href` links without swallowing the following review paragraph.
 - Implicit intra-document reviewer links render as WordPress anchor links, and
   attributed Markdown headings preserve stable ids/classes for migration review
   without shelling out to Pandoc.
@@ -560,5 +572,5 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 ## Next Task
 
 Map another bounded Markdown reader fixture shard from
-`test/markdown-reader-more.txt/native`, starting with the post-grid entities in
-links/titles and parentheses-in-URLs cases.
+`test/markdown-reader-more.txt/native`, starting with wrapping that should not
+introduce new list items and the adjacent bracketed span case.

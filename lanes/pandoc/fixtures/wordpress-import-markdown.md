@@ -20,6 +20,28 @@ Contact importer: <importer@example.test>.
 
 Multilingual source audit: <http://测.com?测=测> and [translated media](/bar/测?x=测 "Translated media") plus <测@foo.测.baz>.
 
+Entity source audit: [legacy umlaut media](/&uuml;rl "&ouml;&ouml;!") and <http://g&ouml;&ouml;gle.com> plus <me@ex&auml;mple.com>.
+
+Parenthesized source links: [campaign landing](/hi(there)) and [nested reference][linky].
+
+[linky]: hi_(there_(nested))
+
+Backslash link label audit: [\*\a](b) keeps escaped import markers visible.
+
+Fallback source markers: [*not a migration link*] [*no source*]...
+
+Citation-adjacent source link: MapReduce was popularized by [Google] [@mapreduce] during source review.
+
+[Google]: https://example.test/source/mapreduce
+
+Empty reference placeholder:
+
+[empty-target]:
+
+Review the empty import target before publishing.
+
+[empty-target]
+
 (@) Capture source metadata.
 (@media-review) Review multilingual media URLs.
 

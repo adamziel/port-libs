@@ -492,6 +492,119 @@ return [
         $t->contains('<a href="/bar%20and%20baz">foo</a>', $blocks);
         $t->contains('<a href="/foo/zee%20zob" title="title">bork</a>', $blocks);
     },
+    'maps upstream markdown reader more entity links and parenthesized urls' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '## Entities in links and titles',
+            '',
+            '[link](/&uuml;rl "&ouml;&ouml;!")',
+            '',
+            '<http://g&ouml;&ouml;gle.com>',
+            '',
+            '<me@ex&auml;mple.com>',
+            '',
+            '[foobar]',
+            '',
+            '[foobar]: /&uuml;rl "&ouml;&ouml;!"',
+            '',
+            '## Parentheses in URLs',
+            '',
+            '[link](/hi(there))',
+            '',
+            '[link](/hithere\))',
+            '',
+            '[linky]',
+            '',
+            '[linky]: hi_(there_(nested))',
+        ]));
+        $inlineEntity = $document->children[1]->children[0];
+        $uriEntity = $document->children[2]->children[0];
+        $emailEntity = $document->children[3]->children[0];
+        $referenceEntity = $document->children[4]->children[0];
+        $balanced = $document->children[6]->children[0];
+        $escaped = $document->children[7]->children[0];
+        $referenceParentheses = $document->children[8]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('entities-in-links-and-titles', $document->children[0]->attr('id'));
+        $t->same('/ürl', $inlineEntity->attr('url'));
+        $t->same('öö!', $inlineEntity->attr('title'));
+        $t->same('http://göögle.com', $uriEntity->attr('url'));
+        $t->same(['uri'], $uriEntity->attr('classes'));
+        $t->same('http://göögle.com', $uriEntity->children[0]->attr('text'));
+        $t->same('mailto:me@exämple.com', $emailEntity->attr('url'));
+        $t->same(['email'], $emailEntity->attr('classes'));
+        $t->same('me@exämple.com', $emailEntity->children[0]->attr('text'));
+        $t->same('/ürl', $referenceEntity->attr('url'));
+        $t->same('öö!', $referenceEntity->attr('title'));
+        $t->same('parentheses-in-urls', $document->children[5]->attr('id'));
+        $t->same('/hi(there)', $balanced->attr('url'));
+        $t->same('/hithere)', $escaped->attr('url'));
+        $t->same('hi_(there_(nested))', $referenceParentheses->attr('url'));
+        $t->contains('<a href="/ürl" title="öö!">link</a>', $blocks);
+        $t->contains('<a href="http://göögle.com">http://göögle.com</a>', $blocks);
+        $t->contains('<a href="mailto:me@exämple.com">me@exämple.com</a>', $blocks);
+        $t->contains('<a href="/hi(there)">link</a>', $blocks);
+        $t->contains('<a href="hi_(there_(nested))">linky</a>', $blocks);
+    },
+    'maps upstream markdown reader more reference link edge cases' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            '## Backslashes in link references',
+            '',
+            '[\*\a](b)',
+            '',
+            '## Reference link fallbacks',
+            '',
+            '[*not a link*] [*nope*]...',
+            '',
+            '## Reference link followed by a citation',
+            '',
+            'MapReduce is a paradigm popularized by [Google] [@mapreduce] as its',
+            'most vocal proponent.',
+            '',
+            '[Google]: http://google.com',
+            '',
+            '## Empty reference links',
+            '',
+            '[foo2]:',
+            '',
+            'bar',
+            '',
+            '[foo2]',
+        ]));
+        $backslashLink = $document->children[1]->children[0];
+        $fallback = $document->children[3];
+        $citationAdjacent = $document->children[5];
+        $emptyReferenceText = $document->children[7];
+        $emptyReferenceLink = $document->children[8]->children[0];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('backslashes-in-link-references', $document->children[0]->attr('id'));
+        $t->same('link', $backslashLink->type);
+        $t->same('b', $backslashLink->attr('url'));
+        $t->same(['text', 'raw_tex'], array_map(static fn (AstNode $node): string => $node->type, $backslashLink->children));
+        $t->same('*', $backslashLink->children[0]->attr('text'));
+        $t->same('\a', $backslashLink->children[1]->attr('tex'));
+        $t->same('reference-link-fallbacks', $document->children[2]->attr('id'));
+        $t->same(['text', 'emph', 'text', 'emph', 'text'], array_map(static fn (AstNode $node): string => $node->type, $fallback->children));
+        $t->same('[', $fallback->children[0]->attr('text'));
+        $t->same('not a link', $fallback->children[1]->children[0]->attr('text'));
+        $t->same('] [', $fallback->children[2]->attr('text'));
+        $t->same('nope', $fallback->children[3]->children[0]->attr('text'));
+        $t->same("]\u{2026}", $fallback->children[4]->attr('text'));
+        $t->same(['text', 'link', 'text', 'citation', 'text'], array_map(static fn (AstNode $node): string => $node->type, $citationAdjacent->children));
+        $t->same('http://google.com', $citationAdjacent->children[1]->attr('url'));
+        $t->same('Google', $citationAdjacent->children[1]->children[0]->attr('text'));
+        $t->same('mapreduce', $citationAdjacent->children[3]->attr('id'));
+        $t->same('[@mapreduce]', $citationAdjacent->children[3]->attr('text'));
+        $t->same('bar', $emptyReferenceText->children[0]->attr('text'));
+        $t->same('link', $emptyReferenceLink->type);
+        $t->same('', $emptyReferenceLink->attr('url'));
+        $t->same('foo2', $emptyReferenceLink->children[0]->attr('text'));
+        $t->contains('<a href="b">*<span class="pandoc-raw-tex">\a</span></a>', $blocks);
+        $t->contains('<p>[<em>not a link</em>] [<em>nope</em>]…</p>', $blocks);
+        $t->contains('<p>MapReduce is a paradigm popularized by <a href="http://google.com">Google</a> [@mapreduce] as its', $blocks);
+        $t->contains('<p><a href="">foo2</a></p>', $blocks);
+    },
     'maps upstream markdown reader more backslash newline and code spans' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("hi\\\nthere\n\n`hi\\`\n\n`hi\nthere`\n\n`` hi````there ``\n\n`hi\n\nthere`");
         $hardBreak = $document->children[0];
@@ -3778,6 +3891,16 @@ XML;
         $t->contains('<a href="http://测.com?测=测">http://测.com?测=测</a>', $blocks);
         $t->contains('<a href="/bar/测?x=测" title="Translated media">translated media</a>', $blocks);
         $t->contains('<a href="mailto:测@foo.测.baz">测@foo.测.baz</a>', $blocks);
+        $t->contains('<a href="/ürl" title="öö!">legacy umlaut media</a>', $blocks);
+        $t->contains('<a href="http://göögle.com">http://göögle.com</a>', $blocks);
+        $t->contains('<a href="mailto:me@exämple.com">me@exämple.com</a>', $blocks);
+        $t->contains('<a href="/hi(there)">campaign landing</a>', $blocks);
+        $t->contains('<a href="hi_(there_(nested))">nested reference</a>', $blocks);
+        $t->contains('<p>Backslash link label audit: <a href="b">*<span class="pandoc-raw-tex">\a</span></a> keeps escaped import markers visible.</p>', $blocks);
+        $t->contains('<p>Fallback source markers: [<em>not a migration link</em>] [<em>no source</em>]…</p>', $blocks);
+        $t->contains('<p>Citation-adjacent source link: MapReduce was popularized by <a href="https://example.test/source/mapreduce">Google</a> [@mapreduce] during source review.</p>', $blocks);
+        $t->contains('<p>Review the empty import target before publishing.</p>', $blocks);
+        $t->contains('<p><a href="">empty-target</a></p>', $blocks);
         $t->contains('<ol><li>Capture source metadata.</li><li>Review multilingual media URLs.</li></ol>', $blocks);
         $t->contains('<p>Example cross-reference: follow step (2) before publishing.</p>', $blocks);
     },

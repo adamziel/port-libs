@@ -163,6 +163,16 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `ColSpan 2`, a body `Cell` with `RowSpan 3`, and a complex two-row
   `TableHead` whose `Location` header has `RowSpan 2` and whose temperature
   header has `ColSpan 3`.
+- `test/markdown-reader-more.txt` post-grid reference-link edge slice inspected
+  in this run: upstream lines 337-358 cover a backslash-containing link label,
+  an unresolved reference-looking fallback pair, a shortcut reference followed
+  by a citation marker, and an empty reference definition before ordinary
+  paragraph text.
+- `test/markdown-reader-more.native` corresponding rendered AST slice inspected
+  in this run: upstream lines 1549-1649 show a `Link` whose label contains
+  `Str "*"` plus `RawInline "\\a"`, bracketed fallback text retaining emphasized
+  contents, a `Link` immediately followed by a `Cite`, and an empty-destination
+  `Link` after the intervening `bar` paragraph.
 - `test/pipe-tables.txt` pipe-table fixture inspected in this run: 82 Markdown
   lines covering 11 upstream pipe tables, including captioned, uncaptioned,
   headerless, side-less, one-column, no-body, relative-width, and tricky
@@ -747,11 +757,31 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   generated heading ids, heading links/emphasis remain inline nodes, and
   HTML-reader paragraphs keep list-marker-looking text literal instead of being
   re-parsed as Markdown lists.
+- The post-grid Markdown reader shape from `test/markdown-reader-more.txt` is
+  now mapped for a narrow link slice: upstream lines 315-335 and native AST
+  lines 1493-1548 cover four entity-decoded link/title cases plus three
+  parenthesized URL cases. Inline/reference link destinations decode
+  `&uuml;`, titles decode `&ouml;`, URI/e-mail autolinks decode both href and
+  visible label text, balanced parentheses stay inside inline URLs, escaped
+  closing parentheses survive, and nested parenthesized reference destinations
+  remain intact.
+- The next post-grid Markdown reader shape from `test/markdown-reader-more.txt`
+  is now mapped for a narrow reference-link edge slice: upstream lines 337-358
+  and native AST lines 1549-1649 cover backslash/TeX content in link labels,
+  unresolved reference-link fallback text, a shortcut reference followed by a
+  citation marker, and empty reference definitions. The native PHP reader keeps
+  escaped label punctuation and a bare `\a` TeX command inside the link label,
+  falls back to bracketed emphasized text when the reference is undefined,
+  preserves the `[@mapreduce]` marker as a citation inline adjacent to the
+  resolved `Google` link, and leaves the paragraph after `[foo2]:` intact
+  before emitting the later empty-destination shortcut link.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 157 behavior tests, 1,554 assertions, and 0 failures after this slice. The
-required repo-wide `php tools/run-tests.php` command was also run and passed
-with 177 test files, 16,983 assertions, and 0 failures.
+with 159 behavior tests, 1,610 assertions, and 0 failures after this slice. The
+required repo-wide `php tools/run-tests.php` command was also run and failed
+with 178 test files, 17,162 assertions, and 1 failure outside this lane:
+`lanes/markerpdf/tests/SuppliedDocumentConverterTest.php` expected an
+`InvalidArgumentException` that was not thrown.

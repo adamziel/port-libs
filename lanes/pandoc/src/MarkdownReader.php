@@ -575,16 +575,10 @@ final class MarkdownReader
         $count = count($lines);
 
         if ($target === '') {
-            while ($cursor < $count && trim($lines[$cursor]) === '') {
+            if ($cursor < $count && trim($lines[$cursor]) !== '') {
+                $target = trim($this->expandTabsToSpaces($lines[$cursor]));
                 $cursor++;
             }
-
-            if ($cursor >= $count) {
-                return ['', $cursor];
-            }
-
-            $target = trim($this->expandTabsToSpaces($lines[$cursor]));
-            $cursor++;
         }
 
         if ($cursor < $count) {
@@ -6145,6 +6139,14 @@ final class MarkdownReader
                 continue;
             }
 
+            $citation = $allowLinks ? $this->tryParseCitation($text, $offset) : null;
+            if ($citation !== null) {
+                $this->flushText($buffer, $nodes);
+                $nodes[] = $citation['node'];
+                $offset = $citation['next'];
+                continue;
+            }
+
             $image = $allowLinks ? $this->tryParseImage($text, $offset) : null;
             if ($image !== null) {
                 $this->flushText($buffer, $nodes);
@@ -6306,6 +6308,29 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @return array{node: AstNode, next: int}|null
+     */
+    private function tryParseCitation(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? '') !== '[' || $this->isEscapedInlinePosition($text, $offset)) {
+            return null;
+        }
+
+        if (preg_match('/\G\[@([A-Za-z0-9_:.#\/$%&+?<>~|-]+)\]/u', $text, $m, 0, $offset) !== 1) {
+            return null;
+        }
+
+        return [
+            'node' => new AstNode(
+                'citation',
+                ['id' => $m[1], 'text' => $m[0]],
+                [new AstNode('text', ['text' => $m[0]])]
+            ),
+            'next' => $offset + strlen($m[0]),
+        ];
     }
 
     /**
@@ -6474,11 +6499,13 @@ final class MarkdownReader
         }
 
         if (preg_match('/\G<((?:https?|ftp):\/\/[^<>\s]+)>/i', $text, $m, 0, $offset) === 1) {
+            $url = $this->normalizeLinkDestination($m[1]);
+
             return [
                 'node' => new AstNode(
                     'link',
-                    ['url' => $m[1], 'classes' => ['uri']],
-                    [new AstNode('text', ['text' => $m[1]])]
+                    ['url' => $url, 'classes' => ['uri']],
+                    [new AstNode('text', ['text' => $url])]
                 ),
                 'next' => $offset + strlen($m[0]),
             ];
@@ -6493,11 +6520,13 @@ final class MarkdownReader
                 $offset
             ) === 1
         ) {
+            $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($m[1]));
+
             return [
                 'node' => new AstNode(
                     'link',
-                    ['url' => 'mailto:' . $m[1], 'classes' => ['email']],
-                    [new AstNode('text', ['text' => $m[1]])]
+                    ['url' => 'mailto:' . $address, 'classes' => ['email']],
+                    [new AstNode('text', ['text' => $address])]
                 ),
                 'next' => $offset + strlen($m[0]),
             ];
@@ -6601,6 +6630,7 @@ final class MarkdownReader
     {
         $length = strlen($text);
         $quote = null;
+        $parenDepth = 0;
         for ($cursor = $offset; $cursor < $length; $cursor++) {
             if ($text[$cursor] === '\\') {
                 $cursor++;
@@ -6619,7 +6649,17 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($text[$cursor] === '(') {
+                $parenDepth++;
+                continue;
+            }
+
             if ($text[$cursor] === ')') {
+                if ($parenDepth > 0) {
+                    $parenDepth--;
+                    continue;
+                }
+
                 return $cursor;
             }
         }
@@ -6777,7 +6817,7 @@ final class MarkdownReader
 
     private function normalizeLinkDestination(string $destination): string
     {
-        $destination = $this->unescapeLinkComponent($destination);
+        $destination = $this->decodeHtmlEntities($this->unescapeLinkComponent($destination));
         $destination = trim(preg_replace('/\s+/', ' ', $destination) ?? $destination);
 
         return str_replace(' ', '%20', $destination);
@@ -6982,6 +7022,13 @@ final class MarkdownReader
         }
 
         if (preg_match('/\G\\\\(stopformula)\b/', $text, $m, 0, $offset) === 1) {
+            return [
+                'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
+                'next' => $offset + strlen($m[0]),
+            ];
+        }
+
+        if (preg_match('/\G\\\\([A-Za-z])\b/', $text, $m, 0, $offset) === 1) {
             return [
                 'node' => new AstNode('raw_tex', ['tex' => $m[0], 'command' => $m[1]]),
                 'next' => $offset + strlen($m[0]),
