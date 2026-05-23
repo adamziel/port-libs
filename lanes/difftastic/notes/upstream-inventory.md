@@ -204,5 +204,5 @@ php lanes/difftastic/examples/wordpress-highlighted-side-by-side.php
 Result:
 
 ```text
-183 test files, 17780 assertions, 0 failures
+183 test files, 17804 assertions, 0 failures
 ```
