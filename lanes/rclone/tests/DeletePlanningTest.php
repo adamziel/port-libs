@@ -250,6 +250,53 @@ return [
         $t->same([], $stats['targetMatches']);
         $t->same([], $stats['targetMisses']);
     },
+    'sync delete mode disables no traverse destination probes' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('exports/site.wxr', '<rss>current</rss>');
+        $source->put('database/site.sql', 'insert into wp_posts values (...)');
+        $target->put('exports/site.wxr', '<rss>stale</rss>');
+        $target->put('database/site.sql', 'insert into wp_posts values (...)');
+        $target->put('exports/old-site.wxr', '<rss>old</rss>');
+
+        $plan = new SyncPlan();
+        $stats = null;
+        $copied = $plan->copyChanged(
+            $source,
+            $target,
+            noTraverse: true,
+            noTraverseStats: $stats,
+            syncDeleteMode: DeleteMode::AFTER,
+        );
+        $deleted = $plan->deleteDestinationOnly($source, $target, deleteMode: DeleteMode::AFTER);
+
+        $t->same(['exports/site.wxr'], array_map(static fn ($info) => $info->path, $copied));
+        $t->same(['exports/old-site.wxr'], array_map(static fn ($info) => $info->path, $deleted));
+        $t->same(false, $stats['enabled']);
+        $t->same('sync delete mode requires destination traversal', $stats['disabledReason']);
+        $t->same(true, $stats['targetListUsed']);
+        $t->same([], $stats['targetLookups']);
+        $t->same([], $stats['targetMatches']);
+        $t->same([], $stats['targetMisses']);
+        $t->same([], $stats['sourceOnlyDirectories']);
+        $t->same('<rss>current</rss>', $target->get('exports/site.wxr'));
+        $t->throws(RuntimeException::class, static fn () => $target->get('exports/old-site.wxr'));
+    },
+    'wordpress sync no traverse example reports traversal disablement before pruning' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-sync-notraverse-disabled.php';
+
+        $t->same(false, $example['noTraverseEnabled']);
+        $t->same('sync delete mode requires destination traversal', $example['noTraverseDisabledReason']);
+        $t->same(true, $example['targetListUsed']);
+        $t->same([], $example['targetLookups']);
+        $t->same([
+            'database/site.sql',
+            'wp-content/uploads/2026/05/hero.jpg',
+            'wp-content/uploads/2026/05/hero.webp',
+        ], $example['copied']);
+        $t->same(['exports/old-site.wxr'], $example['deleted']);
+        $t->same('<html>stale cache</html>', $example['cacheLeftUntouched']);
+    },
     'no traverse wordpress backup copy probes only included artifact destinations' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
         $target = new MemoryProvider();

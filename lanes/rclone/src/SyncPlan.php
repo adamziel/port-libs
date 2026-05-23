@@ -173,7 +173,7 @@ final class SyncPlan
      *
      * @param list<MemoryProvider> $compareDest
      * @param list<MemoryProvider> $copyDest
-     * @param array{enabled: bool, noCheckDest: bool, targetListUsed: bool, targetLookups: list<string>, targetMatches: list<string>, targetMisses: list<string>, sourceOnlyDirectories: list<string>}|null $noTraverseStats
+     * @param array{requested?: bool, enabled: bool, disabledReason?: ?string, noCheckDest: bool, targetListUsed: bool, targetLookups: list<string>, targetMatches: list<string>, targetMisses: list<string>, sourceOnlyDirectories: list<string>}|null $noTraverseStats
      */
     public function copyChanged(
         MemoryProvider $source,
@@ -198,27 +198,37 @@ final class SyncPlan
         bool $ignoreCaseSync = false,
         bool $noTraverse = false,
         ?array &$noTraverseStats = null,
+        ?string $syncDeleteMode = null,
+        bool $trackRenamesForSync = false,
     ): array {
         if ($fixCase && !$noCheckDest) {
             $this->fixCase($source, $target, $filter, $immutable);
         }
 
         $copied = [];
+        $noTraverseDisabledReason = $noTraverse
+            ? $this->noTraverseDisabledReason($syncDeleteMode, $trackRenamesForSync)
+            : null;
+        $effectiveNoTraverse = $noTraverse && $noTraverseDisabledReason === null;
         if ($noTraverse) {
             $noTraverseStats = [
-                'enabled' => true,
+                'requested' => true,
+                'enabled' => $effectiveNoTraverse,
+                'disabledReason' => $noTraverseDisabledReason,
                 'noCheckDest' => $noCheckDest,
-                'targetListUsed' => false,
+                'targetListUsed' => !$effectiveNoTraverse && !$noCheckDest,
                 'targetLookups' => [],
                 'targetMatches' => [],
                 'targetMisses' => [],
-                'sourceOnlyDirectories' => $this->noTraverseSourceDirectories($source, $filter),
+                'sourceOnlyDirectories' => $effectiveNoTraverse
+                    ? $this->noTraverseSourceDirectories($source, $filter)
+                    : [],
             ];
         } else {
             $noTraverseStats = null;
         }
 
-        $targetPaths = $ignoreCaseSync && !$noCheckDest && !$noTraverse
+        $targetPaths = $ignoreCaseSync && !$noCheckDest && !$effectiveNoTraverse
             ? $this->listedPaths($target, $filter, true)
             : [];
         $seenSourceKeys = [];
@@ -233,7 +243,7 @@ final class SyncPlan
 
             $targetInfo = null;
             if (!$noCheckDest) {
-                if ($noTraverse) {
+                if ($effectiveNoTraverse) {
                     $targetInfo = $this->noTraverseTargetInfo($target, $path, $noTraverseStats);
                 } elseif ($ignoreCaseSync) {
                     $targetInfo = $targetPaths[$this->syncPathKey($path)] ?? null;
@@ -307,9 +317,33 @@ final class SyncPlan
         ?int $maxDeleteSize = null,
         int $modifyWindowSeconds = 1,
         bool $ignoreCaseSync = false,
+        string $deleteMode = DeleteMode::DEFAULT,
+        bool $noTraverse = false,
+        ?array &$noTraverseStats = null,
     ): array {
+        $deleteMode = DeleteMode::normalize($deleteMode);
+        if ($deleteMode === DeleteMode::BEFORE) {
+            throw new \RuntimeException("can't use --delete-before with --track-renames");
+        }
+
+        if ($noTraverse) {
+            $noTraverseStats = [
+                'requested' => true,
+                'enabled' => false,
+                'disabledReason' => $this->noTraverseDisabledReason($deleteMode, true),
+                'noCheckDest' => false,
+                'targetListUsed' => true,
+                'targetLookups' => [],
+                'targetMatches' => [],
+                'targetMisses' => [],
+                'sourceOnlyDirectories' => [],
+            ];
+        } else {
+            $noTraverseStats = null;
+        }
+
         $strategy = TrackRenamesStrategy::parse($trackRenamesStrategy);
-        $disabledReason = $this->trackRenamesDisabledReason($source, $target, $strategy);
+        $disabledReason = $this->trackRenamesDisabledReason($source, $target, $strategy, $deleteMode);
         if ($disabledReason !== null) {
             $copied = $this->copyChanged(
                 $source,
@@ -320,20 +354,25 @@ final class SyncPlan
                 suffix: $suffix,
                 suffixKeepExtension: $suffixKeepExtension,
                 ignoreCaseSync: $ignoreCaseSync,
+                noTraverse: $noTraverse,
+                noTraverseStats: $noTraverseStats,
+                syncDeleteMode: $deleteMode,
             );
-            $deleted = $this->deleteDestinationOnly(
-                $source,
-                $target,
-                $filter,
-                DeleteMode::AFTER,
-                maxDelete: $maxDelete,
-                maxDeleteSize: $maxDeleteSize,
-                backup: $backup,
-                backupPrefix: $backupPrefix,
-                suffix: $suffix,
-                suffixKeepExtension: $suffixKeepExtension,
-                ignoreCaseSync: $ignoreCaseSync,
-            );
+            $deleted = $deleteMode === DeleteMode::OFF
+                ? []
+                : $this->deleteDestinationOnly(
+                    $source,
+                    $target,
+                    $filter,
+                    $deleteMode,
+                    maxDelete: $maxDelete,
+                    maxDeleteSize: $maxDeleteSize,
+                    backup: $backup,
+                    backupPrefix: $backupPrefix,
+                    suffix: $suffix,
+                    suffixKeepExtension: $suffixKeepExtension,
+                    ignoreCaseSync: $ignoreCaseSync,
+                );
 
             return [
                 'renamed' => [],
@@ -2324,6 +2363,18 @@ final class SyncPlan
         return $targetInfo;
     }
 
+    private function noTraverseDisabledReason(?string $syncDeleteMode, bool $trackRenamesForSync): ?string
+    {
+        if ($syncDeleteMode !== null && DeleteMode::normalize($syncDeleteMode) !== DeleteMode::OFF) {
+            return 'sync delete mode requires destination traversal';
+        }
+        if ($trackRenamesForSync) {
+            return 'track-renames requires destination traversal';
+        }
+
+        return null;
+    }
+
     /**
      * @param array<string, true> $seen
      */
@@ -2692,7 +2743,11 @@ final class SyncPlan
         MemoryProvider $source,
         MemoryProvider $target,
         TrackRenamesStrategy $strategy,
+        string $deleteMode,
     ): ?string {
+        if ($deleteMode === DeleteMode::OFF) {
+            return "track-renames requires sync delete mode";
+        }
         if (!$target->supportsServerSideMove()) {
             return 'destination does not support server-side move or copy';
         }

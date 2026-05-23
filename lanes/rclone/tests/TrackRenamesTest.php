@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Rclone\DeleteMode;
 use PortLibs\Rclone\FilterRuleSet;
 use PortLibs\Rclone\HashSet;
 use PortLibs\Rclone\MemoryProvider;
@@ -99,6 +100,32 @@ return [
         $t->same([], array_map(static fn ($info) => $info->path, $result['copied']));
         $t->same([], array_map(static fn ($info) => $info->path, $result['deleted']));
         $t->same(['yam'], array_map(static fn ($info) => $info->path, $target->list()));
+    },
+    'track renames disables no traverse and rejects delete before' => static function (TestRunner $t): void {
+        $source = new MemoryProvider();
+        $target = new MemoryProvider();
+        $source->put('exports/site-renamed.wxr', '<rss>portable export</rss>');
+        $target->put('exports/site.wxr', '<rss>portable export</rss>');
+
+        $stats = null;
+        $result = (new SyncPlan())->syncWithTrackRenames(
+            $source,
+            $target,
+            noTraverse: true,
+            noTraverseStats: $stats,
+        );
+
+        $t->same(['exports/site-renamed.wxr'], array_map(static fn ($info) => $info->path, $result['renamed']));
+        $t->same(false, $stats['enabled']);
+        $t->same('sync delete mode requires destination traversal', $stats['disabledReason']);
+        $t->same(true, $stats['targetListUsed']);
+        $t->same([], $stats['targetLookups']);
+        $t->same('<rss>portable export</rss>', $target->get('exports/site-renamed.wxr'));
+        $t->throws(RuntimeException::class, static fn () => (new SyncPlan())->syncWithTrackRenames(
+            $source,
+            $target,
+            deleteMode: DeleteMode::BEFORE,
+        ));
     },
     'track renames wordpress uploads while archiving unmatched stale artifacts' => static function (TestRunner $t): void {
         $source = new MemoryProvider();
