@@ -982,6 +982,15 @@ advances, preserves the existing walk order for directories and files, and
 emits no progress for unchanged or metadata-only walks. The WordPress example
 `wordpress-scanner-progress-events.php` shows a media-library scan reporting
 Syncthing-style progress totals while producing hashed `FileInfo` entries.
+The scanner Windows executable-bit slice now maps the host-specific upstream
+`updateFileInfo` branch in `lib/scanner/walk.go`: for regular files on
+Windows, the scanner copies executable bits from the current indexed
+`FileInfo` onto newly scanned permissions before equivalence checks. The native
+PHP scanner exposes a deterministic `platformFamily` override so this
+Linux-hosted lane can test the Windows branch without shelling out to Syncthing.
+`wordpress-scanner-windows-exec-bits.php` shows a Windows/IIS-style WordPress
+plugin asset with disk mode `0644` retaining indexed `0755` executable bits and
+avoiding a spurious permission-only scan item.
 
 ## Test Run Notes
 
@@ -1091,8 +1100,28 @@ successfully, reporting FolderScanProgress-style totals `0/14`, `8/14`, and
 The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
 returned no active root harness, so this worker ran `php tools/run-tests.php`;
 it passed 196 test files, 21368 assertions, and 0 failures.
+For the scanner Windows executable-bit batch, targeted upstream static reads of
+`lib/scanner/walk.go` counted one `updateFileInfo` branch copying current
+executable bits with `dst.Permissions |= (src.Permissions & 0o111)`, and
+`lib/scanner/walk_test.go` counted the Windows-only `TestScanOwnershipWindows`
+test function. The focused upstream command
+`go test ./lib/scanner -run '^TestScanOwnershipWindows$' -count=1 -v` passed by
+skipping on this Linux host with `--- SKIP: TestScanOwnershipWindows` and
+`ok github.com/syncthing/syncthing/lib/scanner 0.007s`; this is static
+host-specific evidence, not executed Windows runner parity. The focused lane
+test `php tools/run-tests.php lanes/syncthing/tests/FileInfoScannerTest.php`
+passed 1 file, 101 assertions, and 0 failures; the full lane run
+`php tools/run-tests.php lanes/syncthing/tests` passed 39 files, 2103
+assertions, and 0 failures; and
+`php lanes/syncthing/examples/wordpress-scanner-windows-exec-bits.php` ran
+successfully with `posixPermissionChangeItems=1`,
+`windowsPermissionChangeItems=0`, and `windowsAdvertisedPermissions=0755`.
+The required pre-root `pgrep -af '^php tools/run-tests\.php( |$)'` check
+returned no active root harness, so this worker ran `php tools/run-tests.php`;
+it passed 196 test files, 21507 assertions, and 0 failures.
 
 ## Next Task
 
-Map platform-specific permission equivalence beyond the current POSIX-style
-slice or extend scanner progress toward cancellation/error event boundaries.
+Extend scanner progress toward cancellation/error event boundaries, or map
+another host-specific scanner branch with executable upstream runner evidence on
+a matching platform.

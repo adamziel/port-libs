@@ -434,6 +434,38 @@ return [
             syncthing_scanner_rm($root);
         }
     },
+    'windows scanner preserves current executable bits during equivalence' => static function (TestRunner $t): void {
+        $root = syncthing_scanner_root();
+        try {
+            $name = 'wp-content/plugins/local-first-sync/build/index.php';
+            $path = syncthing_scanner_write($root, $name, '<?php echo "plugin asset";');
+            chmod($path, 0644);
+            touch($path, 1_700_006_150);
+            clearstatcache(true, $path);
+
+            $current = new FileInfo(
+                name: $name,
+                modifiedS: 1_700_006_150,
+                size: strlen('<?php echo "plugin asset";'),
+                type: FileInfo::TYPE_FILE,
+                permissions: 0755,
+            );
+
+            $posixScanner = new FileInfoScanner($root, platformFamily: 'Linux');
+            $posixChanged = $posixScanner->walk([$name], currentFiles: [$current]);
+            $t->same(1, count($posixChanged));
+            $t->same(0644, $posixChanged[0]->permissions & 0777);
+
+            $windowsScanner = new FileInfoScanner($root, platformFamily: 'Windows');
+            $windowsScanned = $windowsScanner->scan($name, currentFile: $current);
+            $windowsChanged = $windowsScanner->walk([$name], currentFiles: [$current]);
+
+            $t->same(0755, $windowsScanned->permissions & 0777);
+            $t->same([], $windowsChanged);
+        } finally {
+            syncthing_scanner_rm($root);
+        }
+    },
     'walk treats modification times inside the upstream window as unchanged' => static function (TestRunner $t): void {
         $root = syncthing_scanner_root();
         try {

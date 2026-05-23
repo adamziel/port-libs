@@ -31,6 +31,7 @@ final class FileInfoScanner
         private readonly int $localFlags = 0,
         private readonly int $modTimeWindowNs = 0,
         private readonly bool $autoNormalize = false,
+        ?string $platformFamily = null,
     ) {
         $realRoot = realpath($rootPath);
         if ($realRoot === false || !is_dir($realRoot)) {
@@ -48,7 +49,10 @@ final class FileInfoScanner
         $this->xattrLister = $xattrLister === null ? null : \Closure::fromCallable($xattrLister);
         $this->xattrGetter = $xattrGetter === null ? null : \Closure::fromCallable($xattrGetter);
         $this->blockList = $blockList ?? new BlockList();
+        $this->platformFamily = strtoupper($platformFamily ?? PHP_OS_FAMILY);
     }
+
+    private readonly string $platformFamily;
 
     public function scan(string $name, bool $hashBlocks = false, ?int $blockSize = null, ?FileInfo $currentFile = null): FileInfo
     {
@@ -132,6 +136,10 @@ final class FileInfoScanner
         }
 
         $size = (int) $stat['size'];
+        if ($currentFile !== null && $currentFile->type === FileInfo::TYPE_FILE && $this->isWindowsPlatform()) {
+            $permissions |= ($currentFile->permissions & 0111);
+        }
+
         $currentBlockSize = $currentFile !== null && $currentFile->type === FileInfo::TYPE_FILE
             ? $currentFile->blockSize()
             : null;
@@ -158,6 +166,11 @@ final class FileInfoScanner
         }
 
         return $hashBlocks ? $this->hashScannedFile($info) : $info;
+    }
+
+    private function isWindowsPlatform(): bool
+    {
+        return $this->platformFamily === 'WINDOWS';
     }
 
     private function assertScanInputs(string $name, ?int $blockSize, ?FileInfo $currentFile): void
