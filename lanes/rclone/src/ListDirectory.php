@@ -416,6 +416,148 @@ final class ListDirectory
     }
 
     /**
+     * Model fs/walk.walkRDirTree over a recursive-capable provider.
+     *
+     * Recursive provider batches may arrive in arbitrary order. This builds the
+     * same directory-to-entries tree shape rclone uses for WalkR/NewDirTree:
+     * parent directories are synthesized, entries are sorted after the whole
+     * recursive listing, maxLevel truncates deep objects to boundary
+     * directories, ordinary filters preserve excluded object parents, and
+     * exclude-file marker directories are pruned after listing.
+     *
+     * @param callable(string, callable(list<ObjectInfo>): (null|\Throwable)): (null|\Throwable) $listR
+     * @param null|callable(ObjectInfo): bool $includeObject
+     * @param null|callable(string): bool $includeDirectory
+     * @param list<string> $excludeIfPresent
+     * @return array{tree: array<string, list<ObjectInfo>>, listed: int, batches: int, pruned: list<string>}
+     */
+    public static function dirTreeFromListR(
+        callable $listR,
+        bool $includeAll,
+        string $path,
+        int $maxLevel,
+        ?callable $includeObject = null,
+        ?callable $includeDirectory = null,
+        array $excludeIfPresent = [],
+    ): array {
+        $root = self::normalizeDirectory($path);
+        $tree = [];
+        $toPrune = [];
+        $markers = array_fill_keys($excludeIfPresent, true);
+        $stats = [
+            'listed' => 0,
+            'batches' => 0,
+        ];
+
+        $result = $listR(
+            $root,
+            static function (array $entries) use (
+                $includeAll,
+                $maxLevel,
+                $includeObject,
+                $includeDirectory,
+                $markers,
+                &$tree,
+                &$toPrune,
+                &$stats,
+            ): null {
+                $entries = self::validateEntries($entries);
+                $stats['batches']++;
+                $stats['listed'] += count($entries);
+
+                foreach ($entries as $entry) {
+                    $remote = self::normalizeDirectory($entry->path);
+                    $slashes = substr_count($remote, '/');
+
+                    if (self::isDirectory($entry)) {
+                        $include = $includeAll || $includeDirectory === null || (bool) $includeDirectory($remote);
+                        if ($include && ($maxLevel < 0 || $slashes <= $maxLevel - 1)) {
+                            if ($slashes === $maxLevel - 1) {
+                                self::dirTreeAdd($tree, self::directory($remote));
+                            } else {
+                                self::dirTreeAddDir($tree, self::directory($remote));
+                            }
+                        }
+
+                        continue;
+                    }
+
+                    $excluded = true;
+                    $include = $includeAll || $includeObject === null || (bool) $includeObject($entry);
+                    if ($include && ($maxLevel < 0 || $slashes <= $maxLevel - 1)) {
+                        self::dirTreeAdd($tree, $entry);
+                        $excluded = false;
+                    }
+
+                    if ($excluded) {
+                        $dirPath = self::parentDirectory($remote);
+                        $parentSlashes = $slashes - 1;
+                        if ($maxLevel >= 0) {
+                            while ($parentSlashes > $maxLevel - 1) {
+                                $dirPath = self::parentDirectory($dirPath);
+                                $parentSlashes--;
+                            }
+                        }
+
+                        $includeDir = $includeAll || $includeDirectory === null || (bool) $includeDirectory($dirPath);
+                        if ($includeDir && self::dirTreeFind($tree, $dirPath) === null) {
+                            self::dirTreeAddDir($tree, self::directory($dirPath));
+                        }
+                    }
+
+                    if (!$includeAll && isset($markers[self::baseName($remote)])) {
+                        $toPrune[self::parentDirectory($remote)] = true;
+                    }
+                }
+
+                return null;
+            },
+        );
+
+        if ($result instanceof \Throwable) {
+            throw $result;
+        }
+        if ($result !== null) {
+            throw new \InvalidArgumentException('recursive ListR provider must return null or Throwable');
+        }
+
+        self::dirTreeCheckParents($tree, $root);
+        if ($tree === []) {
+            $tree[$root] = [];
+        }
+
+        $pruned = array_keys($toPrune);
+        sort($pruned, \SORT_STRING);
+        self::dirTreePrune($tree, $toPrune);
+        self::sortDirTree($tree);
+
+        return [
+            'tree' => $tree,
+            'listed' => $stats['listed'],
+            'batches' => $stats['batches'],
+            'pruned' => $pruned,
+        ];
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $tree
+     */
+    public static function formatDirTree(array $tree): string
+    {
+        self::sortDirTree($tree);
+
+        $out = '';
+        foreach ($tree as $dir => $entries) {
+            $out .= $dir . "/\n";
+            foreach ($entries as $entry) {
+                $out .= '  ' . self::baseName($entry->path) . (self::isDirectory($entry) ? '/' : '') . "\n";
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * @param iterable<ObjectInfo> $entries
      * @return list<ObjectInfo>
      */
@@ -703,6 +845,129 @@ final class ListDirectory
         if ($result !== null) {
             throw new \InvalidArgumentException('recursive list callback must return null or Throwable');
         }
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $tree
+     */
+    private static function dirTreeAdd(array &$tree, ObjectInfo $entry): void
+    {
+        $parent = self::parentDirectory($entry->path);
+        $tree[$parent] ??= [];
+        $tree[$parent][] = $entry;
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $tree
+     */
+    private static function dirTreeAddDir(array &$tree, ObjectInfo $entry): void
+    {
+        $dir = self::normalizeDirectory($entry->path);
+        if ($dir === '') {
+            return;
+        }
+
+        self::dirTreeAdd($tree, self::directory($dir));
+        $tree[$dir] ??= [];
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $tree
+     */
+    private static function dirTreeFind(array $tree, string $path): ?ObjectInfo
+    {
+        $parent = self::parentDirectory($path);
+        foreach ($tree[$parent] ?? [] as $entry) {
+            if ($entry->path === $path) {
+                return $entry;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $tree
+     */
+    private static function dirTreeCheckParents(array &$tree, string $root): void
+    {
+        $dirs = [];
+        foreach ($tree as $entries) {
+            foreach ($entries as $entry) {
+                if (self::isDirectory($entry)) {
+                    $dirs[$entry->path] = true;
+                }
+            }
+        }
+
+        foreach (array_keys($tree) as $dirPath) {
+            self::dirTreeCheckParent($tree, $root, $dirPath, $dirs);
+        }
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $tree
+     * @param array<string, bool> $dirs
+     */
+    private static function dirTreeCheckParent(array &$tree, string $root, string $dirPath, array &$dirs): void
+    {
+        while (true) {
+            if ($dirPath === $root) {
+                return;
+            }
+            if (isset($dirs[$dirPath])) {
+                return;
+            }
+
+            $parent = self::parentDirectory($dirPath);
+            $tree[$parent] ??= [];
+            $tree[$parent][] = self::directory($dirPath);
+            $dirs[$dirPath] = true;
+            $dirPath = $parent;
+        }
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $tree
+     * @param array<string, bool> $dirNames
+     */
+    private static function dirTreePrune(array &$tree, array $dirNames): void
+    {
+        foreach (array_keys($dirNames) as $dirName) {
+            if ($dirName === '') {
+                continue;
+            }
+
+            $parent = self::parentDirectory($dirName);
+            $tree[$parent] = array_values(array_filter(
+                $tree[$parent] ?? [],
+                static fn (ObjectInfo $entry): bool => !self::isDirectory($entry) || $entry->path !== $dirName,
+            ));
+        }
+
+        while ($dirNames !== []) {
+            foreach (array_keys($dirNames) as $dirName) {
+                foreach ($tree[$dirName] ?? [] as $entry) {
+                    if (self::isDirectory($entry)) {
+                        $dirNames[$entry->path] = true;
+                    }
+                }
+                unset($tree[$dirName], $dirNames[$dirName]);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, list<ObjectInfo>> $tree
+     */
+    private static function sortDirTree(array &$tree): void
+    {
+        foreach ($tree as &$entries) {
+            $entries = ListSorter::sorted($entries);
+        }
+        unset($entries);
+
+        ksort($tree, \SORT_STRING);
     }
 
     /**

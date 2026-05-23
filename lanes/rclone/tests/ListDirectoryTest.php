@@ -734,6 +734,197 @@ return [
         });
         $t->same([['site/uploads/hero.jpg']], $afterCallbackBatches);
     },
+    'walkR dir tree normalizes arbitrary recursive batches into sorted parents' => static function (TestRunner $t): void {
+        $result = ListDirectory::dirTreeFromListR(
+            static function (string $dir, callable $callback): null {
+                $callback([
+                    rclone_list_directory_object('z/y/file'),
+                    rclone_list_directory_object('a/b/c'),
+                    rclone_list_directory_directory('m/n'),
+                ]);
+                $callback([
+                    rclone_list_directory_object('a/a'),
+                ]);
+
+                return null;
+            },
+            true,
+            '',
+            -1,
+        );
+
+        $t->same(4, $result['listed']);
+        $t->same(2, $result['batches']);
+        $expected = <<<'TREE'
+/
+  a/
+  m/
+  z/
+a/
+  a
+  b/
+a/b/
+  c
+m/
+  n/
+m/n/
+z/
+  y/
+z/y/
+  file
+TREE;
+        $expected .= "\n";
+        $t->same($expected, ListDirectory::formatDirTree($result['tree']));
+    },
+    'walkR dir tree honors upstream maxLevel truncation' => static function (TestRunner $t): void {
+        $result = ListDirectory::dirTreeFromListR(
+            static function (string $dir, callable $callback): null {
+                $callback([
+                    rclone_list_directory_object('A'),
+                    rclone_list_directory_object('a/B'),
+                    rclone_list_directory_object('a/b/C'),
+                    rclone_list_directory_object('a/b/c/D'),
+                    rclone_list_directory_object('a/b/c/d/E'),
+                ]);
+
+                return null;
+            },
+            true,
+            '',
+            2,
+        );
+
+        $expected = <<<'TREE'
+/
+  A
+  a/
+a/
+  B
+  b/
+a/b/
+TREE;
+        $expected .= "\n";
+        $t->same($expected, ListDirectory::formatDirTree($result['tree']));
+    },
+    'walkR dir tree preserves parents of filtered excluded objects' => static function (TestRunner $t): void {
+        $result = ListDirectory::dirTreeFromListR(
+            static function (string $dir, callable $callback): null {
+                $callback([
+                    rclone_list_directory_object('a/.bzEmpty'),
+                    rclone_list_directory_object('a/b1/.bzEmpty'),
+                    rclone_list_directory_object('a/b2/.bzEmpty'),
+                ]);
+
+                return null;
+            },
+            false,
+            '',
+            -1,
+            static fn (ObjectInfo $entry): bool => !str_ends_with($entry->path, '.bzEmpty'),
+            static fn (string $remote): bool => true,
+        );
+
+        $expected = <<<'TREE'
+/
+  a/
+a/
+  b1/
+  b2/
+a/b1/
+a/b2/
+TREE;
+        $expected .= "\n";
+        $t->same($expected, ListDirectory::formatDirTree($result['tree']));
+    },
+    'walkR dir tree prunes exclude-file directories after listing' => static function (TestRunner $t): void {
+        $entries = [
+            rclone_list_directory_object('a'),
+            rclone_list_directory_object('b/b'),
+            rclone_list_directory_object('b/c/d/e'),
+            rclone_list_directory_object('b/c/ign'),
+            rclone_list_directory_object('b/c/x'),
+        ];
+
+        $filtered = ListDirectory::dirTreeFromListR(
+            static function (string $dir, callable $callback) use ($entries): null {
+                $callback($entries);
+
+                return null;
+            },
+            false,
+            '',
+            -1,
+            static fn (ObjectInfo $entry): bool => true,
+            static fn (string $remote): bool => true,
+            ['ign'],
+        );
+
+        $t->same(['b/c'], $filtered['pruned']);
+        $expectedFiltered = <<<'TREE'
+/
+  a
+  b/
+b/
+  b
+TREE;
+        $expectedFiltered .= "\n";
+        $t->same($expectedFiltered, ListDirectory::formatDirTree($filtered['tree']));
+
+        $includeAll = ListDirectory::dirTreeFromListR(
+            static function (string $dir, callable $callback) use ($entries): null {
+                $callback($entries);
+
+                return null;
+            },
+            true,
+            '',
+            -1,
+            null,
+            null,
+            ['ign'],
+        );
+
+        $t->same([], $includeAll['pruned']);
+        $expectedIncludeAll = <<<'TREE'
+/
+  a
+  b/
+b/
+  b
+  c/
+b/c/
+  d/
+  ign
+  x
+b/c/d/
+  e
+TREE;
+        $expectedIncludeAll .= "\n";
+        $t->same($expectedIncludeAll, ListDirectory::formatDirTree($includeAll['tree']));
+    },
+    'walkR dir tree propagates ListR provider errors and invalid entries' => static function (TestRunner $t): void {
+        $t->throws(RuntimeException::class, static fn () => ListDirectory::dirTreeFromListR(
+            static function (string $dir, callable $callback): RuntimeException {
+                $callback([rclone_list_directory_object('a')]);
+
+                return new RuntimeException('provider ListR failed');
+            },
+            true,
+            '',
+            -1,
+        ));
+
+        $t->throws(RuntimeException::class, static fn () => ListDirectory::dirTreeFromListR(
+            static function (string $dir, callable $callback): null {
+                $callback(['not an entry']);
+
+                return null;
+            },
+            true,
+            '',
+            -1,
+        ));
+    },
     'wordpress direct backup manifest example filters and sorts one listed directory' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-list-filter-sort.php';
 
@@ -813,5 +1004,24 @@ return [
         $t->same(['listed' => 5, 'batches' => 2, 'sent' => 7, 'synthesized' => 2, 'syntheticBatches' => 1], $example['stats']);
         $t->same(true, $example['uploadsParentSynthesized']);
         $t->same(true, $example['providerOrderPreservedBeforePublishSort']);
+    },
+    'wordpress direct dir tree restore manifest example prunes cache after ListR' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-dirtree-direct-restore-manifest.php';
+
+        $t->same([
+            'site-backups/database.sql',
+            'site-backups/export.wxr',
+            'site-backups/users.wxr',
+            'site-backups/uploads/',
+            'site-backups/uploads/2026/',
+            'site-backups/uploads/2026/05/',
+            'site-backups/uploads/2026/05/generated/',
+            'site-backups/uploads/2026/05/hero.jpg',
+        ], $example['manifest']);
+        $t->same(['site-backups/cache'], $example['pruned']);
+        $t->same(true, $example['cachePruned']);
+        $t->same(true, $example['generatedDirPreserved']);
+        $t->same(true, $example['maxDepthStoppedBeforeGeneratedFiles']);
+        $t->same(8, $example['treeEntryCount']);
     },
 ];
