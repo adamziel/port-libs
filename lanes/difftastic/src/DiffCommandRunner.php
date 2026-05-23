@@ -35,6 +35,10 @@ final class DiffCommandRunner
         }
 
         $options = $parsedOptions['options'];
+        if (($options['display'] ?? self::DEFAULT_DISPLAY_MODE) === 'json') {
+            return $this->jsonTextDiffResult($old, $new, $path, $language, $options);
+        }
+
         $analysis = $this->analyzeTextDiff($old, $new, $language, $options);
         if (($options['checkOnly'] ?? false) === true) {
             return $this->checkOnlyResult($analysis, $path, $options);
@@ -164,9 +168,21 @@ final class DiffCommandRunner
             }
         }
 
-        $display = $parsed['display'] ?? ($environment['DFT_DISPLAY'] ?? self::DEFAULT_DISPLAY_MODE);
-        if (!is_string($display) || !in_array($display, ['inline', 'side-by-side', 'side-by-side-show-both'], true)) {
-            $errors[] = "Invalid value '{$this->stringifyOptionValue($display)}' for DFT_DISPLAY: expected inline, side-by-side, or side-by-side-show-both.";
+        $displaySource = null;
+        if (array_key_exists('display', $parsed)) {
+            $display = $parsed['display'];
+            $displaySource = '--display';
+        } elseif (array_key_exists('DFT_DISPLAY', $environment)) {
+            $display = $environment['DFT_DISPLAY'];
+            $displaySource = 'DFT_DISPLAY';
+        } else {
+            $display = self::DEFAULT_DISPLAY_MODE;
+        }
+
+        if (!is_string($display) || !in_array($display, ['inline', 'side-by-side', 'side-by-side-show-both', 'json'], true)) {
+            $errors[] = "Invalid value '{$this->stringifyOptionValue($display)}' for " . ($displaySource ?? 'DFT_DISPLAY') . ': expected inline, side-by-side, side-by-side-show-both, or json.';
+        } elseif ($display === 'json' && !array_key_exists('DFT_UNSTABLE', $environment)) {
+            $errors[] = 'JSON output is an unstable feature and its format may change in future. To enable JSON output, set the environment variable DFT_UNSTABLE=yes.';
         } else {
             $parsed['display'] = $display;
         }
@@ -625,6 +641,31 @@ final class DiffCommandRunner
             'side-by-side-show-both' => (new SideBySideDiffRenderer($this->differ))->renderTextDiff($old, $new, $rendererOptions + ['showBoth' => true]),
             default => $this->inlineRenderer->renderTextDiff($old, $new, $rendererOptions),
         };
+    }
+
+    /**
+     * @param array{exitCode?: bool, language?: string, displayLanguage?: string, stripCr?: bool, ignoreComments?: bool, ignoreTrailingCommas?: bool, byteLimit?: int, graphLimit?: int, parseErrorLimit?: int} $options
+     * @return array{stdout:string, stderr:string, exitCode:int, hasChanges:bool, message:string, language:string}
+     */
+    private function jsonTextDiffResult(string $old, string $new, string $path, string $language, array $options): array
+    {
+        $languageOption = (string) ($options['language'] ?? $this->languageOption($language));
+        $fileOptions = $options;
+        $fileOptions['language'] = $languageOption;
+        $displayLanguage = (string) ($options['displayLanguage'] ?? $this->displayLanguageName($languageOption));
+        $file = (new JsonDiffRenderer($this->differ))->fileDiff($old, $new, $path, $displayLanguage, $fileOptions);
+        $hasChanges = ($file['status'] ?? 'unchanged') !== 'unchanged';
+        $plainText = $this->isPlainTextLanguage($languageOption);
+        $syntacticStatus = !$plainText && !str_starts_with((string) ($file['language'] ?? ''), 'Text (');
+
+        return [
+            'stdout' => $this->encodeJson($file),
+            'stderr' => '',
+            'exitCode' => $this->exitCodeForChanges($hasChanges, (bool) ($options['exitCode'] ?? false)),
+            'hasChanges' => $hasChanges,
+            'message' => $this->statusMessage($hasChanges, $syntacticStatus),
+            'language' => (string) ($file['language'] ?? $displayLanguage),
+        ];
     }
 
     private function sideBySideColumnWidthForTerminal(int $terminalWidth, string $old, string $new): int

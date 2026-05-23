@@ -24,6 +24,7 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - The upstream graph-limit fallback boundary is inspected through `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `dijkstra::mark_syntax`, `ExceededGraphLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
 - The upstream command resource-limit environment boundary is inspected through `src/options.rs` `--byte-limit`/`DFT_BYTE_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, and `--parse-error-limit`/`DFT_PARSE_ERROR_LIMIT`, plus `src/main.rs` propagation into `DiffOptions` and text fallback output.
 - The upstream command display-control boundary is inspected through `src/options.rs` `--background`/`DFT_BACKGROUND`, `--syntax-highlight`/`DFT_SYNTAX_HIGHLIGHT`, and `--sort-paths`/`DFT_SORT_PATHS`, plus `src/main.rs` display option propagation and directory sort branching, and `src/display/style.rs` background-aware bright/dim color decisions.
+- The upstream guarded unstable JSON display boundary is inspected through `src/options.rs` `DisplayMode::Json` parsing and `DFT_UNSTABLE` guard, `src/main.rs` JSON display branching, and `src/display/json.rs` single-file/directory JSON printing.
 - The upstream UTF-16 text/binary boundary is inspected through `src/files.rs` `has_utf16_byte_order_mark`, `u16_from_bytes`, and `guess_content`, plus `sample_files/utf16_1.py` / `sample_files/utf16_2.py`.
 - The upstream mostly-valid UTF-8 text/binary boundary is inspected through `src/files.rs` `guess_content` and the `tests/cli.rs` `slightly_invalid_utf8` CLI test, which keeps content with at most two invalid UTF-8/null characters as text before considering Windows-1252 fallback.
 - The upstream binary display and override boundary is inspected through `tests/cli.rs` `binary_changed` and `binary_override`, `src/options.rs` `--override-binary` parsing, `src/main.rs` binary inline messages, `src/display/json.rs` binary status envelope handling, and `src/files.rs` `guess_content` override precedence plus binary content detection.
@@ -41,7 +42,7 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - The Python block-header boundary is inspected through the upstream `Python` tree-sitter configuration and a targeted directory fixture pair, `sample_files/dir_1/has_many_hunk.py` / `sample_files/dir_2/has_many_hunk.py`, where `function041` changes only its signature while neighboring functions stay stable.
 - The Python compound-clause boundary is inspected through the upstream `Python` tree-sitter configuration and mapped locally for `elif`, `else`, `try`, `except`, and `finally` clauses, with continuation clauses attached to the preceding compound statement path.
 
-This gives the lane 556 inspected behavior artifacts for the current cloned static denominator: 144 Rust test/test-case attributes, 111 golden output pairs, 114 numbered sample fixture pairs, 4 directory fixture pairs, 35 parser corpus files, 139 vendored parser example source files, 3 targeted strip-CR source files, 2 targeted Makefile CLI fixture files, 2 targeted changes-at-end CLI fixture files, and 2 targeted tab-width display source files.
+This gives the lane 559 inspected behavior artifacts for the current cloned static denominator: 144 Rust test/test-case attributes, 111 golden output pairs, 114 numbered sample fixture pairs, 4 directory fixture pairs, 35 parser corpus files, 139 vendored parser example source files, 3 targeted strip-CR source files, 2 targeted Makefile CLI fixture files, 2 targeted changes-at-end CLI fixture files, 2 targeted tab-width display source files, and 3 targeted unstable JSON display source files.
 
 ## Runner Status
 
@@ -110,6 +111,9 @@ It failed before compilation because the local Cargo cache cannot resolve crates
 - The WordPress env language-override command example applies that command-runner slice to the generated asset metadata and Blade template fixtures. `DFT_OVERRIDE=*.asset.php:text` and `DFT_OVERRIDE_1=*.blade.php:HTML` route `build/index.asset.php` to Text and `templates/card.blade.php` to HTML through a caller-provided environment array.
 - Targeted upstream `src/options.rs` display option parsing is now mapped for command-runner review: caller-supplied `DFT_DISPLAY`, `DFT_CONTEXT`, `DFT_TAB_WIDTH`, and `DFT_WIDTH` values are parsed from an explicit environment array, invalid numeric values return exit 2 before review, and explicit PHP options take precedence over environment-style configuration like upstream CLI arguments.
 - The WordPress env display-options command example applies that slice to tabbed `block.json` review. `DFT_DISPLAY=side-by-side-show-both`, `DFT_CONTEXT=0`, `DFT_TAB_WIDTH=2`, and `DFT_WIDTH=44` produce deterministic wrapped side-by-side block metadata output without reading live process environment values.
+- Targeted upstream `src/options.rs` `--display=json` parsing is now mapped with the upstream `DFT_UNSTABLE` guard. The PHP command runner accepts `json` only when the caller-provided environment array contains `DFT_UNSTABLE`; otherwise it returns exit 2 with the upstream unstable-output warning before review.
+- Targeted upstream `src/main.rs` JSON display branching and `src/display/json.rs` single-file printing are now mapped for command-runner review. Guarded `DFT_DISPLAY=json` routes single-file diffs through the native compact JSON envelope and keeps ordinary `--exit-code` behavior, without reading live process environment values.
+- The WordPress env unstable JSON command example applies that slice to `wp-content/plugins/acme-card/block.json`, emitting aligned lines and chunks for `title`, `viewScriptModule`, and `supports` changes as machine-readable review data.
 - Targeted upstream `src/options.rs` display-control environment parsing is now mapped for command-runner review: caller-supplied `DFT_BACKGROUND`, `DFT_SYNTAX_HIGHLIGHT`, and `DFT_SORT_PATHS` values are parsed from an explicit environment array, invalid values return exit 2 before review, and explicit PHP options take precedence over environment-style configuration.
 - The WordPress env display-controls command example applies that slice to a dark-background side-by-side PHP render diff plus sorted directory JSON review for generated asset metadata and Blade template fixtures, without reading live process environment values.
 - Targeted upstream `src/options.rs`, `src/main.rs`, and `src/display/style.rs` command environment flag parsing is now mapped in the native command runner. Caller-supplied `DFT_CHECK_ONLY`, `DFT_EXIT_CODE`, `DFT_SKIP_UNCHANGED`, `DFT_IGNORE_COMMENTS`, `DFT_STRIP_CR`, and `DFT_COLOR` values are parsed before review, invalid values return exit 2, and explicit PHP options take precedence over environment-style configuration.
@@ -223,7 +227,7 @@ Targeted `src/options.rs` resource-limit environment parsing now maps `DFT_BYTE_
 
 The WordPress env resource-limits example applies that slice to block render metadata. A caller-provided `DFT_BYTE_LIMIT=80` forces a bounded text fallback for `wp-content/plugins/acme-card/render-metadata.php`, keeping render callback and support changes reviewable without reading live process environment values.
 
-The focused PHP lane test now passes 198 tests and 1065 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, and command resource-limit environment parsing for byte/graph/parse fallback budgets.
+The focused PHP lane test now passes 201 tests and 1092 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, and command resource-limit environment parsing for byte/graph/parse fallback budgets.
 
 Before the required root test runner, this lane checked for an active root harness:
 
@@ -235,10 +239,10 @@ No active root harness was found, so this lane ran the aggregate root harness. I
 
 ```text
 php tools/run-tests.php
-193 test files, 20898 assertions, 0 failures
+196 test files, 21349 assertions, 0 failures
 ```
 
-The difftastic-focused test file is green with 198 named tests, 1065 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The latest aggregate root harness is green.
+The difftastic-focused test file is green with 201 named tests, 1092 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The latest aggregate root harness result is recorded in `lanes/difftastic/lane-status.json`.
 
 The touched WordPress examples also run:
 
@@ -248,6 +252,8 @@ php lanes/difftastic/examples/wordpress-git-common-path-inline-diff.php | wc -c
 php lanes/difftastic/examples/wordpress-plugin-directory-json-diff.php | wc -c
 2876
 php lanes/difftastic/examples/wordpress-plugin-directory-json-diff.php | php -r '$json = stream_get_contents(STDIN); json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo "valid json\n";'
+valid json
+php lanes/difftastic/examples/wordpress-env-unstable-json-command.php | php -r '$line = fgets(STDIN); json_decode($line, true, 512, JSON_THROW_ON_ERROR); echo "valid json\n";'
 valid json
 php lanes/difftastic/examples/wordpress-check-only-command.php
 wp-content/plugins/acme-card/block.json --- JSON
@@ -303,4 +309,4 @@ exit_code=1
 
 ## Next Task
 
-Map deeper upstream syntax-highlight visual token styling beyond novel spans, or add the guarded `DFT_UNSTABLE` JSON display command mode while preserving caller-provided environment isolation.
+Map deeper upstream syntax-highlight visual token styling beyond novel spans, especially syntax-highlight on/off behavior in ANSI or JSON command output.

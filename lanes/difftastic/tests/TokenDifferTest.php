@@ -1327,6 +1327,59 @@ return [
         $t->same(1, $overridden['options']['contextLines']);
         $t->same(4, $overridden['options']['tabWidth']);
     },
+    'maps upstream unstable json display guard for command mode' => static function (TestRunner $t): void {
+        $runner = new DiffCommandRunner();
+        $guarded = $runner->parseDisplayOptions([], [
+            'DFT_DISPLAY' => 'json',
+            'DFT_UNSTABLE' => 'yes',
+        ]);
+        $explicit = $runner->parseDisplayOptions([
+            'display' => 'json',
+        ], [
+            'DFT_UNSTABLE' => '',
+        ]);
+        $unguarded = $runner->runTextDiff('old', 'new', 'readme.txt', 'Text', [
+            'language' => 'text',
+        ], [
+            'DFT_DISPLAY' => 'json',
+        ]);
+
+        $t->same([], $guarded['errors']);
+        $t->same('json', $guarded['options']['display']);
+        $t->same([], $explicit['errors']);
+        $t->same('json', $explicit['options']['display']);
+        $t->same(DiffCommandRunner::EXIT_BAD_ARGUMENTS, $unguarded['exitCode']);
+        $t->same('', $unguarded['stdout']);
+        $t->contains('JSON output is an unstable feature', $unguarded['stderr']);
+        $t->contains('DFT_UNSTABLE=yes', $unguarded['stderr']);
+    },
+    'maps upstream unstable json display environment into file command output' => static function (TestRunner $t): void {
+        $result = (new DiffCommandRunner())->runTextDiff(
+            "const title = \"Old\";\n",
+            "const title = \"New\";\n",
+            'sample_files/simple_1.js',
+            'JavaScript',
+            [
+                'language' => 'javascript',
+                'exitCode' => true,
+            ],
+            [
+                'DFT_DISPLAY' => 'json',
+                'DFT_UNSTABLE' => 'yes',
+            ],
+        );
+        $decoded = json_decode($result['stdout'], true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->same(true, $result['hasChanges']);
+        $t->same('sample_files/simple_1.js', $decoded['path']);
+        $t->same('JavaScript', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['chunks']), 'JSON command display should route a single file through the native JSON renderer.');
+        $t->contains('Old', $result['stdout']);
+        $t->contains('New', $result['stdout']);
+    },
     'maps upstream background syntax and sort path environment aggregation' => static function (TestRunner $t): void {
         $runner = new DiffCommandRunner();
         $parsed = $runner->parseCommandOptions([], [
@@ -2003,6 +2056,29 @@ return [
         $t->contains('file:./view.js', $result['stdout']);
         $t->true(!str_contains($result['stdout'], "\t"), 'Environment-sourced tab width should make tabbed block metadata deterministic.');
         $t->true(!str_contains($result['stdout'], '"apiVersion"'), 'Context zero should keep unchanged block metadata headers out of the command display.');
+    },
+    'wordpress command env unstable json display emits block metadata review' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-after.json');
+        $result = (new DiffCommandRunner())->runTextDiff($before, $after, 'wp-content/plugins/acme-card/block.json', 'JSON', [
+            'language' => 'json',
+            'exitCode' => true,
+        ], [
+            'DFT_DISPLAY' => 'json',
+            'DFT_UNSTABLE' => 'yes',
+        ]);
+        $decoded = json_decode($result['stdout'], true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $result['exitCode']);
+        $t->same('', $result['stderr']);
+        $t->same('wp-content/plugins/acme-card/block.json', $decoded['path']);
+        $t->same('JSON', $decoded['language']);
+        $t->same('changed', $decoded['status']);
+        $t->true(isset($decoded['aligned_lines']), 'Block metadata JSON command output should include upstream-style aligned lines.');
+        $t->true(isset($decoded['chunks']), 'Block metadata JSON command output should include review chunks.');
+        $t->contains('viewScriptModule', $result['stdout']);
+        $t->contains('Card', $result['stdout']);
+        $t->contains('Editorial', $result['stdout']);
     },
     'wordpress git backed common path inline display keeps repository suffix' => static function (TestRunner $t): void {
         $before = "{\n  \"apiVersion\": 3,\n  \"name\": \"acme/card\",\n  \"title\": \"Legacy Card\",\n  \"supports\": {\n    \"html\": false\n  }\n}\n";
