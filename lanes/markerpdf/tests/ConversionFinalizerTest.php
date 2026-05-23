@@ -117,6 +117,68 @@ return [
         $t->same(['3_image_0.png'], array_keys($result['images']));
         $t->same('chart crop', $result['images']['3_image_0.png']['alt']);
     },
+    'detects and indents code blocks during convert_single_pdf finalization' => static function (TestRunner $t) use ($line): void {
+        $bodyLines = [];
+        for ($index = 0; $index < 8; $index++) {
+            $top = 72.0 + ($index * 16.0);
+            $bodyLines[] = $line(
+                'Paragraph line ' . ($index + 1) . ' remains ordinary imported prose.',
+                'body_' . $index,
+                [72.0, $top, 430.0, $top + 12.0],
+                'Body',
+                400.0,
+                12.0
+            );
+        }
+
+        $codeLines = [];
+        foreach ([
+            ['// source: imported benchmark sample', 72.0],
+            ['// target: WordPress code block', 72.0],
+            ['// cleaner: marker.cleaners.code', 72.0],
+            ['function migrate_pdf() {', 72.0],
+            ['return true;', 86.0],
+            ['}', 72.0],
+            ['// done', 72.0],
+        ] as $index => [$text, $left]) {
+            $top = 230.0 + ($index * 9.0);
+            $codeLines[] = $line(
+                $text,
+                'code_' . $index,
+                [$left, $top, $left + (strlen($text) * 7.0), $top + 7.0],
+                'Mono',
+                400.0,
+                8.0
+            );
+        }
+
+        $result = (new ConversionFinalizer())->finalizePages(
+            [[
+                'pnum' => 0,
+                'bbox' => [0.0, 0.0, 612.0, 792.0],
+                'blocks' => [
+                    [
+                        'block_type' => 'Text',
+                        'bbox' => [72.0, 72.0, 430.0, 196.0],
+                        'lines' => $bodyLines,
+                    ],
+                    [
+                        'block_type' => 'Text',
+                        'bbox' => [72.0, 230.0, 320.0, 296.0],
+                        'lines' => $codeLines,
+                    ],
+                ],
+            ]],
+            [],
+            new MarkerSettings(['EXTRACT_IMAGES' => false])
+        );
+
+        $t->same(1, $result['metadata']['block_stats']['code']);
+        $t->same('Code', $result['pages'][0]['blocks'][1]['block_type']);
+        $t->same('0_fix_code', $result['pages'][0]['blocks'][1]['lines'][0]['spans'][0]['span_id']);
+        $t->contains("```\n// source: imported benchmark sample", $result['text']);
+        $t->contains("  return true;\n}", $result['text']);
+    },
     'turns actual CI benchmark excerpts into final text that clears upstream score thresholds' => static function (TestRunner $t) use ($pageFromText): void {
         $fixture = require __DIR__ . '/../fixtures/upstream-ci-benchmark-short.php';
         $runs = [];

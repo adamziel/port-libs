@@ -98,6 +98,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-conversion-finalizer-import.php` maps the late `convert_single_pdf` cleanup and assembly order into a WordPress import handoff. It accepts supplied native pages after earlier OCR/layout/table/equation boundaries, removes bad header spans, marks bold body spans, computes TOC and image metadata, normalizes bullet list markers, and emits heading/paragraph/list blocks without loading the upstream Python model stack.
 
+`examples/wordpress-finalizer-code-block-import.php` maps the integrated `identify_code_blocks` and `indent_blocks` finalizer step into a WordPress import handoff. It keeps ordinary PDF prose as paragraph content, records `block_stats.code`, and emits a Gutenberg code block from supplied PDF line geometry without loading the upstream Python model stack.
+
 `examples/wordpress-table-score.php` maps `marker/benchmark/table.py` into a table import quality check. It compares an OCR-noisy Markdown table against the expected WordPress table content and verifies the score clears Marker's upstream table report threshold of `0.7`.
 
 `examples/wordpress-table-box-plan.php` maps Marker's upstream `get_table_boxes` boundary into a Gutenberg table review path. It merges adjacent Table layout boxes with the locked `tabled-pdf` helper semantics, emits high-resolution crop bboxes that a table-recognition adapter would consume, duplicates supplied text-line detections for non-OCR pages, and marks OCRed pages with null text-line payloads so cell boxes can be redetected before rendering.
