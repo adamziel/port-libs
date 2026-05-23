@@ -261,6 +261,28 @@ CSS;
         );
         $t->same('.foo{width:30px}', $minifier->minify('.foo { width: calc(10px * mod(18, 5)) }'));
     },
+    'css minifier maps upstream exponential and sign math function cluster' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{width:hypot()}', $minifier->minify('.foo { width: hypot() }'));
+        $t->same('.foo{width:1px}', $minifier->minify('.foo { width: hypot(1px) }'));
+        $t->same('.foo{width:2.23607px}', $minifier->minify('.foo { width: hypot(1px, 2px) }'));
+        $t->same('.foo{width:3.74166px}', $minifier->minify('.foo { width: hypot(1px, 2px, 3px) }'));
+        $t->same('.foo{width:hypot(1px,2vw)}', $minifier->minify('.foo { width: hypot(1px, 2vw) }'));
+        $t->same('.foo{width:hypot(1px,2px,3vw)}', $minifier->minify('.foo { width: hypot(1px, 2px, 3vw) }'));
+        $t->same('.foo{width:500px}', $minifier->minify('.foo { width: calc(100px * hypot(3, 4)) }'));
+        $t->same('.foo{width:1024px}', $minifier->minify('.foo { width: calc(1px * pow(2, sqrt(100))) }'));
+        $t->same('.foo{width:1600px}', $minifier->minify('.foo { width: calc(100px * pow(2, pow(2, 2))) }'));
+        $t->same('.foo{width:0}', $minifier->minify('.foo { width: calc(1px * log(1)) }'));
+        $t->same('.foo{width:1px}', $minifier->minify('.foo { width: calc(1px * log(10, 10)) }'));
+        $t->same('.foo{width:1px}', $minifier->minify('.foo { width: calc(1px * exp(0)) }'));
+        $t->same('.foo{width:1px}', $minifier->minify('.foo { width: calc(1px * log(e)) }'));
+        $t->same('.foo{width:7.38906px}', $minifier->minify('.foo { width: calc(1px * exp(log(1) + exp(0) * 2)) }'));
+        $t->same('.foo{width:1px}', $minifier->minify('.foo { width: abs(1px) }'));
+        $t->same('.foo{width:1px}', $minifier->minify('.foo { width: abs(-1px) }'));
+        $t->same('.foo{width:abs(1%)}', $minifier->minify('.foo { width: abs(1%) }'));
+        $t->same('.foo{width:-10px}', $minifier->minify('.foo { width: calc(10px * sign(-1vw)) }'));
+    },
     'css minifier maps upstream nested math functions inside calc' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -896,6 +918,21 @@ CSS;
 
         $t->same(
             '.wp-block-query{gap:25px;margin-block-start:2px;padding-inline:10px;width:200px;border-width:4rem}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress block depth math functions minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-cover.is-style-depth {
+  outline-offset: abs(-4px);
+  margin-block-start: calc(1px * hypot(3, 4));
+  padding-block: calc(1rem * pow(2, 2));
+  translate: 0 calc(10px * sign(-1vw));
+}
+CSS;
+
+        $t->same(
+            '.wp-block-cover.is-style-depth{outline-offset:4px;margin-block-start:5px;padding-block:4rem;translate:0 -10px}',
             (new CssMinifier())->minify($css)
         );
     },

@@ -5033,6 +5033,34 @@ final class CssMinifier
             return $this->minifyMathRemainder($name, $this->splitTopLevel($inner, ','));
         }
 
+        if ($name === 'hypot') {
+            return $this->minifyMathHypot($this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'sqrt') {
+            return $this->minifyMathSqrt($this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'pow') {
+            return $this->minifyMathPow($this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'log') {
+            return $this->minifyMathLog($this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'exp') {
+            return $this->minifyMathExp($this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'abs') {
+            return $this->minifyMathAbs($this->splitTopLevel($inner, ','));
+        }
+
+        if ($name === 'sign') {
+            return $this->minifyMathSign($this->splitTopLevel($inner, ','));
+        }
+
         return $matches[1] . '(' . $this->compactMathFallback($inner) . ')';
     }
 
@@ -5216,6 +5244,162 @@ final class CssMinifier
 
     /**
      * @param list<string> $args
+     */
+    private function minifyMathHypot(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if ($normalized === [] || $normalized === ['']) {
+            return 'hypot()';
+        }
+
+        $unit = null;
+        $sum = 0.0;
+        foreach ($normalized as $arg) {
+            $value = $this->comparableMathValue($arg);
+            if ($value === null || $value['unit'] === '%') {
+                return 'hypot(' . implode(',', $normalized) . ')';
+            }
+            $unit ??= $value['unit'];
+            if ($value['unit'] !== $unit) {
+                return 'hypot(' . implode(',', $normalized) . ')';
+            }
+            $sum += $value['value'] ** 2;
+        }
+
+        return $this->serializeComputedMathNumberWithUnit(sqrt($sum), $unit ?? '');
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathSqrt(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if (count($normalized) !== 1) {
+            return 'sqrt(' . implode(',', $normalized) . ')';
+        }
+
+        $value = $this->unitlessMathNumber($normalized[0]);
+        if ($value === null || $value < 0) {
+            return 'sqrt(' . $normalized[0] . ')';
+        }
+
+        return $this->serializeComputedMathNumberWithUnit(sqrt($value), '');
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathPow(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if (count($normalized) !== 2) {
+            return 'pow(' . implode(',', $normalized) . ')';
+        }
+
+        $base = $this->unitlessMathNumber($normalized[0]);
+        $exponent = $this->unitlessMathNumber($normalized[1]);
+        if ($base === null || $exponent === null) {
+            return 'pow(' . implode(',', $normalized) . ')';
+        }
+
+        $result = $base ** $exponent;
+        if (!is_finite($result)) {
+            return 'pow(' . implode(',', $normalized) . ')';
+        }
+
+        return $this->serializeComputedMathNumberWithUnit($result, '');
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathLog(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if (count($normalized) !== 1 && count($normalized) !== 2) {
+            return 'log(' . implode(',', $normalized) . ')';
+        }
+
+        $value = $this->unitlessMathNumber($normalized[0]);
+        $base = count($normalized) === 2 ? $this->unitlessMathNumber($normalized[1]) : M_E;
+        if ($value === null || $base === null || $value <= 0 || $base <= 0 || abs($base - 1.0) < 0.0000001) {
+            return 'log(' . implode(',', $normalized) . ')';
+        }
+
+        $result = log($value) / log($base);
+        if (!is_finite($result)) {
+            return 'log(' . implode(',', $normalized) . ')';
+        }
+
+        return $this->serializeComputedMathNumberWithUnit($result, '');
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathExp(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if (count($normalized) !== 1) {
+            return 'exp(' . implode(',', $normalized) . ')';
+        }
+
+        $value = $this->unitlessMathNumber($normalized[0]);
+        if ($value === null) {
+            return 'exp(' . $normalized[0] . ')';
+        }
+
+        $result = exp($value);
+        if (!is_finite($result)) {
+            return 'exp(' . $normalized[0] . ')';
+        }
+
+        return $this->serializeComputedMathNumberWithUnit($result, '');
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathAbs(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if (count($normalized) !== 1) {
+            return 'abs(' . implode(',', $normalized) . ')';
+        }
+
+        $value = $this->comparableMathValue($normalized[0]);
+        if ($value === null || $value['unit'] === '%') {
+            return 'abs(' . $normalized[0] . ')';
+        }
+
+        return $this->serializeMathNumberWithUnit(abs($value['value']), $value['unit']);
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function minifyMathSign(array $args): string
+    {
+        $normalized = $this->normalizeMathArguments($args);
+        if (count($normalized) !== 1) {
+            return 'sign(' . implode(',', $normalized) . ')';
+        }
+
+        $value = $this->comparableMathValue($normalized[0]);
+        if ($value === null || $value['unit'] === '%') {
+            return 'sign(' . $normalized[0] . ')';
+        }
+
+        if (abs($value['canonical']) < 0.0000001) {
+            return '0';
+        }
+
+        return $value['canonical'] < 0 ? '-1' : '1';
+    }
+
+    /**
+     * @param list<string> $args
      * @return list<string>
      */
     private function normalizeMathArguments(array $args): array
@@ -5232,6 +5416,26 @@ final class CssMinifier
         }
 
         return $this->compactMathFallback($arg);
+    }
+
+    private function unitlessMathNumber(string $arg): ?float
+    {
+        $constant = $this->mathConstant($arg);
+        if ($constant !== null) {
+            return $constant;
+        }
+
+        $linear = $this->parseLinearMathArgument($arg);
+        if ($linear === null) {
+            return null;
+        }
+
+        $units = $this->nonZeroLinearCalcUnits($linear);
+        if ($units === []) {
+            return 0.0;
+        }
+
+        return $units === [''] ? ($linear['terms'][''] ?? 0.0) : null;
     }
 
     /**
@@ -5642,6 +5846,15 @@ final class CssMinifier
 
             return $value;
         }
+        if ($token['type'] === 'ident') {
+            $constant = $this->mathConstant($token['value']);
+            if ($constant !== null) {
+                return [
+                    'terms' => ['' => $constant],
+                    'order' => [''],
+                ];
+            }
+        }
         if ($token['type'] !== 'number') {
             return null;
         }
@@ -5802,6 +6015,31 @@ final class CssMinifier
         }
 
         return 'calc(' . $output . ')';
+    }
+
+    private function mathConstant(string $identifier): ?float
+    {
+        return match (strtolower(trim($identifier))) {
+            'e' => M_E,
+            'pi' => M_PI,
+            default => null,
+        };
+    }
+
+    private function serializeComputedMathNumberWithUnit(float $number, string $unit): string
+    {
+        if (abs($number) < 0.0000001) {
+            return '0';
+        }
+
+        $serialized = str_replace('E', 'e', sprintf('%.6G', $number));
+        if (str_starts_with($serialized, '0.')) {
+            $serialized = substr($serialized, 1);
+        } elseif (str_starts_with($serialized, '-0.')) {
+            $serialized = '-' . substr($serialized, 2);
+        }
+
+        return $serialized === '0' ? '0' : $serialized . $unit;
     }
 
     private function serializeLinearCalcTerm(float $coefficient, string $unit): string
