@@ -1273,6 +1273,65 @@ HTML;
         $t->same('Total', $foot->children[0]->children[0]->attr('text'));
         $t->same('27,376,022', $foot->children[0]->children[2]->attr('text'));
     },
+    'maps upstream html reader document metadata headers and paragraphs' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(<<<'HTML'
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<meta http-equiv="Content-Style-Type" content="text/css" />
+<meta name="generator" content="pandoc" />
+<title>Pandoc Test Suite</title>
+</head>
+<body>
+<h1 class="title">Pandoc Test Suite</h1>
+<p>This is a set of tests for pandoc. Most of them are adapted from John Gruber's markdown test suite.</p>
+<hr />
+<h1>Headers</h1>
+<h2>Level 2 with an <a href="/url">embedded link</a></h2>
+<h3>Level 3 with <em>emphasis</em></h3>
+<h4>Level 4</h4>
+<h5>Level 5</h5>
+<h1>Level 1</h1>
+<h2>Level 2 with <em>emphasis</em></h2>
+<h3>Level 3</h3>
+<p>with no blank line</p>
+<h2>Level 2</h2>
+<p>with no blank line</p>
+<hr />
+<h1>Paragraphs</h1>
+<p>Here's a regular paragraph.</p>
+<p>In Markdown 1.0.0 and earlier. Version 8. This line turns into a list item. Because a hard-wrapped line in the middle of a paragraph looked like a list item.</p>
+<p>Here's one with a bullet. * criminey.</p>
+<p>There should be a hard line break<br />
+ here.</p>
+<hr />
+</body>
+</html>
+HTML);
+        $meta = $document->attr('meta');
+        $title = $document->children[0];
+        $embeddedLinkHeading = $document->children[4];
+        $emphasisHeading = $document->children[5];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(21, count($document->children));
+        $t->same(['title' => 'Pandoc Test Suite', 'generator' => 'pandoc'], $meta);
+        $t->same('heading', $title->type);
+        $t->same(1, $title->attr('level'));
+        $t->same('pandoc-test-suite', $title->attr('id'));
+        $t->same(['title'], $title->attr('classes'));
+        $t->same(['class' => 'title'], $title->attr('htmlAttributes'));
+        $t->same('link', $embeddedLinkHeading->children[1]->type);
+        $t->same('/url', $embeddedLinkHeading->children[1]->attr('url'));
+        $t->same('emph', $emphasisHeading->children[1]->type);
+        $t->same('paragraph', $document->children[11]->type);
+        $t->same('with no blank line', $document->children[11]->attr('text'));
+        $t->same("There should be a hard line break\nhere.", $document->children[19]->attr('text'));
+        $t->same(['text', 'linebreak', 'text'], array_map(static fn ($node): string => $node->type, $document->children[19]->children));
+        $t->contains('<h1 id="pandoc-test-suite" class="title">Pandoc Test Suite</h1>', $blocks);
+        $t->contains('<h2 id="level-2-with-an-embedded-link">Level 2 with an <a href="/url">embedded link</a></h2>', $blocks);
+        $t->contains('<p>Here&#039;s one with a bullet. * criminey.</p>', $blocks);
+    },
     'maps upstream html reader hard line breaks in paragraphs' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(<<<'HTML'
 <p>There should be a hard line break<br />
@@ -3865,6 +3924,29 @@ XML;
         $t->contains('<pre class="wp-block-code"><code>  wp_insert_post($review_post);</code></pre>', $blocks);
         $t->contains('<p>Reviewer <em>Leading space</em></p>', $blocks);
         $t->contains('<p><em>Trailing space</em> reviewer</p>', $blocks);
+    },
+    'writes wordpress html reader full document exports with title classes' => static function (TestRunner $t): void {
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-import-markdown.md');
+        $document = (new MarkdownReader())->read($fixture);
+        $meta = $document->attr('meta');
+        $titleHeading = null;
+        $literalParagraph = null;
+        foreach ($document->children as $index => $node) {
+            if ($node->type === 'heading' && $node->attr('text') === 'Imported HTML Batch 42') {
+                $titleHeading = $node;
+                $literalParagraph = $document->children[$index + 3] ?? null;
+                break;
+            }
+        }
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['title' => 'Imported HTML Batch 42', 'generator' => 'pandoc'], $meta);
+        $t->true($titleHeading instanceof AstNode && $titleHeading->type === 'heading', 'Full HTML export title should become a heading node');
+        $t->same(['title'], $titleHeading->attr('classes'));
+        $t->true($literalParagraph instanceof AstNode && $literalParagraph->type === 'paragraph', 'HTML export paragraph should stay on the HTML reader path');
+        $t->same('Review * stays literal inside HTML paragraphs.', $literalParagraph->attr('text'));
+        $t->contains('<h1 id="imported-html-batch-42" class="title">Imported HTML Batch 42</h1>', $blocks);
+        $t->contains('<p>Review * stays literal inside HTML paragraphs.</p>', $blocks);
     },
     'writes wordpress code block markup for tab-indented legacy snippets' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read("Legacy importer:\n\n\t\techo esc_html(\$title);");

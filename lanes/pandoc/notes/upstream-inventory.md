@@ -141,6 +141,19 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
 - `test/html-reader.native` upstream Attributes table rendered AST inspected in
   this run: lines 3202-3272 show those fields as Pandoc native attributes on
   `Table`, `TableHead`, `Row`, `TableBody`, `TableFoot`, and `Cell` nodes.
+- `test/html-reader.html` full-document head, intro, Headers, and Paragraphs
+  slice inspected in this run: upstream lines 1-35 cover title/generator
+  metadata, the title heading class, intro paragraph, early horizontal rules,
+  generated heading identifiers, inline links/emphasis in headings, paragraphs
+  immediately following headings with no blank line, a hard-wrapped paragraph
+  whose middle sentence looks list-like, a literal bullet-looking paragraph,
+  and a hard line break.
+- `test/html-reader.native` full-document head, Headers, and Paragraphs rendered
+  AST slice inspected in this run: upstream lines 1-230 show two `Meta` fields,
+  ten early `Header` nodes including the title heading with class `title`, six
+  early `Para` nodes, two `HorizontalRule` nodes before the hard-line-break
+  case, one heading `Link`, two heading `Emph` shapes, and the `LineBreak`
+  node in the final paragraph.
 - `test/html-reader.html` paragraph and inline-quote slice inspected in this
   run: upstream lines 33-86 cover a paragraph hard line break and two `<q>`
   examples, one with a `cite` attribute and one without.
@@ -622,11 +635,18 @@ The current PHP slice maps a narrow part of `Tests.Readers.Markdown` semantics:
   leave footnote-body paragraphs and the pre/code continuation as normal
   paragraph/code blocks, and move leading/trailing whitespace around emphasis
   wrappers outside the emphasis node like Pandoc's native output.
+- The early full-document HTML-reader shape from `test/html-reader.html` is now
+  mapped for a narrow HTML reader slice: complete `<html>` documents preserve
+  title and generator metadata on the document node, body blocks are parsed
+  through the native HTML-reader path, source heading classes survive on
+  generated heading ids, heading links/emphasis remain inline nodes, and
+  HTML-reader paragraphs keep list-marker-looking text literal instead of being
+  re-parsed as Markdown lists.
 
 The WordPress writer emits block comments and escaped HTML for the same AST
 without calling the upstream `pandoc` binary.
 
 Focused local verification on 2026-05-23: the pandoc-local test file passed
-with 142 behavior tests, 1,327 assertions, and 0 failures after this slice. The
+with 144 behavior tests, 1,351 assertions, and 0 failures after this slice. The
 required repo-wide `php tools/run-tests.php` command was run after this slice
-and passed with 163 test files, 15,003 assertions, and 0 failures.
+and passed with 164 test files, 15,262 assertions, and 0 failures.

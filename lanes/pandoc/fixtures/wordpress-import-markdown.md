@@ -231,6 +231,21 @@ HTML reader source contact (importer [at] example.test)<p><a href="">Empty legac
 <p>Reviewer<em> Leading space</em></p>
 <p><em>Trailing space </em>reviewer</p>
 
+HTML reader full document export:
+
+<html>
+<head>
+<meta name="generator" content="pandoc" />
+<title>Imported HTML Batch 42</title>
+</head>
+<body>
+<h1 class="title">Imported HTML Batch 42</h1>
+<p>Full HTML exports keep their document title and opening source paragraph.</p>
+<h2>Batch header</h2>
+<p>Review * stays literal inside HTML paragraphs.</p>
+</body>
+</html>
+
 Empty import audit table:
 
 <table>

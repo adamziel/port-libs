@@ -22,6 +22,7 @@ final class MarkdownReader
         $lines = preg_split('/\R/', rtrim($markdown, "\r\n")) ?: [];
         $previousReferenceLinks = $this->referenceLinks;
         $previousFootnoteDefinitions = $this->footnoteDefinitions;
+        $documentAttrs = [];
         [$lines, $references, $footnotes] = $this->extractReferenceDefinitions($lines);
         $lines = $this->splitMixedHtmlFlowLines($lines);
         $this->referenceLinks = array_replace($previousReferenceLinks, $references);
@@ -49,6 +50,12 @@ final class MarkdownReader
             $docBookTable = $paragraph === [] && $listStack === [] ? $this->tryReadDocBookTableBlock($lines, $index) : null;
             if ($docBookTable !== null) {
                 $blocks[] = $docBookTable;
+                continue;
+            }
+            $htmlDocument = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlDocumentBlock($lines, $index) : null;
+            if ($htmlDocument !== null) {
+                $documentAttrs = array_replace($documentAttrs, $htmlDocument->attrs);
+                array_push($blocks, ...$htmlDocument->children);
                 continue;
             }
             if ($paragraph === [] && $listStack === [] && $this->tryReadEmptyHtmlTableBlock($lines, $index)) {
@@ -176,7 +183,7 @@ final class MarkdownReader
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
 
-        $document = new AstNode('document', [], $blocks);
+        $document = new AstNode('document', $documentAttrs, $blocks);
         $this->referenceLinks = $previousReferenceLinks;
         $this->footnoteDefinitions = $previousFootnoteDefinitions;
 
@@ -954,6 +961,91 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private function tryReadHtmlDocumentBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}(?:<!doctype\s+html\b|<html\b)/i', $line) !== 1) {
+            return null;
+        }
+
+        $content = [];
+        $count = count($lines);
+        for ($cursor = $index; $cursor < $count; $cursor++) {
+            $content[] = $this->normalizeRawHtmlLine($lines[$cursor]);
+            if (preg_match('/<\/html\s*>/i', $lines[$cursor]) === 1) {
+                $document = $this->parseHtmlDocument(implode("\n", $content));
+                if ($document === null) {
+                    return null;
+                }
+
+                $index = $cursor;
+
+                return $document;
+            }
+        }
+
+        return null;
+    }
+
+    private function parseHtmlDocument(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8">' . $html,
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        return new AstNode('document', $this->htmlDocumentAttrs($dom), $this->parseHtmlBlockChildren($body));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function htmlDocumentAttrs(\DOMDocument $dom): array
+    {
+        $meta = [];
+        $titles = $dom->getElementsByTagName('title');
+        $title = $titles->item(0);
+        if ($title instanceof \DOMElement) {
+            $text = trim(preg_replace('/\s+/', ' ', $title->textContent) ?? $title->textContent);
+            if ($text !== '') {
+                $meta['title'] = $text;
+            }
+        }
+
+        foreach ($dom->getElementsByTagName('meta') as $node) {
+            if (!$node instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower(trim($node->getAttribute('name')));
+            if ($name === '') {
+                continue;
+            }
+
+            $content = trim($node->getAttribute('content'));
+            if ($content !== '') {
+                $meta[$name] = $content;
+            }
+        }
+
+        return $meta === [] ? [] : ['meta' => $meta];
     }
 
     /**

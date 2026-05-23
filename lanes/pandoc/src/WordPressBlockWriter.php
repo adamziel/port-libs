@@ -159,12 +159,33 @@ final class WordPressBlockWriter
 
     private function renderHeadingAttrs(AstNode $node): string
     {
-        $id = (string) $node->attr('id', '');
-        if ($id === '') {
-            return '';
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (is_array($htmlAttributes) && $htmlAttributes !== []) {
+            $attrs = '';
+            $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
+            if ($id !== '') {
+                $attrs .= ' id="' . $this->esc($id) . '"';
+            }
+
+            $class = (string) ($htmlAttributes['class'] ?? '');
+            if ($class !== '') {
+                $attrs .= ' class="' . $this->esc($class) . '"';
+            }
+
+            return $attrs;
         }
 
-        return ' id="' . $this->esc($id) . '"';
+        $id = (string) $node->attr('id', '');
+        $attrs = $id === '' ? '' : ' id="' . $this->esc($id) . '"';
+        $classes = $node->attr('classes', []);
+        if (is_array($classes) && $classes !== []) {
+            $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
+            if ($class !== '') {
+                $attrs .= ' class="' . $this->esc($class) . '"';
+            }
+        }
+
+        return $attrs;
     }
 
     private function orderedListHtmlType(string $style): string

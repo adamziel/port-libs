@@ -172,6 +172,12 @@ paragraphs and pre/code continuation blocks stay as normal blocks, invalid
 space-containing footnote markers remain literal text, and leading/trailing
 spaces around HTML emphasis wrappers move outside the emphasis node to match
 Pandoc's native AST shape.
+The bounded early HTML-reader full-document slice is now represented too:
+complete `<html>` exports keep title/generator metadata on the document AST,
+the source title heading keeps its generated id and `class="title"` marker in
+WordPress heading output, heading links/emphasis stay semantic, and
+HTML-reader paragraphs keep `*` list-marker-looking text literal instead of
+falling back through Markdown parsing.
 The upstream `test/testsuite.txt` Inline Markup section is now represented for
 underscore emphasis/strong and triple-marker nesting: `_import note_` stays
 emphasized, `__review flag__` stays strong, and `___urgent media cleanup___`
@@ -320,6 +326,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   Unicode list items, entity-decoded organization names, comparison operators,
   and Markdown-sensitive punctuation tokens that must remain literal text in
   WordPress output without shelling out to Pandoc.
+- The fixture now includes a complete HTML reader document export, exercising
+  title/generator metadata capture, source title-heading class preservation,
+  generated heading ids, and literal HTML-reader paragraph handling without
+  shelling out to Pandoc.
 - The fixture now includes pipe-table import metrics and relative-width review
   note summaries with aligned numeric counts, emphasized status text, code
   spans, a caption with a reference link and code span, and colgroup widths,
@@ -429,6 +439,9 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   fixture. Continuation pre/code blocks remain code blocks, and boundary spaces
   around emphasis are normalized outside `<em>` so reviewer copy round-trips
   like Pandoc's native AST.
+- Full HTML document exports preserve document title/generator metadata and
+  title-heading classes while rendering body content as normal WordPress blocks,
+  keeping legacy exporter context available for review without invoking Pandoc.
 - Segmented HTML import tables preserve multiple `<tbody>` groups without
   invoking Pandoc, keeping source batches visually grouped for reviewer scans
   with body and row metadata attrs intact.
@@ -482,6 +495,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next unmapped bounded HTML-reader inline/header fixture shard from
-`test/html-reader.html/native`, starting with early Headers/Paragraphs metadata,
-title, and header class cases.
+Map another bounded HTML-reader fixture shard from `test/html-reader.html/native`,
+with priority on remaining inline/body cases after the early Headers/Paragraphs
+slice.
