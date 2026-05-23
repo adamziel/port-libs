@@ -32,6 +32,8 @@ The lane now also maps `marker_app.py::img_to_html` and `marker_app.py::markdown
 
 The lane now also maps `marker_server.py` API/upload behavior. `MarkerServerAdapter` normalizes FastAPI-style request params, validates uploaded PDFs, writes and removes the temporary upload path, returns Marker's local success/error response shape with base64 image payloads, and models Datalab remote polling through a supplied callback rather than running FastAPI, Uvicorn, requests, or Python models.
 
+The lane now also maps `marker/models.py` and `marker/utils.py` at the model-loading preflight boundary. `ModelPipelinePlanner` records the upstream `PYTORCH_ENABLE_MPS_FALLBACK` environment flag, setup helper loader and processor attachment semantics, `load_all_models` load order versus the returned `model_lst` order consumed by `convert_single_pdf`, explicit device/dtype propagation, and CUDA-only cache cleanup without importing Python, Torch, Surya, Texify, or tabled models.
+
 The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: hyphenated line dewrapping, sentence paragraph breaks, heading/list/text wrapping, and `#` escaping. That gives the WordPress import path a native cleanup step before block rendering.
 
 `examples/wordpress-import.php` reads `fixtures/wordpress-import-content.pdf` and emits heading/paragraph block comments. This keeps the lane tied to a practical Data Liberation workflow: extracting embedded PDF text into block-ready post content without shelling out to Python or native PDF binaries.
@@ -137,6 +139,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 `examples/wordpress-single-convert-import.php` maps top-level `convert_single.py` into a WordPress single-upload import job. It passes single-file conversion options to a supplied native converter, writes Marker's Markdown/metadata output layout, and reports the import options a WordPress review screen can display before publishing the converted blocks.
 
 `examples/wordpress-settings-preflight.php` maps Marker's upstream settings defaults into a WordPress import preflight. It accepts `application/pdf`, rejects unsupported MIME types, applies shared-hosting overrides for image extraction and pagination, and exposes page separator and bad-span defaults without importing Torch or model dependencies.
+
+`examples/wordpress-model-preflight.php` maps Marker's upstream model loader utilities into a WordPress import worker preflight. It emits the model setup load order, the returned `convert_single_pdf` model-list order, deferred Python loader names, checkpoint/device/dtype arguments, MPS fallback environment metadata, and CUDA cache cleanup plan without loading or shelling out to the upstream model stack.
 
 `examples/wordpress-filetype-preflight.php` maps Marker's upstream filetype detection into a WordPress upload preflight. It accepts a real PDF fixture by magic bytes and rejects a ZIP-like `.pdf` payload before heavier conversion steps run.
 
