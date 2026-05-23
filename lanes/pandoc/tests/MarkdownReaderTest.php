@@ -2590,6 +2590,63 @@ MD;
             '  [1]: /source "Source title" {#source-b .source-link data-source="b"}',
         ]), (new MarkdownWriter(['referenceLinks' => true]))->write($document));
     },
+    'maps upstream markdown writer images from testsuite figure and inline shapes' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('figure', ['caption' => 'lalune'], [
+                new AstNode('image', [
+                    'url' => 'lalune.jpg',
+                    'title' => 'Voyage dans la Lune',
+                    'alt' => 'lalune',
+                ], [$text('lalune')]),
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Here is a movie '),
+                new AstNode('image', [
+                    'url' => 'movie.jpg',
+                    'alt' => 'movie',
+                ], [$text('movie')]),
+                $text(' icon.'),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '![lalune](lalune.jpg "Voyage dans la Lune")',
+            '',
+            'Here is a movie ![movie](movie.jpg) icon.',
+        ]), (new MarkdownWriter())->write($document));
+    },
+    'maps upstream markdown writer image attributes alt override and autolink guard' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Source image guard: '),
+                new AstNode('image', [
+                    'url' => 'https://example.test/uploads/source.jpg',
+                    'alt' => 'https://example.test/uploads/source.jpg',
+                ], [$text('https://example.test/uploads/source.jpg')]),
+                $text('.'),
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Reviewer media: '),
+                new AstNode('image', [
+                    'url' => '/uploads/review.jpg',
+                    'title' => 'Review "image"',
+                    'alt' => 'Editorial alt',
+                    'id' => 'review-image',
+                    'classes' => ['wp-import'],
+                    'attributes' => ['data-source' => 'batch-42'],
+                ], [$text('Visible caption')]),
+                $text('.'),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            'Source image guard: ![](https://example.test/uploads/source.jpg).',
+            '',
+            'Reviewer media: ![Visible caption](/uploads/review.jpg "Review \\"image\\""){#review-image .wp-import alt="Editorial alt" data-source="batch-42"}.',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

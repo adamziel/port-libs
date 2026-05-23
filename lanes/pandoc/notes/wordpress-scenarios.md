@@ -812,6 +812,11 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   and emits a packet reference definition with `{#review-packet .source-link
   data-source="batch-42"}` metadata so WordPress editorial packets can preserve
   source-review ids/classes without falling back to inline HTML.
+- Native Markdown reviewer handoff exports now emit Pandoc-style image Markdown
+  too. A reviewer media preview can leave WordPress as a shortcut reference
+  image with a definition carrying title, id, class, `alt`, and
+  `data-source` metadata, while URI-looking alt text is guarded from becoming
+  invalid `!<uri>` autolink syntax.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -821,6 +826,6 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map the next bounded Markdown writer image edge from
-`Text.Pandoc.Writers.Markdown.Inline`: image attributes, title/alt handling, and
-autolink-prevention labels.
+Map another bounded Markdown writer inline branch from
+`Text.Pandoc.Writers.Markdown.Inline`, such as Code attribute emission or
+Span/bracketed-span output.

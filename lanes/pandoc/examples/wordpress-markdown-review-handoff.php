@@ -55,6 +55,20 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer media preview: ']),
+        new AstNode('image', [
+            'url' => 'https://example.test/uploads/review-screenshot.jpg',
+            'title' => 'Review screenshot',
+            'alt' => 'Screenshot alt text',
+            'id' => 'review-screenshot',
+            'classes' => ['source-image'],
+            'attributes' => ['data-source' => 'batch-42'],
+        ], [
+            new AstNode('text', ['text' => 'Review screenshot']),
+        ]),
+        new AstNode('text', ['text' => '.']),
+    ]),
+    new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
 ]);

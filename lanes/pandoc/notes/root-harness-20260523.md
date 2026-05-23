@@ -222,3 +222,23 @@
 - Root harness passed:
   - `php tools/run-tests.php`
   - Result: 216 test files, 24,927 assertions, 0 failures
+
+## Markdown Writer Image Emission Slice
+
+- Focused lane lint passed:
+  - `php -l lanes/pandoc/src/MarkdownWriter.php`
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+  - `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- Focused example passed:
+  - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+  - Result: emitted a reference-style reviewer image definition with
+    id/class/alt/data-source metadata.
+- Focused lane tests passed:
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - Result: 1 test file, 2,262 assertions, 0 failures
+- Required duplicate-root gate was clear:
+  - `pgrep -af '^php tools/run-tests\.php( |$)'`
+  - Result: no active exact root harness processes
+- Root harness passed:
+  - `php tools/run-tests.php`
+  - Result: 223 test files, 25,545 assertions, 0 failures

@@ -1348,3 +1348,28 @@ Required root verification on 2026-05-23 after the Markdown writer URI/e-mail
 autolink and link-attribute slice: the duplicate-root gate returned clear, so
 `php tools/run-tests.php` was run once. It passed 216 test files, 24,927
 assertions, and 0 failures.
+
+`src/Text/Pandoc/Writers/Markdown/Inline.hs` was inspected again for the
+bounded `Image` emission branch, and `src/Text/Pandoc/Writers/Markdown.hs` was
+checked for the single-image `Figure` implicit-figure path. The PHP Markdown
+writer now maps five focused checks from that boundary: a testsuite-style
+single-image figure writes `![lalune](lalune.jpg "Voyage dans la Lune")`, an
+inline movie image writes inside paragraph text, an image whose alt text equals
+its URI target writes an empty label to avoid `!<uri>` autolink output, image
+titles/id/classes/key-value attrs serialize with Pandoc's Markdown attribute
+shape, and distinct stored alt text is preserved as an `alt="..."` image
+attribute when the visible caption differs.
+
+Focused local verification on 2026-05-23 after the Markdown writer image
+emission slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php` emitted a
+reference-style reviewer image definition carrying id/class/alt/data-source
+metadata; `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+passed 1 test file, 2,262 assertions, and 0 failures. The focused file now
+contains 207 behavior tests.
+
+Required root verification on 2026-05-23 after the Markdown writer image
+emission slice: the duplicate-root gate returned clear, so
+`php tools/run-tests.php` was run once. It passed 223 test files, 25,545
+assertions, and 0 failures.

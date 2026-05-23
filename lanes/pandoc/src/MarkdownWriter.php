@@ -78,6 +78,7 @@ final class MarkdownWriter
         return match ($node->type) {
             'paragraph', 'plain' => [str_repeat(' ', $indent) . $this->renderInlines($node->children)],
             'heading' => $this->renderHeading($node, $indent),
+            'figure' => $this->renderFigure($node, $indent),
             'bullet_list' => $this->renderList($node, false, $indent),
             'ordered_list' => $this->renderList($node, true, $indent),
             'blockquote' => $this->renderBlockQuote($node, $indent),
@@ -108,6 +109,22 @@ final class MarkdownWriter
         }
 
         return [$prefix . str_repeat('#', $level) . ' ' . $text];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderFigure(AstNode $node, int $indent): array
+    {
+        foreach ($node->children as $child) {
+            if ($child->type === 'image') {
+                return [str_repeat(' ', $indent) . $this->renderImage($this->imageWithFigureAttrs($node, $child), [])];
+            }
+        }
+
+        $body = $this->renderBlockCollection($node->children);
+
+        return $body === '' ? [] : explode("\n", $body);
     }
 
     /**
@@ -302,6 +319,7 @@ final class MarkdownWriter
             'emph' => $this->delimitInlineContent('*', '*', $this->renderInlines($node->children)),
             'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
             'link' => $this->renderLink($node, $following),
+            'image' => $this->renderImage($node, $following),
             'citation' => (string) $node->attr('text', $this->renderInlines($node->children)),
             'raw_inline', 'raw_markdown', 'raw_html_inline' => (string) $node->attr(
                 'text',
@@ -333,6 +351,17 @@ final class MarkdownWriter
             . $titleMarkdown
             . ')'
             . $this->renderLinkAttributes($node);
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function renderImage(AstNode $node, array $following): string
+    {
+        return '!' . $this->renderLink(
+            new AstNode('link', $this->imageLinkAttrs($node), $this->imageLabelNodesForLink($node)),
+            $following
+        );
     }
 
     /**
@@ -768,6 +797,88 @@ final class MarkdownWriter
         return str_starts_with($url, 'mailto:') ? substr($url, 7) : $url;
     }
 
+    /**
+     * @return list<AstNode>
+     */
+    private function imageLabelNodesForLink(AstNode $node): array
+    {
+        $labelNodes = $node->children;
+        if ($labelNodes === []) {
+            $alt = (string) $node->attr('alt', '');
+            if ($alt !== '') {
+                $labelNodes = [new AstNode('text', ['text' => $alt])];
+            }
+        }
+
+        $url = (string) $node->attr('url', '');
+        if ($labelNodes === [] || (count($labelNodes) === 1 && $labelNodes[0]->type === 'text' && $labelNodes[0]->attr('text', '') === $url)) {
+            return [new AstNode('text', ['text' => ''])];
+        }
+
+        return $labelNodes;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function imageLinkAttrs(AstNode $node): array
+    {
+        $attrs = [
+            'url' => (string) $node->attr('url', ''),
+            'title' => (string) $node->attr('title', ''),
+        ];
+
+        foreach (['id', 'classes', 'attributes'] as $name) {
+            if (array_key_exists($name, $node->attrs)) {
+                $attrs[$name] = $node->attrs[$name];
+            }
+        }
+
+        $alt = (string) $node->attr('alt', '');
+        if ($alt !== '') {
+            $labelText = $this->plainInlineText($this->imageLabelNodesForLink($node));
+            $attributes = $attrs['attributes'] ?? [];
+            if (!is_array($attributes)) {
+                $attributes = [];
+            }
+            if ($labelText !== '' && $labelText !== $alt && !array_key_exists('alt', $attributes)) {
+                $attrs['attributes'] = ['alt' => $alt] + $attributes;
+            }
+        }
+
+        return $attrs;
+    }
+
+    private function imageWithFigureAttrs(AstNode $figure, AstNode $image): AstNode
+    {
+        $attrs = $image->attrs;
+
+        foreach (['id', 'classes'] as $name) {
+            if (!array_key_exists($name, $attrs) && array_key_exists($name, $figure->attrs)) {
+                $attrs[$name] = $figure->attrs[$name];
+            }
+        }
+
+        $imageAttributes = $attrs['attributes'] ?? [];
+        if (!is_array($imageAttributes)) {
+            $imageAttributes = [];
+        }
+
+        $figureAttributes = $figure->attr('attributes', []);
+        if (is_array($figureAttributes) && $figureAttributes !== []) {
+            $attrs['attributes'] = $imageAttributes + $figureAttributes;
+        } elseif ($imageAttributes !== []) {
+            $attrs['attributes'] = $imageAttributes;
+        }
+
+        $caption = (string) $figure->attr('caption', '');
+        if ($caption !== '' && $image->children === []) {
+            return new AstNode('image', $attrs, [new AstNode('text', ['text' => $caption])]);
+        }
+
+        return new AstNode('image', $attrs, $image->children);
+    }
+
     private function isUriLike(string $url): bool
     {
         return preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $url) === 1;
@@ -880,6 +991,7 @@ final class MarkdownWriter
             'linebreak',
             'code',
             'link',
+            'image',
             'citation',
             'raw_inline',
             'raw_markdown',
