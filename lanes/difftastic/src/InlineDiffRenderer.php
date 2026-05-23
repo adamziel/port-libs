@@ -12,6 +12,7 @@ final class InlineDiffRenderer
     public function __construct(
         private readonly TokenDiffer $differ = new TokenDiffer(),
         private readonly LineDiffer $lineDiffer = new LineDiffer(),
+        private readonly AnsiSyntaxHighlighter $syntaxHighlighter = new AnsiSyntaxHighlighter(),
     ) {
     }
 
@@ -41,6 +42,11 @@ final class InlineDiffRenderer
         $extraInfo = isset($options['extraInfo']) ? (string) $options['extraInfo'] : null;
         $useColor = (bool) ($options['useColor'] ?? false);
         $backgroundColor = $this->backgroundColor($options['backgroundColor'] ?? 'dark');
+        $syntaxOptions = [
+            'language' => (string) ($options['language'] ?? ''),
+            'backgroundColor' => $backgroundColor,
+            'syntaxHighlight' => (bool) ($options['syntaxHighlight'] ?? true),
+        ];
         $output = '';
         $hunkTotal = count($hunks);
 
@@ -52,21 +58,21 @@ final class InlineDiffRenderer
             for ($pairIndex = $beforeStart; $pairIndex < $start; $pairIndex++) {
                 $oldLineNumber = $pairs[$pairIndex][0];
                 if ($oldLineNumber !== null) {
-                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], false, $tabWidth, $useColor, $backgroundColor);
+                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], false, $tabWidth, $useColor, $backgroundColor, $syntaxOptions);
                 }
             }
 
             for ($pairIndex = $start; $pairIndex <= $end; $pairIndex++) {
                 $oldLineNumber = $pairs[$pairIndex][0];
                 if ($oldLineNumber !== null) {
-                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], true, $tabWidth, $useColor, $backgroundColor);
+                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], true, $tabWidth, $useColor, $backgroundColor, $syntaxOptions);
                 }
             }
 
             for ($pairIndex = $start; $pairIndex <= $end; $pairIndex++) {
                 $newLineNumber = $pairs[$pairIndex][1];
                 if ($newLineNumber !== null) {
-                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], true, $tabWidth, $useColor, $backgroundColor);
+                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], true, $tabWidth, $useColor, $backgroundColor, $syntaxOptions);
                 }
             }
 
@@ -74,7 +80,7 @@ final class InlineDiffRenderer
             for ($pairIndex = $end + 1; $pairIndex <= $afterEnd; $pairIndex++) {
                 $newLineNumber = $pairs[$pairIndex][1];
                 if ($newLineNumber !== null) {
-                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], false, $tabWidth, $useColor, $backgroundColor);
+                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], false, $tabWidth, $useColor, $backgroundColor, $syntaxOptions);
                 }
             }
 
@@ -340,7 +346,10 @@ final class InlineDiffRenderer
         return $merged;
     }
 
-    private function formatInlineLine(string $side, int $lineNumber, string $line, bool $isNovel, int $tabWidth, bool $useColor, string $backgroundColor): string
+    /**
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $syntaxOptions
+     */
+    private function formatInlineLine(string $side, int $lineNumber, string $line, bool $isNovel, int $tabWidth, bool $useColor, string $backgroundColor, array $syntaxOptions): string
     {
         $lineNumberText = (string) ($lineNumber + 1) . ' ';
         if ($useColor) {
@@ -349,7 +358,9 @@ final class InlineDiffRenderer
                 : $this->ansiDim($lineNumberText);
         }
 
-        $line = str_replace("\t", str_repeat(' ', $tabWidth), $line);
+        $line = $useColor && ($syntaxOptions['syntaxHighlight'] ?? true) === true
+            ? $this->syntaxHighlighter->highlightLine($line, $tabWidth, $syntaxOptions)
+            : str_replace("\t", str_repeat(' ', $tabWidth), $line);
 
         if ($side === 'left') {
             return $lineNumberText . '   ' . $line . "\n";

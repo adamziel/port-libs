@@ -92,6 +92,10 @@ Display-control command parsing now maps upstream `DFT_BACKGROUND`, `DFT_SYNTAX_
 
 The WordPress env display-controls command example applies that to PHP render callback review and generated asset/template directory review. A caller-provided environment array selects dark-background bright ANSI colors, validates `DFT_SYNTAX_HIGHLIGHT=off`, and sorts directory JSON paths without inspecting the live process environment.
 
+ANSI terminal display now maps the upstream syntax-highlighting toggle beyond novel spans. With color enabled, side-by-side and inline output bolds PHP keywords/types, colors strings, and italicizes comments by default; `DFT_SYNTAX_HIGHLIGHT=off` or explicit `syntaxHighlight => false` removes those syntax styles while retaining red/green changed-word colors.
+
+The WordPress syntax-highlight control command example applies that to `wp-content/plugins/acme-card/src/render.php`, showing a reviewer-facing render callback diff with syntax highlighting on and off from a caller-provided environment array.
+
 Command flag parsing now maps upstream `DFT_CHECK_ONLY`, `DFT_EXIT_CODE`, `DFT_SKIP_UNCHANGED`, `DFT_IGNORE_COMMENTS`, `DFT_STRIP_CR`, and `DFT_COLOR` environment-style configuration from `src/options.rs`, `src/main.rs`, and `src/display/style.rs`. Invalid values return bad-argument status before review, and explicit PHP options override caller-provided environment values.
 
 The WordPress env CI-flags command example applies that to a block render callback gate. A caller-provided environment array requests check-only output, exit-code behavior, comment ignoring, and unchanged-output policy so the escaping API change is reported while comment-only churn remains filtered.
@@ -323,10 +327,11 @@ php lanes/difftastic/examples/wordpress-plugin-directory-json-diff.php
 php lanes/difftastic/examples/wordpress-env-display-options-command.php
 php lanes/difftastic/examples/wordpress-env-unstable-json-command.php
 php lanes/difftastic/examples/wordpress-env-display-controls-command.php
+php lanes/difftastic/examples/wordpress-syntax-highlight-control-command.php
 php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
 php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
 ```
 
 ## Next Task
 
-Map deeper upstream syntax-highlight visual token styling beyond novel spans, especially syntax-highlight on/off behavior in ANSI or JSON command output.
+Map deeper upstream parser-specific syntax styling for additional languages and tree-sitter-error ANSI styling, then decide whether JSON display should expose any command-level syntax-highlight suppression or remain upstream-style metadata.

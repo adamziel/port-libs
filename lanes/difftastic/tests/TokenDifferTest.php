@@ -978,7 +978,8 @@ return [
         $t->true(!str_contains($display, "\t"), 'Configured tab width should be applied to both changed and retained C lines.');
     },
     'maps upstream side by side novel spans with ansi colors' => static function (TestRunner $t): void {
-        $display = (new SideBySideDiffRenderer())->renderTextDiff(
+        $renderer = new SideBySideDiffRenderer();
+        $display = $renderer->renderTextDiff(
             "render_block('legacy-card', \$attrs);\n",
             "render_block('modern-card', \$attrs);\n",
             [
@@ -986,11 +987,22 @@ return [
                 'useColor' => true,
             ],
         );
+        $novelOnly = $renderer->renderTextDiff(
+            "render_block('legacy-card', \$attrs);\n",
+            "render_block('modern-card', \$attrs);\n",
+            [
+                'columnWidth' => 48,
+                'useColor' => true,
+                'syntaxHighlight' => false,
+            ],
+        );
 
         $t->contains("\033[1;91m1 \033[0m", $display);
         $t->contains("\033[1;92m1 \033[0m", $display);
-        $t->contains("'\033[1;91mlegacy\033[0m-card'", $display);
-        $t->contains("'\033[1;92mmodern\033[0m-card'", $display);
+        $t->contains("\033[95m'\033[0m\033[1;91mlegacy\033[0m\033[95m-card'\033[0m", $display);
+        $t->contains("\033[95m'\033[0m\033[1;92mmodern\033[0m\033[95m-card'\033[0m", $display);
+        $t->contains("'\033[1;91mlegacy\033[0m-card'", $novelOnly);
+        $t->contains("'\033[1;92mmodern\033[0m-card'", $novelOnly);
         $t->true(!str_contains($display, "\033[1;91mrender_block"), 'Stable source before the novel word should not be colored as deleted.');
         $t->true(!str_contains($display, "\033[1;92m-card"), 'Stable suffix after the novel word should not be colored as inserted.');
     },
@@ -1452,6 +1464,64 @@ return [
         $t->contains("\033[1;92mmodern\033[0m", $dark['stdout']);
         $t->contains("\033[1;31mlegacy\033[0m", $light['stdout']);
         $t->contains("\033[1;32mmodern\033[0m", $light['stdout']);
+    },
+    'maps upstream syntax highlight control into side by side ansi output' => static function (TestRunner $t): void {
+        $before = "function render_card(): string {\n    return esc_html(\"legacy\");\n}\n";
+        $after = "function render_card(): string {\n    return esc_html(\"modern\");\n}\n";
+        $runner = new DiffCommandRunner();
+        $syntaxOn = $runner->runTextDiff($before, $after, 'src/render.php', 'PHP', [
+            'language' => 'php',
+        ], [
+            'DFT_DISPLAY' => 'side-by-side',
+            'DFT_CONTEXT' => '1',
+            'DFT_COLOR' => 'always',
+            'DFT_SYNTAX_HIGHLIGHT' => 'on',
+        ]);
+        $syntaxOff = $runner->runTextDiff($before, $after, 'src/render.php', 'PHP', [
+            'language' => 'php',
+        ], [
+            'DFT_DISPLAY' => 'side-by-side',
+            'DFT_CONTEXT' => '1',
+            'DFT_COLOR' => 'always',
+            'DFT_SYNTAX_HIGHLIGHT' => 'off',
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $syntaxOn['exitCode']);
+        $t->same('', $syntaxOn['stderr']);
+        $t->contains("\033[1mfunction\033[0m render_card(): \033[1mstring\033[0m", $syntaxOn['stdout']);
+        $t->contains("\033[95m\"\033[0m\033[1;91mlegacy\033[0m\033[95m\"\033[0m", $syntaxOn['stdout']);
+        $t->contains("\033[1;92mmodern\033[0m", $syntaxOn['stdout']);
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $syntaxOff['exitCode']);
+        $t->contains("\033[1;91mlegacy\033[0m", $syntaxOff['stdout']);
+        $t->contains("\033[1;92mmodern\033[0m", $syntaxOff['stdout']);
+        $t->true(!str_contains($syntaxOff['stdout'], "\033[1mfunction\033[0m"), 'DFT_SYNTAX_HIGHLIGHT=off should suppress syntax keyword styling.');
+        $t->true(!str_contains($syntaxOff['stdout'], "\033[95m\"\033[0m"), 'DFT_SYNTAX_HIGHLIGHT=off should suppress syntax string styling while keeping novel diff colors.');
+    },
+    'maps upstream syntax highlight control into inline ansi output' => static function (TestRunner $t): void {
+        $before = "function render_card(): string {\n    return esc_html(\"legacy\");\n}\n";
+        $after = "function render_card(): string {\n    return esc_html(\"modern\");\n}\n";
+        $syntaxOn = (new DiffCommandRunner())->runTextDiff($before, $after, 'src/render.php', 'PHP', [
+            'language' => 'php',
+            'display' => 'inline',
+            'contextLines' => 1,
+            'useColor' => true,
+            'syntaxHighlight' => true,
+        ]);
+        $syntaxOff = (new DiffCommandRunner())->runTextDiff($before, $after, 'src/render.php', 'PHP', [
+            'language' => 'php',
+            'display' => 'inline',
+            'contextLines' => 1,
+            'useColor' => true,
+            'syntaxHighlight' => false,
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $syntaxOn['exitCode']);
+        $t->contains("\033[1mfunction\033[0m render_card(): \033[1mstring\033[0m", $syntaxOn['stdout']);
+        $t->contains("\033[95m\"legacy\"\033[0m", $syntaxOn['stdout']);
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $syntaxOff['exitCode']);
+        $t->true(!str_contains($syntaxOff['stdout'], "\033[1mfunction\033[0m"), 'Explicit syntaxHighlight=false should suppress inline keyword styling.');
+        $t->true(!str_contains($syntaxOff['stdout'], "\033[95m\"legacy\"\033[0m"), 'Explicit syntaxHighlight=false should suppress inline string styling.');
+        $t->contains('return esc_html("legacy");', $syntaxOff['stdout']);
     },
     'rejects invalid display option environment before review' => static function (TestRunner $t): void {
         $result = (new DiffCommandRunner())->runTextDiff('old', 'new', 'readme.txt', 'Text', [

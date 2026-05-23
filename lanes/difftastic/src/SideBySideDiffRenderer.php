@@ -13,11 +13,12 @@ final class SideBySideDiffRenderer
 
     public function __construct(
         private readonly TokenDiffer $differ = new TokenDiffer(),
+        private readonly AnsiSyntaxHighlighter $syntaxHighlighter = new AnsiSyntaxHighlighter(),
     ) {
     }
 
     /**
-     * @param array{tabWidth?: int, columnWidth?: int, contextLines?: int, showBoth?: bool, stripCr?: bool, useColor?: bool, backgroundColor?: string, syntaxHighlight?: bool} $options
+     * @param array{tabWidth?: int, columnWidth?: int, contextLines?: int, showBoth?: bool, stripCr?: bool, useColor?: bool, backgroundColor?: string, syntaxHighlight?: bool, language?: string} $options
      */
     public function renderTextDiff(string $old, string $new, array $options = []): string
     {
@@ -33,6 +34,11 @@ final class SideBySideDiffRenderer
         $showBoth = (bool) ($options['showBoth'] ?? false);
         $useColor = (bool) ($options['useColor'] ?? false);
         $backgroundColor = $this->backgroundColor($options['backgroundColor'] ?? 'dark');
+        $syntaxOptions = [
+            'language' => (string) ($options['language'] ?? ''),
+            'backgroundColor' => $backgroundColor,
+            'syntaxHighlight' => (bool) ($options['syntaxHighlight'] ?? true),
+        ];
         if (!$showBoth && $old === '' && $new !== '') {
             return $this->renderSingleColumnTextDiff($new, $tabWidth, $useColor, 'right', $backgroundColor);
         }
@@ -68,6 +74,7 @@ final class SideBySideDiffRenderer
                     'left',
                     $useColor,
                     $backgroundColor,
+                    $syntaxOptions,
                 );
             $rhsParts = $newLineNumber === null
                 ? ['']
@@ -79,6 +86,7 @@ final class SideBySideDiffRenderer
                     'right',
                     $useColor,
                     $backgroundColor,
+                    $syntaxOptions,
                 );
             $partCount = max(count($lhsParts), count($rhsParts));
 
@@ -190,15 +198,14 @@ final class SideBySideDiffRenderer
         string $side,
         bool $useColor,
         string $backgroundColor,
+        array $syntaxOptions,
     ): array {
         if (!$useColor) {
             return $this->splitLineForDisplay($line, $maxWidth, $tabWidth, $side);
         }
 
         $spans = $this->lineNovelSpans($line, $oppositeLine, $side);
-        if ($spans === []) {
-            return $this->splitLineForDisplay($line, $maxWidth, $tabWidth, $side);
-        }
+        $styledSpans = $this->styledSpansForLine($line, $spans, $side, $backgroundColor, $syntaxOptions);
 
         $parts = [];
         $offset = 0;
@@ -210,7 +217,7 @@ final class SideBySideDiffRenderer
             }
 
             $rawPart = substr($line, $offset, $nextOffset - $offset);
-            $displayPart = $this->displayPartWithNovelSpans($line, $offset, $nextOffset, $spans, $tabWidth, $side, $backgroundColor);
+            $displayPart = $this->displayPartWithStyledSpans($line, $offset, $nextOffset, $styledSpans, $tabWidth);
             $padding = max(0, $maxWidth - $this->displayWidth($rawPart, $tabWidth));
             if ($side === 'left') {
                 $displayPart .= str_repeat(' ', $padding);
@@ -289,17 +296,100 @@ final class SideBySideDiffRenderer
     }
 
     /**
-     * @param list<array{start:int, end:int}> $spans
+     * @param list<array{start:int, end:int}> $novelSpans
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $syntaxOptions
+     * @return list<array{start:int, end:int, style:string}>
      */
-    private function displayPartWithNovelSpans(
-        string $line,
-        int $start,
-        int $end,
-        array $spans,
-        int $tabWidth,
-        string $side,
-        string $backgroundColor,
-    ): string {
+    private function styledSpansForLine(string $line, array $novelSpans, string $side, string $backgroundColor, array $syntaxOptions): array
+    {
+        $spans = [];
+        if (($syntaxOptions['syntaxHighlight'] ?? true) === true) {
+            foreach ($this->syntaxHighlighter->spansForLine($line, $syntaxOptions) as $syntaxSpan) {
+                foreach ($this->subtractSpans($syntaxSpan, $novelSpans) as $remainingSpan) {
+                    $spans[] = $remainingSpan;
+                }
+            }
+        }
+
+        $novelStyle = $this->ansiNovelStyle($side, true, $backgroundColor);
+        foreach ($novelSpans as $novelSpan) {
+            $spans[] = [
+                'start' => $novelSpan['start'],
+                'end' => $novelSpan['end'],
+                'style' => $novelStyle,
+            ];
+        }
+
+        return $this->mergeStyledSpans($spans);
+    }
+
+    /**
+     * @param array{start:int, end:int, style:string} $span
+     * @param list<array{start:int, end:int}> $blockers
+     * @return list<array{start:int, end:int, style:string}>
+     */
+    private function subtractSpans(array $span, array $blockers): array
+    {
+        $segments = [$span];
+        foreach ($blockers as $blocker) {
+            $next = [];
+            foreach ($segments as $segment) {
+                if ($blocker['end'] <= $segment['start'] || $blocker['start'] >= $segment['end']) {
+                    $next[] = $segment;
+                    continue;
+                }
+
+                if ($segment['start'] < $blocker['start']) {
+                    $next[] = [
+                        'start' => $segment['start'],
+                        'end' => min($segment['end'], $blocker['start']),
+                        'style' => $segment['style'],
+                    ];
+                }
+                if ($blocker['end'] < $segment['end']) {
+                    $next[] = [
+                        'start' => max($segment['start'], $blocker['end']),
+                        'end' => $segment['end'],
+                        'style' => $segment['style'],
+                    ];
+                }
+            }
+
+            $segments = $next;
+            if ($segments === []) {
+                break;
+            }
+        }
+
+        return array_values(array_filter($segments, static fn (array $segment): bool => $segment['end'] > $segment['start']));
+    }
+
+    /**
+     * @param list<array{start:int, end:int, style:string}> $spans
+     * @return list<array{start:int, end:int, style:string}>
+     */
+    private function mergeStyledSpans(array $spans): array
+    {
+        usort($spans, static fn (array $a, array $b): int => [$a['start'], $a['end']] <=> [$b['start'], $b['end']]);
+        $merged = [];
+        foreach ($spans as $span) {
+            $last = array_key_last($merged);
+            if ($last !== null && $span['style'] === $merged[$last]['style'] && $span['start'] <= $merged[$last]['end']) {
+                $merged[$last]['end'] = max($merged[$last]['end'], $span['end']);
+                continue;
+            }
+
+            $merged[] = $span;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param list<array{start:int, end:int, style:string}> $spans
+     */
+    private function displayPartWithStyledSpans(string $line, int $start, int $end, array $spans, int $tabWidth): string
+    {
         $cursor = $start;
         $display = '';
 
@@ -313,11 +403,9 @@ final class SideBySideDiffRenderer
             if ($cursor < $spanStart) {
                 $display .= $this->expandTabs(substr($line, $cursor, $spanStart - $cursor), $tabWidth);
             }
-            $display .= $this->ansiNovel(
+            $display .= $this->ansi(
                 $this->expandTabs(substr($line, $spanStart, $spanEnd - $spanStart), $tabWidth),
-                $side,
-                true,
-                $backgroundColor,
+                $span['style'],
             );
             $cursor = $spanEnd;
         }
@@ -497,13 +585,23 @@ final class SideBySideDiffRenderer
             return '';
         }
 
+        return $this->ansi($text, $this->ansiNovelStyle($side, $bold, $backgroundColor));
+    }
+
+    private function ansiNovelStyle(string $side, bool $bold = false, string $backgroundColor = 'dark'): string
+    {
         $color = match ($side) {
             'left' => $backgroundColor === 'dark' ? '91' : '31',
             default => $backgroundColor === 'dark' ? '92' : '32',
         };
         $prefix = $bold ? '1;' : '';
 
-        return "\033[" . $prefix . $color . 'm' . $text . "\033[0m";
+        return $prefix . $color;
+    }
+
+    private function ansi(string $text, string $style): string
+    {
+        return $text === '' ? '' : "\033[" . $style . 'm' . $text . "\033[0m";
     }
 
     private function backgroundColor(mixed $value): string
