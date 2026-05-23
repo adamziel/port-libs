@@ -56,6 +56,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-benchmark-report.php` uses the native `BenchmarkReportBuilder` port of `benchmarks/overall.py` and `BenchmarkReportVerifier` port of `scripts/verify_benchmark_scores.py` against the actual CI `benchmark_data_short.zip` references for `multicolcnn.pdf` and `switch_trans.pdf`. This gives WordPress import tooling a review gate: imported block content can be scored into the upstream report shape and rejected before editorial review if either Marker threshold fails.
 
+`examples/wordpress-benchmark-runner.php` uses the native `BenchmarkRunner` port of the outer `benchmarks/overall.py` loop. It stages supplied PDF/reference pairs from the actual CI benchmark excerpts, runs a supplied native marker conversion callback, writes upstream-style `marker_*.md` outputs, and verifies the upstream marker thresholds before a WordPress import batch reaches editorial review.
+
 `examples/upstream-surrogate-score.php` scores small README-linked surrogate pairs sampled from Marker's committed `data/examples/marker` and `data/examples/nougat` outputs. These remain useful comparison fixtures alongside the now-inspected external CI benchmark archive.
 
 `examples/wordpress-list-import.php` maps Marker's upstream bullet/text cleaners into a Gutenberg list import path. It extracts PDF text lines containing Marker-supported bullet glyphs, normalizes them to Markdown `- ` markers with `TextCleaner`, and emits a core list block.
@@ -162,4 +164,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Next bounded task: use the two external CI benchmark pairs for a larger document-level extraction parity slice, starting with supplied pdftext/layout/table dictionaries for `multicolcnn.pdf` or `switch_trans.pdf`.
+Next bounded task: use `BenchmarkRunner` with supplied pdftext/layout/table dictionaries for a larger document-level extraction parity slice, starting with `multicolcnn.pdf` or `switch_trans.pdf` excerpts.

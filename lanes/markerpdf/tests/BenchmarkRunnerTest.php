@@ -1,0 +1,158 @@
+<?php
+
+declare(strict_types=1);
+
+use PortLibs\MarkerPDF\BenchmarkReportVerifier;
+use PortLibs\MarkerPDF\BenchmarkRunner;
+
+$makeTempDir = static function (): string {
+    $path = sys_get_temp_dir() . '/markerpdf-benchmark-runner-' . bin2hex(random_bytes(4));
+    if (!mkdir($path, 0777, true) && !is_dir($path)) {
+        throw new RuntimeException('Unable to create temporary markerpdf benchmark runner folder.');
+    }
+
+    return $path;
+};
+
+$removeTree = static function (string $path) use (&$removeTree): void {
+    if (!is_dir($path)) {
+        return;
+    }
+
+    foreach (scandir($path) ?: [] as $entry) {
+        if ($entry === '.' || $entry === '..') {
+            continue;
+        }
+
+        $child = $path . DIRECTORY_SEPARATOR . $entry;
+        if (is_dir($child)) {
+            $removeTree($child);
+        } else {
+            unlink($child);
+        }
+    }
+
+    rmdir($path);
+};
+
+$prepareCiFolders = static function (string $pdfFolder, string $referenceFolder): array {
+    $fixture = require __DIR__ . '/../fixtures/upstream-ci-benchmark-short.php';
+    $pairsByDocument = [];
+
+    foreach ($fixture['benchmarkPairs'] as $pair) {
+        $pairsByDocument[$pair['document']] = $pair;
+        file_put_contents($pdfFolder . DIRECTORY_SEPARATOR . $pair['document'], "%PDF-1.4\n% " . $pair['document'] . "\n%%EOF");
+        file_put_contents(
+            $referenceFolder . DIRECTORY_SEPARATOR . preg_replace('/\.[^.]*$/', '.md', $pair['document']),
+            $pair['referenceExcerpt']
+        );
+    }
+    file_put_contents($pdfFolder . DIRECTORY_SEPARATOR . 'ignore.txt', 'not a benchmark pdf');
+
+    return $pairsByDocument;
+};
+
+return [
+    'runs upstream overall.py style marker benchmark loop over actual CI pairs' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        $markdownFolder = $makeTempDir();
+        try {
+            $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
+            $runner = new BenchmarkRunner();
+
+            $result = $runner->run(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'marker' => static fn (string $pdfPath, string $document): string => $pairsByDocument[$document]['markerExcerpt'],
+                ],
+                static fn (string $pdfPath): int => str_contains($pdfPath, 'switch_trans') ? 4 : 3,
+                $markdownFolder,
+                array_map(static fn (array $pair): int => $pair['chunkLength'], $pairsByDocument)
+            );
+
+            (new BenchmarkReportVerifier())->verifyMarkerScores($result['report']);
+
+            $t->same(['multicolcnn.pdf', 'switch_trans.pdf'], $result['benchmark_files']);
+            $t->same(2, count($result['runs']));
+            $t->same(3, $result['report']['marker']['files']['multicolcnn.pdf']['pages']);
+            $t->same(4, $result['report']['marker']['files']['switch_trans.pdf']['pages']);
+            $t->true($result['report']['marker']['files']['multicolcnn.pdf']['score'] > 0.34);
+            $t->true($result['report']['marker']['files']['switch_trans.pdf']['score'] > 0.40);
+            $t->same(2, count($result['written_markdown']));
+            $t->contains('Learning to count', (string) file_get_contents($markdownFolder . DIRECTORY_SEPARATOR . 'marker_multicolcnn.md'));
+            $t->contains('Switch Transformer', (string) file_get_contents($markdownFolder . DIRECTORY_SEPARATOR . 'marker_switch_trans.md'));
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+            $removeTree($markdownFolder);
+        }
+    },
+    'supports supplied comparison methods while sharing per-document page counts' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $prepareCiFolders): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        try {
+            $pairsByDocument = $prepareCiFolders($pdfFolder, $referenceFolder);
+
+            $result = (new BenchmarkRunner())->run(
+                $pdfFolder,
+                $referenceFolder,
+                [
+                    'marker' => static fn (string $pdfPath, string $document): array => ['text' => $pairsByDocument[$document]['markerExcerpt']],
+                    'nougat' => static fn (string $pdfPath, string $document, string $reference): string => $reference,
+                ],
+                static fn (): int => 2
+            );
+
+            $t->same(['marker', 'nougat'], array_values(array_keys($result['report'])));
+            $t->same(4, count($result['runs']));
+            $t->same(1.0, $result['report']['nougat']['avg_score']);
+            $t->true($result['report']['marker']['time_per_page'] >= 0.0);
+            $t->true($result['report']['nougat']['time_per_doc'] >= 0.0);
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+        }
+    },
+    'rejects malformed benchmark runner supplied boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree): void {
+        $pdfFolder = $makeTempDir();
+        $referenceFolder = $makeTempDir();
+        try {
+            file_put_contents($pdfFolder . DIRECTORY_SEPARATOR . 'missing-reference.pdf', "%PDF-1.4\n%%EOF");
+
+            $runner = new BenchmarkRunner();
+            $t->throws(InvalidArgumentException::class, static fn (): array => $runner->run($pdfFolder, $referenceFolder, []));
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $runner->run(
+                    $pdfFolder,
+                    $referenceFolder,
+                    ['marker' => static fn (): string => 'unused']
+                )
+            );
+
+            file_put_contents($referenceFolder . DIRECTORY_SEPARATOR . 'missing-reference.md', 'expected');
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $runner->run(
+                    $pdfFolder,
+                    $referenceFolder,
+                    ['marker' => static fn (): array => ['images' => []]]
+                )
+            );
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn (): array => $runner->run(
+                    $pdfFolder,
+                    $referenceFolder,
+                    ['marker' => static fn (): string => 'ok'],
+                    static fn (): int => 0
+                )
+            );
+        } finally {
+            $removeTree($pdfFolder);
+            $removeTree($referenceFolder);
+        }
+    },
+];
