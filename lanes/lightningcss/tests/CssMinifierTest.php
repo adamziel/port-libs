@@ -118,6 +118,42 @@ return [
             $minifier->minify('.foo { color: light-dark(rgb(0, 0, 255), hsl(120deg, 50%, 50%)); }')
         );
     },
+    'css minifier maps upstream all reset declaration pruning' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{all:initial}', $minifier->minify('.foo { all: initial; all: initial }'));
+        $t->same('.foo{all:revert}', $minifier->minify('.foo { all: initial; all: revert }'));
+        $t->same('.foo{all:revert-layer}', $minifier->minify('.foo { background: red; all: revert-layer }'));
+        $t->same(
+            '.foo{all:revert-layer;background:green}',
+            $minifier->minify('.foo { background: red; all: revert-layer; background: green }')
+        );
+        $t->same(
+            '.foo{--test:red;all:revert-layer}',
+            $minifier->minify('.foo { --test: red; all: revert-layer }')
+        );
+        $t->same(
+            '.foo{all:revert-layer;unicode-bidi:embed}',
+            $minifier->minify('.foo { unicode-bidi: embed; all: revert-layer }')
+        );
+        $t->same(
+            '.foo{all:revert-layer;direction:rtl}',
+            $minifier->minify('.foo { direction: rtl; all: revert-layer }')
+        );
+        $t->same(
+            '.foo{all:revert-layer;direction:ltr}',
+            $minifier->minify('.foo { direction: rtl; all: revert-layer; direction: ltr }')
+        );
+        $t->same('.foo{all:unset}', $minifier->minify('.foo { background: var(--foo); all: unset; }'));
+        $t->same(
+            '.foo{all:unset;background:var(--foo)}',
+            $minifier->minify('.foo { all: unset; background: var(--foo); }')
+        );
+        $t->same(
+            '.foo{--bar:currentcolor;--foo:1.1em;all:unset}',
+            $minifier->minify('.foo {--bar:currentcolor; --foo:1.1em; all:unset}')
+        );
+    },
     'css minifier maps upstream font-family string serialization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -1996,6 +2032,24 @@ CSS;
 
         $t->same(
             '.wp-block-post-template .wp-block-post{box-shadow:12px 12px #0006,inset 0 0 12px 4px #0006}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress block reset declarations prune reset properties without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-quote.is-style-plain {
+  --wp--custom--quote-accent: currentcolor;
+  margin-block-start: var(--wp--preset--spacing--40);
+  background: var(--wp--preset--color--base);
+  direction: rtl;
+  all: unset;
+  display: block;
+  background: var(--wp--preset--color--contrast);
+}
+CSS;
+
+        $t->same(
+            '.wp-block-quote.is-style-plain{--wp--custom--quote-accent:currentcolor;all:unset;direction:rtl;display:block;background:var(--wp--preset--color--contrast)}',
             (new CssMinifier())->minify($css)
         );
     },

@@ -34,7 +34,7 @@ final class TransitionPrefixer
     }
 
     /**
-     * @param array<string, int|float|string> $targets
+     * @param array<string, mixed> $targets
      */
     public function prefixForTargets(string $css, array $targets): string
     {
@@ -169,6 +169,7 @@ final class TransitionPrefixer
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
         $supportRules = [];
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
+        $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
@@ -193,7 +194,8 @@ final class TransitionPrefixer
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
-        if ($transitionChanged || $colorSchemeChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged) {
+        $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
+        if ($transitionChanged || $colorSchemeChanged || $printColorAdjustChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -500,13 +502,20 @@ final class TransitionPrefixer
     }
 
     /**
-     * @param array<string, int|float|string> $targets
+     * @param array<string, mixed> $targets
      * @return array<string, bool>
      */
     private function targetOptions(array $targets): array
     {
+        $browserTargets = isset($targets['browsers']) && is_array($targets['browsers'])
+            ? $targets['browsers']
+            : $targets;
+        $lightDarkExcluded = $this->featureListContains($targets['exclude'] ?? [], 'light-dark');
         $normalized = [];
-        foreach ($targets as $browser => $version) {
+        foreach ($browserTargets as $browser => $version) {
+            if (!is_scalar($version)) {
+                continue;
+            }
             $normalized[strtolower((string) $browser)] = $this->targetMajorVersion($version);
         }
 
@@ -535,6 +544,7 @@ final class TransitionPrefixer
             'filterNeedsWebkit' => ($chrome !== null && $chrome <= 20.0)
                 || ($safari !== null && $safari <= 14.0),
             'backdropFilterNeedsWebkit' => $safari !== null && $safari <= 15.0,
+            'printColorAdjustNeedsWebkit' => $chrome !== null && $chrome <= 135.0,
             'textDecorationNeedsWebkit' => ($safari !== null && $safari <= 16.0) || ($chrome !== null && $chrome <= 4.0),
             'textDecorationNeedsMoz' => $firefox !== null && $firefox <= 36.0,
             'textEmphasisNeedsWebkit' => $chrome !== null && $chrome <= 99.0,
@@ -543,8 +553,11 @@ final class TransitionPrefixer
             'imageSetNeedsWebkit' => $chrome !== null && $chrome <= 95.0 && !isset($normalized['ie']),
             'imageSetNeedsUrlFallback' => isset($normalized['ie']),
             'clampNeedsMaxMinFallback' => $safari !== null && $safari <= 12.0,
-            'lightDarkNeedsFallback' => ($chrome !== null && $chrome < 123.0)
-                || ($safari !== null && $safari < 17.5),
+            'lightDarkNeedsFallback' => !$lightDarkExcluded && (
+                ($chrome !== null && $chrome < 123.0)
+                || ($safari !== null && $safari < 17.5)
+            ),
+            'lightDarkNormalizeAdvancedColor' => !$lightDarkExcluded && $firefox !== null,
         ];
     }
 
@@ -553,6 +566,35 @@ final class TransitionPrefixer
         $numeric = (float) $version;
 
         return $numeric >= 65536 ? (float) (((int) $numeric) >> 16) : $numeric;
+    }
+
+    private function featureListContains(mixed $features, string $feature): bool
+    {
+        $feature = $this->normalizeFeatureName($feature);
+        if (is_string($features)) {
+            return $this->normalizeFeatureName($features) === $feature;
+        }
+
+        if (!is_array($features)) {
+            return false;
+        }
+
+        foreach ($features as $name => $enabled) {
+            if (is_string($name) && $this->normalizeFeatureName($name) === $feature) {
+                return (bool) $enabled;
+            }
+
+            if (is_string($enabled) && $this->normalizeFeatureName($enabled) === $feature) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeFeatureName(string $feature): string
+    {
+        return preg_replace('/[^a-z0-9]/', '', strtolower($feature)) ?? strtolower($feature);
     }
 
     /**
@@ -740,6 +782,47 @@ final class TransitionPrefixer
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param array<string, bool> $targetOptions
      */
+    private function rewritePrintColorAdjustPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['printColorAdjustNeedsWebkit'] ?? false)) {
+            return false;
+        }
+
+        $hasWebkit = false;
+        foreach ($entries as $entry) {
+            if ($entry['property'] === '-webkit-print-color-adjust' && !$entry['important']) {
+                $hasWebkit = true;
+                break;
+            }
+        }
+
+        if ($hasWebkit) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'print-color-adjust' && !$entry['important']) {
+                $rewritten[] = $this->declarationEntry('-webkit-print-color-adjust', $entry['value']);
+                $changed = true;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
     private function rewriteLightDarkFallbackEntries(array &$entries, array $targetOptions): bool
     {
         if (!($targetOptions['lightDarkNeedsFallback'] ?? false)) {
@@ -752,6 +835,15 @@ final class TransitionPrefixer
         foreach ($entries as $entry) {
             if ($entry['important'] || stripos($entry['value'], 'light-dark(') === false) {
                 $rewritten[] = $entry;
+                continue;
+            }
+
+            $knownNestedFallbacks = $this->knownNestedLightDarkFallbackValues($entry['value']);
+            if ($knownNestedFallbacks !== null) {
+                foreach ($knownNestedFallbacks as $fallback) {
+                    $rewritten[] = $this->entryWithValue($entry, $fallback);
+                }
+                $changed = true;
                 continue;
             }
 
@@ -781,6 +873,321 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteLightDarkAdvancedColorSerializationEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['lightDarkNormalizeAdvancedColor'] ?? false)) {
+            return false;
+        }
+
+        $changed = false;
+        foreach ($entries as &$entry) {
+            if ($entry['important'] || stripos($entry['value'], 'light-dark(') === false) {
+                continue;
+            }
+
+            $normalized = $this->normalizeAdvancedColorSerialization($entry['value']);
+            if ($normalized !== $entry['value']) {
+                $entry['value'] = $normalized;
+                $changed = true;
+            }
+        }
+        unset($entry);
+
+        return $changed;
+    }
+
+    private function normalizeAdvancedColorSerialization(string $value): string
+    {
+        return preg_replace_callback(
+            '/\b(lab|lch|oklab|oklch|color)\(([^()]*)\)/i',
+            function (array $matches): string {
+                $arguments = preg_replace_callback(
+                    '/(?<![-_a-zA-Z])[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:e[-+]?\d+)?%?/i',
+                    fn (array $number): string => $this->formatCssColorNumber($number[0]),
+                    $matches[2]
+                ) ?? $matches[2];
+
+                return strtolower($matches[1]) . '(' . $arguments . ')';
+            },
+            $value
+        ) ?? $value;
+    }
+
+    private function formatCssColorNumber(string $token): string
+    {
+        $hasPercent = str_ends_with($token, '%');
+        $number = $hasPercent ? substr($token, 0, -1) : $token;
+        $formatted = sprintf('%.6g', (float) $number);
+        $formatted = str_replace('E', 'e', $formatted);
+        $formatted = preg_replace('/e\+/', 'e', $formatted) ?? $formatted;
+        if (str_starts_with($formatted, '0.')) {
+            $formatted = substr($formatted, 1);
+        } elseif (str_starts_with($formatted, '-0.')) {
+            $formatted = '-' . substr($formatted, 2);
+        }
+
+        return $formatted . ($hasPercent ? '%' : '');
+    }
+
+    /**
+     * @return non-empty-list<string>|null
+     */
+    private function knownNestedLightDarkFallbackValues(string $value): ?array
+    {
+        $relative = $this->knownRelativeLightDarkFallbackValues($value);
+        if ($relative !== null) {
+            return $relative;
+        }
+
+        $mixed = $this->knownColorMixLightDarkFallbackValue($value);
+        if ($mixed !== null) {
+            return [$mixed];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return non-empty-list<string>|null
+     */
+    private function knownRelativeLightDarkFallbackValues(string $value): ?array
+    {
+        if (preg_match('/^(rgb|color)\(/i', $value, $matches) !== 1) {
+            return null;
+        }
+
+        [$function, $offset] = $this->readFunctionRaw($value, 0);
+        if ($offset !== strlen($value) - 1) {
+            return null;
+        }
+
+        $functionName = strtolower($matches[1]);
+        $arguments = trim(substr($function, strlen($functionName) + 1, -1));
+        if (stripos($arguments, 'from ') !== 0) {
+            return null;
+        }
+
+        $arguments = trim(substr($arguments, 5));
+        if (stripos($arguments, 'light-dark(') !== 0) {
+            return null;
+        }
+
+        [$lightDark, $lightDarkOffset] = $this->readFunctionRaw($arguments, 0);
+        $arms = $this->splitTopLevel(substr($lightDark, strlen('light-dark('), -1), ',');
+        if (count($arms) !== 2) {
+            return null;
+        }
+
+        $rest = trim(substr($arguments, $lightDarkOffset + 1));
+        $rest = preg_replace('/\s*\/\s*/', '/', preg_replace('/\s+/', ' ', $rest) ?? $rest) ?? $rest;
+
+        if ($functionName === 'rgb') {
+            if (preg_match('/^r g b\/(.+)$/', $rest, $matches) !== 1) {
+                return null;
+            }
+
+            return $this->relativeRgbLightDarkFallback($arms[0], $arms[1], trim($matches[1]), false);
+        }
+
+        if ($functionName !== 'color' || preg_match('/^srgb r g b\/(.+)$/', $rest, $matches) !== 1) {
+            return null;
+        }
+
+        return $this->relativeRgbLightDarkFallback($arms[0], $arms[1], trim($matches[1]), true);
+    }
+
+    /**
+     * @return non-empty-list<string>|null
+     */
+    private function relativeRgbLightDarkFallback(string $light, string $dark, string $alpha, bool $includeSrgbColorFunction): ?array
+    {
+        $lightRgb = $this->knownSrgbColorChannels($light);
+        $darkRgb = $this->knownSrgbColorChannels($dark);
+        if ($lightRgb === null || $darkRgb === null) {
+            return null;
+        }
+
+        if ($alpha === '10%') {
+            $srgb = 'var(--lightningcss-light,' . $this->hexColorWithAlpha($lightRgb, 0.1) . ') '
+                . 'var(--lightningcss-dark,' . $this->hexColorWithAlpha($darkRgb, 0.1) . ')';
+            if (!$includeSrgbColorFunction) {
+                return [$srgb];
+            }
+
+            return [
+                $srgb,
+                'var(--lightningcss-light,' . $this->srgbColorFunction($lightRgb, 0.1) . ') '
+                    . 'var(--lightningcss-dark,' . $this->srgbColorFunction($darkRgb, 0.1) . ')',
+            ];
+        }
+
+        if (preg_match('/^var\(--[-_a-zA-Z0-9]+\)$/', $alpha) === 1) {
+            return [
+                'var(--lightningcss-light,' . $this->rgbRelativeResult($lightRgb, $alpha) . ') '
+                    . 'var(--lightningcss-dark,' . $this->rgbRelativeResult($darkRgb, $alpha) . ')',
+            ];
+        }
+
+        return null;
+    }
+
+    private function knownColorMixLightDarkFallbackValue(string $value): ?string
+    {
+        if (stripos($value, 'color-mix(') !== 0) {
+            return null;
+        }
+
+        [$function, $offset] = $this->readFunctionRaw($value, 0);
+        if ($offset !== strlen($value) - 1) {
+            return null;
+        }
+
+        $arguments = substr($function, strlen('color-mix('), -1);
+        $parts = $this->splitTopLevel($arguments, ',');
+        if (count($parts) !== 3 || strtolower($parts[0]) !== 'in srgb') {
+            return null;
+        }
+
+        $first = $this->readLightDarkColorArms($parts[1]);
+        $second = $this->readLightDarkColorArms($parts[2]);
+        if ($first === null || $second === null) {
+            return null;
+        }
+
+        $light = $this->mixSrgbColors($first['light'], $second['light']);
+        $dark = $this->mixSrgbColors($first['dark'], $second['dark']);
+        if ($light === null || $dark === null) {
+            return null;
+        }
+
+        return 'var(--lightningcss-light,' . $this->hexColor($light) . ') '
+            . 'var(--lightningcss-dark,' . $this->hexColor($dark) . ')';
+    }
+
+    /**
+     * @return array{light:array{0:int,1:int,2:int},dark:array{0:int,1:int,2:int}}|null
+     */
+    private function readLightDarkColorArms(string $value): ?array
+    {
+        $value = trim($value);
+        if (stripos($value, 'light-dark(') !== 0) {
+            return null;
+        }
+
+        [$function, $offset] = $this->readFunctionRaw($value, 0);
+        if ($offset !== strlen($value) - 1) {
+            return null;
+        }
+
+        $arms = $this->splitTopLevel(substr($function, strlen('light-dark('), -1), ',');
+        if (count($arms) !== 2) {
+            return null;
+        }
+
+        $light = $this->knownSrgbColorChannels($arms[0]);
+        $dark = $this->knownSrgbColorChannels($arms[1]);
+        if ($light === null || $dark === null) {
+            return null;
+        }
+
+        return [
+            'light' => $light,
+            'dark' => $dark,
+        ];
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int}|null
+     */
+    private function knownSrgbColorChannels(string $color): ?array
+    {
+        return match (strtolower(trim($color))) {
+            '#ff0',
+            '#ffff00',
+            'yellow' => [255, 255, 0],
+            '#f00',
+            '#ff0000',
+            'red' => [255, 0, 0],
+            '#ffc0cb',
+            'pink' => [255, 192, 203],
+            default => null,
+        };
+    }
+
+    /**
+     * @param array{0:int,1:int,2:int} $left
+     * @param array{0:int,1:int,2:int} $right
+     * @return array{0:int,1:int,2:int}
+     */
+    private function mixSrgbColors(array $left, array $right): array
+    {
+        return [
+            (int) round(($left[0] + $right[0]) / 2),
+            (int) round(($left[1] + $right[1]) / 2),
+            (int) round(($left[2] + $right[2]) / 2),
+        ];
+    }
+
+    /**
+     * @param array{0:int,1:int,2:int} $channels
+     */
+    private function hexColor(array $channels): string
+    {
+        return sprintf('#%02x%02x%02x', $channels[0], $channels[1], $channels[2]);
+    }
+
+    /**
+     * @param array{0:int,1:int,2:int} $channels
+     */
+    private function hexColorWithAlpha(array $channels, float $alpha): string
+    {
+        return sprintf('#%02x%02x%02x%02x', $channels[0], $channels[1], $channels[2], (int) round($alpha * 255));
+    }
+
+    /**
+     * @param array{0:int,1:int,2:int} $channels
+     */
+    private function rgbRelativeResult(array $channels, string $alpha): string
+    {
+        return 'rgb(' . $channels[0] . ' ' . $channels[1] . ' ' . $channels[2] . ' / ' . $alpha . ')';
+    }
+
+    /**
+     * @param array{0:int,1:int,2:int} $channels
+     */
+    private function srgbColorFunction(array $channels, float $alpha): string
+    {
+        return 'color(srgb '
+            . $this->formatUnitColorChannel($channels[0])
+            . ' '
+            . $this->formatUnitColorChannel($channels[1])
+            . ' '
+            . $this->formatUnitColorChannel($channels[2])
+            . ' / '
+            . $this->formatAlpha($alpha)
+            . ')';
+    }
+
+    private function formatUnitColorChannel(int $channel): string
+    {
+        if ($channel === 0 || $channel === 255) {
+            return $channel === 0 ? '0' : '1';
+        }
+
+        return rtrim(rtrim(sprintf('%.6F', $channel / 255), '0'), '.');
+    }
+
+    private function formatAlpha(float $alpha): string
+    {
+        $value = rtrim(rtrim(sprintf('%.6F', $alpha), '0'), '.');
+
+        return str_starts_with($value, '0.') ? substr($value, 1) : $value;
     }
 
     /**

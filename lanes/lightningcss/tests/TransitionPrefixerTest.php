@@ -98,6 +98,68 @@ return [
             $prefixer->prefixForTargets('.foo { color: light-dark(yellow, red); }', ['firefox' => 120])
         );
     },
+    'transition prefixer maps upstream nested light-dark relative color fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:var(--lightningcss-light,#ffff001a) var(--lightningcss-dark,#ff00001a)}',
+            $prefixer->prefixForTargets('.foo { color: rgb(from light-dark(yellow, red) r g b / 10%); }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{color:var(--lightningcss-light,rgb(255 255 0 / var(--alpha))) var(--lightningcss-dark,rgb(255 0 0 / var(--alpha)))}',
+            $prefixer->prefixForTargets('.foo { color: rgb(from light-dark(yellow, red) r g b / var(--alpha)); }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{color:var(--lightningcss-light,#ffff001a) var(--lightningcss-dark,#ff00001a);color:var(--lightningcss-light,color(srgb 1 1 0 / .1)) var(--lightningcss-dark,color(srgb 1 0 0 / .1))}',
+            $prefixer->prefixForTargets('.foo { color: color(from light-dark(yellow, red) srgb r g b / 10%); }', ['chrome' => 90])
+        );
+    },
+    'transition prefixer maps upstream light-dark color-mix fallback and firefox serialization' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:var(--lightningcss-light,#ff8000) var(--lightningcss-dark,#ff6066)}',
+            $prefixer->prefixForTargets('.foo { color: color-mix(in srgb, light-dark(yellow, red), light-dark(red, pink)); }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{color:light-dark(oklch(40% .126874 34.5686),oklab(59.686% .1009 .1192))}',
+            $prefixer->prefixForTargets(
+                '.foo { color: light-dark(oklch(40% 0.1268735435 34.568626), oklab(59.686% 0.1009 0.1192)); }',
+                ['firefox' => 120]
+            )
+        );
+    },
+    'transition prefixer honors upstream light-dark feature exclusion target' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { color-scheme: light; } .bar { color: light-dark(red, green); }';
+
+        $t->same(
+            '.foo{color-scheme:light}.bar{color:light-dark(red,green)}',
+            $prefixer->prefixForTargets($css, [
+                'browsers' => ['safari' => 13],
+                'exclude' => ['LightDark'],
+            ])
+        );
+        $t->same(
+            '.foo{color-scheme:light}.bar{color:light-dark(red,green)}',
+            $prefixer->prefixForTargets($css, [
+                'browsers' => ['safari' => 13],
+                'exclude' => ['light-dark' => true],
+            ])
+        );
+    },
+    'transition prefixer maps upstream print-color-adjust target boundary' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 135])
+        );
+        $t->same(
+            '.foo{print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 137])
+        );
+    },
     'wordpress editor color-scheme fallback flags prefix without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 :root {
@@ -111,11 +173,31 @@ return [
 .editor-styles-wrapper .has-accent-color {
   color: light-dark(var(--wp--preset--color--accent-light), var(--wp--preset--color--accent-dark));
 }
+
+.editor-styles-wrapper .has-warning-background {
+  background-color: color-mix(in srgb, light-dark(yellow, red), light-dark(red, pink));
+}
+
+.editor-styles-wrapper .has-alpha-accent-color {
+  color: rgb(from light-dark(yellow, red) r g b / var(--wp--custom--alpha));
+}
 CSS;
 
         $t->same(
-            ':root{--lightningcss-light:initial;--lightningcss-dark:;color-scheme:light dark}@media (prefers-color-scheme:dark){:root{--lightningcss-light:;--lightningcss-dark:initial}}.editor-styles-wrapper.is-dark-theme{--lightningcss-light:;--lightningcss-dark:initial;color-scheme:dark}.editor-styles-wrapper .has-accent-color{color:var(--lightningcss-light,var(--wp--preset--color--accent-light)) var(--lightningcss-dark,var(--wp--preset--color--accent-dark))}',
+            ':root{--lightningcss-light:initial;--lightningcss-dark:;color-scheme:light dark}@media (prefers-color-scheme:dark){:root{--lightningcss-light:;--lightningcss-dark:initial}}.editor-styles-wrapper.is-dark-theme{--lightningcss-light:;--lightningcss-dark:initial;color-scheme:dark}.editor-styles-wrapper .has-accent-color{color:var(--lightningcss-light,var(--wp--preset--color--accent-light)) var(--lightningcss-dark,var(--wp--preset--color--accent-dark))}.editor-styles-wrapper .has-warning-background{background-color:var(--lightningcss-light,#ff8000) var(--lightningcss-dark,#ff6066)}.editor-styles-wrapper .has-alpha-accent-color{color:var(--lightningcss-light,rgb(255 255 0 / var(--wp--custom--alpha))) var(--lightningcss-dark,rgb(255 0 0 / var(--wp--custom--alpha)))}',
             (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 90])
+        );
+    },
+    'wordpress print export keeps exact colors on old chrome print pipeline without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-post-content .print-cover {
+  print-color-adjust: exact;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-post-content .print-cover{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 135])
         );
     },
     'transition prefixer maps upstream mask transition prefixing' => static function (TestRunner $t): void {

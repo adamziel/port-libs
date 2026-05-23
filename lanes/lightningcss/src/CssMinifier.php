@@ -98,6 +98,7 @@ final class CssMinifier
         $css = $this->minifySupportsRules($css);
         $css = $this->minifyFontFeatureValuesRules($css);
         $css = $this->mergeAdjacentRuleBlocks($css);
+        $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
         $css = $this->composeFontDeclarationBlocks($css);
@@ -5966,6 +5967,113 @@ final class CssMinifier
     private function serializeRuleBlock(string $prelude, string $body): string
     {
         return $prelude . '{' . $body . '}';
+    }
+
+    private function rewriteAllResetDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->rewriteAllResetDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->rewriteAllResetDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function rewriteAllResetDeclarationList(string $body): string
+    {
+        if (stripos($body, 'all:') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $lastAll = null;
+        foreach ($entries as $index => $entry) {
+            if ($entry['important']) {
+                return $body;
+            }
+            if ($entry['property'] === 'all') {
+                $lastAll = $index;
+            }
+        }
+
+        if ($lastAll === null) {
+            return $body;
+        }
+
+        $laterDirectionProperties = [];
+        for ($index = $lastAll + 1, $count = count($entries); $index < $count; $index++) {
+            if ($this->isAllResetDirectionProperty($entries[$index]['property'])) {
+                $laterDirectionProperties[$entries[$index]['property']] = true;
+            }
+        }
+
+        $moveAfterAll = [];
+        for ($index = 0; $index < $lastAll; $index++) {
+            $property = $entries[$index]['property'];
+            if ($this->isCustomPropertyName($property)) {
+                continue;
+            }
+            if ($this->isAllResetDirectionProperty($property)) {
+                $moveAfterAll[$property] = ['index' => $index, 'entry' => $entries[$index]];
+            }
+            $entries[$index]['drop'] = true;
+        }
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['property'] === 'all' && $index !== $lastAll) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+
+        if ($moveAfterAll !== []) {
+            uasort(
+                $moveAfterAll,
+                static fn (array $left, array $right): int => $left['index'] <=> $right['index']
+            );
+
+            $insert = [];
+            foreach ($moveAfterAll as $property => $record) {
+                if (!isset($laterDirectionProperties[$property])) {
+                    $insert[] = $record['entry'];
+                }
+            }
+
+            if ($insert !== []) {
+                array_splice($entries, $lastAll + 1, 0, $insert);
+            }
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function isAllResetDirectionProperty(string $property): bool
+    {
+        return $property === 'direction' || $property === 'unicode-bidi';
+    }
+
+    private function isCustomPropertyName(string $property): bool
+    {
+        return str_starts_with($property, '--');
     }
 
     private function composeTransitionDeclarationBlocks(string $css): string
