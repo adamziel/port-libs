@@ -92,7 +92,7 @@ final class JsonDiffRenderer
         }
 
         $fallbackReason = $this->differ->textFallbackReason($old, $new, $options, $language);
-        if ($fallbackReason === null && !$this->differ->hasChanges($old, $new, $options)) {
+        if ($fallbackReason === null && !$this->hasDisplayChanges($old, $new, $language, $options)) {
             return $this->statusFile($language, $path, 'unchanged');
         }
 
@@ -123,6 +123,26 @@ final class JsonDiffRenderer
             'path' => $path,
             'status' => $status,
         ];
+    }
+
+    /**
+     * @param array{ignoreComments?: bool, ignoreTrailingCommas?: bool, language?: string} $options
+     */
+    private function hasDisplayChanges(string $old, string $new, string $language, array $options): bool
+    {
+        if ($this->isPlainTextLanguage($language, $options)) {
+            return $old !== $new;
+        }
+
+        return $this->differ->hasChanges($old, $new, $options);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isPlainTextLanguage(string $language, array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? $language)), ['plain', 'plain-text', 'plaintext', 'text'], true);
     }
 
     /**

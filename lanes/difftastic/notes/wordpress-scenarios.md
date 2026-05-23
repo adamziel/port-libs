@@ -8,7 +8,11 @@ Native token-level differ that avoids raw line-only comparison, classifies comme
 
 Plain-text mode now maps the upstream `sample_files/added_line_*.txt` line-parser shape. Explicit `text`/`plain` syntax-list diffs report changed, inserted, and deleted lines under `$text.line[...]` paths without a fallback marker or a false "No syntactic changes" result when there are no delimiters.
 
+Plain-text JSON display now maps the upstream `sample_files/insert_blank_*.txt` golden shard. Blank-line-only changes stay visible as `changed` file envelopes with zero-based aligned lines and an empty deletion-side line chunk instead of being hidden by token-level equality.
+
 The WordPress plugin readme fixture applies that to `readme.txt` release notes. It reports a stable-tag update, a description wording update, and an inserted changelog section under `$text.line[...]` paths while keeping retained older changelog entries matched.
+
+The WordPress plugin readme blank-line fixture applies the same display slice to release notes where a spacing-only changelog cleanup still matters to reviewers. Compact JSON output reports the deleted blank line for `wp-content/plugins/acme-events/readme.txt` instead of returning `unchanged`.
 
 Rust mode now adds a targeted upstream `slider_*.rs` mapping for method and statement sliders. It splits block items at method boundaries and semicolon-terminated statements so code-review excerpts keep retained methods and follow-up statements stable while reporting inserted setup calls and fields as focused additions.
 
@@ -141,6 +145,7 @@ php lanes/difftastic/examples/wordpress-render-callback-diff.php
 php lanes/difftastic/examples/wordpress-render-return-type-diff.php
 php lanes/difftastic/examples/wordpress-subword-diff.php
 php lanes/difftastic/examples/wordpress-plugin-readme-text-diff.php
+php lanes/difftastic/examples/wordpress-plugin-readme-blank-display.php
 php lanes/difftastic/examples/wordpress-html-diff.php
 php lanes/difftastic/examples/wordpress-inline-style-html-diff.php
 php lanes/difftastic/examples/wordpress-block-interactivity-script-diff.php
@@ -188,4 +193,4 @@ php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
 
 ## Next Task
 
-Map a broader upstream CLI display golden shard beyond the currently covered text, multibyte, encoding, and HTML/JSON examples.
+Map another upstream CLI display golden shard such as `align_footer`, `repeated_line_no_eol`, or `changes_at_end` into explicit PHP display expectations.

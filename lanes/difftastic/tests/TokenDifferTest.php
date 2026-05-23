@@ -628,6 +628,24 @@ return [
         $t->contains('data-path="$text.line[2]"', $html);
         $t->true(!str_contains($html, 'No syntactic changes'), 'Plain text syntax-list rendering should not hide text-only changes.');
     },
+    'maps upstream insert blank text sample as a display change' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-insert-blank-1.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-insert-blank-2.txt');
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'text']);
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/insert_blank.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same([['op' => '-', 'path' => '$text.line[1]', 'text' => '']], $changes);
+        $t->same('changed', $decoded['status']);
+        $t->same([1, null], $decoded['aligned_lines'][1]);
+        $t->same(1, $decoded['chunks'][0][0]['lhs']['line_number']);
+        $t->same([], $decoded['chunks'][0][0]['lhs']['changes']);
+    },
     'recurses into nested wordpress registration arrays' => static function (TestRunner $t): void {
         $before = "register_block_type('demo/card', ['supports' => ['html' => false, 'align' => ['wide']], 'render_callback' => 'old_card']);";
         $after = "register_block_type('demo/card', ['supports' => ['html' => true, 'align' => ['wide', 'full']], 'render_callback' => 'old_card']);";
@@ -851,6 +869,23 @@ return [
         $t->contains('= 1.3.0 =', $html);
         $t->contains('Add Interactivity API view script support.', $html);
         $t->true(!str_contains($html, 'data-op="-" data-path="$text.line[10]"'), 'Retained changelog entries should remain matched after a new release section is inserted.');
+    },
+    'wordpress plugin readme blank line display is not hidden as unchanged' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-readme-blank-before.txt');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-plugin-readme-blank-after.txt');
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-events/readme.txt',
+            'Text',
+            ['language' => 'text'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('changed', $decoded['status']);
+        $t->same('wp-content/plugins/acme-events/readme.txt', $decoded['path']);
+        $t->same([7, null], $decoded['aligned_lines'][7]);
+        $t->same(7, $decoded['chunks'][0][0]['lhs']['line_number']);
+        $t->same([], $decoded['chunks'][0][0]['lhs']['changes']);
     },
     'wordpress inline html style diff reports css sublanguage changes' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-template-style-before.html');
