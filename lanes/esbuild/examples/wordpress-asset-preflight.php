@@ -24,6 +24,7 @@ $classFieldsAssignTypeScriptSource = (string) file_get_contents(dirname(__DIR__)
 $privateStaticCacheTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-private-static-cache.ts');
 $defaultStaticControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-default-static-controller.ts');
 $classExpressionControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-class-expression-controller.ts');
+$decoratedClassExpressionControllerTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-decorated-class-expression-controller.ts');
 $computedClassFieldsTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-class-fields.ts');
 $computedSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-computed-super-controller.ts');
 $conditionalSuperTypeScriptSource = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-conditional-super-controller.ts');
@@ -79,6 +80,7 @@ $classFieldsAssignLegacyLowered = (new TypeScriptModuleLowerer())->lower($classF
 $privateStaticCacheLegacyLowered = (new TypeScriptModuleLowerer())->lower($privateStaticCacheTypeScriptSource, false, targetYear: 2021);
 $defaultStaticControllerLegacyLowered = (new TypeScriptModuleLowerer())->lower($defaultStaticControllerTypeScriptSource, false, targetYear: 2021);
 $classExpressionControllerLegacyLowered = (new TypeScriptModuleLowerer())->lower($classExpressionControllerTypeScriptSource, false, targetYear: 2021);
+$decoratedClassExpressionControllerLegacyLowered = (new TypeScriptModuleLowerer())->lower($decoratedClassExpressionControllerTypeScriptSource, false, targetYear: 2021);
 $computedClassFieldsLowered = (new TypeScriptModuleLowerer())->lower($computedClassFieldsTypeScriptSource, false);
 $computedSuperLowered = (new TypeScriptModuleLowerer())->lower($computedSuperTypeScriptSource, false);
 $conditionalSuperLowered = (new TypeScriptModuleLowerer())->lower($conditionalSuperTypeScriptSource, false);
@@ -150,6 +152,7 @@ printf("WordPress TypeScript ES2021 static field bytes: %d\n", strlen($classFiel
 printf("WordPress TypeScript private static cache bytes: %d\n", strlen($privateStaticCacheLegacyLowered));
 printf("WordPress TypeScript default static controller bytes: %d\n", strlen($defaultStaticControllerLegacyLowered));
 printf("WordPress TypeScript class expression controller bytes: %d\n", strlen($classExpressionControllerLegacyLowered));
+printf("WordPress TypeScript decorated class expression controller bytes: %d\n", strlen($decoratedClassExpressionControllerLegacyLowered));
 printf("WordPress TypeScript computed class field bytes: %d\n", strlen($computedClassFieldsLowered));
 printf("WordPress TypeScript computed super controller bytes: %d\n", strlen($computedSuperLowered));
 printf("WordPress TypeScript conditional super controller bytes: %d\n", strlen($conditionalSuperLowered));

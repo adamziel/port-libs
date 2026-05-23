@@ -1482,6 +1482,36 @@ foo((_a = class {
 }, _a.x = 1, _a));
 JS . "\n", $lowerer->lower('foo(class { static x: number = 1 })', false, targetYear: 2021));
     },
+    'keeps upstream decorators on lowered class expressions' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+_ = @x @y class {
+  foo;
+};
+JS . "\n", $lowerer->lower('_ = @x @y class { foo: any }'));
+
+        $t->same(<<<'JS'
+export default(@x class Foo {
+  foo;
+});
+JS . "\n", $lowerer->lower('export default (@x class Foo { foo: any })'));
+    },
+    'lowers upstream decorated class expression static fields after class for es2021 targets' => static function (TestRunner $t): void {
+        $lowerer = new TypeScriptModuleLowerer();
+
+        $t->same(<<<'JS'
+var _a;
+const Foo = (_a = @x class {
+}, _a.foo = 1, _a);
+JS . "\n", $lowerer->lower('const Foo = @x class { static foo: number = 1 }', false, targetYear: 2021));
+
+        $t->same(<<<'JS'
+var _a;
+export default((_a = @x class Foo {
+}, _a.foo = 1, _a));
+JS . "\n", $lowerer->lower('export default (@x class Foo { static foo: number = 1 })', false, targetYear: 2021));
+    },
     'lowers upstream class expression field key ordering in assign semantics mode' => static function (TestRunner $t): void {
         $lowerer = new TypeScriptModuleLowerer();
 
@@ -2077,6 +2107,20 @@ JS . "\n", $lowerer->lower('class Foo { get [foo](): any {} set [foo](value: any
         $t->true(strpos($lowered, '_b = BaseController') < strpos($lowered, '_a = assetKey("worker")'));
         $t->true(strpos($lowered, 'super(metadata);') < strpos($lowered, 'this.blockName = metadata.name;'));
         $t->true(strpos($lowered, '_c[_a]') < strpos($lowered, 'export { Controller as CardBlockController };'));
+        $t->true(!str_contains($lowered, '@wordpress/blocks'));
+        $t->true(!str_contains($lowered, 'BlockConfiguration'));
+        $t->true(!str_contains($lowered, 'static {'));
+    },
+    'lowers wordpress decorated class expression controller without node' => static function (TestRunner $t): void {
+        $source = (string) file_get_contents(__DIR__ . '/../fixtures/wordpress-block-decorated-class-expression-controller.ts');
+        $lowered = (new TypeScriptModuleLowerer())->lower($source, false, targetYear: 2021);
+
+        $t->contains('export const DecoratedController = (_a = assetKey("worker"), _b = @blockController(metadata) class {', $lowered);
+        $t->contains('_b.settings = {supports:{html:false}, viewScript:"file:./view.js",}', $lowered);
+        $t->contains('_b[_a] = "file:./card-worker.js"', $lowered);
+        $t->contains('wp.blocks.registerBlockType(metadata.name, DecoratedController.settings);', $lowered);
+        $t->true(strpos($lowered, '@blockController(metadata) class') < strpos($lowered, '_b.settings ='));
+        $t->true(!str_contains($lowered, '@blockController<BlockConfiguration>'));
         $t->true(!str_contains($lowered, '@wordpress/blocks'));
         $t->true(!str_contains($lowered, 'BlockConfiguration'));
         $t->true(!str_contains($lowered, 'static {'));

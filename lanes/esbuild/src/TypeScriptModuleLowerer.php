@@ -3866,7 +3866,7 @@ final class TypeScriptModuleLowerer
             $output .= $this->printRuntimeTokenRange($cursor, $effectiveEnd, $start);
         }
 
-        if ($output !== '' && $this->runtimeStatementNeedsSemicolon($start, $effectiveEnd, $output)) {
+        if ($output !== '' && !str_ends_with($output, ';')) {
             $output .= ';';
         }
 
@@ -3883,9 +3883,14 @@ final class TypeScriptModuleLowerer
      */
     private function lowerClassExpressionAt(int $classIndex, int $effectiveEnd, array &$fieldKeyTemps): ?array
     {
-        if (($this->tokens[$classIndex] ?? null)?->text !== 'class') {
+        [$decoratorTexts, , $cursor] = ($this->tokens[$classIndex] ?? null)?->text === '@'
+            ? $this->classStatementDecorators($classIndex)
+            : [[], [], $classIndex];
+
+        if (($this->tokens[$cursor] ?? null)?->text !== 'class') {
             return null;
         }
+        $classIndex = $cursor;
 
         $bodyOpen = $this->classExpressionBodyOpen($classIndex, $effectiveEnd);
         if ($bodyOpen === null) {
@@ -3904,7 +3909,7 @@ final class TypeScriptModuleLowerer
             $this->classHeaderHasExtends($classIndex, $bodyOpen),
             $fieldKeyTemps,
         );
-        if (!$hasTypeScriptClassSyntax && !$hasTypeScriptMemberSyntax) {
+        if (!$hasTypeScriptClassSyntax && !$hasTypeScriptMemberSyntax && $decoratorTexts === []) {
             return null;
         }
 
@@ -3917,6 +3922,9 @@ final class TypeScriptModuleLowerer
         }
 
         $header = $this->classHeaderText($classIndex, $bodyOpen, $fieldKeyExtendsPrelude, $extendsTemp);
+        if ($decoratorTexts !== []) {
+            $header = implode(' ', $decoratorTexts) . ' ' . $header;
+        }
         $lines = [$header . ' {'];
         foreach ($members as $member) {
             foreach (explode("\n", $member) as $line) {
