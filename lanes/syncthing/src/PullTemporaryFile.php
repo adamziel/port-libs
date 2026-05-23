@@ -9,6 +9,7 @@ final class PullTemporaryFile
     private const ERR_DIR_HAS_TO_BE_SCANNED = 'directory has been deleted on a remote device but contains changed files, scheduling scan';
     private const ERR_DIR_HAS_IGNORED = 'directory has been deleted on a remote device but contains ignored files (see ignore documentation for (?d) prefix)';
     private const ERR_DIR_NOT_EMPTY = 'directory has been deleted on a remote device but is not empty; the contents are probably ignored on that remote device, but not locally';
+    private const ERR_MODIFIED = 'checking existing file: file modified but not rescanned; will try again later';
     private const ALL_LOCAL_FLAGS = FileInfo::FLAG_LOCAL_UNSUPPORTED
         | FileInfo::FLAG_LOCAL_IGNORED
         | FileInfo::FLAG_LOCAL_MUST_RESCAN
@@ -210,6 +211,9 @@ final class PullTemporaryFile
         }
 
         if ((is_link($finalPath) || is_dir($finalPath)) && $this->shouldDeleteExistingNonRegular()) {
+            if (!$this->existingPathMatchesCurrentFile($finalPath)) {
+                return $this->result(closed: true, finalized: false, error: $this->error);
+            }
             if (!$this->deleteExistingNonRegular($finalPath)) {
                 return $this->result(closed: true, finalized: false, error: $this->error);
             }
@@ -460,6 +464,10 @@ final class PullTemporaryFile
 
     private function replaceExistingFinalFile(string $finalPath): bool
     {
+        if (!$this->existingPathMatchesCurrentFile($finalPath)) {
+            return false;
+        }
+
         if (!$this->shouldMoveExistingForConflict()) {
             if ($this->shouldArchiveExistingFinalFile()) {
                 return $this->archiveExistingFinalFile($finalPath);
@@ -502,6 +510,23 @@ final class PullTemporaryFile
         $this->conflictName = $conflictName;
         $this->scanNames[] = $conflictName;
         $this->pruneConflicts();
+
+        return true;
+    }
+
+    private function existingPathMatchesCurrentFile(string $path): bool
+    {
+        if ($this->currentFile === null || $this->currentFile->deleted) {
+            $this->addScanName($this->file->name);
+            $this->error = self::ERR_MODIFIED;
+            return false;
+        }
+
+        if (!$this->diskEntryMatchesKnownFileInfo($path, $this->currentFile->name, $this->currentFile)) {
+            $this->addScanName($this->file->name);
+            $this->error = self::ERR_MODIFIED;
+            return false;
+        }
 
         return true;
     }

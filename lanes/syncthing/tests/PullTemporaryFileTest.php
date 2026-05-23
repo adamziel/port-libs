@@ -7,6 +7,7 @@ use PortLibs\Syncthing\BlockList;
 use PortLibs\Syncthing\BlockPullResult;
 use PortLibs\Syncthing\EncryptionKey;
 use PortLibs\Syncthing\FileInfo;
+use PortLibs\Syncthing\IgnoreMatcher;
 use PortLibs\Syncthing\PullFinalizationResult;
 use PortLibs\Syncthing\PullTemporaryFile;
 use PortLibs\Syncthing\ReceiveEncrypted;
@@ -154,7 +155,7 @@ return [
             if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
                 throw new RuntimeException('Failed to create final parent directory');
             }
-            file_put_contents($finalPath, $localBytes);
+            syncthing_pull_temp_write_current_file($root, $current, $localBytes);
 
             $assembler = new PullTemporaryFile($remote, $root, currentFile: $current, conflictTimestamp: 1700000800);
             $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledConcurrentWinner');
@@ -193,7 +194,7 @@ return [
             if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
                 throw new RuntimeException('Failed to create final parent directory');
             }
-            file_put_contents($finalPath, $localBytes);
+            syncthing_pull_temp_write_current_file($root, $current, $localBytes);
 
             $assembler = new PullTemporaryFile($remote, $root, currentFile: $current, conflictTimestamp: 1700001100);
             $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledDescendant');
@@ -205,6 +206,41 @@ return [
             $t->same([], $result->scanNames);
             $t->same([], $conflicts);
             $t->same($remoteBytes, (string) file_get_contents($finalPath));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
+    'performFinish schedules a scan when the existing final file changed after scanning' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/unscanned-local-edit.jpg';
+            $scannedBytes = str_repeat('scanned wordpress media ', 3200);
+            $unscannedBytes = str_repeat('edited locally after scan ', 3300);
+            $remoteBytes = str_repeat('remote normalized media ', 3400);
+            $current = syncthing_pull_temp_file($name, $scannedBytes, 0644, 1700000950, VersionVector::fromCounters([101 => 4]));
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001000,
+                VersionVector::fromCounters([101 => 4, 202 => 1]),
+                modifiedBy: 202,
+            );
+            $finalPath = syncthing_pull_temp_write_current_file($root, $current, $unscannedBytes);
+            touch($finalPath, 1700000975);
+
+            $assembler = new PullTemporaryFile($remote, $root, currentFile: $current);
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledButBlockedByLocalEdit');
+            $result = $assembler->finalize();
+
+            $t->true($result->closed);
+            $t->true(!$result->finalized);
+            $t->same('checking existing file: file modified but not rescanned; will try again later', $result->error);
+            $t->same([$name], $result->scanNames);
+            $t->same($unscannedBytes, (string) file_get_contents($finalPath));
+            $t->true(file_exists($assembler->tempPath()));
+            $t->same(null, $result->conflictName);
+            $t->same(null, $result->archivedName);
         } finally {
             syncthing_pull_temp_rm($root);
         }
@@ -279,7 +315,7 @@ return [
             if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
                 throw new RuntimeException('Failed to create final parent directory');
             }
-            file_put_contents($finalPath, $localBytes);
+            syncthing_pull_temp_write_current_file($root, $current, $localBytes);
 
             $conflictTimestamp = strtotime('2026-05-24 12:00:00 UTC');
             if ($conflictTimestamp === false) {
@@ -435,6 +471,57 @@ return [
             syncthing_pull_temp_rm($root);
         }
     },
+    'performFinish preserves nondeletable ignored directory children before replacement' => static function (TestRunner $t): void {
+        $root = syncthing_pull_temp_root();
+        try {
+            $name = 'wp-content/uploads/2026/private-cache';
+            $ignoredDir = $name . '/local-review';
+            $ignoredChild = $ignoredDir . '/keep.txt';
+            $remoteBytes = str_repeat('remote private media archive ', 3000);
+            $current = new FileInfo(
+                name: $name,
+                modifiedS: 1700001750,
+                version: VersionVector::fromCounters([101 => 10]),
+                type: FileInfo::TYPE_DIRECTORY,
+                permissions: 0755,
+                modifiedBy: 101,
+            );
+            $remote = syncthing_pull_temp_file(
+                $name,
+                $remoteBytes,
+                0644,
+                1700001800,
+                VersionVector::fromCounters([202 => 5]),
+                modifiedBy: 202,
+            );
+            $ignoredChildPath = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $ignoredChild);
+            if (!mkdir(dirname($ignoredChildPath), 0777, true) && !is_dir(dirname($ignoredChildPath))) {
+                throw new RuntimeException('Failed to create ignored child directory');
+            }
+            file_put_contents($ignoredChildPath, 'local private review cache');
+
+            $matcher = IgnoreMatcher::fromLines([$ignoredDir]);
+            $assembler = new PullTemporaryFile(
+                $remote,
+                $root,
+                currentFile: $current,
+                knownDirectoryChildren: [],
+                ignoreMatcher: $matcher,
+            );
+            $assembler->writeBlock($remote->blocks[0], $remoteBytes, source: 'pulledIgnoredChildGuard');
+            $result = $assembler->finalize();
+
+            $t->true($result->closed);
+            $t->true(!$result->finalized);
+            $t->same('directory has been deleted on a remote device but contains ignored files (see ignore documentation for (?d) prefix)', $result->error);
+            $t->same([], $result->scanNames);
+            $t->true(is_dir($root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $name)));
+            $t->same('local private review cache', (string) file_get_contents($ignoredChildPath));
+            $t->true(file_exists($assembler->tempPath()));
+        } finally {
+            syncthing_pull_temp_rm($root);
+        }
+    },
     'moveForConflict prunes older conflict copies past maxConflicts' => static function (TestRunner $t): void {
         $root = syncthing_pull_temp_root();
         try {
@@ -454,7 +541,7 @@ return [
             if (!mkdir(dirname($finalPath), 0777, true) && !is_dir(dirname($finalPath))) {
                 throw new RuntimeException('Failed to create final parent directory');
             }
-            file_put_contents($finalPath, $localBytes);
+            syncthing_pull_temp_write_current_file($root, $current, $localBytes);
 
             $olderName = 'wp-content/uploads/2026/rotating-hero.sync-conflict-20260101-000000-101.jpg';
             $newerName = 'wp-content/uploads/2026/rotating-hero.sync-conflict-20260201-000000-101.jpg';
@@ -591,6 +678,24 @@ function syncthing_pull_temp_root(): string
     }
 
     return $root;
+}
+
+function syncthing_pull_temp_write_current_file(string $root, FileInfo $file, string $bytes): string
+{
+    $path = $root . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $file->name);
+    $dir = dirname($path);
+    if (!is_dir($dir) && !mkdir($dir, 0777, true) && !is_dir($dir)) {
+        throw new RuntimeException('Failed to create current file parent directory');
+    }
+    if (file_put_contents($path, $bytes) === false) {
+        throw new RuntimeException('Failed to write current file');
+    }
+    chmod($path, $file->permissions & 0777);
+    if ($file->modifiedS > 0) {
+        touch($path, $file->modifiedS);
+    }
+
+    return $path;
 }
 
 function syncthing_pull_temp_rm(string $path): void

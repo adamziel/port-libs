@@ -611,7 +611,10 @@ receive-encrypted temporary files append the FileInfo trailer before promotion,
 successful close renames the temp file into place and emits the
 `dbUpdateHandleFile` update type, conflicting existing regular files are moved
 to `.sync-conflict-YYYYMMDD-HHMMSS-device` siblings before the pulled file is
-published, tracked existing directories and symlinks are deleted before a
+published, existing regular files are rechecked against the current scanned
+`FileInfo` before any conflict, archive, or overwrite decision so unscanned
+local edits schedule a follow-up scan and leave the pulled temp file reusable,
+tracked existing directories and symlinks are deleted before a
 pulled regular file is promoted, `MaxConflicts` keeps only the newest conflict
 copies after `moveForConflict`, descendant versions replace without conflict
 copies, non-conflicting regular-file replacements can archive the previous file
@@ -619,8 +622,10 @@ under a Syncthing-style `~YYYYMMDD-HHMMSS` `.stversions` name, conflicts still
 prefer `.sync-conflict` copies over version archives, guarded tracked-directory
 replacement now preserves unknown or changed children, records upstream-style
 scan requests, and fails with the `contains changed files, scheduling scan`
-error before destructive removal, abandoned Syncthing temporary children can
-still be removed so replacement can continue, second close attempts are no-ops, and failed pulls close while leaving
+error before destructive removal, nondeletable ignored directory children stop
+replacement with the upstream `contains ignored files` error while leaving scan
+requests empty, abandoned Syncthing temporary children can still be removed so
+replacement can continue, second close attempts are no-ops, and failed pulls close while leaving
 the temporary file for a later retry. This is a
 static targeted mapping from upstream `sharedpullerstate.go`,
 `sharedpullerstate_test.go`, `folder_sendrecv.go`,
@@ -628,6 +633,9 @@ static targeted mapping from upstream `sharedpullerstate.go`,
 `go test ./lib/versioner -run 'TestTaggedFilename|TestTrashcanArchiveRestoreSwitcharoo|TestTrashcanRestoreDeletedFile'`
 runner pass and a focused upstream
 `go test ./lib/model -run 'TestPullDeleteUnscannedDir|TestPullDeleteIgnoreChildDir' -count=1`
+pass. The unscanned-existing-file guard was cross-checked against upstream
+`performFinish`/`scanIfItemChanged` plus a bounded upstream
+`go test ./lib/model -run 'TestPullCaseOnlyPerformFinish|TestDeleteIgnorePerms' -count=1`
 pass, not full upstream runner parity. The WordPress
 example `wordpress-pull-temporary-finalize.php` shows a
 media file assembled from one origin copy, one sparse zero block, and one
@@ -646,6 +654,14 @@ promoted.
 `wordpress-pull-directory-scan-guard.php` shows a generated media directory
 with an unknown local thumbnail preserved for a follow-up scan while the pulled
 archive remains in its temporary file for retry.
+`wordpress-pull-ignored-directory.php` shows a local private review cache
+preserved by ignore rules when a Playground peer offers a replacement archive;
+the pulled archive remains in its temporary file and no scan is scheduled for
+the ignored path.
+`wordpress-pull-unscanned-local-edit.php` shows a WordPress editor's local crop
+preserved when the on-disk file no longer matches the scanned `FileInfo`; the
+remote file stays in `.syncthing.<name>.tmp` and the media path is scheduled
+for a scan before any replacement is attempted.
 The receive-encrypted variant
 `wordpress-pull-receive-encrypted-finalize.php` shows the trailer appended
 during native temporary-file promotion, with local finalized size and remote
@@ -654,6 +670,5 @@ index size reported separately.
 ## Next Task
 
 Broaden upstream `folder_sendrecv` behavior around unavailable peers,
-case-conflict replacement, ignored-directory deletion precedence,
-receive-only changed children, and database update side effects after the native
-final file promotion succeeds.
+case-conflict replacement, receive-only changed children, and post-promotion database update/fsync/event
+side effects after native final file promotion succeeds.
