@@ -755,8 +755,25 @@ static targeted reads plus a focused upstream pass:
 `wordpress-directory-symlink-lifecycle.php` shows a Playground peer creating a
 dated upload directory and a `current/latest` symlink while the native DB updater
 records the remote-change and fsync boundaries.
+The delete item lifecycle slice now maps upstream `deleteFile`, `deleteDir`,
+`checkToBeDeleted`, and `deleteDirOnDiskHandleChildren`: native PHP removes
+tracked regular files and directories with upstream ItemStarted/ItemFinished
+`delete` payloads, schedules `dbUpdateDeleteFile` and `dbUpdateDeleteDir`, does
+not follow a symlinked parent when accepting a tombstone, accepts case-only
+delete conflicts as database-only tombstones without scanning or deleting the
+local sibling, moves a conflicting local regular file to a `.sync-conflict`
+copy before accepting a remote delete, preserves unscanned local directories
+while queuing a deferred scan, and removes `(?d)` ignored/temporary directory
+children before deleting an otherwise empty remote-deleted directory. This is
+backed by targeted reads plus a focused upstream pass:
+`go test ./lib/model -run 'TestDeleteBehindSymlink|TestPullDeleteUnscannedDir|TestPullDeleteCaseConflict|TestPullDeleteIgnoreChildDir|TestIssue3164' -count=1`.
+`wordpress-delete-lifecycle.php` shows a Playground peer deleting an old upload
+and a deletable private cache directory while the native DB updater records
+RemoteChangeDetected-style delete events and a ReceivedFile-style marker only
+for the deleted regular file.
 
 ## Next Task
 
-Target deleteFile/deleteDir lifecycle and dbUpdateDeleteFile/dbUpdateDeleteDir
-boundaries, including delete-behind-symlink no-scan behavior.
+Target `processDeletions` ordering and coalescing around file-vs-directory
+delete batches, including depth-first directory deletes after child file
+tombstones.
