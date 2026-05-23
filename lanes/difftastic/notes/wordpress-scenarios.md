@@ -96,6 +96,8 @@ ANSI terminal display now maps the upstream syntax-highlighting toggle beyond no
 
 The WordPress syntax-highlight control command example applies that to `wp-content/plugins/acme-card/src/render.php`, showing a reviewer-facing render callback diff with syntax highlighting on and off from a caller-provided environment array.
 
+ANSI parser-error display now maps upstream `src/display/style.rs` `TreeSitterError` purple styling for syntax-highlighted terminal output. The WordPress parser-error ANSI command example compares block registration JavaScript with an extra `}` and, when `parseErrorLimit` allows structural display, colors that parser-error span for terminal reviewers while `DFT_SYNTAX_HIGHLIGHT=off` suppresses the parser-error syntax style.
+
 Command flag parsing now maps upstream `DFT_CHECK_ONLY`, `DFT_EXIT_CODE`, `DFT_SKIP_UNCHANGED`, `DFT_IGNORE_COMMENTS`, `DFT_STRIP_CR`, and `DFT_COLOR` environment-style configuration from `src/options.rs`, `src/main.rs`, and `src/display/style.rs`. Invalid values return bad-argument status before review, and explicit PHP options override caller-provided environment values.
 
 The WordPress env CI-flags command example applies that to a block render callback gate. A caller-provided environment array requests check-only output, exit-code behavior, comment ignoring, and unchanged-output policy so the escaping API change is reported while comment-only churn remains filtered.
@@ -328,10 +330,11 @@ php lanes/difftastic/examples/wordpress-env-display-options-command.php
 php lanes/difftastic/examples/wordpress-env-unstable-json-command.php
 php lanes/difftastic/examples/wordpress-env-display-controls-command.php
 php lanes/difftastic/examples/wordpress-syntax-highlight-control-command.php
+php lanes/difftastic/examples/wordpress-parser-error-ansi-command.php
 php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
 php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
 ```
 
 ## Next Task
 
-Map deeper upstream parser-specific syntax styling for additional languages and tree-sitter-error ANSI styling, then decide whether JSON display should expose any command-level syntax-highlight suppression or remain upstream-style metadata.
+Map deeper parser-specific syntax styling for CSS/HTML/TSX tokens, then decide whether command-level JSON output should expose syntax-highlight suppression or remain upstream-style metadata.

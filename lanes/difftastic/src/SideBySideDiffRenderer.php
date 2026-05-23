@@ -39,6 +39,8 @@ final class SideBySideDiffRenderer
             'backgroundColor' => $backgroundColor,
             'syntaxHighlight' => (bool) ($options['syntaxHighlight'] ?? true),
         ];
+        $oldErrorSpansByLine = $this->syntaxHighlighter->treeSitterErrorSpansByLine($old, $syntaxOptions);
+        $newErrorSpansByLine = $this->syntaxHighlighter->treeSitterErrorSpansByLine($new, $syntaxOptions);
         if (!$showBoth && $old === '' && $new !== '') {
             return $this->renderSingleColumnTextDiff($new, $tabWidth, $useColor, 'right', $backgroundColor);
         }
@@ -64,6 +66,12 @@ final class SideBySideDiffRenderer
             $rhsHasNovel = $newLineNumber !== null && (
                 $oldLineNumber === null || $oldLines[$oldLineNumber] !== $newLines[$newLineNumber]
             );
+            $lhsSyntaxOptions = $oldLineNumber === null
+                ? $syntaxOptions
+                : $this->syntaxOptionsForLine($syntaxOptions, $oldErrorSpansByLine, $oldLineNumber);
+            $rhsSyntaxOptions = $newLineNumber === null
+                ? $syntaxOptions
+                : $this->syntaxOptionsForLine($syntaxOptions, $newErrorSpansByLine, $newLineNumber);
             $lhsParts = $oldLineNumber === null
                 ? [str_repeat(' ', $columnWidth)]
                 : $this->splitLineForDisplayWithNovel(
@@ -74,7 +82,7 @@ final class SideBySideDiffRenderer
                     'left',
                     $useColor,
                     $backgroundColor,
-                    $syntaxOptions,
+                    $lhsSyntaxOptions,
                 );
             $rhsParts = $newLineNumber === null
                 ? ['']
@@ -86,7 +94,7 @@ final class SideBySideDiffRenderer
                     'right',
                     $useColor,
                     $backgroundColor,
-                    $syntaxOptions,
+                    $rhsSyntaxOptions,
                 );
             $partCount = max(count($lhsParts), count($rhsParts));
 
@@ -297,7 +305,7 @@ final class SideBySideDiffRenderer
 
     /**
      * @param list<array{start:int, end:int}> $novelSpans
-     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $syntaxOptions
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style:string}>} $syntaxOptions
      * @return list<array{start:int, end:int, style:string}>
      */
     private function styledSpansForLine(string $line, array $novelSpans, string $side, string $backgroundColor, array $syntaxOptions): array
@@ -321,6 +329,20 @@ final class SideBySideDiffRenderer
         }
 
         return $this->mergeStyledSpans($spans);
+    }
+
+    /**
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $syntaxOptions
+     * @param array<int, list<array{start:int, end:int, style:string}>> $spansByLine
+     * @return array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style:string}>}
+     */
+    private function syntaxOptionsForLine(array $syntaxOptions, array $spansByLine, int $lineNumber): array
+    {
+        if (!isset($spansByLine[$lineNumber])) {
+            return $syntaxOptions;
+        }
+
+        return $syntaxOptions + ['treeSitterErrorSpans' => $spansByLine[$lineNumber]];
     }
 
     /**

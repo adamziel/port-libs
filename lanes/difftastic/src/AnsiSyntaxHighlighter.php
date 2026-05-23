@@ -12,7 +12,7 @@ final class AnsiSyntaxHighlighter
     }
 
     /**
-     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $options
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style?:string}>} $options
      * @return list<array{start:int, end:int, style:string}>
      */
     public function spansForLine(string $line, array $options = []): array
@@ -22,9 +22,14 @@ final class AnsiSyntaxHighlighter
         }
 
         $background = ($options['backgroundColor'] ?? 'dark') === 'light' ? 'light' : 'dark';
+        $errorSpans = $this->treeSitterErrorSpansForLine($options);
         $spans = [];
 
         foreach ($this->differ->tokenize($line, $options) as $token) {
+            if ($this->overlapsStyledSpan($token->start, $token->end, $errorSpans)) {
+                continue;
+            }
+
             $style = $this->styleForToken($token, $background, $options);
             if ($style === null || $token->end <= $token->start) {
                 continue;
@@ -36,16 +41,49 @@ final class AnsiSyntaxHighlighter
                 'style' => $style,
             ];
         }
+        foreach ($errorSpans as $span) {
+            $spans[] = $span;
+        }
 
         return $this->mergeAdjacentSpans($spans);
     }
 
     /**
-     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $options
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style?:string}>} $options
      */
     public function highlightLine(string $line, int $tabWidth, array $options = []): string
     {
         return $this->applySpansToRange($line, 0, strlen($line), $this->spansForLine($line, $options), $tabWidth);
+    }
+
+    /**
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $options
+     * @return array<int, list<array{start:int, end:int, style:string}>>
+     */
+    public function treeSitterErrorSpansByLine(string $source, array $options = []): array
+    {
+        if (($options['syntaxHighlight'] ?? true) === false || trim($source) === '') {
+            return [];
+        }
+
+        $lineStarts = $this->lineStartOffsets($source);
+        $spans = [];
+        foreach ($this->differ->syntaxErrorSpans($source, $options) as $span) {
+            $lineNumber = $this->lineNumberForOffset($lineStarts, $span['start']);
+            $lineStart = $lineStarts[$lineNumber];
+            $spans[$lineNumber][] = [
+                'start' => $span['start'] - $lineStart,
+                'end' => $span['end'] - $lineStart,
+                'style' => '35',
+            ];
+        }
+
+        foreach ($spans as &$lineSpans) {
+            $lineSpans = $this->mergeAdjacentSpans($lineSpans);
+        }
+        unset($lineSpans);
+
+        return $spans;
     }
 
     /**
@@ -98,6 +136,74 @@ final class AnsiSyntaxHighlighter
         }
 
         return $merged;
+    }
+
+    /**
+     * @param array{treeSitterErrorSpans?: list<array{start:int, end:int, style?:string}>} $options
+     * @return list<array{start:int, end:int, style:string}>
+     */
+    private function treeSitterErrorSpansForLine(array $options): array
+    {
+        $spans = [];
+        foreach ($options['treeSitterErrorSpans'] ?? [] as $span) {
+            if ($span['end'] <= $span['start']) {
+                continue;
+            }
+
+            $spans[] = [
+                'start' => $span['start'],
+                'end' => $span['end'],
+                'style' => $span['style'] ?? '35',
+            ];
+        }
+
+        return $this->mergeAdjacentSpans($spans);
+    }
+
+    /**
+     * @param list<array{start:int, end:int, style:string}> $spans
+     */
+    private function overlapsStyledSpan(int $start, int $end, array $spans): bool
+    {
+        foreach ($spans as $span) {
+            if ($start < $span['end'] && $end > $span['start']) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function lineStartOffsets(string $source): array
+    {
+        $starts = [0];
+        $offset = 0;
+        while (($newline = strpos($source, "\n", $offset)) !== false) {
+            $starts[] = $newline + 1;
+            $offset = $newline + 1;
+        }
+
+        return $starts;
+    }
+
+    /**
+     * @param list<int> $lineStarts
+     */
+    private function lineNumberForOffset(array $lineStarts, int $offset): int
+    {
+        $lineNumber = 0;
+        foreach ($lineStarts as $index => $lineStart) {
+            if ($lineStart > $offset) {
+                break;
+            }
+
+            $lineNumber = $index;
+        }
+
+        return $lineNumber;
     }
 
     /**

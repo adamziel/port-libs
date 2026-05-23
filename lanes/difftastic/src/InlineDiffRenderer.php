@@ -47,6 +47,8 @@ final class InlineDiffRenderer
             'backgroundColor' => $backgroundColor,
             'syntaxHighlight' => (bool) ($options['syntaxHighlight'] ?? true),
         ];
+        $oldErrorSpansByLine = $this->syntaxHighlighter->treeSitterErrorSpansByLine($old, $syntaxOptions);
+        $newErrorSpansByLine = $this->syntaxHighlighter->treeSitterErrorSpansByLine($new, $syntaxOptions);
         $output = '';
         $hunkTotal = count($hunks);
 
@@ -58,21 +60,21 @@ final class InlineDiffRenderer
             for ($pairIndex = $beforeStart; $pairIndex < $start; $pairIndex++) {
                 $oldLineNumber = $pairs[$pairIndex][0];
                 if ($oldLineNumber !== null) {
-                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], false, $tabWidth, $useColor, $backgroundColor, $syntaxOptions);
+                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], false, $tabWidth, $useColor, $backgroundColor, $this->syntaxOptionsForLine($syntaxOptions, $oldErrorSpansByLine, $oldLineNumber));
                 }
             }
 
             for ($pairIndex = $start; $pairIndex <= $end; $pairIndex++) {
                 $oldLineNumber = $pairs[$pairIndex][0];
                 if ($oldLineNumber !== null) {
-                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], true, $tabWidth, $useColor, $backgroundColor, $syntaxOptions);
+                    $output .= $this->formatInlineLine('left', $oldLineNumber, $oldLines[$oldLineNumber], true, $tabWidth, $useColor, $backgroundColor, $this->syntaxOptionsForLine($syntaxOptions, $oldErrorSpansByLine, $oldLineNumber));
                 }
             }
 
             for ($pairIndex = $start; $pairIndex <= $end; $pairIndex++) {
                 $newLineNumber = $pairs[$pairIndex][1];
                 if ($newLineNumber !== null) {
-                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], true, $tabWidth, $useColor, $backgroundColor, $syntaxOptions);
+                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], true, $tabWidth, $useColor, $backgroundColor, $this->syntaxOptionsForLine($syntaxOptions, $newErrorSpansByLine, $newLineNumber));
                 }
             }
 
@@ -80,7 +82,7 @@ final class InlineDiffRenderer
             for ($pairIndex = $end + 1; $pairIndex <= $afterEnd; $pairIndex++) {
                 $newLineNumber = $pairs[$pairIndex][1];
                 if ($newLineNumber !== null) {
-                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], false, $tabWidth, $useColor, $backgroundColor, $syntaxOptions);
+                    $output .= $this->formatInlineLine('right', $newLineNumber, $newLines[$newLineNumber], false, $tabWidth, $useColor, $backgroundColor, $this->syntaxOptionsForLine($syntaxOptions, $newErrorSpansByLine, $newLineNumber));
                 }
             }
 
@@ -347,7 +349,7 @@ final class InlineDiffRenderer
     }
 
     /**
-     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $syntaxOptions
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style:string}>} $syntaxOptions
      */
     private function formatInlineLine(string $side, int $lineNumber, string $line, bool $isNovel, int $tabWidth, bool $useColor, string $backgroundColor, array $syntaxOptions): string
     {
@@ -367,6 +369,20 @@ final class InlineDiffRenderer
         }
 
         return '   ' . $lineNumberText . $line . "\n";
+    }
+
+    /**
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool} $syntaxOptions
+     * @param array<int, list<array{start:int, end:int, style:string}>> $spansByLine
+     * @return array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style:string}>}
+     */
+    private function syntaxOptionsForLine(array $syntaxOptions, array $spansByLine, int $lineNumber): array
+    {
+        if (!isset($spansByLine[$lineNumber])) {
+            return $syntaxOptions;
+        }
+
+        return $syntaxOptions + ['treeSitterErrorSpans' => $spansByLine[$lineNumber]];
     }
 
     private function displayLanguageName(string $language): string

@@ -24,6 +24,7 @@ The cache is a sparse blob-filtered clone (`remote.origin.partialclonefilter=blo
 - The upstream graph-limit fallback boundary is inspected through `DEFAULT_GRAPH_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, `dijkstra::mark_syntax`, `ExceededGraphLimit`, and `main.rs` `TextFallback` handling before line-parser fallback positions.
 - The upstream command resource-limit environment boundary is inspected through `src/options.rs` `--byte-limit`/`DFT_BYTE_LIMIT`, `--graph-limit`/`DFT_GRAPH_LIMIT`, and `--parse-error-limit`/`DFT_PARSE_ERROR_LIMIT`, plus `src/main.rs` propagation into `DiffOptions` and text fallback output.
 - The upstream command display-control boundary is inspected through `src/options.rs` `--background`/`DFT_BACKGROUND`, `--syntax-highlight`/`DFT_SYNTAX_HIGHLIGHT`, and `--sort-paths`/`DFT_SORT_PATHS`, plus `src/main.rs` display option propagation and directory sort branching, and `src/display/style.rs` background-aware bright/dim color decisions.
+- The upstream ANSI parser-error styling boundary is inspected through `src/display/style.rs` `color_positions`, where `AtomKind::TreeSitterError` is styled purple when syntax highlighting is enabled, plus the existing `src/display/inline.rs` and `src/display/side_by_side.rs` propagation of display syntax options.
 - The upstream guarded unstable JSON display boundary is inspected through `src/options.rs` `DisplayMode::Json` parsing and `DFT_UNSTABLE` guard, `src/main.rs` JSON display branching, and `src/display/json.rs` single-file/directory JSON printing.
 - The upstream UTF-16 text/binary boundary is inspected through `src/files.rs` `has_utf16_byte_order_mark`, `u16_from_bytes`, and `guess_content`, plus `sample_files/utf16_1.py` / `sample_files/utf16_2.py`.
 - The upstream mostly-valid UTF-8 text/binary boundary is inspected through `src/files.rs` `guess_content` and the `tests/cli.rs` `slightly_invalid_utf8` CLI test, which keeps content with at most two invalid UTF-8/null characters as text before considering Windows-1252 fallback.
@@ -118,6 +119,8 @@ It failed before compilation because the local Cargo cache cannot resolve crates
 - The WordPress env display-controls command example applies that slice to a dark-background side-by-side PHP render diff plus sorted directory JSON review for generated asset metadata and Blade template fixtures, without reading live process environment values.
 - Targeted upstream `src/display/style.rs` `color_positions` plus `src/display/side_by_side.rs` / `src/display/inline.rs` display option propagation are now mapped for ANSI syntax highlighting. Native terminal renderers bold keyword/type tokens, color string literals, and italicize comments when color output is enabled and `syntaxHighlight` is on; setting `DFT_SYNTAX_HIGHLIGHT=off` or explicit `syntaxHighlight => false` suppresses those syntax token styles while retaining red/green novel diff colors.
 - The WordPress syntax-highlight control example applies that slice to `wp-content/plugins/acme-card/src/render.php`, showing caller-provided `DFT_SYNTAX_HIGHLIGHT=on` versus `off` without reading the live process environment.
+- Targeted upstream `src/display/style.rs` parser-error coloring now maps the `AtomKind::TreeSitterError => purple` ANSI path for syntax-highlighted terminal output. Native renderers compute parser-error spans from the full source and pass line-relative spans into inline and side-by-side highlighters, so ordinary block-closing braces on isolated display lines are not mislabeled as parser errors.
+- The WordPress parser-error ANSI command example applies that slice to `wp-content/plugins/acme-card/index.js`: with `parseErrorLimit` high enough to keep structural display and `DFT_SYNTAX_HIGHLIGHT=on`, the extra `}` in a block registration call is styled with purple ANSI output; `DFT_SYNTAX_HIGHLIGHT=off` suppresses that parser-error syntax style while retaining command-level color behavior.
 - Targeted upstream `src/options.rs`, `src/main.rs`, and `src/display/style.rs` command environment flag parsing is now mapped in the native command runner. Caller-supplied `DFT_CHECK_ONLY`, `DFT_EXIT_CODE`, `DFT_SKIP_UNCHANGED`, `DFT_IGNORE_COMMENTS`, `DFT_STRIP_CR`, and `DFT_COLOR` values are parsed before review, invalid values return exit 2, and explicit PHP options take precedence over environment-style configuration.
 - The WordPress env CI-flags command example applies that slice to a block render callback review. Caller-provided check-only, exit-code, ignore-comments, and skip-unchanged values report the escaping API change while filtering comment churn and without reading the live process environment.
 - `tests/cli.rs` `directory_arguments` is mapped through targeted `src/main.rs` `diff_directories` and `src/files.rs` `relative_paths_in_either` reads. The PHP port walks both directories, uses relative per-file display paths, treats one-sided files as created/deleted via missing-as-empty bytes, excludes unchanged files by default, and can opt into unchanged JSON entries.
@@ -229,7 +232,7 @@ Targeted `src/options.rs` resource-limit environment parsing now maps `DFT_BYTE_
 
 The WordPress env resource-limits example applies that slice to block render metadata. A caller-provided `DFT_BYTE_LIMIT=80` forces a bounded text fallback for `wp-content/plugins/acme-card/render-metadata.php`, keeping render callback and support changes reviewable without reading live process environment values.
 
-The focused PHP lane test now passes 201 tests and 1092 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, and command resource-limit environment parsing for byte/graph/parse fallback budgets.
+The focused PHP lane test now passes 205 tests and 1118 assertions, including the existing mapped upstream display/parser/file-decoding slices plus targeted `src/options.rs` display option environment aggregation, invalid numeric display option command status, side-by-side command display routing, guarded `DFT_UNSTABLE` JSON display routing, WordPress tabbed block metadata display configuration, display-control environment parsing for background/syntax-highlight/sort-paths, background-aware ANSI output, sorted directory JSON review, source-wide tree-sitter-error ANSI styling, command boolean/color environment parsing for check-only, exit-code, skip-unchanged, ignore-comments, strip-CR, and color behavior, and command resource-limit environment parsing for byte/graph/parse fallback budgets.
 
 Before the required root test runner, this lane checked for an active root harness:
 
@@ -241,10 +244,10 @@ No active root harness was found, so this lane ran the aggregate root harness. I
 
 ```text
 php tools/run-tests.php
-196 test files, 21349 assertions, 0 failures
+197 test files, 21659 assertions, 0 failures
 ```
 
-The difftastic-focused test file is green with 201 named tests, 1092 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The latest aggregate root harness result is recorded in `lanes/difftastic/lane-status.json`.
+The difftastic-focused test file is green with 205 named tests, 1118 assertions, and 0 failures via a focused `php tools/run-tests.php lanes/difftastic/tests` invocation. The latest aggregate root harness result is recorded in `lanes/difftastic/lane-status.json`.
 
 The touched WordPress examples also run:
 
@@ -298,6 +301,10 @@ exit_code=1
 php lanes/difftastic/examples/wordpress-env-display-controls-command.php | sed -n '1,3p'
 1 render_label('legacy-card');  1 render_label('modern-card');
 [{"aligned_lines"
+php lanes/difftastic/examples/wordpress-parser-error-ansi-command.php | sed -n '1,3p'
+wp-content/plugins/acme-card/index.js --- JavaScript
+1    wp.blocks.registerBlockType('acme/card', { title: 'Card' });
+   1 wp.blocks.registerBlockType('acme/card', { title: 'Card' }});
 php lanes/difftastic/examples/wordpress-env-ci-flags-command.php
 wp-content/plugins/acme-card/src/render.php --- PHP
 Has syntactic changes.
@@ -311,4 +318,4 @@ exit_code=1
 
 ## Next Task
 
-Map deeper upstream syntax-highlight visual token styling beyond novel spans, especially syntax-highlight on/off behavior in ANSI or JSON command output.
+Map deeper parser-specific syntax styling for CSS/HTML/TSX tokens and decide whether command-level JSON output should expose syntax-highlight suppression or remain upstream-style metadata-only JSON.

@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-use PortLibs\Difftastic\HtmlDiffRenderer;
-use PortLibs\Difftastic\FileContentDecoder;
+use PortLibs\Difftastic\AnsiSyntaxHighlighter;
 use PortLibs\Difftastic\DiffCommandRunner;
 use PortLibs\Difftastic\DirectoryDiffer;
+use PortLibs\Difftastic\FileContentDecoder;
 use PortLibs\Difftastic\GitExternalDiffMetadata;
+use PortLibs\Difftastic\HtmlDiffRenderer;
 use PortLibs\Difftastic\InlineDiffRenderer;
 use PortLibs\Difftastic\JsonDiffRenderer;
 use PortLibs\Difftastic\LanguageCatalog;
@@ -3129,6 +3130,60 @@ return [
         $t->same([['start' => 34, 'end' => 35, 'text' => '}']], $differ->syntaxErrorSpans($after, ['language' => 'javascript']));
         $t->same('JavaScript', $decoded['language']);
         $t->contains('}:tree_sitter_error', $encoded);
+    },
+    'ansi highlighter maps upstream tree sitter error style' => static function (TestRunner $t): void {
+        $source = "const settings = { title: \"Card\" }};\nconst ok = true;\n";
+        $line = "const settings = { title: \"Card\" }};";
+        $highlighter = new AnsiSyntaxHighlighter();
+        $spansByLine = $highlighter->treeSitterErrorSpansByLine($source, ['language' => 'javascript']);
+        $lineSpans = $highlighter->spansForLine($line, [
+            'language' => 'javascript',
+            'treeSitterErrorSpans' => $spansByLine[0] ?? [],
+        ]);
+        $rendered = $highlighter->highlightLine($line, 8, [
+            'language' => 'javascript',
+            'treeSitterErrorSpans' => $spansByLine[0] ?? [],
+        ]);
+
+        $t->same([['start' => 34, 'end' => 35, 'style' => '35']], $spansByLine[0] ?? []);
+        $t->true(in_array(['start' => 34, 'end' => 35, 'style' => '35'], $lineSpans, true), 'Tree-sitter-error spans should use upstream purple ANSI styling.');
+        $t->contains("\033[35m}\033[0m", $rendered);
+    },
+    'wordpress parser error ansi command honors syntax highlight control' => static function (TestRunner $t): void {
+        $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";
+        $after = "wp.blocks.registerBlockType('acme/card', { title: 'Card' }});\n";
+        $runner = new DiffCommandRunner();
+        $syntaxOn = $runner->runTextDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/index.js',
+            'JavaScript',
+            ['language' => 'javascript', 'parseErrorLimit' => 1],
+            [
+                'DFT_COLOR' => 'always',
+                'DFT_DISPLAY' => 'inline',
+                'DFT_CONTEXT' => '0',
+                'DFT_SYNTAX_HIGHLIGHT' => 'on',
+            ],
+        );
+        $syntaxOff = $runner->runTextDiff(
+            $before,
+            $after,
+            'wp-content/plugins/acme-card/index.js',
+            'JavaScript',
+            ['language' => 'javascript', 'parseErrorLimit' => 1],
+            [
+                'DFT_COLOR' => 'always',
+                'DFT_DISPLAY' => 'inline',
+                'DFT_CONTEXT' => '0',
+                'DFT_SYNTAX_HIGHLIGHT' => 'off',
+            ],
+        );
+
+        $t->same('Has syntactic changes.', $syntaxOn['message']);
+        $t->same('JavaScript', $syntaxOn['language']);
+        $t->contains("\033[35m}\033[0m", $syntaxOn['stdout']);
+        $t->true(!str_contains($syntaxOff['stdout'], "\033[35m}\033[0m"), 'DFT_SYNTAX_HIGHLIGHT=off should suppress parser-error syntax styling.');
     },
     'json display renderer maps upstream json sample with line chunks' => static function (TestRunner $t): void {
         $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-json-1.json');
