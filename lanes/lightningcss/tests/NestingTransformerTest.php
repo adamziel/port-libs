@@ -295,6 +295,22 @@ CSS;
             $transformer->lower('.parent { color: blue; @scope (& > .scope) to (& .limit) { & .content { color: yellow; } } }')
         );
     },
+    'nesting transformer maps upstream nested starting-style lowering' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+h1 {
+  background: red;
+
+  @starting-style {
+    background: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            'h1{background:red}@starting-style{h1{background:#ff0}}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
     'wordpress nested block stylesheet lowers without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-query {
@@ -328,6 +344,24 @@ CSS;
 
         $t->same(
             '.wp-block-query{color:#00f}.wp-block-query .wp-block-post-title{color:red}.is-featured :is(.wp-block-query .wp-block-post-title){opacity:.9}.wp-block-query:hover .wp-block-post-title{text-decoration-color:#ff0}@media (width>=600px){.wp-block-query .wp-block-post-title{color:#00f}}@scope(.wp-block-query>.wp-block-post-template) to (.wp-block-query>.wp-block-post-template .wp-block-post-excerpt){:scope .wp-block-post-title{color:#ff0}}',
+            (new NestingTransformer())->lower($css)
+        );
+    },
+    'wordpress block transition starting-style lowers without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-button.is-style-fade-in {
+  opacity: 1;
+  transform: translateY(0);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+CSS;
+
+        $t->same(
+            '.wp-block-button.is-style-fade-in{opacity:1;transform:translateY(0)}@starting-style{.wp-block-button.is-style-fade-in{opacity:0;transform:translateY(12px)}}',
             (new NestingTransformer())->lower($css)
         );
     },

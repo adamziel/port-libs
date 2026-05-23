@@ -481,6 +481,47 @@ return [
             static fn () => $minifier->minify('.foo { color: red } @namespace "http://example.com/foo";')
         );
     },
+    'css minifier maps upstream starting-style rule minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@starting-style{h1{background:#ff0}}',
+            $minifier->minify('@starting-style { h1 { background: yellow; } }')
+        );
+        $t->same('', $minifier->minify('@starting-style {}'));
+        $t->same(
+            '.foo{content:"@starting-style{}"}',
+            $minifier->minify('.foo { content: "@starting-style{}"; }')
+        );
+        $t->same(
+            '.foo{--wp--custom--tokens:@starting-style{}}',
+            $minifier->minify('.foo { --wp--custom--tokens: @starting-style{}; }')
+        );
+    },
+    'css minifier maps upstream view-transition rule minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@view-transition{navigation:auto}',
+            $minifier->minify('@view-transition { navigation: auto }')
+        );
+        $t->same(
+            '@view-transition{navigation:auto;types:none}',
+            $minifier->minify('@view-transition { navigation: auto; types: none; }')
+        );
+        $t->same(
+            '@view-transition{navigation:auto;types:foo bar}',
+            $minifier->minify('@view-transition { navigation: auto; types: foo bar; }')
+        );
+        $t->same(
+            '@layer{@view-transition{navigation:auto;types:foo bar}}',
+            $minifier->minify('@layer { @view-transition { navigation: auto; types: foo bar; } }')
+        );
+        $t->same(
+            '.foo{--wp--custom--view-transition:@view-transition{navigation:auto}}',
+            $minifier->minify('.foo { --wp--custom--view-transition: @view-transition{navigation: auto}; }')
+        );
+    },
     'css minifier maps upstream import rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -933,6 +974,58 @@ CSS;
         $t->same('.foo{scale:1 2}', $minifier->minify('.foo { scale: calc(150% - 50%) 200% }'));
         $t->same('.foo{scale:2 -.3}', $minifier->minify('.foo { scale: 200% calc(50% - 80%) }'));
         $t->same('.foo{scale:.333333}', $minifier->minify('.foo { scale: calc(100% / 3) }'));
+    },
+    'css minifier maps upstream keyframes rule minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@keyframes test{to{background:#00f}}',
+            $minifier->minify('@keyframes "test" { 100% { background: blue } }')
+        );
+        $t->same(
+            '@keyframes test{to{background:#00f}}',
+            $minifier->minify('@keyframes test { 100% { background: blue } }')
+        );
+        $t->same(
+            '@keyframes test{entry 0%{background:#00f}exit 100%{background:green}}',
+            $minifier->minify('@keyframes test { entry 0% { background: blue } exit 100% { background: green } }')
+        );
+        $t->same(
+            '@keyframes "revert"{0%{background:green}}',
+            $minifier->minify('@keyframes "revert" { from { background: green; } }')
+        );
+        $t->same(
+            '@keyframes "none"{0%{background:green}}',
+            $minifier->minify('@keyframes "none" { from { background: green; } }')
+        );
+        $t->same(
+            '@keyframes test{}',
+            $minifier->minify('@keyframes test { entry to { background: blue } }')
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@keyframes revert {}'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@keyframes revert-layer {}'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@keyframes none {}'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@keyframes NONE {}'));
+        $t->same(
+            '@-webkit-keyframes test{0%{background:red}to{background:#00f}}',
+            $minifier->minify('@-webkit-keyframes test { from { background: green; background-color: red; } 100% { background: blue } }')
+        );
+        $t->same(
+            '@-moz-keyframes test{0%{background:red}to{background:#00f}}',
+            $minifier->minify('@-moz-keyframes test { from { background: green; background-color: red; } 100% { background: blue } }')
+        );
+        $t->same(
+            '@-webkit-keyframes test{0%{background:red}to{background:#00f}}@-moz-keyframes test{0%{background:red}to{background:#00f}}',
+            $minifier->minify('@-webkit-keyframes test { from { background: green; background-color: red; } 100% { background: blue } } @-moz-keyframes test { from { background: green; background-color: red; } 100% { background: blue } }')
+        );
+        $t->same(
+            '@keyframes test{to{background:red}}',
+            $minifier->minify('@keyframes test { 100% { background: blue } } @keyframes test { 100% { background: red } }')
+        );
+        $t->same(
+            '@keyframes test{to{background:#00f}}@-webkit-keyframes test{to{background:red}}',
+            $minifier->minify('@keyframes test { 100% { background: blue } } @-webkit-keyframes test { 100% { background: red } }')
+        );
     },
     'css minifier maps upstream animation longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -1667,6 +1760,27 @@ CSS;
             (new CssMinifier())->minify($css)
         );
     },
+    'wordpress view transition rules minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@view-transition {
+  navigation: auto;
+  types: page nav-menu;
+}
+
+:root:active-view-transition-type(page, nav-menu) {
+  color: yellow;
+}
+
+.wp-block-navigation__responsive-container {
+  view-transition-name: wp-nav-menu;
+}
+CSS;
+
+        $t->same(
+            '@view-transition{navigation:auto;types:page nav-menu}:root:active-view-transition-type(page,nav-menu){color:#ff0}.wp-block-navigation__responsive-container{view-transition-name:wp-nav-menu}',
+            (new CssMinifier())->minify($css)
+        );
+    },
     'wordpress block interaction transition shorthands minify without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-button.is-style-slide .wp-element-button {
@@ -1834,6 +1948,30 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-entrance{animation:3s ease-in .1s 2 alternate backwards wp-cover-entrance scroll()}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress block keyframes minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@keyframes "wp-cover-reveal" {
+  from {
+    opacity: 0;
+    transform: translateY(calc(10px + 20px));
+  }
+
+  100% {
+    opacity: 1;
+    background: blue;
+  }
+}
+
+.wp-block-cover.is-style-reveal {
+  animation: "wp-cover-reveal" 600ms cubic-bezier(0.42, 0, 1, 1) both;
+}
+CSS;
+
+        $t->same(
+            '@keyframes wp-cover-reveal{0%{opacity:0;transform:translateY(30px)}to{opacity:1;background:#00f}}.wp-block-cover.is-style-reveal{animation:.6s ease-in both wp-cover-reveal}',
             (new CssMinifier())->minify($css)
         );
     },

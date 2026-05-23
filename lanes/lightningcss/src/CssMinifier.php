@@ -97,6 +97,7 @@ final class CssMinifier
         $css = $this->normalizeNamespaceAttributeSelectors($css);
         $css = $this->minifySupportsRules($css);
         $css = $this->minifyFontFeatureValuesRules($css);
+        $css = $this->minifyKeyframesRules($css);
         $css = $this->mergeAdjacentRuleBlocks($css);
         $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
@@ -108,8 +109,10 @@ final class CssMinifier
 
         $css = $this->composeAnimationDeclarationBlocks($css);
         $css = $this->minifyPropertyRules($css);
+        $css = $this->minifyViewTransitionRules($css);
         $css = $this->validatePageRules($css);
         $css = $this->normalizeScopeRuleSpacing($css);
+        $css = $this->removeEmptyStartingStyleRules($css);
 
         return $this->compactLegacyPseudoElementColons($css);
     }
@@ -410,6 +413,148 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function removeEmptyStartingStyleRules(string $css): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($css);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $css[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '@' && $this->startsWithAtKeyword($css, $i, '@starting-style') && $this->isRuleListBoundaryBefore($output)) {
+                $bodyStart = $i + strlen('@starting-style');
+                while ($bodyStart < $length && ctype_space($css[$bodyStart])) {
+                    $bodyStart++;
+                }
+
+                if (($css[$bodyStart] ?? '') === '{') {
+                    $close = $this->findMatchingBraceInCss($css, $bodyStart);
+                    if (trim(substr($css, $bodyStart + 1, $close - $bodyStart - 1)) === '') {
+                        $i = $close;
+                        continue;
+                    }
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function minifyViewTransitionRules(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $position = $this->findAtKeywordInCss($css, '@view-transition', $cursor);
+            if ($position === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            if (!$this->isRuleListBoundaryBefore(substr($css, 0, $position))) {
+                $output .= substr($css, $cursor, $position - $cursor + 1);
+                $cursor = $position + 1;
+                continue;
+            }
+
+            $open = $this->findNextTopLevel($css, '{', $position + strlen('@view-transition'));
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $prelude = trim(substr($css, $position, $open - $position));
+            if (strcasecmp($prelude, '@view-transition') !== 0) {
+                $output .= substr($css, $cursor, $open - $cursor + 1);
+                $cursor = $open + 1;
+                continue;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = substr($css, $open + 1, $close - $open - 1);
+            $output .= substr($css, $cursor, $position - $cursor)
+                . '@view-transition{'
+                . $this->minifyViewTransitionDeclarationList($body)
+                . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function minifyViewTransitionDeclarationList(string $body): string
+    {
+        if (str_contains($body, '{')) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $parts = [];
+        foreach ($entries as $entry) {
+            $property = $entry['property'];
+            $value = match ($property) {
+                'navigation' => strtolower($entry['value']),
+                'types' => $this->minifyViewTransitionTypesValue($entry['value']),
+                default => $entry['value'],
+            };
+            $parts[] = $property . ':' . $value . ($entry['important'] ? '!important' : '');
+        }
+
+        return implode(';', $parts);
+    }
+
+    private function minifyViewTransitionTypesValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        return implode(' ', array_map(
+            static fn (string $token): string => strcasecmp($token, 'none') === 0 ? 'none' : $token,
+            $tokens
+        ));
+    }
+
+    private function isRuleListBoundaryBefore(string $output): bool
+    {
+        for ($i = strlen($output) - 1; $i >= 0; $i--) {
+            if (ctype_space($output[$i])) {
+                continue;
+            }
+
+            return in_array($output[$i], ['{', '}', ';'], true);
+        }
+
+        return true;
     }
 
     private function minifyImportRules(string $css): string
@@ -2702,6 +2847,218 @@ final class CssMinifier
         return implode('', $parts);
     }
 
+    private function minifyKeyframesRules(string $css): string
+    {
+        $parts = [];
+        $keyframeIndexes = [];
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $parts[] = substr($css, $cursor);
+                break;
+            }
+
+            $preludePrefix = substr($css, $cursor, $open - $cursor);
+            $statementBoundary = $this->lastTopLevelSemicolon($preludePrefix);
+            $statementPrefix = '';
+            if ($statementBoundary !== null) {
+                $statementPrefix = substr($preludePrefix, 0, $statementBoundary + 1);
+                $preludePrefix = substr($preludePrefix, $statementBoundary + 1);
+            }
+
+            $prelude = trim($preludePrefix);
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = substr($css, $open + 1, $close - $open - 1);
+            $keyframes = $this->minifyKeyframesPrelude($prelude);
+
+            if ($keyframes !== null) {
+                if ($statementPrefix !== '') {
+                    $parts[] = $statementPrefix;
+                }
+                $serialized = $keyframes['prelude'] . '{' . $this->minifyKeyframesBody($body) . '}';
+                if (isset($keyframeIndexes[$keyframes['key']])) {
+                    $parts[$keyframeIndexes[$keyframes['key']]] = $serialized;
+                } else {
+                    $keyframeIndexes[$keyframes['key']] = count($parts);
+                    $parts[] = $serialized;
+                }
+            } elseif (str_starts_with($prelude, '@')) {
+                $parts[] = $statementPrefix . $preludePrefix . '{' . $this->minifyKeyframesRules($body) . '}';
+            } else {
+                $parts[] = $statementPrefix . $preludePrefix . '{' . $body . '}';
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return implode('', $parts);
+    }
+
+    /**
+     * @return array{key:string,prelude:string}|null
+     */
+    private function minifyKeyframesPrelude(string $prelude): ?array
+    {
+        if (preg_match('/^@((?:-[a-z]+-)?keyframes)\s+(.+)$/i', trim($prelude), $matches) !== 1) {
+            return null;
+        }
+
+        $keyword = '@' . strtolower($matches[1]);
+        $name = $this->minifyKeyframesName($matches[2]);
+
+        return [
+            'key' => strtolower($keyword . ' ' . $name),
+            'prelude' => $keyword . ' ' . $name,
+        ];
+    }
+
+    private function minifyKeyframesName(string $name): string
+    {
+        $name = trim($name);
+        $unquoted = $this->unquoteCssString($name);
+        if ($unquoted !== null) {
+            if (preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $unquoted) === 1 && !$this->isReservedAnimationName($unquoted)) {
+                return $unquoted;
+            }
+
+            return $this->quoteCssString($unquoted);
+        }
+
+        if ($this->isReservedAnimationName($name)) {
+            throw new \InvalidArgumentException('Invalid @keyframes name: ' . $name);
+        }
+
+        return $name;
+    }
+
+    private function minifyKeyframesBody(string $body): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($body);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($body, '{', $cursor);
+            if ($open === null) {
+                break;
+            }
+
+            $prelude = trim(substr($body, $cursor, $open - $cursor));
+            $close = $this->findMatchingBraceInCss($body, $open);
+            $selectors = $this->minifyKeyframeSelectorList($prelude);
+            if ($selectors !== null) {
+                $declarations = $this->rewriteKeyframeDeclarationList(substr($body, $open + 1, $close - $open - 1));
+                $output .= $selectors . '{' . $declarations . '}';
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function minifyKeyframeSelectorList(string $selectorList): ?string
+    {
+        $selectors = [];
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            $normalized = $this->minifyKeyframeSelector($selector);
+            if ($normalized === null) {
+                return null;
+            }
+            if ($normalized !== '') {
+                $selectors[] = $normalized;
+            }
+        }
+
+        return $selectors === [] ? null : implode(',', $selectors);
+    }
+
+    private function minifyKeyframeSelector(string $selector): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($selector));
+        if ($tokens === []) {
+            return null;
+        }
+
+        if (count($tokens) === 1) {
+            $token = strtolower($tokens[0]);
+            if ($token === 'from') {
+                return '0%';
+            }
+            if ($token === 'to') {
+                return 'to';
+            }
+            if ($this->isHundredPercentToken($token)) {
+                return 'to';
+            }
+
+            return $tokens[0];
+        }
+
+        if (count($tokens) === 2) {
+            $offset = strtolower($tokens[1]);
+            if ($offset === 'from' || $offset === 'to') {
+                return null;
+            }
+
+            return $tokens[0] . ' ' . $tokens[1];
+        }
+
+        return trim($selector);
+    }
+
+    private function rewriteKeyframeDeclarationList(string $body): string
+    {
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $lastBackground = null;
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+
+            if ($entry['property'] === 'background') {
+                $lastBackground = $index;
+                continue;
+            }
+
+            if ($entry['property'] !== 'background-color' || $lastBackground === null) {
+                continue;
+            }
+
+            if ($entries[$lastBackground]['important'] !== $entry['important']) {
+                continue;
+            }
+
+            if (!$this->isSimpleBackgroundColorValue($entries[$lastBackground]['value'])
+                || !$this->isSimpleBackgroundColorValue($entry['value'])
+            ) {
+                continue;
+            }
+
+            $entries[$lastBackground]['value'] = $entry['value'];
+            $entries[$index]['drop'] = true;
+        }
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function isSimpleBackgroundColorValue(string $value): bool
+    {
+        $value = trim($value);
+
+        return $value !== ''
+            && !str_contains($value, ' ')
+            && !str_contains($value, '(')
+            && !str_contains($value, ',');
+    }
+
     private function validatePageRules(string $css): string
     {
         $cursor = 0;
@@ -3922,6 +4279,21 @@ final class CssMinifier
         }
 
         return in_array(strtolower($name), [
+            ...$this->reservedAnimationNames(),
+        ], true) ? $value : $name;
+    }
+
+    private function isReservedAnimationName(string $name): bool
+    {
+        return in_array(strtolower(trim($name)), $this->reservedAnimationNames(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function reservedAnimationNames(): array
+    {
+        return [
             'default',
             'inherit',
             'initial',
@@ -3929,7 +4301,7 @@ final class CssMinifier
             'revert',
             'revert-layer',
             'unset',
-        ], true) ? $value : $name;
+        ];
     }
 
     private function minifyAnimationShorthandLayer(string $layer): string
