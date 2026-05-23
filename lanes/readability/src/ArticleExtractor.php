@@ -195,7 +195,6 @@ final class ArticleExtractor
             $this->firstMetadataValue([
                 $jsonLdMetadata['siteName'] ?? null,
                 $metaValues['og:site_name'] ?? null,
-                $this->metadataValue($xpath, ['//meta[@name="application-name"]/@content']),
             ]),
             $this->firstMetadataValue([
                 $jsonLdMetadata['publishedTime'] ?? null,
@@ -816,7 +815,18 @@ final class ArticleExtractor
                 || preg_match('/byline|author|dateline|writtenby|p-author/i', $matchString) === 1)
             && $bylineLength > 0
             && $bylineLength < 100
+            && !$this->isPromotionalBylineNode($node)
             && !$this->hasUnlikelyBylineAncestor($node);
+    }
+
+    private function isPromotionalBylineNode(\DOMElement $node): bool
+    {
+        $matchString = $node->getAttribute('class') . ' ' . $node->getAttribute('id');
+        if (preg_match('/\b(?:bf-byline_prefix|promoted-label|by-line--f-other|bf-byline-other)\b/i', $matchString) === 1) {
+            return true;
+        }
+
+        return in_array($this->normalizeWhitespace($node->textContent), ['Promoted by', 'BuzzFeed Staff'], true);
     }
 
     private function articleBylineText(\DOMXPath $xpath, \DOMElement $node): string
@@ -1516,6 +1526,18 @@ final class ArticleExtractor
             return $scope;
         }
 
+        $articleParent = $article->parentNode;
+        if ($articleParent instanceof \DOMElement
+            && $articleParent !== $scope
+            && $this->nodeContains($scope, $articleParent)
+            && $this->shouldPreserveArticleSiblingEnvelope($articleParent, $article)) {
+            return $articleParent;
+        }
+
+        if ($this->shouldPreserveArticleSiblingEnvelope($scope, $article)) {
+            return $scope;
+        }
+
         $scopeText = mb_strlen($this->normalizeWhitespace($scope->textContent));
         $articleText = mb_strlen($this->normalizeWhitespace($article->textContent));
         $articleParagraphs = $article->getElementsByTagName('p')->length;
@@ -1526,6 +1548,40 @@ final class ArticleExtractor
         }
 
         return $article;
+    }
+
+    private function shouldPreserveArticleSiblingEnvelope(\DOMElement $scope, \DOMElement $article): bool
+    {
+        if ($article->parentNode !== $scope || !$this->isWashingtonPostArticleBodyScope($scope)) {
+            return false;
+        }
+
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        foreach ($scope->childNodes as $sibling) {
+            if ($sibling === $article) {
+                return false;
+            }
+
+            if (!$sibling instanceof \DOMElement || $this->isElementWithoutContent($sibling)) {
+                continue;
+            }
+
+            if ($this->isLeadingBylineChrome($xpath, $sibling) || $this->looksLikePlatformChrome($sibling->textContent)) {
+                continue;
+            }
+
+            if ($this->hasMediaPayload($sibling) || mb_strlen($this->normalizeWhitespace($sibling->textContent)) >= 20) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isWashingtonPostArticleBodyScope(\DOMElement $scope): bool
+    {
+        return trim($scope->getAttribute('id')) === 'article-body'
+            && $this->hasClassToken($scope, 'article-body');
     }
 
     private function promotePublisherArticleRoot(\DOMElement $candidate): \DOMElement
@@ -1665,12 +1721,49 @@ final class ArticleExtractor
         $xpath = new \DOMXPath($scope->ownerDocument);
         $remove = [];
         foreach ($xpath->query(
+            './/*[@id="mediacontentbreakingnews"]/*[contains(concat(" ", normalize-space(@class), " "), " bd ")]'
+            . '|.//*[@id="mediacontentstory"]//*[contains(concat(" ", normalize-space(@class), " "), " credit-bar ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " interest-bar ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " topic-bar ")]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query(
             './/*[@id="js-ie-storytop"'
             . ' or (starts-with(@id, "sa_") and contains(@id, "-img"))'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " pb-sig-line ")'
+            . ' or contains(concat(" ", normalize-space(@class), " "), " inline-gallery-embedded ")'
             . ' or contains(concat(" ", normalize-space(@class), " "), " cnnplayer ")'
             . ' or contains(concat(" ", normalize-space(@class), " "), " cnnVidFooter ")'
             . ' or contains(concat(" ", normalize-space(@class), " "), " teads-inread ")'
             . ' or contains(concat(" ", normalize-space(@class), " "), " teads-ui-components-label ")]',
+            $scope,
+        ) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " inline-graphic-linked ")]//*[contains(concat(" ", normalize-space(@class), " "), " photo-wrapper ")]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " buzz_superlist_item_image ")]/*[contains(concat(" ", normalize-space(@class), " "), " sub_buzz_content ")]', $scope) ?: [] as $node) {
+            if ($node instanceof \DOMElement) {
+                $remove[] = $node;
+            }
+        }
+
+        foreach ($xpath->query(
+            './/p[contains(concat(" ", normalize-space(@class), " "), " print ")]'
+            . '|.//*[contains(concat(" ", normalize-space(@class), " "), " user-bio ")]'
+            . '|.//section[contains(concat(" ", normalize-space(@class), " "), " bottom_shares ")]',
             $scope,
         ) ?: [] as $node) {
             if ($node instanceof \DOMElement) {
@@ -1992,7 +2085,7 @@ final class ArticleExtractor
             return true;
         }
 
-        if (preg_match('/\b(byline|author|dateline|writtenby|p-author)\b/', $matchString) === 1) {
+        if (preg_match('/\b(byline|author|dateline|writtenby|p-author|sig-line)\b/', $matchString) === 1) {
             return true;
         }
 
@@ -2263,6 +2356,7 @@ final class ArticleExtractor
         $this->removeDuplicateSvgSymbolSprites($scope);
         $this->removeTextArticleImageSections($scope);
         $this->wrapPhrasingContentInDivs($scope);
+        $this->unwrapWashingtonPostInlinePhotoParagraphs($scope);
         $scope = $this->convertPhrasingDivsToParagraphs($scope);
         $scope = $this->simplifyNestedElements($scope);
         $scope = $this->unwrapHrSeparatedPageContainers($scope);
@@ -2459,6 +2553,26 @@ final class ArticleExtractor
             if ($child instanceof \DOMElement) {
                 $this->removeCommentNodes($child);
             }
+        }
+    }
+
+    private function unwrapWashingtonPostInlinePhotoParagraphs(\DOMElement $scope): void
+    {
+        $xpath = new \DOMXPath($scope->ownerDocument);
+        foreach ($xpath->query('.//div[contains(concat(" ", normalize-space(@class), " "), " inline-photo-normal ")]', $scope) ?: [] as $node) {
+            if (!$node instanceof \DOMElement
+                || !$node->parentNode instanceof \DOMNode
+                || !$this->hasSingleTagInsideElement($node, 'p')) {
+                continue;
+            }
+
+            $paragraph = $this->firstElementChild($node);
+            if (!$paragraph instanceof \DOMElement) {
+                continue;
+            }
+
+            $node->removeChild($paragraph);
+            $node->parentNode->replaceChild($paragraph, $node);
         }
     }
 
@@ -2865,7 +2979,10 @@ final class ArticleExtractor
 
     private function isTextArticleSectionWrapper(\DOMElement $node): bool
     {
-        return preg_match('/\barticleBodyText\b/', $node->getAttribute('class')) === 1;
+        $class = $node->getAttribute('class');
+
+        return preg_match('/\b(?:articleBodyText|duet--article--article-pullquote|pullquote)\b/', $class) === 1
+            || (str_contains($class, 'article-body-component') && str_contains($class, 'float-left'));
     }
 
     private function removeLinkHeavyFigureChrome(\DOMElement $scope): void
@@ -3711,6 +3828,11 @@ final class ArticleExtractor
             $weight += 10000;
         }
 
+        if (preg_match('/\bparagraph\b/', $matchString) === 1
+            && $this->hasDescendantWithClass($node, 'ynDetailText')) {
+            $weight += 12000;
+        }
+
         if ($this->hasArticleBodyAttribute($node)) {
             $weight += 3000;
         }
@@ -3735,6 +3857,17 @@ final class ArticleExtractor
     {
         return str_contains(strtolower($node->getAttribute('itemprop')), 'articlebody')
             || str_contains(strtolower($node->getAttribute('property')), 'articlebody');
+    }
+
+    private function hasDescendantWithClass(\DOMElement $node, string $class): bool
+    {
+        foreach ($node->getElementsByTagName('*') as $descendant) {
+            if ($descendant instanceof \DOMElement && $this->hasClassToken($descendant, $class)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function innerHtml(\DOMNode $node): string
@@ -3787,6 +3920,11 @@ final class ArticleExtractor
 
         if (strtolower($node->tagName) === 'div'
             && trim($node->getAttribute('id')) === 'storytext') {
+            return true;
+        }
+
+        if (strtolower($node->tagName) === 'div'
+            && trim($node->getAttribute('id')) === 'content') {
             return true;
         }
 
