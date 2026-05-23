@@ -48,8 +48,10 @@ non-progress unless it is explicitly temporary oracle tooling.
      but the final gate returned active root PIDs `2611443` and `2611450`.
      Owner evidence captured without inspecting environments:
      `2611443 claude 2611442 00:13 R php tools/run-tests.php` and
-     `2611450 claude 2569257 00:12 Ss php tools/run-tests.php`.
-     I did not start a duplicate root run.
+     `2611450 claude 2569257 00:12 Ss php tools/run-tests.php`. A
+     post-commit handoff sample later found active PID `2612277` with owner
+     evidence `2612277 claude 2569759 00:21 Rs php tools/run-tests.php`. I did
+     not start a duplicate root run.
    - Evidence: lane statuses now mix green root runs, pending duplicate-root
      gates, and red aggregate anecdotes. Examples: Difftastic records a
      completed aggregate run with 3 failures outside the lane; Quadrable records
@@ -171,6 +173,13 @@ Owner evidence:
 ```text
 2611443 claude 2611442 00:13 R php tools/run-tests.php
 2611450 claude 2569257 00:12 Ss php tools/run-tests.php
+```
+
+Post-commit handoff sample:
+
+```text
+2612277 php tools/run-tests.php
+owner evidence: 2612277 claude 2569759 00:21 Rs php tools/run-tests.php
 ```
 
 No duplicate root run was started. Earlier clear gates were not sufficient for a
