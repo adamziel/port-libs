@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PortLibs\Difftastic\HtmlDiffRenderer;
 use PortLibs\Difftastic\FileContentDecoder;
+use PortLibs\Difftastic\DiffCommandRunner;
+use PortLibs\Difftastic\DirectoryDiffer;
 use PortLibs\Difftastic\GitExternalDiffMetadata;
 use PortLibs\Difftastic\InlineDiffRenderer;
 use PortLibs\Difftastic\JsonDiffRenderer;
@@ -1154,6 +1156,265 @@ return [
 
         $t->same('render.php', $metadata->displayPath);
         $t->same('File permissions changed from 100644 to 100755.', $metadata->extraInfo);
+    },
+    'maps upstream two path arguments to common suffix display path' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-dir-clojure-1.clj');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-dir-clojure-2.clj');
+        $display = (new InlineDiffRenderer())->renderPathArgumentsTextDiff($before, $after, [
+            'sample_files/dir_1/clojure.clj',
+            'sample_files/dir_2/clojure.clj',
+        ], [
+            'language' => 'text',
+            'contextLines' => 1,
+        ]);
+
+        $t->contains('clojure.clj --- Text', $display);
+        $t->contains('(println "hello!")', $display);
+        $t->contains('(assoc :twice (+ x x))', $display);
+        $t->true(!str_contains($display, 'dir_2/clojure.clj ---'), 'Difftastic build_display_path should drop differing directory prefixes when the path suffix matches.');
+    },
+    'maps upstream build display path git temp and extension fallbacks' => static function (TestRunner $t): void {
+        $fromGitTemp = GitExternalDiffMetadata::fromPathArguments([
+            '/tmp/git-blob-old/render.php',
+            'wp-content/plugins/acme-card/includes/render.php',
+        ], '/tmp');
+        $rhsWithExtension = GitExternalDiffMetadata::fromPathArguments([
+            'old/README',
+            'new/block.json',
+        ]);
+        $rhsWithoutExtension = GitExternalDiffMetadata::fromPathArguments([
+            'old/README',
+            'new/CHANGELOG',
+        ]);
+
+        $t->same('wp-content/plugins/acme-card/includes/render.php', $fromGitTemp->displayPath);
+        $t->same('new/block.json', $rhsWithExtension->displayPath);
+        $t->same('old/README', $rhsWithoutExtension->displayPath);
+    },
+    'maps upstream git single argument unmerged path status' => static function (TestRunner $t): void {
+        $arguments = ['sample_files/simple_1.js'];
+
+        $t->same(
+            "Unmerged path: sample_files/simple_1.js\n",
+            GitExternalDiffMetadata::unmergedPathMessage($arguments, ['GIT_EXEC_PATH' => '/usr/lib/git-core']),
+        );
+        $t->same(
+            "Unmerged path: sample_files/simple_1.js\n",
+            (new InlineDiffRenderer())->renderUnmergedPathStatus($arguments, ['GIT_DIFF_PATH_TOTAL' => '1']),
+        );
+        $t->same(null, GitExternalDiffMetadata::unmergedPathMessage($arguments, []));
+        $t->same(null, GitExternalDiffMetadata::unmergedPathMessage(['left.js', 'right.js'], ['GIT_EXEC_PATH' => '/usr/lib/git-core']));
+    },
+    'maps upstream check only and exit code cli behavior' => static function (TestRunner $t): void {
+        $before = "const React = require('react');\nconsole.log('hello world');\n";
+        $after = "import React, {useState} from 'react';\nconsole.log('hello world');\n";
+        $textBefore = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-text-1.txt');
+        $textAfter = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-text-2.txt');
+        $runner = new DiffCommandRunner();
+
+        $defaultExit = $runner->runTextDiff($before, $after, 'sample_files/simple_1.js', 'JavaScript', [
+            'language' => 'javascript',
+        ]);
+        $requestedExit = $runner->runTextDiff($before, $after, 'sample_files/simple_1.js', 'JavaScript', [
+            'language' => 'javascript',
+            'exitCode' => true,
+        ]);
+        $checkOnlySyntax = $runner->runCheckOnly($before, $after, 'sample_files/simple_1.js', 'JavaScript', [
+            'language' => 'javascript',
+        ]);
+        $checkOnlyText = $runner->runCheckOnly($textBefore, $textAfter, 'sample_files/text_1.txt', 'Text', [
+            'language' => 'text',
+        ]);
+        $checkOnlyUnchanged = $runner->runCheckOnly($before, $before, 'sample_files/simple_1.js', 'JavaScript', [
+            'language' => 'javascript',
+            'exitCode' => true,
+        ]);
+        $skippedUnchanged = $runner->runCheckOnly($before, $before, 'sample_files/simple_1.js', 'JavaScript', [
+            'language' => 'javascript',
+            'printUnchanged' => false,
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $defaultExit['exitCode']);
+        $t->same(true, $defaultExit['hasChanges']);
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $requestedExit['exitCode']);
+        $t->contains('sample_files/simple_1.js --- JavaScript', $checkOnlySyntax['stdout']);
+        $t->contains('Has syntactic changes.', $checkOnlySyntax['stdout']);
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $checkOnlySyntax['exitCode']);
+        $t->contains('sample_files/text_1.txt --- Text', $checkOnlyText['stdout']);
+        $t->contains('Has changes.', $checkOnlyText['stdout']);
+        $t->true(!str_contains($checkOnlyText['stdout'], 'Has syntactic changes.'), 'Text check-only mode should report byte/text changes, not syntactic changes.');
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $checkOnlyUnchanged['exitCode']);
+        $t->contains('No syntactic changes.', $checkOnlyUnchanged['stdout']);
+        $t->same('', $skippedUnchanged['stdout']);
+    },
+    'maps upstream directory arguments with relative created and deleted paths' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $root = sys_get_temp_dir() . '/difftastic-dir-' . str_replace('.', '-', uniqid('', true));
+        $left = $root . '/dir_1';
+        $right = $root . '/dir_2';
+        $write = static function (string $path, string $contents): void {
+            $directory = dirname($path);
+            if (!is_dir($directory)) {
+                mkdir($directory, 0777, true);
+            }
+            file_put_contents($path, $contents);
+        };
+        $remove = static function (string $path) use (&$remove): void {
+            if (!file_exists($path)) {
+                return;
+            }
+            if (is_dir($path) && !is_link($path)) {
+                foreach (scandir($path) ?: [] as $entry) {
+                    if ($entry !== '.' && $entry !== '..') {
+                        $remove($path . DIRECTORY_SEPARATOR . $entry);
+                    }
+                }
+                rmdir($path);
+                return;
+            }
+            unlink($path);
+        };
+
+        try {
+            $write($left . '/foo.js', (string) file_get_contents($fixtures . '/upstream-dir-foo-1.js'));
+            $write($right . '/foo.js', (string) file_get_contents($fixtures . '/upstream-dir-foo-2.js'));
+            $write($left . '/only_in_1.c', (string) file_get_contents($fixtures . '/upstream-dir-only-in-1.c'));
+            $write($right . '/only_in_2.rs', (string) file_get_contents($fixtures . '/upstream-dir-only-in-2.rs'));
+            $write($left . '/same.txt', "stable\n");
+            $write($right . '/same.txt', "stable\n");
+            $write($left . '/.git/config', "old repository metadata\n");
+            $write($right . '/.git/config', "new repository metadata\n");
+
+            $differ = new DirectoryDiffer();
+            $paths = $differ->relativePathsInEither($left, $right);
+            $files = $differ->diffDirectories($left, $right);
+            $byPath = [];
+            foreach ($files as $file) {
+                $byPath[$file['path']] = $file;
+            }
+
+            $t->same(['foo.js', 'only_in_1.c', 'only_in_2.rs', 'same.txt'], $paths);
+            $t->same('changed', $byPath['foo.js']['status']);
+            $t->same('deleted', $byPath['only_in_1.c']['status']);
+            $t->same('created', $byPath['only_in_2.rs']['status']);
+            $t->true(!isset($byPath['same.txt']), 'Unchanged directory files should be filtered by default.');
+            $t->true(!isset($byPath['.git/config']), 'The directory walker should exclude .git internals.');
+
+            $withUnchanged = $differ->diffDirectories($left, $right, ['printUnchanged' => true]);
+            $withUnchangedPaths = array_column($withUnchanged, 'path');
+            $t->contains('same.txt', implode("\n", $withUnchangedPaths));
+        } finally {
+            $remove($root);
+        }
+    },
+    'maps upstream hidden file walking through dotfiles and dot directories' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $root = sys_get_temp_dir() . '/difftastic-hidden-' . str_replace('.', '-', uniqid('', true));
+        $left = $root . '/hidden_1';
+        $right = $root . '/hidden_2';
+        $bytes = static function (string $path): string {
+            $hex = preg_replace('/\s+/', '', (string) file_get_contents($path));
+
+            return (string) hex2bin($hex ?? '');
+        };
+        $write = static function (string $path, string $contents): void {
+            $directory = dirname($path);
+            if (!is_dir($directory)) {
+                mkdir($directory, 0777, true);
+            }
+            file_put_contents($path, $contents);
+        };
+        $remove = static function (string $path) use (&$remove): void {
+            if (!file_exists($path)) {
+                return;
+            }
+            if (is_dir($path) && !is_link($path)) {
+                foreach (scandir($path) ?: [] as $entry) {
+                    if ($entry !== '.' && $entry !== '..') {
+                        $remove($path . DIRECTORY_SEPARATOR . $entry);
+                    }
+                }
+                rmdir($path);
+                return;
+            }
+            unlink($path);
+        };
+
+        try {
+            $write($left . '/.hidden.txt', $bytes($fixtures . '/upstream-hidden-dotfile-before.hex'));
+            $write($right . '/.hidden.txt', $bytes($fixtures . '/upstream-hidden-dotfile-after.hex'));
+            $write($left . '/.hidden/doc.txt', $bytes($fixtures . '/upstream-hidden-doc-before.hex'));
+            $write($right . '/.hidden/doc.txt', $bytes($fixtures . '/upstream-hidden-doc-after.hex'));
+            $write($left . '/.git/config', "before\n");
+            $write($right . '/.git/config', "after\n");
+
+            $json = (new DirectoryDiffer())->renderJsonDirectoryDiff($left, $right);
+            $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+            $paths = array_column($decoded, 'path');
+
+            $t->contains('.hidden/doc.txt', implode("\n", $paths));
+            $t->contains('.hidden.txt', implode("\n", $paths));
+            $t->contains('before', $json);
+            $t->contains('after', $json);
+            $t->true(!str_contains($json, '.git/config'), 'Hidden walking should still skip .git directories.');
+        } finally {
+            $remove($root);
+        }
+    },
+    'wordpress plugin directory json diff includes hidden tooling and filters unchanged files' => static function (TestRunner $t): void {
+        $fixtures = dirname(__DIR__) . '/fixtures';
+        $files = (new DirectoryDiffer())->diffDirectories(
+            $fixtures . '/wordpress-directory-before',
+            $fixtures . '/wordpress-directory-after',
+        );
+        $paths = array_column($files, 'path');
+        $json = json_encode($files, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->contains('.wp-env.json', implode("\n", $paths));
+        $t->contains('wp-content/plugins/acme-card/block.json', implode("\n", $paths));
+        $t->true(!in_array('wp-content/plugins/acme-card/src/render.php', $paths, true), 'Unchanged plugin render files should not appear in directory JSON by default.');
+        $t->contains('../../mu-plugins/acme-cache', $json);
+        $t->contains('viewScriptModule', $json);
+    },
+    'wordpress check only command reports block metadata gate status' => static function (TestRunner $t): void {
+        $before = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-before.json');
+        $after = (string) file_get_contents(dirname(__DIR__) . '/fixtures/wordpress-block-json-after.json');
+        $runner = new DiffCommandRunner();
+        $changed = $runner->runCheckOnly($before, $after, 'wp-content/plugins/acme-card/block.json', 'JSON', [
+            'language' => 'json',
+            'exitCode' => true,
+            'extraInfo' => 'WordPress plugin metadata gate',
+        ]);
+        $unchanged = $runner->runCheckOnly($before, $before, 'wp-content/plugins/acme-card/block.json', 'JSON', [
+            'language' => 'json',
+            'exitCode' => true,
+            'printUnchanged' => false,
+        ]);
+
+        $t->same(DiffCommandRunner::EXIT_FOUND_CHANGES, $changed['exitCode']);
+        $t->same(true, $changed['hasChanges']);
+        $t->contains('wp-content/plugins/acme-card/block.json --- JSON', $changed['stdout']);
+        $t->contains('WordPress plugin metadata gate', $changed['stdout']);
+        $t->contains('Has syntactic changes.', $changed['stdout']);
+        $t->same(DiffCommandRunner::EXIT_SUCCESS, $unchanged['exitCode']);
+        $t->same('', $unchanged['stdout']);
+    },
+    'wordpress git backed common path inline display keeps repository suffix' => static function (TestRunner $t): void {
+        $before = "{\n  \"apiVersion\": 3,\n  \"name\": \"acme/card\",\n  \"title\": \"Legacy Card\",\n  \"supports\": {\n    \"html\": false\n  }\n}\n";
+        $after = "{\n  \"apiVersion\": 3,\n  \"name\": \"acme/card\",\n  \"title\": \"Modern Card\",\n  \"viewScriptModule\": \"file:./view.js\",\n  \"supports\": {\n    \"html\": true\n  }\n}\n";
+        $display = (new InlineDiffRenderer())->renderPathArgumentsTextDiff($before, $after, [
+            '/srv/releases/old/wp-content/plugins/acme-card/block.json',
+            '/srv/releases/new/wp-content/plugins/acme-card/block.json',
+        ], [
+            'language' => 'json',
+            'contextLines' => 1,
+        ]);
+
+        $t->contains('wp-content/plugins/acme-card/block.json --- JSON', $display);
+        $t->contains('Legacy Card', $display);
+        $t->contains('Modern Card', $display);
+        $t->contains('viewScriptModule', $display);
+        $t->true(!str_contains($display, '/srv/releases/new'), 'Git-backed WordPress review headers should show the stable repository suffix, not checkout-specific release roots.');
     },
     'maps upstream binary changed cli removed status' => static function (TestRunner $t): void {
         $binary = "\x89PNG\r\n\x1a\n" . str_repeat("\0", 2048);

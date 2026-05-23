@@ -95,6 +95,31 @@ final class InlineDiffRenderer
     }
 
     /**
+     * @param list<string> $pathArguments
+     * @param array{path?: string, language?: string, displayLanguage?: string, extraInfo?: string, tabWidth?: int, contextLines?: int, stripCr?: bool, useColor?: bool} $options
+     */
+    public function renderPathArgumentsTextDiff(
+        string $old,
+        string $new,
+        array $pathArguments,
+        array $options = [],
+        ?string $temporaryDirectory = null,
+    ): string {
+        $metadata = GitExternalDiffMetadata::fromPathArguments($pathArguments, $temporaryDirectory);
+
+        return $this->renderTextDiff($old, $new, $metadata->applyToOptions($options));
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @param array<string, string|null>|null $environment
+     */
+    public function renderUnmergedPathStatus(array $arguments, ?array $environment = null): ?string
+    {
+        return GitExternalDiffMetadata::unmergedPathMessage($arguments, $environment);
+    }
+
+    /**
      * @param array{path?: string, extraInfo?: string, useColor?: bool} $options
      */
     public function renderBinaryDiff(string $oldBytes, string $newBytes, array $options = []): string

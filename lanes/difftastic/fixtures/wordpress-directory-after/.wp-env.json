@@ -1,0 +1,7 @@
+{
+  "core": "WordPress/WordPress#6.6",
+  "plugins": [
+    ".",
+    "../../mu-plugins/acme-cache"
+  ]
+}

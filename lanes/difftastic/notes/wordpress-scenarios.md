@@ -62,6 +62,14 @@ Git external-diff metadata now maps the upstream `git_style_arguments_rename` an
 
 The WordPress Git-backed plugin rename example applies that to a render callback moved from `wp-content/plugins/acme-card/src/render-card.php` to `wp-content/plugins/acme-card/includes/render-card.php` with an executable-mode change. A review UI for Git-backed deployments can show the path/mode change and the PHP content change together without shelling out to difftastic.
 
+Git CLI path display now maps upstream `build_display_path`, `drop_different_path_starts`, and single-argument unmerged-file reporting. Native inline rendering can select the common suffix for ordinary two-path comparisons, use the real RHS path when Git passes a temporary blob path, follow upstream no-common-suffix fallbacks, and return `Unmerged path: ...` under Git single-path invocations.
+
+The WordPress Git common-path example applies that to release-root comparisons of `wp-content/plugins/acme-card/block.json`. A review UI can show the stable repository suffix instead of noisy deployment roots such as `/srv/releases/old` and `/srv/releases/new`.
+
+Native command status now maps upstream `--check-only` and `--exit-code` behavior from `tests/cli.rs`. Changed diffs still return exit `0` by default, `exitCode` changes that to exit `1`, supported-language check-only output says `Has syntactic changes.`, and plain text check-only output says `Has changes.`.
+
+The WordPress check-only example applies that to a block metadata gate for `wp-content/plugins/acme-card/block.json`. A plugin review or CI surface can ask for a fast native status, show the path/language header plus `Has syntactic changes.`, and decide whether to fail the gate from the returned exit code without invoking the Rust binary.
+
 Inline binary display now maps upstream `tests/cli.rs` `binary_changed` / `binary_override` and the binary branch in `src/main.rs`. The WordPress binary asset example applies this to `wp-content/plugins/acme-card/assets/logo.png`, showing a path/language header plus `Binary file modified` size metadata for changed plugin media instead of attempting a misleading text diff.
 
 Oversized single-line display now maps the upstream `long_line_*.txt` stress shape without copying those multi-megabyte fixtures into this lane. The side-by-side renderer wraps by display width from a moving byte offset, so one-line generated files do not repeatedly rescan the entire remaining source while rendering continuation rows.
@@ -200,6 +208,10 @@ JSX/TSX mode now maps the upstream `sample_files/jsx_*.jsx` tag-list shape. The 
 
 TSX mode now maps the upstream `sample_files/whitespace_*.tsx` formatting shape. The WordPress block editor whitespace fixture applies this to editor controls where Prettier or manual formatting moves `{" "}` spacer expressions around retained text. The renderer reports no syntactic changes, keeping retained `ToolbarButton` markup and screen-reader copy out of the review stream.
 
+Directory walking now maps upstream `tests/cli.rs` `directory_arguments` and `walk_hidden_items` through native PHP directory traversal. It includes dotfiles and dot-directories, excludes `.git`, uses relative per-file display paths, reports one-sided files as created/deleted, and filters unchanged files by default while keeping an opt-in unchanged mode for review tools.
+
+The WordPress plugin directory fixture applies that to a checkout where hidden `.wp-env.json` tooling and `wp-content/plugins/acme-card/block.json` changed while `src/render.php` did not. The JSON output keeps hidden local development configuration visible for review and omits unchanged plugin source files by default.
+
 Run:
 
 ```sh
@@ -220,6 +232,8 @@ php lanes/difftastic/examples/wordpress-created-import-report-side-by-side.php
 php lanes/difftastic/examples/wordpress-highlighted-side-by-side.php
 php lanes/difftastic/examples/wordpress-readme-inline-diff.php
 php lanes/difftastic/examples/wordpress-git-rename-inline-diff.php
+php lanes/difftastic/examples/wordpress-git-common-path-inline-diff.php
+php lanes/difftastic/examples/wordpress-check-only-command.php
 php lanes/difftastic/examples/wordpress-binary-asset-inline-diff.php
 php lanes/difftastic/examples/wordpress-large-asset-manifest-side-by-side.php
 php lanes/difftastic/examples/wordpress-minified-asset-map-side-by-side.php
@@ -267,8 +281,9 @@ php lanes/difftastic/examples/wordpress-wxr-xml-diff.php
 php lanes/difftastic/examples/wordpress-utf16-wxr-display.php
 php lanes/difftastic/examples/wordpress-legacy-encoding-display.php
 php lanes/difftastic/examples/wordpress-slightly-invalid-wxr-display.php
+php lanes/difftastic/examples/wordpress-plugin-directory-json-diff.php
 ```
 
 ## Next Task
 
-Map the remaining Git CLI path boundaries: `build_display_path` common-suffix selection, `drop_different_path_starts`, and single-argument unmerged-file reporting.
+Map `--list-languages` CLI behavior from `tests/cli.rs` `list_languages`, including override entries and language/glob display.
