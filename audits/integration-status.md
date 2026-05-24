@@ -1,5 +1,85 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 16:01 UTC
+
+No lane output was integrated in this pass. The checkout is still moving and
+all priority lanes remain dirty, so no lane files were staged, no status claims
+were accepted, no dashboard artifacts were regenerated, and no support-library
+row was activated.
+
+Required intake was re-sampled:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, active `.tmux-team/logs/port-*.log`
+  summaries/tails for recent workers, dirty lane paths/summaries from Git,
+  active tmux/process state, `dependency-backlog.json`, and the existing
+  integration-status artifact.
+- `HEAD` was `ce556025cd05` on `main...origin/main [ahead 936, behind 68]`
+  during the intake sample. Before this hold-status commit was created, another
+  status/audit commit landed as `86077d9f52ec`; this confirms concurrent
+  status writers were still active. Recent commits remain audit/status-hold
+  dominated.
+- Dirty tracked shortstat moved during this pass from
+  `331 files changed, 259428 insertions(+), 32514 deletions(-)` to
+  `331 files changed, 259505 insertions(+), 32512 deletions(-)` and then to
+  `331 files changed, 259539 insertions(+), 32517 deletions(-)`. The
+  untracked-inclusive status row count moved from `19434` to `19435` and then
+  to `19436`.
+- Active tmux panes still include 119 `port-*` panes. Six are live `node`
+  agents (`port-auditor`, `port-difftastic`, `port-lightningcss`,
+  `port-markerpdf`, `port-pandoc`, and `port-readability`); the remaining
+  113 include primary lane, runner, capacity, dashboard, evaluator,
+  integrator, dependency-scout, and watchdog shells.
+- Exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'` returned
+  no rows in the samples for this pass. This worker did not run
+  `php tools/run-tests.php`, did not wait on `.upstream-cache/run-tests.lock`,
+  and did not bypass the lock because the checkout never became a frozen
+  acceptance snapshot.
+- `jq empty` passed for all 12 lane manifests, all 12 lane-status files,
+  `dependency-backlog.json`, and `porting-summary.json`.
+- Post-initial-write sample for this status artifact: branch state had moved to
+  `main...origin/main [ahead 938, behind 68]`, exact no-argument root gate still
+  returned no rows, and dirty tracked shortstat was
+  `329 files changed, 259459 insertions(+), 32425 deletions(-)`. The changed
+  counts are further evidence that no frozen lane-acceptance snapshot existed.
+
+Waiting/risky:
+
+- Every priority lane is skipped as active/dirty: Difftastic, Dolt, esbuild,
+  Gitoxide, libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone,
+  Readability, and Syncthing all have dirty lane files and live or recently
+  restarted lane sessions.
+- Recent worker panes/logs show lane-local handoffs but not owner-free
+  integration batches: Difftastic zero-argument TypeScript overload labels,
+  Dolt `CHAR()` query-diff handling plus runner evidence, esbuild fragment-only
+  CSS output URLs, Gitoxide gix-index entry-count fuzz preflight, libsqlite
+  scalar `min()`/`max()` JSON operator RHS folding, LightningCSS nested logical
+  spacing lowering, markerPDF `startxref` catalog selection, Pandoc raw-HTML
+  disabled SVG fallback, Quadrable existing `data.mdb` startup guards, rclone
+  WebDAV PROPPATCH handler ordering, Readability class/id weight separation,
+  and Syncthing embedded gzipped GUI assets. These remain unaccepted until a
+  stable owner-free snapshot exists.
+- Dolt remains skipped despite reauthorization because both Dolt implementation
+  and runner scopes are dirty and active/recently restarted; moving-tree runner
+  anecdotes and lane-local metadata are not accepted as a coherent integration
+  handoff.
+- `dependency-backlog.json` remains valid with 37 rows and 0 active bounded
+  support ports. No Pandoc or document-conversion rich-function claim is
+  accepted from this pass; DOC, DOCX/OpenXML, PDF input/output handoff, EPUB,
+  ODT/OpenDocument, templates, citations, math, tables, package containers,
+  XML/HTML, Unicode/charset, JSON/YAML metadata, syntax highlighting, and
+  archive/compression remain gated backlog rows without accepted activation
+  evidence.
+
+Next safe integration point: freeze or wait out lane, runner, capacity,
+dashboard, evaluator, auditor, integrator, and status-review loops; take two
+stable polls of `HEAD`, dirty counts, shortstat, exact root PIDs, and relevant
+log mtimes; then accept at most one owner-free lane batch after focused
+inspection, focused verification, serialized no-argument root verification on
+that frozen snapshot, `git diff --check`, dashboard regeneration from the
+accepted commit, and dependency/support-library gate review at base-lane
+granularity.
+
 ## Integration worker hold - 2026-05-24 15:57 UTC
 
 No lane output was integrated in this pass. The checkout is still a moving
