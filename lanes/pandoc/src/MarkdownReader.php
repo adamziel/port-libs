@@ -130,6 +130,11 @@ final class MarkdownReader
                 $blocks[] = $htmlDefinitionList;
                 continue;
             }
+            $htmlInlineFragment = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlInlineFragmentBlock($lines, $index) : null;
+            if ($htmlInlineFragment !== null) {
+                $blocks[] = $htmlInlineFragment;
+                continue;
+            }
             $htmlParagraph = $paragraph === [] && $listStack === [] ? $this->tryReadHtmlParagraphBlock($lines, $index) : null;
             if ($htmlParagraph !== null) {
                 $blocks[] = $htmlParagraph;
@@ -1743,6 +1748,46 @@ final class MarkdownReader
 
     /**
      * @param list<string> $lines
+     */
+    private function tryReadHtmlInlineFragmentBlock(array $lines, int &$index): ?AstNode
+    {
+        $line = $lines[$index] ?? '';
+        if (preg_match('/^ {0,3}<br\b[^>]*>/i', $line) !== 1) {
+            return null;
+        }
+
+        return $this->parseHtmlInlineFragmentParagraph(trim($line));
+    }
+
+    private function parseHtmlInlineFragmentParagraph(string $html): ?AstNode
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $loaded = $dom->loadHTML(
+            '<?xml encoding="UTF-8"><!doctype html><html><body>' . $html . '</body></html>',
+            LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING
+        );
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded) {
+            return null;
+        }
+
+        $body = $dom->getElementsByTagName('body')->item(0);
+        if (!$body instanceof \DOMElement) {
+            return null;
+        }
+
+        $blocks = $this->parseHtmlBlockChildren($body);
+        if (count($blocks) !== 1 || $blocks[0]->type !== 'paragraph') {
+            return null;
+        }
+
+        return $blocks[0];
+    }
+
+    /**
+     * @param list<string> $lines
      * @return array{0:string, 1:int}|null
      */
     private function collectHtmlParagraphBlock(array $lines, int $index): ?array
@@ -2263,11 +2308,25 @@ final class MarkdownReader
     {
         $text = $this->plainTextFromInlines($inlines);
         $normalized = trim(preg_replace('/\s+/', ' ', $text) ?? $text);
-        if ($normalized !== '') {
+        if ($normalized !== '' || $this->htmlInlineParagraphHasLineBreak($inlines)) {
             $blocks[] = new AstNode('paragraph', ['text' => $normalized], $inlines);
         }
 
         $inlines = [];
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function htmlInlineParagraphHasLineBreak(array $inlines): bool
+    {
+        foreach ($inlines as $inline) {
+            if ($inline->type === 'linebreak') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function parseHtmlListElement(\DOMElement $list): AstNode

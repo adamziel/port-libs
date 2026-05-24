@@ -3388,6 +3388,39 @@ HTML);
         $t->same('here.', $paragraph->children[2]->attr('text'));
         $t->contains('<p>There should be a hard line break<br/>here.</p>', $blocks);
     },
+    'maps upstream html reader standalone br fragments to linebreaks' => static function (TestRunner $t): void {
+        $reader = new MarkdownReader();
+        $source = implode("\n", [
+            '<br/>',
+            '<br> tail',
+            '<br class="classic-break">',
+        ]);
+        $document = $reader->read($source);
+        $firstBreak = $document->children[0]->children[0] ?? new AstNode('missing');
+        $secondBreak = $document->children[1]->children[0] ?? new AstNode('missing');
+        $secondTail = $document->children[1]->children[1] ?? new AstNode('missing');
+        $thirdBreak = $document->children[2]->children[0] ?? new AstNode('missing');
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(3, count($document->children));
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('linebreak', $firstBreak->type);
+        $t->same('linebreak', $secondBreak->type);
+        $t->same('tail', $secondTail->attr('text'));
+        $t->same('linebreak', $thirdBreak->type);
+        $t->contains('<p><br/></p>', $blocks);
+        $t->contains('<p><br/>tail</p>', $blocks);
+
+        $fixture = (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-html-standalone-linebreak.html');
+        $fixtureDocument = $reader->read($fixture);
+        $fixtureBlocks = (new WordPressBlockWriter())->write($fixtureDocument);
+
+        $t->same(2, count($fixtureDocument->children));
+        $t->same('linebreak', $fixtureDocument->children[0]->children[0]->type);
+        $t->same('linebreak', $fixtureDocument->children[1]->children[0]->type);
+        $t->contains('<p><br/></p>', $fixtureBlocks);
+        $t->contains('<p><br/>Manual classic-editor break before reviewer note</p>', $fixtureBlocks);
+    },
     'maps upstream html reader inline q cite as quoted spans' => static function (TestRunner $t): void {
         $document = (new MarkdownReader())->read(<<<'HTML'
 <p>Normal text but then a <q cite="https://www.imdb.com/title/tt0062622/quotes/qt0396921">inline quote</q>.</p>

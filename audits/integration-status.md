@@ -63178,3 +63178,35 @@ Files staged:
 Support-library decision: no support-library row activated; `pdf-text-dictionary-core` remains inactive and this CMap behavior remains lane-local.
 
 Exclusions: excluded unrelated dirty-main markerPDF stream filters, WinAnsi and Differences decoding, manifest/status/notes count expansions, OCR/model/table/layout/runtime behavior, and live-service/provider behavior.
+
+## Accepted isolated integration - Pandoc HTML standalone linebreak - 2026-05-24 22:18 UTC
+
+Slice: `pandoc-html-br`.
+
+Base commit: `5fa9dbe6345e15bf497765d94194bde5eebc8fc9`.
+
+Patch path: `.tmux-team/tmp/isolate-pandoc-html-br-20260524T215758Z.patch`.
+
+Focused checks repeated by clean-patch integrator:
+
+- `git apply --check` against detached clean worktree based at the base commit.
+- `php -l lanes/pandoc/src/MarkdownReader.php`
+- `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+- `php -l lanes/pandoc/examples/wordpress-native-html-standalone-linebreak-handoff.php`
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+- `php lanes/pandoc/examples/wordpress-native-html-standalone-linebreak-handoff.php`
+
+Root result: clean-worktree `php tools/run-tests.php` passed with `205 test files, 23926 assertions, 0 failures`; `git diff --check` passed.
+
+Files staged:
+
+- `audits/isolate-pandoc-html-br-20260524T215758Z.md`
+- `audits/integration-status.md`
+- `lanes/pandoc/src/MarkdownReader.php`
+- `lanes/pandoc/tests/MarkdownReaderTest.php`
+- `lanes/pandoc/fixtures/upstream-html-standalone-linebreak.html`
+- `lanes/pandoc/examples/wordpress-native-html-standalone-linebreak-handoff.php`
+
+Support-library decision: no support-library row activated; this remains lane-local HTML parsing behavior.
+
+Exclusions: excluded unrelated dirty-main Pandoc manifest/status/notes, writer changes, broad reader/writer examples and fixtures, and any live-service/provider behavior.
