@@ -100,8 +100,28 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => (new CommitSignature('invalid < middlename', 'ok', '0 +0000'))->storageBytes());
         $t->throws(InvalidArgumentException::class, static fn () => (new CommitSignature('ok', 'server>.example.com', '0 +0000'))->storageBytes());
         $t->throws(InvalidArgumentException::class, static fn () => (new CommitSignature("hello\nnewline", 'name@example.com', '0 +0000'))->storageBytes());
-        $t->throws(InvalidArgumentException::class, static fn () => CommitSignature::parse('Name <name@example.test> abc -1215'));
         $t->throws(InvalidArgumentException::class, static fn () => CommitSignature::parse('Name name@example.test> 1700000000 +0000'));
+
+        $invalidTime = CommitSignature::parseConsuming('Name <name@example.test> abc -1215');
+        $t->same('Name', $invalidTime['signature']->name);
+        $t->same('name@example.test', $invalidTime['signature']->email);
+        $t->same('', $invalidTime['signature']->time);
+        $t->same('abc -1215', $invalidTime['rest']);
+    },
+    'wordpress signature consuming example splits actor time from local suffixes' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-commit-signature-consuming.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-commit-signature-consuming.php';
+
+        $t->same($fixture['expectedAuthorIdentity'], $summary['author']['identity']);
+        $t->same($fixture['expectedAuthorTime'], $summary['author']['time']);
+        $t->same(['seconds' => 1710000000, 'offset' => -9000], $summary['author']['lenientTime']);
+        $t->same($fixture['expectedAuthorRemainder'], $summary['author']['remainder']);
+        $t->same($fixture['expectedReviewerIdentity'], $summary['reviewer']['identity']);
+        $t->same($fixture['expectedReviewerTime'], $summary['reviewer']['time']);
+        $t->same($fixture['expectedReviewerRemainder'], $summary['reviewer']['remainder']);
+        $t->same($fixture['expectedNextLineRemainder'], $summary['nextLineRemainder']);
+        $t->same(true, $summary['malformedRejected']);
+        $t->contains('WordPress import', $summary['wordpressUse']);
     },
     'parses sha256 commits encoding and multiline extra headers' => static function (TestRunner $t): void {
         $body = "tree 0123456789ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef\n"

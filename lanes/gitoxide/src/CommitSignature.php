@@ -15,6 +15,16 @@ final class CommitSignature
 
     public static function parse(string $raw): self
     {
+        return self::parseConsuming($raw)['signature'];
+    }
+
+    /**
+     * Parse one signature and return the remaining input after the parsed time bytes.
+     *
+     * @return array{signature: self, rest: string}
+     */
+    public static function parseConsuming(string $raw): array
+    {
         $eol = strpos($raw, "\n");
         $line = $eol === false ? $raw : substr($raw, 0, $eol);
         $right = strrpos($line, '>');
@@ -58,11 +68,11 @@ final class CommitSignature
 
         $timeLength = strspn($rest, "+-0123456789 \t");
         $time = substr($rest, 0, $timeLength);
-        if (substr($rest, $timeLength) !== '') {
-            throw new \InvalidArgumentException('Commit signature has trailing bytes after timestamp');
-        }
 
-        return (new self($name, $email, $time))->trimmed();
+        return [
+            'signature' => (new self($name, $email, $time))->trimmed(),
+            'rest' => substr($rest, $timeLength),
+        ];
     }
 
     public function trimmed(): self

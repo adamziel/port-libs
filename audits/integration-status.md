@@ -63094,3 +63094,18 @@ No markerPDF source output was integrated into `refs/heads/main` in this pass.
 - Decision: deferred after the one allowed retry because `main` moved twice before atomic `update-ref`; no source files, isolation audit, dashboard files, or support-library rows were accepted.
 - Support-library decision: no activation; this remains lane-local markerPDF CMap fallback decoding.
 - Exclusions: broad dirty-main lane state, markerPDF manifest/status/count changes, RunLengthDecode, ASCII85Decode, WinAnsi/simple-font Differences, OCR/model/table/layout/runtime behavior, and dashboard publication.
+
+## Accepted isolated integration - Gitoxide signature-consuming - 2026-05-24 22:11 UTC
+
+Accepted the focused Gitoxide signature-consuming slice from a detached clean
+worktree.
+
+- Slice: `gitoxide-signature-consuming`.
+- Base commit: `326ccc3744ac5b1d491ad5e63dfcd6ab0d63cb7a`.
+- Patch path: `.tmux-team/tmp/isolate-gitoxide-signature-consuming-20260524T220041Z.patch`.
+- Isolation audit copied into commit: `audits/isolate-gitoxide-signature-consuming-20260524T220041Z.md`.
+- Focused checks repeated by clean-patch integrator: PHP lint passed for touched Gitoxide PHP files; `php lanes/gitoxide/examples/wordpress-commit-signature-consuming.php` passed; `php tools/run-tests.php lanes/gitoxide/tests/CommitTest.php` passed with 1 test file, 204 assertions, 0 failures; `php tools/run-tests.php lanes/gitoxide/tests` passed with 32 test files, 2659 assertions, 0 failures; bounded offline upstream oracle `cargo test -p gix-actor signature -- --nocapture` passed with 16 tests, 0 failures, 2 filtered out from `/home/claude/port-libs/.upstream-cache/gitoxide`; `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed.
+- Root result: `php tools/run-tests.php` passed in the clean worktree with 204 test files, 23906 assertions, 0 failures.
+- Files staged: `lanes/gitoxide/src/CommitSignature.php`, `lanes/gitoxide/tests/CommitTest.php`, `lanes/gitoxide/fixtures/wordpress-commit-signature-consuming.php`, `lanes/gitoxide/examples/wordpress-commit-signature-consuming.php`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/notes/wordpress-scenarios.md`, `audits/isolate-gitoxide-signature-consuming-20260524T220041Z.md`, and `audits/integration-status.md`.
+- Support-library decision: no activation; this is lane-local Git commit signature parsing/consumption behavior.
+- Exclusions: broad dirty-main Gitoxide discovery, mailmap, protocol, fetch, push, pack, index, config, attributes, URL/refspec, SHA-256, SSH/daemon, credential, unrelated examples/tests, all non-Gitoxide lane state, and dashboard publication.

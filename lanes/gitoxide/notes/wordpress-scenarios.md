@@ -198,6 +198,10 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 `examples/wordpress-object-database-multi-pack.php` writes two deterministic pack/index pairs plus a `multi-pack-index`, including a package object duplicated across both packs. The object database uses the MIDX to count three indexed objects from four raw pack-index entries, read content/media/shared objects by pack selection, and keep prefix and pack-offset iteration aligned with the MIDX.
 
+## WordPress Commit Signature Consuming Example
+
+`examples/wordpress-commit-signature-consuming.php` parses deterministic WordPress importer and reviewer signature bytes through native `CommitSignature::parseConsuming()`. It separates the Git actor identity and lenient timestamp from local audit suffix bytes, preserves the caller-visible remainder, and rejects malformed signatures without invoking `git log`, reading live repository/account state, opening remotes, reading process environments, or touching credential stores. This maps Gitoxide's `SignatureRef::from_bytes_consuming()` boundary for import/deploy tooling that receives commit actor bytes embedded in larger audit records.
+
 ## Next Task
 
 Map broken loose-reference deletion parity for prepared/direct deletes, another focused `gix-merge` tree fixture, or broaden protocol/transport runner evidence with a controlled focused crate probe.
