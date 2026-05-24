@@ -1,5 +1,74 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T00:47:07Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `porting.html`/`porting-summary.json`, start the
+no-argument root harness, wait on `.upstream-cache/run-tests.lock`, or treat
+concurrent focused/root runner output as an accepted integration snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` is `00ad96906cb7` on
+  `main...origin/main [ahead 616, behind 68]`.
+- Dirty scope is still broad and live: `git status --porcelain=v1
+  --untracked-files=no` reports `288` tracked rows, `git status
+  --porcelain=v1 --untracked-files=all` reports `9714` rows, and
+  `git diff --shortstat` reports `288 files changed, 131842 insertions(+),
+  14968 deletions(-)`.
+- Dirty lane rows span every priority lane: Difftastic `233`, Dolt `107`,
+  esbuild `27`, Gitoxide `124`, libsqlite `94`, LightningCSS `139`,
+  markerPDF `176`, Pandoc `62`, Quadrable `83`, rclone `106`, Readability
+  `185`, and Syncthing `147`.
+- `tmux list-sessions` reports `159` sessions. Active primary or
+  reseed/runner sessions include Gitoxide, LightningCSS, markerPDF,
+  libsqlite, Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone,
+  Dolt, and esbuild. Dolt still has active implementation/reseed/runner
+  sessions, so Dolt remains skipped despite reauthorization.
+- Final PHP runner sampling returned no active `php tools/run-tests.php`
+  process, and `.upstream-cache/run-tests.lock` exists as the zero-byte
+  harness lock file. Because no lane batch was accepted and active writers
+  remained, I did not start the serialized root harness and no lock wait
+  occurred in this pass.
+- A recent scratch clean-root run reported
+  `php tools/run-tests.php` passing on commit `76f7c6af07e7` with `204`
+  files, `23682` assertions, and `0` failures. That run was not on the
+  current dirty aggregate and is not accepted integration evidence for this
+  pass.
+- Recent worker tails still show active or unfrozen lane handoffs: Syncthing
+  `/rest/system/loglevels`, Readability noscript image fallback cleanup,
+  Dolt query-diff expression work, Gitoxide object cache/allocation config,
+  rclone VFS `Statfs`, libsqlite WAL powersafe/journal-size-limit planning,
+  Difftastic Kotlin nullable-type diffs, LightningCSS transform scale/reset
+  minification, Pandoc NativeWriter table constructors, Quadrable proof-backed
+  patch/noTrackKeys guards, and markerPDF benchmark archive/LaTeX inventory.
+  The lane-local evidence is useful for later review, but the same checkout is
+  still moving and no worker-provided handoff includes root verification from
+  this exact snapshot.
+- Dashboard updater activity from a temporary publish clone was observed and
+  live Pages now reports source commit `76f7c6af07e7` with dashboard commit
+  `a1c95d117f91`. This local integration pass did not push, did not accept
+  those dashboard artifacts, and did not regenerate source-checkout dashboard
+  files.
+- `dependency-backlog.json` is valid JSON with `23` items and includes
+  `pandoc-doctemplates-core`, matching the dependency backlog section in
+  `progress.md`. No dependency implementation or support-library activation
+  was accepted, and no rich-format claim was advanced.
+- `porting.html` and `porting-summary.json` remain dirty dashboard artifacts
+  in the source checkout. They were not regenerated or committed because the
+  underlying lane-status files are active worker handoffs, not accepted
+  integration state.
+
+Decision: the tree remains too active for trustworthy lane acceptance. All
+priority lanes were skipped as active or unsafe. The next safe integration
+point is after active lane/reseed/runner/status sessions finish or are
+intentionally frozen, Dolt has a coherent implementation-plus-runner handoff,
+and `HEAD`, tracked status, shortstat, runner state, and relevant log mtimes
+remain unchanged across two polls. Then accept one small lane-scoped batch
+with focused inspection/tests, one serialized `php tools/run-tests.php` from
+that same snapshot, `git diff --check`, dashboard regeneration, and a small
+commit.
+
 ## Integration Hold - 2026-05-24T00:44:08Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
