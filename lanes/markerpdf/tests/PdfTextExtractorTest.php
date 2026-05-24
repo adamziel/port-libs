@@ -76,6 +76,17 @@ return [
         $t->true(!str_contains($plainText, 'Profile s'));
         $t->true(str_contains($plainText, 'SiteMap Index'));
     },
+    'applies Tm horizontal scaling before WordPress Tm gap decisions' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 12 Tf 1.5 0 0 1 72 720 Tm (Import Profile) Tj 1 0 0 1 204 720 Tm (s) Tj '
+            . '0.5 0 0 1 72 704 Tm (SiteMap) Tj 1 0 0 1 106 704 Tm (Index) Tj ET';
+        $extractor = new PdfTextExtractor();
+        $lines = $extractor->extractTextLines($pdfWithContent($content));
+        $plainText = $extractor->extractPlainText($pdfWithContent($content));
+
+        $t->same(['Import Profiles', 'SiteMap Index'], $lines);
+        $t->true(!str_contains($plainText, 'Profile s'));
+        $t->true(str_contains($plainText, 'SiteMap Index'));
+    },
     'decodes literal continuations and UTF-16BE hex strings' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT (WordPress \\\nimport) Tj T* <FEFF00440061007400610020004C0069006200650072006100740069006F006E> Tj ET";
         $lines = (new PdfTextExtractor())->extractTextLines($pdfWithContent($content));

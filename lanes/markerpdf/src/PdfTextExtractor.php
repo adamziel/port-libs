@@ -164,6 +164,7 @@ final class PdfTextExtractor
         $characterSpacing = 0.0;
         $wordSpacing = 0.0;
         $horizontalScale = 100.0;
+        $currentTextMatrixHorizontalScale = 1.0;
         $pendingPositionWordGap = false;
         $textStateStack = [];
 
@@ -191,7 +192,7 @@ final class PdfTextExtractor
                         $currentFontSize,
                         $characterSpacing,
                         $wordSpacing,
-                        $horizontalScale
+                        $horizontalScale * $currentTextMatrixHorizontalScale
                     );
                 }
                 $operands = [];
@@ -283,6 +284,7 @@ final class PdfTextExtractor
                 $currentTextX = $this->textMatrixX($operands);
                 $currentTextY = $this->textMatrixY($operands);
                 $currentTextEndX = $currentTextX;
+                $currentTextMatrixHorizontalScale = $this->textMatrixHorizontalScale($operands) ?? 1.0;
                 $operands = [];
                 continue;
             }
@@ -300,6 +302,7 @@ final class PdfTextExtractor
                 $currentTextX = null;
                 $currentTextY = null;
                 $currentTextEndX = null;
+                $currentTextMatrixHorizontalScale = 1.0;
                 $pendingPositionWordGap = false;
                 $operands = [];
                 continue;
@@ -310,6 +313,7 @@ final class PdfTextExtractor
                 $currentTextX = null;
                 $currentTextY = null;
                 $currentTextEndX = null;
+                $currentTextMatrixHorizontalScale = 1.0;
                 $pendingPositionWordGap = false;
                 $operands = [];
                 continue;
@@ -697,6 +701,18 @@ final class PdfTextExtractor
         }
 
         return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMatrixHorizontalScale(array $operands): ?float
+    {
+        if (count($operands) < 6) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 6]);
     }
 
     private function advanceTextYByLeading(?float $currentTextY, ?float $currentTextLeading): ?float
