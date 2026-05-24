@@ -77259,3 +77259,3336 @@ Files staged:
 - lanes/lightningcss/src/TransitionPrefixer.php
 - lanes/lightningcss/tests/TransitionPrefixerTest.php
 
+
+## Isolated integration accepted - markerpdf - 2026-05-24T23:21:46Z UTC
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260524T230804Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260524T230804Z.patch`
+Lane/slice/session: `markerpdf` / `markerpdf-indirect-filter-decodeparams-reduced` / `port-markerpdf`
+
+Focused commands: PHP syntax on changed PHP files; `php tools/run-tests.php lanes/markerpdf/tests`; `git diff --check`.
+Focused result:
+```
+No syntax errors detected in lanes/markerpdf/src/PdfTextExtractor.php
+No syntax errors detected in lanes/markerpdf/tests/PdfTextExtractorTest.php
+Focused test run: 47 selected test files (root lock skipped)
+PASS plans convert.py chunk tasks with ceil chunking max slicing and basename metadata
+PASS loads convert.py metadata_file json keyed by basename
+PASS skips existing unsupported and short files before invoking supplied conversion
+PASS saves non-empty upstream tuple conversion output and skips empty output
+PASS processes a WordPress batch with basename metadata and convert.py summary counts
+PASS maps upstream bbox merge tolerance for adjacent text boxes
+PASS uses upstream strict bbox intersection and box1-area percentage semantics
+PASS maps upstream normalized bbox scaling and BboxElement metrics
+PASS rejects invalid BboxElement-shaped input like upstream validation
+PASS drives a WordPress geometry preflight for merged text and image overlap
+PASS builds upstream overall.py report shape from supplied benchmark runs
+PASS uses unique benchmark document pages for all methods like upstream total_pages
+PASS builds and verifies actual CI benchmark excerpt report for WordPress gates
+PASS rejects malformed benchmark report rows before quality gates consume them
+PASS verifies marker benchmark report thresholds like upstream script
+PASS rejects malformed marker reports before WordPress quality gates trust them
+PASS verifies table benchmark average threshold like upstream script
+PASS scores actual CI benchmark reference excerpts and verifies marker report
+PASS runs upstream overall.py style marker benchmark loop over actual CI pairs
+PASS supports supplied comparison methods while sharing per-document page counts
+PASS rejects malformed benchmark runner supplied boundaries
+PASS chunks benchmark text like upstream scoring
+PASS scores exact extracted text as perfect overlap
+PASS applies rapidfuzz-style indel ratio cutoff for fuzzy benchmark overlap
+PASS scores WordPress import output against expected clean content
+PASS scores committed upstream multicolcnn surrogate pair above threshold
+PASS scores committed upstream switch transformer surrogate pair above upstream threshold
+PASS scores committed upstream thinkpython surrogate pair above threshold
+PASS scores committed upstream thinkos surrogate pair above threshold
+PASS removes marked span ids and drops empty lines like upstream filter_spans
+PASS drops already-empty lines even when upstream filters keep all spans
+PASS clears bad span type text while preserving block metadata for image review
+PASS filters WordPress render text without losing picture block metadata
+PASS computes bbox_from_lines extents like upstream block helper
+PASS splits block lines with upstream zero and overlong guards
+PASS uses first span starts for upstream get_min_line_start semantics
+PASS splits a WordPress import block before Gutenberg heading and paragraph rendering
+PASS plans chunk_convert.sh marker jobs across CUDA devices
+PASS omits optional chunk_convert.sh flags when environment variables are empty
+PASS mirrors chunk_convert.sh validation for required environment and folders
+PASS produces WordPress queue shards without executing marker subprocesses
+PASS counts upstream-supported comment prefixes in candidate code lines
+PASS uses upstream line-length ratio for code-like blocks
+PASS identifies indented comment-heavy text blocks as code
+PASS keeps paragraph-like imports as text blocks
+PASS classifies and indents code blocks before Gutenberg rendering
+PASS finalizes convert_single_pdf cleanup order for WordPress block handoff
+PASS detects and indents code blocks during convert_single_pdf finalization
+PASS turns actual CI benchmark excerpts into final text that clears upstream score thresholds
+PASS prepares convert_single_pdf language filetype page and lowres image metadata
+PASS short-circuits unsupported files before supplied model pipeline runs
+PASS runs actual CI benchmark excerpts through the core supplied-page boundary
+PASS rejects malformed supplied core pipeline conversion payloads
+PASS skips bbox debug export when upstream debug setting is disabled
+PASS builds bbox debug payload without image and model-only fields
+PASS writes upstream doc-base bbox json file when debug is enabled
+PASS emits WordPress review metadata from bbox debug payload
+PASS requires layout and text line data when debug payloads are built
+PASS skips debug page image artifacts when upstream DEBUG setting is disabled
+PASS plans upstream layout and pdf page debug image artifacts
+PASS emits WordPress debug page image review metadata
+PASS requires page, layout, and text-line geometry for debug image planning
+PASS plans upstream debug bbox rectangles with integer coordinates and shared color
+PASS uses per-box colors and label placement from marker debug render
+PASS can plan label overlays without drawing source bboxes
+PASS skips zero-size label draws like upstream pil textbbox guard
+PASS does not index colors when upstream would draw no operations
+PASS reports the same missing-list boundaries as upstream index access
+PASS emits WordPress debug overlay review metadata
+PASS finds formula regions, rescales bboxes, and removes intersecting text lines
+PASS inserts accepted latex blocks by splitting the original text block
+PASS keeps original equation text when latex prediction validation fails
+PASS falls back to the nearest block when formula text lines are missing
+PASS skips equations whose native token count reaches the texify model limit
+PASS reports upstream-style equation metadata and renders a WordPress math block scenario
+PASS computes upstream Texify batch sizes for equation recognition
+PASS filters supplied Texify batch outputs at the upstream max-token sentinel
+PASS maps marker pdf utils find_filetype for real pdf fixture bytes
+PASS returns other when upstream filetype guess has no usable kind
+PASS treats any guessed pdf mimetype as pdf before consulting supported filetypes
+PASS maps non-pdf mimetypes through marker settings and rejects unsupported guesses
+PASS drives a WordPress upload preflight from file magic rather than extension text
+PASS marks upstream bold and italic spans from font names and weights
+PASS skips font weight pass when upstream has no non-heading font stats
+PASS wraps middle styled spans with upstream markdown emphasis markers
+PASS preserves upstream first and last span emphasis boundaries
+PASS does not flag repeated edge lines before upstream three-page minimum
+PASS removes common page headers and footers from imported document pages
+PASS normalizes leading and trailing digits like marker common-title cleanup
+PASS finds repeated title-like blocks only after upstream overlap threshold is met
+PASS filters repeated numbered titles before WordPress block rendering
+PASS splits heading lines out of text blocks using upstream bbox overlap threshold
+PASS keeps heading levels at upstream default when too few heading heights can be bucketed
+PASS infers larger heading heights as lower markdown heading levels
+PASS computes a WordPress import table of contents from heading blocks
+PASS maps upstream pdf outline items from get_toc with max depth
+PASS rejects malformed pdf outline adapters before WordPress TOC import
+PASS names and exports page images like upstream marker image save helpers
+PASS finds figure and picture regions with upstream bbox rescaling
+PASS inserts upstream markdown image spans and clears intersecting text lines
+PASS falls back to nearest block and creates a line when no detected text overlaps
+PASS renders a WordPress image block scenario from inserted image markdown
+PASS uses upstream layout batch size defaults overrides and multiplier truncation
+PASS attaches supplied Surya layout predictions to pages with upstream zip semantics
+PASS leaves unpaired pages unchanged when supplied layouts are shorter than pages
+PASS assigns block types from rescaled upstream layout intersections and merges same layout block runs
+PASS falls back to the closest annotated block then default text like marker layout annotation
+PASS drives a WordPress layout detection preflight before annotation
+PASS renders a WordPress import after layout annotation while honoring bad span type settings
+PASS uses upstream ordering batch size defaults overrides and multiplier truncation
+PASS attaches supplied Surya ordering predictions with upstream bbox caps and zip semantics
+PASS leaves unpaired pages unchanged and rejects invalid supplied order predictions
+PASS sorts same-position block groups by upstream vertical and horizontal tolerance
+PASS uses upstream ordering positions then pins page headers and footers
+PASS rescales ordering model boxes before intersection matching
+PASS preserves two-column WordPress import reading order before markdown block merge
+PASS drives a WordPress ordering-model preflight before Gutenberg paragraph merge
+PASS embeds marker app markdown image references as png data uri html
+PASS matches upstream optional markdown title syntax while preserving missing image links
+PASS replaces repeated marker image markdown like upstream string replacement
+PASS rejects image payloads without embeddable native bytes
+PASS builds a WordPress preview html block from Marker image placeholders
+PASS joins hyphenated text lines like marker markdown postprocessing
+PASS keeps sentence boundaries as markdown paragraphs
+PASS surrounds headings and escapes markdown-sensitive hash characters
+PASS merges upstream spans into block-ready lines with fonts and emphasis markers
+PASS keeps upstream merge spans first last and next-span guard behavior
+PASS creates an upstream empty-page fallback merged text block
+PASS renders merged styled spans as a WordPress paragraph import
+PASS dewraps extracted PDF lines for WordPress import paragraphs
+PASS merges upstream page blocks across block type transitions
+PASS uses upstream continuation geometry when merging ambiguous text lines
+PASS emits page-start blocks and full text pagination markers
+PASS counts pdf pages through the upstream marker app open pdf boundary
+PASS uses pages tree order inherited media boxes and direct page media boxes
+PASS plans marker app get_page_image pypdfium page index scale annotations and rgb output
+PASS renders a WordPress upload preview payload without rasterizing through pypdfium
+PASS rejects invalid uploads page numbers and dpi before preview planning
+PASS plans upstream logger levels and future warning suppression
+PASS plans run_marker_app streamlit command and environment overlay without executing it
+PASS records marker app import-time environment setup
+PASS rejects empty project directories before WordPress worker preflight planning
+PASS normalizes marker server params and returns local API response shape
+PASS enforces upstream local API pagination and image option guard
+PASS saves uploaded PDF bytes for conversion and removes the temporary upload
+PASS rejects non-pdf uploads before conversion
+PASS returns success false when the supplied local converter fails
+PASS posts remote marker API form data and polls request_check_url until complete
+PASS exposes marker upstream default settings needed by the native pipeline
+PASS maps supported filetypes from marker settings
+PASS computes native torch dtype helpers with upstream cpu fallback semantics
+PASS coerces environment-style overrides and ignores unknown settings like pydantic extra ignore
+PASS validates the upstream OCR engine literal boundary
+PASS drives a WordPress PDF import preflight without Python model dependencies
+PASS plans upstream load_all_models sequence and returned model list order
+PASS uses upstream texify and layout default checkpoints without explicit device args
+PASS propagates explicit device and dtype like load_all_models and rejects missing dtype there
+PASS maps flush_cuda_memory cuda-only empty cache boundary
+PASS uses upstream detector batch size defaults overrides and multiplier truncation
+PASS attaches supplied Surya predictions to pages with upstream zip semantics
+PASS leaves unpaired pages unchanged when upstream predictions are shorter than pages
+PASS drives a WordPress OCR detection preflight with supplied line boxes
+PASS computes upstream alphanum ratio after removing only spaces and newlines
+PASS detects bad OCR using upstream whitespace garble and invalid character thresholds
+PASS measures detected line coverage with upstream bbox rescaling and intersection threshold
+PASS triages pages for OCR like marker ocr heuristics
+PASS detects all-empty documents before WordPress import OCR fallback
+PASS normalizes Surya language names to pinned OCR codes while preserving codes
+PASS normalizes OCRmyPDF Tesseract names and defaults missing languages like upstream
+PASS rejects invalid engine-specific OCR language codes
+PASS maps Surya language codes to locked tokenizer ids with unique language semantics
+PASS rejects invalid Surya tokenizer language codes before OCR handoff
+PASS keeps lower-case Tesseract language names invalid like marker ocr lang
+PASS builds a WordPress multilingual OCR metadata preflight
+PASS adds Surya tokenizer metadata to a WordPress OCR preflight
+PASS uses upstream recognition batch size defaults and overrides
+PASS selects OCR pages with upstream run_ocr triage rules
+PASS plans surya recognition polygons with upstream scaling and zero-area skip
+PASS builds surya recognized pages with upstream bbox rescaling
+PASS replaces successful supplied OCR pages and reports upstream stats
+PASS counts bad supplied OCR output as failed and preserves original page text
+PASS returns the upstream none engine stats when OCR is disabled
+PASS requires a supplied OCR page for every selected upstream OCR page
+PASS drives a WordPress OCR handoff scenario with supplied recognition pages
+PASS derives upstream output subfolder and markdown paths from the final extension
+PASS saves markdown metadata and image payloads like marker output save_markdown
+PASS rejects image payloads without native writable bytes or save support
+PASS persists a WordPress import handoff artifact with markdown images and review metadata
+PASS mirrors marker page helpers for lines spans fonts heights and prelim text
+PASS uses explicit prelim text fallbacks for supplied OCR pages
+PASS inspects converted pdftext pages before WordPress block rendering
+PASS builds WordPress review metadata from page helper metrics
+PASS maps upstream render_image dpi scale and RGB/no-annotation output boundary
+PASS maps render_bbox_image crop scaling from PDF page space to rendered pixels
+PASS derives rendered image dimensions from PDF points and dpi without pypdfium
+PASS rejects invalid dpi, image sizes, and bbox inputs before raster handoff
+PASS drives a WordPress media crop review payload for extracted PDF figures
+PASS decomposes pdf font flags like marker pdf utils
+PASS converts pdftext dictionary pages to upstream marker page blocks
+PASS keeps upstream span id sequencing when invalid line bboxes are skipped
+PASS renders converted pdftext page spans as WordPress blocks
+PASS slices supplied pdftext dictionary pages like upstream get_text_blocks
+PASS treats zero max_pages like upstream falsey max page input
+PASS rejects out of range page slices before WordPress import
+PASS feeds selected pdftext pages into Gutenberg-ready paragraph text
+PASS extracts literal and array text operators from content streams
+PASS extracts flate encoded content streams
+PASS extracts ASCIIHex stream filters before WordPress paragraph rendering
+PASS resolves indirect stream filters and benign DecodeParms for WordPress extraction
+PASS uses ToUnicode CMap codespacerange widths for variable-length WordPress text
+PASS groups adjacent text operators on the same PDF text line
+PASS uses text advance before same-line Tm gap decisions for WordPress paragraph rendering
+PASS uses PDF text-state spacing for same-line Tm gap decisions before WordPress paragraph rendering
+PASS keeps q Q scoped text state from leaking into later positioned WordPress text
+PASS applies TJ numeric positioning adjustments before WordPress Tm gap decisions
+PASS applies Tm horizontal scaling before WordPress Tm gap decisions
+PASS decodes literal continuations and UTF-16BE hex strings
+PASS decodes PDF literal escapes in Tj and TJ WordPress text
+PASS extracts block-ready lines from a WordPress import fixture
+PASS replays upstream naive_get_text page suffix and get_length_of_text trim boundary
+PASS parses convert_single.py comma language argument without trimming
+PASS passes upstream single-document options to a supplied native converter and saves artifacts
+PASS saves empty single-document output like convert_single.py instead of applying batch skips
+PASS renders a WordPress single-upload import artifact with convert_single.py options
+PASS rejects malformed supplied conversion payloads before writing output
+PASS converts supplied pdftext layout order and table dictionaries into markdown
+PASS routes forced OCR table cells through supplied detector output before formatting
+PASS converts a fuller multicolcnn supplied dictionary excerpt with upstream finalization metadata
+PASS converts a fuller switch transformer supplied dictionary excerpt with styled spans
+PASS converts the switch transformer contents table page slice through supplied table recognition
+PASS converts the upstream switch transformer table 1 slice with unicode table metrics and caption
+PASS converts supplied equation dictionaries inside the document-level pipeline
+PASS short-circuits supplied documents with no extracted blocks like convert_single_pdf
+PASS threads supplied page images through the upstream extract_images boundary after bad span filtering
+PASS acts as a benchmark runner callback for actual CI reference excerpts
+PASS rejects malformed supplied document options before benchmark import
+PASS finds upstream table layout regions with page bbox rescaling
+PASS plans upstream get_table_boxes crop metadata with merged tables and OCR null lines
+PASS rejects missing supplied text lines for non-OCR table pages
+PASS replaces intersecting upstream table blocks with supplied markdown tables
+PASS formats merged adjacent table layout boxes as one recognized table
+PASS skips recognized tables without matching table layout blocks like upstream formatter
+PASS rejects missing supplied markdown for intersecting recognized tables
+PASS renders a WordPress table block scenario from formatted marker table markdown
+PASS uses upstream table recognition batch size defaults and overrides
+PASS routes supplied text-line table blocks and OCR-needed detector cells like get_cells
+PASS filters duplicated text-line payloads to each table bbox like get_table_blocks
+PASS forces supplied detector cells when detect_boxes is enabled
+PASS drops zero-area supplied detector cells before OCR like tabled get_cells
+PASS assigns recognized table cells to rows and columns then formats markdown
+PASS formats upstream unicode table headers with character width like tabulate
+PASS merges multiline continuation rows using assigned column ids despite x jitter
+PASS adds tabled-style row and column spans when geometry covers open bands
+PASS applies supplied OCR text before row column assignment and markdown formatting
+PASS falls back to heuristic row layout when model rows and columns leave most cells unassigned
+PASS clusters heuristic column separators with locked tabled DBSCAN semantics
+PASS uses clustered heuristic separators when model row and column boxes are unavailable
+PASS renders a WordPress table from supplied recognition output before model-backed inference exists
+PASS rejects missing supplied detector cells for OCR-needed tables
+PASS splits upstream benchmark tables into pipe cells
+PASS aligns a reference row against the best hypothesis row
+PASS scores exact markdown tables as perfect benchmark matches
+PASS scores WordPress imported tables over the upstream verifier threshold
+PASS rejects empty table scoring inputs
+PASS sorts upstream table blocks into row buckets then left to right
+PASS uses Python style half-even row rounding from upstream sort_table_blocks
+PASS replaces long dot leaders while preserving short ellipses like upstream
+PASS replaces table cell newlines with spaces and trims edges
+PASS renders a WordPress table after upstream table utility cleanup
+PASS replaces marker upstream bullet characters with markdown list markers
+PASS keeps non-list punctuation outside upstream bullet pattern
+PASS cleans repeated whitespace and non-breaking spaces like marker text cleaner
+PASS normalizes extracted PDF bullets for a WordPress list block import
+
+47 test files, 965 assertions, 0 failures
+```
+
+Root command: `php tools/run-tests.php`
+Root result:
+```
+PASS tokenizes identifiers numbers strings and punctuation separately
+PASS tokenizes rust lifetimes separately from character strings
+PASS classifies comments and delimiter anchors
+PASS diff operates on tokens rather than raw lines
+PASS matches upstream ignore comments cli behavior
+PASS maps upstream strip cr default for multiline comment atoms
+PASS ignores trailing commas before closing delimiters
+PASS maps upstream trailing commas sample as formatting only
+PASS enables angle delimiters in markup-like modes only
+PASS maps upstream html simple sample as tag list changes
+PASS maps upstream xml sample as tag list changes
+PASS maps upstream python if sample as indentation block changes
+PASS maps upstream python directory def excerpt as a header update
+PASS maps upstream python directory nested def excerpt as nested block insertion
+PASS maps python elif else try except finally clauses as compound blocks
+PASS respects upstream python trailing comma tuple exception
+PASS wordpress python trailing comma diff ignores calls but keeps tuple changes
+PASS maps upstream css sample with selector and declaration alignment
+PASS maps upstream tailwind css at-rule item as a focused update
+PASS maps upstream simple scss sample through mixin and nested rule alignment
+PASS maps upstream html style media sample without stable media churn
+PASS maps upstream html sample style blocks as css sublanguage changes
+PASS maps upstream html sample script blocks as javascript sublanguage changes
+PASS maps upstream html raw text only through css and javascript sublanguages
+PASS maps upstream javascript simple sample with body and array statement alignment
+PASS maps upstream javascript sample with named callback contexts
+PASS maps upstream load javascript excerpt with function scoped calls
+PASS maps upstream typescript sample as a type member insertion
+PASS maps typescript module import and export lists as focused specifier changes
+PASS maps typescript default namespace and re-export source changes
+PASS maps typescript export star and import attributes as module shapes
+PASS maps typescript dynamic import attributes as module metadata
+PASS maps upstream jsx sample as tag list changes
+PASS maps upstream tsx whitespace sample as formatting only
+PASS maps upstream json sample with object key alignment
+PASS maps upstream toml sample as table qualified key changes
+PASS wordpress plugin toml config reports release and playground changes
+PASS wordpress plugin toml example emits escaped syntax-list html
+PASS maps toml inline tables as nested key changes
+PASS wordpress plugin toml arrays of tables keep release entries indexed
+PASS wordpress plugin release matrix toml example emits escaped syntax-list html
+PASS maps upstream slider at end json sample as focused list deletions
+PASS maps upstream nested slider rust sample as wrapper insertions
+PASS maps upstream nested slider elisp sample as outer wrapper deletion
+PASS maps upstream change outer elisp sample as delimiter and wrapper changes
+PASS tokenizes emacs lisp reader quotes and semicolon comments separately
+PASS maps upstream strings elisp sample as focused quoted list changes
+PASS maps upstream slider rust sample excerpt with method and statement sliders
+PASS maps upstream hack sample return type and vec insertion
+PASS splits words like upstream words rs
+PASS splits words and numbers like upstream words rs
+PASS maps upstream hyphen subwords fixture as a focused deletion
+PASS maps upstream contiguous sample as syntax list insertions
+PASS maps upstream added line text sample as a line insertion
+PASS maps upstream insert blank text sample as a display change
+PASS maps upstream align footer text sample without marking footer or unchanged rhs novel
+PASS maps upstream cli changes at end text fixture without losing eof context
+PASS maps upstream text sample as one nearby json hunk
+PASS maps upstream big text hunk sample as one dense insertion hunk
+PASS wordpress readme nearby text hunks are grouped for review
+PASS wordpress readme footer alignment display keeps faq footer unchanged
+PASS wordpress readme end changes display preserves terminal context
+PASS maps upstream split on newlines trailing eof behavior
+PASS maps upstream many newlines empty lhs shape as created status
+PASS maps upstream repeated line no eol sample as an eof insertion
+PASS wordpress import log no eol display preserves appended final line
+PASS wordpress created import report uses created status and pure text insertions
+PASS maps upstream cli makefile text as syntax atom
+PASS wordpress plugin build makefile diff reports flag and asset changes
+PASS maps upstream tab display style helpers with fixed-width expansion and wrapping
+PASS maps upstream unicode display width helpers for wrapped long lines
+PASS maps upstream tab text sample without emitting raw tabs in side by side display
+PASS maps upstream tab c sample with configurable tab width
+PASS maps upstream side by side novel spans with ansi colors
+PASS wordpress highlighted side by side review colors only changed copy
+PASS maps upstream side by side default context lines
+PASS maps upstream side by side context hunks with separators
+PASS maps upstream context rust sample through side by side display
+PASS maps upstream inline display headers and context windows
+PASS maps upstream inline header extra info and color styling
+PASS maps upstream git style new file arguments without permission warning
+PASS maps upstream git style rename arguments into inline extra info
+PASS maps upstream git style seven argument permission metadata
+PASS maps upstream two path arguments to common suffix display path
+PASS maps upstream build display path git temp and extension fallbacks
+PASS maps upstream git single argument unmerged path status
+PASS maps upstream list languages cli output
+PASS maps upstream list languages override rows before builtins
+PASS rejects invalid list languages overrides like upstream cli parsing
+PASS maps upstream language override precedence during file detection
+PASS maps upstream check only and exit code cli behavior
+PASS maps upstream display option environment aggregation
+PASS maps upstream unstable json display guard for command mode
+PASS maps upstream unstable json display environment into file command output
+PASS maps upstream background syntax and sort path environment aggregation
+PASS maps upstream command display environment into side by side output
+PASS maps upstream background environment into colored side by side output
+PASS maps upstream syntax highlight control into side by side ansi output
+PASS maps upstream syntax highlight control into inline ansi output
+PASS rejects invalid display option environment before review
+PASS rejects invalid command display controls environment before review
+PASS maps upstream command boolean environment aggregation
+PASS rejects invalid command boolean environment before review
+PASS maps upstream command resource limit environment aggregation
+PASS rejects invalid command resource limit environment before review
+PASS routes command resource limits into json file and directory review
+PASS wordpress command env ci flags report escaping changes only
+PASS maps upstream directory arguments with relative created and deleted paths
+PASS maps upstream sort paths environment into directory review order
+PASS maps upstream hidden file walking through dotfiles and dot directories
+PASS wordpress plugin directory json diff includes hidden tooling and filters unchanged files
+PASS maps upstream json directory command print unchanged default and skip flag
+PASS wordpress env json directory command example emits unchanged render file status
+PASS wordpress directory diff applies language overrides before builtin globs
+PASS maps upstream language override environment aggregation
+PASS maps upstream list languages environment override rows before builtins
+PASS rejects invalid language override environment before directory review
+PASS maps upstream language override environment into file byte review
+PASS wordpress command env language overrides route into directory review
+PASS wordpress check only command reports block metadata gate status
+PASS wordpress command env display options wrap tabbed block metadata
+PASS wordpress command env unstable json display emits block metadata review
+PASS wordpress git backed common path inline display keeps repository suffix
+PASS maps upstream binary changed cli removed status
+PASS maps upstream binary override cli modified status
+PASS maps upstream binary override globs before text heuristics
+PASS maps upstream binary override environment aggregation
+PASS rejects invalid binary override globs like upstream command parsing
+PASS wordpress command env binary overrides route into directory byte review
+PASS wordpress binary asset inline display reports modified plugin media
+PASS wordpress directory diff can force generated assets to binary via override glob
+PASS wordpress readme inline display keeps path header and compact context
+PASS wordpress git backed plugin rename inline display keeps git metadata
+PASS maps upstream side by side created files as single column by default
+PASS maps upstream side by side deleted files as single column by default
+PASS maps upstream side by side show both mode for created files
+PASS maps upstream long line sample shape with linear display width wrapping
+PASS wordpress large single-line asset manifest display stays bounded
+PASS wordpress minified asset map display wraps multibyte labels at display width
+PASS wordpress tabbed block metadata display expands tabs for review
+PASS wordpress created import report side by side uses single column
+PASS wordpress block pattern context display omits distant stable patterns
+PASS recurses into nested wordpress registration arrays
+PASS wordpress render callback diff hides comment churn but keeps api changes
+PASS wordpress render callback diff reports nullable return type changes
+PASS wordpress block style slug diff reports subword changes
+PASS html token renderer escapes source and preserves operation markers
+PASS html word renderer reports wordpress subword additions and deletions
+PASS html syntax-list renderer reports wordpress theme json palette changes
+PASS html syntax-list renderer reports wordpress block markup tag changes
+PASS json syntax-list renderer reports wordpress block metadata key changes
+PASS json syntax-list renderer reports wordpress theme variation deletions
+PASS wordpress template wrapper diff reports wrappers without deleting inner block
+PASS wordpress block allow-list array syntax keeps retained items stable
+PASS wordpress block style css diff keeps reordered selectors stable
+PASS wordpress block editor scss diff reports mixin header and nested color changes
+PASS wordpress nested at-rule css diff keeps reordered inner selectors stable
+PASS wordpress plugin readme text diff reports changelog insertions
+PASS wordpress plugin readme blank line display is not hidden as unchanged
+PASS wordpress inline html style diff reports css sublanguage changes
+PASS wordpress inline html script diff reports javascript sublanguage changes
+PASS wordpress multi inline asset diff indexes style and script sublanguage blocks
+PASS wordpress view script diff reports javascript block wrappers and array insertions
+PASS wordpress hook registration diff keeps named hook callbacks aligned
+PASS wordpress block registration diff keeps repeated global calls scoped to functions
+PASS wordpress block editor javascript syntax errors fall back to text diff
+PASS wordpress python migration guard diff keeps stable if header aligned
+PASS wordpress python migration loop diff keeps stable for header aligned
+PASS wordpress python nested migration diff keeps def and for headers aligned
+PASS wordpress python compound migration diff reports elif and finally clauses
+PASS wordpress block variation graph limit falls back to text diff
+PASS wordpress block editor typescript props diff keeps retained props aligned
+PASS wordpress block module imports diff keeps retained imports and exports aligned
+PASS wordpress block module asset diff keeps default and namespace imports aligned
+PASS wordpress block import attribute diff keeps metadata imports and export stars aligned
+PASS wordpress block editor tsx diff reports jsx tag attribute changes
+PASS wordpress block editor tsx whitespace diff hides spacer expression churn
+PASS wordpress wxr xml diff reports namespaced postmeta tags safely
+PASS json display renderer follows upstream file envelope and statuses
+PASS json display renderer maps upstream keyword and type highlight variants
+PASS json display renderer maps upstream typescript constructor captures as type highlights
+PASS json display renderer maps upstream javascript uppercase capture priority
+PASS json display renderer maps upstream javascript builtin variables as keyword highlights
+PASS json display renderer maps upstream tag captures as type highlights
+PASS json display renderer maps upstream keywordish constants and operators
+PASS json display renderer maps upstream rust label captures as type highlights
+PASS json display renderer maps upstream python constructor decorators as type highlights
+PASS json display renderer maps upstream python keyword and builtin function boundary
+PASS json display renderer maps upstream ruby keyword constant and constructor captures
+PASS json display renderer leaves unsupported attribute and property captures normal
+PASS json display renderer maps upstream tree sitter error highlight variant
+PASS ansi highlighter maps upstream tree sitter error style
+PASS ansi highlighter maps upstream css keywords and html tags
+PASS ansi highlighter maps upstream keywordish constants and operators
+PASS ansi highlighter maps upstream typescript constructor captures as type highlights
+PASS ansi highlighter maps upstream javascript uppercase captures
+PASS ansi highlighter maps upstream javascript builtin variable captures
+PASS ansi highlighter maps upstream rust label captures as type highlights
+PASS ansi highlighter maps upstream python constructor decorator captures
+PASS ansi highlighter maps upstream python keywords but leaves builtin calls normal
+PASS ansi highlighter maps upstream ruby keywords constants and constructors
+PASS syntax list differ maps ruby def and end block delimiters
+PASS wordpress parser error ansi command honors syntax highlight control
+PASS json display renderer maps upstream json sample with line chunks
+PASS json display renderer maps upstream multibyte sample as byte spans
+PASS json display renderer maps upstream string subwords as word spans
+PASS json display renderer maps upstream comment replacements as word spans
+PASS json display renderer maps upstream multiline string sample as word spans
+PASS wordpress block json display emits machine readable review chunks
+PASS wordpress dynamic metadata import display emits typescript review chunks
+PASS wordpress typescript metadata display highlights inserted keywords and primitive types
+PASS wordpress block controller display highlights custom types and constructors
+PASS wordpress block registry display highlights constructor and constant captures
+PASS wordpress browser globals display highlights upstream builtin variables
+PASS wordpress python decorator display highlights constructor captures only
+PASS wordpress python keyword builtin display follows upstream highlight boundary
+PASS wordpress ruby migration helper display follows upstream keyword boundary
+PASS wordpress tsx tag highlight display exposes component tags as types
+PASS wordpress block editor json display can expose parser error spans when fallback budget allows
+PASS json display labels wordpress javascript parse fallback as text
+PASS wordpress oversized php render metadata falls back to text diff
+PASS maps upstream huge cpp byte-limit shape with bounded line fallback
+PASS wordpress generated cpp build artifact byte-limit json stays line-oriented
+PASS json display labels wordpress byte limit fallback as text
+PASS wordpress block copy display reports description string word changes
+PASS wordpress i18n block copy display keeps multibyte byte offsets valid
+PASS wordpress multiline render doc comment display keeps comment word spans
+PASS wordpress crlf only render comments are unchanged by default
+PASS yaml mode tokenizes block scalar bodies as multiline strings
+PASS json display renderer maps upstream yaml block scalar eof sample as string word spans
+PASS maps upstream yaml sample as flow list block sequence and scalar changes
+PASS json display renderer maps upstream yaml trailling newline sample as string spans
+PASS maps upstream utf16 sample bytes as text content
+PASS maps upstream png magic bytes as binary content
+PASS maps upstream windows1251 sample bytes as windows 1252 text content
+PASS maps upstream slightly invalid utf8 cli content as lossy text
+PASS wordpress legacy encoded readme bytes render as text instead of binary
+PASS wordpress utf16 wxr bytes render as xml text instead of binary
+PASS wordpress slightly invalid wxr bytes render as text with replacement characters
+PASS wordpress plugin workflow yaml display keeps wp cli command changes string highlighted
+PASS wordpress plugin workflow step diff reports yaml block sequence changes
+PASS dolt branches rows expose upstream local columns and latest metadata
+PASS dolt branches name filters follow upstream range index bounds
+PASS dolt remote branches prefix names and omit local tracking columns
+PASS active branch resolves current branch case insensitively and detached heads to null
+PASS dolt branch activity rows include current branches and active session counts
+PASS wordpress branch review fixture surfaces migration branch metadata and activity
+PASS check constraint validator maps upstream basic insert semantics
+PASS information schema exposes check constraints like upstream
+PASS information schema keeps copied table check names distinct
+PASS wordpress check constraint information schema example exposes invalid import statuses
+PASS dolt commit ancestors rows expose root null parent and parent indexes
+PASS dolt commit ancestors commit hash filter preserves all merge parents
+PASS dolt commit ancestors handles missing filters limits and invalid graphs
+PASS wordpress commit ancestors fixture links import merge parents to log rows
+PASS dolt commit diff rows require one to_commit and one from_commit
+PASS dolt commit diff filters range predicates on to primary key columns
+PASS dolt commit diff filters range predicates on from primary key columns
+PASS dolt commit diff rows retain from and to commit metadata
+PASS wordpress commit diff fixture narrows review rows between import commits
+PASS dolt ancestor spec parser maps upstream instruction syntax
+PASS dolt has ancestor follows upstream branch tag head and merge closure cases
+PASS dolt has ancestor resolves parent suffixes and validates refs
+PASS wordpress has ancestor fixture identifies reviewed import ancestry
+PASS dolt log rows keep fixed columns and null opt-in fields by default
+PASS dolt log projection controls parents and signature columns
+PASS dolt log number aliases follow upstream n limit boundaries
+PASS dolt commits rows expose all branch commits without log-only columns
+PASS dolt log can restrict rows to a selected head ancestry
+PASS dolt log filters merge commits with merges and min parents options
+PASS dolt log oneline rendering matches upstream compact boundaries
+PASS dolt log stat rendering matches upstream modified add delete and merge boundaries
+PASS dolt log graph rendering matches upstream linear and merge boundaries
+PASS dolt log graph rendering maps upstream dense branch fan in
+PASS dolt log graph oneline rendering maps upstream dense branch fan in spacing
+PASS dolt log decorate auto follows upstream tty boundary in CLI rendering
+PASS dolt log revision ranges map two-dot caret and not exclusions
+PASS dolt log revision ranges map three-dot and multiple revision unions
+PASS dolt log revision range validation follows upstream argument boundaries
+PASS dolt log table filters use root-value style table hash changes
+PASS dolt log table filters support changed table metadata and upstream boundaries
+PASS dolt log all traverses branch heads and table filters like upstream CLI all
+PASS dolt log validates duplicate commits and broken graphs
+PASS wordpress commit log fixture surfaces import branch refs and merge parents
+PASS wordpress fan in commit graph fixture renders default import review lanes
+PASS constraint violations summary table emits upstream table counts
+PASS constraint violations merge error groups upstream descriptions with row counts
+PASS constraint violations merge error renders foreign key null and check summaries
+PASS constraint violations table projects unique index rows with from rootish and metadata
+PASS constraint violations table maps check validator rows like upstream verify constraints
+PASS constraint violations table builds foreign key metadata like upstream merge violations
+PASS constraint violation deletes can target one violation on a multi-violation row
+PASS constraint violation deletes handle keyless row hashes for unique and foreign key cleanup
+PASS constraint violations table validates missing keys and unknown violation types
+PASS wordpress constraint violation example surfaces invalid import audit rows
+PASS wordpress foreign key constraint violation example surfaces orphaned import relations
+PASS dolt diff sql renderer filters row changes by upstream diff type
+PASS dolt diff sql renderer emits insert update and delete statements in row order
+PASS dolt diff sql renderer hex encodes binary and varbinary values like upstream patches
+PASS wordpress filtered diff sql example separates migration row review queues
+PASS dolt diff sql renderer uses every keyless column for delete predicates
+PASS wordpress keyless import log sql example exposes duplicate row deltas
+PASS dolt diff stat renderer matches upstream table-specific CLI output
+PASS dolt diff stat table args do not use summary short circuit boundary
+PASS dolt diff stat json renderer matches upstream result format output
+PASS dolt diff stat renderer maps keyless CLI text and JSON quirks
+PASS dolt diff stat renderer reports schema only tables as no data changes
+PASS wordpress diff stat cli example renders table-specific review stats
+PASS dolt diff summary renderer matches upstream table-only CLI output
+PASS dolt diff summary renderer filters table names and name-only output
+PASS dolt diff summary table args match upstream short circuit boundary
+PASS dolt diff summary renderer filters upstream diff types and removed alias
+PASS wordpress diff summary example renders migration table changes for review
+PASS wordpress filtered diff summary example separates migration table review queues
+PASS wordpress summary table arg example exposes upstream short circuit boundary
+PASS dolt tabular diff renderer matches upstream row-mode markers and frame
+PASS dolt tabular diff renderer filters row changes by upstream diff type
+PASS dolt tabular diff renderer pads null and multiline cells
+PASS dolt tabular diff renderer maps upstream row line in-place and context modes
+PASS wordpress filtered diff tabular example separates migration row review queues
+PASS wordpress diff mode example renders multiline block edits for review
+PASS dolt tabular diff renderer maps keyless duplicate cardinality as added and removed rows
+PASS wordpress keyless import log tabular example separates duplicate review rows
+PASS dolt merge status emits inactive row with null merge metadata
+PASS dolt merge status emits active source target and unmerged table set
+PASS dolt conflicts table projects table names and conflict counts
+PASS dolt status guidance maps unresolved constraint violation merge text
+PASS dolt status guidance reports fixed merge while commit unresolved block is absent
+PASS dolt commit unresolved block prints constraint-only tables as modified
+PASS dolt merge failure summary maps upstream conflict and violation hints
+PASS dolt merge artifact prelude and success stats match upstream cli shape
+PASS dolt merge success transcript maps up to date squash no commit and abort boundaries
+PASS call dolt_merge result row maps upstream procedure schema
+PASS dolt merge status validates active merge fields and conflict counts
+PASS wordpress merge status fixture surfaces unresolved migration tables
+PASS dolt patch function call parses two-dot revisions and filters requested tables
+PASS dolt patch function call parses three-dot revisions from supplied merge-base context
+PASS dolt patch function call resolves branch tag and working refs when commit graph is supplied
+PASS dolt patch function call reports upstream-shaped revision resolution errors
+PASS dolt patch function call reports no-diff known tables and missing tables
+PASS dolt patch function call returns no rows for same working or staged refs
+PASS dolt patch function call materializes distinct head staged and working snapshots
+PASS dolt patch function call collects staged worktree primary key warnings
+PASS dolt patch function call materializes staged index and foreign key snapshot deltas
+PASS dolt patch function call materializes modified and dropped foreign key snapshot deltas
+PASS dolt patch function call materializes create-table check constraints
+PASS dolt patch function call omits existing-table check constraint maintenance rows
+PASS dolt patch function call materializes table collation snapshot deltas
+PASS dolt patch function call materializes target row size snapshot deltas
+PASS dolt patch function call materializes default generated and on update column snapshot deltas
+PASS dolt patch function call materializes auto increment wp_posts creation
+PASS dolt patch function call omits metadata-only column snapshot deltas
+PASS dolt patch function call rejects upstream invalid argument boundaries
+PASS dolt patch function call enforces upstream select privilege boundaries
+PASS wordpress patch call boundary example maps table-function review behavior
+PASS wordpress patch privilege review example maps limited reviewer access
+PASS wordpress patch worktree review example compares head staged and working snapshots
+PASS wordpress patch primary key warning example skips unsafe postmeta data patch
+PASS wordpress patch foreign key review example orders staged ddl safely
+PASS wordpress patch foreign key maintenance example exposes modified and dropped ddl
+PASS wordpress patch check constraint review example exposes import status guard
+PASS wordpress patch check constraint maintenance example stays empty like upstream
+PASS wordpress patch collation review example exposes option comparison drift
+PASS wordpress patch target row size review example exposes large meta storage drift
+PASS wordpress patch generated default review example exposes import queue ddl
+PASS wordpress patch auto increment review example exposes imported post ids
+PASS wordpress patch metadata-only column review example stays empty like upstream
+PASS dolt patch rows emit schema before data and restart order for diff type partitions
+PASS dolt patch create table includes upstream check constraints
+PASS dolt patch renders default generated and on update column ddl like upstream
+PASS dolt patch renders auto increment columns and primary key type changes like upstream
+PASS dolt patch omits metadata-only column and check constraint patch rows like upstream
+PASS dolt patch renders table collation changes like upstream
+PASS dolt patch renders target row size changes after collation like upstream
+PASS dolt patch ddl changes follow upstream column diff ordering
+PASS dolt patch skips drop-table data statements and emits reverse delete patches
+PASS dolt patch maps keyless data rows as repeated data statements
+PASS dolt patch rows hex encode binary data statements
+PASS dolt patch skips data and records upstream warning when primary keys change
+PASS dolt patch orders secondary index foreign key and primary key ddl like upstream
+PASS dolt patch modifies and drops secondary indexes and foreign keys like upstream
+PASS wordpress patch review example separates schema and data queues
+PASS wordpress binary patch review example exposes media hash SQL literals
+PASS preview merge conflicts summary matches upstream row shape
+PASS preview merge conflicts projects divergent keyed rows
+PASS preview merge conflicts skips non-conflicting branch changes
+PASS preview merge conflicts projects keyless cardinality rows
+PASS preview merge conflicts maps upstream schema-conflict error boundary
+PASS dolt procedures history rows append commit metadata to every procedure
+PASS dolt procedures diff rows include initial commit and working procedure changes
+PASS dolt procedures diff keys procedure names case-insensitively
+PASS wordpress procedure history fixture surfaces import routines
+PASS dolt schemas history rows append commit metadata to every schema object
+PASS dolt schemas diff rows include initial commit and working schema changes
+PASS dolt schemas diff compares JSON extra and keys modified rows case-insensitively
+PASS wordpress schema history fixture surfaces migration views triggers and events
+PASS dolt schema show renders create table statements and skips hidden internal tables
+PASS dolt schema show preserves check constraints across upstream schema-edit boundaries
+PASS dolt schema show requested table handling follows upstream stdout boundary
+PASS wordpress schema show check survival example renders migration audit guards
+PASS dolt status rows map staged and unstaged table deltas
+PASS dolt status rows expose sql-status rename cases
+PASS dolt status ignored rows only mark unstaged new tables ignored
+PASS dolt status rows include conflict violation schema and merged states
+PASS wordpress status fixture hides generated cache while surfacing review work
+PASS table diff classifies added removed and modified rows by primary key
+PASS dolt diff table rows match upstream to/from column projection
+PASS composite primary keys are encoded without string collisions
+PASS primary key validation rejects missing null and duplicate keys
+PASS wordpress posts fixture projects migration changes as dolt diff rows
+PASS schema column diff is driven by stable Dolt column tags
+PASS primary key diffability follows Dolt tag order and type semantics
+PASS table delta matcher maps same names before tag-overlap renames
+PASS table delta matcher does not call changed column names an overlapping schema
+PASS table delta summaries omit unchanged exact-name tables
+PASS table delta matcher treats check constraints as schema metadata
+PASS row change types map to table diff filter names
+PASS where clauses filter projected to and from primary key columns
+PASS where clauses support null checks and compound primary key predicates
+PASS diff row limit is applied after where filtering
+PASS wordpress table delta fixture detects renamed content table
+PASS schema-aware diff rows project dropped columns through a target schema
+PASS schema-aware diff rows map non-primary columns by name and coerce target types
+PASS schema-aware diff rows warn when target type coercion fails
+PASS schema-aware diff rows do not map renamed non-primary columns by tag alone
+PASS skinny schema-aware diff rows keep primary keys and changed columns
+PASS skinny include-cols keeps requested unchanged columns and added columns
+PASS skinny schema-aware diff rows keep all columns when rows are deleted
+PASS wordpress skinny diff fixture keeps reviewer-requested status column
+PASS wordpress filtered diff fixture limits publish-impacting review rows
+PASS dolt diff summary rows match upstream table function shape
+PASS dolt diff summary ignore patterns filter working set table additions
+PASS dolt diff summary ignore patterns support wildcards and false overrides
+PASS dolt diff summary ignore patterns filter dropped tables and specific queries
+PASS dolt ignore conflicts report upstream-shaped pattern errors
+PASS dolt ignore conflicts treat normalized duplicate wildcard patterns as errors
+PASS dolt ignore more-specific true patterns override broader false patterns
+PASS wordpress ignore summary fixture hides generated migration tables
+PASS wordpress ignore conflict fixture surfaces ambiguous migration scratch rules
+PASS keyless diff rows repeat duplicate cardinality deltas as adds and removes
+PASS dolt diff stat rows match upstream single table counts
+PASS dolt diff stat keyless rows use upstream delete insert counting
+PASS primary key set changes error for table-specific diff stat and warn for unscoped stats
+PASS primary key set changes error for table-specific summaries and warn for unscoped summaries
+PASS wordpress primary key warning fixture surfaces postmeta review blockers
+PASS wordpress diff stat fixture summarizes migration review counts
+PASS primary key set changes report dolt warning and stop non-fuzzy diffs
+PASS wordpress plugin schema drift fixture projects through latest diff schema
+PASS javascript lexer skips comments and emits core token kinds
+PASS javascript lexer preserves token offsets
+PASS javascript lexer maps esbuild numeric literal forms
+PASS javascript lexer reports unterminated block comments
+PASS javascript lexer emits hashbang at file start
+PASS javascript lexer tokenizes decorator and private identifier syntax
+PASS javascript lexer rejects malformed base-prefixed numeric literals
+PASS wordpress block asset fixture tokenizes without node
+PASS maps upstream static and dynamic import forms
+PASS maps upstream no-substitution template literal sources
+PASS maps upstream conditional dynamic import records and skips dead branches
+PASS maps upstream commonjs require and require resolve string records
+PASS maps upstream conditional commonjs require records and skips dead branches
+PASS maps upstream dead logical and conditional require import branches
+PASS maps upstream relative glob require and dynamic import records
+PASS resolves upstream relative glob records against a wordpress fixture graph
+PASS maps upstream import assertion and attribute clauses
+PASS maps upstream typescript import equals and export equals forms
+PASS maps upstream typescript type only import and export forms
+PASS maps upstream typescript namespace exports without polluting module exports
+PASS maps upstream export as namespace as type only metadata
+PASS maps upstream dot qualified typescript namespaces as nested metadata
+PASS maps upstream typescript import pruning and side effect downgrades
+PASS maps upstream typescript import equals fixed point pruning
+PASS maps upstream namespace declare and import equals members
+PASS maps upstream namespace declared binding pattern members
+PASS maps upstream import meta module classification and properties
+PASS maps upstream new url import meta asset references
+PASS allows dynamic import expressions while rejecting malformed import calls
+PASS rejects malformed upstream import attribute objects
+PASS rejects malformed upstream typescript import export forms
+PASS maps upstream export and re-export forms
+PASS distinguishes wordpress package imports from relative asset imports
+PASS distinguishes wordpress typescript type imports from runtime assets
+PASS rejects upstream invalid namespace import without as
+PASS maps upstream package json main field defaults for browser platform
+PASS maps upstream package json main field defaults for node and neutral platforms
+PASS maps upstream package exports conditions subpaths and patterns
+PASS maps upstream package browser object root subpaths and disabled entries
+PASS maps containing package browser object remaps for package imports
+PASS maps upstream package imports local targets conditions patterns and package remaps
+PASS does not fall back around exact or unsafe package exports targets
+PASS returns no package resolution for missing packages and relative imports
+PASS maps upstream tsconfig baseUrl paths exact star and fallback targets
+PASS maps direct tsconfig path imports and ignores package-relative-unsafe cases
+PASS lowers upstream typescript export equals assignments
+PASS lowers upstream top level import equals declarations
+PASS lowers upstream exported import equals declarations
+PASS rejects malformed upstream top level import equals declarations
+PASS lowers upstream typescript runtime enum declarations
+PASS folds upstream enum member constants and split enum blocks
+PASS rejects malformed upstream typescript enum members
+PASS inlines upstream same file enum member references
+PASS erases non exported const enums while inlining same file accesses
+PASS lowers upstream typescript type annotation erasure subset
+PASS lowers upstream typescript using declarations
+PASS rejects upstream exported typescript using declarations
+PASS rejects upstream switch case using declarations unless block wrapped
+PASS lowers upstream switch case block using declarations through explicit resource helpers
+PASS lowers upstream switch case for using headers through explicit resource helpers
+PASS rejects wordpress switch case disposable asset declarations without node
+PASS maps upstream using nullish initializer optimization boundaries
+PASS lowers upstream using declarations through explicit resource helpers
+PASS keeps upstream module statements outside top level using helper scopes
+PASS keeps upstream local exports outside top level using helper scopes
+PASS keeps upstream exported class self references inside hoisted class expressions
+PASS keeps upstream local classes inside top level using helper scopes as class expressions
+PASS keeps upstream destructured local exports outside top level using helper scopes
+PASS keeps upstream function declarations outside top level using helper scopes
+PASS keeps upstream default class and expression exports outside top level using helper scopes
+PASS renames upstream using helper symbols when source names collide
+PASS renames upstream for using helper symbols when source names collide
+PASS lowers upstream block scoped using declarations through explicit resource helpers
+PASS lowers upstream control flow block scoped using declarations through explicit resource helpers
+PASS erases upstream class async generator method await using types
+PASS lowers upstream class async generator method await using cleanup
+PASS erases upstream object async generator method await using types
+PASS lowers upstream object async generator method await using cleanup
+PASS lowers upstream async generator functions through runtime helpers
+PASS lowers upstream async generator await operands with nested commas
+PASS lowers upstream async generator await operands with unary and binary precedence
+PASS lowers upstream async generator await operands with optional chain and nullish precedence
+PASS lowers upstream async generator for await bodies through runtime helpers
+PASS renames upstream async generator helper symbols after prior statements
+PASS lowers upstream class and object async generator methods through runtime helpers
+PASS lowers upstream default export async generator expressions through runtime helpers
+PASS lowers upstream parenthesized async generator expressions through runtime helpers
+PASS lowers upstream nested async generator expressions through runtime helpers
+PASS lowers upstream object property async generator expressions through runtime helpers
+PASS lowers multiple upstream async generator expressions in one statement
+PASS lowers upstream function scoped using declarations through explicit resource helpers
+PASS erases upstream function scoped typescript using declarations
+PASS lowers upstream for using declarations with erased types
+PASS lowers upstream for using loops through explicit resource helpers
+PASS erases upstream ambient typescript declarations
+PASS erases upstream decorated abstract ambient class declarations
+PASS erases upstream class member declare fields
+PASS rejects upstream invalid declare class member boundaries
+PASS lowers upstream abstract class members and headers
+PASS erases upstream class method type parameters and optional markers
+PASS lowers upstream typescript auto accessor markers and types
+PASS normalizes upstream plain typescript auto accessor fields
+PASS erases upstream decorated typescript auto accessor types
+PASS erases upstream typescript decorator type arguments on class members
+PASS rejects upstream invalid decorator boundaries
+PASS keeps upstream class decorators on lowered class statements
+PASS lowers upstream class decorators through helper calls
+PASS lowers upstream mixed class and member decorators through shared helper calls
+PASS lowers upstream exported mixed class and member decorators through shared helper calls
+PASS lowers upstream instance method decorators through helper calls
+PASS lowers upstream static method decorators through helper calls
+PASS lowers upstream public field decorators through helper calls
+PASS lowers upstream private field decorators through helper calls
+PASS lowers upstream private auto accessor decorators through helper calls
+PASS lowers upstream auto accessor decorators through helper calls
+PASS lowers upstream computed field and accessor decorators through helper calls
+PASS lowers upstream computed method decorators through helper calls
+PASS lowers upstream getter and setter decorators through helper calls
+PASS lowers upstream computed getter and setter decorators through helper calls
+PASS lowers upstream private getter and setter decorators through helper calls
+PASS lowers upstream derived member decorators through helper calls
+PASS rejects wordpress block decorators on non-class declarations without node
+PASS rejects malformed upstream typescript auto accessors
+PASS rejects upstream definite assignment markers on class methods
+PASS lowers upstream class fields in assign semantics mode
+PASS lowers upstream static class fields in assign semantics mode
+PASS lowers upstream static class fields after class for es2021 targets
+PASS lowers upstream default static class fields after class for es2021 targets
+PASS lowers upstream class expression static fields after class for es2021 targets
+PASS keeps upstream decorators on lowered class expressions
+PASS lowers upstream decorated class expression static fields after class for es2021 targets
+PASS lowers upstream class expression field key ordering in assign semantics mode
+PASS caches upstream computed class field keys in assign semantics mode
+PASS preserves upstream computed class field key order in derived assign semantics classes
+PASS preserves upstream computed class key side effect order in assign semantics mode
+PASS lowers upstream constructor parameter properties
+PASS lowers upstream constructor parameter properties in assign semantics mode
+PASS inserts upstream derived constructor parameter properties after super
+PASS wraps upstream multiple derived super calls for parameter properties
+PASS wraps upstream conditional derived super calls for parameter properties
+PASS wraps upstream logical assignment derived super calls for assign semantics fields
+PASS keeps upstream dead false super branches outside the helper path
+PASS injects upstream assign semantics fields into one line derived constructors
+PASS splits upstream comma expression derived super calls before assignment injection
+PASS splits upstream return and throw comma expression derived super calls before assignment injection
+PASS splits upstream switch tests and for initializers around derived super calls
+PASS lowers upstream private class fields in assign semantics super insertion
+PASS keeps upstream private static fields inside assign semantics classes
+PASS erases upstream private method and accessor type annotations
+PASS keeps non ambient declare line breaks and rejects malformed export as namespace
+PASS lowers wordpress commonjs block export without node
+PASS lowers wordpress typed block callbacks without node
+PASS lowers wordpress runtime enum config without node
+PASS lowers wordpress const enum config without node
+PASS lowers wordpress enum alias config without node
+PASS erases wordpress ambient type declarations without node
+PASS erases wordpress ambient exported class declarations without node
+PASS erases wordpress declared class fields without node
+PASS lowers wordpress constructor property controller without node
+PASS lowers wordpress constructor properties in assign semantics without field declarations
+PASS lowers wordpress class field assign semantics without node
+PASS keeps wordpress private static block settings inside legacy target classes without node
+PASS lowers wordpress anonymous default static controller fields without node
+PASS lowers wordpress class expression controller static fields without node
+PASS lowers wordpress decorated class expression controller without node
+PASS lowers wordpress computed class field asset keys without node
+PASS lowers wordpress computed super controller without node
+PASS lowers wordpress conditional super constructor controller without node
+PASS lowers wordpress lazy super controller without node
+PASS lowers wordpress comma super controller without node
+PASS lowers wordpress return super controller without node
+PASS lowers wordpress control statement super controllers without node
+PASS lowers wordpress private settings controller without node
+PASS lowers wordpress private accessor block settings without node
+PASS lowers wordpress auto accessor controller without node
+PASS lowers wordpress decorated block controller without node
+PASS lowers wordpress block controller decorators for legacy targets without node
+PASS lowers wordpress default block controller decorators for legacy targets without node
+PASS lowers wordpress method decorators for legacy targets without node
+PASS lowers wordpress method decorators into existing constructors without node
+PASS lowers wordpress derived method decorators after super without node
+PASS lowers wordpress mixed class and member decorators for legacy targets without node
+PASS lowers wordpress default mixed class and member decorators for legacy targets without node
+PASS lowers wordpress static method decorators for legacy targets without node
+PASS lowers wordpress static field decorators for legacy targets without node
+PASS lowers wordpress private field decorators for legacy targets without node
+PASS lowers wordpress private accessor decorators for legacy targets without node
+PASS lowers wordpress private getter decorators for legacy targets without node
+PASS lowers wordpress accessor decorators for legacy targets without node
+PASS lowers wordpress computed field decorators for legacy targets without node
+PASS lowers wordpress computed method decorators for legacy targets without node
+PASS lowers wordpress computed getter and setter decorators for legacy targets without node
+PASS lowers wordpress using disposable asset handles without node
+PASS lowers wordpress imported using asset cleanup without trapping module statements
+PASS lowers wordpress exported using asset settings without trapping exports
+PASS lowers wordpress destructured exported using asset settings without trapping exports
+PASS lowers wordpress exported using asset functions without trapping exports
+PASS lowers wordpress default exported using asset controller without trapping exports
+PASS lowers wordpress local using asset controller without trapping exports
+PASS lowers wordpress function scoped disposable asset handles without node
+PASS lowers wordpress function scoped disposable asset cleanup without node
+PASS lowers wordpress block scoped disposable asset cleanup without node
+PASS lowers wordpress switch case disposable asset cleanup without node
+PASS lowers wordpress for using asset loops without node
+PASS lowers wordpress for using asset cleanup without node
+PASS lowers wordpress for using asset cleanup with colliding helper names without node
+PASS lowers wordpress async asset queue using cleanup without node
+PASS lowers wordpress async generator function asset queue runtime without node
+PASS lowers wordpress default async generator asset stream runtime without node
+PASS lowers wordpress exported async generator constant runtime without node
+PASS lowers wordpress async generator registry array runtime without node
+PASS lowers wordpress async generator helper collisions without node
+PASS lowers wordpress async generator asset queue class cleanup without node
+PASS lowers wordpress object async generator asset queue cleanup without node
+PASS lowers upstream namespace import equals emission cases
+PASS rejects upstream namespace exported using declarations
+PASS lowers upstream namespace scoped using declarations through explicit resource helpers
+PASS renames upstream namespace using helper symbols when source names collide
+PASS lowers upstream namespace function scoped using declarations through explicit resource helpers
+PASS lowers upstream namespace exported variable declarations
+PASS rewrites upstream namespace exported value references
+PASS lowers upstream namespace exported function and class declarations
+PASS lowers upstream nested namespace function and enum exports
+PASS lowers upstream dot qualified namespace declarations
+PASS maps upstream namespace value merge declaration rules
+PASS rewrites simple upstream declared namespace variable exports
+PASS rewrites upstream declared namespace binding pattern exports
+PASS lowers upstream namespace destructuring exports
+PASS lowers wordpress namespace import equals aliases without node
+PASS lowers wordpress namespace exported block settings without node
+PASS lowers wordpress namespace exported registration function without node
+PASS lowers wordpress nested namespace enum settings without node
+PASS lowers wordpress dot namespace block runtime without node
+PASS lowers wordpress destructured namespace settings without node
+PASS lowers wordpress function namespace merge settings without node
+PASS lowers wordpress namespace scoped disposable preview asset without node
+PASS lowers wordpress namespace disposable preview with colliding helper names without node
+PASS lowers wordpress namespace async disposable preview without node
+PASS text merge resolves identical side changes without markers
+PASS text merge selects changed side when the other side is unchanged
+PASS text merge combines independent WordPress file edits
+PASS text merge emits merge style conflict markers for overlapping changes
+PASS text merge conflicts when an append touches a modified final line
+PASS text merge emits diff3 base section when requested
+PASS text merge supports upstream unlabeled conflict markers
+PASS text merge marker size follows upstream u8 marker boundary
+PASS text merge supports union driver resolution
+PASS text merge zealously contracts shared changed edges like upstream text driver
+PASS text merge maps upstream blank line false-conflict regression
+PASS text merge maps upstream marker newline handling baseline
+PASS text merge accepts upstream zdiff3 conflict style literal
+PASS text merge maps upstream partial match baseline
+PASS text merge auto resolves conflicts with ours theirs and newline-separated union
+PASS binary merge defaults to ours as an unresolved conflict
+PASS binary merge can be auto resolved with an explicit side pick
+PASS wordpress blob merge fixture resolves metadata but conflicts on theme json
+PASS builtin driver names are ordered and case sensitive like upstream
+PASS merge attribute driver selection follows gix platform builtin fallback
+PASS conflict marker size attributes parse as non-zero u8 values
+PASS builtin driver wrapper applies text union and binary semantics
+PASS text and union drivers fall back to binary for binary-like buffers
+PASS text driver falls back to binary for large buffers before diffing
+PASS wordpress builtin merge driver fixture maps attributes to native drivers
+PASS identity parser round trips upstream actor identity bytes
+PASS identity parser follows gitoxide lenient delimiter behavior
+PASS identity trim and signature actor access match gix actor boundaries
+PASS parses canonical git commit headers and message
+PASS commit parser rejects missing required headers
+PASS commit parser requires the gitoxide header message separator
+PASS commit parser follows gitoxide strict header order
+PASS parses gitoxide actor signatures with lenient delimiter handling
+PASS wordpress signature consuming example splits actor time from local suffixes
+PASS parses sha256 commits encoding and multiline extra headers
+PASS commit token iterator follows gitoxide CommitRefIter order
+PASS commit token iterator returns prior tokens before decode errors
+PASS commit writer follows gitoxide WriteTo storage size and object semantics
+PASS extra header lookup follows gitoxide first all and position semantics
+PASS parses gitoxide commit message summaries body trailers and attribution filters
+PASS commit message parsing uses gitoxide ascii byte classes
+PASS commit trailer parser follows gitoxide footer block heuristics
+PASS commit message body helpers match focused gix-object message cases
+PASS extracts commit pgp signature and signed data without signature header bytes
+PASS commit body can be read from a native git object
+PASS wordpress fixture exposes import commit actors encoding and signature header
+PASS credential cascade fills partial credentials and stops when complete
+PASS credential cascade ignores failed helpers and lets complete helpers overwrite partial fields
+PASS credential cascade destructures helper urls and ignores expired secrets
+PASS credential cascade honors quit and query user only boundaries
+PASS credential cascade sends store and erase payloads to every helper
+PASS credential cascade prompts for missing fields when prompt callbacks are configured
+PASS credential cascade prompt fallback can complete a quit-marked helper context
+PASS wordpress credential cascade fixture obtains stores and erases deployment credentials
+PASS wordpress credential prompt fixture falls back without shelling out to git credential
+PASS credential context encodes and decodes git helper protocol fields
+PASS credential context parser skips unknown fields and stops at blank line
+PASS credential context validates helper protocol bytes
+PASS credential context url and prompt helpers match gix credentials context
+PASS credential context destructures urls with upstream http path rules
+PASS credential context redacts and clears secrets for logs
+PASS wordpress credential context fixture supports deployment helper exchange
+PASS credential program parses upstream custom helper definitions
+PASS credential program parses upstream absolute helper definitions
+PASS credential program maps builtin and external action arguments
+PASS credential program preserves shell scripts for custom helper invocation
+PASS wordpress credential program fixture builds deployment helper commands
+PASS external merge driver selection sorts drivers and preserves builtin fallback
+PASS external merge driver command expands upstream placeholders without executing
+PASS external merge driver command requires an injected runner for native readback
+PASS external merge driver reads back current tempfile after successful injected runner
+PASS external merge driver non-zero exit does not read result tempfile
+PASS external merge driver treats missing resources as empty buffers
+PASS external merge driver rejects too large resources before writing tempfiles
+PASS external merge driver template quotes path and empty labels like gix prepare external driver
+PASS wordpress external merge driver fixture prepares custom block command
+PASS v1 default features choose best sideband and multi_ack variants
+PASS v1 default features include supported fetch capabilities but leave no-progress disabled
+PASS v2 default features and initial arguments follow advertised fetch values
+PASS v1 first want bakes default features and include-tag only when enabled
+PASS v1 request arguments put first want before shallow and have lines
+PASS v2 builds shallow blobless ref-in-want negotiation arguments
+PASS guards unsupported fetch feature-backed arguments
+PASS validates unknown fetch arguments and unsupported capabilities
+PASS wordpress fixture builds a blobless shallow fetch request for deployment refs
+PASS parses fetch acknowledgement lines
+PASS parses shallow updates and wanted refs
+PASS checks fetch response required features like gix-protocol
+PASS parses protocol v2 response sections and sideband pack data
+PASS parses protocol v2 acknowledgements without a pack section
+PASS rejects unknown protocol v2 response sections and invalid sidebands
+PASS captures sideband progress and error channels without mixing them into pack data
+PASS wordpress fixture parses fetch response sections and sideband pack bytes
+PASS git blob oid matches canonical git hashing
+PASS loose header encoding and decoding follows gix object integration tests
+PASS from loose bytes rejects short payloads and parses the advertised body prefix
+PASS loose object store writes and reads native zlib objects
+PASS invalid storage header is rejected
+PASS wordpress loose object header example parses imported block content
+PASS parses sha256 annotated tags with signature split at line boundary
+PASS tag signature marker follows gitoxide line boundary semantics
+PASS parses optional taggers empty messages and tree tags
+PASS tag writer roundtrips upstream body shapes and exposes iterator tokens
+PASS tag parser preserves raw target bytes and iterator surfaces partial errors
+PASS tag writer follows gitoxide tag name validation
+PASS tag name sanitizer follows gix validate byte rules
+PASS tag parser rejects malformed annotated tags
+PASS wordpress fixture roundtrips signed annotated release tags
+PASS parses direct loose ref and normalizes uppercase ids
+PASS direct loose refs accept fetch-head style data after id
+PASS parses sha256 direct loose ref when requested
+PASS rejects sha256 sized id and trailing hex in sha1 mode
+PASS parses symbolic loose ref with extra spaces before target
+PASS rejects invalid symbolic targets and unsafe ref names
+PASS loose reference store writes direct and symbolic files
+PASS wordpress fixture stores deploy branch references without git binary
+PASS finds nearest merge base in a linear history
+PASS returns independent criss-cross merge bases
+PASS maps upstream octopus merge-base for three sequential heads
+PASS maps upstream octopus merge-base for three parallel heads
+PASS maps upstream octopus merge-base for forked and criss-cross heads
+PASS returns null when histories are unrelated
+PASS wordpress fixture finds shared release baseline for multiple review branches
+PASS object database reader requires commit objects
+PASS writes unmerged blob stages to a git index v2 file
+PASS rejects tree stages that a git index cannot store
+PASS writes relocated directory file conflicts to git index entries
+PASS writes merged recursive worktree files including marker blobs
+PASS checkout merged tree removes stale paths but preserves git metadata
+PASS checkout merged tree replaces file and directory blockers
+PASS writes only content conflict files when requested
+PASS rejects unsafe worktree paths
+PASS parses v1 multi-pack-index chunks names hashes offsets and checksum
+PASS looks up multi-pack-index full object ids and prefixes
+PASS supports raw high-bit offsets when no large-offset chunk is present
+PASS rejects corrupt multi-pack-index headers chunks names and checksums
+PASS fast integrity catches out-of-order objects and missing pack ids
+PASS wordpress fixture maps content and media packs through one multi-pack-index
+PASS object database reads packed delta and loose objects
+PASS object database iterates packs before loose objects with selectable ordering
+PASS object database lookup prefixes across packed and loose objects
+PASS object database rejects incomplete pack pairs
+PASS object database resolves loose and packed alternates
+PASS object database resolves relative quoted alternates and rejects cycles
+PASS object database applies loose replacement refs and can ignore them
+PASS object database applies packed replacement refs and sorts replacement mappings
+PASS object database uses multi-pack-index for packed counts reads prefixes and iteration
+PASS object database rejects multi-pack-index entries that reference missing packs
+PASS builds v2 pack data and index for native git objects
+PASS builds empty packs for already-present create or update pushes
+PASS encodes large non-delta objects with multi-byte entry headers
+PASS builds ref-delta pack entries when a similar base is available
+PASS builds ofs-delta pack entries against already written bases
+PASS builds thin ref-delta packs against remote bases
+PASS bounds ref-delta base search to recent same-type candidates
+PASS bounds ofs-delta base search to earlier in-window candidates
+PASS reuses existing whole and ofs-delta pack entries in source offset order
+PASS recompresses existing deltas as whole objects when omitted bases cannot make a resting pack
+PASS reuses existing ofs-delta payloads as thin ref-deltas when explicitly allowed
+PASS recompresses existing legacy ref-delta pack entries instead of copying them
+PASS guards invalid pack builder inputs and result metadata
+PASS push command can append a generated pack after update commands
+PASS wordpress fixture builds receive-pack request with native pack bytes
+PASS wordpress fixture builds compact in-pack offset deltas
+PASS wordpress fixture bounds pack delta base search for export payloads
+PASS wordpress fixture reuses existing packed export deltas for repacks and thin transit packs
+PASS parses pack data header and verifies checksum
+PASS reads non-delta blob and commit objects by pack-index offset
+PASS parses multi-byte entry size headers
+PASS rejects bad pack data and unsupported delta resolution
+PASS resolves ofs-delta packed blob objects by base offset
+PASS resolves ref-delta packed blob objects by base object id
+PASS resolves and repairs thin ref-delta packs with external bases
+PASS carries external bases through ofs-delta chains
+PASS rejects corrupt delta instructions during object resolution
+PASS wordpress fixture reads compacted commit blob and delta objects without git binary
+PASS wordpress fixture resolves and repairs thin content packs
+PASS parses v2 pack index fanout entries checksums and large offsets
+PASS looks up full object ids and prefixes like gix-pack index access
+PASS reports ambiguous pack index prefixes
+PASS rejects corrupt pack index headers fanout sizes and checksums
+PASS wordpress fixture locates compacted content objects without git binary
+PASS parses packed refs header traits and sorted flag
+PASS parses uppercase packed ref and peeled object ids
+PASS parses sha256 packed refs when requested
+PASS rejects invalid packed ref inputs
+PASS maps upstream packed refs fixture without header
+PASS sorts upstream unsorted packed refs fixture before lookup
+PASS applies packed partial lookup disambiguation rules
+PASS wordpress fixture maps packed branch and release tag refs without git binary
+PASS parses common partial clone fetch filter specs
+PASS fetch command accepts filter spec value objects
+PASS object database reports promisor pack state
+PASS object database can lazily resolve promised missing objects into loose storage
+PASS object database rejects promisor resolver object id mismatches
+PASS wordpress blobless partial clone fixture keeps missing media object promised
+PASS parses v1 capability bytes like gix-transport
+PASS parses v2 capabilities and builds ls-refs command arguments
+PASS validates ls-refs argument prefixes and unsupported features
+PASS parses protocol v2 ls-refs response lines
+PASS rejects malformed protocol v2 ref lines
+PASS wordpress fixture discovers active branch release tag and unborn staging ref
+PASS push updates format create update and delete ref commands
+PASS push command builds receive-pack update request with first-line capabilities
+PASS push command sends push options after update flush
+PASS push command guards unsupported capabilities and empty updates
+PASS wordpress fixture builds deploy branch and release tag push request
+PASS parses receive-pack report status without sideband
+PASS parses rejected refs and unpack errors
+PASS parses report-status-v2 rewritten ref options
+PASS parses upstream-shaped sideband push response
+PASS guards malformed push response packet streams
+PASS wordpress fixture parses deployment branch and tag push status
+PASS stream receive-pack transport reads advertisement writes request and reads sideband response
+PASS receive-pack client parses direct report-status responses without sideband
+PASS git-daemon receive-pack transport sends service request and delegates client flow
+PASS git-daemon receive-pack service request validates urls and parameters
+PASS smart http receive-pack transport strips service advertisement and posts request
+PASS smart http receive-pack urls headers and response validation follow git http protocol
+PASS smart http receive-pack preserves auth headers and session cookies across requests
+PASS smart http receive-pack follows safe initial redirects and reuses effective base
+PASS smart http receive-pack applies proxy options and credential helpers
+PASS smart http default requester performs socks5h handshake with proxy credentials
+PASS smart http default requester performs https through socks5h with trusted ca
+PASS smart http default requester performs socks4a remote host handshake
+PASS ssh receive-pack transport connects through injected exec streams
+PASS ssh receive-pack urls and commands are validated without shelling out
+PASS receive-pack transport guards state order and truncated packet streams
+PASS receive-pack client refuses responses without report-status negotiation
+PASS wordpress fixture runs receive-pack over native stream transport
+PASS wordpress fixture stores smart http proxy credentials without leaking origin headers
+PASS wordpress fixture documents smart http socks tls receive-pack discovery
+PASS wordpress fixture refuses cleartext url credentials before smart http discovery
+PASS reference names expose upstream fullname file category and short name helpers
+PASS complete reference validation follows upstream slash and standalone rules
+PASS reference categories construct full names like upstream Category to_full_name
+PASS reference namespace helpers expand prefix and strip like gix ref namespace
+PASS partial reference names join components using upstream validation
+PASS partial reference names sanitize with gix validate byte rules
+PASS branch reference validation rejects upstream reserved HEAD branch
+PASS wordpress fixture classifies deployment refs without git binary
+PASS reference store finds loose refs before packed refs
+PASS reference store opens packed refs from git directory
+PASS reference store honors loose remote head special case
+PASS wordpress fixture resolves packed branch and release tag through reference store
+PASS namespaced reference store iteration is transparent like upstream gix ref
+PASS wordpress namespaced reference example scopes multisite review refs without git binary
+PASS reference store update enforces upstream previous value constraints
+PASS reference store delete follows upstream missing and match constraints
+PASS reference store delete rewrites packed refs and removes stale loose overlays
+PASS reference store deletes broken loose refs with permissive constraints like upstream gix ref
+PASS reference store update leaves default packed refs shadowed by loose refs
+PASS reference store packed update mode rewrites packed refs and can prune loose source
+PASS reference store packed update refuses stale packed refs lock without side effects
+PASS reference store packed update mode refreshes stale packed refs even when loose value already matches
+PASS reference store packed update mode peels tag objects through object database
+PASS reference store deref update reports log-only symbolic split like upstream gix ref
+PASS reference store deref update creates missing referent while preserving symbolic head
+PASS reference store deref delete removes only reflogs through symbolic split like upstream gix ref
+PASS reference store deref delete keeps symbolic parent and deletes leaf reference
+PASS reference store deletes packed refs file when all packed entries are removed
+PASS namespaced reference transactions are transparent like upstream gix ref
+PASS prepared reference transaction rollback removes intermediate lock directories
+PASS prepared reference transaction commit publishes lock files like upstream gix ref
+PASS prepared reference transaction commit recovers empty directory blockers
+PASS prepared reference transaction commit is non atomic after a later lock failure
+PASS prepared reference transaction commit writes object reflogs before publishing locks
+PASS prepared reference transaction commit needs a committer only when a reflog would be written
+PASS prepared reference transaction commit recovers empty reflog directory blockers
+PASS prepared reference transaction deletes symbolic reflog without deref like upstream gix ref
+PASS prepared reference transaction deletes dereferenced reflogs while preserving refs
+PASS prepared reference transaction stops on reflog delete failure before deleting ref
+PASS prepared reference transaction deletes broken loose refs after staging locks
+PASS prepared reference transaction lock collision rolls back already prepared locks
+PASS prepared reference transaction refuses packed refs lock before loose locks
+PASS reference store recovers empty directory blockers when creating loose refs
+PASS reference store refuses non-empty directory blockers when creating loose refs
+PASS wordpress reference transaction example promotes and prunes review refs without git binary
+PASS wordpress deref reference transaction example updates production through symbolic head
+PASS wordpress packed reference transaction example rewrites packed refs and records reflog
+PASS parses receive-pack v1 advertisement refs and capabilities
+PASS guards malformed receive-pack advertisements
+PASS send-pack session plans create update and no-op refs from advertisement
+PASS send-pack session omits pack data for delete-only requests
+PASS send-pack session sends an empty pack for update requests with no new objects
+PASS send-pack session parses receive-pack sideband status responses
+PASS send-pack session builds thin ref-delta requests from remote bases
+PASS wordpress fixture orchestrates advertised refs generated pack request and status response
+PASS wordpress fixture builds a thin ref-delta send-pack request
+PASS cone sparse checkout includes root and ancestor files plus selected directory contents
+PASS cone sparse checkout pattern files round trip to recursive directories
+PASS non cone sparse checkout applies include and exclude patterns in order
+PASS sparse checkout filters wordpress tree entries for traversal
+PASS case insensitive cone sparse checkout follows ignorecase matching
+PASS merges independent flat WordPress tree changes
+PASS reports modify modify conflicts and keeps base entry in result tree
+PASS handles delete delete as a clean removal
+PASS reports delete modify conflicts with staged sides
+PASS reports exact rename delete conflicts with staged sides
+PASS reports exact rename rename conflicts and keeps base path
+PASS does not infer ambiguous exact renames from duplicate objects
+PASS resolves identical add add entries but reports divergent additions
+PASS reports directory file conflicts before generic add add conflicts
+PASS duplicate flat tree names are rejected
+PASS recursive tree merge combines independent nested blob edits
+PASS recursive tree merge records content conflicts with full paths and marker blobs
+PASS maps upstream gix-merge tree-baseline big-file-merge fixture shape
+PASS maps upstream gix-merge tree-baseline simple side-1-3-without-conflict fixture shape
+PASS maps upstream gix-merge tree-baseline simple fast-forward no-change and unrelated fixture shapes
+PASS maps upstream gix-merge tree-baseline simple single-content-conflict fixture shape
+PASS maps upstream gix-merge tree-baseline simple side-1-2-various-conflicts fixture shape
+PASS maps upstream gix-merge tree-baseline simple tweak1-side2 fixture shape
+PASS recursive tree merge reports nested exact rename delete conflicts
+PASS recursive tree merge reports similar rename delete conflicts
+PASS recursive tree merge reports similar rename modify conflicts
+PASS recursive tree merge cleanly merges same target similar renames
+PASS recursive tree merge conflicts same target similar rename edits at renamed path
+PASS recursive tree merge applies directory rename to clean modified old directory
+PASS recursive tree merge detects directory rename when plugin entry file is renamed
+PASS recursive tree merge chooses strict best directory rename candidate
+PASS recursive tree merge reports directory rename target collisions
+PASS maps upstream gix-merge tree-baseline non-tree-to-tree fixture shape
+PASS maps upstream gix-merge tree-baseline non-tree-to-tree-with-rename fixture shape
+PASS maps upstream gix-merge tree-baseline tree-to-non-tree fixture shape
+PASS maps upstream gix-merge tree-baseline tree-to-non-tree-with-rename fixture shape
+PASS maps upstream gix-merge tree-baseline rename-delete fixture shape
+PASS maps upstream gix-merge tree-baseline rename-add fixture shape
+PASS maps upstream gix-merge tree-baseline rename-add-exe-bit-conflict fixture shape
+PASS maps upstream gix-merge tree-baseline remove-executable-mode fixture shape
+PASS maps upstream gix-merge tree-baseline added-file-changed-content-and-mode fixture shape
+PASS maps upstream gix-merge tree-baseline renamed-symlink-with-conflict fixture shape
+PASS maps upstream gix-merge tree-baseline rename-add-symlink fixture shape
+PASS maps upstream gix-merge tree-baseline rename-add-same-symlink fixture shape
+PASS maps upstream gix-merge tree-baseline symlink-modification fixture shape
+PASS maps upstream gix-merge tree-baseline symlink-addition fixture shape
+PASS maps upstream gix-merge tree-baseline type-change-to-symlink fixture shape
+PASS maps upstream gix-merge tree-baseline type-change-and-renamed fixture shape
+PASS maps upstream gix-merge tree-baseline rename-and-modification fixture shape
+PASS maps upstream gix-merge tree-baseline no-merge-base fixture shape
+PASS maps upstream gix-merge tree-baseline change-and-delete fixture shape
+PASS maps upstream gix-merge tree-baseline submodule-both-modify fixture shape
+PASS maps upstream gix-merge tree-baseline same-rename-different-mode fixture shape
+PASS maps upstream gix-merge tree-baseline both-modify-union-attr fixture shape
+PASS maps upstream gix-merge tree-baseline both-modify-binary fixture shape
+PASS maps upstream gix-merge tree-baseline both-modify-file-with-binary-attr fixture shape
+PASS maps upstream gix-merge tree-baseline super-1 fixture shape
+PASS maps upstream gix-merge tree-baseline super-2 fixture shape
+PASS maps upstream gix-merge tree-baseline conflicting-rename fixture shape
+PASS maps upstream gix-merge tree-baseline conflicting-rename-2 fixture shape
+PASS maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape
+PASS maps upstream gix-merge tree-baseline rename-add-delete fixture shape
+PASS maps upstream gix-merge tree-baseline rename-rename-delete-delete fixture shape
+PASS recursive tree merge reports directory rename content conflicts at new path
+PASS recursive tree merge preserves side labels when theirs renames a modified directory
+PASS recursive tree merge records nested directory file conflicts with stages
+PASS empty tree body is valid
+PASS parses upstream everything tree entry kinds and oids
+PASS tree round trips through a native Git object
+PASS entry mode helpers follow gix-object kind semantics
+PASS leading spaces in filenames are preserved
+PASS partial tree object id is rejected
+PASS malformed tree mode is rejected
+PASS non-tree git object cannot be parsed as tree
+PASS wordpress fixture exposes deployable content tree entries
+PASS parses core sqlite database header fields
+PASS parses sqlite database freelist header fields
+PASS parses sqlite auto-vacuum pointer map entries for wordpress pages
+PASS plans sqlite auto-vacuum pointer-map updates for wordpress page mutations
+PASS plans auto-vacuum freePage2 pointer-map mutation and skips pointer-map append pages
+PASS sqlite varints decode one and multi byte values
+PASS sqlite varints encode upstream one through nine byte boundaries
+PASS sqlite header rejects non power of two page size
+PASS parses sqlite first page table leaf btree header
+PASS parses sqlite interior btree header with rightmost pointer
+PASS parses sqlite btree freeblock chains and free space accounting
+PASS parses sqlite freelist trunk pages and allocation order
+PASS mutates sqlite freelist metadata while allocating reusable pages
+PASS allocates empty freelist trunks and appends after freelist depletion
+PASS rejects corrupt sqlite freelist trunk metadata
+PASS rejects corrupt sqlite btree freeblock chains
+PASS parses sqlite table interior cells with child page and rowid separator
+PASS assembles sqlite table interior pages with rowid separators
+PASS parses sqlite 65536 byte page zero cell content start
+PASS sqlite btree header rejects invalid page flags
+PASS parses table leaf cell rowid payload and sqlite record values
+PASS table leaf cells reject truncated payloads
+PASS computes sqlite table leaf local payload length for overflow rows
+PASS encodes sqlite overflow page chains with upstream next page pointers
+PASS encodes sqlite overflow chains at reusable page numbers with reserved bytes
+PASS parses sqlite index leaf and interior cells
+PASS computes sqlite index local payload length for overflow records
+PASS encodes sqlite index cells including overflow pointers and minimum cell size
+PASS assembles sqlite index leaf overflow pages from native encoders
+PASS assembles wordpress option_name index leaf pages from native index cell encoder
+PASS assembles sqlite index interior pages from native index cell encoder
+PASS assembles wordpress option_name index interior pages from native index cell encoder
+PASS sqlite records decode core serial types
+PASS encodes sqlite records using upstream serial type widths
+PASS encodes sqlite record headers whose size varint expands
+PASS encodes sqlite text records using utf16le and utf16be database encodings
+PASS encodes sqlite table leaf cells including overflow pointers and minimum cell size
+PASS assembles wordpress table leaf overflow pages from native cell encoders
+PASS assembles wordpress wp_options table leaf pages from native record and cell encoders
+PASS decodes sqlite_schema table records from a first-page table leaf cell
+PASS walks sqlite_schema interior pages to resolve wordpress table roots
+PASS reads bounded wordpress options from a resolved table root page
+PASS walks interior wp_options table pages while respecting row limits
+PASS reads wordpress options by bounded rowid range across table interior pages
+PASS prunes unrelated damaged table branches during rowid range scans
+PASS walks sqlite index btrees including interior index records
+PASS uses a wordpress option_name index to fetch an option by rowid
+PASS parses explicit sqlite index first column collation and direction
+PASS parses sqlite lower expression index metadata without treating it as a column index
+PASS parses sqlite upper expression index metadata without treating it as a column index
+PASS parses sqlite trim expression index metadata without treating it as a column index
+PASS parses sqlite length expression index metadata without treating it as a column index
+PASS parses sqlite integer cast expression index metadata without treating it as a column index
+PASS parses sqlite json_extract expression index metadata without treating it as a column index
+PASS parses sqlite json text operator expression index metadata without treating it as a column index
+PASS parses sqlite json value operator expression index metadata separately from text operator indexes
+PASS validates sqlite full json path syntax for expression index preflight
+PASS uses wordpress json operator indexes with json_quote RHS constants
+PASS uses wordpress json operator indexes with min max RHS constants
+PASS skips malformed wordpress json path expression indexes during preflight
+PASS parses sqlite substr expression index metadata without treating it as a column index
+PASS parses explicit sqlite composite index column metadata
+PASS uses explicit nocase descending wordpress option_name index lookup
+PASS uses supplied custom collation callback for wordpress option_name index lookup
+PASS uses supplied custom collation callback for wordpress option_name range scans
+PASS uses supplied custom collation callback for composite wordpress option_name range scans
+PASS uses wordpress option_name indexes for IN-list option lookups without duplicate rhs rows
+PASS uses IN-list seek bounds without reading out-of-range index pages
+PASS uses partial is not null option_name indexes for wordpress IN-list lookups
+PASS uses exact IN-list partial option_name indexes only for matching wordpress name lists
+PASS uses lower expression index for case folded wordpress option_name lookup
+PASS uses supplied custom collation callback for lower expression wordpress option_name lookups
+PASS uses supplied custom collation callback for lower expression IN-list and range lookups
+PASS uses lower expression index for case folded wordpress option_name IN-list lookups
+PASS uses upper expression index for ascii folded wordpress option_name lookup
+PASS uses trim expression index for whitespace-normalized wordpress option_name lookup
+PASS uses upper expression index for ascii folded wordpress option_name IN-list lookups
+PASS uses lower expression IN-list seek bounds without reading out-of-range index pages
+PASS uses length expression index for wordpress option_name length buckets
+PASS uses length expression index for wordpress option_name length IN-list buckets
+PASS uses integer cast expression index for wordpress numeric option values
+PASS uses integer cast expression index for wordpress numeric option value IN-list lookups
+PASS uses integer cast expression IN-list seek bounds without reading out-of-range index pages
+PASS uses integer cast expression index for wordpress numeric option value ranges
+PASS uses integer cast expression range seek bounds without reading out-of-range index pages
+PASS uses json_extract expression index for wordpress plugin option values
+PASS uses json5 json_extract expression indexes for wordpress plugin option values
+PASS normalizes json5 non-finite numbers for wordpress json indexes and jsonb fixtures
+PASS rejects malformed json5 while verifying wordpress json expression indexes
+PASS decodes focused sqlite jsonb blobs for json expression verification
+PASS checks sqlite json_valid jsonb superficial and strict blob flags
+PASS checks sqlite json_valid text json5 and blob flag combinations
+PASS quotes sqlite sql values as json values for option preflight
+PASS constructs sqlite json arrays from sql values for option diagnostics
+PASS constructs sqlite json objects from text labels and sql values
+PASS rejects sqlite json object argument and blob label errors
+PASS canonicalizes sqlite json text json5 blob and null option values
+PASS pretty prints sqlite json text json5 blob and null option values
+PASS reports sqlite json_error_position for text json5 blob and null option values
+PASS inspects sqlite json_type and json_array_length for text json5 blob and null option values
+PASS inspects focused sqlite jsonb types at root and paths
+PASS inspects focused sqlite jsonb array lengths at root and paths
+PASS inspects sqlite jsonb wordpress option and meta arrays for import preflight
+PASS removes focused sqlite jsonb object members and array elements
+PASS removes multiple sqlite jsonb paths in sqlite argument order
+PASS mutates focused sqlite jsonb paths with insert set and replace
+PASS creates focused sqlite jsonb mutation substructures and append paths
+PASS array-inserts focused sqlite jsonb array elements
+PASS array-inserts focused sqlite jsonb substructures and non-array targets
+PASS rejects malformed sqlite jsonb array insert paths and roundtrips jsonb output
+PASS array-inserts sqlite jsonb wordpress option migration lists
+PASS patches focused sqlite jsonb objects with merge patch semantics
+PASS mutates sqlite jsonb wordpress plugin settings for preflight fixtures
+PASS patches sqlite jsonb wordpress plugin settings for import preflight fixtures
+PASS uses jsonb option_value blobs through wordpress json expression indexes
+PASS uses escaped sqlite json path labels for wordpress plugin option values
+PASS uses json_extract expression index for wordpress plugin settings array paths
+PASS uses json_extract expression index for wordpress plugin settings reverse array paths
+PASS uses json text operator expression index for wordpress plugin option value lookups
+PASS uses json text operator expression index for wordpress root array option values
+PASS uses json text operator expression index for wordpress root array reverse lookups
+PASS uses json value operator expression index for wordpress plugin setting fragments
+PASS uses json value operator expression index for wordpress plugin setting fragment IN-list lookups
+PASS uses json value operator expression index for wordpress plugin setting fragment ranges
+PASS uses json_extract expression index for wordpress plugin option value IN-list lookups
+PASS uses json_extract expression IN-list seek bounds without reading out-of-range index pages
+PASS uses json_extract expression index for wordpress plugin option value ranges
+PASS uses json_extract expression range seek bounds without reading out-of-range index pages
+PASS uses length expression IN-list seek bounds without reading out-of-range index pages
+PASS uses length expression index for wordpress option_name length ranges
+PASS uses length expression range seek bounds without reading out-of-range index pages
+PASS uses substr expression index for wordpress option_name prefix scans
+PASS uses substr expression index for wordpress option_name prefix IN-list scans
+PASS uses substr expression IN-list seek bounds without reading out-of-range index pages
+PASS uses negative-start substr expression index for wordpress option_name suffix scans
+PASS uses lower expression index range for case folded wordpress option_name scans
+PASS uses lower expression range seek bounds without reading out-of-range index pages
+PASS uses upper expression index range for ascii folded wordpress option_name scans
+PASS uses upper expression range seek bounds without reading out-of-range index pages
+PASS skips partial option_name indexes for whole-table wordpress lookups
+PASS uses partial is not null option_name index for wordpress point lookups
+PASS uses equality partial option_name index when wordpress autoload predicate is known
+PASS uses or equality partial option_name index when wordpress autoload predicate matches one term
+PASS uses and equality partial option_name index only when every wordpress predicate is known
+PASS uses nonunique composite autoload index to scan duplicate wordpress options
+PASS uses composite autoload and option_name index to fetch one wordpress option
+PASS uses composite autoload equality and option_name range to scan wordpress options
+PASS uses composite equality range seek bounds without reading out-of-range index pages
+PASS uses multi-column equality prefix and option_name range to scan wordpress options
+PASS uses supplied custom collation callbacks for composite equality prefix range scans
+PASS uses partial composite autoload and option_name range indexes when predicates are implied
+PASS uses partial autoload is not null index for duplicate wordpress option scans
+PASS uses option_name range bounds to scan transient wordpress options through an index
+PASS uses partial option_name is not null indexes for indexed name range scans
+PASS uses open ended and inclusive option_name range bounds through a wordpress index
+PASS uses first-column range seek bounds without reading out-of-range index pages
+PASS uses upper-only bounds to imply partial is not null option_name range indexes
+PASS uses comparison partial option_name indexes for wordpress transient range scans
+PASS uses between partial option_name indexes for inclusive wordpress range scans
+PASS uses descending option_name indexes for inclusive wordpress range scans
+PASS infers sqlite automatic unique index columns from create table sql
+PASS infers sqlite primary key autoindex columns without consuming rowid aliases
+PASS infers sqlite automatic index collation metadata from create table sql
+PASS uses sqlite automatic unique index rows with null sql to fetch a wordpress option
+PASS uses sqlite automatic unique index collation and direction for wordpress option lookup
+PASS uses sqlite automatic primary key index rows after earlier unique autoindexes
+PASS reads sqlite_sequence autoincrement counters for wordpress tables
+PASS allocates sqlite autoincrement rowids from sqlite_sequence state
+PASS allocates sqlite autoincrement rowids with missing and invalid sequence rows
+PASS preserves wordpress autoincrement continuity for explicit imported ids
+PASS reads a wordpress option value from a sqlite overflow page
+PASS reads a wordpress option value across chained sqlite overflow pages
+PASS reads wordpress overflow values from reusable pages with reserved bytes
+PASS rejects sqlite overflow chains that end before the payload is complete
+PASS plans wordpress overflow reuse from sqlite freelist trunk metadata
+PASS plans sqlite freePage2 leaf insertion into non-full freelist trunks
+PASS plans sqlite secure-delete freePage2 leaf clearing in non-full freelist trunks
+PASS plans sqlite freePage2 new trunk pages for empty freelists
+PASS plans sqlite freePage2 new trunk pages when the first trunk is compatibility-full
+PASS plans wordpress wp_options leaf insert page images with appended overflow pages
+PASS plans auto-vacuum pointer-map entries for inserted wordpress overflow option chains
+PASS plans wordpress wp_options leaf insert in a utf16le encoded database image
+PASS plans wordpress wp_options leaf insert using reusable freelist overflow pages
+PASS plans wordpress wp_options leaf insert while maintaining an option_name index
+PASS plans wordpress wp_options leaf insert while maintaining an automatic unique option_name index
+PASS plans wordpress wp_options leaf insert while maintaining a safe partial option_name index
+PASS plans wordpress wp_options leaf insert while maintaining a composite autoload option_name index
+PASS plans wordpress wp_options leaf insert while maintaining a multi-page option_name index
+PASS plans wordpress indexed insert by splitting a same-depth multi-page index leaf
+PASS plans wordpress indexed insert by growing a full option_name index root leaf
+PASS plans wordpress indexed insert by splitting a leaf and growing a full index root interior
+PASS plans wordpress automatic indexed insert by splitting a leaf and growing a full index root interior
+PASS plans wordpress composite indexed insert by splitting a leaf and growing a full index root interior
+PASS plans wordpress indexed insert by splitting an overflowing non-root index parent
+PASS plans wordpress wp_options replacement while freeing obsolete overflow pages
+PASS plans wordpress secure-delete replacement while clearing obsolete overflow leaves
+PASS plans wordpress wp_options replacement while preserving an unchanged option_name index
+PASS plans wordpress wp_options replacement while preserving a safe partial option_name index
+PASS plans wordpress wp_options replacement while moving a composite autoload option_name index entry
+PASS plans wordpress wp_options replacement while moving an automatic composite index entry
+PASS plans wordpress wp_options replacement while moving entries across a multi-page composite index
+PASS plans wordpress replacement by redistributing an underfilled multi-sibling composite index leaf
+PASS plans wordpress replacement by merging an underfilled composite index leaf when redistribution cannot fit
+PASS plans wordpress replacement by merging an underfilled composite index leaf below a non-root parent
+PASS plans wordpress replacement by collapsing a non-root composite index parent after leaf merge
+PASS plans wordpress replacement by merging a non-root composite index parent under a multi-child root
+PASS plans wordpress replacement by collapsing an emptied composite index root
+PASS plans wordpress replacement by splitting a same-depth composite index leaf
+PASS plans wordpress replacement by splitting a composite index leaf and growing a full root interior
+PASS plans wordpress replacement inside a multi-page table btree leaf
+PASS plans wordpress replacement by splitting a table leaf below an interior root
+PASS plans wordpress replacement by splitting a table leaf below a non-root interior parent
+PASS plans wordpress replacement by splitting an overflowing non-root table parent
+PASS plans wordpress replacement by splitting a table leaf and growing a full table root parent
+PASS plans wordpress replacement by growing a table leaf root
+PASS plans auto-vacuum pointer-map entries for table-root split btree children
+PASS plans wordpress wp_options replacement with appended overflow pages
+PASS plans wordpress wp_options replacement allocation before freeing old overflow pages
+PASS plans auto-vacuum pointer-map entries for replacement-created wordpress overflow chains
+PASS rejects bounded wordpress replacement plans that would be ambiguous or leave indexes stale
+PASS rejects bounded wordpress insert plans that would leave indexes or duplicate rows stale
+PASS database reader rejects missing pages during btree traversal
+PASS standalone table leaf cells require an overflow reader for overflow payloads
+PASS sqlite record parser rejects reserved serial types
+PASS css formatter maps upstream page rule printer cases
+PASS css formatter rejects invalid upstream page nested at rules
+PASS wordpress print export page rules format without node
+PASS css minifier removes comments and insignificant whitespace
+PASS css comments inside strings survive minification
+PASS css minifier preserves descendant spaces before functional pseudo classes
+PASS css minifier preserves upstream no-target nested parent-reference spaces
+PASS css minifier canonicalizes upstream no-target implicit nested selectors
+PASS css minifier preserves upstream no-target attached nested selectors
+PASS css minifier maps upstream legacy pseudo-element colon compaction
+PASS css minifier shortens upstream color keywords in declaration values
+PASS css minifier maps upstream color-scheme value ordering
+PASS css minifier maps upstream light-dark color function minification
+PASS css minifier maps upstream all reset declaration pruning
+PASS css minifier maps upstream font-family string serialization
+PASS css minifier maps upstream font shorthand composition
+PASS css minifier maps upstream font shorthand default omission
+PASS css minifier maps upstream font-face src descriptors and unicode ranges
+PASS css minifier maps upstream font palette values minification
+PASS css minifier maps upstream font feature values minification
+PASS css minifier maps upstream property rule minification
+PASS css minifier maps upstream property rule validation errors
+PASS css minifier maps upstream physical and logical inset composition
+PASS css minifier maps upstream page rule minification and validation
+PASS css minifier maps upstream namespace rule minification and ordering
+PASS css minifier maps upstream starting-style rule minification
+PASS css minifier maps upstream view-transition rule minification
+PASS css minifier maps upstream import rule minification
+PASS css minifier maps upstream supports rule condition normalization
+PASS css minifier maps upstream adjacent supports rule merging
+PASS css minifier maps upstream supports rule declaration value minification boundary
+PASS css minifier maps upstream image-set string url type and gradient normalization
+PASS css minifier preserves strings urls custom properties and calc operator spacing
+PASS css minifier maps upstream linear calc arithmetic cluster
+PASS css minifier maps upstream min max and clamp math function cluster
+PASS css minifier maps upstream round rem and mod math function cluster
+PASS css minifier maps upstream exponential and sign math function cluster
+PASS css minifier maps upstream nested math functions inside calc
+PASS css minifier maps upstream transform translate and scale normalization
+PASS css minifier maps upstream transform rotate skew matrix normalization
+PASS css minifier maps upstream transform longhand normalization
+PASS css minifier maps upstream keyframes rule minification
+PASS css minifier maps upstream animation longhand value minification
+PASS css minifier maps upstream animation shorthand value minification
+PASS css minifier maps upstream animation longhand composition
+PASS css minifier maps upstream prefixed animation composition
+PASS css minifier maps upstream animation range value minification
+PASS css minifier maps upstream animation range composition and resets
+PASS css minifier maps upstream container query prelude minification
+PASS css minifier maps upstream container declaration composition
+PASS css minifier maps upstream adjacent container query merging
+PASS css minifier maps upstream container query unit calc folding
+PASS css minifier maps upstream container query validation errors
+PASS css minifier maps upstream media and container error recovery option
+PASS css minifier maps upstream transition longhand value minification
+PASS css minifier maps upstream transition shorthand value minification
+PASS css minifier maps upstream list-style value minification
+PASS css minifier maps upstream list-style longhand composition
+PASS css minifier maps upstream transition longhand composition
+PASS css minifier maps upstream transition list and prefix composition
+PASS css minifier maps upstream transition logical block properties
+PASS css minifier maps upstream filter value minification
+PASS css minifier maps upstream box shadow value minification
+PASS css minifier maps upstream text shadow value minification
+PASS css minifier maps upstream caret values
+PASS css minifier maps upstream text emphasis values and composition
+PASS wordpress block theme fixture minifies without breaking custom property math
+PASS wordpress cover overlay insets compose without node
+PASS wordpress fluid block spacing math functions minify without node
+PASS wordpress block depth math functions minify without node
+PASS wordpress cover transform functions normalize without node
+PASS wordpress gallery transform rotate and longhands minify without node
+PASS wordpress editor color scheme values minify without node
+PASS wordpress view transition rules minify without node
+PASS wordpress block interaction transition shorthands minify without node
+PASS wordpress block style transition presets minify without node
+PASS wordpress block interaction longhands compose to transition shorthand without node
+PASS wordpress theme font stacks serialize without node
+PASS wordpress variable font palettes minify without node
+PASS wordpress OpenType feature aliases minify and merge without node
+PASS wordpress registered design tokens minify without node
+PASS wordpress logical spacing transitions expand block axis properties without node
+PASS wordpress block animation names and timing aliases minify without node
+PASS wordpress block animation shorthand presets minify without node
+PASS wordpress block keyframes minify without node
+PASS wordpress block animation longhands compose without node
+PASS wordpress scroll linked cover animation ranges compose without node
+PASS wordpress block container queries and container shorthand minify without node
+PASS wordpress adjacent block container rules merge and fold cqw units without node
+PASS wordpress invalid block container queries fail before shipping css
+PASS wordpress conditional block stylesheet imports minify without node
+PASS wordpress svg namespace selectors minify without node
+PASS wordpress print export page rules minify without node
+PASS wordpress supports-gated block layouts minify without node
+PASS wordpress supports-gated block values minify without node
+PASS wordpress image filter presets minify without node
+PASS wordpress card shadow presets minify without node
+PASS wordpress block reset declarations prune reset properties without node
+PASS declaration parser handles semicolons and colons inside functions
+PASS custom media transformer maps upstream list substitution
+PASS custom media transformer maps upstream recursive references and later declarations
+PASS custom media transformer maps upstream media type and negation simplification
+PASS custom media transformer maps upstream common media type factoring
+PASS custom media transformer maps upstream negated range aliases
+PASS custom media transformer preserves declarations when requested
+PASS custom media transformer rejects undefined and circular references
+PASS custom media transformer rejects upstream unsupported media type boolean logic
+PASS custom media transformer reports upstream diagnostic locations
+PASS custom media transformer reports undefined and circular reference locations
+PASS wordpress custom media transformer expands block theme breakpoints without node
+PASS wordpress custom media transformer rejects incompatible print aliases in screen styles
+PASS declaration block get returns the last property and priority
+PASS declaration block reads upstream background cssom longhands
+PASS declaration block composes upstream background cssom shorthand
+PASS declaration block reads upstream mask border source cssom longhand
+PASS declaration block reads upstream border cssom shorthands
+PASS declaration block reads upstream grid area cssom longhands
+PASS declaration block reads upstream grid template cssom shorthand
+PASS declaration block reads upstream grid cssom shorthand only for initial auto placement
+PASS declaration block reads upstream flex flow cssom properties
+PASS declaration block reads upstream animation name cssom longhand
+PASS declaration block set replaces direct properties and serializes priority
+PASS declaration block sets upstream logical box properties after physical fallbacks
+PASS declaration block sets upstream background position shorthands
+PASS declaration block sets upstream border side longhands without decomposing
+PASS declaration block sets upstream flex flow cssom longhands
+PASS declaration block sets upstream animation name cssom longhand
+PASS declaration block remove drops direct properties and preserves neighbors
+PASS declaration block removes upstream flex flow cssom longhands
+PASS media query parser maps upstream range syntax normalization
+PASS media query parser maps upstream feature values qualifiers and lists
+PASS media query parser folds simple same-unit calc values
+PASS css minifier normalizes media query preludes before blocks
+PASS nesting transformer maps upstream direct parent selector lowering
+PASS nesting transformer maps upstream selector-list parent references
+PASS nesting transformer maps upstream nested attached selector list lowering
+PASS nesting transformer maps upstream implicit descendant and recursive nesting
+PASS nesting transformer maps upstream nested pseudo-element selectors
+PASS nesting transformer maps upstream attached type selector lowering
+PASS nesting transformer maps upstream nested media and @nest lowering
+PASS nesting transformer maps upstream parent placement and leading combinators
+PASS nesting transformer maps upstream nested supports and container lowering
+PASS nesting transformer maps upstream nested layer lowering
+PASS nesting transformer maps upstream namespace-attached selector lowering
+PASS nesting transformer recovers invalid styled-jsx placeholder media query
+PASS nesting transformer recovers upstream styled-jsx placeholder declaration values
+PASS nesting transformer honors explicit nesting include and exclude targets
+PASS nesting transformer maps upstream nested scope boundary lowering
+PASS nesting transformer maps upstream nested starting-style lowering
+PASS wordpress nested block stylesheet lowers without node
+PASS wordpress block transition starting-style lowers without node
+PASS wordpress nested pseudo-element selectors lower for block controls
+PASS wordpress nested layer rules lower for block theme delivery
+PASS wordpress styled-jsx placeholders recover inside nested block CSS
+PASS selector specificity maps upstream simple selectors
+PASS selector specificity maps upstream pseudo selectors
+PASS selector specificity compares WordPress override selectors
+PASS stylesheet parser separates selectors and declarations
+PASS stylesheet parser keeps at-rule statements distinct from style rules
+PASS stylesheet parser parses media at-rule blocks with nested style rules
+PASS stylesheet parser parses nested WordPress selectors inside style rules
+PASS stylesheet parser ignores comments but preserves braces in strings
+PASS stylesheet parser rejects malformed blocks
+PASS transition prefixer maps upstream inline transition-property direction selectors
+PASS transition prefixer maps upstream inline transition shorthand direction selectors
+PASS transition prefixer maps upstream transform transition prefixing
+PASS transition prefixer maps upstream clamp lowering for legacy safari targets
+PASS transition prefixer maps upstream color-scheme light-dark fallback flags
+PASS transition prefixer maps upstream light-dark color fallback values
+PASS transition prefixer maps upstream nested light-dark relative color fallbacks
+PASS transition prefixer maps upstream light-dark color-mix fallback and firefox serialization
+PASS transition prefixer honors upstream light-dark feature exclusion target
+PASS transition prefixer maps upstream print-color-adjust target boundary
+PASS wordpress editor color-scheme fallback flags prefix without node
+PASS wordpress print export keeps exact colors on old chrome print pipeline without node
+PASS transition prefixer maps upstream mask transition prefixing
+PASS transition prefixer maps upstream mask-border shorthand and longhand prefixing
+PASS transition prefixer maps upstream mask image and shorthand prefixing
+PASS transition prefixer maps upstream background advanced color fallback layers
+PASS transition prefixer maps upstream oklab and oklch lab target fallbacks
+PASS transition prefixer maps upstream custom property advanced color supports
+PASS transition prefixer maps upstream font palette values advanced color fallbacks
+PASS transition prefixer maps upstream filter and backdrop-filter prefixing
+PASS transition prefixer maps upstream backdrop-filter supports conditions
+PASS transition prefixer maps upstream filter advanced color fallbacks
+PASS transition prefixer maps upstream target-specific box-shadow prefixes and fallbacks
+PASS transition prefixer maps upstream box shadow oklch alpha fallback targets
+PASS transition prefixer maps upstream text shadow fallbacks
+PASS transition prefixer maps upstream text decoration prefixes and color fallbacks
+PASS transition prefixer maps upstream text emphasis prefixes and color fallbacks
+PASS transition prefixer maps upstream caret advanced color fallbacks
+PASS transition prefixer maps upstream list-style advanced color fallbacks
+PASS transition prefixer maps upstream image-set WebKit prefixes
+PASS transition prefixer maps upstream keyframes target prefixes
+PASS transition prefixer composes upstream mask longhands to shorthand prefixes
+PASS wordpress navigation transitions get logical and transform fallback prefixes without node
+PASS wordpress cover transform math and clamp fallback minify without node
+PASS wordpress decorative mask transitions get legacy WebKit names without node
+PASS wordpress sticky header filters get legacy WebKit prefixes without node
+PASS wordpress query card shadows get target-specific WebKit and color fallbacks without node
+PASS wordpress heading text shadows get advanced color fallbacks without node
+PASS wordpress link underline decoration gets legacy prefixes and lab fallbacks without node
+PASS wordpress editorial emphasis marks get advanced color fallbacks without node
+PASS wordpress editor inputs get caret color fallbacks without node
+PASS wordpress list marker gradients get advanced color fallbacks without node
+PASS wordpress cover frame mask-border longhands compose and prefix without node
+PASS wordpress media cover mask image longhands compose and prefix without node
+PASS wordpress cover background gradients get advanced color fallback layers without node
+PASS wordpress theme color tokens get guarded p3 and lab fallbacks without node
+PASS wordpress frame mask-border with custom slice gets lab supports fallback without node
+PASS plans convert.py chunk tasks with ceil chunking max slicing and basename metadata
+PASS loads convert.py metadata_file json keyed by basename
+PASS skips existing unsupported and short files before invoking supplied conversion
+PASS saves non-empty upstream tuple conversion output and skips empty output
+PASS processes a WordPress batch with basename metadata and convert.py summary counts
+PASS maps upstream bbox merge tolerance for adjacent text boxes
+PASS uses upstream strict bbox intersection and box1-area percentage semantics
+PASS maps upstream normalized bbox scaling and BboxElement metrics
+PASS rejects invalid BboxElement-shaped input like upstream validation
+PASS drives a WordPress geometry preflight for merged text and image overlap
+PASS builds upstream overall.py report shape from supplied benchmark runs
+PASS uses unique benchmark document pages for all methods like upstream total_pages
+PASS builds and verifies actual CI benchmark excerpt report for WordPress gates
+PASS rejects malformed benchmark report rows before quality gates consume them
+PASS verifies marker benchmark report thresholds like upstream script
+PASS rejects malformed marker reports before WordPress quality gates trust them
+PASS verifies table benchmark average threshold like upstream script
+PASS scores actual CI benchmark reference excerpts and verifies marker report
+PASS runs upstream overall.py style marker benchmark loop over actual CI pairs
+PASS supports supplied comparison methods while sharing per-document page counts
+PASS rejects malformed benchmark runner supplied boundaries
+PASS chunks benchmark text like upstream scoring
+PASS scores exact extracted text as perfect overlap
+PASS applies rapidfuzz-style indel ratio cutoff for fuzzy benchmark overlap
+PASS scores WordPress import output against expected clean content
+PASS scores committed upstream multicolcnn surrogate pair above threshold
+PASS scores committed upstream switch transformer surrogate pair above upstream threshold
+PASS scores committed upstream thinkpython surrogate pair above threshold
+PASS scores committed upstream thinkos surrogate pair above threshold
+PASS removes marked span ids and drops empty lines like upstream filter_spans
+PASS drops already-empty lines even when upstream filters keep all spans
+PASS clears bad span type text while preserving block metadata for image review
+PASS filters WordPress render text without losing picture block metadata
+PASS computes bbox_from_lines extents like upstream block helper
+PASS splits block lines with upstream zero and overlong guards
+PASS uses first span starts for upstream get_min_line_start semantics
+PASS splits a WordPress import block before Gutenberg heading and paragraph rendering
+PASS plans chunk_convert.sh marker jobs across CUDA devices
+PASS omits optional chunk_convert.sh flags when environment variables are empty
+PASS mirrors chunk_convert.sh validation for required environment and folders
+PASS produces WordPress queue shards without executing marker subprocesses
+PASS counts upstream-supported comment prefixes in candidate code lines
+PASS uses upstream line-length ratio for code-like blocks
+PASS identifies indented comment-heavy text blocks as code
+PASS keeps paragraph-like imports as text blocks
+PASS classifies and indents code blocks before Gutenberg rendering
+PASS finalizes convert_single_pdf cleanup order for WordPress block handoff
+PASS detects and indents code blocks during convert_single_pdf finalization
+PASS turns actual CI benchmark excerpts into final text that clears upstream score thresholds
+PASS prepares convert_single_pdf language filetype page and lowres image metadata
+PASS short-circuits unsupported files before supplied model pipeline runs
+PASS runs actual CI benchmark excerpts through the core supplied-page boundary
+PASS rejects malformed supplied core pipeline conversion payloads
+PASS skips bbox debug export when upstream debug setting is disabled
+PASS builds bbox debug payload without image and model-only fields
+PASS writes upstream doc-base bbox json file when debug is enabled
+PASS emits WordPress review metadata from bbox debug payload
+PASS requires layout and text line data when debug payloads are built
+PASS skips debug page image artifacts when upstream DEBUG setting is disabled
+PASS plans upstream layout and pdf page debug image artifacts
+PASS emits WordPress debug page image review metadata
+PASS requires page, layout, and text-line geometry for debug image planning
+PASS plans upstream debug bbox rectangles with integer coordinates and shared color
+PASS uses per-box colors and label placement from marker debug render
+PASS can plan label overlays without drawing source bboxes
+PASS skips zero-size label draws like upstream pil textbbox guard
+PASS does not index colors when upstream would draw no operations
+PASS reports the same missing-list boundaries as upstream index access
+PASS emits WordPress debug overlay review metadata
+PASS finds formula regions, rescales bboxes, and removes intersecting text lines
+PASS inserts accepted latex blocks by splitting the original text block
+PASS keeps original equation text when latex prediction validation fails
+PASS falls back to the nearest block when formula text lines are missing
+PASS skips equations whose native token count reaches the texify model limit
+PASS reports upstream-style equation metadata and renders a WordPress math block scenario
+PASS computes upstream Texify batch sizes for equation recognition
+PASS filters supplied Texify batch outputs at the upstream max-token sentinel
+PASS maps marker pdf utils find_filetype for real pdf fixture bytes
+PASS returns other when upstream filetype guess has no usable kind
+PASS treats any guessed pdf mimetype as pdf before consulting supported filetypes
+PASS maps non-pdf mimetypes through marker settings and rejects unsupported guesses
+PASS drives a WordPress upload preflight from file magic rather than extension text
+PASS marks upstream bold and italic spans from font names and weights
+PASS skips font weight pass when upstream has no non-heading font stats
+PASS wraps middle styled spans with upstream markdown emphasis markers
+PASS preserves upstream first and last span emphasis boundaries
+PASS does not flag repeated edge lines before upstream three-page minimum
+PASS removes common page headers and footers from imported document pages
+PASS normalizes leading and trailing digits like marker common-title cleanup
+PASS finds repeated title-like blocks only after upstream overlap threshold is met
+PASS filters repeated numbered titles before WordPress block rendering
+PASS splits heading lines out of text blocks using upstream bbox overlap threshold
+PASS keeps heading levels at upstream default when too few heading heights can be bucketed
+PASS infers larger heading heights as lower markdown heading levels
+PASS computes a WordPress import table of contents from heading blocks
+PASS maps upstream pdf outline items from get_toc with max depth
+PASS rejects malformed pdf outline adapters before WordPress TOC import
+PASS names and exports page images like upstream marker image save helpers
+PASS finds figure and picture regions with upstream bbox rescaling
+PASS inserts upstream markdown image spans and clears intersecting text lines
+PASS falls back to nearest block and creates a line when no detected text overlaps
+PASS renders a WordPress image block scenario from inserted image markdown
+PASS uses upstream layout batch size defaults overrides and multiplier truncation
+PASS attaches supplied Surya layout predictions to pages with upstream zip semantics
+PASS leaves unpaired pages unchanged when supplied layouts are shorter than pages
+PASS assigns block types from rescaled upstream layout intersections and merges same layout block runs
+PASS falls back to the closest annotated block then default text like marker layout annotation
+PASS drives a WordPress layout detection preflight before annotation
+PASS renders a WordPress import after layout annotation while honoring bad span type settings
+PASS uses upstream ordering batch size defaults overrides and multiplier truncation
+PASS attaches supplied Surya ordering predictions with upstream bbox caps and zip semantics
+PASS leaves unpaired pages unchanged and rejects invalid supplied order predictions
+PASS sorts same-position block groups by upstream vertical and horizontal tolerance
+PASS uses upstream ordering positions then pins page headers and footers
+PASS rescales ordering model boxes before intersection matching
+PASS preserves two-column WordPress import reading order before markdown block merge
+PASS drives a WordPress ordering-model preflight before Gutenberg paragraph merge
+PASS embeds marker app markdown image references as png data uri html
+PASS matches upstream optional markdown title syntax while preserving missing image links
+PASS replaces repeated marker image markdown like upstream string replacement
+PASS rejects image payloads without embeddable native bytes
+PASS builds a WordPress preview html block from Marker image placeholders
+PASS joins hyphenated text lines like marker markdown postprocessing
+PASS keeps sentence boundaries as markdown paragraphs
+PASS surrounds headings and escapes markdown-sensitive hash characters
+PASS merges upstream spans into block-ready lines with fonts and emphasis markers
+PASS keeps upstream merge spans first last and next-span guard behavior
+PASS creates an upstream empty-page fallback merged text block
+PASS renders merged styled spans as a WordPress paragraph import
+PASS dewraps extracted PDF lines for WordPress import paragraphs
+PASS merges upstream page blocks across block type transitions
+PASS uses upstream continuation geometry when merging ambiguous text lines
+PASS emits page-start blocks and full text pagination markers
+PASS counts pdf pages through the upstream marker app open pdf boundary
+PASS uses pages tree order inherited media boxes and direct page media boxes
+PASS plans marker app get_page_image pypdfium page index scale annotations and rgb output
+PASS renders a WordPress upload preview payload without rasterizing through pypdfium
+PASS rejects invalid uploads page numbers and dpi before preview planning
+PASS plans upstream logger levels and future warning suppression
+PASS plans run_marker_app streamlit command and environment overlay without executing it
+PASS records marker app import-time environment setup
+PASS rejects empty project directories before WordPress worker preflight planning
+PASS normalizes marker server params and returns local API response shape
+PASS enforces upstream local API pagination and image option guard
+PASS saves uploaded PDF bytes for conversion and removes the temporary upload
+PASS rejects non-pdf uploads before conversion
+PASS returns success false when the supplied local converter fails
+PASS posts remote marker API form data and polls request_check_url until complete
+PASS exposes marker upstream default settings needed by the native pipeline
+PASS maps supported filetypes from marker settings
+PASS computes native torch dtype helpers with upstream cpu fallback semantics
+PASS coerces environment-style overrides and ignores unknown settings like pydantic extra ignore
+PASS validates the upstream OCR engine literal boundary
+PASS drives a WordPress PDF import preflight without Python model dependencies
+PASS plans upstream load_all_models sequence and returned model list order
+PASS uses upstream texify and layout default checkpoints without explicit device args
+PASS propagates explicit device and dtype like load_all_models and rejects missing dtype there
+PASS maps flush_cuda_memory cuda-only empty cache boundary
+PASS uses upstream detector batch size defaults overrides and multiplier truncation
+PASS attaches supplied Surya predictions to pages with upstream zip semantics
+PASS leaves unpaired pages unchanged when upstream predictions are shorter than pages
+PASS drives a WordPress OCR detection preflight with supplied line boxes
+PASS computes upstream alphanum ratio after removing only spaces and newlines
+PASS detects bad OCR using upstream whitespace garble and invalid character thresholds
+PASS measures detected line coverage with upstream bbox rescaling and intersection threshold
+PASS triages pages for OCR like marker ocr heuristics
+PASS detects all-empty documents before WordPress import OCR fallback
+PASS normalizes Surya language names to pinned OCR codes while preserving codes
+PASS normalizes OCRmyPDF Tesseract names and defaults missing languages like upstream
+PASS rejects invalid engine-specific OCR language codes
+PASS maps Surya language codes to locked tokenizer ids with unique language semantics
+PASS rejects invalid Surya tokenizer language codes before OCR handoff
+PASS keeps lower-case Tesseract language names invalid like marker ocr lang
+PASS builds a WordPress multilingual OCR metadata preflight
+PASS adds Surya tokenizer metadata to a WordPress OCR preflight
+PASS uses upstream recognition batch size defaults and overrides
+PASS selects OCR pages with upstream run_ocr triage rules
+PASS plans surya recognition polygons with upstream scaling and zero-area skip
+PASS builds surya recognized pages with upstream bbox rescaling
+PASS replaces successful supplied OCR pages and reports upstream stats
+PASS counts bad supplied OCR output as failed and preserves original page text
+PASS returns the upstream none engine stats when OCR is disabled
+PASS requires a supplied OCR page for every selected upstream OCR page
+PASS drives a WordPress OCR handoff scenario with supplied recognition pages
+PASS derives upstream output subfolder and markdown paths from the final extension
+PASS saves markdown metadata and image payloads like marker output save_markdown
+PASS rejects image payloads without native writable bytes or save support
+PASS persists a WordPress import handoff artifact with markdown images and review metadata
+PASS mirrors marker page helpers for lines spans fonts heights and prelim text
+PASS uses explicit prelim text fallbacks for supplied OCR pages
+PASS inspects converted pdftext pages before WordPress block rendering
+PASS builds WordPress review metadata from page helper metrics
+PASS maps upstream render_image dpi scale and RGB/no-annotation output boundary
+PASS maps render_bbox_image crop scaling from PDF page space to rendered pixels
+PASS derives rendered image dimensions from PDF points and dpi without pypdfium
+PASS rejects invalid dpi, image sizes, and bbox inputs before raster handoff
+PASS drives a WordPress media crop review payload for extracted PDF figures
+PASS decomposes pdf font flags like marker pdf utils
+PASS converts pdftext dictionary pages to upstream marker page blocks
+PASS keeps upstream span id sequencing when invalid line bboxes are skipped
+PASS renders converted pdftext page spans as WordPress blocks
+PASS slices supplied pdftext dictionary pages like upstream get_text_blocks
+PASS treats zero max_pages like upstream falsey max page input
+PASS rejects out of range page slices before WordPress import
+PASS feeds selected pdftext pages into Gutenberg-ready paragraph text
+PASS extracts literal and array text operators from content streams
+PASS extracts flate encoded content streams
+PASS extracts ASCIIHex stream filters before WordPress paragraph rendering
+PASS resolves indirect stream filters and benign DecodeParms for WordPress extraction
+PASS uses ToUnicode CMap codespacerange widths for variable-length WordPress text
+PASS groups adjacent text operators on the same PDF text line
+PASS uses text advance before same-line Tm gap decisions for WordPress paragraph rendering
+PASS uses PDF text-state spacing for same-line Tm gap decisions before WordPress paragraph rendering
+PASS keeps q Q scoped text state from leaking into later positioned WordPress text
+PASS applies TJ numeric positioning adjustments before WordPress Tm gap decisions
+PASS applies Tm horizontal scaling before WordPress Tm gap decisions
+PASS decodes literal continuations and UTF-16BE hex strings
+PASS decodes PDF literal escapes in Tj and TJ WordPress text
+PASS extracts block-ready lines from a WordPress import fixture
+PASS replays upstream naive_get_text page suffix and get_length_of_text trim boundary
+PASS parses convert_single.py comma language argument without trimming
+PASS passes upstream single-document options to a supplied native converter and saves artifacts
+PASS saves empty single-document output like convert_single.py instead of applying batch skips
+PASS renders a WordPress single-upload import artifact with convert_single.py options
+PASS rejects malformed supplied conversion payloads before writing output
+PASS converts supplied pdftext layout order and table dictionaries into markdown
+PASS routes forced OCR table cells through supplied detector output before formatting
+PASS converts a fuller multicolcnn supplied dictionary excerpt with upstream finalization metadata
+PASS converts a fuller switch transformer supplied dictionary excerpt with styled spans
+PASS converts the switch transformer contents table page slice through supplied table recognition
+PASS converts the upstream switch transformer table 1 slice with unicode table metrics and caption
+PASS converts supplied equation dictionaries inside the document-level pipeline
+PASS short-circuits supplied documents with no extracted blocks like convert_single_pdf
+PASS threads supplied page images through the upstream extract_images boundary after bad span filtering
+PASS acts as a benchmark runner callback for actual CI reference excerpts
+PASS rejects malformed supplied document options before benchmark import
+PASS finds upstream table layout regions with page bbox rescaling
+PASS plans upstream get_table_boxes crop metadata with merged tables and OCR null lines
+PASS rejects missing supplied text lines for non-OCR table pages
+PASS replaces intersecting upstream table blocks with supplied markdown tables
+PASS formats merged adjacent table layout boxes as one recognized table
+PASS skips recognized tables without matching table layout blocks like upstream formatter
+PASS rejects missing supplied markdown for intersecting recognized tables
+PASS renders a WordPress table block scenario from formatted marker table markdown
+PASS uses upstream table recognition batch size defaults and overrides
+PASS routes supplied text-line table blocks and OCR-needed detector cells like get_cells
+PASS filters duplicated text-line payloads to each table bbox like get_table_blocks
+PASS forces supplied detector cells when detect_boxes is enabled
+PASS drops zero-area supplied detector cells before OCR like tabled get_cells
+PASS assigns recognized table cells to rows and columns then formats markdown
+PASS formats upstream unicode table headers with character width like tabulate
+PASS merges multiline continuation rows using assigned column ids despite x jitter
+PASS adds tabled-style row and column spans when geometry covers open bands
+PASS applies supplied OCR text before row column assignment and markdown formatting
+PASS falls back to heuristic row layout when model rows and columns leave most cells unassigned
+PASS clusters heuristic column separators with locked tabled DBSCAN semantics
+PASS uses clustered heuristic separators when model row and column boxes are unavailable
+PASS renders a WordPress table from supplied recognition output before model-backed inference exists
+PASS rejects missing supplied detector cells for OCR-needed tables
+PASS splits upstream benchmark tables into pipe cells
+PASS aligns a reference row against the best hypothesis row
+PASS scores exact markdown tables as perfect benchmark matches
+PASS scores WordPress imported tables over the upstream verifier threshold
+PASS rejects empty table scoring inputs
+PASS sorts upstream table blocks into row buckets then left to right
+PASS uses Python style half-even row rounding from upstream sort_table_blocks
+PASS replaces long dot leaders while preserving short ellipses like upstream
+PASS replaces table cell newlines with spaces and trims edges
+PASS renders a WordPress table after upstream table utility cleanup
+PASS replaces marker upstream bullet characters with markdown list markers
+PASS keeps non-list punctuation outside upstream bullet pattern
+PASS cleans repeated whitespace and non-breaking spaces like marker text cleaner
+PASS normalizes extracted PDF bullets for a WordPress list block import
+PASS reads markdown blocks into a small shared ast
+PASS maps pandoc markdown inline mark semantics into ast nodes
+PASS maps upstream testsuite underscore emphasis strong and nested strong emphasis
+PASS maps upstream markdown reader emph containing strong delimiter runs
+PASS maps upstream markdown reader intraword underscore and raw latex url guard
+PASS maps upstream markdown reader alternating emph strong softbreak
+PASS maps upstream testsuite strikeout inline markup
+PASS maps upstream testsuite superscript and subscript inline markup
+PASS maps upstream markdown reader mmd short subscript superscript delimiters
+PASS maps upstream testsuite smart quote nesting and apostrophes
+PASS maps upstream testsuite quoted code and reference links
+PASS maps upstream testsuite smart dashes and ellipses
+PASS maps upstream markdown smart quote before ellipses and apostrophe edges
+PASS maps upstream markdown smart unclosed double quote inside strong
+PASS maps upstream markdown smart quotes around inline notes
+PASS maps upstream testsuite latex raw inline and math list items
+PASS keeps upstream testsuite non math dollar examples as text
+PASS maps upstream markdown apostrophe after math
+PASS maps upstream markdown reader more dollars inside tex math braces
+PASS maps upstream markdown reader more raw html before header and commented list
+PASS maps upstream testsuite latex tabular block as raw tex
+PASS maps upstream markdown reader more raw tex environments and macros
+PASS maps upstream testsuite special characters unicode entities and escapes
+PASS maps upstream testsuite explicit links with titles and empty destinations
+PASS maps upstream testsuite reference links shortcuts and indented definitions
+PASS maps upstream markdown reader unbalanced brackets and backslash escaped links
+PASS maps upstream markdown reader more urls with spaces and split reference definitions
+PASS maps upstream markdown reader more title block metadata
+PASS maps upstream markdown reader more entity links and parenthesized urls
+PASS maps upstream markdown reader entities group character numeric and link title references
+PASS maps upstream markdown reader more reference link edge cases
+PASS maps upstream markdown reader citations and following note link boundaries
+PASS maps upstream markdown reader more wrapping and bracketed spans
+PASS maps upstream markdown reader more backslash newline and code spans
+PASS maps upstream markdown reader inline code attributes and spaced literals
+PASS maps upstream markdown reader autolink attributes and spaced literals
+PASS maps upstream markdown reader bare uri autolink extension cases
+PASS maps upstream markdown reader bare uri schemes and punctuation families
+PASS maps remaining upstream markdown reader bare uri url shapes and raw html anchor boundary
+PASS maps upstream markdown reader no links inside link labels
+PASS maps upstream markdown reader more multilingual urls and numbered examples
+PASS maps upstream markdown reader more implicit header references
+PASS maps upstream markdown reader header edge cases
+PASS maps upstream markdown reader implicit references for closing atx and setext headers
+PASS writes wordpress normalized markdown header imports
+PASS writes wordpress raw empty anchor before imported headings
+PASS maps upstream markdown reader more line blocks
+PASS maps upstream markdown reader more rectangular grid tables
+PASS maps upstream markdown reader more grid tables with multiple block children
+PASS maps upstream markdown reader more grid table row and column spans
+PASS maps upstream markdown reader more grid table complex header spans
+PASS maps upstream testsuite ampersand links and autolinks
+PASS maps upstream testsuite images as reference figures and inline images
+PASS maps upstream markdown reader figure latex placement attributes
+PASS maps upstream html reader images as paragraph image inlines
+PASS maps upstream html reader footnote anchors and emphasis spacing as html links
+PASS maps upstream testsuite footnote references inline notes quotes and lists
+PASS maps upstream markdown footnote indentation and recursive reference edge cases
+PASS maps upstream inline code containing list marker text
+PASS maps upstream indented backtick fenced code command example
+PASS maps upstream indented tilde fenced code attributes example
+PASS maps upstream markdown literate haskell bird tracks when enabled
+PASS maps upstream lhs fixture blockquote boundary when literate haskell is enabled
+PASS maps upstream testsuite indented code blocks and tab expansion
+PASS maps upstream testsuite horizontal rules without treating spaced asterisks as a list
+PASS maps pandoc markdown dash and asterisk horizontal rule forms
+PASS groups ordered lists as a list block
+PASS maps upstream testsuite loose bullet list items as paragraphs
+PASS maps upstream testsuite ordered list continuation paragraphs
+PASS maps upstream markdown nested list item shape
+PASS maps upstream command task list items into ast attrs and checkbox html
+PASS maps upstream command task list markdown and latex writer examples
+PASS maps upstream markdown writer fancy ordered list markers
+PASS maps upstream markdown writer note and reference placement
+PASS maps upstream markdown writer shortcut reference link boundaries
+PASS maps upstream markdown writer inline escaping and generated reference labels
+PASS maps upstream markdown writer uri email autolinks and link attributes
+PASS maps upstream markdown writer reference definitions with link attributes
+PASS maps upstream markdown writer images from testsuite figure and inline shapes
+PASS maps upstream markdown writer image attributes alt override and autolink guard
+PASS maps upstream markdown writer inline code attributes
+PASS maps upstream markdown writer top level list code and delimiter spacing
+PASS maps upstream markdown reader more indented code at beginning of list items
+PASS maps upstream markdown list item containing raw html blocks
+PASS maps upstream testsuite list continuation lines indented with tabs and spaces
+PASS maps upstream testsuite loose nested list paragraph shape
+PASS maps upstream testsuite parenthesized decimal roman and alpha list markers
+PASS maps upstream testsuite nested upper alpha upper roman decimal and lower alpha markers
+PASS maps upstream testsuite autonumbered list markers and nested autonumbering
+PASS maps upstream markdown reader more references curly quotes and consecutive lists
+PASS maps upstream markdown definition lists without blank space
+PASS maps upstream markdown definition marker at column zero
+PASS maps upstream markdown loose first definition paragraph
+PASS maps upstream markdown lazy definition continuations
+PASS maps upstream markdown paragraph continuation inside definition
+PASS maps upstream markdown blank before second definition
+PASS maps upstream markdown list inside definition
+PASS maps upstream markdown definition list inside html div
+PASS maps upstream testsuite definition lists with multiple block bodies
+PASS maps upstream testsuite alternate definition markers with nested lists
+PASS maps upstream testsuite simple block quote paragraphs
+PASS maps upstream testsuite block quote with code list and nested quotes
+PASS keeps upstream testsuite lazy quote marker inside paragraph
+PASS maps upstream testsuite html blocks as div containers
+PASS maps upstream testsuite raw table and script html blocks
+PASS maps upstream command nested html tables into table cell block children
+PASS maps upstream command full html document with third-level nested table
+PASS writes wordpress nested html tables inside table cells for legacy imports
+PASS writes wordpress third-level nested html tables without asciidoc downgrade
+PASS maps upstream html table caption colgroup thead and tfoot structure
+PASS maps upstream html reader document metadata headers and paragraphs
+PASS maps upstream html reader hard line breaks in paragraphs
+PASS maps upstream html reader standalone br fragments to linebreaks
+PASS maps upstream html reader inline q cite as quoted spans
+PASS maps upstream html reader small caps underline and strikeout inlines
+PASS maps upstream html reader pre code blocks
+PASS maps upstream html reader blockquote containers with code lists and nested quotes
+PASS maps upstream html reader top-level lists and ordered styles
+PASS maps upstream html reader nested tabs and fancy list markers
+PASS maps upstream html reader definition lists
+PASS maps upstream html reader inline markup empty emphasis and emphasized links
+PASS maps upstream html reader nested strong emphasis and code spans
+PASS maps upstream html reader smart quotes dashes and ellipses as literal text
+PASS maps upstream html reader latex as literal text not math or raw tex
+PASS maps upstream html reader special characters as literal text
+PASS maps upstream html reader links explicit reference ampersand and code contexts
+PASS maps upstream html reader table headers with omitted section tags
+PASS maps upstream html reader row headers as table body row head columns
+PASS maps upstream html reader omitted table section end tags
+PASS maps upstream html reader multiple table body sections without flattening
+PASS maps upstream html reader paragraph block inside a multiple body table cell
+PASS maps upstream html reader tables without headers body and foot variants
+PASS maps upstream html reader body-local table head rows
+PASS maps upstream html reader colspans without table headers
+PASS maps upstream html reader colspans and rowspans in headed tables
+PASS maps upstream html reader table attributes on sections rows and cells
+PASS maps upstream html reader empty tables as omitted blocks
+PASS maps upstream markdown raw html regression boundaries
+PASS maps upstream markdown raw email and emoji extension cases
+PASS maps upstream markdown github wiki link extension cases
+PASS writes wordpress structured html table sections from import notes
+PASS writes wordpress multiple html table bodies from import notes
+PASS maps upstream testsuite raw html comments hr blocks and indented html code
+PASS maps upstream tables simple syntax with and without captions
+PASS maps upstream tables simple syntax without column headers
+PASS maps upstream tables multiline syntax with wrapped rows captions and widths
+PASS maps upstream tables multiline syntax without column headers
+PASS maps upstream pipe tables with captions alignments and body rows
+PASS maps table captions as parsed inline content
+PASS maps upstream command short caption latex table shape
+PASS maps upstream command docbook table cell alignments
+PASS maps upstream command docbook table column spans and colspec widths
+PASS maps upstream command row-span table head body and foot shape
+PASS maps upstream pipe table headerless and side-less forms
+PASS maps upstream one-column and no-body pipe tables
+PASS maps upstream pipe table escaped pipes and code span pipes
+PASS maps remaining upstream pipe table default headerless one-column and width cases
+PASS writes wordpress block output from ast
+PASS writes wordpress reference link titles and autolinks from import notes
+PASS writes wordpress citation boundary imports from import notes
+PASS writes wordpress markdown hard breaks and multiline code spans from import notes
+PASS writes wordpress image blocks and inline media from import notes
+PASS writes wordpress footnote endnotes from import notes
+PASS writes nested wordpress list markup from upstream-shaped ast
+PASS writes wordpress task list checkboxes from migration review notes
+PASS writes wordpress loose list paragraphs from migration follow-up steps
+PASS writes wordpress imported fancy ordered lists with nested starts
+PASS writes wordpress definition list html from upstream-shaped ast
+PASS writes wordpress html for div-wrapped upstream definition list
+PASS writes wordpress definition paragraphs from import notes
+PASS writes wordpress alternate definition marker notes with nested review tasks
+PASS writes wordpress raw html blocks for imported tables comments and custom dividers
+PASS writes wordpress headerless html reader table blocks for plain import grids
+PASS writes wordpress body-headed html reader table blocks for import queues
+PASS writes wordpress html reader quote citations and hard breaks from import notes
+PASS writes wordpress html reader editorial inline marks from import notes
+PASS writes wordpress html reader nested emphasis and code spans from import notes
+PASS writes wordpress pipe table blocks for import metrics
+PASS writes wordpress relative width pipe table colgroups from import notes
+PASS writes wordpress grid table blocks for legacy import queues
+PASS writes wordpress simple table blocks for legacy import totals
+PASS writes wordpress docbook table spans for import audit exports
+PASS writes wordpress multiline simple table blocks for wrapped review notes
+PASS writes wordpress short caption table metadata from latex imports
+PASS writes wordpress underscore and nested emphasis from import review notes
+PASS writes wordpress strikeout superscript and subscript from import review notes
+PASS writes wordpress smart punctuation from import review notes
+PASS writes wordpress math and raw tex preservation markup from import notes
+PASS writes wordpress entity decoded text without double escaping import notes
+PASS writes wordpress code block markup for migration snippets
+PASS writes wordpress indented list code blocks from import notes
+PASS writes wordpress literate haskell source docs from import notes
+PASS writes wordpress html reader pre code imports from import notes
+PASS writes wordpress html reader blockquote imports from import notes
+PASS writes wordpress html reader list imports from import notes
+PASS writes wordpress html reader definition imports from import notes
+PASS writes wordpress html reader empty emphasis and emphasized link imports
+PASS writes wordpress html reader literal punctuation imports
+PASS writes wordpress html reader latex literal imports
+PASS writes wordpress html reader special character imports
+PASS writes wordpress html reader link imports
+PASS writes wordpress html reader image imports
+PASS writes wordpress html reader footnote link imports without native note conversion
+PASS writes wordpress html reader full document exports with title classes
+PASS writes wordpress code block markup for tab-indented legacy snippets
+PASS writes wordpress markdown line block imports
+PASS writes wordpress quote block markup for migration reviewer notes
+PASS writes wordpress separator block for imported markdown section breaks
+PASS escapes wordpress block inline html while preserving marks
+PASS blake2s primitive matches upstream key hash vectors
+PASS empty branch preserves quadrable sparse empty root rule
+PASS leaf hashes include blake2s hashed key value and domain separator
+PASS bits are read from most significant bit first
+PASS maps upstream iterator basic seek behavior
+PASS maps upstream iterator full lower and upper bound windows
+PASS wordpress ordered snapshot fixture can be windowed by integer keys
+PASS integer keys round-trip across upstream boundary examples
+PASS integer key overflow fails before native php arithmetic can corrupt the key
+PASS integer key zero encodes as the null key
+PASS integer keys support upstream truncated hash suffixes for wordpress meta rows
+PASS key bit access follows most significant bit order
+PASS mineHash prefix search maps upstream quadb bit predicate deterministically
+PASS keepPrefixBits zeroes the suffix in place
+PASS non integer-format keys are rejected by toInteger
+PASS maps upstream saved node id outputs for puts deletes and duplicates
+PASS maps upstream leaf reuse across a fresh checkout
+PASS maps upstream fork checkout by saved branch node id
+PASS maps upstream memStore basic with high detached node ids
+PASS maps upstream memStore overlay fork from an existing tracked head
+PASS maps upstream memStore named head guard and explicit fork escape
+PASS copy-on-write updates preserve unchanged branch node ids
+PASS persisted tracked node store restores named heads and branch node ids
+PASS tracked diffs emit upstream sync leaf node ids for changed added and deleted leaves
+PASS tracked upstream-shaped sync diff reconstructs randomized forks with node id parity
+PASS wordpress tracked snapshot can reuse leaves during a compact rebuild
+PASS wordpress tracked snapshot forks can restore old and updated branch heads
+PASS wordpress tracked diff scan and final diff report identical node ids
+PASS wordpress published tracked snapshot reloads from persisted node store JSON
+PASS maps upstream mergeProof expansion between separately imported proofs
+PASS maps upstream sub proof export from an imported partial tree
+PASS maps upstream mergeProof witness leaf upgrade
+PASS mergeProof rejects proofs from a different root
+PASS wordpress snapshot proofs can be merged for authenticated partial reads
+PASS wordpress partial snapshot can delegate a narrower sub proof
+PASS compact proof codec round trips upstream transport command shapes
+PASS full key proof encoding preserves tracked string keys for partial enumeration
+PASS maps upstream basic proof export import and incomplete lookups
+PASS maps upstream big proof test over 1000 string queries
+PASS matches upstream C++ big proof transport byte oracle
+PASS maps upstream shared empty witness proof for multiple absent keys
+PASS maps upstream no unnecessary empty witness proof shape
+PASS maps upstream integer proof sizing bound for sparse raw keys
+PASS maps upstream range proofs for raw integer keys
+PASS maps upstream range sub proof export from an imported partial tree
+PASS wordpress ordered snapshot can be authenticated as a compact range proof
+PASS wordpress partial snapshot can delegate a narrower range proof
+PASS maps upstream update proof leaf mutation and witness update rejection
+PASS maps upstream update proof multiple leaf updates and split leaf insert
+PASS maps upstream update proof witness leaf upgrade and split behavior
+PASS maps upstream update proof deletion bubbling and witness bubble guard
+PASS wordpress proof-backed post update can be verified from a narrow raw-key proof
+PASS native quadb store maps help and version metadata command output
+PASS native quadb store maps no-argument docopt and get command output
+PASS native quadb store maps put and del command output
+PASS native quadb store maps import int command output and stoi-style input
+PASS native quadb store maps proof command output for invalid format and hex input
+PASS native quadb store maps binary importProof command root and dump precedence
+PASS native quadb store maps binary mergeProof command output
+PASS native quadb store maps init streams and advertised length no-op output
+PASS native quadb root command maps missing and empty directory startup behavior
+PASS native quadb store maps status head stats gc and dumpTree command output
+PASS native quadb store maps checkout and fork command output
+PASS native quadb store reopens the current named head and integer import export lines
+PASS native quadb store forks named heads across reopen without copying unchanged leaves
+PASS native quadb store persists detached fork state across reopen
+PASS native quadb store emits and applies tracked string-key patch lines
+PASS native quadb store maps diff and patch command output
+PASS native quadb store honors noTrackKeys for export diff dump and full-key proofs
+PASS native quadb store exports hex full-key proofs like quadb exportProof
+PASS native quadb store exports raw integer proofs like quadb exportProof int
+PASS native quadb store imports exports and proves composite integer hash keys
+PASS native quadb store exports stdin key proofs and imports binary proof input like quadb
+PASS native quadb store dumps proofs and reports unauthenticated proof imports like quadb
+PASS native quadb store updates raw integer proof-backed heads
+PASS native quadb store imports and merges proof-backed heads across reopen
+PASS native quadb store exports integer proof-backed partial heads like quadb export int
+PASS native quadb store retains mergeProof import garbage until quadb gc
+PASS native quadb store persists proof-backed partial-head writes across reopen
+PASS native quadb store merges updated-root proofs after persisted proof-backed writes
+PASS native quadb store deletes and forks proof-backed partial heads
+PASS native quadb store shares imported proof storage across divergent proof-backed forks
+PASS native quadb store rejects proof imports unless the current head is empty
+PASS native quadb store formats root status and sorted head output
+PASS native quadb store formats stats output like quadb stats
+PASS native quadb store exposes full-head LMDB bucket layout like upstream storage
+PASS native quadb store exposes raw LMDB entry bytes for backup tooling
+PASS native quadb store preserves binary LMDB values and raw cursor ordering
+PASS native quadb store matches upstream LMDB cursor oracle for binary and detached proof heads
+PASS native quadb store matches upstream LMDB dump load oracle for a mixed WordPress store
+PASS native quadb store restores full-head raw LMDB cursor dumps without portable state
+PASS native quadb store restores upstream full and proof-backed LMDB cursor dumps without portable state
+PASS native quadb store merges proofs on raw-restored proof-backed heads after delegated writes
+PASS native quadb store matches upstream raw-restored mergeProof LMDB cursor oracle
+PASS native quadb store matches upstream detached raw-restored mergeProof LMDB cursor oracle
+PASS native quadb store matches upstream noTrack raw-restored mergeProof LMDB cursor oracle
+PASS native quadb store matches upstream sequential raw-restored mergeProof LMDB cursor oracle
+PASS native quadb store matches upstream mixed raw-restored mergeProof LMDB cursor oracle
+PASS native quadb store matches upstream mixed named raw-restored mergeProof LMDB cursor oracle
+PASS native quadb store matches upstream mixed noTrack raw-restored mergeProof LMDB cursor oracle
+PASS native quadb store restores portable dumps for mixed full proof detached and noTrack heads
+PASS native quadb store preserves numeric head names as LMDB string keys
+PASS native quadb store exposes proof-backed LMDB bucket layout like upstream importProof
+PASS native quadb store projects independent proof imports in upstream LMDB allocation order
+PASS native quadb store dumps full and proof-backed trees like quadb dumpTree
+PASS native quadb store removes named and current heads like quadb head rm
+PASS native quadb store head rm resets detached head to an empty tree
+PASS native quadb store garbage collects discarded full heads like quadb gc
+PASS maps upstream basic put get sparse tree stats
+PASS rejects zero length string keys like upstream
+PASS preserves empty heads after deleting the last leaf
+PASS batch insert is path independent and supports getMulti
+PASS raw key multi get maps upstream getMultiRaw for integer keys
+PASS cached proof tree invalidates after later updates
+PASS update sets let later operations overwrite earlier operations before apply
+PASS delete bubbling and missing deletes preserve equivalent roots
+PASS raw integer keys support wordpress ordered snapshot fixtures
+PASS wordpress ordered snapshot root is upstream blake2s compatible
+PASS maps upstream sync request and response transport round trips
+PASS maps upstream sync proof fragments through bounded witness expansion
+PASS maps upstream sync fragment request path ordering guard
+PASS wordpress sync diffs reconstruct a changed authenticated snapshot
+PASS wordpress sync request guard rejects overlapping proof fragment paths
+PASS wordpress sync scan callback matches final authenticated diff
+PASS sync proof fragments preserve upstream shaped imported diff node ids
+PASS sync session exposes upstream shaped shadow root node ids
+PASS deterministic upstream shaped sync fuzz converges with scan diff equivalence
+PASS bounded upstream mt19937 sync fuzz converges with authenticated diff parity
+PASS native sync fuzzer maps upstream trial dimensions and budgets
+PASS native sync fuzzer round trips persisted tracked node snapshots
+PASS cat maps upstream offset count tail and separator table cases
+PASS cat command resolves head tail discard and invalid flag combinations
+PASS cat applies filters before opening listed objects
+PASS rcat uploads small and streaming inputs with metadata and checksums
+PASS rcat can ignore checksum option materialization
+PASS rcat size uses known-size put and unknown-size rcat paths
+PASS rcat closes object inputs after reading them
+PASS wordpress cat and rcat example publishes streamed export snippets
+PASS chunk size calculator maps upstream streaming file
+PASS chunk size calculator maps upstream default size returned when file size is small enough
+PASS chunk size calculator maps upstream default size returned when file size is just 1 byte small enough
+PASS chunk size calculator maps upstream no rounding up when everything divides evenly
+PASS chunk size calculator maps upstream rounding up to nearest MiB when not quite enough parts
+PASS chunk size calculator maps upstream rounding up to nearest MiB when one extra byte
+PASS chunk size calculator maps upstream expected MiB value when rounding sets to absolute minimum
+PASS chunk size calculator maps upstream expected MiB value when rounding to absolute min with extra
+PASS chunk size calculator maps upstream issue from forum 1
+PASS chunk size calculator exposes fixed part ranges for wordpress archive uploads
+PASS chunked reader factory chooses sequential for nonpositive chunks and negative streams
+PASS chunked reader factory keeps sequential for one stream and clamps max below initial
+PASS chunked reader factory chooses parallel for known sized objects with multiple streams
+PASS chunked reader factory falls back to sequential for unknown sized objects despite multiple streams
+PASS wordpress chunked reader factory example chooses restore strategy by provider size
+PASS context reader maps upstream read before and after cancellation
+PASS context reader checks cancellation before reading underlying bytes
+PASS context reader cancellation protects wordpress restore streams
+PASS copy command copies a source file into destination directory with source leaf
+PASS copyto command copies a source file to exact destination and backs up overwritten file
+PASS copyto command aggregates backup collision accounting into stats
+PASS copyto dry-run records backup and copy intent without mutating providers
+PASS copyto interactive no skips transfer without mutating providers
+PASS copyto interactive skip-all caches backup action while allowing copies
+PASS copyto interactive do-all caches transfer action
+PASS copy command directory copies contents and optional empty source dirs without deleting source
+PASS copy command directory dry-run skips placeholder and object writes
+PASS copyto directory acts like copy dir without creating empty source dirs
+PASS wordpress copy command media promotion example preserves command boundaries
+PASS wordpress copy and move dry-run preflight example preserves provider state
+PASS wordpress interactive copy and move preflight example honors destructive choices
+PASS copyurl uploads explicit destinations and enforces no clobber
+PASS copyurl resolves filenames from final urls and content disposition headers
+PASS copyurl reports missing filenames headers and http status failures
+PASS copyurl sends download headers and writer mode copies bytes only on success
+PASS copyurl command resolves stdout auto filename and print filename flags
+PASS copyurl urls csv maps explicit and autogenerated names while aggregating row errors
+PASS wordpress copyurl remote media example imports without live http
+PASS counting reader tracks upstream bytes returned by reads
+PASS counting reader counts actual short reads from the underlying reader
+PASS counting reader preserves count when the underlying reader fails before returning bytes
+PASS counting reader accounts wordpress wxr upload bodies
+PASS deduplicate mode parser accepts upstream command mode strings
+PASS dedupe by hash newest keeps newest duplicate content like upstream
+PASS dedupe by hash first keeps first listed duplicate and deletes later matches
+PASS dedupe by hash skip and list report duplicates without deleting
+PASS dedupe by hash requires a provider hash and rejects interactive choices
+PASS interactive dedupe by hash keeps chosen duplicate and quit stops later groups
+PASS dedupe by name skip removes identical duplicate files before skipping remaining conflicts
+PASS dedupe by name newest keeps newest duplicate path like upstream
+PASS dedupe by name rename skips existing numbered paths and preserves extensions
+PASS dedupe by name size-only removes same-size duplicates without provider hashes
+PASS interactive dedupe by name deletes identical copies before keeping chosen conflict
+PASS interactive dedupe by name can choose upstream rename action
+PASS dedupe by name ignores repeated provider IDs to avoid data loss
+PASS merge dirs moves later directory contents into the first directory like upstream
+PASS duplicate directory merge picks largest first and leaves file conflicts for dedupe
+PASS duplicate directory list mode reports provider ID duplicates without mutation
+PASS duplicate directory merge uses provider IDs and rewires source children to the kept directory
+PASS plans destination only deletions for upstream sync delete modes
+PASS stops destination deletions after max delete threshold
+PASS stops destination deletions before exceeding max delete size
+PASS leaves excluded destination files unless delete excluded is enabled
+PASS copy planning does not delete destination only files
+PASS operations delete filters ListFn objects before deletion
+PASS operations delete dry run accounts file attempts without provider mutation
+PASS operations delete aggregates provider errors after attempting listed files
+PASS operations delete reports max delete threshold as aggregate command failure
+PASS match listings ignores duplicate source objects after the first provider entry
+PASS match listings reports duplicate destination diagnostics while keeping the first entry
+PASS match listings keeps same-remote directories separate from objects
+PASS match listings reports duplicate directories separately from same-path objects
+PASS match listings rejects out of order source and destination entry streams
+PASS match listings treats object before same-path directory as out of order
+PASS wordpress duplicate source listing example preserves first export entry
+PASS wordpress duplicate destination diagnostics example surfaces ignored export
+PASS wordpress duplicate directory and marker object diagnostics example separates entry types
+PASS wordpress match listing order guard example reports unsorted provider batch
+PASS ignore existing skips changed destination objects like upstream sync
+PASS immutable copies new objects but refuses modified destination objects
+PASS no check dest transfers every source object without archiving overwritten targets
+PASS no traverse copy probes destination objects without matching directories
+PASS no traverse no check dest skips destination object probes
+PASS sync delete mode disables no traverse destination probes
+PASS delete before sync uses no traverse only for the copy pass
+PASS delete before sync moves pruned and overwritten objects through backup dir options
+PASS delete before sync prunes empty destination directories after backup dir moves
+PASS rmdirs removes empty subtrees and root candidate like upstream operations
+PASS rmdirs leave root preserves requested empty root directory
+PASS rmdirs applies include filters to empty directory candidates
+PASS rmdirs counts provider rmdir errors caused by filtered out files
+PASS try rmdir accounts attempts without counting provider errors
+PASS rmdir counts missing directory errors after try rmdir accounting
+PASS rmdir dry run skips provider rmdir including missing directories
+PASS rmdir removes empty directories and records deleted directory stats
+PASS purge direct provider dry run skips fallback and provider mutation
+PASS purge fallback dry run accounts listed objects and empty directories
+PASS purge falls back when direct provider returns cant purge
+PASS purge direct provider fatal errors are counted without fallback
+PASS cleanup unsupported providers error before dry run can skip destructiveness
+PASS cleanup dry run skips supported provider cleanup without mutation
+PASS cleanup removes provider trash while preserving visible objects
+PASS cleanup provider errors are counted without clearing trash
+PASS delete before sync stops before copy pass when max delete guard trips
+PASS wordpress sync no traverse example reports traversal disablement before pruning
+PASS wordpress delete before example probes only copy pass destinations
+PASS wordpress delete before backup limit example aborts before copy pass
+PASS wordpress delete before empty directory prune example keeps backup archive dirs
+PASS wordpress rmdirs upload prune example leaves upload root and non-empty months
+PASS wordpress rmdir dry run preflight example records deletion intent without mutation
+PASS wordpress purge fallback preflight example keeps media through dry run then removes thumbnails
+PASS wordpress delete command preflight example removes only large cache artifacts
+PASS wordpress cleanup empty trash example preserves visible backup artifacts
+PASS no traverse wordpress backup copy probes only included artifact destinations
+PASS ignore times transfers identical destination objects unconditionally
+PASS modtime only differences update destination timestamp without transfer
+PASS refresh times updates no-hash destination timestamps without transferring
+PASS refresh times still transfers when a common hash differs
+PASS update older skips newer destinations and checks older or near-equal files like upstream
+PASS directory equality follows upstream DirsEqual modtime options
+PASS delayed directory modtime updates run deepest first after changed child objects
+PASS delayed directory modtimes skip empty dirs unless copy empty source dirs is enabled
+PASS compare dest skips copies when an upstream reference matches source bytes
+PASS multiple compare dest references are checked in upstream order
+PASS copy dest uses matching upstream reference and archives overwritten targets
+PASS validates backup dir roots like upstream BackupDir
+PASS moves overwritten and deleted destination files into backup dir like upstream sync
+PASS adds backup suffix before extensions when suffix keep extension is set
+PASS uses destination as backup dir when only suffix is configured
+PASS prunes stale wordpress backup artifacts after a filtered sync
+PASS max delete protects wordpress backup pruning
+PASS moves stale wordpress backup artifacts into backup dir before pruning
+PASS copy dest mirror hydrates wordpress backups while preserving backup dir archives
+PASS immutable wordpress archive sync preserves existing backup artifacts
+PASS update older wordpress archive sync preserves newer remote artifacts
+PASS refresh times wordpress no-hash archive sync repairs timestamps without replacing artifacts
+PASS ignore case sync skips equal differently cased destination without renaming
+PASS ignore case sync updates matched destination path without fixing casing
+PASS ignore case sync deletion planning treats differently cased matches as present
+PASS ignore case sync compare dest probes matched destination casing
+PASS ignore case sync copy dest archives and writes matched destination casing
+PASS ignore case sync skips wordpress artifact recopy on case sensitive providers
+PASS ignore case sync hydrates wordpress copy dest using matched remote casing
+PASS fix case renames equal destination objects without transferring
+PASS fix case repairs nested directories before copying changed leaf objects
+PASS fix case is suppressed by immutable mode like upstream sync
+PASS fix case sync repairs wordpress backup casing while leaving excluded cache leaf casing untouched
+PASS gzip reader maps upstream decompression and underlying close behavior
+PASS gzip reader returns upstream close errors from the underlying provider body
+PASS gzip reader reports upstream-shaped invalid gzip header errors
+PASS gzip reader restores compressed wordpress export bodies and closes provider streams
+PASS maps upstream hash set operations and aliases
+PASS maps upstream multi hasher fixtures for php supported hashes
+PASS maps upstream onedrive quickxor hash vectors
+PASS checks providers using rclone combined report sigils
+PASS parses upstream checksum file formats
+PASS verifies checksum files against providers like upstream CheckSum
+PASS checksum verification honors one way filters and duplicate sum entries
+PASS checksum download mode hashes bytes when provider does not advertise hashes
+PASS compares download readers with upstream read fill error precedence
+PASS download check compares providers by bytes like upstream CheckDownload
+PASS download check reports upstream error sigils for open and read failures
+PASS lists hashes in rclone hashsum format
+PASS formats lsf path size and hash fields like upstream
+PASS formats lsjson tier only when provider exposes GetTier
+PASS formats lsjson list entries from upstream table cases
+PASS formats lsjson explicit directory modtimes and metadata like upstream listjson entries
+PASS formats lsjson stat entries from upstream table cases
+PASS formats lsjson stat using case-insensitive provider directory matching
+PASS verifies wordpress checksum manifests with case-insensitive provider paths
+PASS download-mode verifies wordpress checksum manifests without provider hash support
+PASS download check verifies wordpress restored provider artifacts without hashes
+PASS publishes a wordpress backup lsjson manifest with hashes and metadata
+PASS copies filtered changed wordpress backup objects idempotently
+PASS limited read closer maps upstream limited reader byte count
+PASS limited read closer wrap preserves upstream negative limit passthrough
+PASS limited read closer reports close errors before the limit is consumed
+PASS limited read closer ignores close errors once limited data is complete
+PASS limited read closer supports wordpress archive member imports with trailing provider close errors
+PASS list directory includeAll bypasses filters then stable sorts by remote
+PASS list directory drops entries outside requested subdirectory like upstream
+PASS list directory root drops empty root and nested entries but permits slash-only buckets
+PASS list directory reports unknown entry types
+PASS list directory stable sort preserves provider order for duplicate remotes
+PASS dir sorted over provider List matches upstream include and filter matrix
+PASS dir sorted excludes marker directories and includeAll bypasses markers
+PASS dir sorted propagates provider List and filter errors
+PASS dir sorted fn filters ListP pages then sends globally sorted entries
+PASS dir sorted fn applies caller key function across provider pages
+PASS dir sorted fn skips pages containing exclude-if-present markers
+PASS dir sorted fn includeAll bypasses exclude-if-present markers
+PASS walk over DirSorted visits parents before children and honors max level
+PASS walk skip dir suppresses child traversal without returning an error
+PASS walk passes provider errors to callback so they can be masked or returned
+PASS walk prunes exclude marker directories while includeAll bypasses markers
+PASS ListR fallback over Walk filters entry types and returns delayed list errors
+PASS ListR fallback propagates callback errors before completing traversal
+PASS ListR selector falls back to Walk when OneDrive delta does not advertise ListR
+PASS ListR selector maps upstream fallback gates for bounded exclude and directory filters
+PASS direct ListR preserves provider batches while filtering list types and entries
+PASS direct ListR synthesizes bucket parents after raw recursive batches
+PASS direct ListR batches synthesized missing parents at upstream helper threshold
+PASS direct ListR propagates provider and callback errors before synthetic parent flush
+PASS walkR dir tree normalizes arbitrary recursive batches into sorted parents
+PASS walkR dir tree honors upstream maxLevel truncation
+PASS walkR dir tree preserves parents of filtered excluded objects
+PASS walkR dir tree prunes exclude-file directories after listing
+PASS walkR dir tree propagates ListR provider errors and invalid entries
+PASS walkR direct tree visits sorted directories with sorted entries
+PASS walkR direct tree ErrorSkipDir suppresses only descendant prefixes
+PASS NewDirTree selects direct ListR only for recursive depth
+PASS NewDirTree falls back to provider List when files-from filters are active without no-traverse
+PASS NewDirTree no-traverse files-from builds from explicit object lookups only
+PASS NewDirTree no-traverse files-from propagates lookup and type errors
+PASS GetAll uses direct ListR for unbounded recursive listings and separates entries
+PASS GetAll falls back to Walk for bounded maxLevel and preserves entry split
+PASS GetAll fallback delays provider list errors until sibling directories finish
+PASS GetAll direct ListR propagates provider errors
+PASS wordpress direct backup manifest example filters and sorts one listed directory
+PASS wordpress DirSortedFn restore manifest example filters paged provider entries
+PASS wordpress DirSorted restore manifest example uses provider List fallback
+PASS wordpress recursive walk restore manifest example prunes cache and respects max depth
+PASS wordpress direct ListR bucket manifest example synthesizes missing upload parents
+PASS wordpress direct dir tree restore manifest example prunes cache after ListR
+PASS wordpress direct walkR restore manifest example skips cache subtree
+PASS wordpress GetAll restore catalog example separates upload dirs and portable artifacts
+PASS wordpress onedrive disabled delta fallback example uses provider List walk
+PASS wordpress files-from no-traverse restore example avoids provider traversal
+PASS list helper ignores nil entries and waits below upstream batch threshold
+PASS list helper sends and clears at one hundred entries like upstream ListR helper
+PASS list helper flush sends partial batches and clears them
+PASS list helper callback errors clear pending entries before propagating
+PASS list helper collect with ListP preserves callback order
+PASS list helper collect with ListP returns partial entries and provider error
+PASS wordpress batched manifest example exposes ListR helper batching
+PASS list sorter defaults to identity remote ordering and cleans up entries
+PASS list sorter identity sort handles reverse provider order
+PASS list sorter key function can reverse alphabetical order
+PASS list sorter stable sort keeps provider order for equal keys
+PASS list sorter switches to cutoff mode and sends sorted batches
+PASS list sorter temp directory setup errors preserve upstream sorter prefix
+PASS wordpress sorted backup manifest example groups restore-critical artifacts
+PASS memory provider stores object metadata and copies content
+PASS memory provider reads objects with upstream seek and range open semantics
+PASS memory provider update keeps remote path while replacing bytes and metadata
+PASS memory provider put stream and update accept unknown source sizes without unknown result size
+PASS memory provider walks direct and bounded-depth listings like upstream fstest
+PASS memory provider purges subtrees while preserving unrelated objects
+PASS rooted memory provider rebases listings and purges through the shared backing provider
+PASS memory provider public links map upstream fstest file directory and missing boundaries
+PASS rooted memory provider public link can share the subremote root
+PASS memory provider can model case-insensitive provider object lookup
+PASS memory provider creates explicit directories with upstream modtime metadata boundaries
+PASS set directory modtime obeys upstream no update and missing directory behavior
+PASS memory provider set object metadata updates mtime and mimetype like upstream
+PASS memory provider set directory metadata replaces existing metadata like upstream
+PASS memory provider set tier and get tier match upstream object contract
+PASS sync plan settier applies filtered tier changes over listed objects
+PASS sync plan reports missing and checksum changed paths
+PASS rclone path globs compile like upstream filter glob tests
+PASS rclone path globs reject upstream invalid patterns
+PASS filter rules honor upstream first match include exclude order
+PASS filter rules can ignore case like rclone filter option
+PASS sync plan applies rclone filters to WordPress backup objects
+PASS wordpress fstest object open update example exposes WXR stream boundaries
+PASS wordpress rooted uploads purge example exposes monthly provider listing boundaries
+PASS wordpress public link example exposes share and unlink boundaries
+PASS wordpress settier example archives portable artifacts without tiering cache
+PASS move command moves a source file into destination directory with source leaf
+PASS moveto command renames a source file to exact destination and backs up overwritten file
+PASS moveto dry-run records backup and move intent without mutating providers
+PASS moveto interactive skip after backup preserves source and archived destination
+PASS move command directory fallback creates empty destination dirs and prunes empty source dirs
+PASS moveto directory uses provider directory move when source and destination share a provider
+PASS case-insensitive moveto dry-run records rename intent without changing casing
+PASS wordpress move command media relocation example preserves command boundaries
+PASS onedrive delta cursor extracts resume tokens and builds next request
+PASS onedrive delta notifications scope changes and skip root outside and invalid entries
+PASS onedrive delta notifications support empty roots and remote item names
+PASS wordpress onedrive delta resume example reports changed backup artifacts
+PASS onedrive ListR skips duplicate deleted and outside-root delta items while listing shared folders
+PASS onedrive ListR relies on cached parent directories and skips children seen before parents
+PASS onedrive ListR hides OneNote packages unless exposure is requested
+PASS onedrive ListR caches document library directories for later scoped calls
+PASS onedrive paged delta ListR follows nextLink and batches across pages
+PASS onedrive paged delta ListR returns provider page errors before final flush
+PASS onedrive child ListP follows nextLink and applies directory file filters
+PASS onedrive child listAll stops before nextLink when a page is empty
+PASS onedrive child ListP caches directory IDs for later scoped calls
+PASS onedrive child ListP hides OneNote packages unless exposure is requested
+PASS onedrive child ListP defers permission metadata errors until metadata is read
+PASS onedrive child ListP materializes permissions only in metadata read mode
+PASS onedrive ListR defers permission marshal errors until metadata is read
+PASS onedrive child ListP item conversion errors keep flushed batches and suppress pending flush
+PASS onedrive ListR shared-folder fallback can recurse through paged child ListP
+PASS onedrive child ListP provider errors keep flushed batches and suppress pending flush
+PASS onedrive shared-folder fallback discards child ListP partials on provider error
+PASS onedrive shared-folder fallback propagates caller callback errors immediately
+PASS wordpress onedrive shared ListR restore example includes shared review artifacts
+PASS wordpress onedrive paged delta restore example follows continuation links
+PASS wordpress onedrive shared ListP pagination example follows child pages
+PASS wordpress onedrive shared ListP error example preserves flushed manifest batch
+PASS wordpress onedrive ListP cache metadata example records scoped restore preflight
+PASS wordpress onedrive permissions metadata example records read off and marshal modes
+PASS onedrive permission planner maps business link update remove add workaround
+PASS onedrive permission planner add only mode never updates or removes copied permissions
+PASS onedrive permission metadata parsing honors write mode and json errors
+PASS onedrive permission planner suppresses unsafe adds and failok errors
+PASS onedrive write permissions refreshes remote state and clears queued permissions
+PASS onedrive write permissions failok suppresses process or refresh errors without clearing queued permissions
+PASS onedrive directory metadata flow maps create refresh write and system metadata order
+PASS onedrive existing directory metadata flow patches metadata before permission writes
+PASS onedrive object metadata flow refreshes permissions before set and cleans versions last
+PASS onedrive object permissions only metadata reaches no api metadata boundary after refresh
+PASS onedrive object metadata no versions failure happens after metadata cache update
+PASS onedrive object metadata with no writeable fields is a no op after current metadata read
+PASS onedrive fetch metadata wraps source metadata read failures
+PASS onedrive fetch metadata nil source falls back to set modtime and suppresses no versions cleanup errors
+PASS onedrive upload singlepart wraps fetch metadata errors and skips final metadata cache update
+PASS onedrive upload multipart updates permissions after chunk metadata and final cache set
+PASS onedrive upload multipart skips permission update when metadata permissions write is disabled
+PASS onedrive upload multipart permission only metadata returns update error before final cache set
+PASS onedrive upload multipart ignores permission write error when update returned item info
+PASS onedrive object update selects singlepart for zero size and propagates source metadata
+PASS onedrive object update selects multipart at cutoff and carries permission metadata
+PASS onedrive object update rejects onenote and unknown sized sources before upload
+PASS onedrive object update no versions cleanup is logged after successful upload
+PASS wordpress onedrive permission write plan example keeps owner and plans review changes
+PASS wordpress onedrive directory permission refresh example records create and update sequencing
+PASS wordpress onedrive object metadata update example records refresh and version cleanup
+PASS wordpress onedrive upload metadata fallback example records modtime fallback and wrapped errors
+PASS wordpress onedrive multipart upload metadata example records permission boundaries
+PASS wordpress onedrive update upload selection example records preflight boundaries
+PASS parallel chunked reader rounds chunks and prefetches configured streams
+PASS parallel chunked reader seek reuses prefetched streams and ignores range length
+PASS parallel chunked reader restarts lazily outside prefetched streams and reports errors
+PASS parallel chunked reader closes prefetched streams when a later stream read fails
+PASS parallel chunked reader close reports first close error after closing every stream
+PASS parallel chunked reader seek discards close errors for abandoned streams
+PASS wordpress parallel chunked wxr restore example keeps boundary and tail reads prefetched
+PASS pattern reader maps upstream zero length and ten byte streams
+PASS pattern reader maps upstream modulo byte pattern and seek behavior
+PASS pattern reader reports upstream seek errors while allowing past end positions
+PASS pattern reader generates deterministic wordpress artifact bodies
+PASS copy file maps upstream same-object no-op and idempotent copies
+PASS copy file same-object no-op records upstream match diagnostics without accounting transfers
+PASS move file copies to destination then deletes source like upstream
+PASS server side copy and move apply upstream metadata set values
+PASS move file with ignore existing leaves modified source untouched
+PASS case insensitive move file changes only casing through temporary rename
+PASS move file archives overwritten destination into backup dir
+PASS move backup dir deletes existing archive path before preserving overwritten metadata
+PASS move backup dir reports delete and rename accounting diagnostics
+PASS move backup dir delete failure leaves destination backup and source untouched
+PASS copy file partial upload failures clean temporary objects
+PASS copy file max transfer honors hard cautious and soft cutoff modes
+PASS remove existing returns noop cleanup for missing files and requires direct move
+PASS remove existing deletes saved object after successful replacement
+PASS remove existing restores saved object after failed operation and truncates long names
+PASS remove existing reports cleanup delete failures without hiding success path
+PASS server side copy replace removes existing destination then deletes saved object
+PASS server side copy replace restores existing destination after copy failure
+PASS server side copy replace rejects same remote case folded paths
+PASS onedrive case folded copy guard runs after remove existing and restores destination
+PASS onedrive case folded copy guard reports remove existing blocker before guard
+PASS server side copy precreated destination handle is not visible after failure
+PASS dropbox server side copy uses relocation result metadata
+PASS dropbox server side copy maps non downloadable export metadata
+PASS dropbox export format config prefers configured extension and rejects unknown formats
+PASS dropbox skip exports hides copied paper exports from ordinary listings
+PASS dropbox list-only exports remain listed but cannot be opened
+PASS onedrive server side copy resets source modtime and add-only permission metadata
+PASS onedrive server side copy permission write errors honor failok
+PASS onedrive server side copy exposes remote item shared metadata
+PASS onedrive remote item package metadata makes onenote copies non-readable
+PASS onedrive server side copy rejects unsupported cross-drive pairs before remove existing
+PASS onedrive sharepoint document library copy gates match upstream drive type rules
+PASS yandex server side copy refreshes object metadata from custom rclone modtime
+PASS yandex server side copy rejects non-file metadata reads and restores destination
+PASS yandex server side copy rejects invalid copied modtime and restores destination
+PASS yandex set modtime writes rclone custom property and surfaces provider errors
+PASS sugarsync server side copy records copied object location after metadata read
+PASS dropbox server side copy restores destination when relocation result is not a file
+PASS dropbox server side copy wraps relocation api errors and restores destination
+PASS onedrive server side copy access denied becomes cant copy and restores destination
+PASS onedrive shared personal copy access denial falls back to streamed copy
+PASS yandex server side copy wraps async failure and restores destination
+PASS sugarsync server side copy extracts provider html errors and restores destination
+PASS onedrive server side copy maps async job error bodies and restores destination
+PASS yandex server side copy wraps async parse and timeout errors
+PASS sugarsync server side copy requires copied object id from location or metadata
+PASS wordpress provider copy metadata example exposes onedrive quickxor and yandex md5 refreshes
+PASS wordpress onedrive shared copy fallback example streams wxr after server side denial
+PASS wordpress onedrive casefold copy guard example restores wxr export
+PASS single file wordpress upload repair uses move ignore-existing and partial cleanup boundaries
+PASS wordpress metadata-set copy move example publishes handoff metadata
+PASS wordpress backup-dir collision example preserves published media metadata
+PASS wordpress backup accounting noop example exposes safe preflight diagnostics
+PASS wordpress max transfer example preserves staged wxr after cutoff
+PASS track renames can use copy delete providers without direct move support
+PASS track renames falls back to copy delete when direct move reports cant move
+PASS track renames failed server side move uploads source then deletes stale target
+PASS directory move uses provider dir move when available
+PASS directory move falls back to object moves when dir move is unavailable
+PASS directory move fatal provider errors do not fall back
+PASS reopen reader retries transient read failures at upstream offsets
+PASS reopen reader applies upstream range and seek option boundaries
+PASS reopen reader maps upstream unknown-size range and seek behavior
+PASS reopen reader reports open failures and too many retries like upstream
+PASS reopen reader supports readAt seek close and delayed accounting
+PASS reopen reader does not retry upstream no low level retry errors
+PASS reopen reader propagates upstream accounting errors without reopening
+PASS reopen reader resumes interrupted wordpress backup artifact downloads
+PASS reopen reader restores unknown-size wordpress export streams
+PASS fake seeker passes through native read seeker objects
+PASS fake seeker allows upstream pre-read length seeks then requires start for reads
+PASS fake seeker keeps upstream eof read error sticky for later seeks
+PASS no seeker reads while rejecting upstream seek attempts
+PASS no close reader maps upstream nil and read-only passthrough
+PASS no close reader hides close while preserving upstream read errors
+PASS fake seeker supports wordpress import length preflight before streaming
+PASS no close reader protects wordpress upload bodies from request-side close upgrades
+PASS repeatable reader replays cached bytes like upstream
+PASS repeatable reader honors upstream seek cache boundaries
+PASS repeatable reader preserves cached wordpress artifact probes
+PASS repeatable limit reader stops at upstream bounded byte count
+PASS repeatable buffer factories treat supplied bytes as capacity only
+PASS repeatable limit buffer bounds wordpress artifact preflight streams
+PASS sequential chunked reader grows chunks and caps at max size
+PASS sequential chunked reader range seek is lazy and custom length resets to initial chunk
+PASS sequential chunked reader seeks relative to current and end positions
+PASS sequential chunked reader can disable chunking and reports closed errors
+PASS wordpress chunked wxr restore example exposes lazy tail range reads
+PASS touch command creates missing empty object with timestamp and metadata
+PASS touch no create and recursive skip missing paths without creating files
+PASS touch updates existing file despite no create and preserves bytes
+PASS touch command reports timestamp parse failures
+PASS touch directory nonrecursive updates only direct child files
+PASS touch recursive applies filters and dry run skip accounting
+PASS touch directory records set modtime errors without aborting later files
+PASS touch single file set modtime errors are returned
+PASS wordpress touch media timestamp repair example updates uploads only
+PASS parses upstream track renames strategy flags
+PASS track renames default hash strategy moves destination candidates before delete after
+PASS track renames hash strategy falls back when providers share no hash
+PASS track renames falls back when destination cannot move server side
+PASS track renames modtime strategy selects the first destination candidate within window
+PASS track renames leaf strategy matches basename and size without hashes
+PASS track renames disables no traverse and rejects delete before
+PASS track renames wordpress uploads while archiving unmatched stale artifacts
+PASS extracts article text while removing navigation and asides
+PASS decodes entity escaped metadata descriptions
+PASS maps Mozilla 005 metadata entity unescape fixture
+PASS normalizes invalid numeric metadata entities before WordPress excerpt import
+PASS converts extracted content to block comments
+PASS matches upstream readerable default scoring thresholds
+PASS honors upstream readerable length and score options
+PASS skips invisible list and unlikely readerable nodes
+PASS maps Mozilla ordered-list fixture without counting list paragraphs as readerable
+PASS maps Mozilla remove-aria-hidden fixture during extraction cleanup
+PASS maps Mozilla hidden-nodes fixture without dropping retained headers
+PASS maps Mozilla rtl direction fixtures from article ancestors
+PASS maps Mozilla visibility-hidden fixture to the visible section only
+PASS maps Mozilla basic tag and empty paragraph cleanup fixtures
+PASS maps Mozilla invalid-attributes fixture while sanitizing malformed wrapper markup
+PASS maps Mozilla script style and WordPress social button cleanup fixtures
+PASS maps Mozilla comment-inside-script parser fixture without leaking script text
+PASS maps Mozilla lifehacker fixture and serializes retained lists as blocks
+PASS removes WordPress Jetpack like widgets and inline executable fragments before block output
+PASS removes hidden WordPress export duplicates while preserving fallback images
+PASS preserves WordPress RTL article direction metadata from migrated wrappers
+PASS removes inline WordPress stylesheet links and fieldset controls before block output
+PASS removes WordPress page-builder chrome with upstream unlikely candidate rules
+PASS turns the WordPress migration fixture into core blocks
+PASS maps Mozilla wordpress fixture articleBody images and Jetpack cleanup
+PASS prefers WordPress articleBody microdata over trailing theme chrome
+PASS removes duplicate post title headings and demotes body h1s for WordPress blocks
+PASS strips source classes and simplifies nested wrappers like upstream post processing
+PASS preserves configured classes like upstream cleanClasses options
+PASS honors upstream keepClasses extraction option
+PASS maps Mozilla heise fixture with caption class preservation and article promotion
+PASS maps Mozilla ars-1 fixture by removing figure credit-only caption chrome
+PASS maps Mozilla guardian-1 fixture with media captions and articleBody wrapper parity
+PASS maps Mozilla nytimes-1 fixture with rich figure caption and hidden feedback cleanup
+PASS maps Mozilla nytimes-2 fixture with continuation links and hidden story interrupters
+PASS maps Mozilla nytimes-3 fixture with figure itemid lazy images and related-card cleanup
+PASS maps Mozilla nytimes-4 fixture with debt article graphics and related-link cleanup
+PASS maps Mozilla nytimes-5 section front with collection card pruning
+PASS maps Mozilla telegraph fixture with text sections and publisher media chrome cleanup
+PASS maps Mozilla liberation-1 fixture by pruning trailing wire author source credit
+PASS maps Mozilla la-nacion fixture with UTF-8 BOM and article description lead
+PASS maps Mozilla bbc-1 fixture with RDFa articleBody and unsupported video placeholders
+PASS maps Mozilla cnn fixture with storytext root and widget chrome cleanup
+PASS maps Mozilla citylab-1 fixture by pruning author RSS feed chrome
+PASS maps Mozilla aclu fixture through Drupal panel sidebar wrappers
+PASS maps Mozilla wapo-1 fixture with inline gallery and graphic chrome cleanup
+PASS maps Mozilla wapo-2 fixture with lead media and author bio siblings
+PASS maps Mozilla yahoo-2 fixture without treating application-name as site metadata
+PASS maps Mozilla yahoo-3 fixture by pruning GMA provider action chrome
+PASS maps Mozilla yahoo-4 fixture with Japanese article-body selection
+PASS maps Mozilla buzzfeed-1 fixture by removing print image and bio chrome
+PASS maps Mozilla lemonde-1 fixture with French articleBody and Dailymotion video
+PASS maps Mozilla theverge fixture with content wrapper pullquote and newsletter boundaries
+PASS maps Mozilla engadget fixture with review gallery and buy chrome cleanup
+PASS preserves requested WordPress caption classes without keeping theme classes
+PASS removes WordPress image credit-only caption wrappers before block output
+PASS collapses single paragraph div wrappers like upstream scoring cleanup
+PASS weights hash-only links lightly when collapsing WordPress footnote wrappers
+PASS wraps phrasing media in div paragraphs like upstream preprocessing
+PASS removes leading byline and action controls before article content
+PASS maps Mozilla base URL fixture relative link and media cleanup
+PASS maps Mozilla base URL fixture family including paragraphized div content
+PASS maps Mozilla javascript link replacement fixture to inert span content
+PASS absolutizes WordPress migration links and media against the source URL
+PASS maps Mozilla clean-links fixture popup links and whitespace-trimmed URIs
+PASS trims selected-root nonbreaking whitespace from classic WordPress exports
+PASS removes trailing WordPress footer link bars after article content
+PASS removes trailing WordPress wire source credits without losing metadata bylines
+PASS promotes single article bodies and removes empty paragraphs before block migration
+PASS unwraps single-cell layout tables while retaining real data tables
+PASS turns single-cell block layout tables into div wrappers for WordPress imports
+PASS strips presentational table and font markup for WordPress imports
+PASS maps Mozilla table style attributes fixture cleanup
+PASS maps Mozilla links-in-tables fixture with retained table links
+PASS maps Mozilla keep-tabular-data fixture table rows and status images
+PASS preserves upstream marked data tables while unwrapping presentational one cell tables
+PASS maps Mozilla normalize-spaces fixture metadata and article text
+PASS maps Mozilla parsely metadata fixture metadata and article text
+PASS maps Mozilla metadata-content-missing fixture metadata precedence
+PASS maps Mozilla metadata preferred and space separated property fixtures
+PASS uses Dublin Core metadata for WordPress import titles bylines and excerpts
+PASS maps Mozilla 001 fixture body itemprop author byline
+PASS maps Mozilla article-author-tag fixture with Atlas Obscura article body root
+PASS maps Mozilla 002 fixture with Mozilla Hacks code blocks and content-main root
+PASS maps Mozilla google-sre-book-1 fixture by promoting the chapter main root
+PASS maps Mozilla toc-missing fixture while pruning interactive editor CTA chrome
+PASS keeps technical article TOCs while dropping external editor CTAs before WordPress blocks
+PASS maps Mozilla wikipedia-4 fixture with list table and category chrome cleanup
+PASS maps Mozilla wikipedia fixture with article hatnote and shell cleanup
+PASS maps Mozilla wikipedia-2 country fixture without status indicator chrome
+PASS maps Mozilla wikipedia-3 fixture with math article shell cleanup
+PASS extracts WordPress itemprop body bylines without importing byline blocks
+PASS maps Mozilla title-en-dash fixture title separator cleanup
+PASS maps Mozilla title and h1 discrepancy fixture without replacing the document title
+PASS removes source site suffixes from WordPress import titles
+PASS uses JSON-LD name when headline does not match the WordPress import title
+PASS maps Mozilla v8-blog fixture without generic time datetime published metadata
+PASS does not turn visible WordPress article times into published metadata without upstream fields
+PASS maps Mozilla schema-org context object fixture without leading news chrome
+PASS maps Mozilla mozilla-2 fixture metadata and retained content markers
+PASS maps Mozilla tumblr fixture by promoting the single post over theme sidebars
+PASS maps Mozilla mozilla-1 fixture with main content wrapper and sync CTA cleanup
+PASS maps Mozilla firefox-nightly-blog fixture with article-header rel author byline
+PASS maps Mozilla medicalnewstoday fixture with byline inside site header wrapper
+PASS maps Mozilla embedded-videos fixture allowed iframe preservation
+PASS maps Mozilla videos-2 JSON-LD metadata and video article body
+PASS removes non-video embeds while preserving Mozilla allowed video hosts
+PASS honors upstream custom allowed video regex extraction option
+PASS honors upstream maxElemsToParse extraction option
+PASS honors upstream charThreshold retry with the longest nonempty attempt
+PASS returns null for chrome-only WordPress imports after charThreshold retries
+PASS maps Mozilla lazy-image noscript replacement semantics
+PASS maps Mozilla lazy data-srcset promotion semantics
+PASS maps Mozilla data-url-image fixture media retention boundaries
+PASS maps Mozilla cnet svg sprite dedupe fixture
+PASS deduplicates repeated WordPress inline SVG symbol sprites before block output
+PASS maps Mozilla keep-images fixture full-width editorial media retention
+PASS preserves named Medium section wrappers for oracle output while flattening WordPress blocks
+PASS maps Mozilla medium-1 empty heading cleanup and boundary spacing
+PASS removes empty imported headings before WordPress paragraph serialization
+PASS maps Mozilla medium-2 trailing syndication footer cleanup
+PASS maps Mozilla medium-3 hr page breaks to readability page sections
+PASS removes Medium page break separators before WordPress block output
+PASS removes trailing WordPress syndication source notes before block output
+PASS maps Mozilla simplyfound-1 fixture by pruning trailing account approval modal chrome
+PASS removes trailing WordPress account modals and ad containers before block output
+PASS maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup
+PASS serializes upstream readability page wrapper and collapses emptied Medium author wrappers
+PASS unwraps transparent WordPress section wrappers before block output
+PASS drops out-of-band full-width figure wrappers during WordPress migration cleanup
+PASS preserves WordPress editorial full-width figures while dropping decorative media wrappers
+PASS maps Mozilla lazy-image-2 responsive image fixture
+PASS maps Mozilla lazy-image-3 full data-src fixture
+PASS promotes responsive image candidates behind short data URI placeholders
+PASS maps Mozilla replace-brs fixture paragraph breaks
+PASS maps Mozilla remove-extra-brs fixture cleanup
+PASS splits legacy WordPress br-separated exports before block serialization
+PASS keeps WordPress import text separated across block and table boundaries
+PASS maps Mozilla dev418 fixture with mixed image list media retention
+PASS maps Mozilla iab-1 fixture with leading header chrome cleanup and retained author bio
+PASS maps Mozilla bug-1255978 fixture by preserving articleBody despite share-like id
+PASS serializes retained image lists from media fixtures as WordPress blocks
+PASS maps Mozilla replace-font-tags fixture to span markup
+PASS maps Mozilla tmz-1 fixture with legacy post headline envelope
+PASS normalizes legacy WordPress font tags before block output
+PASS maps upstream stream-backed post-auth frame boundaries
+PASS dispatches stream frames through bounded wordpress session handling
+PASS dispatches stream-backed index and progress frames to model callbacks
+PASS rejects truncated and oversized stream frames like upstream readMessage
+PASS maps upstream cluster-config-first writer boundary
+PASS maps upstream dispatcher cluster-config first close and unknown handling
+PASS maps inbound response matching and close-time pending request drain
+PASS serves inbound wordpress requests after cluster config and closes on invalid requests
+PASS dispatches inbound model messages to registered wordpress callbacks
+PASS closes session when a provided model callback fails
+PASS maps upstream v14 hello protobuf frame fixture
+PASS maps upstream old and unknown hello magic handling
+PASS maps request protobuf fields and uncompressed post-auth frame
+PASS maps response protobuf fields and error codes
+PASS maps upstream lz4 block compatibility fixture
+PASS maps compressed response post-auth frames
+PASS maps upstream compression mode threshold and fallback rules
+PASS maps metadata compression for wordpress request payloads
+PASS maps upstream ping and close post-auth frames
+PASS maps compressed close frames and specific decode guards
+PASS maps cluster config folder and device protobuf fields
+PASS maps cluster config device options and post-auth frame type
+PASS maps file info protobuf blocks version flags hashes and platform fields
+PASS maps index and index update protobuf payloads and frame types
+PASS maps download progress append and forget protobuf payloads and frame type
+PASS maps upstream old file download progress update fixtures
+PASS maps deleted and symlink file info wire fields
+PASS rejects malformed cluster config values
+PASS rejects malformed compressed and post-auth frames
+PASS maps upstream folder_sendrecv TestDiff table
+PASS maps upstream folder_sendrecv TestDiffEmpty boundaries
+PASS plans WordPress media requests only for changed target blocks
+PASS rejects non-block inputs
+PASS maps upstream scanner block hash fixtures
+PASS splits file bytes into deterministic content blocks
+PASS verifies block hashes against file bytes
+PASS selects syncthing block sizes from file length
+PASS maps upstream scanner block size hysteresis from current FileInfo
+PASS hashes block lists and validates optional hashes
+PASS rejects invalid block sizing input
+PASS maps upstream block chunk table cases
+PASS maps upstream in-order block pull ordering
+PASS maps upstream standard block pull reorderer device chunks
+PASS maps random order and invalid shuffle callback guards
+PASS maps upstream device activity least busy sequence
+PASS balances wordpress media block plans across full and temporary peers
+PASS maps upstream device download append forget replace and byte counting semantics
+PASS formats upstream canonical device id variants
+PASS validates upstream device id lengths typo replacements and check digits
+PASS maps upstream device id bytes comparison and short id behavior
+PASS maps upstream device id marshalling and certificate hashing boundary
+PASS maps upstream luhn32 check digit behavior
+PASS maps upstream ccCheckEncryption table decisions
+PASS adopts a receive-encrypted cluster token before resending cluster config
+PASS preserves upstream encryption error messages for WordPress peer setup
+PASS matches upstream scrypt and AES SIV key derivation fixtures
+PASS uses password tokens for receive encrypted WordPress peer consistency
+PASS maps upstream file info batch flush error lifecycle
+PASS flushes only when upstream file count or byte limits are reached
+PASS batches wordpress media file infos into index update frames
+PASS maps upstream file info conflict winner ordering
+PASS detects conflicts from vector ancestry and block hash lineage
+PASS maps local invalid and conflict flag handling
+PASS creates tombstones that clear content and advance device versions
+PASS rejects malformed file info hashes
+PASS maps upstream block equality shortcuts and fallback
+PASS maps upstream file info equivalence basic attributes
+PASS maps upstream local flag equivalence handling
+PASS maps upstream permission and block ignore options
+PASS maps symlink target and unix ownership equivalence
+PASS keeps wordpress media metadata equivalent across scanner noise
+PASS maps upstream scanner CreateFileInfo ownership xattrs and block metadata
+PASS maps upstream scanner symlink FileInfo without following target metadata
+PASS reads symlink xattrs from the link path without following the target
+PASS windows scanner walk skips symlink entries instead of emitting FileInfo
+PASS walk skips requested subs below symlinked parents like upstream TraversesSymlink
+PASS diagnoses upstream scanner sub walk parent guard boundaries
+PASS propagates platform data read errors like upstream CreateFileInfo
+PASS rejects noncanonical scanner paths before touching the filesystem
+PASS walk maps upstream scanner sub walk ignore pruning
+PASS walk preserves ignored ancestor directories for included descendants
+PASS walk skips internal and temporary entries while accepting slash-rooted subs
+PASS walk removes stale regular temporary files using upstream temp lifetime
+PASS walk emits upstream FolderScanProgress byte totals while hashing
+PASS walk suppresses scan progress when no hashing work is queued
+PASS walk reports scanner item errors and continues with siblings
+PASS walk reports directory listing errors as scan errors without Failure events
+PASS maps upstream scanner walk failure warnability boundary
+PASS walk progress cancellation stops before hashing another queued file
+PASS walk checkpoint resumes after upstream cancellation boundary
+PASS walk checkpoint carries folder scan progress and path errors together
+PASS walk retains current file block size within upstream hysteresis window
+PASS walk skips unchanged current files while preserving local flag changes
+PASS walk ignores permission-only changes when upstream IgnorePerms is enabled
+PASS windows scanner preserves current executable bits during equivalence
+PASS walk treats modification times inside the upstream window as unchanged
+PASS walk skips unchanged symlink current files and emits target changes
+PASS walk reports upstream normalization errors when auto normalization is disabled
+PASS walk auto normalizes UTF8 filenames before emitting FileInfo
+PASS walk reports upstream normalization conflicts without replacing the existing item
+PASS maps upstream aggregate folder completion math
+PASS maps upstream delete-only need completion as ninety-five percent
+PASS subtracts downloaded temporary bytes without underflow for wordpress progress
+PASS promotes final iteration tempPullErrors into sorted FolderErrors event
+PASS pull success requires zero changes and no promoted pull errors
+PASS folder errors combine and clear scan-error subtrees like upstream Errors
+PASS finisherRoutine temp errors feed folder error promotion
+PASS pull iteration runner clears transient errors before retry success
+PASS pull iteration runner promotes only final iteration errors
+PASS pull iteration runner stops after upstream maximum changed iterations
+PASS maps upstream sqlite TestNeed local and remote need lists
+PASS maps upstream deleted and ignored need boundaries
+PASS preserves remote need metadata across a full index reset
+PASS maps upstream remote directory symlink and alphabetic pagination need
+PASS maps upstream needed-file pull orders from sqlite folderdb
+PASS maps pull order text fallback and deterministic random test hook
+PASS maps upstream global availability and drop recalculation
+PASS maps upstream AllGlobalFilesPrefix subtree selection
+PASS maps upstream DropDevice no-op and global recalculation
+PASS scan API accepts selected WordPress folder map with normalized subdirs
+PASS scan API returns multi-status for paused folders while scanning neighbors
+PASS scan API rejects unknown folders and traversal subdirs before scanning
+PASS scan API redacts absolute paths from scanner status payloads
+PASS scan API accepts upstream next delay and exposes scheduled scan status
+PASS scan API request queue coalesces pending and running folder scans before coordinator invocation
+PASS scan API request queue rejects invalid and over-capacity requests without scanning
+PASS scan API request queue records completed failures and allows a fresh scan after completion
+PASS scan API request queue keeps distinct next delays and resets scheduled status on completion
+PASS checkpoint merges cancelled and resumed scanner results for CurrentFiler reuse
+PASS checkpoint replaces rescanned paths without duplicating completed status rows
+PASS checkpoint status exposes path errors and upstream Failure events for REST payloads
+PASS collector records folder-scoped scanner progress failures and path errors
+PASS root walk aborts emit upstream Failure events through the folder collector
+PASS route registry dispatches WordPress scan route to coordinator
+PASS route registry dispatches optional queue route and preserves coalescing
+PASS route registry returns REST-shaped missing and method errors
+PASS scan folders publishes every registered folder with independent revisions and expiry
+PASS scan folders records paused errors and continues running folders
+PASS scan folder subdirs accepts empty and slash-normalized upstream subdir forms
+PASS stale publish in one folder is returned as an error while neighboring folders commit
+PASS delayed scan timing resets next scan and only publishes checkpoints when due
+PASS scan service persists cancelled checkpoint and resumes with CurrentFiler files
+PASS checkpoint store rejects stale revisions and supports conflict-safe deletes
+PASS checkpoint store expires stale folder snapshots before loading or listing
+PASS scan service detects concurrent checkpoint updates before publishing scan result
+PASS checkpoint store merges scan results when revision matches latest snapshot
+PASS watch aggregator rolls crowded directories and root overflows into parent scans
+PASS watch aggregator delays non-removes, ignores in-progress items, and orders remove batches last
+PASS watch scan scheduler coalesces media events into a delayed subdir checkpoint
+PASS watch scan scheduler ignores Syncthing-owned changes and does not consume paused folder events
+PASS loads upstream-style include chains relative to the current ignore file
+PASS maps custom escape characters bracket ranges and brace alternatives
+PASS rejects invalid include escape placement and applies upstream skip-dir boundary
+PASS uses included WordPress ignore snippets before serving request bytes
+PASS maps upstream cluster config device info start sequence decisions
+PASS stores pending add index info until shared folder starts
+PASS pauses and resumes registered folder state without replacing handler
+PASS replaces a running handler when new cluster index info arrives
+PASS removes running and pending handlers outside the active share set
+PASS maps upstream ReceiveIndex missing paused and running folder boundaries
+PASS updates attached folder index state from received Index and IndexUpdate batches
+PASS maps upstream initial index then delta prev sequence tracking
+PASS keeps upstream add delete rename pair in one full batch
+PASS skips receive encrypted local changes while advancing sequences
+PASS prepares local receive only and finalized encrypted FileInfo for index
+PASS builds wordpress BEP frames and forget updates for received regular files
+PASS rejects non increasing database sequence streams
+PASS maps upstream receive full index reset event and temporary progress forget
+PASS maps upstream receive index anomaly logging without rejecting the update
+PASS rejects duplicate remote sequence numbers after scheduling a pull
+PASS replaces filtered xattrs like upstream SetXattr
+PASS empty desired xattr set removes only filtered current attributes
+PASS stale xattr removal failure stops before setting new xattrs
+PASS ignores unsupported xattr filesystems like upstream setPlatformData
+PASS propagates xattr list failures before metadata writes
+PASS propagates xattr get failures before remove or set
+PASS propagates xattr remove hard errors before setting new xattrs
+PASS propagates xattr set hard errors with the attribute name
+PASS treats absent default host xattr extension as unsupported no-op
+PASS sets symlink xattrs on the link path without following the target
+PASS maps upstream timer gate and wire connection sends
+PASS maps upstream deregister cleanup and idle timer stop
+PASS records send failures after state advances without retrying unchanged updates
+PASS rejects malformed progress scheduler inputs
+PASS maps upstream progress emitter subscription grouping
+PASS maps upstream deregister folder unshare and disconnect cleanup
+PASS maps upstream disable cleanup before clearing state
+PASS maps upstream puller progress byte estimation and events
+PASS rejects malformed progress emitter inputs
+PASS maps upstream check filename table cases
+PASS maps upstream index file info consistency checks
+PASS maps upstream request size and filename validation
+PASS normalizes outgoing wire paths for requests and index updates
+PASS keeps unix wire backslashes as literal filename characters
+PASS dbUpdaterRoutine batches pulled updates fsyncs changed dirs and emits last received file
+PASS updateLocalsFromPulling emits remote change events after local batch update
+PASS dbUpdaterRoutine flushes at upstream file count limit and emits one received file per batch
+PASS dbUpdaterRoutine timer tick flushes partial batch before close
+PASS dbUpdaterRoutine skips received file events for invalid and shortcut metadata updates
+PASS finisherRoutine promotes successful pulls completes queue and emits item finished
+PASS finisherRoutine records failed final close as temp pull error and is idempotent
+PASS finisherRoutine ignores not-ready states without lifecycle side effects
+PASS finisherRoutine leaves receive-encrypted progress emitter registrations alone
+PASS handleDir creates nested directory emits lifecycle and schedules database update
+PASS handleSymlink creates link emits lifecycle and schedules symlink database update
+PASS handleDir moves conflicting regular file aside before directory update
+PASS handleSymlink rejects incompatible empty targets without database update
+PASS deleteFile removes tracked media file emits delete lifecycle and schedules database update
+PASS deleteFile does not follow parent symlink and still records tombstone update
+PASS deleteFile keeps case-only local sibling while accepting remote tombstone
+PASS deleteFile moves conflict copy before accepting remote tombstone
+PASS deleteDirectory preserves unscanned local directory and queues scan
+PASS deleteDirectory removes deletable ignored child tree and schedules directory tombstone
+PASS processDeletions deletes files before reverse ordered directory tombstones
+PASS processDeletions coalesces repeated file tombstones by path
+PASS processMetadataShortcuts updates same-block metadata and leaves other files for pull
+PASS shortcutFile honors ignored permissions while applying upstream mtime
+PASS shortcutFile applies synced ownership and xattrs before database update
+PASS shortcutFile keeps xattr metadata failure retryable without database update
+PASS shortcutFile reports missing files without creating empty placeholders
+PASS shortcutFile rewrites receive-encrypted FileInfo trailer before shortcut database update
+PASS shortcutFile keeps receive-encrypted trailer write failure retryable without database update
+PASS processMetadataShortcuts does not create synthetic receive-encrypted parents after shortcut failure
+PASS shortcutFile truncates stale receive-encrypted trailer bytes before shortcut database update
+PASS processRenameShortcuts renames same-block source tombstone into target
+PASS processRenameShortcuts retries next same-block candidate when first source changed
+PASS renameFileShortcut scans changed existing target and leaves source in place
+PASS maps upstream job queue push pop done cycle
+PASS maps upstream bring to front ordering cases
+PASS maps upstream queue pagination across progress and queued jobs
+PASS queues prioritized wordpress media pulls and validates inputs
+PASS pullScannerRoutine aggregates duplicate finalization paths until close
+PASS pullScannerRoutine keeps file and directory scan scheduling separate before one scan batch
+PASS finisher queues failed finalization scan names without scheduling during pull
+PASS pullScannerRoutine captures schedule callback failures and remains closed
+PASS assembles copied sparse and pulled blocks into final media file
+PASS finalClose waits for all blocks and is idempotent after rename
+PASS temporary files keep upstream provisional owner write permissions
+PASS performFinish applies platform metadata to temp file before promotion
+PASS performFinish keeps temp file when platform metadata fails
+PASS reused read-only temporary files are made writable before block writes
+PASS performFinish moves conflicting local file aside before promotion
+PASS performFinish replaces non-conflicting descendant file without conflict copy
+PASS performFinish schedules a scan when the existing final file changed after scanning
+PASS performFinish promotes case-only replacement on case-sensitive filesystems
+PASS performFinish reports case conflict without scan on case-detecting filesystems
+PASS performFinish archives non-conflicting regular replacement when versioner is configured
+PASS performFinish prefers conflict copy over version archive for conflicting regular replacement
+PASS performFinish deletes tracked directory before regular file promotion
+PASS performFinish schedules a scan instead of deleting directory with unknown children
+PASS performFinish removes upstream temporary children before directory replacement
+PASS performFinish preserves nondeletable ignored directory children before replacement
+PASS performFinish treats receive-only changed directory children as scanned resurrection work
+PASS moveForConflict prunes older conflict copies past maxConflicts
+PASS failed block pulls close but leave temporary file reusable
+PASS receive-encrypted finalization appends FileInfo trailer before promotion
+PASS maps upstream handleFile copy and pull accounting
+PASS maps upstream handleFile temporary-file reuse pruning
+PASS maps local block-index fallback and copier finder pull list
+PASS maps upstream sparse zero-block handling from TestPullEmptyBlock
+PASS receive-encrypted planning does not reuse temporary file blocks
+PASS rejects malformed pull work inputs
+PASS maps upstream XChaCha20 encrypted bytes fixture
+PASS maps encrypted request geometry and opaque hash token fields
+PASS maps encryptedConnection request response padding and trim semantics
+PASS maps encryptedModel inbound request decryption and response encryption
+PASS serves encryptedModel requests through native request server
+PASS maps upstream deterministic encrypted name fixtures and invalid cases
+PASS maps upstream deterministic block hash token invariants
+PASS maps encrypted inbound requests back to plaintext geometry
+PASS maps upstream encrypted name slashification and parent detection
+PASS maps receive-encrypted synthetic parent scan cleanup
+PASS writes and extracts upstream receive-encrypted file trailers
+PASS maps receive-encrypted finalization trailer and verification boundaries
+PASS maps upstream encrypted file info wrapper invariants
+PASS maps encrypted index and index update collection wrappers
+PASS maps encryptedConnection DownloadProgress no-op for encrypted folders
+PASS maps encryptedModel DownloadProgress no-op before temporary state mutation
+PASS maps encrypted file info consistency for ignored symlink metadata
+PASS maps upstream model download progress sharing guard and event summary
+PASS maps temporary block availability and fromTemporary request planning
+PASS prefers full-file availability before temporary candidates and validates inputs
+PASS maps upstream disconnected device availability and temporary state cleanup
+PASS fails pullBlock before requesting unavailable connected-device candidates
+PASS maps pullBlock retry activity and response hash validation
+PASS maps pullBlock final failure after response and callback errors
+PASS skips network requests for upstream all-zero pull blocks
+PASS receive-encrypted pullBlock accepts opaque hash-token responses
+PASS maps upstream response error code conversion
+PASS maps rawConnection outbound ids and response completions
+PASS maps rawConnection close draining awaiting requests
+PASS maps dispatcher request validation boundaries before request handling
+PASS serves valid fromTemporary requests from the temporary file first
+PASS falls back to the final file when temporary data does not validate
+PASS maps final-file hash mismatch and empty hash short reads
+PASS rejects unshared devices internal paths traversal and negative ranges
+PASS maps upstream request max-size guard before serving media bytes
+PASS rejects explicit ignored request paths before disk reads
+PASS receive-encrypted final requests skip hash validation after temporary mismatch
+PASS uses upstream temporary filename hashing for long basenames
+PASS maps upstream temporary file prefix recognition
+PASS maps upstream sent download append diff and timestamp semantics
+PASS maps upstream version changes and puller recreation forget append pairs
+PASS maps upstream min block filtering inactive files and completed pull cleanup
+PASS maps upstream folder cleanup forget messages
+PASS rejects malformed sent download state inputs
+PASS maps upstream service map add remove lifecycle
+PASS maps upstream service map overwrite stop before replace
+PASS maps upstream stop retention remove and wait boundaries
+PASS maps upstream iteration with remove and wait
+PASS manages wordpress folder services without dropping retained state
+PASS propagates service map callback errors like upstream each errors
+PASS sqlite checkpoint store persists snapshots across connections with FileInfo metadata
+PASS sqlite checkpoint store rejects stale revisions and expires rows before reuse
+PASS sqlite checkpoint store merges results and lists unexpired folders in stable order
+PASS folder scan service resumes through a sqlite checkpoint store
+PASS sqlite checkpoint store rejects unsafe table names and malformed payload rows
+PASS maps upstream version update ordering semantics
+PASS merges counters using upstream max-by-device rules
+PASS compares version vectors including concurrent orderings
+PASS detects concurrent wordpress edits before merge
+PASS rejects invalid vector counters
+PASS wordpress option store persists checkpoint payloads with FileInfo metadata
+PASS wordpress option store rejects stale revisions and compare-and-swap conflicts
+PASS wordpress option store expires snapshots and deletes stale options before reuse
+PASS folder scan service resumes through a wordpress option checkpoint store
+PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads
+
+208 test files, 24117 assertions, 0 failures
+```
+
+Support-library/dependency-closure decision: no support-library activation; accepted as lane-local bounded isolated patch.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json
+- lanes/markerpdf/lane-status.json
+- lanes/markerpdf/notes/upstream-test-inventory.md
+- lanes/markerpdf/notes/wordpress-scenarios.md
+- lanes/markerpdf/src/PdfTextExtractor.php
+- lanes/markerpdf/tests/PdfTextExtractorTest.php
+

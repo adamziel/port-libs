@@ -100,6 +100,7 @@ final class PdfTextExtractor
     private function streams(string $pdfBytes): array
     {
         $streams = [];
+        $objects = $this->pdfObjects($pdfBytes);
         if (!preg_match_all('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
             return $streams;
         }
@@ -107,7 +108,7 @@ final class PdfTextExtractor
         foreach ($matches as $match) {
             $dict = $match[1];
             $stream = $match[2];
-            $decoded = $this->decodeStream($dict, $stream);
+            $decoded = $this->decodeStream($dict, $stream, $objects);
             if ($decoded === null) {
                 continue;
             }
@@ -117,9 +118,18 @@ final class PdfTextExtractor
         return $streams;
     }
 
-    private function decodeStream(string $dict, string $stream): ?string
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeStream(string $dict, string $stream, array $objects = []): ?string
     {
-        foreach ($this->streamFilters($dict) as $filter) {
+        $filters = $this->streamFilters($dict, $objects);
+        $decodeParms = $this->streamDecodeParms($dict, $objects);
+        foreach ($filters as $index => $filter) {
+            if (!$this->canApplyDecodeParms($decodeParms[$index] ?? null)) {
+                return null;
+            }
+
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
@@ -137,19 +147,102 @@ final class PdfTextExtractor
 
     /**
      * @return list<string>
+     * @param array<int, string> $objects
      */
-    private function streamFilters(string $dict): array
+    private function streamFilters(string $dict, array $objects = []): array
     {
-        if (!preg_match('/\/Filter\s*(?:\[(.*?)\]|\/([A-Za-z0-9]+))/s', $dict, $match)) {
+        if (!preg_match('/\/Filter\s*(?:\[(.*?)\]|\/([A-Za-z0-9]+)|(\d+)\s+\d+\s+R\b)/s', $dict, $match)) {
             return [];
         }
 
         if (($match[1] ?? '') !== '') {
-            preg_match_all('/\/([A-Za-z0-9]+)/', $match[1], $filters);
-            return $filters[1] ?? [];
+            return $this->filterNamesFromValue($match[1], $objects);
         }
 
-        return isset($match[2]) ? [$match[2]] : [];
+        if (($match[2] ?? '') !== '') {
+            return [$match[2]];
+        }
+
+        $objectNumber = isset($match[3]) ? (int) $match[3] : 0;
+        return $objectNumber > 0 && isset($objects[$objectNumber])
+            ? $this->filterNamesFromValue($objects[$objectNumber], $objects)
+            : [];
+    }
+
+    /**
+     * @return list<string>
+     * @param array<int, string> $objects
+     */
+    private function filterNamesFromValue(string $value, array $objects): array
+    {
+        preg_match_all('/\/([A-Za-z0-9]+)|(\d+)\s+\d+\s+R\b/', $value, $matches, PREG_SET_ORDER);
+        $filters = [];
+        foreach ($matches as $match) {
+            if (($match[1] ?? '') !== '') {
+                $filters[] = $match[1];
+                continue;
+            }
+
+            $objectNumber = isset($match[2]) ? (int) $match[2] : 0;
+            if ($objectNumber > 0 && isset($objects[$objectNumber])) {
+                foreach ($this->filterNamesFromValue($objects[$objectNumber], $objects) as $filter) {
+                    $filters[] = $filter;
+                }
+            }
+        }
+
+        return $filters;
+    }
+
+    /**
+     * @return list<string|null>
+     * @param array<int, string> $objects
+     */
+    private function streamDecodeParms(string $dict, array $objects): array
+    {
+        if (!preg_match('/\/DecodeParms\s*(\[(.*?)\]|<<(.*?)>>|null|(\d+)\s+\d+\s+R\b)/s', $dict, $match)) {
+            return [];
+        }
+
+        if (($match[2] ?? '') !== '') {
+            preg_match_all('/<<(.*?)>>|null|(\d+)\s+\d+\s+R\b/s', $match[2], $items, PREG_SET_ORDER);
+            return array_map(fn (array $item): ?string => $this->decodeParmsItem($item[0], $objects), $items);
+        }
+
+        return [$this->decodeParmsItem($match[1], $objects)];
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodeParmsItem(string $value, array $objects): ?string
+    {
+        $value = trim($value);
+        if ($value === '' || $value === 'null') {
+            return null;
+        }
+        if (preg_match('/^(\d+)\s+\d+\s+R$/', $value, $match)) {
+            $objectNumber = (int) $match[1];
+            return isset($objects[$objectNumber]) ? $this->decodeParmsItem($objects[$objectNumber], $objects) : null;
+        }
+        if (preg_match('/^<<(.*?)>>$/s', $value, $match)) {
+            return $match[1];
+        }
+
+        return $value;
+    }
+
+    private function canApplyDecodeParms(?string $decodeParms): bool
+    {
+        if ($decodeParms === null || trim($decodeParms) === '') {
+            return true;
+        }
+
+        if (preg_match('/\/Predictor\s+(\d+)/', $decodeParms, $match) === 1 && (int) $match[1] !== 1) {
+            return false;
+        }
+
+        return true;
     }
 
     private function decodeAsciiHexStream(string $stream): ?string
@@ -206,7 +299,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber]);
+            $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects);
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
                 $fontObjectMaps[$objectNumber] = $cmap;
             }
@@ -263,14 +356,15 @@ final class PdfTextExtractor
 
     /**
      * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     * @param array<int, string> $objects
      */
-    private function toUnicodeMapFromObject(string $objectBody): ?array
+    private function toUnicodeMapFromObject(string $objectBody, array $objects): ?array
     {
         if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
             return null;
         }
 
-        $decoded = $this->decodeStream($match[1], $match[2]);
+        $decoded = $this->decodeStream($match[1], $match[2], $objects);
         if ($decoded === null) {
             return null;
         }

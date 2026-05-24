@@ -43,6 +43,33 @@ return [
         $t->same('ASCII Hex Import', $extractor->extractPlainText($pdf));
         $t->same('Stacked Filter Import', $extractor->extractPlainText($stackedPdf));
     },
+    'resolves indirect stream filters and benign DecodeParms for WordPress extraction' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (Indirect Filter Import) Tj T* (DecodeParms Predictor One) Tj ET';
+        $compressed = gzcompress($content);
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter 2 0 R /DecodeParms 3 0 R /Length " . strlen($compressed) . " >>\nstream\n{$compressed}\nendstream\nendobj\n"
+            . "2 0 obj\n/FlateDecode\nendobj\n"
+            . "3 0 obj\n<< /Predictor 1 >>\nendobj\n"
+            . "%%EOF";
+
+        $stackedContent = 'BT /F1 12 Tf 72 720 Td (Indirect Filter Array) Tj ET';
+        $stackedCompressed = gzcompress($stackedContent);
+        $stackedEncoded = strtoupper(bin2hex($stackedCompressed)) . '>';
+        $stackedPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter 2 0 R /DecodeParms [ null 3 0 R ] /Length " . strlen($stackedEncoded) . " >>\nstream\n{$stackedEncoded}\nendstream\nendobj\n"
+            . "2 0 obj\n[ /ASCIIHexDecode /FlateDecode ]\nendobj\n"
+            . "3 0 obj\n<< /Predictor 1 /Columns 8 >>\nendobj\n"
+            . "%%EOF";
+
+        $unsupportedPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns 8 >> /Length " . strlen($compressed) . " >>\nstream\n{$compressed}\nendstream\nendobj\n"
+            . "%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same("Indirect Filter Import\nDecodeParms Predictor One", $extractor->extractPlainText($pdf));
+        $t->same('Indirect Filter Array', $extractor->extractPlainText($stackedPdf));
+        $t->same('', $extractor->extractPlainText($unsupportedPdf));
+    },
     'uses ToUnicode CMap codespacerange widths for variable-length WordPress text' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <8141208142> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"

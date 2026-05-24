@@ -4,6 +4,13 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 
 The manifest denominator now keeps `benchmarkDenominator.total` numeric at `78`; the long inventory explanation is recorded separately as `inventorySummary`. The clone check on 2026-05-24 19:13 UTC confirmed `git ls-tree -r --name-only HEAD | wc -l` returns `78`, with `0` committed Python unit test files found and the full upstream benchmark runner still blocked on Poetry plus heavy PDF/model dependencies.
 
+## Reduced Handoff 2026-05-24 23:20 UTC
+
+- Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-indirect-filter-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted ASCIIHex and literal-escape handoffs.
+- Indirect filter/DecodeParms slice: `PdfTextExtractor` now resolves `/Filter` names and filter arrays through indirect objects, resolves direct and indirect `/DecodeParms` entries, accepts `null` or `/Predictor 1` parameters, and rejects unsupported predictor parameters instead of silently decoding incorrectly. This keeps ordinary indirect encoded content streams on the native text extraction boundary used by WordPress import examples.
+- Focused evidence: `php -l lanes/markerpdf/src/PdfTextExtractor.php`, `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`, `php -l lanes/markerpdf/examples/wordpress-pdf-indirect-filter-import.php`, `php lanes/markerpdf/examples/wordpress-pdf-indirect-filter-import.php`, `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed with 1 test file, 32 assertions, and 0 failures, and `php tools/run-tests.php lanes/markerpdf/tests` passed with 47 test files, 965 assertions, and 0 failures.
+- Acceptance blocker remains integrator/root aggregate verification plus full upstream runner parity and the inactive `pdf-text-dictionary-core`, `layout-ocr-result-core`, and `table-geometry-core` gates. Dependency closure: no new support component is needed; this reuses the existing bounded native `PdfTextExtractor` content-stream parser and object inventory. Broader searchable PDF dictionary extraction should reuse the existing `pdf-text-dictionary-core` row only when that accepted rich slice opens.
+
 ## Reduced Handoff 2026-05-24 22:58 UTC
 
 - Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-literal-escape-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted ASCIIHex stream-filter handoff.
