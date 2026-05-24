@@ -1,5 +1,55 @@
 # Integration Status
 
+## Integration handoff rejection - Readability repeat - 2026-05-24 18:46 UTC
+
+No Readability lane output was integrated. A new marker appeared at
+`.tmux-team/tmp/handoff-candidates/port-readability.ready`
+(`timestamp=2026-05-24T18:42:44Z`, reason `no-codex-handoff-grace`) after the
+previous Readability rejection. I held only that lane with
+`.tmux-team/tmp/integration-holds/port-readability.hold` at
+`2026-05-24T18:44:30Z`. The `port-readability` pane was idle at `bash`
+(`pane_pid=833952`) with no child process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `4d13f1d71057`
+  (`Record Readability handoff rejection`).
+- Exact no-argument root gate returned no active
+  `php tools/run-tests.php` PID in both polls. I did not start a root harness,
+  did not wait on `.upstream-cache/run-tests.lock`, and did not treat any
+  moving-tree root anecdote as accepted integration evidence.
+- Readability tracked shortstat stayed
+  `15 files changed, 14194 insertions(+), 2377 deletions(-)`.
+- The Readability file mtime set, the current watchdog log
+  `.tmux-team/logs/port-readability-watchdog-20260524T183023Z.log`, the ready
+  marker, and the hold file stayed unchanged across both polls.
+- `jq empty` passed for `lanes/readability/lane-status.json`,
+  `lanes/readability/UPSTREAM_TEST_MANIFEST.json`,
+  `dependency-backlog.json`, and `porting-summary.json`.
+
+Decision: rejected/deferred again, not integrated. The latest handoff evidence
+is still the narrow raw `html@lang` metadata slice, but the dirty Readability
+state remains the same broad accumulated batch described in the 18:41 UTC
+rejection: large `ArticleExtractor.php` and `ArticleExtractorTest.php` changes,
+manifest/status/notes rewrites, existing modified examples/fixture output, and
+many untracked examples plus copied Mozilla fixtures. This is not a small
+reviewable patch for the advertised slice, and accepting it would conflate
+older unaccepted Readability work under the latest focused evidence.
+
+Exact next Readability worker task remains: re-emit only the raw `html@lang`
+metadata slice as a reduced patch with the minimal `documentAttribute()` change,
+the focused test, the single WordPress example, and normalized status/notes.
+Leave URL cleanup, lazy media, readerable preflight, copied fixture corpus,
+publisher-specific cleanup, serializer changes, and unrelated examples for
+separate batches. Keep the blocker led by aggregate root verification and do
+not claim support-library progress without an activated bounded row.
+
+Current skipped lanes: Dolt remains skipped because both implementation and
+runner sessions are present while Dolt files are dirty. All other dirty lanes
+remain active or broadly accumulated, and no non-Readability marker was held in
+this pass. Next concrete intake target: Gitoxide if it re-emits an owner-free
+`.ready` marker; otherwise markerPDF under the same two-poll gate.
+
 ## Integration handoff rejection - Readability - 2026-05-24 18:41 UTC
 
 No Readability lane output was integrated. I selected the current handoff
