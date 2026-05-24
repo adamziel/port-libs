@@ -1,5 +1,80 @@
 # Integration Status
 
+## Integration handoff rejection - Quadrable - 2026-05-24 18:37 UTC
+
+No Quadrable lane output was integrated. After the Pandoc rejection commits, a
+new current marker appeared at
+`.tmux-team/tmp/handoff-candidates/port-quadrable.ready`
+(`timestamp=2026-05-24T18:36:34Z`, reason `no-codex-handoff-grace`). I held it
+with `.tmux-team/tmp/integration-holds/port-quadrable.hold` at
+`2026-05-24T18:36:57Z`, sampled the pane as `bash` with no child process, and
+took two stability polls.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `092c10b42df2`
+  (`Clarify Pandoc rejection next target`).
+- Quadrable tracked shortstat stayed
+  `42 files changed, 13070 insertions(+), 2436 deletions(-)`.
+- Quadrable dirty scope stayed `125` rows including untracked files.
+- Relevant ready/log/hold timestamps stayed unchanged.
+- Exact no-argument root gate matched active PID
+  `859369 php tools/run-tests.php` in `/home/claude/port-libs` during both
+  polls. I did not start another root harness, did not wait on
+  `.upstream-cache/run-tests.lock`, and did not treat the active moving-tree
+  root run as accepted integration evidence.
+
+Focused evidence reviewed:
+
+- Worker handoff reported a bounded native `quadb` startup slice for
+  directory-valued `lock.mdb`, preserving upstream fail-closed
+  `mdb_env_open: Is a directory` behavior for init/root/status command output.
+- Worker evidence recorded `php -l` on touched files, the
+  `wordpress-quadb-foreign-data-guard.php` example, focused
+  `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passing
+  `1` file and `1696` assertions, lane tests passing `12` files and `5459`
+  assertions, and upstream `make -C .upstream-cache/quadrable -r test` passing
+  all `34` upstream scenarios.
+- `jq empty` passed during intake for
+  `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/quadrable/lane-status.json`, `dependency-backlog.json`, and
+  `porting-summary.json`.
+- The existing `quadrable-proof-transport-codec-core` support row remains a
+  candidate row. The advertised `lock.mdb` startup guard does not need a new
+  support-library activation, and no proof/sync transport dependency progress
+  was accepted.
+
+Decision: rejected/deferred, not integrated. The latest `lock.mdb` startup
+handoff is narrow and well evidenced, but the dirty lane is accumulated far
+beyond that claim. The tracked diff spans `QuadbStore.php`, proof, key,
+iterator, sparse tree, sync, tracked-store code, broad tests, many examples,
+and thousands of manifest/notes lines; untracked files add proof transport,
+varint, iterator checkpointing, raw restore, noTrack, sync benchmark, and CLI
+artifacts. Accepting this as one batch would conflate several older unaccepted
+Quadrable slices under the `lock.mdb` evidence and would blur the inactive
+proof-transport support boundary.
+
+Exact next Quadrable worker task: re-emit only the `lock.mdb` directory startup
+guard as a reduced patch containing the minimal `QuadbStore.php` change,
+focused `QuadbStoreTest.php` assertions, the single
+`wordpress-quadb-foreign-data-guard.php` example update, and normalized
+manifest/status/notes. Leave proof command marker, varint/transport,
+raw-restored proof-head, noTrack, iterator checkpoint, sync benchmark, and
+unrelated CLI artifacts for separate reviewable batches. Keep the blocker led
+by aggregate root verification, and keep broader proof/sync transport work tied
+to `quadrable-proof-transport-codec-core` until its activation gate and
+evidence are accepted.
+
+Current skipped lanes: Dolt remains skipped because both `port-dolt` and
+`port-dolt-runner` are live sessions while Dolt files are dirty and no coherent
+implementation-plus-runner handoff has been accepted. Other dirty lanes remain
+active or broadly accumulated; no non-Quadrable marker was held in this pass.
+
+Next concrete intake target: Gitoxide if it re-emits a `.ready` marker and the
+pane remains owner-free, because it was the newest queued owner-free marker
+before the Pandoc and Quadrable intakes. If Gitoxide is active or still broad,
+fall back to markerPDF under the same two-poll gate.
+
 ## Integration handoff rejection - Pandoc - 2026-05-24 18:35 UTC
 
 No Pandoc lane output was integrated. I read the required coordination state
