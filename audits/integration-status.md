@@ -97958,3 +97958,22 @@ Files staged:
 - lanes/readability/tests/ArticleExtractorTest.php
 - lanes/readability/examples/wordpress-editorial-list-import.php
 
+
+## Isolated integration deferred - readability - 2026-05-24T23:29:35Z UTC
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260524T231829Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260524T231829Z.patch`
+Lane/slice/session: `readability` / `watchdog-next-20260524T231829Z` / `port-readability`
+
+Decision: deferred; patch no longer applies to current `main` after earlier accepted isolated commits.
+
+Repair command: recreate a clean worktree from current `main`, run `git apply --check "/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260524T231829Z.patch"`, then rebase only the lane-local source/test/example/status hunks onto the accepted lane files.
+
+Exact result:
+```
+error: patch failed: lanes/readability/lane-status.json:2
+error: lanes/readability/lane-status.json: patch does not apply
+error: patch failed: lanes/readability/notes/upstream-inventory.md:589
+error: lanes/readability/notes/upstream-inventory.md: patch does not apply
+```
+
