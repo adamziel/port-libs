@@ -1,23 +1,23 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-24 08:41:08 UTC",
+  "updated": "2026-05-24 09:02:27 UTC",
   "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
   "items": [
     {
       "id": "shared-zip-package-core",
       "name": "Shared ZIP/package container core",
-      "source": "PKWARE APPNOTE; local evidence in lanes/pandoc/UPSTREAM_TEST_MANIFEST.json and lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json",
+      "source": "PKWARE APPNOTE plus local Pandoc DOCX/EPUB/ODT package evidence, markerPDF benchmark archive evidence, and rclone archive-provider evidence in lane manifests",
       "neededBy": [
         "pandoc",
         "markerpdf",
         "rclone"
       ],
-      "essentialCapability": "Unlocks DOCX, EPUB, ODT, benchmark archive, and cloud archive package inspection without shelling out to zip tools.",
-      "scopeBoundary": "In scope: central directory parsing, stored/deflated entries, CRC checks, path safety, deterministic writing, and package-level metadata hooks. Out of scope: full office suites, encrypted archives, arbitrary native zip extensions, and application launchers.",
+      "essentialCapability": "Unlocks DOCX, EPUB, ODT, benchmark archive, and archive-provider package inspection without zip shell-outs or external package tools.",
+      "scopeBoundary": "In scope: central directory parsing, stored/deflated entries, CRC checks, path safety, deterministic writing, and package metadata hooks. Out of scope: encrypted archives, application launchers, full office suites, zip/unzip shell-outs, and broad archive applications.",
       "priority": "critical",
-      "activationGate": "pandoc-rich-format-next",
-      "testExpectation": "Create a dependency-specific ZIP spec/upstream denominator with mapped Pandoc/markerPDF package fixtures, PHP pass/fail evidence, round-trip entry tests, malformed/corrupt archive cases, and no progress credit for shelling out to zip/unzip or external package tools.",
-      "reuseNotes": "Use as the common package layer for DOCX, EPUB, ODT, markerPDF benchmark archives, and any rclone archive backend work.",
+      "activationGate": "pandoc-rich-format-next-or-markerpdf-benchmark-archive-next-or-rclone-archive-provider-next",
+      "testExpectation": "Require PKWARE APPNOTE plus mapped Pandoc DOCX/EPUB/ODT package fixtures, markerPDF benchmark archive fixtures, PHP pass/fail evidence for read/list/extract/write/readback, CRC and path-safety checks, malformed central directory/bad CRC/duplicate/traversal/missing-entry/unsupported-method cases, and no progress credit for zip/unzip shell-outs or external package tools.",
+      "reuseNotes": "Use one container layer for DOCX, EPUB, ODT, markerPDF benchmark archives, and later archive-provider work; keep ZIP package specifics separate from archive-compression-streams.",
       "status": "candidate",
       "blocker": "none"
     },
@@ -32,12 +32,12 @@
         "difftastic",
         "rclone"
       ],
-      "essentialCapability": "Provides shared safe parsing and serialization for legacy HTML imports, DocBook/XML, SVG/image metadata, WXR review, structural HTML diffs, and WebDAV XML request/response payloads.",
-      "scopeBoundary": "In scope: tokenizer/tree construction needed by readers, namespaces, entities, comments, fragments, and safe serializers. Out of scope: browser layout, JavaScript execution, CSS cascade/layout, network fetching, and full DOM API compatibility.",
+      "essentialCapability": "Provides shared safe XML/HTML parsing and serialization for Pandoc readers/package payloads, Readability cleanup, markerPDF HTML/image output, structural diffs, and WebDAV XML payloads.",
+      "scopeBoundary": "In scope: tokenizer/tree construction needed by readers, namespaces, entities, comments, fragments, malformed HTML recovery where selected, and safe serializers. Out of scope: browser layout, JavaScript execution, CSS cascade/layout, network fetching, converter engines, and full browser DOM compatibility.",
       "priority": "critical",
-      "activationGate": "shared-infra-after-base-green",
-      "testExpectation": "Create a dependency-specific WHATWG/XML spec denominator with mapped lane fixtures, PHP pass/fail evidence, round-trip parse/serialize tests, malformed/corrupt input cases, explicit browser-only exclusions, and no progress credit for shelling out to external DOM/converter engines.",
-      "reuseNotes": "Prefer one parser/serializer surface reused by Pandoc HTML/DocBook, Readability cleanup, markerPDF HTML/image output, Difftastic HTML/XML tokenization, and rclone WebDAV PROPFIND/PROPPATCH/LOCK payload handling.",
+      "activationGate": "pandoc-html-docbook-next-or-pandoc-rich-package-xml-next-or-readability-dom-parser-gap-next-or-rclone-webdav-xml-next",
+      "testExpectation": "Require WHATWG HTML, XML 1.0/namespaces, and mapped Pandoc HTML/DocBook/OpenXML/EPUB/ODT, Readability, markerPDF, Difftastic, and selected WebDAV XML fixtures with PHP pass/fail evidence, parse/serialize round trips, entity/namespace/comment/fragment cases, malformed/deep-tree/package-XML failures, and no progress credit for browser engines, JS execution, DOM service wrappers, network fetchers, or converter engines.",
+      "reuseNotes": "One parser/serializer surface should serve Pandoc, Readability, markerPDF, Difftastic, and rclone instead of per-lane divergent parsers.",
       "status": "candidate",
       "blocker": "none"
     },
@@ -58,18 +58,37 @@
       "blocker": "Activate only for local-only rclone WebDAV provider/runtime slices. Live-service provider coverage, auth flows, FUSE, Docker serve, and credential-bearing tests remain excluded by default."
     },
     {
+      "id": "url-percent-encoding-core",
+      "name": "URL percent-encoding core",
+      "source": "RFC 3986, targeted WHATWG URL cases, Go net/url and x/net WebDAV filename escaping evidence, Gitoxide gix-url evidence, esbuild new URL asset evidence, and LightningCSS URL/import token fixtures",
+      "neededBy": [
+        "rclone",
+        "gitoxide",
+        "esbuild",
+        "lightningcss"
+      ],
+      "essentialCapability": "Provides shared URL/path escaping and resolution for WebDAV href/Destination/If handling, Git remote URL parsing/rendering, esbuild new URL asset references, and LightningCSS url()/@import token handling without browser, Node, Git, rclone, or provider runtimes.",
+      "scopeBoundary": "In scope: RFC 3986 path/query/fragment percent encoding and decoding, path-segment escaping, caller-requested dot-segment normalization, relative URL resolution for asset references, file URL/path boundaries, Go net/url EscapedPath compatibility cases needed by WebDAV, and deterministic diagnostics. Out of scope: HTTP clients, DNS, TLS, cookies, redirects, OAuth, live network access, browser navigation, package fetching, provider APIs, credential-bearing URLs, whole browser URL/runtime parity beyond fixture-backed cases, and broad generic URL frameworks.",
+      "priority": "high",
+      "activationGate": "rclone-webdav-filename-destination-next-or-gitoxide-url-parse-next-or-esbuild-new-url-asset-next-or-lightningcss-css-url-token-next",
+      "testExpectation": "Require a dependency-specific vector manifest with PHP pass/fail counts for percent-escape round trips, path-segment preservation, relative asset resolution, local WebDAV href serialization, Git remote URL parse/render cases, JS/CSS asset URL token cases, malformed bad-percent/stray-percent/encoded-slash/CRLF/NUL/invalid-UTF-8/overlong/path-traversal/Windows-path/unsupported-scheme cases, and bounded upstream runner/static evidence where available. No progress credit for shelling out to Git/rclone/Node/browsers, live HTTP requests, live provider remotes, credential-bearing configs, OAuth/browser auth state, or whole browser URL runtimes.",
+      "reuseNotes": "Keep this below webdav-protocol-core, js-package-resolution-core, source-map-v3-core, rclone provider paths, and Gitoxide URL/refspec adapters. It supplies bytes/URL helpers only; each lane keeps protocol and application semantics outside this support row.",
+      "status": "candidate",
+      "blocker": "Activate only when a concrete WebDAV URL escaping, Git URL parse, JS new URL asset, or CSS URL token slice opens; do not expand into live services, credential inspection, package fetching, or broad browser URL compatibility."
+    },
+    {
       "id": "docx-openxml-core",
       "name": "DOCX/OpenXML document core",
       "source": "Pandoc DOCX reader/writer upstream in https://github.com/jgm/pandoc plus OpenXML/OPC package specifications",
       "neededBy": [
         "pandoc"
       ],
-      "essentialCapability": "Enables Word document import/export into the shared Pandoc AST and WordPress block handoff.",
-      "scopeBoundary": "In scope: document.xml, relationships, content types, numbering, styles used for semantic AST conversion, media references, and bounded writer output. Out of scope: Word/LibreOffice automation, VBA/macros, exact page layout, revision UI, and full OOXML application compatibility.",
+      "essentialCapability": "Enables Word DOCX import/export into the shared Pandoc AST and WordPress block handoff.",
+      "scopeBoundary": "In scope: OPC package parts, document.xml, relationships, content types, numbering, styles, semantic media references, and bounded writer output. Out of scope: macros, VBA, exact Word layout, full Office compatibility, office automation, and converter subprocesses.",
       "priority": "high",
-      "activationGate": "pandoc-rich-format-next",
-      "testExpectation": "Require a DOCX/OpenXML-specific upstream/spec denominator, mapped fixture packages, PHP pass/fail evidence, semantic AST parity checks, media relationship tests, malformed/corrupt package cases, and no progress credit for shelling out to Word, LibreOffice, Pandoc, or external converters.",
-      "reuseNotes": "Build on shared-zip-package-core and xml-html5-dom-core; expose media and relationship helpers to EPUB/ODT where possible.",
+      "activationGate": "pandoc-docx-openxml-next",
+      "testExpectation": "Require Pandoc DOCX reader/writer fixtures plus OpenXML/OPC package specifications, PHP pass/fail evidence for semantic AST parity over paragraphs, notes, review spans, tables, styles, media relationships, package readback, WordPress output fixtures, malformed relationship/content-type/XML/media/numbering/style/corrupt-ZIP cases, and no progress credit for Microsoft Word, LibreOffice/OpenOffice, Pandoc, office converter subprocesses, or whole-application automation.",
+      "reuseNotes": "Build after shared-zip-package-core and xml-html5-dom-core have the needed reader evidence; share relationship and media helpers with EPUB and ODT.",
       "status": "candidate",
       "blocker": "none"
     },
@@ -81,11 +100,11 @@
         "pandoc"
       ],
       "essentialCapability": "Adds bounded Word 97-2003 .doc text/structure extraction into the shared Pandoc AST and WordPress block handoff without treating DOCX/OpenXML as equivalent.",
-      "scopeBoundary": "In scope: Compound File Binary container directory/FAT/MiniFAT reads, WordDocument/0Table/1Table stream discovery, FIB/piece-table text extraction, paragraph/list/table hints where fixture-backed, basic metadata, and safe error reporting. Out of scope: Word/LibreOffice/OpenOffice automation, embedded OLE object execution, VBA/macros, exact page layout, binary converter subprocesses, and full office-suite compatibility.",
+      "scopeBoundary": "In scope: Compound File Binary directory/FAT/MiniFAT reads, WordDocument and table stream discovery, FIB/piece-table text extraction, fixture-backed paragraph/list/table hints, metadata, and safe errors. Out of scope: OLE execution, VBA/macros, exact page layout, full office-suite compatibility, and binary converter subprocesses.",
       "priority": "high",
-      "activationGate": "pandoc-rich-format-next",
-      "testExpectation": "Require a DOC/CFB-specific MS-CFB/MS-DOC spec denominator, mapped legacy .doc fixtures, PHP pass/fail evidence, text/paragraph/table/list extraction parity, malformed/corrupt CFB/FIB/stream cases, and no progress credit for shelling out to Word, LibreOffice/OpenOffice, antiword/wv, Pandoc, or external converters.",
-      "reuseNotes": "Reuse charset/unicode repair, table geometry, and shared AST helpers; keep this separate from docx-openxml-core because .doc is CFB/binary Word, not ZIP/OpenXML.",
+      "activationGate": "pandoc-legacy-doc-cfb-next",
+      "testExpectation": "Require Microsoft MS-CFB/MS-DOC specifications plus mapped Pandoc or generated legacy .doc fixtures, PHP pass/fail evidence for CFB stream traversal, text extraction, fixture-backed paragraph/list/table handoff, metadata, WordPress block output, corrupt FAT/MiniFAT/missing-stream/invalid-FIB/piece-table/truncated/encrypted cases, and no progress credit for Word, LibreOffice/OpenOffice, antiword/wv, Pandoc, converter subprocesses, embedded OLE execution, or VBA.",
+      "reuseNotes": "Reuse charset/Unicode repair, table geometry, and shared Pandoc AST helpers; keep this separate from docx-openxml-core because .doc is CFB/binary Word, not ZIP/OpenXML.",
       "status": "candidate",
       "blocker": "none"
     },
@@ -98,12 +117,12 @@
         "readability",
         "rclone"
       ],
-      "essentialCapability": "Allows ebook and exported article packages to become WordPress-ready content with ordered spine, metadata, assets, and navigation preserved.",
-      "scopeBoundary": "In scope: container.xml, OPF package metadata, spine/nav/NCX mapping, XHTML asset resolution, media manifest handling, and bounded writer packages. Out of scope: DRM, ebook rendering engines, store-specific validators, and embedded scripting execution.",
+      "essentialCapability": "Allows ebook and exported article packages to become WordPress-ready content with ordered spine, metadata, navigation, assets, and content handoff preserved.",
+      "scopeBoundary": "In scope: container.xml, OPF metadata, spine/nav/NCX mapping, XHTML asset resolution, media manifest handling, and bounded writer packages. Out of scope: DRM, ebook renderers, store validators, scripting execution, ebook converter shell-outs, and store applications.",
       "priority": "high",
-      "activationGate": "pandoc-rich-format-next",
-      "testExpectation": "Track an EPUB-specific W3C/upstream denominator with mapped package fixtures, PHP pass/fail evidence, spine/nav/metadata/assets parity, generated-package readback, malformed/corrupt archive cases, and no progress credit for shelling out to ebook converters or external validators.",
-      "reuseNotes": "Reuse ZIP, XML/HTML, charset, and media helpers shared with DOCX/ODT and Readability imports.",
+      "activationGate": "pandoc-epub-package-next-or-readability-epub-export-next",
+      "testExpectation": "Require W3C EPUB 3 specifications plus mapped Pandoc EPUB fixtures and any Readability article-package export fixtures, PHP pass/fail evidence for package parse/write/readback, spine/nav ordering, metadata/assets parity, XHTML handoff into AST/blocks, missing OPF/container/broken refs/duplicate IDs/bad XML/corrupt-ZIP cases, and no progress credit for ebook converter shell-outs, external validators as progress, DRM engines, browser renderers, or store applications.",
+      "reuseNotes": "Reuse ZIP, XML/HTML, charset, Unicode, and media helpers shared with DOCX/ODT and Readability.",
       "status": "candidate",
       "blocker": "none"
     },
@@ -114,12 +133,12 @@
       "neededBy": [
         "pandoc"
       ],
-      "essentialCapability": "Adds bounded LibreOffice/OpenOffice document package import/export without porting the office applications.",
-      "scopeBoundary": "In scope: ODT manifest, content.xml, styles.xml, meta.xml, text/list/table/image mapping required for AST conversion, and bounded writer output. Out of scope: LibreOffice/OpenOffice apps, spreadsheets/presentations unless separately gated, macro execution, and pixel-perfect layout.",
-      "priority": "medium",
-      "activationGate": "pandoc-rich-format-next",
-      "testExpectation": "Require an ODT/OpenDocument-specific OASIS/upstream denominator, mapped ODT fixtures, PHP pass/fail evidence, semantic AST comparison, style/list/table/media coverage, package readback and malformed/corrupt package cases, explicit unsupported office-suite behavior, and no progress credit for shelling out to LibreOffice/OpenOffice or external converters.",
-      "reuseNotes": "Use shared ZIP/package and XML cores; table and Unicode width helpers should be shared with Pandoc Markdown/HTML table work.",
+      "essentialCapability": "Adds bounded ODT/OpenDocument import/export without porting LibreOffice/OpenOffice.",
+      "scopeBoundary": "In scope: ODT manifest, content.xml, styles.xml, meta.xml, text/list/table/image mapping required for AST conversion, and bounded writer output. Out of scope: LibreOffice/OpenOffice applications, macro execution, spreadsheet/presentation expansion until separately gated, page-layout engines, and converter shell-outs.",
+      "priority": "high",
+      "activationGate": "pandoc-odt-open-document-next",
+      "testExpectation": "Require OASIS OpenDocument specifications plus mapped Pandoc ODT fixtures, PHP pass/fail evidence for semantic AST parity over text, lists, tables, refs, styles, images, package readback, WordPress output, missing manifest/content/style parts, bad namespaces, dangling image refs, corrupt ZIP, encrypted-package cases, and no progress credit for LibreOffice/OpenOffice applications, macro execution, spreadsheet/presentation expansion, page-layout engines, or converter shell-outs.",
+      "reuseNotes": "Build on shared ZIP/XML plus table geometry and Unicode width helpers.",
       "status": "deferred",
       "blocker": "none"
     },
@@ -151,12 +170,12 @@
       ],
       "essentialCapability": "Preserves document citations, bibliography metadata, and rendered reference lists when academic or technical documents are converted into the shared Pandoc AST and WordPress blocks.",
       "scopeBoundary": "In scope: citation AST normalization, fixture-backed CSL style/data parsing, bibliography metadata handoff, citation cluster rendering needed for conversion parity, and deterministic bibliography block output. Out of scope: Zotero/Mendeley applications, network lookups, full bibliography manager features, arbitrary style catalog sync, LaTeX/BibTeX/Biber subprocesses, and whole citeproc service wrappers.",
-      "priority": "medium",
+      "priority": "high",
       "status": "deferred",
-      "activationGate": "pandoc-citation-next",
-      "testExpectation": "Require a citation/CSL-specific upstream/spec denominator with mapped Pandoc citation and bibliography fixtures, PHP pass/fail evidence, rendered citation/bibliography AST and output parity, malformed/corrupt citation metadata/style/bibliography cases, and no progress credit for shelling out to Pandoc, citeproc, BibTeX/Biber, Zotero, or external bibliography managers.",
-      "reuseNotes": "Build on XML/HTML, Unicode, charset, and shared Pandoc AST helpers; keep bibliography parsing/rendering bounded to conversion behavior rather than personal-library management.",
-      "blocker": "Base Pandoc AST/readers and rich-format gates should expose a concrete citation conversion blocker before activation."
+      "activationGate": "pandoc-citation-bibliography-next",
+      "testExpectation": "Require Pandoc citation fixtures, Citation Style Language, CSL JSON, BibTeX/BibLaTeX where mapped, and citeproc behavior needed by conversion parity, with PHP pass/fail evidence for citation record parsing, citation cluster rendering parity, bibliography AST/output parity, metadata handoff, WordPress output, bad CSL JSON/style XML/missing-key/cyclic-crossref/invalid field/unsupported locale cases, and no progress credit for Zotero/Mendeley apps, network lookups, style catalog sync, BibTeX/Biber subprocesses, Pandoc shell-outs, or citeproc service wrappers.",
+      "reuseNotes": "Build on XML/HTML, JSON, Unicode/charset, and shared Pandoc AST helpers; keep library management out of scope.",
+      "blocker": "Base Pandoc AST/readers and rich-format gates should expose a concrete citation-bibliography conversion blocker before activation."
     },
     {
       "id": "math-tex-conversion-core",
@@ -174,12 +193,12 @@
       ],
       "essentialCapability": "Carries inline/display math and extracted equations through document/PDF/web imports into stable AST, Markdown, HTML, MathML, or WordPress block output without losing technical content.",
       "scopeBoundary": "In scope: inline/display math tokenization, bounded TeX math macro parsing, MathML/LaTeX source preservation, equation block/span AST handoff, and fixture-backed renderer-neutral output decisions. Out of scope: a full TeX engine, page layout, symbolic algebra, MathJax/KaTeX browser runtimes, Texify/Surya/model inference, and image-based equation recognition beyond supplied result ingestion.",
-      "priority": "medium",
+      "priority": "high",
       "status": "deferred",
-      "activationGate": "pandoc-math-next",
-      "testExpectation": "Require a math/TeX-specific upstream/spec denominator with mapped Pandoc, markerPDF, and Readability math fixtures, PHP pass/fail evidence, inline/display/MathML/LaTeX handoff parity, malformed/corrupt TeX/MathML/OCR-result cases, and no progress credit for shelling out to TeX/LaTeX, Pandoc, MathJax/KaTeX, Texify, Surya, or external equation engines.",
-      "reuseNotes": "Reuse Unicode/charset repair, table/document AST helpers, and markerPDF OCR/layout handoff surfaces; keep parser coverage fixture-backed and conversion-focused.",
-      "blocker": "Activate only when Pandoc rich-document or markerPDF equation imports need math conversion beyond current literal-source preservation."
+      "activationGate": "pandoc-math-next-or-markerpdf-equation-handoff-next-or-readability-mathjax-next",
+      "testExpectation": "Require Pandoc math fixtures, markerPDF supplied Formula/equation evidence, Readability MathJax/math article fixtures, TeX math subset evidence, and MathML specs where mapped, with PHP pass/fail evidence for inline/display parsing, source preservation, MathML/LaTeX handoff, AST/Markdown/HTML/WordPress output, unsupported-macro diagnostics, malformed delimiter/MathML/macro/environment/result/unicode cases, and no progress credit for TeX/LaTeX engines, MathJax/KaTeX runtimes, Texify, Surya, Torch/model inference, Pandoc shell-outs, or equation-recognition engines.",
+      "reuseNotes": "Share Unicode/charset repair, AST helpers, and markerPDF supplied-result surfaces; keep parser coverage fixture-backed and conversion-focused.",
+      "blocker": "Activate only when one concrete Pandoc, markerPDF, or Readability math gate opens."
     },
     {
       "id": "pandoc-pdf-engine-handoff-core",
@@ -205,14 +224,14 @@
         "markerpdf",
         "pandoc"
       ],
-      "essentialCapability": "Converts searchable PDF page text, spans, boxes, fonts, rotations, and TOC metadata into structured import blocks.",
-      "scopeBoundary": "In scope: supplied pdftext-compatible dictionary schema, bounded PDF text operator/content-stream extraction, page ranges, span IDs, boxes, font flags, and metadata handoff. Out of scope: full PDF renderer, JavaScript/actions, forms/signatures beyond explicitly mapped handoff metadata, and PDFium process wrappers.",
+      "essentialCapability": "Converts searchable PDF page text, spans, boxes, fonts, rotations, and TOC metadata into structured import blocks or a Pandoc PDF input handoff.",
+      "scopeBoundary": "In scope: pdftext-compatible dictionary schema, bounded content-stream text extraction, stream filters, text operators, page ranges, fonts/encodings, boxes, and metadata handoff. Out of scope: full rendering, forms/signatures beyond mapped metadata, PDF applications, OCR/model engines, and external PDF converter wrappers.",
       "priority": "critical",
-      "activationGate": "markerpdf-pdf-text-next-or-markerpdf-ocr-next",
-      "testExpectation": "Use a PDF-text/pdftext-specific upstream/spec denominator with mapped markerPDF benchmark/reference pairs and mapped synthetic PDF-text fixtures, PHP pass/fail evidence, content-stream filter/operator extraction, dictionary conversion and page slicing parity, malformed/corrupt PDF/filter/dictionary cases, and no progress credit for live pdftext subprocess calls or external PDF converters.",
-      "reuseNotes": "Feed markerPDF document extraction now and later Pandoc PDF-oriented intermediate imports; share geometry primitives with table and OCR cores.",
+      "activationGate": "markerpdf-pdf-text-next-or-pandoc-pdf-input-handoff-next",
+      "testExpectation": "Require PDF text/content-stream operators and filters, markerPDF/pdftext dictionary evidence, and mapped markerPDF benchmark/reference pairs, with PHP pass/fail evidence for stream filter decoding, ToUnicode/simple-font encodings, text-position operators, dictionary conversion, page slicing, metadata, WordPress/Pandoc handoff parity, bad xref/object/filter/stream/CMap/encoding/resource/dictionary cases, and no progress credit for pdftext subprocess calls, Poppler, PDFium, Ghostscript, pypdfium, OCR/model engines, or external PDF converters.",
+      "reuseNotes": "Feed markerPDF now and Pandoc PDF-oriented imports later; share geometry with table-geometry-core and layout-ocr-result-core. markerpdf-ocr-next alone should use layout-ocr-result-core unless searchable text/dictionary extraction is also selected.",
       "status": "candidate",
-      "blocker": "Activate when markerPDF needs a shared PDF text extraction boundary beyond lane-local stream-filter slices, or when Pandoc opens a PDF-oriented import handoff; keep full renderers and external PDF tools excluded."
+      "blocker": "Activate when markerPDF needs searchable PDF text extraction beyond lane-local stream-filter slices, or when Pandoc opens a PDF input handoff; keep OCR-only work on layout-ocr-result-core."
     },
     {
       "id": "pdf-page-render-plan-core",
@@ -256,12 +275,12 @@
         "pandoc",
         "readability"
       ],
-      "essentialCapability": "Turns PDF, HTML, and document table structure into usable Markdown, HTML, and WordPress table blocks with spans and alignment preserved.",
-      "scopeBoundary": "In scope: bbox row/column assignment, spanning, multiline cell merge, heuristic column clustering, Unicode-width Markdown padding, CSV/HTML/Markdown formatting, and AST table handoff. Out of scope: CV table-detection model inference, spreadsheet engines, and arbitrary visual layout reconstruction.",
+      "essentialCapability": "Turns PDF, HTML, DOCX/ODT/Markdown, and article tables into usable Markdown, HTML, AST, and WordPress table blocks with spans and alignment preserved.",
+      "scopeBoundary": "In scope: bbox row/column assignment, spanning, multiline merge, column clustering, Unicode-width Markdown padding, CSV/HTML/Markdown formatting, and AST handoff. Out of scope: spreadsheet engines, CV table-detection inference, Pandoc shell-outs, and renderer-based layout reconstruction.",
       "priority": "high",
-      "activationGate": "markerpdf-table-next",
-      "testExpectation": "Use a table-geometry upstream/spec denominator with mapped markerPDF benchmark/reference data and mapped Pandoc/Readability table fixtures, PHP pass/fail evidence, geometry/spanning/Unicode-width/formatter parity, malformed/corrupt table-result cases, and no progress credit for CV table-detection model or spreadsheet engine shell-outs.",
-      "reuseNotes": "Share row/column and width helpers across markerPDF PDF tables, Pandoc Markdown/HTML/DOCX/ODT tables, and Readability table cleanup.",
+      "activationGate": "markerpdf-table-next-or-pandoc-table-rich-next-or-readability-table-cleanup-next",
+      "testExpectation": "Require markerPDF/tabled table evidence, Pandoc table fixtures, selected HTML table semantics for Readability, and mapped WordPress table outputs, with PHP pass/fail evidence for row/column/span parity, formatter parity, Unicode width alignment, Pandoc AST table read/write, Readability retained data-table cleanup, WordPress block output, overlapping/zero-area/gapped/malformed-rowspan-colspan/invalid-Markdown/supplied-detector cases, and no progress credit for CV table-detection model ports, spreadsheet engines, Pandoc shell-outs, or renderer-based layout reconstruction.",
+      "reuseNotes": "Share row/column and width helpers across markerPDF, Pandoc, and Readability.",
       "status": "candidate",
       "blocker": "none"
     },
@@ -305,14 +324,14 @@
         "dolt",
         "quadrable"
       ],
-      "essentialCapability": "Allows non-UTF-8 exports, WXR files, source diffs, and document imports to decode consistently before structural parsing.",
-      "scopeBoundary": "In scope: BOM handling, UTF-8/UTF-16, Windows-1252 and declared charset handling, replacement policy, binary detection hints, and safe byte-span preservation. Out of scope: broad statistical charset detection unless a fixture-backed slice is explicitly gated.",
+      "essentialCapability": "Allows declared or known byte-decoding before structural parsing for PDF, document, web import, source diff, and package metadata text that is not clean UTF-8.",
+      "scopeBoundary": "In scope: BOM handling, UTF-8/UTF-16, Windows-1252, declared HTML/XML charset handling, PDFDocEncoding/WinAnsi/MacRoman maps where conversion-boundary fixtures require them, replacement policy, binary detection hints, and byte-span preservation. Out of scope: broad statistical charset detection unless separately fixture-gated, translation, NLP, and shell-out converters.",
       "priority": "high",
-      "activationGate": "markerpdf-pdfdocencoding-next-or-shared-nonutf8-import-next",
-      "testExpectation": "Require a WHATWG Encoding/upstream-lane denominator with mapped byte fixtures, PHP pass/fail evidence, expected decoded text, binary-vs-text decisions, span preservation, malformed/corrupt sequence behavior, and no progress credit for shelling out to iconv/recode-style external converters.",
-      "reuseNotes": "Should sit below Difftastic file decoding, Pandoc/Readability HTML imports, markerPDF text repair, rclone manifest reads, JS/CSS asset parsing, and Git/Dolt/Quadrable text boundary handling.",
+      "activationGate": "markerpdf-pdfdocencoding-next-or-pandoc-legacy-doc-cfb-next-or-pandoc-html-charset-next-or-readability-declared-charset-next-or-shared-nonutf8-import-next",
+      "testExpectation": "Require WHATWG Encoding plus PDF/document encoding tables and mapped markerPDF/Pandoc/Readability byte fixtures, with PHP pass/fail evidence for decoded text parity, replacement behavior, span preservation, binary-vs-text decisions, declared charset handling, WordPress output, invalid bytes, BOM/declaration conflicts, truncated UTF-16, undefined bytes, overlong UTF-8, and binary misclassification cases, and no progress credit for iconv/recode shell-outs, broad detector services, translation, or NLP.",
+      "reuseNotes": "Sit below PDF text, Pandoc HTML/DOC imports, Readability HTML, source diffs, package metadata, and Git/Dolt/Quadrable text boundaries.",
       "status": "candidate",
-      "blocker": "Activate when markerPDF opens PDFDocEncoding or another current lane opens non-UTF-8 import/asset decoding beyond lane-local helpers; keep broad statistical charset detection deferred unless fixture-backed."
+      "blocker": "Activate when markerPDF opens PDFDocEncoding, Pandoc opens legacy DOC/HTML charset work, Readability opens declared charset work, or another current lane opens non-UTF-8 import/asset decoding beyond lane-local helpers; keep broad statistical charset detection deferred unless fixture-backed."
     },
     {
       "id": "json-json5-document-core",
@@ -407,6 +426,25 @@
       "blocker": "Difftastic is already mapping concrete PHP/Hack, Go, Swift, Java, SQL, and related grammar boundaries lane-locally; activate this support row only when the supervisor chooses a shared grammar/query subset denominator for one concrete language family."
     },
     {
+      "id": "sequence-diff-merge-core",
+      "name": "Sequence diff and merge core",
+      "source": "Difftastic display/diff fixtures, Gitoxide gix-diff and merge conflict evidence, Dolt diff/schema/table/query-diff fixture rows, and Quadrable diff/patch command-output scenarios",
+      "neededBy": [
+        "difftastic",
+        "gitoxide",
+        "dolt",
+        "quadrable"
+      ],
+      "essentialCapability": "Provides shared native edit-script and hunk-building primitives for structural diffs, Git text/content merge previews, Dolt row/table diff rendering, and Quadrable command diff/patch output without shelling out to upstream CLIs.",
+      "scopeBoundary": "In scope: bounded Myers/patience/histogram-style sequence algorithms where fixture-backed, stable edit opcodes, hunk grouping, intraline token handoff hooks, deterministic tie-breaking, binary/text boundary adapters, and small merge-base helper outputs needed by review UIs. Out of scope: full Difftastic language parsing, parser-generator runtimes, full Git merge machinery, Dolt SQL engines, Quadrable sparse-tree storage, rename detection beyond fixture-backed hooks, HTML rendering frameworks, live repositories, provider remotes, and whole application command ports.",
+      "priority": "high",
+      "activationGate": "difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next",
+      "testExpectation": "Require separate upstream-family denominators for Difftastic display/diff fixtures and exact parser config evidence, Gitoxide gix-diff/merge text-conflict fixtures, Dolt diff/schema/table/query-diff fixture rows, and Quadrable diff/patch command-output scenarios. Record PHP pass/fail counts for edit-script vectors, equal/insert/delete/replace hunks, repeated-line tie-breakers, binary fallback decisions, structural-token handoff, Git conflict labels/hunks, Dolt row-diff output rows, Quadrable transcript parity, malformed invalid-UTF-8/NUL/huge/empty/opcode/hunk/token-tree/resource-limit cases, and no progress credit for git diff, dolt diff, difft, quadb diff, parser-generator runtimes, whole application ports, live repositories, or provider remotes.",
+      "reuseNotes": "Use charset-encoding-core and unicode-text-repair-width for text boundaries; use tree-sitter-grammar-subset only to provide token trees. Keep rendering and lane-specific diagnostics outside the core so this does not become a broad generic diff framework.",
+      "status": "candidate",
+      "blocker": "Activate only when the next Difftastic, Gitoxide, Dolt, or Quadrable diff/merge slice would otherwise grow another lane-local sequence algorithm."
+    },
+    {
       "id": "protobuf-wire-core",
       "name": "Protocol Buffers wire-format core",
       "source": "Syncthing BEP/protocol evidence in lanes/syncthing/UPSTREAM_TEST_MANIFEST.json and Protocol Buffers wire-format documentation",
@@ -434,14 +472,14 @@
         "syncthing",
         "markerpdf"
       ],
-      "essentialCapability": "Provides shared streaming integrity checks for storage sync, Git objects, sparse Merkle data, PDF benchmark artifacts, and protocol payloads.",
-      "scopeBoundary": "In scope: streaming CRC32/CRC32C where required, MD5/SHA variants where safe for compatibility, BLAKE2s already mapped by Quadrable, QuickXorHash, hash manifests, and constant-time compare helpers where relevant. Out of scope: TLS, password hashing, new cryptographic protocol design, and secret handling.",
+      "essentialCapability": "Provides shared streaming integrity checks for object stores, sync manifests, Git objects/packs, Dolt content hashes, Quadrable BLAKE2s keys, Syncthing blocks, and package/benchmark artifacts.",
+      "scopeBoundary": "In scope: official-vector-backed CRC32/CRC32C, MD5/SHA compatibility modes, BLAKE2s, QuickXorHash, streaming/chunked updates, manifest formatting helpers, and constant-time comparisons where relevant. Out of scope: TLS, password hashing, authentication protocols, secret handling, new crypto design, unbounded cryptographic suites, live provider reads, and shell-out hash utilities.",
       "priority": "high",
-      "activationGate": "shared-infra-after-base-green",
-      "testExpectation": "Inventory a dependency-specific upstream/spec denominator per algorithm, require mapped lane fixtures and official vectors, record PHP pass/fail evidence, include large/streaming/chunked and malformed/truncated payload cases, preserve compatibility quirks, mark security limitations, and give no progress credit for shelling out to external hash tools.",
-      "reuseNotes": "Consolidates duplicate hashing from rclone, Gitoxide, Dolt, Quadrable, Syncthing, and markerPDF benchmark/archive evidence.",
+      "activationGate": "rclone-checksum-next-or-gitoxide-object-hash-next-or-dolt-content-hash-next-or-quadrable-blake2s-next-or-syncthing-block-hash-next",
+      "testExpectation": "Require official algorithm vectors plus rclone hash/QuickXorHash evidence, Gitoxide object hash evidence, Dolt hash/scalar fixtures, Quadrable BLAKE2s runner evidence, and Syncthing block-hash fixtures, with per-algorithm PHP pass/fail counts, streaming vs one-shot parity, large/chunked payload vectors, manifest parse/render cases, selected lane fixtures, truncated/wrong-length/invalid-encoding/mismatched-algorithm/empty/binary/unsupported-algorithm cases, and no progress credit for shell-out hash utilities, TLS/password/auth protocol work, secret material, or live provider reads.",
+      "reuseNotes": "Centralize low-level hash code, but keep lane-specific object IDs, security policy, and digest display formats in adapters.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only when a concrete rclone checksum, Gitoxide object hash, Dolt content hash, Quadrable BLAKE2s, or Syncthing block hash slice opens."
     },
     {
       "id": "sql-storage-codec-core",
@@ -457,14 +495,14 @@
         "libsqlite",
         "quadrable"
       ],
-      "essentialCapability": "Provides bounded row, value, key, and chunk codecs needed for native SQL-data versioning, SQLite-file compatibility, and proofable key/value storage without delegating to external database engines.",
-      "scopeBoundary": "In scope: SQL scalar value encodings, NULL/blob/text/number boundaries, row/cell framing, varint/key codecs, fixture-backed collation identifiers, Prolly/Noms-style chunk metadata where mapped, SQLite record/page payload handoff, and portable dump/restore codecs. Out of scope: full SQL optimizers, MySQL server compatibility, LMDB engine porting, query planners, network servers, cloud databases, and shelling out to sqlite3/dolt/mysql tools.",
+      "essentialCapability": "Provides bounded row, value, key, page, and chunk codecs for Dolt storage slices, libsqlite record/page writing, and Quadrable raw store/proof dump compatibility without external database engines.",
+      "scopeBoundary": "In scope: SQL scalar value encodings, SQLite record/page payload handoff, Dolt/Prolly/Noms-style mapped chunk metadata, Quadrable key/varint/raw-store codecs, binary-safe ordering, and portable dump/restore codec helpers. Out of scope: full SQL optimizers, query planners, transaction engines, LMDB engine porting, MySQL/SQLite/Dolt servers, network protocols, shelling out to database CLIs, or hiding a full storage engine port inside this support row.",
       "priority": "medium",
       "status": "deferred",
-      "activationGate": "dolt-storage-next-or-libsqlite-write-next-or-quadrable-store-codec-next",
-      "testExpectation": "Require a SQL/storage-codec-specific upstream/spec denominator with mapped Dolt, libsqlite, and Quadrable fixtures, PHP pass/fail evidence, row/chunk/page/key/value parity, malformed/corrupt/truncated storage cases, and no progress credit for shelling out to sqlite3, dolt, mysql, LMDB tools, or external database servers.",
-      "reuseNotes": "Share varint, key ordering, binary-safe string, checksum, and charset helpers across Dolt storage slices, libsqlite records/pages, and Quadrable proof/dump codecs.",
-      "blocker": "Activate only when Dolt, libsqlite, or Quadrable storage work needs a shared codec boundary rather than lane-local row/page/proof slices."
+      "activationGate": "dolt-prolly-row-codec-next-or-libsqlite-record-page-write-next-or-quadrable-raw-store-codec-next",
+      "testExpectation": "Require SQLite file-format specs and libsqlite evidence, Dolt/prolly storage fixture evidence, and Quadrable raw LMDB/dump/restore oracle evidence tracked as separate sub-denominators, with PHP pass/fail counts for each selected subfamily, row/chunk/page/key/value parity, binary fixture readback, truncated cell/page/chunk, invalid varint, inconsistent length, bad checksum, impossible key ordering, overflow ref, cycle, and non-UTF-8/binary preservation cases. No progress credit for sqlite3, dolt, mysql, LMDB tools, database servers, network services, or a full storage engine hidden inside the support row.",
+      "reuseNotes": "Share only byte/codec primitives and ordering helpers; keep SQL expression semantics in sql-expression-semantics-core and each storage engine's policy in lane adapters.",
+      "blocker": "Activate only when Dolt, libsqlite, or Quadrable opens one exact storage-codec gate rather than lane-local row/page/proof slices."
     },
     {
       "id": "sql-expression-semantics-core",
@@ -498,19 +536,19 @@
         "markerpdf",
         "gitoxide"
       ],
-      "essentialCapability": "Enables deterministic gzip/tar/archive reads and writes plus bounded HTTP response/protocol compression for sync, packaged documents, PDF benchmark data, Syncthing BEP metadata, and Git pack-adjacent workflows.",
-      "scopeBoundary": "In scope: streaming gzip/deflate wrappers, HTTP content-encoding gzip contracts when reused by VFS/WebDAV responses, tar/PAX metadata needed by archive providers, LZ4 block/frame handling for mapped protocol payloads, safe extraction paths, and bounded writer output. Out of scope: every archive format, encrypted archives, external decompressor wrappers, model/runtime compression stacks, and OS-level mount behavior.",
-      "priority": "medium",
-      "activationGate": "rclone-webdav-gzip-or-archive-next-or-pandoc-package-compression-next",
-      "testExpectation": "Require an archive/compression upstream/spec denominator with mapped rclone/Syncthing/Pandoc/markerPDF/Gitoxide fixtures, PHP pass/fail evidence, streaming reader/writer tests, malformed/corrupt/truncated archive or compressed-frame cases, interoperability readback from local generated fixtures, and no progress credit for shelling out to tar/gzip/lz4/decompressor tools.",
-      "reuseNotes": "Layer ZIP-specific package work separately, but share compression/path-safety primitives where practical.",
+      "essentialCapability": "Enables deterministic gzip/deflate/tar/LZ4 stream helpers for rclone local WebDAV/archive responses, Syncthing compressed BEP metadata, Git pack-adjacent deflate, and package/archive fixture handling.",
+      "scopeBoundary": "In scope: streaming gzip/deflate wrappers, tar/PAX metadata where fixture-backed, LZ4 block/frame handling where Syncthing fixtures require it, HTTP content-encoding gzip contracts, safe path extraction checks, deterministic writer output, and local generated-fixture readback. Out of scope: every archive format, encrypted archives, external decompressor wrappers, FUSE/mount behavior, OS package tools, model/runtime compression stacks, live remotes, and archive application ports.",
+      "priority": "high",
+      "activationGate": "rclone-webdav-gzip-or-archive-next-or-syncthing-lz4-bep-next-or-gitoxide-pack-deflate-next-or-pandoc-package-compression-next",
+      "testExpectation": "Require gzip/deflate/tar/LZ4 specs plus rclone gzip/archive evidence, Syncthing LZ4/BEP evidence, Gitoxide pack/deflate evidence, and package fixture evidence where package rows depend on it, with PHP pass/fail counts for streaming read/write, bounded writer output, corrupt/truncated frame handling, HTTP gzip response parity, LZ4 block/frame vectors, tar path safety, bad checksum/truncated/invalid-block/traversal/PAX/bomb/extra-byte/empty-stream cases, and local interoperability readback without external tools. No progress credit for shelling out to tar, gzip, lz4, git, rclone, or archive tools; no live remotes, FUSE, or encrypted archive suite.",
+      "reuseNotes": "Keep ZIP package specifics in shared-zip-package-core; share only lower-level compression and path-safety primitives here.",
       "status": "deferred",
-      "blocker": "Activate only when rclone WebDAV/archive compression, Syncthing LZ4, or Pandoc package formats need shared compression support beyond lane-local helpers and shared ZIP; missing tar/gzip/lz4 test tooling should be resolved with bounded sudo -n installs before becoming a final blocker."
+      "blocker": "Activate only when a concrete rclone gzip/archive, Syncthing LZ4, Gitoxide pack deflate, or package-compression blocker opens."
     },
     {
       "id": "glob-filter-pathspec-core",
       "name": "Glob, ignore, and pathspec matcher core",
-      "source": "rclone fs/filter, Syncthing ignore, Git sparse/pathspec, and esbuild entry/filter evidence in lane manifests",
+      "source": "rclone fs/filter, Syncthing ignore, Gitoxide gix-pathspec/gix-ignore, esbuild entry/filter, and Difftastic file override evidence in lane manifests",
       "neededBy": [
         "rclone",
         "syncthing",
@@ -518,14 +556,14 @@
         "esbuild",
         "difftastic"
       ],
-      "essentialCapability": "Keeps include/exclude, sparse checkout, sync ignore, and review-file selection behavior consistent across tooling.",
-      "scopeBoundary": "In scope: glob syntax, include/exclude order, rooted and recursive matching, case-sensitivity controls, path normalization, and lane-specific compatibility adapters. Out of scope: filesystem watchers, live provider traversal, shell glob expansion, and arbitrary regex engines beyond mapped needs.",
+      "essentialCapability": "Provides shared include/exclude/pathspec semantics for rclone filters, Syncthing ignore rules, Git sparse/pathspec matching, esbuild entry/filter matching, and Difftastic file-selection overrides.",
+      "scopeBoundary": "In scope: glob syntax, gitignore/pathspec-style rules, rooted/recursive matching, include/exclude precedence, case-sensitivity options, slash/path normalization, and lane adapters for upstream-specific diagnostics. Out of scope: filesystem watchers, shell glob expansion, arbitrary regex engines, live provider traversal, secret-bearing path roots, package managers, parser generators, and broad generic path frameworks.",
       "priority": "medium",
-      "activationGate": "shared-infra-after-base-green",
-      "testExpectation": "Create a glob/pathspec upstream/spec denominator with a mapped cross-lane fixture matrix for rclone filters, Syncthing ignores, Git pathspec/sparse rules, esbuild entry matching, and Difftastic overrides, record PHP pass/fail evidence, include malformed pattern/path cases, and no progress credit for shelling out to Git/rclone/shell glob engines.",
-      "reuseNotes": "Prevents each lane from growing incompatible path-matching dialects; adapters can preserve upstream-specific error text.",
+      "activationGate": "rclone-filter-next-or-syncthing-ignore-next-or-gitoxide-pathspec-next-or-esbuild-entry-glob-next-or-difftastic-override-path-next",
+      "testExpectation": "Require rclone fs/filter tests, Syncthing ignore matcher tests, Gitoxide gix-pathspec/gix-ignore generated baselines, esbuild entry/filter fixtures, and Difftastic config/file override fixtures for the selected dialect, with cross-lane PHP pass/fail counts, per-dialect parser evidence, malformed pattern/path diagnostics, traversal guards, case-folding/case-sensitive pairs, invalid class/escape/wildcard/rooted-path/.. traversal/NUL/invalid-byte/separator cases, and no progress credit for Git/rclone/shell glob shell-outs, live provider listing, filesystem watcher runtimes, package managers, parser generators, or secret-bearing path roots.",
+      "reuseNotes": "Put this below rclone provider walks, Syncthing scans, Gitoxide sparse checkout/pathspecs, esbuild package/entry resolution, and Difftastic file filters; keep dialect adapters explicit.",
       "status": "deferred",
-      "blocker": "none"
+      "blocker": "Promote to candidate/high only once one concrete rclone, Syncthing, Gitoxide, esbuild, or Difftastic dialect slice is selected; until then keep inactive."
     },
     {
       "id": "provider-metadata-normalization-core",
@@ -543,10 +581,10 @@
       "scopeBoundary": "In scope: local provider object schemas, path and case normalization, timestamp precision, content-type/storage-tier metadata, provider IDs/parent IDs, synthetic directory metadata, device/folder config projections, and deterministic sanitized output. Out of scope: live cloud provider tests, OAuth flows, tenant-specific APIs, network remotes, secret handling, remote mutation, and cloud application wrappers.",
       "priority": "medium",
       "status": "deferred",
-      "activationGate": "rclone-provider-normalization-next",
-      "testExpectation": "Require a provider-normalization-specific upstream/spec denominator with mapped rclone and Syncthing local-provider/config fixtures, PHP pass/fail evidence, metadata/path/case/time/tier/device/folder parity, malformed/corrupt metadata and traversal cases, and no progress credit for shelling out to rclone/syncthing or contacting live cloud/service remotes.",
-      "reuseNotes": "Reuse charset, Unicode, checksum, and glob/pathspec helpers; keep service-specific adapters local and fixture-backed so provider behavior remains testable without credentials.",
-      "blocker": "Activate only for local-only provider normalization blockers; live-service provider coverage remains excluded by default."
+      "activationGate": "rclone-provider-normalization-next-or-syncthing-device-folder-metadata-next",
+      "testExpectation": "Require rclone provider contract/local memory-provider evidence, rclone metadata mapper and OneDrive normalization fixtures, plus Syncthing device/folder/config metadata evidence, with PHP pass/fail counts for object/directory metadata, path/case/time/tier/hash parity, sanitized device/folder projections, invalid timestamp, impossible hash, duplicate ID, parent cycle, case collision, traversal, unsupported tier, malformed device/folder ID, and redaction-failure cases. No progress credit for rclone/Syncthing shell-outs, live provider/service remotes, credential/config inspection, OAuth, FUSE, Docker-backed provider suites, or cloud application wrappers.",
+      "reuseNotes": "Reuse charset-encoding-core, unicode-text-repair-width, checksum-hash-suite, glob-filter-pathspec-core, and url-percent-encoding-core once present; keep service-specific adapters local and fixture-backed so provider behavior remains testable without credentials.",
+      "blocker": "Activate only for local-only provider or Syncthing device/folder metadata normalization blockers; live-service provider coverage, OAuth, credential-bearing configs, and remote mutation remain excluded by default."
     }
   ]
 }
