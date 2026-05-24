@@ -1,5 +1,83 @@
 # Integration Status
 
+## Integration handoff rejection - Quadrable - 2026-05-24 21:04 UTC
+
+No Quadrable lane output was integrated in this pass.
+
+Selected handoff: `.tmux-team/tmp/handoff-candidates/port-quadrable.ready`
+with `timestamp=2026-05-24T21:02:15Z`, `session=port-quadrable`, and
+`reason=no-codex-handoff-grace`. I held only Quadrable with
+`.tmux-team/tmp/integration-holds/port-quadrable.hold` at
+`2026-05-24T21:02:48Z` after confirming the `port-quadrable` pane was idle at
+`bash` and had no child process.
+
+Stability and ownership decision:
+
+- The pre-hold repository sample had just reported `HEAD=b5e907b5`; the held
+  polls then stabilized at `HEAD=8a77a848a732` after an independent
+  `Refresh independent audit status` commit landed. No moving-tree root result
+  was counted as acceptance evidence.
+- Exact no-argument root gate returned no rows in both held polls. No
+  integration-owned `php tools/run-tests.php` was started because the handoff
+  failed ownership/scope review before acceptance.
+- Quadrable lane dirty scope was stable but too broad: `128` status rows and
+  `42 files changed, 13796 insertions(+), 2705 deletions(-)`, plus numerous
+  untracked examples/helpers/tests.
+- Relevant log ownership was not stable: the first poll reviewed
+  `.tmux-team/logs/port-quadrable-watchdog-20260524T205157Z.log` and the
+  focused dirty PHP feed log, but the second poll showed a new active
+  `.tmux-team/logs/port-quadrable-supervisor-splitprep-0x60-20260524T210600Z.log`.
+- The second poll showed active child PID `1879583` under the Quadrable pane,
+  running `bash scripts/run-tmux-agent.sh port-quadrable ...`, with Codex child
+  PID `1879590`. That made the lane owned again during intake.
+
+Focused evidence reviewed:
+
+- The latest worker report advertises a narrow proof transport marker slice:
+  upstream proof bytes `000300200160` plus one `0x11` sibling hash decode as a
+  single `HashProvided @ 0`, canonicalize unchanged, and fail trusted import
+  with `node depth underflow`.
+- Worker-reported evidence was focused and green for that narrow claim:
+  targeted cloned upstream `quadb` probe, `php -l` for `ProofTest.php` and
+  `wordpress-proof-decode-guard.php`, the WordPress proof-decode example,
+  focused `ProofTest.php` (`1` file, `1351` assertions, `0` failures), full
+  focused `lanes/quadrable/tests` (`12` files, `5635` assertions, `0`
+  failures), upstream `make -C .upstream-cache/quadrable -r test` (`All tests
+  OK`), lane JSON validation, and lane-scoped `git diff --check`.
+- The lane status itself admits the real blocker: this newest marker slice is
+  mixed into an accumulated dirty Quadrable pile containing proof transport,
+  noTrack metadata, iterator/checkpoint, external MemStore, sync, raw-LMDB,
+  binary/stdin, path-display, current-head work, stateful LMDB marker guards,
+  proof-backed patch precedence, and other unaccepted slices.
+
+Decision: rejected/deferred, not integrated. Accepting the whole Quadrable lane
+would merge far more than the reviewed proof-marker evidence, while partial
+staging is unsafe now that the lane has rearmed and is actively editing. The
+stale hold file and matching handoff marker were removed after this decision.
+No dashboard artifacts were regenerated and no progress claim was advanced. No
+support-library row was activated; the proof-marker work remains Quadrable-local
+unless a future accepted proof/sync transport slice opens the inactive
+`quadrable-proof-transport-codec-core` gate.
+
+Exact next Quadrable worker task: stop adding behavior and re-emit one reduced
+handoff from the accepted baseline. If the claim remains the `0x60` single
+HashProvided marker, include only the minimal `ProofTest.php`,
+`wordpress-proof-decode-guard.php`, lane notes/status/manifest updates, and
+the upstream probe evidence. Do not bundle proof-backed patch precedence,
+stateful LMDB marker guards, noTrack, iterator/checkpoint, external MemStore,
+sync, raw-LMDB, binary/stdin, path-display, current-head, or unrelated CLI
+parity work in the same handoff.
+
+Current skipped lanes: Difftastic remains the immediate root-red blocker from
+the prior markerPDF intake; Dolt remains skipped until implementation and
+runner evidence are coherent and neither Dolt session is editing the same
+metadata/source files. Gitoxide, LightningCSS, libsqlite, markerPDF, Pandoc,
+rclone, Readability, Syncthing, esbuild, and the active Quadrable pane remain
+dirty, active, or independently owned outside this rejected handoff. Next
+concrete intake target: first resolve or reject the Difftastic SCSS root
+failure, otherwise inspect the next owner-free `.ready` marker whose dirty
+scope exactly matches its worker evidence.
+
 ## Integration handoff rejection - markerPDF - 2026-05-24 21:01 UTC
 
 No markerPDF lane output was integrated in this pass.
