@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 09:28:06 UTC",
-    "sourceCommit": "e67ad5540e3e8b9556e559caf0c86aa39710b97e",
-    "sourceCommitShort": "e67ad5540e3e",
-    "sourceBranch": "dashboard-publish-20260524T092748Z",
-    "dashboardCommit": "9987aba1024a364ba7492fe3e4cfa7f08df237c9",
-    "dashboardCommitShort": "9987aba1024a",
+    "generated": "2026-05-24 09:44:10 UTC",
+    "sourceCommit": "989bdc9ef61155383980d4fe3d6cb616cb7b57fb",
+    "sourceCommitShort": "989bdc9ef611",
+    "sourceBranch": "dashboard-publish-20260524T094343Z",
+    "dashboardCommit": "9e5f025ab908893ce30fae60cafdf92ec2e4a1a3",
+    "dashboardCommitShort": "9e5f025ab908",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
@@ -213,7 +213,7 @@
         }
     ],
     "dependencyBacklog": {
-        "updated": "2026-05-24 09:19:25 UTC",
+        "updated": "2026-05-24 09:35:12 UTC",
         "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
         "count": 32,
         "countsByPriority": {
@@ -282,9 +282,9 @@
             {
                 "id": "url-percent-encoding-core",
                 "name": "URL percent-encoding core",
-                "neededBy": "rclone, gitoxide, esbuild, lightningcss",
+                "neededBy": "rclone, gitoxide, esbuild, lightningcss, readability",
                 "priority": "high",
-                "gate": "rclone-webdav-filename-destination-next-or-gitoxide-url-parse-next-or-esbuild-new-url-asset-next-or-lightningcss-css-url-token-next",
+                "gate": "rclone-webdav-filename-destination-next-or-gitoxide-url-parse-next-or-esbuild-new-url-asset-next-or-lightningcss-css-url-token-next-or-readability-relative-uri-cleanup-next",
                 "status": "candidate",
                 "testExpectation": "Require a dependency-specific vector manifest with PHP pass/fail counts for percent-escape round trips, path-segment preservation..."
             },
@@ -408,20 +408,20 @@
             {
                 "id": "unicode-text-repair-width",
                 "name": "Unicode repair, width, and segmentation core",
-                "neededBy": "markerpdf, pandoc, difftastic, readability, lightningcss, esbuild, gitoxide, dolt, quadrable",
+                "neededBy": "markerpdf, pandoc, difftastic, readability, lightningcss, esbuild, gitoxide, dolt, quadrable, syncthing",
                 "priority": "high",
-                "gate": "shared-infra-after-base-green",
+                "gate": "markerpdf-text-repair-next-or-pandoc-table-width-next-or-difftastic-unicode-display-next-or-readability-mojibake-cleanup-next-or-lightningcss-unicode-token-next-or-esbuild-unicode-identifier-next-or-gitoxide-path-display-next-or-dolt-unicode-query-diff-next-or-quadrable-key-display-next-or-syncthing-path-normalization-next",
                 "status": "candidate",
                 "testExpectation": "Create a Unicode/ftfy/UAX-specific denominator with mapped Pandoc, Difftastic, Readability, LightningCSS, esbuild, Gitoxide, Dolt..."
             },
             {
                 "id": "charset-encoding-core",
                 "name": "Charset and byte-decoding core",
-                "neededBy": "difftastic, readability, pandoc, markerpdf, rclone, esbuild, lightningcss, gitoxide, dolt, quadrable",
+                "neededBy": "difftastic, readability, pandoc, markerpdf, rclone, esbuild, lightningcss, gitoxide, dolt, quadrable, libsqlite",
                 "priority": "high",
-                "gate": "markerpdf-pdfdocencoding-next-or-pandoc-legacy-doc-cfb-next-or-pandoc-html-charset-next-or-readability-declared-charset-next-or-shared-nonutf8-import-next",
+                "gate": "markerpdf-pdfdocencoding-next-or-pandoc-legacy-doc-cfb-next-or-pandoc-html-charset-next-or-readability-declared-charset-next-or-libsqlite-utf16-record-encoding-next-or-shared-nonutf8-import-next",
                 "status": "candidate",
-                "testExpectation": "Require WHATWG Encoding plus PDF/document encoding tables and mapped markerPDF/Pandoc/Readability byte fixtures, with PHP pass/fa..."
+                "testExpectation": "Require WHATWG Encoding plus PDF/document/SQLite encoding tables and mapped markerPDF/Pandoc/Readability/libsqlite byte fixtures,..."
             },
             {
                 "id": "json-json5-document-core",
