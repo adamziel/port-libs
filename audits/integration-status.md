@@ -62676,3 +62676,68 @@ validity/path/operator/JSONB/create-index batch. The next integration target is
 libsqlite again only after `port-libsqlite` is idle with no child process and
 the lane files, relevant logs, `HEAD`, exact root PID state, and shortstat are
 stable across two polls; otherwise take the next owner-free `.ready` marker.
+
+## Latest LightningCSS handoff rejection - 2026-05-24 21:47 UTC
+
+No LightningCSS output was integrated. No lane files were staged, no commit was
+made, and `php tools/generate-dashboard.php` was not run.
+
+Held lane/session reviewed: `port-lightningcss`. The ready marker
+`.tmux-team/tmp/handoff-candidates/port-lightningcss.ready` was current at
+intake with `timestamp=2026-05-24T21:44:28Z`, `session=port-lightningcss`, and
+reason `no-codex-handoff-grace`. A short hold was created at
+`2026-05-24T21:45:40Z`.
+
+Decision: rejected as mixed and not lane-slice reviewable, not integrated.
+
+Evidence reviewed:
+
+- The selected pane was owner-free: `port-lightningcss` was at `bash` with pane
+  PID `1975703` and no child process during intake.
+- Required selected-lane stability passed. Poll 1 at `2026-05-24T21:46:02Z`
+  and poll 2 at `2026-05-24T21:46:13Z` both saw `HEAD`
+  `952825c8404bf6b5476140cc267a8d241e030c8e`, LightningCSS dirty rows `232`,
+  status hash `de96840ec942dc7520644285299ed66180cb8df3a66a5bfabcd407de8ed4c49d`,
+  lane content hash `8ee6242247861336755f0bb3bbbc34f28e81304327b315948b0bdb6b307adda6`,
+  tracked lane shortstat `17 files changed, 48934 insertions(+), 10810
+  deletions(-)`, unchanged ready/log hashes, no exact no-argument root PID, and
+  no pane child.
+- Worker evidence in
+  `.tmux-team/logs/port-lightningcss-watchdog-20260524T213003Z.log` claimed a
+  bounded `@page` formatter slice with `php -l` passes, WordPress example pass,
+  `php tools/run-tests.php lanes/lightningcss/tests/CssFormatterTest.php`
+  passing `1` file / `12` assertions / `0` failures, full focused
+  LightningCSS lane tests passing `29` files / `4412` assertions / `0`
+  failures, and no activated support-library dependency.
+- The actual candidate files are not slice-scoped. `CssFormatter.php` and
+  `CssFormatterTest.php` are untracked whole-file additions, and inspection
+  showed they already contain prior unaccepted `@property` formatter and
+  background-image URL formatter behavior in addition to the claimed `@page`
+  code. The companion
+  `.tmux-team/logs/port-lightningcss-package-handoff-20260524T2130Z.log`
+  independently recorded that the earlier reduced background-image handoff was
+  not clean because the same source/test files also contained prior unaccepted
+  formatter behavior.
+- LightningCSS metadata was also not acceptable for this slice. The manifest
+  and notes diff contained accumulated unrelated inventory/status changes for
+  many earlier unaccepted LightningCSS slices, so accepting it would advance
+  public rich-function claims beyond the reviewed `@page` behavior.
+
+This worker did not start or wait on the serialized no-argument root harness,
+because there was no coherent lane-scoped batch to test. No concurrent
+moving-tree focused or root result is accepted as integration evidence, and no
+support-library row was activated or counted.
+
+Skipped current marker: `port-markerpdf.ready` remains unaccepted because the
+`port-markerpdf` pane had active child PID `2103182`
+(`node /usr/local/bin/codex -a never exec -C /home/claude/port-libs -s
+danger-full-access -`) during intake. It should be reconsidered only after the
+pane is owner-free and stable across two polls.
+
+Next worker task for LightningCSS: reduce the handoff to exactly one formatter
+slice, or explicitly submit one coherent combined `CssFormatter` batch covering
+the `@property`, background-image URL, and `@page` behavior together. The next
+attempt must include matching metadata only for the accepted scope, focused PHP
+evidence, the fullest relevant upstream/spec evidence that can honestly run,
+valid JSON metadata, and an owner-free two-poll window before integrator root
+verification.
