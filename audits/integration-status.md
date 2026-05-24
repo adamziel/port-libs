@@ -1,5 +1,102 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T12:26:52Z
+
+No lane implementation output was integrated by this pass. I did not stage
+lane source files, regenerate `porting.html` or `porting-summary.json`, push,
+or start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files shown by Git, live tmux/process state, dependency backlog,
+  generated dashboard artifacts, recent lane commits, and the prior
+  integration-status artifact.
+- Current sampled `HEAD` was `a28486e19f38` on
+  `main...origin/main [ahead 863, behind 68]`; recent history remains
+  integration-hold and independent-audit dominated. The latest recent
+  lane-touching commits reviewed were `b75226d1` rclone OneDrive update
+  selection, `90d1fa3b` rclone multipart metadata, `efa4e0c2` Readability
+  fixture coverage, `a04f2c8b` rclone permission refresh, and `5b6d5a84`
+  libsqlite index-parent merge.
+- The checkout was still moving and was not a frozen acceptance snapshot.
+  Initial samples showed `17641` untracked-inclusive status rows, `329`
+  tracked dirty rows, and `329 files changed, 233137 insertions(+), 29279
+  deletions(-)`. A later sample moved to `17650` rows, `331` tracked dirty
+  rows, and `331 files changed, 233491 insertions(+), 29431 deletions(-)`.
+  Twenty-five `.tmux-team/logs/port-*.log` files also changed within the last
+  five minutes.
+- Dirty tracked scopes still span every priority lane plus prompts, audit
+  status, public dashboard artifacts, and automation scripts. The largest
+  sampled clusters included `.tmux-team/prompts` `7001`, Difftastic `405`,
+  Syncthing `244`, markerPDF `241`, rclone `220`, Gitoxide `196`, Pandoc
+  `195`, Dolt `191`, LightningCSS `171`, Readability `162`, libsqlite `151`,
+  Quadrable `113`, and esbuild `67`.
+- Live tmux state remained active across all core lane workers plus auditor,
+  evaluator, dashboard-updater, integrator, capacity controller/executor,
+  support-library scouts, Dolt, and Dolt-runner sessions. A separate
+  `port-integrator` session and a separate dashboard updater were live, so
+  overlapping integration/status work remains unsafe to accept as lane output.
+- Recent capacity evidence is useful but not an accepted integration snapshot.
+  Clean scratch-clone focused runs at committed source `c9814fa447e4` reported
+  `49` files and `5028` assertions for markerPDF/Pandoc/Readability, `24`
+  files and `8718` assertions for libsqlite/LightningCSS/Quadrable/Difftastic/
+  esbuild, and `79` files and `6198` assertions for rclone/Syncthing, all
+  with `0` failures. Those runs are older scratch evidence and do not cover
+  the current dirty worktree. Dirty focused shards were still being fed for
+  Gitoxide, esbuild, Dolt, Difftastic, libsqlite, LightningCSS, markerPDF,
+  Pandoc, Quadrable, rclone, Readability, and Syncthing.
+- Recent worker tails showed active source/test diffs, not clean handoffs:
+  Syncthing was editing GUI static MIME fallback tests, markerPDF was editing
+  indirect PDF page `/Contents` extraction, capacity executor still had
+  `28` running `php_focused_dirty` rows, and Dolt/Dolt-runner sessions were
+  active. Dolt was skipped because implementation and runner sessions are
+  still live with Dolt metadata/source changes dirty.
+- Exact process sampling first found focused Syncthing verification
+  (`php tools/run-tests.php lanes/syncthing/tests`), then no active
+  `php tools/run-tests.php` process. I did not wait on
+  `.upstream-cache/run-tests.lock` and did not start the serialized
+  no-argument root harness because no lane batch was accepted. A separate
+  dashboard-updater temp-clone root run reported `204 test files`, `23682`
+  assertions, and `0` failures, but that was not run from this source
+  worktree and was not treated as acceptance evidence for the moving tree.
+- `dependency-backlog.json` is valid JSON with `37` rows
+  (`blocked:1,candidate:25,deferred:11,active:0`) and is consistent with the
+  latest `progress.md` dependency-count narrative. No dependency row is active
+  and no support-library progress was accepted.
+- Local `porting-summary.json` remains stale at
+  `generated=2026-05-23 23:43:54 UTC`,
+  `sourceCommit=79768df0c427aa9c96e6d97c5137c2d79ae9ce6e`, and `22`
+  dependency rows, while the backlog has `37` rows. I did not claim dashboard
+  freshness, root parity, full upstream runner parity, or support-library
+  activation.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze lane writers, dashboard/status publishers, support-library
+scouts, capacity executor rows, focused runners, root runners, Dolt, and
+Dolt-runner; then take two stable polls of `HEAD`, tracked rows,
+untracked-inclusive rows, shortstat, exact process gates,
+dependency/dashboard counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active lane source edits, moving
+untracked state, stale local dashboard artifacts, concurrent integration and
+publication workers, support-library metadata under review, and runner
+evidence from different snapshots.
+
+Next safe integration target: after the freeze, isolate one owner-free lane
+batch with coherent evidence. LightningCSS/libsqlite/Quadrable/Difftastic/
+esbuild have recent grouped clean scratch evidence, but that grouped evidence
+must be reduced to a single lane-scoped batch and rerun from the same frozen
+source snapshot before acceptance. Run focused lane verification, `git diff
+--check`, and one serialized no-argument `php tools/run-tests.php` with lock
+wait recorded, regenerate dashboard artifacts only after accepting the batch,
+then commit or reject it as a single reviewable integration unit.
+
 ## Integration Hold - 2026-05-24T12:21:24Z
 
 No lane implementation output was integrated by this pass. I did not stage
