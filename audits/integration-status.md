@@ -1,5 +1,45 @@
 # Integration Status
 
+## Integration handoff rejection - libsqlite - 2026-05-24 22:45 UTC
+
+No libsqlite lane output was integrated in this pass.
+
+Selected marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite.ready`
+(`timestamp=2026-05-24T22:42:39Z`, `session=port-libsqlite`,
+`reason=no-codex-handoff-grace`). Temporary hold:
+`.tmux-team/tmp/integration-holds/port-libsqlite.hold`, created for
+libsqlite-only intake. The selected pane `port-libsqlite` was idle at `bash`
+with no child process.
+
+Held poll results:
+
+- Poll 1: `HEAD=0fe2cd567538`, libsqlite status rows `24`, tracked shortstat
+  `10 files changed, 1310 insertions(+), 26 deletions(-)`, and active
+  no-argument root PID `2446746` (`php tools/run-tests.php`).
+- Poll 2 after the hold grace: libsqlite status rows and tracked shortstat
+  stayed the same, but `HEAD` moved to `28f088aab259` and root PID `2446746`
+  was still active.
+
+Decision: rejected/deferred, not integrated. The libsqlite lane diff itself
+was stable across the two polls and the worker evidence for the latest
+`round(X[,Y])` scalar slice is focused, but the required stable intake snapshot
+was not satisfied because `HEAD` moved during the hold. The active root harness
+was not started by this intake and cannot be counted as an accepted
+integration snapshot for this lane. I did not run focused libsqlite checks,
+did not start another no-argument root harness, did not regenerate dashboard
+artifacts, and did not advance any SQLite upstream/full-suite or
+support-library claim.
+
+Next safe integration target: recheck `port-libsqlite.ready` only after the
+shared checkout stops moving long enough for two stable `HEAD` polls and the
+root-process gate is clear or the intake-owned `php tools/run-tests.php` can
+run through the serialized lock from the same snapshot. If libsqlite is still
+too broad, require the worker to split the pending stack so `round()` (or one
+prior scalar/JSON helper) can be staged with only its source, test, example,
+manifest/status, and notes evidence. The queued `port-syncthing.ready` remains
+unsafe as currently scoped because the dirty Syncthing tree is a broad
+multi-slice handoff and was already rejected recently for non-isolated scope.
+
 ## Integration handoff rejection - Syncthing - 2026-05-24 22:43 UTC
 
 No Syncthing lane output was integrated in this pass.
