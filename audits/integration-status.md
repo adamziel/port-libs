@@ -98561,3 +98561,26 @@ Support-library/dependency closure: no support-library activation. This slice re
 Live-service exclusions: none; no live-service provider tests were run.
 
 Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-packed-reference-transaction.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/notes/wordpress-scenarios.md`, `lanes/gitoxide/src/ReferenceStore.php`, `lanes/gitoxide/tests/ReferenceStoreTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated rclone OneDrive create-object hint rework - 2026-05-24 23:45 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260524T233954Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260524T233954Z.patch`.
+
+Lane/slice/session: `rclone` / `rework-onedrive-put-create-object` / `port-rework-rclone`. Patch sha256 verified as `de22a9c4f66c5d1a13bcb279b19750edc1d9f638ec441559878a6f855f3298d7`. The patch applied cleanly to detached clean worktree `/tmp/port-clean-integrator-rclone-rework-onedrive-put-create-object-20260524T234414Z` from old head `9e56d0aab519792a2de923ecc3fe1a7f79434609`.
+
+Focused verification in the clean worktree:
+- `php -l lanes/rclone/src/OneDrivePermissionPlanner.php`: pass.
+- `php -l lanes/rclone/tests/OneDrivePermissionPlannerTest.php`: pass.
+- `php -l lanes/rclone/examples/wordpress-onedrive-put-create-object.php`: pass.
+- `php tools/run-tests.php lanes/rclone/tests/OneDrivePermissionPlannerTest.php`: pass, 1 selected test file, 230 assertions, 0 failures.
+- `php lanes/rclone/examples/wordpress-onedrive-put-create-object.php`: pass.
+- JSON validation for `lanes/rclone/UPSTREAM_TEST_MANIFEST.json` and `lanes/rclone/lane-status.json`: pass.
+- `git diff --check`: pass.
+
+Root verification: pre-root exact no-argument process gate `pgrep -af '^php tools/run-tests\.php$'` was empty, then `php tools/run-tests.php` ran in the same clean worktree and passed: 208 test files, 24250 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. This is a lane-local OneDrive planner behavior refinement and does not add provider/live-service or shared dependency scope.
+
+Live-service exclusions: no live OneDrive/provider tests were run.
+
+Files staged: `lanes/rclone/src/OneDrivePermissionPlanner.php`, `lanes/rclone/tests/OneDrivePermissionPlannerTest.php`, and `audits/integration-status.md`.

@@ -680,7 +680,7 @@ final class OneDrivePermissionPlanner
      * Model backend/onedrive Fs.Put/createObject upload setup without Graph calls.
      *
      * @param array<string, string>|null $sourceMetadata Null models --metadata disabled or a source without metadata.
-     * @param array{size?: int, uploadCutoff?: int, parentId?: string, parentID?: string, parentLookupError?: string, nameAlreadyExists?: bool, uploadError?: string, createSessionError?: string, uploadFragmentError?: string, setUploadedMetadataError?: string, setFetchedMetadataError?: string, setFinalMetadataError?: string, sourceMetadataError?: string, metadataReadError?: string, hasObjectMetadata?: bool, setModTimeError?: string, normalizedId?: string, normalizedID?: string, objectId?: string, id?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
+     * @param array{size?: int, uploadCutoff?: int, parentId?: string, parentID?: string, parentLookupError?: string, nameAlreadyExists?: bool, nameAlreadyExistsHint?: string, uploadError?: string, createSessionError?: string, uploadFragmentError?: string, setUploadedMetadataError?: string, setFetchedMetadataError?: string, setFinalMetadataError?: string, sourceMetadataError?: string, metadataReadError?: string, hasObjectMetadata?: bool, setModTimeError?: string, normalizedId?: string, normalizedID?: string, objectId?: string, id?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
      * @return array<string, mixed>
      */
     public static function putCreateObjectFlow(string $remote, ?array $sourceMetadata, array $options = []): array
@@ -730,7 +730,9 @@ final class OneDrivePermissionPlanner
         }
 
         if ($upload['error'] !== null && (bool) ($options['nameAlreadyExists'] ?? false)) {
-            $upload['error'] .= ' (OneNote files cannot be overwritten by rclone)';
+            $hint = self::optionalString($options['nameAlreadyExistsHint'] ?? null)
+                ?? 'OneNote files cannot be overwritten by rclone';
+            $upload['error'] .= ' (' . $hint . ')';
         }
 
         $flow['upload'] = $upload;

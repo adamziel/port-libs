@@ -913,12 +913,28 @@ return [
             'find-parent',
         ], $missingParent['sequence']);
         $t->same("couldn't find parent ID: directory not found", $missingParent['error']);
+        $t->same(null, $missingParent['selectedUpload']);
+        $t->same(null, $missingParent['upload']);
         $t->same('multipart', $multipart['selectedUpload']);
         $t->same('upload-multipart', $multipart['sequence'][4]);
         $t->same(['update'], array_column($multipart['upload']['metadataUpdate']['permissionWrite']['operations'], 'action'));
         $t->same(null, $multipart['error']);
         $t->same('singlepart', $nameConflict['selectedUpload']);
         $t->same('nameAlreadyExists (OneNote files cannot be overwritten by rclone)', $nameConflict['error']);
+
+        $customHint = OneDrivePermissionPlanner::putCreateObjectFlow(
+            'exports/site-notes.one',
+            null,
+            [
+                'size' => 256,
+                'uploadCutoff' => 1024,
+                'uploadError' => 'nameAlreadyExists',
+                'nameAlreadyExists' => true,
+                'nameAlreadyExistsHint' => 'This is normally caused by an existing OneNote file with the same name.',
+            ],
+        );
+
+        $t->same('nameAlreadyExists (This is normally caused by an existing OneNote file with the same name.)', $customHint['error']);
     },
     'wordpress onedrive permission write plan example keeps owner and plans review changes' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-permission-write-plan.php';
