@@ -1,5 +1,23 @@
 # Integration Status
 
+## Integration queue note - 2026-05-24 18:28 UTC
+
+After the LightningCSS rejection commit, two new handoff markers appeared:
+`port-gitoxide.ready` (`timestamp=2026-05-24T18:25:45Z`) and
+`port-markerpdf.ready` (`timestamp=2026-05-24T18:24:43Z`). Both panes sampled
+as owner-free (`bash`, no child process), and no root runner was active in the
+immediate precheck. I did not create another hold in this pass because the
+combined Gitoxide/markerPDF dirty surface already sampled as `486` rows
+(`147` modified, `339` untracked) after three rejected accumulated handoffs.
+
+Next concrete intake target: select the newer `port-gitoxide.ready` first only
+if it remains owner-free, then take the required two stability polls and reject
+or accept a reduced, lane-scoped batch. If Gitoxide re-arms or remains broad,
+fall back to `port-markerpdf.ready` with the same two-poll and focused-evidence
+gate. Do not accept either lane until the worker narrows the diff to the
+advertised slice plus manifest/status/notes evidence and one serialized
+no-argument root snapshot can be taken from an accepted frozen tree.
+
 ## Integration handoff rejection - LightningCSS - 2026-05-24 18:26 UTC
 
 No LightningCSS lane output was integrated. After the previous status-only
