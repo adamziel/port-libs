@@ -1,5 +1,93 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 17:49 UTC
+
+No lane output was integrated in this pass. The workspace is still a live
+multi-writer tree, so no lane files were staged, no lane/status claim was
+accepted, no dashboard artifacts were regenerated, and no support-library row
+was activated.
+
+Required intake and current state:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, fresh `.tmux-team/logs/port-*.log`
+  tails, dirty lane summaries from Git, active tmux/process state, and dirty
+  lane files shown by Git.
+- `HEAD` moved during intake from `ffb9dfef5f0a` to `e92747acac17` after a
+  concurrent independent-audit commit. The branch is now
+  `main...origin/main [ahead 961, behind 68]`. No lane batch was accepted
+  across that moving boundary.
+- Dirty aggregate state stayed broad and continued moving: initial samples
+  showed `329 files changed, 264716 insertions(+), 31382 deletions(-)` and
+  `19792` untracked-inclusive porcelain rows; later samples moved through
+  `330 files changed, 264912 insertions(+), 31586 deletions(-)` to
+  `329 files changed, 264786 insertions(+), 31382 deletions(-)` and `19845`
+  untracked-inclusive rows.
+- The exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'`
+  returned no rows in the intake and the two-poll lane sample. This worker did
+  not start root verification because the checkout was not a frozen accepted
+  integration snapshot; there was therefore no `.upstream-cache/run-tests.lock`
+  wait by this worker.
+
+Candidate lane review:
+
+- Candidate selected for the required owner-free handoff check:
+  `port-esbuild`. Its pane was at `bash` with no direct child process in both
+  samples, and the lane-local status digest stayed stable:
+  `ca17c1ff41ed20166683dae16ae234bf96cd565f6e826b9e5b152b941f454b4d`.
+- The candidate was rejected/deferred, not integrated. Reasons: the esbuild
+  lane batch is accumulated rather than a small current slice (`73`
+  untracked-inclusive lane rows, `20` tracked lane files, `53` untracked lane
+  files), the latest esbuild log continued advancing during the poll
+  (`2361111` bytes at `17:48:24Z` to `2382685` bytes at `17:48:41Z`), and the
+  aggregate shortstat changed during the same poll. Running the root harness in
+  that moving tree would not produce an accepted integration snapshot.
+- `port-readability` also looked owner-free at the pane/process level, but its
+  handoff is broader and riskier for immediate intake (`15` tracked lane files
+  plus `246` untracked lane files, including many copied fixtures/examples).
+  Its focused NBSP br-chain evidence is useful, but it was skipped for this
+  pass because the shared tree and public status were still moving.
+- Dolt remains skipped despite reauthorization because `port-dolt` and
+  `port-dolt-runner` both still have active Codex children while Dolt files are
+  dirty; there is no coherent implementation-plus-runner handoff to accept.
+
+Active/risky lanes:
+
+- Active child processes were still present for Dolt runner, Dolt, Quadrable,
+  markerPDF, LightningCSS, auditor/capacity, Gitoxide, libsqlite, Pandoc,
+  Syncthing, and the integrator. Focused Syncthing PHP shards were also active
+  during the earlier intake. These lanes remain skipped as owned/active.
+- Difftastic and rclone remain concrete follow-up candidates from prior holds,
+  but neither was accepted in this pass because the current safe owner-free
+  two-poll check was spent on esbuild and the aggregate tree moved.
+
+Dependency/dashboard status:
+
+- `jq empty` passed for `dependency-backlog.json`, `porting-summary.json`, all
+  lane manifests, and all lane-status files. `dependency-backlog.json` remains
+  valid with `37` rows: `25` candidate, `11` deferred, `1` blocked, and `0`
+  active. This is consistent with `progress.md`; no support-library progress is
+  counted as active.
+- No rich-function claim was accepted. Pandoc/document rows for DOC,
+  DOCX/OpenXML, PDF input/output handoff, EPUB, ODT/OpenDocument, templates,
+  citations, math, tables, package containers, XML/HTML, Unicode/charset,
+  JSON/YAML metadata, syntax highlighting, archive, and compression remain
+  inactive backlog rows.
+- `porting.html` and `porting-summary.json` were not regenerated because no
+  lane/status changes were accepted.
+
+Next safe integration point: first prefer `port-esbuild` only if it remains at
+`bash` with no active child, its latest log stops advancing, the esbuild lane
+digest stays stable across two polls, and the aggregate shortstat/HEAD/root
+gate are stable enough for a serialized no-argument root run. If that does not
+hold, prefer `port-readability` only after its large copied-fixture/example
+batch is explicitly bounded, or rclone if an owner-free handoff resolves the
+known missing `wordpress-webdav-servecontent-headers-preflight.php` root
+failure. Any accepted lane still needs focused inspection, focused
+verification, serialized no-argument root verification through
+`tools/run-tests.php`, `git diff --check`, dashboard regeneration from the
+accepted snapshot, and support-library gate review at base-lane granularity.
+
 ## Integration worker hold - 2026-05-24 17:43 UTC
 
 No lane output was integrated in this pass. The workspace is still a live
