@@ -16,17 +16,32 @@ final class FolderWatchScanScheduler
      */
     private array $lastDispatchedBatches = [];
 
+    /**
+     * @var array<string, array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, scanOnWatchError:bool}>
+     */
+    private array $watchRestarts = [];
+
+    private int $effectiveNotifyTimeoutSeconds;
+
     public function __construct(
         private readonly FolderScanScheduler $scheduler,
         private readonly int $notifyDelaySeconds = 10,
         private readonly ?int $notifyTimeoutSeconds = null,
         private readonly int $maxFiles = 512,
         private readonly int $maxFilesPerDir = 128,
+        private readonly int $watchRestartInitialDelaySeconds = 10,
+        private readonly int $watchRestartMaxDelaySeconds = 60,
     ) {
+        if ($this->watchRestartInitialDelaySeconds < 0 || $this->watchRestartMaxDelaySeconds < 0) {
+            throw new \InvalidArgumentException('Watch restart delays must not be negative');
+        }
+        $this->effectiveNotifyTimeoutSeconds = $this->notifyTimeoutSeconds === null
+            ? FolderWatchEventAggregator::defaultNotifyTimeoutSeconds($this->notifyDelaySeconds)
+            : max($this->notifyTimeoutSeconds, $this->notifyDelaySeconds);
     }
 
     /**
-     * @return null|array{folder:string, pendingEventCount:int, pendingPaths:list<string>, pendingTypes:array<string, string>, inProgressPaths:list<string>, notifyDelaySeconds:int, notifyTimeoutSeconds:int, nextScanAt:?int, due:bool}
+     * @return null|array{folder:string, pendingEventCount:int, pendingPaths:list<string>, pendingTypes:array<string, string>, inProgressPaths:list<string>, notifyDelaySeconds:int, notifyTimeoutSeconds:int, nextScanAt:?int, due:bool, watcherRestart:?array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, remainingSeconds:int, due:bool, scanOnWatchError:bool}}
      */
     public function recordEvent(
         string $folderId,
@@ -64,26 +79,125 @@ final class FolderWatchScanScheduler
     }
 
     /**
-     * @return null|array{folder:string, pendingEventCount:int, pendingPaths:list<string>, pendingTypes:array<string, string>, inProgressPaths:list<string>, notifyDelaySeconds:int, notifyTimeoutSeconds:int, nextScanAt:?int, due:bool}
+     * @param null|callable(FolderScanProgress): void $progressLogger
+     * @param null|callable(string, \Throwable, string): void $errorLogger
+     * @param null|callable(?string): bool $shouldCancel
+     * @param null|callable(string, array{description:string, sub:string, error:string}): void $failureLogger
+     */
+    public function recordWatcherError(
+        string $folderId,
+        \Throwable|string $error,
+        bool $scanOnWatchError = true,
+        ?IgnoreMatcher $ignoreMatcher = null,
+        bool $hashBlocks = false,
+        ?int $blockSize = null,
+        ?callable $progressLogger = null,
+        ?callable $errorLogger = null,
+        ?callable $shouldCancel = null,
+        ?callable $failureLogger = null,
+        ?int $now = null,
+    ): FolderScanSchedulerResult {
+        $now = self::clock($now);
+        $message = $error instanceof \Throwable ? $error->getMessage() : trim($error);
+        if ($message === '') {
+            $message = 'watcher error';
+        }
+
+        if (!$this->folderAcceptsWatchEvents($folderId)) {
+            return new FolderScanSchedulerResult();
+        }
+
+        $previousAttempt = $this->watchRestarts[$folderId]['restartAttempt'] ?? 0;
+        $attempt = $previousAttempt + 1;
+        $delay = $this->restartDelaySeconds($attempt);
+        $this->watchRestarts[$folderId] = [
+            'folder' => $folderId,
+            'lastError' => $message,
+            'errorAt' => $now,
+            'restartAttempt' => $attempt,
+            'restartDelaySeconds' => $delay,
+            'restartAt' => $now + $delay,
+            'scanOnWatchError' => $scanOnWatchError,
+        ];
+
+        if (!$scanOnWatchError) {
+            return new FolderScanSchedulerResult();
+        }
+
+        try {
+            return new FolderScanSchedulerResult([
+                $folderId => $this->scheduler->scanFolder(
+                    $folderId,
+                    $ignoreMatcher,
+                    $hashBlocks,
+                    $blockSize,
+                    $progressLogger,
+                    $errorLogger,
+                    $shouldCancel,
+                    $failureLogger,
+                    $now,
+                ),
+            ]);
+        } catch (\Throwable $throwable) {
+            return new FolderScanSchedulerResult([], [$folderId => $throwable]);
+        }
+    }
+
+    public function markWatcherRestarted(string $folderId): bool
+    {
+        self::assertFolderId($folderId);
+        if (!isset($this->watchRestarts[$folderId])) {
+            return false;
+        }
+
+        unset($this->watchRestarts[$folderId]);
+
+        return true;
+    }
+
+    /**
+     * @return null|array{folder:string, pendingEventCount:int, pendingPaths:list<string>, pendingTypes:array<string, string>, inProgressPaths:list<string>, notifyDelaySeconds:int, notifyTimeoutSeconds:int, nextScanAt:?int, due:bool, watcherRestart:?array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, remainingSeconds:int, due:bool, scanOnWatchError:bool}}
      */
     public function watchStatus(string $folderId, ?int $now = null): ?array
     {
         self::assertFolderId($folderId);
         if (!isset($this->aggregators[$folderId])) {
-            return null;
+            if (!isset($this->watchRestarts[$folderId])) {
+                return null;
+            }
+
+            return [
+                'folder' => $folderId,
+                'pendingEventCount' => 0,
+                'pendingPaths' => [],
+                'pendingTypes' => [],
+                'inProgressPaths' => [],
+                'notifyDelaySeconds' => $this->notifyDelaySeconds,
+                'notifyTimeoutSeconds' => $this->effectiveNotifyTimeoutSeconds,
+                'nextScanAt' => null,
+                'due' => false,
+                'watcherRestart' => $this->watchRestartStatus($folderId, self::clock($now)),
+            ];
         }
 
-        return ['folder' => $folderId] + $this->aggregators[$folderId]->status($now);
+        return ['folder' => $folderId]
+            + $this->aggregators[$folderId]->status($now)
+            + ['watcherRestart' => $this->watchRestartStatus($folderId, self::clock($now))];
     }
 
     /**
-     * @return array<string, array{folder:string, pendingEventCount:int, pendingPaths:list<string>, pendingTypes:array<string, string>, inProgressPaths:list<string>, notifyDelaySeconds:int, notifyTimeoutSeconds:int, nextScanAt:?int, due:bool}>
+     * @return array<string, array{folder:string, pendingEventCount:int, pendingPaths:list<string>, pendingTypes:array<string, string>, inProgressPaths:list<string>, notifyDelaySeconds:int, notifyTimeoutSeconds:int, nextScanAt:?int, due:bool, watcherRestart:?array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, remainingSeconds:int, due:bool, scanOnWatchError:bool}}>
      */
     public function watchStatuses(?int $now = null): array
     {
         $statuses = [];
         foreach ($this->aggregators as $folderId => $aggregator) {
-            $statuses[$folderId] = ['folder' => $folderId] + $aggregator->status($now);
+            $statuses[$folderId] = ['folder' => $folderId]
+                + $aggregator->status($now)
+                + ['watcherRestart' => $this->watchRestartStatus($folderId, self::clock($now))];
+        }
+        foreach (array_keys($this->watchRestarts) as $folderId) {
+            $statuses[$folderId] ??= $this->watchStatus($folderId, $now);
         }
         ksort($statuses, SORT_STRING);
 
@@ -176,6 +290,35 @@ final class FolderWatchScanScheduler
 
         return in_array($folderId, $this->scheduler->folderIds(), true)
             && !$this->scheduler->isPaused($folderId);
+    }
+
+    private function restartDelaySeconds(int $attempt): int
+    {
+        if ($this->watchRestartInitialDelaySeconds === 0 || $this->watchRestartMaxDelaySeconds === 0) {
+            return 0;
+        }
+
+        $delay = $this->watchRestartInitialDelaySeconds * (2 ** max(0, $attempt - 1));
+
+        return min($delay, $this->watchRestartMaxDelaySeconds);
+    }
+
+    /**
+     * @return null|array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, remainingSeconds:int, due:bool, scanOnWatchError:bool}
+     */
+    private function watchRestartStatus(string $folderId, int $now): ?array
+    {
+        if (!isset($this->watchRestarts[$folderId])) {
+            return null;
+        }
+
+        $restart = $this->watchRestarts[$folderId];
+        $remainingSeconds = max(0, $restart['restartAt'] - $now);
+
+        return $restart + [
+            'remainingSeconds' => $remainingSeconds,
+            'due' => $remainingSeconds === 0,
+        ];
     }
 
     /**

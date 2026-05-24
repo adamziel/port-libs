@@ -1954,7 +1954,57 @@ Verification for this batch:
 
 ## Next Task
 
-Map Syncthing watcher restart/error recovery (`restartWatchChan`,
-`scanOnWatchErr`, and exponential watcher retry) for WordPress media volumes,
-including the immediate full-scan fallback after watcher errors and status
-payloads for delayed watcher restarts.
+## 2026-05-24 Watcher Restart Error Recovery
+
+This isolated micro-slice maps the next filesystem watcher behavior cluster
+from upstream `lib/model/folder.go`: `restartWatchChan`, `monitorWatch`,
+`scanOnWatchErr`, and the folder Serve loop branch that falls back to a scan
+after watcher errors. It reuses the existing watcher aggregation evidence from
+`lib/watchaggregator` and the prior focused upstream runner:
+`go test ./lib/watchaggregator -run '^(TestAggregate|TestInProgress|TestDelay|TestNoDelay)$' -count=1`
+passed with `ok github.com/syncthing/syncthing/lib/watchaggregator 7.239s`.
+No new Go runner was added for this PHP-only restart/status boundary; full
+`go test ./...` remains unexecuted for the recorded blob-filter/cache and
+budget reasons.
+
+Native PHP now extends `FolderWatchScanScheduler` with
+`recordWatcherError()` and `markWatcherRestarted()`. A watcher error records
+REST-friendly restart status, applies bounded exponential backoff for delayed
+watcher restarts, and, when `scanOnWatchError` is enabled, immediately runs a
+full folder scan so a WordPress media library is not left stale after an
+inotify/FSEvents overflow. The existing example
+`wordpress-fs-watch-scan-scheduler.php` now shows delayed upload coalescing,
+then a watcher overflow that triggers a full fallback scan and exposes the
+pending restart payload.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate is wiring
+`recordWatcherError()` from a WordPress/local watcher adapter when a native
+watch source reports overflow/closure; the evidence plan is the focused watcher
+tests plus the local WordPress example smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 41 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchEventAggregatorTest.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 2 files, 58 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported pending watcher status, before-due no-op scan
+  status, delayed dispatched batch metadata, watch-error full scan fallback,
+  watcher restart status, and checkpoint revision 2.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 50 files, 2533
+  assertions, and 0 failures.
+- `git diff --check -- lanes/syncthing` passed.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map Syncthing watcher cancellation/stop cleanup around folder shutdown and
+paused-folder transitions, including removal of pending restart state without
+consuming queued media watch events.

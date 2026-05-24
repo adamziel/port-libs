@@ -97977,3 +97977,369 @@ error: patch failed: lanes/readability/notes/upstream-inventory.md:589
 error: lanes/readability/notes/upstream-inventory.md: patch does not apply
 ```
 
+
+## Isolated integration accepted - syncthing - 2026-05-24T23:30:24Z UTC
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T231211Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T231211Z.patch`
+Lane/slice/session: `syncthing` / `watchdog-next-20260524T231211Z` / `port-syncthing`
+
+Focused commands: PHP syntax on changed PHP files; `php tools/run-tests.php lanes/syncthing/tests`; `git diff --check`.
+Focused result:
+```
+No syntax errors detected in lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php
+No syntax errors detected in lanes/syncthing/src/FolderWatchScanScheduler.php
+No syntax errors detected in lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
+Focused test run: 50 selected test files (root lock skipped)
+PASS maps upstream stream-backed post-auth frame boundaries
+PASS dispatches stream frames through bounded wordpress session handling
+PASS dispatches stream-backed index and progress frames to model callbacks
+PASS rejects truncated and oversized stream frames like upstream readMessage
+PASS maps upstream cluster-config-first writer boundary
+PASS maps upstream dispatcher cluster-config first close and unknown handling
+PASS maps inbound response matching and close-time pending request drain
+PASS serves inbound wordpress requests after cluster config and closes on invalid requests
+PASS dispatches inbound model messages to registered wordpress callbacks
+PASS closes session when a provided model callback fails
+PASS maps upstream v14 hello protobuf frame fixture
+PASS maps upstream old and unknown hello magic handling
+PASS maps request protobuf fields and uncompressed post-auth frame
+PASS maps response protobuf fields and error codes
+PASS maps upstream lz4 block compatibility fixture
+PASS maps compressed response post-auth frames
+PASS maps upstream compression mode threshold and fallback rules
+PASS maps metadata compression for wordpress request payloads
+PASS maps upstream ping and close post-auth frames
+PASS maps compressed close frames and specific decode guards
+PASS maps cluster config folder and device protobuf fields
+PASS maps cluster config device options and post-auth frame type
+PASS maps file info protobuf blocks version flags hashes and platform fields
+PASS maps index and index update protobuf payloads and frame types
+PASS maps download progress append and forget protobuf payloads and frame type
+PASS maps upstream old file download progress update fixtures
+PASS maps deleted and symlink file info wire fields
+PASS rejects malformed cluster config values
+PASS rejects malformed compressed and post-auth frames
+PASS maps upstream folder_sendrecv TestDiff table
+PASS maps upstream folder_sendrecv TestDiffEmpty boundaries
+PASS plans WordPress media requests only for changed target blocks
+PASS rejects non-block inputs
+PASS maps upstream scanner block hash fixtures
+PASS splits file bytes into deterministic content blocks
+PASS verifies block hashes against file bytes
+PASS selects syncthing block sizes from file length
+PASS maps upstream scanner block size hysteresis from current FileInfo
+PASS hashes block lists and validates optional hashes
+PASS rejects invalid block sizing input
+PASS maps upstream block chunk table cases
+PASS maps upstream in-order block pull ordering
+PASS maps upstream standard block pull reorderer device chunks
+PASS maps random order and invalid shuffle callback guards
+PASS maps upstream device activity least busy sequence
+PASS balances wordpress media block plans across full and temporary peers
+PASS maps upstream device download append forget replace and byte counting semantics
+PASS formats upstream canonical device id variants
+PASS validates upstream device id lengths typo replacements and check digits
+PASS maps upstream device id bytes comparison and short id behavior
+PASS maps upstream device id marshalling and certificate hashing boundary
+PASS maps upstream luhn32 check digit behavior
+PASS maps upstream ccCheckEncryption table decisions
+PASS adopts a receive-encrypted cluster token before resending cluster config
+PASS preserves upstream encryption error messages for WordPress peer setup
+PASS matches upstream scrypt and AES SIV key derivation fixtures
+PASS uses password tokens for receive encrypted WordPress peer consistency
+PASS maps upstream file info batch flush error lifecycle
+PASS flushes only when upstream file count or byte limits are reached
+PASS batches wordpress media file infos into index update frames
+PASS maps upstream file info conflict winner ordering
+PASS detects conflicts from vector ancestry and block hash lineage
+PASS maps local invalid and conflict flag handling
+PASS creates tombstones that clear content and advance device versions
+PASS rejects malformed file info hashes
+PASS maps upstream block equality shortcuts and fallback
+PASS maps upstream file info equivalence basic attributes
+PASS maps upstream local flag equivalence handling
+PASS maps upstream permission and block ignore options
+PASS maps symlink target and unix ownership equivalence
+PASS keeps wordpress media metadata equivalent across scanner noise
+PASS maps upstream scanner CreateFileInfo ownership xattrs and block metadata
+PASS maps upstream scanner symlink FileInfo without following target metadata
+PASS reads symlink xattrs from the link path without following the target
+PASS windows scanner walk skips symlink entries instead of emitting FileInfo
+PASS walk skips requested subs below symlinked parents like upstream TraversesSymlink
+PASS diagnoses upstream scanner sub walk parent guard boundaries
+PASS propagates platform data read errors like upstream CreateFileInfo
+PASS rejects noncanonical scanner paths before touching the filesystem
+PASS walk maps upstream scanner sub walk ignore pruning
+PASS walk preserves ignored ancestor directories for included descendants
+PASS walk skips internal and temporary entries while accepting slash-rooted subs
+PASS walk removes stale regular temporary files using upstream temp lifetime
+PASS walk emits upstream FolderScanProgress byte totals while hashing
+PASS walk suppresses scan progress when no hashing work is queued
+PASS walk reports scanner item errors and continues with siblings
+PASS walk reports directory listing errors as scan errors without Failure events
+PASS maps upstream scanner walk failure warnability boundary
+PASS walk progress cancellation stops before hashing another queued file
+PASS walk checkpoint resumes after upstream cancellation boundary
+PASS walk checkpoint carries folder scan progress and path errors together
+PASS walk retains current file block size within upstream hysteresis window
+PASS walk skips unchanged current files while preserving local flag changes
+PASS walk ignores permission-only changes when upstream IgnorePerms is enabled
+PASS windows scanner preserves current executable bits during equivalence
+PASS walk treats modification times inside the upstream window as unchanged
+PASS walk skips unchanged symlink current files and emits target changes
+PASS walk reports upstream normalization errors when auto normalization is disabled
+PASS walk auto normalizes UTF8 filenames before emitting FileInfo
+PASS walk reports upstream normalization conflicts without replacing the existing item
+PASS maps upstream aggregate folder completion math
+PASS maps upstream delete-only need completion as ninety-five percent
+PASS subtracts downloaded temporary bytes without underflow for wordpress progress
+PASS promotes final iteration tempPullErrors into sorted FolderErrors event
+PASS pull success requires zero changes and no promoted pull errors
+PASS folder errors combine and clear scan-error subtrees like upstream Errors
+PASS finisherRoutine temp errors feed folder error promotion
+PASS pull iteration runner clears transient errors before retry success
+PASS pull iteration runner promotes only final iteration errors
+PASS pull iteration runner stops after upstream maximum changed iterations
+PASS maps upstream sqlite TestNeed local and remote need lists
+PASS maps upstream deleted and ignored need boundaries
+PASS preserves remote need metadata across a full index reset
+PASS maps upstream remote directory symlink and alphabetic pagination need
+PASS maps upstream needed-file pull orders from sqlite folderdb
+PASS maps pull order text fallback and deterministic random test hook
+PASS maps upstream global availability and drop recalculation
+PASS maps upstream AllGlobalFilesPrefix subtree selection
+PASS maps upstream DropDevice no-op and global recalculation
+PASS scan API accepts selected WordPress folder map with normalized subdirs
+PASS scan API returns multi-status for paused folders while scanning neighbors
+PASS scan API rejects unknown folders and traversal subdirs before scanning
+PASS scan API redacts absolute paths from scanner status payloads
+PASS scan API accepts upstream next delay and exposes scheduled scan status
+PASS scan API request queue coalesces pending and running folder scans before coordinator invocation
+PASS scan API request queue rejects invalid and over-capacity requests without scanning
+PASS scan API request queue records completed failures and allows a fresh scan after completion
+PASS scan API request queue keeps distinct next delays and resets scheduled status on completion
+PASS checkpoint merges cancelled and resumed scanner results for CurrentFiler reuse
+PASS checkpoint replaces rescanned paths without duplicating completed status rows
+PASS checkpoint status exposes path errors and upstream Failure events for REST payloads
+PASS collector records folder-scoped scanner progress failures and path errors
+PASS root walk aborts emit upstream Failure events through the folder collector
+PASS route registry dispatches WordPress scan route to coordinator
+PASS route registry dispatches optional queue route and preserves coalescing
+PASS route registry returns REST-shaped missing and method errors
+PASS scan folders publishes every registered folder with independent revisions and expiry
+PASS scan folders records paused errors and continues running folders
+PASS scan folder subdirs accepts empty and slash-normalized upstream subdir forms
+PASS stale publish in one folder is returned as an error while neighboring folders commit
+PASS delayed scan timing resets next scan and only publishes checkpoints when due
+PASS scan service persists cancelled checkpoint and resumes with CurrentFiler files
+PASS checkpoint store rejects stale revisions and supports conflict-safe deletes
+PASS checkpoint store expires stale folder snapshots before loading or listing
+PASS scan service detects concurrent checkpoint updates before publishing scan result
+PASS checkpoint store merges scan results when revision matches latest snapshot
+PASS watch aggregator rolls crowded directories and root overflows into parent scans
+PASS watch aggregator delays non-removes, ignores in-progress items, and orders remove batches last
+PASS watch scan scheduler coalesces media events into a delayed subdir checkpoint
+PASS watch scan scheduler ignores Syncthing-owned changes and does not consume paused folder events
+PASS watch scan scheduler falls back to a full scan and backs off watcher restarts after errors
+PASS loads upstream-style include chains relative to the current ignore file
+PASS maps custom escape characters bracket ranges and brace alternatives
+PASS rejects invalid include escape placement and applies upstream skip-dir boundary
+PASS uses included WordPress ignore snippets before serving request bytes
+PASS maps upstream cluster config device info start sequence decisions
+PASS stores pending add index info until shared folder starts
+PASS pauses and resumes registered folder state without replacing handler
+PASS replaces a running handler when new cluster index info arrives
+PASS removes running and pending handlers outside the active share set
+PASS maps upstream ReceiveIndex missing paused and running folder boundaries
+PASS updates attached folder index state from received Index and IndexUpdate batches
+PASS maps upstream initial index then delta prev sequence tracking
+PASS keeps upstream add delete rename pair in one full batch
+PASS skips receive encrypted local changes while advancing sequences
+PASS prepares local receive only and finalized encrypted FileInfo for index
+PASS builds wordpress BEP frames and forget updates for received regular files
+PASS rejects non increasing database sequence streams
+PASS maps upstream receive full index reset event and temporary progress forget
+PASS maps upstream receive index anomaly logging without rejecting the update
+PASS rejects duplicate remote sequence numbers after scheduling a pull
+PASS replaces filtered xattrs like upstream SetXattr
+PASS empty desired xattr set removes only filtered current attributes
+PASS stale xattr removal failure stops before setting new xattrs
+PASS ignores unsupported xattr filesystems like upstream setPlatformData
+PASS propagates xattr list failures before metadata writes
+PASS propagates xattr get failures before remove or set
+PASS propagates xattr remove hard errors before setting new xattrs
+PASS propagates xattr set hard errors with the attribute name
+PASS treats absent default host xattr extension as unsupported no-op
+PASS sets symlink xattrs on the link path without following the target
+PASS maps upstream timer gate and wire connection sends
+PASS maps upstream deregister cleanup and idle timer stop
+PASS records send failures after state advances without retrying unchanged updates
+PASS rejects malformed progress scheduler inputs
+PASS maps upstream progress emitter subscription grouping
+PASS maps upstream deregister folder unshare and disconnect cleanup
+PASS maps upstream disable cleanup before clearing state
+PASS maps upstream puller progress byte estimation and events
+PASS rejects malformed progress emitter inputs
+PASS maps upstream check filename table cases
+PASS maps upstream index file info consistency checks
+PASS maps upstream request size and filename validation
+PASS normalizes outgoing wire paths for requests and index updates
+PASS keeps unix wire backslashes as literal filename characters
+PASS dbUpdaterRoutine batches pulled updates fsyncs changed dirs and emits last received file
+PASS updateLocalsFromPulling emits remote change events after local batch update
+PASS dbUpdaterRoutine flushes at upstream file count limit and emits one received file per batch
+PASS dbUpdaterRoutine timer tick flushes partial batch before close
+PASS dbUpdaterRoutine skips received file events for invalid and shortcut metadata updates
+PASS finisherRoutine promotes successful pulls completes queue and emits item finished
+PASS finisherRoutine records failed final close as temp pull error and is idempotent
+PASS finisherRoutine ignores not-ready states without lifecycle side effects
+PASS finisherRoutine leaves receive-encrypted progress emitter registrations alone
+PASS handleDir creates nested directory emits lifecycle and schedules database update
+PASS handleSymlink creates link emits lifecycle and schedules symlink database update
+PASS handleDir moves conflicting regular file aside before directory update
+PASS handleSymlink rejects incompatible empty targets without database update
+PASS deleteFile removes tracked media file emits delete lifecycle and schedules database update
+PASS deleteFile does not follow parent symlink and still records tombstone update
+PASS deleteFile keeps case-only local sibling while accepting remote tombstone
+PASS deleteFile moves conflict copy before accepting remote tombstone
+PASS deleteDirectory preserves unscanned local directory and queues scan
+PASS deleteDirectory removes deletable ignored child tree and schedules directory tombstone
+PASS processDeletions deletes files before reverse ordered directory tombstones
+PASS processDeletions coalesces repeated file tombstones by path
+PASS processMetadataShortcuts updates same-block metadata and leaves other files for pull
+PASS shortcutFile honors ignored permissions while applying upstream mtime
+PASS shortcutFile applies synced ownership and xattrs before database update
+PASS shortcutFile keeps xattr metadata failure retryable without database update
+PASS shortcutFile reports missing files without creating empty placeholders
+PASS shortcutFile rewrites receive-encrypted FileInfo trailer before shortcut database update
+PASS shortcutFile keeps receive-encrypted trailer write failure retryable without database update
+PASS processMetadataShortcuts does not create synthetic receive-encrypted parents after shortcut failure
+PASS shortcutFile truncates stale receive-encrypted trailer bytes before shortcut database update
+PASS processRenameShortcuts renames same-block source tombstone into target
+PASS processRenameShortcuts retries next same-block candidate when first source changed
+PASS renameFileShortcut scans changed existing target and leaves source in place
+PASS maps upstream job queue push pop done cycle
+PASS maps upstream bring to front ordering cases
+PASS maps upstream queue pagination across progress and queued jobs
+PASS queues prioritized wordpress media pulls and validates inputs
+PASS pullScannerRoutine aggregates duplicate finalization paths until close
+PASS pullScannerRoutine keeps file and directory scan scheduling separate before one scan batch
+PASS finisher queues failed finalization scan names without scheduling during pull
+PASS pullScannerRoutine captures schedule callback failures and remains closed
+PASS assembles copied sparse and pulled blocks into final media file
+PASS finalClose waits for all blocks and is idempotent after rename
+PASS temporary files keep upstream provisional owner write permissions
+PASS performFinish applies platform metadata to temp file before promotion
+PASS performFinish keeps temp file when platform metadata fails
+PASS reused read-only temporary files are made writable before block writes
+PASS performFinish moves conflicting local file aside before promotion
+PASS performFinish replaces non-conflicting descendant file without conflict copy
+PASS performFinish schedules a scan when the existing final file changed after scanning
+PASS performFinish promotes case-only replacement on case-sensitive filesystems
+PASS performFinish reports case conflict without scan on case-detecting filesystems
+PASS performFinish archives non-conflicting regular replacement when versioner is configured
+PASS performFinish prefers conflict copy over version archive for conflicting regular replacement
+PASS performFinish deletes tracked directory before regular file promotion
+PASS performFinish schedules a scan instead of deleting directory with unknown children
+PASS performFinish removes upstream temporary children before directory replacement
+PASS performFinish preserves nondeletable ignored directory children before replacement
+PASS performFinish treats receive-only changed directory children as scanned resurrection work
+PASS moveForConflict prunes older conflict copies past maxConflicts
+PASS failed block pulls close but leave temporary file reusable
+PASS receive-encrypted finalization appends FileInfo trailer before promotion
+PASS maps upstream handleFile copy and pull accounting
+PASS maps upstream handleFile temporary-file reuse pruning
+PASS maps local block-index fallback and copier finder pull list
+PASS maps upstream sparse zero-block handling from TestPullEmptyBlock
+PASS receive-encrypted planning does not reuse temporary file blocks
+PASS rejects malformed pull work inputs
+PASS maps upstream XChaCha20 encrypted bytes fixture
+PASS maps encrypted request geometry and opaque hash token fields
+PASS maps encryptedConnection request response padding and trim semantics
+PASS maps encryptedModel inbound request decryption and response encryption
+PASS serves encryptedModel requests through native request server
+PASS maps upstream deterministic encrypted name fixtures and invalid cases
+PASS maps upstream deterministic block hash token invariants
+PASS maps encrypted inbound requests back to plaintext geometry
+PASS maps upstream encrypted name slashification and parent detection
+PASS maps receive-encrypted synthetic parent scan cleanup
+PASS writes and extracts upstream receive-encrypted file trailers
+PASS maps receive-encrypted finalization trailer and verification boundaries
+PASS maps upstream encrypted file info wrapper invariants
+PASS maps encrypted index and index update collection wrappers
+PASS maps encryptedConnection DownloadProgress no-op for encrypted folders
+PASS maps encryptedModel DownloadProgress no-op before temporary state mutation
+PASS maps encrypted file info consistency for ignored symlink metadata
+PASS maps upstream model download progress sharing guard and event summary
+PASS maps temporary block availability and fromTemporary request planning
+PASS prefers full-file availability before temporary candidates and validates inputs
+PASS maps upstream disconnected device availability and temporary state cleanup
+PASS fails pullBlock before requesting unavailable connected-device candidates
+PASS maps pullBlock retry activity and response hash validation
+PASS maps pullBlock final failure after response and callback errors
+PASS skips network requests for upstream all-zero pull blocks
+PASS receive-encrypted pullBlock accepts opaque hash-token responses
+PASS maps upstream response error code conversion
+PASS maps rawConnection outbound ids and response completions
+PASS maps rawConnection close draining awaiting requests
+PASS maps dispatcher request validation boundaries before request handling
+PASS serves valid fromTemporary requests from the temporary file first
+PASS falls back to the final file when temporary data does not validate
+PASS maps final-file hash mismatch and empty hash short reads
+PASS rejects unshared devices internal paths traversal and negative ranges
+PASS maps upstream request max-size guard before serving media bytes
+PASS rejects explicit ignored request paths before disk reads
+PASS receive-encrypted final requests skip hash validation after temporary mismatch
+PASS uses upstream temporary filename hashing for long basenames
+PASS maps upstream temporary file prefix recognition
+PASS maps upstream sent download append diff and timestamp semantics
+PASS maps upstream version changes and puller recreation forget append pairs
+PASS maps upstream min block filtering inactive files and completed pull cleanup
+PASS maps upstream folder cleanup forget messages
+PASS rejects malformed sent download state inputs
+PASS maps upstream service map add remove lifecycle
+PASS maps upstream service map overwrite stop before replace
+PASS maps upstream stop retention remove and wait boundaries
+PASS maps upstream iteration with remove and wait
+PASS manages wordpress folder services without dropping retained state
+PASS propagates service map callback errors like upstream each errors
+PASS sqlite checkpoint store persists snapshots across connections with FileInfo metadata
+PASS sqlite checkpoint store rejects stale revisions and expires rows before reuse
+PASS sqlite checkpoint store merges results and lists unexpired folders in stable order
+PASS folder scan service resumes through a sqlite checkpoint store
+PASS sqlite checkpoint store rejects unsafe table names and malformed payload rows
+PASS maps upstream version update ordering semantics
+PASS merges counters using upstream max-by-device rules
+PASS compares version vectors including concurrent orderings
+PASS detects concurrent wordpress edits before merge
+PASS rejects invalid vector counters
+PASS wordpress option store persists checkpoint payloads with FileInfo metadata
+PASS wordpress option store rejects stale revisions and compare-and-swap conflicts
+PASS wordpress option store expires snapshots and deletes stale options before reuse
+PASS folder scan service resumes through a wordpress option checkpoint store
+PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads
+
+50 test files, 2533 assertions, 0 failures
+```
+
+Root command: `php tools/run-tests.php`
+Root result:
+```
+PASS wordpress option store expires snapshots and deletes stale options before reuse
+PASS folder scan service resumes through a wordpress option checkpoint store
+PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads
+
+208 test files, 24186 assertions, 0 failures
+```
+
+Support-library/dependency-closure decision: no support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- lanes/syncthing/UPSTREAM_TEST_MANIFEST.json
+- lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php
+- lanes/syncthing/lane-status.json
+- lanes/syncthing/notes/wordpress-scenarios.md
+- lanes/syncthing/src/FolderWatchScanScheduler.php
+- lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
+

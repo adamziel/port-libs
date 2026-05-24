@@ -86,6 +86,70 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler falls back to a full scan and backs off watcher restarts after errors' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore(), ttlSeconds: 60);
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+
+            $first = $watch->recordWatcherError('wordpress-media', 'inotify queue overflow', hashBlocks: true, blockSize: 4, now: 3000);
+            $restart = $watch->watchStatus('wordpress-media', 3001)['watcherRestart'] ?? null;
+
+            $t->true($first->successful());
+            $t->same(1, $first->snapshot('wordpress-media')?->revision);
+            $t->same([
+                'wp-content',
+                'wp-content/uploads',
+                'wp-content/uploads/2026',
+                'wp-content/uploads/2026/05',
+                'wp-content/uploads/2026/05/hero.jpg',
+            ], $first->snapshot('wordpress-media')?->checkpoint->completedPaths());
+            $t->same('inotify queue overflow', $restart['lastError'] ?? null);
+            $t->same(1, $restart['restartAttempt'] ?? null);
+            $t->same(5, $restart['restartDelaySeconds'] ?? null);
+            $t->same(3005, $restart['restartAt'] ?? null);
+            $t->same(4, $restart['remainingSeconds'] ?? null);
+            $t->same(false, $restart['due'] ?? null);
+            $t->same(true, $restart['scanOnWatchError'] ?? null);
+
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/poster.webp', 'ijklmnop');
+            $second = $watch->recordWatcherError(
+                'wordpress-media',
+                new RuntimeException('watcher closed'),
+                scanOnWatchError: false,
+                now: 3002,
+            );
+            $restart = $watch->watchStatus('wordpress-media', 3012)['watcherRestart'] ?? null;
+
+            $t->same([], $second->snapshots());
+            $t->same(1, $service->checkpoint(3012)?->revision);
+            $t->same('watcher closed', $restart['lastError'] ?? null);
+            $t->same(2, $restart['restartAttempt'] ?? null);
+            $t->same(10, $restart['restartDelaySeconds'] ?? null);
+            $t->same(3012, $restart['restartAt'] ?? null);
+            $t->same(0, $restart['remainingSeconds'] ?? null);
+            $t->same(true, $restart['due'] ?? null);
+            $t->same(false, $restart['scanOnWatchError'] ?? null);
+
+            $t->same(true, $watch->markWatcherRestarted('wordpress-media'));
+            $t->same(null, $watch->watchStatus('wordpress-media', 3012));
+            $third = $watch->recordWatcherError('wordpress-media', 'watcher restarted then failed', now: 3020);
+            $t->same(1, $watch->watchStatus('wordpress-media', 3020)['watcherRestart']['restartAttempt'] ?? null);
+            $t->same(2, $third->snapshot('wordpress-media')?->revision);
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string
