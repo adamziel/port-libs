@@ -51,6 +51,14 @@ Snapshot reviewed:
   `lanes/gitoxide/tests/GitIndexUntrackedCacheTest.php`. The later retry was
   still running in the visible log, so no passing root snapshot was available
   for acceptance.
+- Postscript after the initial hold commit: the root-red follow-up completed
+  and wrote `audits/root-red-followup-20260524T145529Z.md`, reporting
+  `php tools/run-tests.php` exit `0` with
+  `379 test files, 60904 assertions, 0 failures`. I committed that as
+  moving-tree root-red follow-up evidence only; it does not accept unrelated
+  dirty lane output. The final exact process gate still matched focused
+  Syncthing `tools/run-tests.php` work, and untracked-inclusive status rows had
+  moved again to `18945`.
 - Active tmux ownership remains present for every main lane plus auditor,
   evaluator, dashboard-updater, integrator, capacity controller/executor rows,
   dependency/support scouts, Dolt, and Dolt-runner. Dolt remains skipped despite
