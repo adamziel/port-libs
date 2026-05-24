@@ -24,6 +24,8 @@ total status rows including untracked: 9822
 git diff HEAD --shortstat: 290 files changed, 134561 insertions(+), 15243 deletions(-)
 tmux sessions: 162
 required pre-root gate at 2026-05-24T01:01Z: no matches for pgrep -af '^php tools/run-tests\.php( |$)'
+final pre-finish gate at 2026-05-24T01:04Z: focused Syncthing PID 1497734 matched the same pattern; no no-argument root PID was present
+focused owner evidence: 1497734 claude 1427065 50s Rs php tools/run-tests.php lanes/syncthing/tests
 root run by this audit: not started; tree was not stable enough
 ```
 
@@ -195,9 +197,15 @@ The required exact pre-root gate was checked:
 ```text
 pgrep -af '^php tools/run-tests\.php( |$)'
 <no matches at 2026-05-24T01:01Z>
+
+final pre-finish sample at 2026-05-24T01:04Z:
+1497734 php tools/run-tests.php lanes/syncthing/tests
+
+ps -o pid,user,ppid,etimes,stat,args -p 1497734
+1497734 claude 1427065 50 Rs php tools/run-tests.php lanes/syncthing/tests
 ```
 
-Even with no matching root harness at that sample, the tree was not stable
+Even with no no-argument root harness at the samples, the tree was not stable
 enough for a meaningful root run: `HEAD` moved during the audit, 162 tmux
 sessions were present, every lane remained a dirty handoff, and the worktree
 contained 290 tracked dirty rows plus 9,822 total status rows.
