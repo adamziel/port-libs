@@ -1,5 +1,100 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T14:45:48Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate `porting.html` or `porting-summary.json`, push, wait
+on `.upstream-cache/run-tests.lock`, bypass the lock, or start a no-argument
+root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recent/active workers, dirty
+  lane files shown by Git, live tmux/process state, `dependency-backlog.json`,
+  `porting-summary.json`, and this integration-status artifact.
+- Current `HEAD` sampled as `24b6fc0b69e5` on
+  `main...origin/main [ahead 915, behind 68]`. `HEAD` moved during the pass
+  from `7ab00951` to `24b6fc0b` after another independent audit commit, so the
+  checkout is not a frozen acceptance snapshot.
+- The untracked-inclusive status count moved to `18802` rows, and shortstat
+  was `329 files changed, 251136 insertions(+), 32057 deletions(-)`.
+- Dirty status rows span every priority lane and substantial generated/status
+  output: audits `8789`, `.tmux-team` `7494`, Difftastic `442`, markerPDF
+  `255`, Syncthing `244`, rclone `238`, Pandoc `209`, Gitoxide `205`, Dolt
+  `199`, LightningCSS `182`, Readability `173`, libsqlite `164`, Quadrable
+  `116`, esbuild `73`, plus scripts and `testdir/`.
+- Tracked dirty rows alone span every lane: markerPDF `89`, Gitoxide `58`,
+  Quadrable `41`, Syncthing `26`, esbuild `20`, LightningCSS `17`,
+  Readability `15`, libsqlite `13`, Dolt `12`, Pandoc `11`, Difftastic `10`,
+  and rclone `8`, plus coordination/script files.
+- Active tmux ownership remains present for every main lane plus auditor,
+  evaluator, dashboard-updater, integrator, capacity controller/executor rows,
+  support/dependency sessions, Dolt implementation, and Dolt-runner. Recent
+  log mtimes were still advancing through `2026-05-24T14:46:00Z`, including
+  integrator, dashboard-updater, capacity, rclone, libsqlite, Dolt, Pandoc,
+  esbuild, Quadrable, LightningCSS, and Readability logs.
+- Recent worker tails show lane-local work rather than owner-free acceptance
+  bundles. Sampled tails included Dolt JSON_KEYS/query-diff changes and an
+  active runner refresh, esbuild metafile import records, Quadrable quadb
+  command-boundary work, Readability metadata/JSON-LD behavior, Gitoxide
+  fsmonitor decode diagnostics, Pandoc HTML writer media categories,
+  Syncthing GUI static route inventory, markerPDF PDF text/ActualText and
+  DecodeParms work, LightningCSS read-only selector compatibility,
+  libsqlite JSON path/operator guards, Difftastic computed TypeScript property
+  signature diffs, and rclone InitLogging/platform-output work.
+- The exact PHP process gate was not clear. It matched no-argument root PID
+  `244316` (`php tools/run-tests.php`) and focused Syncthing PID `245899`
+  (`php tools/run-tests.php lanes/syncthing/tests/...`). I did not start a
+  duplicate root run, wait on the lock, or treat this concurrent moving-tree
+  root as accepted integration evidence.
+- Dolt remains skipped despite reauthorization. `port-dolt`, `port-dolt-runner`,
+  and Dolt capacity/miner sessions are active, and the runner was still inside
+  a local-only BATS shard (`runner-refresh-20260524T143750Z`) with `bats`
+  processes active on the diff/query-diff/schema files. Implementation and
+  runner evidence are not reconciled against one frozen dirty set.
+- `dependency-backlog.json`, all 12 lane manifests, all 12 lane-status files,
+  and `porting-summary.json` parse as JSON. The backlog remains status-only
+  with `37` rows (`blocked=1`, `candidate=25`, `deferred=11`) and no active
+  bounded support-library port accepted by this pass.
+- `porting-summary.json` still reports generated time
+  `2026-05-24 12:29:46 UTC` and source commit `89260857cc71`, so local
+  dashboard artifacts remain stale relative to current `HEAD` and the dirty
+  checkout. I did not regenerate dashboard artifacts from a moving tree.
+- I did not claim upstream parity, full-suite parity, no-argument root parity,
+  live-provider coverage, dashboard parity for the dirty checkout, or
+  support-library activation from any moving-tree worker, capacity-runner,
+  Dolt-runner, focused-runner, dashboard-updater temp clone, or published
+  dashboard anecdote.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze lane writers, rearm prompts, dashboard/status publishers,
+support-library scouts, capacity executor rows, focused/root runners, upstream
+runner launchers, Dolt, and Dolt-runner; then take two stable polls of `HEAD`,
+tracked rows, untracked-inclusive rows, shortstat, exact process gates,
+dashboard/dependency counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, broad untracked
+fixture/example/audit additions, rearmed owners, capacity-runner evidence from
+differing scopes, an active no-argument root run on a moving tree, focused
+Syncthing verification in progress, Dolt runner output still in flight, stale
+local dashboard artifacts, and dashboard/status claims from source snapshots
+other than the current dirty tree.
+
+Next safe integration target: after a hard freeze, choose one owner-free lane
+batch whose dirty set and evidence are unchanged across two polls. The
+coherent-looking recent handoffs to recheck first are rclone, libsqlite,
+Pandoc, esbuild, Quadrable, LightningCSS, Readability, Difftastic, markerPDF,
+and Syncthing; each still needs idle ownership, unchanged lane diff, focused
+verification, `git diff --check`, and one serialized no-argument
+`php tools/run-tests.php` result on the accepted snapshot with lock-wait status
+recorded. Dolt should remain skipped until both Dolt sessions are idle and the
+runner evidence is reconciled against the same frozen dirty set.
+
 ## Integration Hold - 2026-05-24T14:41:19Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
