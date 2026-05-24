@@ -1,5 +1,103 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T07:27:30Z
+
+No lane implementation output was integrated by this pass. I did not stage
+lane source files, regenerate `progress.md`, run
+`php tools/generate-dashboard.php`, update `porting.html` or
+`porting-summary.json`, push, or start a no-argument `php tools/run-tests.php`.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for active/recent workers, dirty
+  lane paths from Git, live tmux/process state, current lane/status dirty
+  scope, existing integration status, `dependency-backlog.json`, and recent
+  root harness evidence.
+- Current branch sample is `main...origin/main [ahead 756, behind 68]` at
+  `HEAD` `2b8a5277a4a3`.
+- The checkout is still too active for a coherent integration batch. During
+  this pass, untracked-inclusive status rows moved `15355 -> 15444 -> 15447`,
+  and shortstat moved from
+  `315 files changed, 192067 insertions(+), 28066 deletions(-)` through
+  `315 files changed, 192068 insertions(+), 28067 deletions(-)` to
+  `315 files changed, 192080 insertions(+), 28067 deletions(-)`.
+- Dirty scope remains broad and not lane-isolated. Tracked dirty files still
+  touch every priority lane, plus `.tmux-team` prompts,
+  `dependency-backlog.json`, `porting.html`, `porting-summary.json`, and shared
+  scripts. Untracked-inclusive status grouped to about `7286` `audits` rows,
+  `6082` `.tmux-team` rows, and `2043` `lanes` rows.
+- Dirty lane scope includes Difftastic, Dolt, esbuild, Gitoxide, libsqlite,
+  LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability, and
+  Syncthing in both tracked diff and untracked-inclusive status.
+- `jq empty` passed for `dependency-backlog.json`, `porting-summary.json`, all
+  12 lane-status files, and all 12 upstream manifests. `dependency-backlog.json`
+  is currently an object with `items`, not a top-level array; it has `23` items
+  (`13` `candidate`, `10` `deferred`) and remains consistent with the
+  `progress.md` statement that no dependency port is active by default.
+- `porting-summary.json` remains stale and not accepted as publication state:
+  it was generated `2026-05-23 23:43:54 UTC` from source snapshot
+  `79768df0c427aa9c96e6d97c5137c2d79ae9ce6e`, and its
+  `dependencyBacklog` section currently has only `7` rows while
+  `dependency-backlog.json` has `23` items.
+- A capacity-owned no-argument dirty-root run was active during the first
+  process sample as PID `3095269` (`php tools/run-tests.php`) and later
+  completed in
+  `audits/capacity-feed-dirty-root-2c61f4c429a9-cc136c700ef7.md` with command
+  `php tools/run-tests.php`, exit `0`, `367` files, `52339` assertions, and
+  `0` failures. It also recorded `git diff --check` and
+  `git diff --cached --check` exit `0`.
+- That dirty-root result is useful diagnostics only, not an accepted
+  integration snapshot: it started at dirty `HEAD` `2b8a5277a4a3` with `15291`
+  status rows, then this pass observed status rows and shortstat moving after
+  completion. It is not combined with other moving-tree evidence.
+- I did not wait on `.upstream-cache/run-tests.lock`; the lock file existed as
+  a zero-byte file, and no owner-free lane batch was accepted. A later exact
+  no-argument root gate was clear, but focused Syncthing verification was
+  active as PID `3107471` (`php tools/run-tests.php lanes/syncthing/tests`).
+- Live tmux/process samples showed active sessions for every priority lane plus
+  auditor, dashboard-updater, evaluator, integrator, capacity
+  controller/executor, watchdog, support-library scouts, Dolt implementation,
+  and Dolt runner contexts. Recent log tails/mtimes were still active for
+  Gitoxide, Difftastic, Readability, Quadrable, Syncthing, libsqlite,
+  LightningCSS, Dolt, Dolt runner, Pandoc, esbuild, auditor, evaluator,
+  capacity, and rclone selector contexts.
+- Recent worker evidence remains reviewable but unaccepted. The LightningCSS
+  tail reported a focused Lab/Oklab `color-mix()` slice with lane tests
+  passing but no root verification assigned; MarkerPDF tails showed ongoing PDF
+  text/LZW work; capacity rclone selector logs and focused Syncthing PHP work
+  were still active or recently active.
+- Dolt remains skipped despite reauthorization. The Dolt implementation
+  session, Dolt runner session, capacity Dolt BATS contexts, and dirty Dolt
+  metadata/source files have not converged into a coherent lane-scoped
+  implementation-plus-runner handoff from the same frozen snapshot.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild. Each has dirty lane files plus active or recently active lane,
+runner, watchdog, capacity, evaluator, auditor, dashboard, integrator,
+support-library, or Dolt runner context.
+
+Waiting: a hard writer/runner/status freeze. The next safe point is after
+`HEAD`, tracked status count, untracked-inclusive status count, shortstat,
+exact PHP runner state, focused PHP runner state, Dolt runner state, capacity
+queue state, dashboard publication state, and relevant log mtimes stay stable
+across two samples.
+
+Risky: accepting any lane now would mix lane source edits, generated status
+edits, dependency-backlog edits, stale dashboard artifacts, dirty-tree root
+evidence, focused Syncthing evidence, rclone/Dolt upstream selector evidence,
+and active status publication evidence from different moving intervals.
+
+Next safe integration target: after the freeze, choose one quiet lane-scoped
+batch with coherent worker evidence, run focused lane verification, run the
+serialized no-argument `php tools/run-tests.php` from that same accepted source
+snapshot if the exact runner gate is clear, record whether it waited on
+`.upstream-cache/run-tests.lock`, run `git diff --check`, regenerate dashboard
+artifacts only after accepted lane/status changes, then commit or reject the
+batch.
+
 ## Integration Hold - 2026-05-24T07:22:40Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
