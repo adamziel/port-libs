@@ -1,5 +1,93 @@
 # Integration Status
 
+## Integration handoff rejection - Quadrable - 2026-05-24 20:45 UTC
+
+No Quadrable lane output was integrated. I selected the fresh handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-quadrable.ready`
+(`timestamp=2026-05-24T20:42:42Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-quadrable` pane was idle at `bash`
+(`pane_pid=1677088`) with no child process. I held only Quadrable with
+`.tmux-team/tmp/integration-holds/port-quadrable.hold` at
+`2026-05-24T20:43:44Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `6bc3d986f021`.
+- Quadrable dirty rows stayed at `127`, with status hash
+  `386426361c9850028eee7325b6b3f70e7413f9bc981a96e3b76b7c34bcd7075a`.
+- Quadrable tracked shortstat stayed
+  `42 files changed, 13762 insertions(+), 2705 deletions(-)`.
+- Relevant log files stayed unchanged:
+  `.tmux-team/logs/port-quadrable-watchdog-20260524T202716Z.log`
+  (`mtime=1779655311`, `4672142` bytes) and
+  `.tmux-team/logs/port-quadrable-supervisor-reduced-20260524T202230Z.log`
+  (`mtime=1779654416`, `1711841` bytes).
+- The exact no-argument root gate matched active PID
+  `1795494 php tools/run-tests.php` on the first held poll, then returned no
+  rows on the second. No integration-owned root harness was started because
+  the handoff was rejected before acceptance, and the transient moving-tree
+  root run was not counted as an accepted integration snapshot.
+
+Focused evidence reviewed:
+
+- Advertised latest slice: proof-backed `QuadbStore::patchCommandOutput()`
+  malformed-operation precedence for delegated proof heads. The worker report
+  says upstream `quadb` returns `quadb error: unexpected line in patch` for
+  `~|bad`, and the native partial-tree branch now checks unknown operations
+  before zero-length key validation while preserving the authenticated root.
+- Worker-reported evidence was focused and green for that narrow claim:
+  targeted cloned upstream `quadb` CLI probe, `php -l` on touched PHP files,
+  the WordPress proof-patch guard example, focused `QuadbStoreTest.php`
+  (`1` file, `1719` assertions, `0` failures), full
+  `lanes/quadrable/tests` (`12` files, `5626` assertions, `0` failures),
+  upstream `make -C .upstream-cache/quadrable -r test` (`All tests OK`),
+  lane JSON validation, and lane-scoped `git diff --check`.
+- The same handoff and the prior split audit both admit the real acceptance
+  blocker: the Quadrable dirty lane contains many unrelated unaccepted slices
+  across tracked core files plus numerous untracked examples/helpers/tests.
+  The status metadata now describes the proof-patch slice, earlier stateful
+  LMDB marker guards, proof transport, noTrack metadata, iterator/checkpoint,
+  external MemStore, sync, raw-LMDB, binary/stdin, path-display, and
+  current-head work in the same dirty lane.
+
+Decision: rejected/deferred, not integrated. The latest proof-patch claim is
+small and appears well evidenced, but the actual Quadrable dirty scope is an
+accumulated multi-slice patch. Accepting all Quadrable files would merge far
+more than the reviewed proof-patch evidence. Staging only the advertised hunks
+would leave `lane-status.json`, `UPSTREAM_TEST_MANIFEST.json`, upstream notes,
+and WordPress scenarios coupled to earlier unaccepted work and would not give a
+clean root-tested acceptance snapshot. No dashboard artifacts were regenerated
+and no progress claim was advanced. `dependency-backlog.json` is valid JSON
+with `37` items and remains consistent with the `progress.md` backlog count;
+no support-library row was activated or counted for this rejected Quadrable
+slice.
+
+Exact next Quadrable worker task: re-emit one reduced handoff from the accepted
+lane baseline. If the claim remains proof-backed patch invalid-operation
+precedence, include only the minimal `QuadbStore.php` operation-order hunk, the
+single `QuadbStoreTest.php` assertion block, the corresponding
+`wordpress-quadb-proof-patch-guard.php` output fields, and normalized
+manifest/status/scenario notes for that slice. If that slice depends on earlier
+proof-backed patch/import behavior, include that prerequisite as one coherent
+reduced proof-patch stack with its own focused evidence. Do not bundle
+stateful LMDB marker guards, proof transport codecs, noTrack metadata,
+iterator/checkpoint, external MemStore, sync, raw-LMDB, binary/stdin,
+path-display, current-head, or broad command parity work in the same handoff.
+Reference `quadrable-proof-transport-codec-core`, `sequence-diff-merge-core`,
+`checksum-hash-suite`, or `sql-storage-codec-core` only when a future accepted
+slice actually activates those bounded support-library gates.
+
+Current skipped lanes: Difftastic, Dolt, Dolt runner, esbuild, Gitoxide,
+libsqlite, LightningCSS, markerPDF, Pandoc, rclone, Readability, and Syncthing
+remain dirty, active, or independently owned outside this selected Quadrable
+hold. Dolt remains skipped until implementation and runner evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: a fresh reduced Quadrable marker only if the worker
+narrows the dirty scope to the stated proof-patch handoff, otherwise libsqlite
+after it is owner-free and reduced or fully evidenced, otherwise the next
+owner-free `.ready` marker whose dirty scope exactly matches its worker
+evidence.
+
 ## Integration handoff rejection - Gitoxide - 2026-05-24 20:40 UTC
 
 No Gitoxide lane output was integrated. I selected the fresh handoff candidate
