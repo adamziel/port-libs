@@ -1,5 +1,85 @@
 # Integration Status
 
+## Integration handoff rejection - markerPDF - 2026-05-24 19:03 UTC
+
+No markerPDF lane output was integrated. I selected
+`.tmux-team/tmp/handoff-candidates/port-markerpdf.ready`
+(`timestamp=2026-05-24T18:58:09Z`, reason `no-codex-handoff-grace`) and held
+only that lane with `.tmux-team/tmp/integration-holds/port-markerpdf.hold` at
+`2026-05-24T18:58:58Z`. The `port-markerpdf` pane was idle at `bash`
+(`pane_pid=936475`) with no child process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `22e041c9620e`
+  (`Refresh independent audit status`).
+- markerPDF tracked shortstat stayed
+  `89 files changed, 17993 insertions(+), 613 deletions(-)`.
+- markerPDF tracked name hash stayed
+  `f94dfcb7e898351cc789d1bfeda7aef10ebff3ae1c140c44bd1d0d1e7f2014b1`,
+  and untracked markerPDF name hash stayed
+  `363a75eff2e144c36364744ebd3299928d34f91b93fef560f33cf72d4cba4054`.
+- Exact no-argument root gate was clear in both polls:
+  `pgrep -af '^php tools/run-tests\.php$'` returned no rows. I did not start a
+  root harness, did not wait on `.upstream-cache/run-tests.lock`, and did not
+  treat any moving-tree root anecdote as accepted evidence because no lane
+  batch was accepted.
+- The ready marker, hold marker, and current markerPDF watchdog log timestamps
+  stayed stable. The global tracked shortstat still moved by two insertions
+  during intake, so this was not a frozen repository-wide snapshot.
+- `jq empty dependency-backlog.json` passed. The relevant support rows
+  `pdf-text-dictionary-core`, `layout-ocr-result-core`, and
+  `table-geometry-core` are present as inactive `candidate` rows with explicit
+  markerPDF activation gates; none was activated or counted.
+
+Focused evidence reviewed:
+
+- Worker handoff reported a narrow native PDF text-state spacing slice in
+  `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, and
+  `wordpress-pdf-text-state-spacing-import.php`.
+- Worker evidence recorded PHP lint on touched files,
+  `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`
+  passing `134` assertions, the WordPress spacing example emitting the expected
+  paragraph text, `php tools/run-tests.php lanes/markerpdf/tests` passing `55`
+  files and `2,413` assertions, `jq` on lane JSON, and
+  `git diff --check -- lanes/markerpdf`.
+- The lane blocker field leads with root aggregate verification, full upstream
+  runner parity, and unactivated support-library gates for richer
+  pdftext/layout/table parity. It does not claim upstream parity or activate
+  support-library progress.
+
+Decision: rejected/deferred, not integrated. The latest text-state spacing
+handoff is focused and evidenced, but the dirty markerPDF state is accumulated
+far beyond that claim. The tracked diff covers 89 files, including broad
+benchmark, server/runtime preflight, OCR, table, image, heading, metadata, and
+PDF parser/test changes. `PdfTextExtractor.php` alone has a multi-thousand-line
+accumulated diff, and `PdfTextExtractorTest.php` has a large accumulated test
+expansion before the new spacing assertion. Accepting this as one commit would
+conflate many older unaccepted markerPDF slices under the latest focused
+evidence.
+
+Exact next markerPDF worker task: re-emit a reduced, reviewable handoff. If the
+text-state spacing slice depends on unaccepted PDF extractor foundation work,
+first produce the smallest foundation batch needed for that slice with its own
+source/test/example/status evidence. Then produce the spacing slice containing
+only the minimal text-state advance behavior, the focused spacing assertions,
+the single `wordpress-pdf-text-state-spacing-import.php` example, and normalized
+manifest/status/notes. Leave benchmark/archive, server/runtime preflight,
+OCR/model, table recognition, image extraction, outlines/metadata, object
+stream/xref, and unrelated PDF decoding work for separate batches. Keep the
+blocker led by root aggregate verification, full upstream runner parity, and
+the inactive `pdf-text-dictionary-core`, `layout-ocr-result-core`, and
+`table-geometry-core` support gates.
+
+Current skipped lanes: Dolt remains skipped because both implementation and
+runner sessions are present while Dolt files are dirty. Other dirty lanes are
+active or broadly accumulated. No dashboard artifacts were regenerated because
+no lane/status batch was accepted.
+
+Next concrete intake target: the next owner-free `.ready` marker whose dirty
+scope is reduced enough to review under the same two-poll gate; markerPDF
+should be retried only after the worker emits a reduced patch.
+
 ## Integration handoff rejection - rclone - 2026-05-24 18:56 UTC
 
 No rclone lane output was integrated. I selected the current handoff candidate
