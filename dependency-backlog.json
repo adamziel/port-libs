@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-23 23:39:28 UTC",
+  "updated": "2026-05-24 00:14:31 UTC",
   "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications, and reuse shared ports across lanes with honest upstream/full-suite evidence.",
   "items": [
     {
@@ -105,6 +105,22 @@
       "reuseNotes": "Use shared ZIP/package and XML cores; table and Unicode width helpers should be shared with Pandoc Markdown/HTML table work.",
       "status": "deferred",
       "blocker": "none"
+    },
+    {
+      "id": "pandoc-doctemplates-core",
+      "name": "Pandoc doctemplates rendering core",
+      "source": "jgm/doctemplates upstream test corpus plus Pandoc writer/template evidence in lanes/pandoc/lane-status.json and lanes/pandoc/UPSTREAM_TEST_MANIFEST.json",
+      "neededBy": [
+        "pandoc"
+      ],
+      "essentialCapability": "Renders Pandoc writer templates for Markdown, PlainText, LaTeX, HTML, and WordPress review output so converted documents can use metadata, loops, conditionals, partials, and pipes without shelling out.",
+      "scopeBoundary": "In scope: fixture-backed Pandoc template delimiters, variables, dotted lookups, conditionals, loops, partial resolution, recursion/depth guards, pipe application, newline/chomp/alignment behavior, and deterministic diagnostics needed by Pandoc writers. Out of scope: a general-purpose web templating framework, arbitrary plugin execution, filesystem includes outside supplied template roots, Haskell runtime embedding, and shelling out to Pandoc or doctemplates binaries.",
+      "priority": "medium",
+      "status": "candidate",
+      "activationGate": "pandoc-template-writer-next",
+      "testExpectation": "Require a doctemplates-specific upstream denominator from jgm/doctemplates plus mapped Pandoc writer/template fixtures, PHP pass/fail evidence, rendered output and diagnostics parity, malformed/corrupt template cases including recursive/deep partials and unclosed delimiters, and no progress credit for shelling out to Pandoc, doctemplates, Haskell runners, or external template engines.",
+      "reuseNotes": "Keep the rendering core under Pandoc writer/output needs; reuse Unicode, charset, table, and document AST helpers, and expose deterministic template rendering for Markdown, PlainText, LaTeX, HTML, and WordPress writers rather than duplicating per writer.",
+      "blocker": "Activate only when Pandoc writer work needs a dependency-specific doctemplates denominator or shared renderer boundary beyond lane-local template slices."
     },
     {
       "id": "citation-bibliography-csl-core",
