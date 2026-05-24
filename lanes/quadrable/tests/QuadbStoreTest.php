@@ -218,6 +218,71 @@ return [
             quadrableQuadbRemoveDir($storeDir);
         }
     },
+    'native quadb store maps plain import and export command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $missingImport = QuadbStore::importCommandOutput(
+                $missingDir,
+                "wp_options:siteurl=https://example.test\n",
+                '='
+            );
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingImport);
+            $t->true(!is_dir($missingDir), 'missing import command should not create the database directory');
+
+            $missingExport = QuadbStore::exportCommandOutput($missingDir, '=');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingExport);
+            $t->true(!is_dir($missingDir), 'missing export command should not create the database directory');
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::exportCommandOutput($storeDir, '='));
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::importCommandOutput(
+                $storeDir,
+                "wp_options:siteurl=https://example.test\nwp_posts:1=Published post\n",
+                '='
+            ));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "wp_posts:1=Published post\nwp_options:siteurl=https://example.test\n",
+                'stderr' => '',
+            ], QuadbStore::exportCommandOutput($storeDir, '='));
+
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: couldn't find separator in input line\n",
+            ], QuadbStore::importCommandOutput($storeDir, "missing separator\n", '='));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "wp_posts:1=Published post\nwp_options:siteurl=https://example.test\n",
+                'stderr' => '',
+            ], QuadbStore::exportCommandOutput($storeDir, '='));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
     'native quadb store maps proof command output for invalid format and hex input' => static function (TestRunner $t): void {
         $missingDir = quadrableQuadbTempDir();
         $sourceDir = quadrableQuadbTempDir();

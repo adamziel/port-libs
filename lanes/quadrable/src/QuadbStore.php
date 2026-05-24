@@ -646,6 +646,59 @@ USAGE;
     }
 
     /**
+     * Native stdout/stderr/exit-code shape for `quadb import`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function importCommandOutput(
+        string $directory,
+        string $input,
+        string $separator = ',',
+        bool $trackKeys = true
+    ): array {
+        try {
+            self::openForCommand($directory, $trackKeys)->importLines($input, $separator);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb export`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function exportCommandOutput(
+        string $directory,
+        string $separator = ',',
+        bool $trackKeys = true
+    ): array {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->exportLines($separator),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
      * Native stdout/stderr/exit-code shape for `quadb import --int`.
      *
      * @return array{exitCode: int, stdout: string, stderr: string}
