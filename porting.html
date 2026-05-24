@@ -31,11 +31,11 @@
     <div class="summary">
       <span>Average progress: <strong>84.8%</strong></span>
       <span>Lanes: <strong>12</strong></span>
-      <span>Generated: <strong>2026-05-24 09:11:53 UTC</strong></span>
-      <span>Snapshot: <strong>dashboard-publish-20260524T091128Z a4392cb2bf56</strong></span>
+      <span>Generated: <strong>2026-05-24 09:28:06 UTC</strong></span>
+      <span>Snapshot: <strong>dashboard-publish-20260524T092748Z e67ad5540e3e</strong></span>
     </div>
   </header>
-  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit a4392cb2bf56; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
+  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit e67ad5540e3e; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
   <div class="table-wrap">
   <table>
     <thead>
@@ -72,9 +72,9 @@
     <h2>Auxiliary Dependency Backlog</h2>
     <p class="note">Optional dependency ports stay gated behind base-tool progress. Counts and rows come from <a href="dependency-backlog.json">dependency-backlog.json</a>; candidate rows are not active work unless their status says active.</p>
     <div class="summary">
-      <span>Items: <strong>31</strong></span>
-      <span>Priority: <strong>critical: 4 | high: 23 | medium: 4</strong></span>
-      <span>Status: <strong>candidate: 21 | deferred: 10</strong></span>
+      <span>Items: <strong>32</strong></span>
+      <span>Priority: <strong>critical: 4 | high: 24 | medium: 4</strong></span>
+      <span>Status: <strong>candidate: 22 | deferred: 10</strong></span>
       <span>Top Gates: <strong>markerpdf-ocr-next: 2 | difftastic-concrete-grammar-structural-next: 1 | difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next: 1 | dolt-query-diff-sql-next-or-libsqlite-sql-execution-next: 1 | esbuild-rich-output-next-or-lightningcss-source-map-next: 1 | libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next: 1</strong></span>
     </div>
     <div class="table-wrap">
@@ -99,6 +99,7 @@
 <tr><th scope="row">epub3-package-core<br>EPUB package and spine core</th><td>pandoc, readability, rclone</td><td>high</td><td>pandoc-epub-package-next-or-readability-epub-export-next</td><td>candidate</td><td>Require W3C EPUB 3 specifications plus mapped Pandoc EPUB fixtures and any Readability article-package export fixtures, PHP pass/...</td></tr>
 <tr><th scope="row">odf-open-document-core<br>OpenDocument text package core</th><td>pandoc</td><td>high</td><td>pandoc-odt-open-document-next</td><td>deferred</td><td>Require OASIS OpenDocument specifications plus mapped Pandoc ODT fixtures, PHP pass/fail evidence for semantic AST parity over te...</td></tr>
 <tr><th scope="row">pandoc-doctemplates-core<br>Pandoc doctemplates rendering core</th><td>pandoc</td><td>medium</td><td>pandoc-template-writer-next</td><td>candidate</td><td>Require a doctemplates-specific upstream denominator from jgm/doctemplates plus mapped Pandoc writer/template fixtures, PHP pass/...</td></tr>
+<tr><th scope="row">pandoc-syntax-highlighting-core<br>Pandoc syntax highlighting core</th><td>pandoc</td><td>high</td><td>pandoc-syntax-highlighting-next</td><td>candidate</td><td>Require a syntax-highlighting-specific upstream denominator from Pandoc writer fixtures and Skylighting-style syntax definition/s...</td></tr>
 <tr><th scope="row">citation-bibliography-csl-core<br>Citation, bibliography, and CSL conversion core</th><td>pandoc</td><td>high</td><td>pandoc-citation-bibliography-next</td><td>deferred</td><td>Require Pandoc citation fixtures, Citation Style Language, CSL JSON, BibTeX/BibLaTeX where mapped, and citeproc behavior needed b...</td></tr>
 <tr><th scope="row">math-tex-conversion-core<br>Math and TeX conversion core</th><td>pandoc, markerpdf, readability</td><td>high</td><td>pandoc-math-next-or-markerpdf-equation-handoff-next-or-readability-mathjax-next</td><td>deferred</td><td>Require Pandoc math fixtures, markerPDF supplied Formula/equation evidence, Readability MathJax/math article fixtures, TeX math s...</td></tr>
 <tr><th scope="row">pandoc-pdf-engine-handoff-core<br>Pandoc PDF engine handoff core</th><td>pandoc</td><td>high</td><td>pandoc-pdf-output-next</td><td>deferred</td><td>Require a Pandoc PDF-output-specific upstream/spec denominator with mapped Text.Pandoc.PDF, MANUAL --pdf-engine, and PDF diagnost...</td></tr>

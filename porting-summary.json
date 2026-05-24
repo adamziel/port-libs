@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 09:11:53 UTC",
-    "sourceCommit": "a4392cb2bf56c32f1a4212ba83c23103b2cc3659",
-    "sourceCommitShort": "a4392cb2bf56",
-    "sourceBranch": "dashboard-publish-20260524T091128Z",
-    "dashboardCommit": "476e02c849f6d03f815145053fe1dd0d069e801a",
-    "dashboardCommitShort": "476e02c849f6",
+    "generated": "2026-05-24 09:28:06 UTC",
+    "sourceCommit": "e67ad5540e3e8b9556e559caf0c86aa39710b97e",
+    "sourceCommitShort": "e67ad5540e3e",
+    "sourceBranch": "dashboard-publish-20260524T092748Z",
+    "dashboardCommit": "9987aba1024a364ba7492fe3e4cfa7f08df237c9",
+    "dashboardCommitShort": "9987aba1024a",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
@@ -213,16 +213,16 @@
         }
     ],
     "dependencyBacklog": {
-        "updated": "2026-05-24 09:02:27 UTC",
+        "updated": "2026-05-24 09:19:25 UTC",
         "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
-        "count": 31,
+        "count": 32,
         "countsByPriority": {
             "critical": 4,
-            "high": 23,
+            "high": 24,
             "medium": 4
         },
         "countsByStatus": {
-            "candidate": 21,
+            "candidate": 22,
             "deferred": 10
         },
         "topGates": [
@@ -332,6 +332,15 @@
                 "gate": "pandoc-template-writer-next",
                 "status": "candidate",
                 "testExpectation": "Require a doctemplates-specific upstream denominator from jgm/doctemplates plus mapped Pandoc writer/template fixtures, PHP pass/..."
+            },
+            {
+                "id": "pandoc-syntax-highlighting-core",
+                "name": "Pandoc syntax highlighting core",
+                "neededBy": "pandoc",
+                "priority": "high",
+                "gate": "pandoc-syntax-highlighting-next",
+                "status": "candidate",
+                "testExpectation": "Require a syntax-highlighting-specific upstream denominator from Pandoc writer fixtures and Skylighting-style syntax definition/s..."
             },
             {
                 "id": "citation-bibliography-csl-core",
