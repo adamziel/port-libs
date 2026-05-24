@@ -1,5 +1,120 @@
 # Integration Status
 
+## Integration handoff rejections - Pandoc and libsqlite - 2026-05-24 18:23 UTC
+
+No lane output was integrated in this pass. I read the required coordination
+state (`goal.md`, `progress.md`, `git status --short --branch`, recent
+`git log --oneline --decorate -30`, current `port-*.log` tails, dirty lane
+file paths, tmux/process ownership, exact root-runner state, lane blocker
+fields, and `dependency-backlog.json`). No lane/status claim was accepted, no
+dashboard artifacts were regenerated, and no support-library row was activated.
+
+Current intake state:
+
+- `HEAD` stayed stable during the accepted/rejected-handoff samples at
+  `314f357474f7` (`Record integration hold status`), with branch status
+  sampled as `main...origin/main [ahead 971, behind 68]`.
+- Final ready-marker sample had no current
+  `.tmux-team/tmp/handoff-candidates/port-*.ready` markers and no current
+  `.tmux-team/tmp/integration-holds/port-*.hold` markers.
+- Final tracked dirty shortstat was
+  `332 files changed, 269567 insertions(+), 32272 deletions(-)`.
+- Exact no-argument root gate matched active PID
+  `723156 php tools/run-tests.php` during the Pandoc polls and
+  `761407 php tools/run-tests.php` during the libsqlite polls. A final sample
+  returned no root runner. I did not start another root harness, did not wait
+  on `.upstream-cache/run-tests.lock`, and did not treat any moving-tree root
+  run as accepted integration evidence.
+- `jq empty` passed for all 12 lane manifests, all 12 lane-status files,
+  `dependency-backlog.json`, and `porting-summary.json`.
+- `dependency-backlog.json` is valid JSON with `37` rows: `25` candidate,
+  `11` deferred, `1` blocked, and `0` active. This remains consistent with
+  `progress.md` as backlog-only support tracking.
+
+Pandoc decision:
+
+- Selected current marker `.tmux-team/tmp/handoff-candidates/port-pandoc.ready`
+  (`timestamp=2026-05-24T18:18:30Z`) and held it with
+  `.tmux-team/tmp/integration-holds/port-pandoc.hold`.
+- Two stability polls matched: `HEAD` `314f357474f7`, Pandoc/status shortstat
+  `12 files changed, 31697 insertions(+), 1579 deletions(-)`, exact root PID
+  `723156`, ready/log file timestamps unchanged, and the Pandoc pane had no
+  child process.
+- Rejected/deferred, not integrated. The worker handoff is a focused upstream
+  HTML reader generic `<script>` raw-block slice with useful focused evidence
+  (`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`:
+  `1` file, `4038` assertions, `0` failures), but the lane surface is
+  accumulated: `236` dirty rows (`11` modified, `225` untracked), plus
+  DOCX/ODT/EPUB/citation/table/template/native-reader/html-writer artifacts
+  that are outside the advertised script slice. That is too broad to accept
+  as one coherent lane-scoped batch, and it would advance rich document
+  capability claims while required support rows remain inactive backlog rows.
+- Exact next Pandoc worker task: re-emit only the script raw-block handoff as a
+  reviewable patch, or first split/accept the prerequisite Native/HTML writer
+  baseline in bounded batches. Keep DOC, DOCX/OpenXML, PDF handoff, EPUB,
+  ODT/OpenDocument, citations, math, tables, templates, package, XML/HTML,
+  Unicode/charset, JSON/YAML metadata, syntax-highlighting, and
+  archive/compression claims tied to existing dependency rows until their
+  activation gates and evidence are accepted.
+
+Rclone queue note:
+
+- A transient `port-rclone.ready` marker appeared after the Pandoc hold was
+  released, but it disappeared before intake. The rclone pane was owner-free at
+  the sample, yet the dirty lane was still accumulated: `251` dirty rows
+  (`8` modified, `243` untracked). The advertised WebDAV range-overflow files
+  sat among broad accounting, OneDrive, VFS, WebDAV, logging, metadata, and
+  ZIP/download artifacts, while the tracked diff still showed unrelated
+  OneDrive permission-planner files. I did not create a hold or accept a
+  rclone claim.
+- Exact next rclone worker task: re-emit the WebDAV ServeContent
+  range-overflow slice as the smallest patch containing only the read-response
+  parser change, its focused test/example, normalized manifest/status/notes,
+  and the recorded focused upstream/PHP evidence.
+
+libsqlite decision:
+
+- Selected current marker
+  `.tmux-team/tmp/handoff-candidates/port-libsqlite.ready`
+  (`timestamp=2026-05-24T18:21:37Z`) and held it with
+  `.tmux-team/tmp/integration-holds/port-libsqlite.hold`.
+- Two stability polls matched: `HEAD` `314f357474f7`, libsqlite/status
+  shortstat `14 files changed, 45281 insertions(+), 8079 deletions(-)`, exact
+  root PID `761407`, ready/log file timestamps unchanged, and the libsqlite
+  pane had no child process.
+- Rejected/deferred, not integrated. The worker handoff is a focused SQLite
+  JSON operator truth/postfix NULL RHS-folding slice with useful evidence
+  (`SQLiteHeaderTest.php`: `5992` assertions, `0` failures; focused upstream
+  SQLite runner: `17954` tests, `0` errors), but the lane surface is
+  accumulated: `174` dirty rows (`14` modified, `160` untracked) and `45k`
+  tracked insertions across WAL, rollback, savepoint, JSON5, page mutation,
+  and many older WordPress examples. This is not reviewable as the stated
+  scalar RHS slice.
+- Exact next libsqlite worker task: split the truth/postfix NULL RHS-folding
+  work into a narrow patch containing only `SQLiteCreateIndex.php`, the
+  focused `SQLiteHeaderTest.php` assertions, the single WordPress example, and
+  normalized lane manifest/status/notes. Leave WAL/rollback/savepoint/delete
+  planner and older JSON-family artifacts for separate accepted batches.
+
+Ownership and skipped lanes:
+
+- Active child workers were observed for Difftastic, Dolt, Dolt runner,
+  esbuild, Gitoxide, LightningCSS, markerPDF, Quadrable, and Syncthing during
+  this pass. Dolt remains skipped despite reauthorization because both Dolt
+  implementation and Dolt runner sessions were active while Dolt files were
+  dirty; there was no coherent implementation-plus-runner handoff to accept.
+- Owner-free lanes without an accepted marker/bounded diff were not integrated.
+
+Next safe integration target: rclone's WebDAV ServeContent range-overflow slice
+is the best concrete next candidate if it reappears with an owner-free pane and
+a reduced lane diff matching the exact files named above. Otherwise, accept
+libsqlite only after the truth/postfix NULL RHS work is split away from the
+large WAL/rollback/savepoint backlog. Any accepted batch still needs focused
+inspection, focused verification, one serialized no-argument
+`php tools/run-tests.php` result through the root harness lock,
+`git diff --check`, dashboard regeneration from the accepted snapshot, and
+support-library gate review at base-lane granularity.
+
 ## Integration worker hold - 2026-05-24 18:16 UTC
 
 No lane output was integrated in this pass. I read the required coordination
