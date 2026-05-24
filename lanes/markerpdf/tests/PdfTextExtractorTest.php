@@ -35,6 +35,47 @@ return [
         $lines = (new PdfTextExtractor())->extractTextLines($pdfWithContent($content));
         $t->same(['Heading', 'First paragraph', 'Second line'], $lines);
     },
+    'uses text advance before same-line Tm gap decisions for WordPress paragraph rendering' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm (Data) Tj 1 0 0 1 98 720 Tm (base) Tj 1 0 0 1 146 720 Tm (Import) Tj 1 0 0 1 186 720 Tm (er) Tj ET';
+        $extractor = new PdfTextExtractor();
+        $lines = $extractor->extractTextLines($pdfWithContent($content));
+
+        $t->same(['Database Importer'], $lines);
+        $t->true(!str_contains($extractor->extractPlainText($pdfWithContent($content)), 'Data base'));
+    },
+    'uses PDF text-state spacing for same-line Tm gap decisions before WordPress paragraph rendering' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 12 Tf 2 Tc 120 Tz 1 0 0 1 72 720 Tm (Data) Tj 1 0 0 1 112 720 Tm (base) Tj ET '
+            . 'BT /F1 12 Tf 100 Tz 16 TL 72 720 Td (Intro) Tj 18 2 (Import Profile) " 1 0 0 1 182 704 Tm (s) Tj ET '
+            . 'BT /F1 12 Tf 18 Tw 1 0 0 1 72 688 Tm (Media Import) Tj 1 0 0 1 170 688 Tm (er) Tj ET';
+        $extractor = new PdfTextExtractor();
+        $lines = $extractor->extractTextLines($pdfWithContent($content));
+        $plainText = $extractor->extractPlainText($pdfWithContent($content));
+
+        $t->same(['Database', 'Intro', 'Import Profiles', 'Media Importer'], $lines);
+        $t->true(!str_contains($plainText, 'Data base'));
+        $t->true(!str_contains($plainText, 'Profile s'));
+        $t->true(!str_contains($plainText, 'Import er'));
+    },
+    'keeps q Q scoped text state from leaking into later positioned WordPress text' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm q 20 Tc (Data) Tj Q 1 0 0 1 180 720 Tm (Import) Tj 1 0 0 1 235 720 Tm (Tool) Tj ET';
+        $extractor = new PdfTextExtractor();
+        $lines = $extractor->extractTextLines($pdfWithContent($content));
+        $plainText = $extractor->extractPlainText($pdfWithContent($content));
+
+        $t->same(['Data Import Tool'], $lines);
+        $t->true(!str_contains($plainText, 'ImportTool'));
+    },
+    'applies TJ numeric positioning adjustments before WordPress Tm gap decisions' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = 'BT /F1 12 Tf 1 0 0 1 72 720 Tm [(Import ) -1000 (Profile)] TJ 1 0 0 1 178 720 Tm (s) Tj '
+            . '1 0 0 1 72 704 Tm [(Site) 1000 (Map)] TJ 1 0 0 1 124 704 Tm (Index) Tj ET';
+        $extractor = new PdfTextExtractor();
+        $lines = $extractor->extractTextLines($pdfWithContent($content));
+        $plainText = $extractor->extractPlainText($pdfWithContent($content));
+
+        $t->same(['Import Profiles', 'SiteMap Index'], $lines);
+        $t->true(!str_contains($plainText, 'Profile s'));
+        $t->true(str_contains($plainText, 'SiteMap Index'));
+    },
     'decodes literal continuations and UTF-16BE hex strings' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT (WordPress \\\nimport) Tj T* <FEFF00440061007400610020004C0069006200650072006100740069006F006E> Tj ET";
         $lines = (new PdfTextExtractor())->extractTextLines($pdfWithContent($content));

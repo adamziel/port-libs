@@ -6,6 +6,9 @@ namespace PortLibs\MarkerPDF;
 
 final class PdfTextExtractor
 {
+    private const POSITIONED_TEXT_WORD_GAP = 12.0;
+    private const SIMPLE_TEXT_ADVANCE_RATIO = 0.5;
+
     /**
      * @return list<string>
      */
@@ -153,29 +156,161 @@ final class PdfTextExtractor
         $lines = [];
         $operands = [];
         $currentLine = '';
+        $currentFontSize = null;
+        $currentTextLeading = null;
+        $currentTextX = null;
+        $currentTextY = null;
+        $currentTextEndX = null;
+        $characterSpacing = 0.0;
+        $wordSpacing = 0.0;
+        $horizontalScale = 100.0;
+        $pendingPositionWordGap = false;
+        $textStateStack = [];
 
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
                 if ($token === "'" || $token === '"') {
                     $this->pushLine($lines, $currentLine);
+                    $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                    $currentTextEndX = $currentTextX;
+                    $pendingPositionWordGap = false;
+                }
+
+                if ($token === '"') {
+                    $wordSpacing = $this->quoteWordSpacingOperand($operands) ?? $wordSpacing;
+                    $characterSpacing = $this->quoteCharacterSpacingOperand($operands) ?? $characterSpacing;
                 }
 
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
-                    $currentLine .= $this->decodeTextOperand($operand);
+                    $decoded = $this->decodeTextOperand($operand);
+                    $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap);
+                    $currentTextEndX = $this->advanceTextEndXForOperand(
+                        $currentTextEndX ?? $currentTextX,
+                        $operand,
+                        $currentFontSize,
+                        $characterSpacing,
+                        $wordSpacing,
+                        $horizontalScale
+                    );
                 }
                 $operands = [];
                 continue;
             }
 
-            if (in_array($token, ['Td', 'TD', 'Tm', 'T*'], true)) {
+            if ($token === 'q') {
+                $textStateStack[] = [
+                    'fontSize' => $currentFontSize,
+                    'textLeading' => $currentTextLeading,
+                    'characterSpacing' => $characterSpacing,
+                    'wordSpacing' => $wordSpacing,
+                    'horizontalScale' => $horizontalScale,
+                ];
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Q') {
+                $state = array_pop($textStateStack);
+                if (is_array($state)) {
+                    $currentFontSize = $state['fontSize'];
+                    $currentTextLeading = $state['textLeading'];
+                    $characterSpacing = $state['characterSpacing'];
+                    $wordSpacing = $state['wordSpacing'];
+                    $horizontalScale = $state['horizontalScale'];
+                }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tf') {
+                $currentFontSize = $this->fontSizeOperand($operands) ?? $currentFontSize;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'TL') {
+                $currentTextLeading = $this->textLeadingOperand($operands) ?? $currentTextLeading;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tc') {
+                $characterSpacing = $this->textCharacterSpacingOperand($operands) ?? $characterSpacing;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tw') {
+                $wordSpacing = $this->textWordSpacingOperand($operands) ?? $wordSpacing;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tz') {
+                $horizontalScale = $this->textHorizontalScaleOperand($operands) ?? $horizontalScale;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Td' || $token === 'TD') {
+                if ($token === 'TD') {
+                    $moveY = $this->textMoveOperandY($operands);
+                    if ($moveY !== null) {
+                        $currentTextLeading = -$moveY;
+                    }
+                }
+                if ($this->textMoveBreaksLine($operands)) {
+                    $this->pushLine($lines, $currentLine);
+                    $pendingPositionWordGap = false;
+                } elseif ($this->textMoveCreatesWordGap($operands)) {
+                    $pendingPositionWordGap = $currentLine !== '';
+                }
+                $currentTextX = $this->textMoveX($operands, $currentTextX);
+                $currentTextY = $this->textMoveY($operands, $currentTextY);
+                $currentTextEndX = $currentTextX;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tm') {
+                if ($this->textMatrixBreaksLine($operands, $currentTextY)) {
+                    $this->pushLine($lines, $currentLine);
+                    $pendingPositionWordGap = false;
+                } elseif ($this->textMatrixCreatesWordGap($operands, $currentTextEndX)) {
+                    $pendingPositionWordGap = $currentLine !== '';
+                }
+                $currentTextX = $this->textMatrixX($operands);
+                $currentTextY = $this->textMatrixY($operands);
+                $currentTextEndX = $currentTextX;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'T*') {
                 $this->pushLine($lines, $currentLine);
+                $currentTextY = $this->advanceTextYByLeading($currentTextY, $currentTextLeading);
+                $currentTextEndX = $currentTextX;
+                $pendingPositionWordGap = false;
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'BT') {
+                $currentTextX = null;
+                $currentTextY = null;
+                $currentTextEndX = null;
+                $pendingPositionWordGap = false;
                 $operands = [];
                 continue;
             }
 
             if ($token === 'ET') {
                 $this->pushLine($lines, $currentLine);
+                $currentTextX = null;
+                $currentTextY = null;
+                $currentTextEndX = null;
+                $pendingPositionWordGap = false;
                 $operands = [];
                 continue;
             }
@@ -355,6 +490,225 @@ final class PdfTextExtractor
     }
 
     /**
+     * @param list<string> $operands
+     */
+    private function fontSizeOperand(array $operands): ?float
+    {
+        if ($operands === []) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textLeadingOperand(array $operands): ?float
+    {
+        if ($operands === []) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textCharacterSpacingOperand(array $operands): ?float
+    {
+        if ($operands === []) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textWordSpacingOperand(array $operands): ?float
+    {
+        if ($operands === []) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textHorizontalScaleOperand(array $operands): ?float
+    {
+        if ($operands === []) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function quoteWordSpacingOperand(array $operands): ?float
+    {
+        if (count($operands) < 3) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 3]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function quoteCharacterSpacingOperand(array $operands): ?float
+    {
+        if (count($operands) < 3) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 2]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMoveBreaksLine(array $operands): bool
+    {
+        $ty = $this->textMoveOperandY($operands);
+        if ($ty === null) {
+            return true;
+        }
+
+        return abs($ty) > 0.000001;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMoveCreatesWordGap(array $operands): bool
+    {
+        $tx = $this->textMoveOperandX($operands);
+        if ($tx === null) {
+            return false;
+        }
+
+        return $tx >= self::POSITIONED_TEXT_WORD_GAP;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMoveX(array $operands, ?float $currentTextX): ?float
+    {
+        $tx = $this->textMoveOperandX($operands);
+        if ($tx === null) {
+            return null;
+        }
+
+        return $currentTextX === null ? $tx : $currentTextX + $tx;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMoveY(array $operands, ?float $currentTextY): ?float
+    {
+        $ty = $this->textMoveOperandY($operands);
+        if ($ty === null) {
+            return null;
+        }
+
+        return $currentTextY === null ? $ty : $currentTextY + $ty;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMoveOperandX(array $operands): ?float
+    {
+        if (count($operands) < 2) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 2]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMoveOperandY(array $operands): ?float
+    {
+        if (count($operands) < 2) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMatrixBreaksLine(array $operands, ?float $currentTextY): bool
+    {
+        $matrixY = $this->textMatrixY($operands);
+        if ($matrixY === null || $currentTextY === null) {
+            return true;
+        }
+
+        return abs($matrixY - $currentTextY) > 0.000001;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMatrixCreatesWordGap(array $operands, ?float $currentTextEndX): bool
+    {
+        $matrixX = $this->textMatrixX($operands);
+        if ($matrixX === null || $currentTextEndX === null) {
+            return false;
+        }
+
+        return $matrixX - $currentTextEndX >= self::POSITIONED_TEXT_WORD_GAP;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMatrixX(array $operands): ?float
+    {
+        if (count($operands) < 6) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 2]);
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function textMatrixY(array $operands): ?float
+    {
+        if (count($operands) < 6) {
+            return null;
+        }
+
+        return $this->numericOperand($operands[count($operands) - 1]);
+    }
+
+    private function advanceTextYByLeading(?float $currentTextY, ?float $currentTextLeading): ?float
+    {
+        if ($currentTextY === null || $currentTextLeading === null) {
+            return null;
+        }
+
+        return $currentTextY - $currentTextLeading;
+    }
+
+    /**
      * @param list<string> $lines
      */
     private function pushLine(array &$lines, string &$currentLine): void
@@ -364,6 +718,173 @@ final class PdfTextExtractor
             $lines[] = $line;
         }
         $currentLine = '';
+    }
+
+    private function appendPositionedText(string &$currentLine, string $decoded, bool &$pendingPositionWordGap): void
+    {
+        if ($decoded === '') {
+            $pendingPositionWordGap = false;
+            return;
+        }
+
+        if ($pendingPositionWordGap && !$this->endsWithWhitespace($currentLine) && !$this->startsWithWhitespace($decoded)) {
+            $currentLine .= ' ';
+        }
+
+        $currentLine .= $decoded;
+        $pendingPositionWordGap = false;
+    }
+
+    private function advanceTextEndX(
+        ?float $currentTextEndX,
+        string $decoded,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): ?float {
+        if ($currentTextEndX === null || $decoded === '') {
+            return $currentTextEndX;
+        }
+
+        $fontSize ??= 12.0;
+        $characters = $this->length($decoded);
+        $baseAdvance = $characters * $fontSize * self::SIMPLE_TEXT_ADVANCE_RATIO;
+        $spacingAdvance = (max(0, $characters - 1) * $characterSpacing) + (substr_count($decoded, ' ') * $wordSpacing);
+        $scale = $horizontalScale / 100.0;
+
+        return $currentTextEndX + (($baseAdvance + $spacingAdvance) * $scale);
+    }
+
+    private function advanceTextEndXForOperand(
+        ?float $currentTextEndX,
+        string $operand,
+        ?float $fontSize,
+        float $characterSpacing,
+        float $wordSpacing,
+        float $horizontalScale
+    ): ?float {
+        if ($currentTextEndX === null) {
+            return null;
+        }
+
+        $operand = trim($operand);
+        if (!str_starts_with($operand, '[')) {
+            return $this->advanceTextEndX(
+                $currentTextEndX,
+                $this->decodeTextOperand($operand),
+                $fontSize,
+                $characterSpacing,
+                $wordSpacing,
+                $horizontalScale
+            );
+        }
+
+        $endX = $currentTextEndX;
+        foreach ($this->textArrayElements($operand) as $element) {
+            if ($element['type'] === 'text') {
+                $endX = $this->advanceTextEndX(
+                    $endX,
+                    $this->decodeTextOperand($element['value']),
+                    $fontSize,
+                    $characterSpacing,
+                    $wordSpacing,
+                    $horizontalScale
+                );
+                continue;
+            }
+
+            $endX = $this->adjustTextEndX($endX, (float) $element['value'], $fontSize, $horizontalScale);
+        }
+
+        return $endX;
+    }
+
+    private function adjustTextEndX(?float $currentTextEndX, float $adjustment, ?float $fontSize, float $horizontalScale): ?float
+    {
+        if ($currentTextEndX === null) {
+            return null;
+        }
+
+        $fontSize ??= 12.0;
+        $scale = $horizontalScale / 100.0;
+
+        return $currentTextEndX - (($adjustment / 1000.0) * $fontSize * $scale);
+    }
+
+    /**
+     * @return list<array{type: string, value: string|float}>
+     */
+    private function textArrayElements(string $operand): array
+    {
+        $operand = trim($operand);
+        $body = substr($operand, 1, -1);
+        $elements = [];
+        $index = 0;
+        $length = strlen($body);
+
+        while ($index < $length) {
+            if (ctype_space($body[$index])) {
+                $index++;
+                continue;
+            }
+
+            if ($body[$index] === '(') {
+                $elements[] = [
+                    'type' => 'text',
+                    'value' => $this->readLiteralToken($body, $index),
+                ];
+                continue;
+            }
+
+            if ($body[$index] === '<' && ($index + 1 >= $length || $body[$index + 1] !== '<')) {
+                $elements[] = [
+                    'type' => 'text',
+                    'value' => $this->readHexToken($body, $index),
+                ];
+                continue;
+            }
+
+            $start = $index;
+            while ($index < $length && !ctype_space($body[$index]) && !str_contains('[]()<>{}%', $body[$index])) {
+                $index++;
+            }
+
+            if ($index === $start) {
+                $index++;
+                continue;
+            }
+
+            $token = substr($body, $start, $index - $start);
+            $adjustment = $this->numericOperand($token);
+            if ($adjustment !== null) {
+                $elements[] = [
+                    'type' => 'adjustment',
+                    'value' => $adjustment,
+                ];
+            }
+        }
+
+        return $elements;
+    }
+
+    private function startsWithWhitespace(string $text): bool
+    {
+        return $text !== '' && ctype_space($text[0]);
+    }
+
+    private function endsWithWhitespace(string $text): bool
+    {
+        return $text !== '' && ctype_space(substr($text, -1));
+    }
+
+    private function numericOperand(string $operand): ?float
+    {
+        if (preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/', $operand) !== 1) {
+            return null;
+        }
+
+        return (float) $operand;
     }
 
     private function decodeTextOperand(string $operand): string

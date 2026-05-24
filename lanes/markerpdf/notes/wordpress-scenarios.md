@@ -6,6 +6,12 @@ PDF import into clean post content and Data Liberation document conversion workf
 
 Native PDF content stream text-line extraction for literal, array, hex, UTF-16 hex, FlateDecode streams, adjacent same-line text operators, PDF line continuations, and text line movement operators.
 
+The 2026-05-24 reduced handoff adds only the minimal positioned-text foundation and text-state spacing slice. `PdfTextExtractor` now estimates text end positions from font size and text-showing operands before same-line `Tm` gap decisions, then applies `Tc`, `Tw`, `Tz`, and double-quote showing spacing operands to that estimate. `examples/wordpress-pdf-text-state-spacing-import.php` demonstrates the WordPress import effect by emitting `Database`, `Intro`, `Import Profiles`, and `Media Importer` as clean Gutenberg paragraphs rather than `Data base`, `Profile s`, or `Import er`, without running Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
+The 2026-05-24 19:13 UTC graphics-state slice keeps those text-state spacing fields scoped through PDF `q`/`Q` save and restore. `examples/wordpress-pdf-graphics-state-import.php` demonstrates that a scoped character-spacing override used for one positioned fragment does not leak into the later `Import Tool` text, producing one clean Gutenberg paragraph without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
+The 2026-05-24 19:30 UTC TJ positioning slice applies numeric adjustments inside PDF `TJ` arrays to the same native end-X estimate before later `Tm` gap decisions. `examples/wordpress-pdf-tj-positioning-import.php` demonstrates the WordPress import effect by emitting `Import Profiles` and `SiteMap Index` as readable Gutenberg paragraphs without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 The lane now also maps the upstream `pdftext` dictionary boundary from `marker/pdf/extract_text.py::pdftext_format_to_blocks`. `PdfTextBlockConverter` converts supplied pdftext page dictionaries into Marker's native Page/Block/Line/Span arrays, including font flag suffixes, span IDs, rotation-aware page bboxes, and pdftext hyphen/newline cleanup before later layout annotation.
 
 The lane now also maps the supplied-data boundary of `marker/pdf/extract_text.py::get_text_blocks`. `PdfTextDocumentExtractor` applies upstream `start_page`/`max_pages` page-range semantics to supplied pdftext dictionaries, restarts span IDs relative to the selected range, preserves original PDF page numbers, and carries PDF TOC metadata for partial WordPress imports.
@@ -194,4 +200,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Next bounded task: expand `switch_trans.pdf` table coverage to Table 2 or Table 9 with recognized numeric cells and captions, or acquire or derive an actual upstream Formula region benchmark excerpt.
+Next bounded task after supervisor acceptance/root verification: map non-identity text-matrix horizontal scaling into the same native `Tm` gap decision path, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of this spacing handoff.
