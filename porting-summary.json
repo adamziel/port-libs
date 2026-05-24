@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 08:55:51 UTC",
-    "sourceCommit": "b661c3565aa894190c9905b4bdd34a202992d4d8",
-    "sourceCommitShort": "b661c3565aa8",
-    "sourceBranch": "dashboard-publish-20260524T085528Z",
-    "dashboardCommit": "85e7d0b1e6c4a36ea8c8da68240306343b739f13",
-    "dashboardCommitShort": "85e7d0b1e6c4",
+    "generated": "2026-05-24 09:11:53 UTC",
+    "sourceCommit": "a4392cb2bf56c32f1a4212ba83c23103b2cc3659",
+    "sourceCommitShort": "a4392cb2bf56",
+    "sourceBranch": "dashboard-publish-20260524T091128Z",
+    "dashboardCommit": "476e02c849f6d03f815145053fe1dd0d069e801a",
+    "dashboardCommitShort": "476e02c849f6",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
@@ -213,27 +213,19 @@
         }
     ],
     "dependencyBacklog": {
-        "updated": "2026-05-24 08:41:08 UTC",
+        "updated": "2026-05-24 09:02:27 UTC",
         "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
-        "count": 29,
+        "count": 31,
         "countsByPriority": {
             "critical": 4,
-            "high": 17,
-            "medium": 8
+            "high": 23,
+            "medium": 4
         },
         "countsByStatus": {
-            "candidate": 19,
+            "candidate": 21,
             "deferred": 10
         },
         "topGates": [
-            {
-                "gate": "pandoc-rich-format-next",
-                "count": 4
-            },
-            {
-                "gate": "shared-infra-after-base-green",
-                "count": 3
-            },
             {
                 "gate": "markerpdf-ocr-next",
                 "count": 2
@@ -243,11 +235,19 @@
                 "count": 1
             },
             {
+                "gate": "difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next",
+                "count": 1
+            },
+            {
                 "gate": "dolt-query-diff-sql-next-or-libsqlite-sql-execution-next",
                 "count": 1
             },
             {
                 "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next",
+                "count": 1
+            },
+            {
+                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next",
                 "count": 1
             }
         ],
@@ -257,18 +257,18 @@
                 "name": "Shared ZIP/package container core",
                 "neededBy": "pandoc, markerpdf, rclone",
                 "priority": "critical",
-                "gate": "pandoc-rich-format-next",
+                "gate": "pandoc-rich-format-next-or-markerpdf-benchmark-archive-next-or-rclone-archive-provider-next",
                 "status": "candidate",
-                "testExpectation": "Create a dependency-specific ZIP spec/upstream denominator with mapped Pandoc/markerPDF package fixtures, PHP pass/fail evidence,..."
+                "testExpectation": "Require PKWARE APPNOTE plus mapped Pandoc DOCX/EPUB/ODT package fixtures, markerPDF benchmark archive fixtures, PHP pass/fail evi..."
             },
             {
                 "id": "xml-html5-dom-core",
                 "name": "XML and HTML5 parse/serialize core",
                 "neededBy": "pandoc, readability, markerpdf, difftastic, rclone",
                 "priority": "critical",
-                "gate": "shared-infra-after-base-green",
+                "gate": "pandoc-html-docbook-next-or-pandoc-rich-package-xml-next-or-readability-dom-parser-gap-next-or-rclone-webdav-xml-next",
                 "status": "candidate",
-                "testExpectation": "Create a dependency-specific WHATWG/XML spec denominator with mapped lane fixtures, PHP pass/fail evidence, round-trip parse/seri..."
+                "testExpectation": "Require WHATWG HTML, XML 1.0/namespaces, and mapped Pandoc HTML/DocBook/OpenXML/EPUB/ODT, Readability, markerPDF, Difftastic, and..."
             },
             {
                 "id": "webdav-protocol-core",
@@ -280,40 +280,49 @@
                 "testExpectation": "Require a WebDAV/x/net-specific upstream/spec denominator with mapped rclone and x/net WebDAV fixtures, PHP pass/fail evidence, l..."
             },
             {
+                "id": "url-percent-encoding-core",
+                "name": "URL percent-encoding core",
+                "neededBy": "rclone, gitoxide, esbuild, lightningcss",
+                "priority": "high",
+                "gate": "rclone-webdav-filename-destination-next-or-gitoxide-url-parse-next-or-esbuild-new-url-asset-next-or-lightningcss-css-url-token-next",
+                "status": "candidate",
+                "testExpectation": "Require a dependency-specific vector manifest with PHP pass/fail counts for percent-escape round trips, path-segment preservation..."
+            },
+            {
                 "id": "docx-openxml-core",
                 "name": "DOCX/OpenXML document core",
                 "neededBy": "pandoc",
                 "priority": "high",
-                "gate": "pandoc-rich-format-next",
+                "gate": "pandoc-docx-openxml-next",
                 "status": "candidate",
-                "testExpectation": "Require a DOCX/OpenXML-specific upstream/spec denominator, mapped fixture packages, PHP pass/fail evidence, semantic AST parity c..."
+                "testExpectation": "Require Pandoc DOCX reader/writer fixtures plus OpenXML/OPC package specifications, PHP pass/fail evidence for semantic AST parit..."
             },
             {
                 "id": "legacy-doc-cfb-core",
                 "name": "Legacy DOC/Compound File Binary extraction core",
                 "neededBy": "pandoc",
                 "priority": "high",
-                "gate": "pandoc-rich-format-next",
+                "gate": "pandoc-legacy-doc-cfb-next",
                 "status": "candidate",
-                "testExpectation": "Require a DOC/CFB-specific MS-CFB/MS-DOC spec denominator, mapped legacy .doc fixtures, PHP pass/fail evidence, text/paragraph/ta..."
+                "testExpectation": "Require Microsoft MS-CFB/MS-DOC specifications plus mapped Pandoc or generated legacy .doc fixtures, PHP pass/fail evidence for C..."
             },
             {
                 "id": "epub3-package-core",
                 "name": "EPUB package and spine core",
                 "neededBy": "pandoc, readability, rclone",
                 "priority": "high",
-                "gate": "pandoc-rich-format-next",
+                "gate": "pandoc-epub-package-next-or-readability-epub-export-next",
                 "status": "candidate",
-                "testExpectation": "Track an EPUB-specific W3C/upstream denominator with mapped package fixtures, PHP pass/fail evidence, spine/nav/metadata/assets p..."
+                "testExpectation": "Require W3C EPUB 3 specifications plus mapped Pandoc EPUB fixtures and any Readability article-package export fixtures, PHP pass/..."
             },
             {
                 "id": "odf-open-document-core",
                 "name": "OpenDocument text package core",
                 "neededBy": "pandoc",
-                "priority": "medium",
-                "gate": "pandoc-rich-format-next",
+                "priority": "high",
+                "gate": "pandoc-odt-open-document-next",
                 "status": "deferred",
-                "testExpectation": "Require an ODT/OpenDocument-specific OASIS/upstream denominator, mapped ODT fixtures, PHP pass/fail evidence, semantic AST compar..."
+                "testExpectation": "Require OASIS OpenDocument specifications plus mapped Pandoc ODT fixtures, PHP pass/fail evidence for semantic AST parity over te..."
             },
             {
                 "id": "pandoc-doctemplates-core",
@@ -328,19 +337,19 @@
                 "id": "citation-bibliography-csl-core",
                 "name": "Citation, bibliography, and CSL conversion core",
                 "neededBy": "pandoc",
-                "priority": "medium",
-                "gate": "pandoc-citation-next",
+                "priority": "high",
+                "gate": "pandoc-citation-bibliography-next",
                 "status": "deferred",
-                "testExpectation": "Require a citation/CSL-specific upstream/spec denominator with mapped Pandoc citation and bibliography fixtures, PHP pass/fail ev..."
+                "testExpectation": "Require Pandoc citation fixtures, Citation Style Language, CSL JSON, BibTeX/BibLaTeX where mapped, and citeproc behavior needed b..."
             },
             {
                 "id": "math-tex-conversion-core",
                 "name": "Math and TeX conversion core",
                 "neededBy": "pandoc, markerpdf, readability",
-                "priority": "medium",
-                "gate": "pandoc-math-next",
+                "priority": "high",
+                "gate": "pandoc-math-next-or-markerpdf-equation-handoff-next-or-readability-mathjax-next",
                 "status": "deferred",
-                "testExpectation": "Require a math/TeX-specific upstream/spec denominator with mapped Pandoc, markerPDF, and Readability math fixtures, PHP pass/fail..."
+                "testExpectation": "Require Pandoc math fixtures, markerPDF supplied Formula/equation evidence, Readability MathJax/math article fixtures, TeX math s..."
             },
             {
                 "id": "pandoc-pdf-engine-handoff-core",
@@ -356,9 +365,9 @@
                 "name": "PDF text dictionary extraction core",
                 "neededBy": "markerpdf, pandoc",
                 "priority": "critical",
-                "gate": "markerpdf-pdf-text-next-or-markerpdf-ocr-next",
+                "gate": "markerpdf-pdf-text-next-or-pandoc-pdf-input-handoff-next",
                 "status": "candidate",
-                "testExpectation": "Use a PDF-text/pdftext-specific upstream/spec denominator with mapped markerPDF benchmark/reference pairs and mapped synthetic PD..."
+                "testExpectation": "Require PDF text/content-stream operators and filters, markerPDF/pdftext dictionary evidence, and mapped markerPDF benchmark/refe..."
             },
             {
                 "id": "pdf-page-render-plan-core",
@@ -383,9 +392,9 @@
                 "name": "Table geometry and formatter core",
                 "neededBy": "markerpdf, pandoc, readability",
                 "priority": "high",
-                "gate": "markerpdf-table-next",
+                "gate": "markerpdf-table-next-or-pandoc-table-rich-next-or-readability-table-cleanup-next",
                 "status": "candidate",
-                "testExpectation": "Use a table-geometry upstream/spec denominator with mapped markerPDF benchmark/reference data and mapped Pandoc/Readability table..."
+                "testExpectation": "Require markerPDF/tabled table evidence, Pandoc table fixtures, selected HTML table semantics for Readability, and mapped WordPre..."
             },
             {
                 "id": "unicode-text-repair-width",
@@ -401,9 +410,9 @@
                 "name": "Charset and byte-decoding core",
                 "neededBy": "difftastic, readability, pandoc, markerpdf, rclone, esbuild, lightningcss, gitoxide, dolt, quadrable",
                 "priority": "high",
-                "gate": "markerpdf-pdfdocencoding-next-or-shared-nonutf8-import-next",
+                "gate": "markerpdf-pdfdocencoding-next-or-pandoc-legacy-doc-cfb-next-or-pandoc-html-charset-next-or-readability-declared-charset-next-or-shared-nonutf8-import-next",
                 "status": "candidate",
-                "testExpectation": "Require a WHATWG Encoding/upstream-lane denominator with mapped byte fixtures, PHP pass/fail evidence, expected decoded text, bin..."
+                "testExpectation": "Require WHATWG Encoding plus PDF/document encoding tables and mapped markerPDF/Pandoc/Readability byte fixtures, with PHP pass/fa..."
             },
             {
                 "id": "json-json5-document-core",
@@ -451,6 +460,15 @@
                 "testExpectation": "Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, PHP pass/fail eviden..."
             },
             {
+                "id": "sequence-diff-merge-core",
+                "name": "Sequence diff and merge core",
+                "neededBy": "difftastic, gitoxide, dolt, quadrable",
+                "priority": "high",
+                "gate": "difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next",
+                "status": "candidate",
+                "testExpectation": "Require separate upstream-family denominators for Difftastic display/diff fixtures and exact parser config evidence, Gitoxide gix..."
+            },
+            {
                 "id": "protobuf-wire-core",
                 "name": "Protocol Buffers wire-format core",
                 "neededBy": "syncthing",
@@ -464,18 +482,18 @@
                 "name": "Checksum and hash suite",
                 "neededBy": "rclone, gitoxide, dolt, quadrable, syncthing, markerpdf",
                 "priority": "high",
-                "gate": "shared-infra-after-base-green",
+                "gate": "rclone-checksum-next-or-gitoxide-object-hash-next-or-dolt-content-hash-next-or-quadrable-blake2s-next-or-syncthing-block-hash-next",
                 "status": "candidate",
-                "testExpectation": "Inventory a dependency-specific upstream/spec denominator per algorithm, require mapped lane fixtures and official vectors, recor..."
+                "testExpectation": "Require official algorithm vectors plus rclone hash/QuickXorHash evidence, Gitoxide object hash evidence, Dolt hash/scalar fixtur..."
             },
             {
                 "id": "sql-storage-codec-core",
                 "name": "SQL and storage codec core",
                 "neededBy": "dolt, libsqlite, quadrable",
                 "priority": "medium",
-                "gate": "dolt-storage-next-or-libsqlite-write-next-or-quadrable-store-codec-next",
+                "gate": "dolt-prolly-row-codec-next-or-libsqlite-record-page-write-next-or-quadrable-raw-store-codec-next",
                 "status": "deferred",
-                "testExpectation": "Require a SQL/storage-codec-specific upstream/spec denominator with mapped Dolt, libsqlite, and Quadrable fixtures, PHP pass/fail..."
+                "testExpectation": "Require SQLite file-format specs and libsqlite evidence, Dolt/prolly storage fixture evidence, and Quadrable raw LMDB/dump/restor..."
             },
             {
                 "id": "sql-expression-semantics-core",
@@ -490,28 +508,28 @@
                 "id": "archive-compression-streams",
                 "name": "Archive and compression stream helpers",
                 "neededBy": "rclone, syncthing, pandoc, markerpdf, gitoxide",
-                "priority": "medium",
-                "gate": "rclone-webdav-gzip-or-archive-next-or-pandoc-package-compression-next",
+                "priority": "high",
+                "gate": "rclone-webdav-gzip-or-archive-next-or-syncthing-lz4-bep-next-or-gitoxide-pack-deflate-next-or-pandoc-package-compression-next",
                 "status": "deferred",
-                "testExpectation": "Require an archive/compression upstream/spec denominator with mapped rclone/Syncthing/Pandoc/markerPDF/Gitoxide fixtures, PHP pas..."
+                "testExpectation": "Require gzip/deflate/tar/LZ4 specs plus rclone gzip/archive evidence, Syncthing LZ4/BEP evidence, Gitoxide pack/deflate evidence,..."
             },
             {
                 "id": "glob-filter-pathspec-core",
                 "name": "Glob, ignore, and pathspec matcher core",
                 "neededBy": "rclone, syncthing, gitoxide, esbuild, difftastic",
                 "priority": "medium",
-                "gate": "shared-infra-after-base-green",
+                "gate": "rclone-filter-next-or-syncthing-ignore-next-or-gitoxide-pathspec-next-or-esbuild-entry-glob-next-or-difftastic-override-path-next",
                 "status": "deferred",
-                "testExpectation": "Create a glob/pathspec upstream/spec denominator with a mapped cross-lane fixture matrix for rclone filters, Syncthing ignores, G..."
+                "testExpectation": "Require rclone fs/filter tests, Syncthing ignore matcher tests, Gitoxide gix-pathspec/gix-ignore generated baselines, esbuild ent..."
             },
             {
                 "id": "provider-metadata-normalization-core",
                 "name": "Local provider metadata normalization core",
                 "neededBy": "rclone, syncthing",
                 "priority": "medium",
-                "gate": "rclone-provider-normalization-next",
+                "gate": "rclone-provider-normalization-next-or-syncthing-device-folder-metadata-next",
                 "status": "deferred",
-                "testExpectation": "Require a provider-normalization-specific upstream/spec denominator with mapped rclone and Syncthing local-provider/config fixtur..."
+                "testExpectation": "Require rclone provider contract/local memory-provider evidence, rclone metadata mapper and OneDrive normalization fixtures, plus..."
             }
         ]
     }
