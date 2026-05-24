@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 08:39:05 UTC",
-    "sourceCommit": "c7efb7dbc80c953b24233a26a4695abff39b268c",
-    "sourceCommitShort": "c7efb7dbc80c",
-    "sourceBranch": "dashboard-publish-20260524T083845Z",
-    "dashboardCommit": "42bf465dd0692e716eefb649a8b4a1a1c8cd58f5",
-    "dashboardCommitShort": "42bf465dd069",
+    "generated": "2026-05-24 08:55:51 UTC",
+    "sourceCommit": "b661c3565aa894190c9905b4bdd34a202992d4d8",
+    "sourceCommitShort": "b661c3565aa8",
+    "sourceBranch": "dashboard-publish-20260524T085528Z",
+    "dashboardCommit": "85e7d0b1e6c4a36ea8c8da68240306343b739f13",
+    "dashboardCommitShort": "85e7d0b1e6c4",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
@@ -213,16 +213,16 @@
         }
     ],
     "dependencyBacklog": {
-        "updated": "2026-05-24 00:14:31 UTC",
-        "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications, and reuse shared ports across lanes with honest upstream/full-suite evidence.",
-        "count": 23,
+        "updated": "2026-05-24 08:41:08 UTC",
+        "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
+        "count": 29,
         "countsByPriority": {
             "critical": 4,
-            "high": 8,
-            "medium": 11
+            "high": 17,
+            "medium": 8
         },
         "countsByStatus": {
-            "candidate": 13,
+            "candidate": 19,
             "deferred": 10
         },
         "topGates": [
@@ -231,23 +231,23 @@
                 "count": 4
             },
             {
-                "gate": "markerpdf-ocr-next",
-                "count": 3
-            },
-            {
                 "gate": "shared-infra-after-base-green",
                 "count": 3
             },
             {
-                "gate": "esbuild-rich-output-next",
+                "gate": "markerpdf-ocr-next",
+                "count": 2
+            },
+            {
+                "gate": "difftastic-concrete-grammar-structural-next",
                 "count": 1
             },
             {
-                "gate": "markerpdf-table-next",
+                "gate": "dolt-query-diff-sql-next-or-libsqlite-sql-execution-next",
                 "count": 1
             },
             {
-                "gate": "pandoc-template-writer-next",
+                "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next",
                 "count": 1
             }
         ],
@@ -264,11 +264,20 @@
             {
                 "id": "xml-html5-dom-core",
                 "name": "XML and HTML5 parse/serialize core",
-                "neededBy": "pandoc, readability, markerpdf, difftastic",
+                "neededBy": "pandoc, readability, markerpdf, difftastic, rclone",
                 "priority": "critical",
                 "gate": "shared-infra-after-base-green",
                 "status": "candidate",
                 "testExpectation": "Create a dependency-specific WHATWG/XML spec denominator with mapped lane fixtures, PHP pass/fail evidence, round-trip parse/seri..."
+            },
+            {
+                "id": "webdav-protocol-core",
+                "name": "WebDAV protocol and property core",
+                "neededBy": "rclone",
+                "priority": "high",
+                "gate": "rclone-webdav-provider-next",
+                "status": "candidate",
+                "testExpectation": "Require a WebDAV/x/net-specific upstream/spec denominator with mapped rclone and x/net WebDAV fixtures, PHP pass/fail evidence, l..."
             },
             {
                 "id": "docx-openxml-core",
@@ -334,11 +343,20 @@
                 "testExpectation": "Require a math/TeX-specific upstream/spec denominator with mapped Pandoc, markerPDF, and Readability math fixtures, PHP pass/fail..."
             },
             {
+                "id": "pandoc-pdf-engine-handoff-core",
+                "name": "Pandoc PDF engine handoff core",
+                "neededBy": "pandoc",
+                "priority": "high",
+                "gate": "pandoc-pdf-output-next",
+                "status": "deferred",
+                "testExpectation": "Require a Pandoc PDF-output-specific upstream/spec denominator with mapped Text.Pandoc.PDF, MANUAL --pdf-engine, and PDF diagnost..."
+            },
+            {
                 "id": "pdf-text-dictionary-core",
                 "name": "PDF text dictionary extraction core",
                 "neededBy": "markerpdf, pandoc",
                 "priority": "critical",
-                "gate": "markerpdf-ocr-next",
+                "gate": "markerpdf-pdf-text-next-or-markerpdf-ocr-next",
                 "status": "candidate",
                 "testExpectation": "Use a PDF-text/pdftext-specific upstream/spec denominator with mapped markerPDF benchmark/reference pairs and mapped synthetic PD..."
             },
@@ -382,36 +400,63 @@
                 "id": "charset-encoding-core",
                 "name": "Charset and byte-decoding core",
                 "neededBy": "difftastic, readability, pandoc, markerpdf, rclone, esbuild, lightningcss, gitoxide, dolt, quadrable",
-                "priority": "medium",
-                "gate": "shared-infra-after-base-green",
-                "status": "deferred",
+                "priority": "high",
+                "gate": "markerpdf-pdfdocencoding-next-or-shared-nonutf8-import-next",
+                "status": "candidate",
                 "testExpectation": "Require a WHATWG Encoding/upstream-lane denominator with mapped byte fixtures, PHP pass/fail evidence, expected decoded text, bin..."
+            },
+            {
+                "id": "json-json5-document-core",
+                "name": "JSON, JSON5, and JSON document import core",
+                "neededBy": "libsqlite, esbuild, readability, rclone, syncthing, dolt, pandoc",
+                "priority": "high",
+                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next",
+                "status": "candidate",
+                "testExpectation": "Require a JSON/JSON5-specific upstream/spec denominator with mapped libsqlite json101/json501/json502, esbuild JSON object/array/..."
             },
             {
                 "id": "source-map-v3-core",
                 "name": "Source Map v3 parser and writer core",
                 "neededBy": "esbuild, lightningcss, difftastic",
                 "priority": "high",
-                "gate": "esbuild-rich-output-next",
+                "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next",
                 "status": "candidate",
                 "testExpectation": "Require a Source Map v3/upstream denominator with mapped esbuild/LightningCSS fixtures, PHP pass/fail evidence, malformed/corrupt..."
+            },
+            {
+                "id": "browser-compat-target-data-core",
+                "name": "Browser compatibility and target-data core",
+                "neededBy": "lightningcss, esbuild",
+                "priority": "high",
+                "gate": "lightningcss-prefixer-targets-next-or-esbuild-target-lowering-next",
+                "status": "deferred",
+                "testExpectation": "Require a target-data-specific upstream/spec denominator with mapped LightningCSS target/prefixer and esbuild target-lowering fix..."
+            },
+            {
+                "id": "js-package-resolution-core",
+                "name": "JavaScript package metadata and module-resolution core",
+                "neededBy": "esbuild, lightningcss",
+                "priority": "high",
+                "gate": "esbuild-bundler-resolution-next-or-lightningcss-css-package-resolution-next",
+                "status": "deferred",
+                "testExpectation": "Require a package-resolution-specific upstream/spec denominator with mapped esbuild resolver/tsconfig/package tests and Lightning..."
             },
             {
                 "id": "tree-sitter-grammar-subset",
                 "name": "Tree-sitter grammar/query compatibility subset",
                 "neededBy": "difftastic, esbuild, lightningcss",
-                "priority": "medium",
-                "gate": "difftastic-structural-next",
-                "status": "deferred",
+                "priority": "high",
+                "gate": "difftastic-concrete-grammar-structural-next",
+                "status": "candidate",
                 "testExpectation": "Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, PHP pass/fail eviden..."
             },
             {
                 "id": "protobuf-wire-core",
                 "name": "Protocol Buffers wire-format core",
                 "neededBy": "syncthing",
-                "priority": "medium",
+                "priority": "high",
                 "gate": "syncthing-protocol-next",
-                "status": "deferred",
+                "status": "candidate",
                 "testExpectation": "Require a Protocol Buffers/BEP wire-format denominator with mapped Syncthing wire fixtures, PHP pass/fail evidence, malformed/cor..."
             },
             {
@@ -428,16 +473,25 @@
                 "name": "SQL and storage codec core",
                 "neededBy": "dolt, libsqlite, quadrable",
                 "priority": "medium",
-                "gate": "dolt-storage-next",
+                "gate": "dolt-storage-next-or-libsqlite-write-next-or-quadrable-store-codec-next",
                 "status": "deferred",
                 "testExpectation": "Require a SQL/storage-codec-specific upstream/spec denominator with mapped Dolt, libsqlite, and Quadrable fixtures, PHP pass/fail..."
+            },
+            {
+                "id": "sql-expression-semantics-core",
+                "name": "SQL expression and scalar semantics core",
+                "neededBy": "dolt, libsqlite",
+                "priority": "high",
+                "gate": "dolt-query-diff-sql-next-or-libsqlite-sql-execution-next",
+                "status": "candidate",
+                "testExpectation": "Require a SQL-expression-specific upstream/spec denominator with mapped Dolt/go-mysql-server scalar selectors, SQLite json/date/e..."
             },
             {
                 "id": "archive-compression-streams",
                 "name": "Archive and compression stream helpers",
                 "neededBy": "rclone, syncthing, pandoc, markerpdf, gitoxide",
                 "priority": "medium",
-                "gate": "rclone-archive-next",
+                "gate": "rclone-webdav-gzip-or-archive-next-or-pandoc-package-compression-next",
                 "status": "deferred",
                 "testExpectation": "Require an archive/compression upstream/spec denominator with mapped rclone/Syncthing/Pandoc/markerPDF/Gitoxide fixtures, PHP pas..."
             },
