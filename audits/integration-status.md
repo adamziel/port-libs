@@ -1,5 +1,89 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 16:11 UTC
+
+No lane output was integrated in this pass. The shared checkout is still moving
+while all primary lanes and supporting runner/status sessions are active, so no
+lane files were staged, no rich-function/status claim was accepted, no
+dashboard artifacts were regenerated from this checkout, and no support-library
+row was activated.
+
+Required intake was re-sampled:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, current `.tmux-team/logs/port-*.log`
+  tails for the freshest workers, dirty lane path summaries from Git, active
+  tmux/process state, `dependency-backlog.json`, `porting-summary.json`, and
+  this existing integration-status artifact.
+- `HEAD` is `4b9edad3fd1b` on
+  `main...origin/main [ahead 939, behind 68]`. Recent commits remain
+  integration-hold/audit/status commits, not accepted lane batches.
+- The checkout failed the frozen-snapshot gate. Between the `16:10:05Z` and
+  `16:10:48Z` polls, untracked-inclusive status rows moved `19446 -> 19447`,
+  dirty tracked shortstat moved from
+  `331 files changed, 260866 insertions(+), 33056 deletions(-)` to
+  `331 files changed, 260955 insertions(+), 33053 deletions(-)`, and Dolt
+  moved from `12 modified / 197 untracked` to
+  `12 modified / 198 untracked`.
+- Dirty tracked and untracked work spans every priority lane. Latest sampled
+  lane rows were: Difftastic `10 modified / 450 untracked`, Dolt
+  `12 / 198`, esbuild `20 / 53`, Gitoxide `58 / 147`, libsqlite `13 / 158`,
+  LightningCSS `17 / 172`, markerPDF `89 / 175`, Pandoc `11 / 209`,
+  Quadrable `41 / 80`, rclone `8 / 236`, Readability `15 / 165`, and
+  Syncthing `26 / 218`.
+- Active tmux state still includes every primary lane plus auditor, evaluator,
+  dashboard-updater, integrator, capacity controller/executor rows, Dolt
+  runner, dependency/support scouts, and watchdog sessions. Fresh log mtimes
+  advanced inside the sample window for integrator, libsqlite, Quadrable,
+  dashboard-updater, Dolt, capacity, Pandoc, Readability, Gitoxide, Syncthing,
+  Dolt-runner, rclone, Difftastic, markerPDF, and esbuild.
+- Exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'`
+  returned no rows in both samples. A broader process gate did show active Dolt
+  BATS runner PIDs for `diff.bats`, `diff-stat.bats`, `query-diff.bats`,
+  `schema-changes.bats`, and `primary-key-changes.bats`. This worker did not
+  run `php tools/run-tests.php`, did not wait on `.upstream-cache/run-tests.lock`,
+  and did not bypass the lock because there was no frozen acceptance snapshot.
+- `jq empty dependency-backlog.json porting-summary.json
+  lanes/*/UPSTREAM_TEST_MANIFEST.json lanes/*/lane-status.json` passed.
+- `dependency-backlog.json` remains valid and consistent with `progress.md`:
+  `37` rows, `0` active, `1` blocked, `25` candidate, and `11` deferred,
+  updated `2026-05-24 12:29:10 UTC`.
+- Local `porting-summary.json` is valid but still reports source commit
+  `89260857cc71e5fac4c7f491e081ad46cda05b08`; this pass did not regenerate it.
+  A separate dashboard-updater temp clone pushed dashboard commit `b8d2e78c` and
+  GitHub Pages served source commit `17be9aa89c52` after publication. That was
+  not initiated or accepted by this integration pass and does not verify the
+  current dirty checkout.
+
+Waiting/risky:
+
+- Every priority lane is skipped as active/dirty: Difftastic, Dolt, esbuild,
+  Gitoxide, libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone,
+  Readability, and Syncthing all have dirty lane files and active or freshly
+  updated worker logs.
+- Recent lane tails showed coherent local handoffs in places, including esbuild
+  extensionless resolver ordering and markerPDF `startxref` catalog selection,
+  plus ongoing work in LightningCSS, libsqlite, Pandoc, Gitoxide, Syncthing,
+  Readability, rclone, Difftastic, Quadrable, and Dolt. None is accepted until a
+  stable owner-free snapshot can be inspected and verified.
+- Dolt remains skipped despite reauthorization because implementation files are
+  dirty and the Dolt runner is actively executing the selected BATS shard.
+  Moving BATS output is not accepted as coherent integration evidence.
+- Support-library coverage remains backlog-only. No Pandoc/document rich
+  conversion claim is accepted from this pass; DOC, DOCX/OpenXML, PDF
+  input/output handoff, EPUB, ODT/OpenDocument, templates, citations, math,
+  tables, package containers, XML/HTML, Unicode/charset, JSON/YAML metadata,
+  syntax highlighting, and archive/compression remain bounded gated rows
+  without accepted activation evidence.
+
+Next safe integration point: freeze or wait out lane, runner, capacity,
+dashboard, evaluator, auditor, integrator, and status-review loops; take two
+stable polls of `HEAD`, dirty counts, shortstat, exact root PIDs, and relevant
+log mtimes; then accept at most one owner-free lane batch after focused
+inspection, focused verification, serialized no-argument root verification on
+that frozen snapshot, `git diff --check`, dashboard regeneration from the
+accepted commit, and support-library gate review at base-lane granularity.
+
 ## Integration worker hold - 2026-05-24 16:07 UTC
 
 No lane output was integrated in this pass. The checkout is still moving while
