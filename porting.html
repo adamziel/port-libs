@@ -31,11 +31,11 @@
     <div class="summary">
       <span>Average progress: <strong>84.8%</strong></span>
       <span>Lanes: <strong>12</strong></span>
-      <span>Generated: <strong>2026-05-24 11:40:25 UTC</strong></span>
-      <span>Snapshot: <strong>dashboard-publish-20260524T114011Z 3d0c27a78b67</strong></span>
+      <span>Generated: <strong>2026-05-24 11:50:50 UTC</strong></span>
+      <span>Snapshot: <strong>dashboard-publish-20260524T115009Z 429fbac2fd89</strong></span>
     </div>
   </header>
-  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit 3d0c27a78b67; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
+  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit 429fbac2fd89; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
   <div class="table-wrap">
   <table>
     <thead>
@@ -72,9 +72,9 @@
     <h2>Auxiliary Dependency Backlog</h2>
     <p class="note">Optional dependency ports stay gated behind base-tool progress. Counts and rows come from <a href="dependency-backlog.json">dependency-backlog.json</a>; candidate rows are not active work unless their status says active.</p>
     <div class="summary">
-      <span>Items: <strong>36</strong></span>
-      <span>Priority: <strong>critical: 4 | high: 26 | medium: 6</strong></span>
-      <span>Status: <strong>blocked: 1 | candidate: 24 | deferred: 11</strong></span>
+      <span>Items: <strong>37</strong></span>
+      <span>Priority: <strong>critical: 4 | high: 27 | medium: 6</strong></span>
+      <span>Status: <strong>blocked: 1 | candidate: 25 | deferred: 11</strong></span>
       <span>Top Gates: <strong>difftastic-concrete-grammar-structural-next: 1 | difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next: 1 | dolt-query-diff-sql-next-or-libsqlite-sql-execution-next: 1 | esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next: 1 | gitoxide-protocol-v2-pktline-next-or-gitoxide-receive-pack-wire-next-or-gitoxide-upload-pack-wire-next: 1 | libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next: 1</strong></span>
     </div>
     <div class="table-wrap">
@@ -112,6 +112,7 @@
 <tr><th scope="row">unicode-text-repair-width<br>Unicode repair, width, and segmentation core</th><td>markerpdf, pandoc, difftastic, readability, lightningcss, esbuild, gitoxide, dolt, quadrable, syncthing</td><td>high</td><td>markerpdf-text-repair-next-or-pandoc-table-width-next-or-difftastic-unicode-display-next-or-readability-mojibake-cleanup-next-or-lightningcss-unicode-token-next-or-esbuild-unicode-identifier-next-or-gitoxide-path-display-next-or-dolt-unicode-query-diff-next-or-quadrable-key-display-next-or-syncthing-path-normalization-next</td><td>candidate</td><td>Create a Unicode/ftfy/UAX-specific denominator with mapped Pandoc, Difftastic, Readability, LightningCSS, esbuild, Gitoxide, Dolt...</td></tr>
 <tr><th scope="row">charset-encoding-core<br>Charset and byte-decoding core</th><td>difftastic, readability, pandoc, markerpdf, rclone, esbuild, lightningcss, gitoxide, dolt, quadrable, libsqlite</td><td>high</td><td>markerpdf-pdfdocencoding-next-or-pandoc-legacy-doc-cfb-next-or-pandoc-html-charset-next-or-readability-declared-charset-next-or-libsqlite-utf16-record-encoding-next-or-shared-nonutf8-import-next</td><td>candidate</td><td>Require WHATWG Encoding plus PDF/document/SQLite encoding tables and mapped markerPDF/Pandoc/Readability/libsqlite byte fixtures,...</td></tr>
 <tr><th scope="row">json-json5-document-core<br>JSON, JSON5, and JSON document import core</th><td>libsqlite, esbuild, readability, rclone, syncthing, dolt, pandoc</td><td>high</td><td>libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next</td><td>candidate</td><td>Require a JSON/JSON5-specific upstream/spec denominator with mapped libsqlite json101/json501/json502, esbuild JSON object/array/...</td></tr>
+<tr><th scope="row">yaml-metadata-core<br>YAML metadata conversion core</th><td>pandoc</td><td>high</td><td>pandoc-yaml-metadata-next-or-pandoc-markdown-metadata-block-next</td><td>candidate</td><td>Require a YAML-specific spec/upstream denominator from YAML 1.2 plus mapped Pandoc metadata fixtures, PHP pass/fail counts, scala...</td></tr>
 <tr><th scope="row">source-map-v3-core<br>Source Map v3 parser and writer core</th><td>esbuild, lightningcss, difftastic</td><td>high</td><td>esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next</td><td>candidate</td><td>Require a Source Map v3/upstream denominator with mapped esbuild, LightningCSS, and Difftastic review-span fixtures, PHP pass/fai...</td></tr>
 <tr><th scope="row">browser-compat-target-data-core<br>Browser compatibility and target-data core</th><td>lightningcss, esbuild</td><td>high</td><td>lightningcss-prefixer-targets-next-or-esbuild-target-lowering-next</td><td>deferred</td><td>Require a target-data-specific upstream/spec denominator with mapped LightningCSS target/prefixer and esbuild target-lowering fix...</td></tr>
 <tr><th scope="row">js-package-resolution-core<br>JavaScript package metadata and module-resolution core</th><td>esbuild, lightningcss</td><td>high</td><td>esbuild-bundler-resolution-next-or-lightningcss-css-package-resolution-next</td><td>deferred</td><td>Require a package-resolution-specific upstream/spec denominator with mapped esbuild resolver/tsconfig/package tests and Lightning...</td></tr>

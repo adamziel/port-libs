@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 11:40:25 UTC",
-    "sourceCommit": "3d0c27a78b67ef5d6b5ba7f46d615a091d317505",
-    "sourceCommitShort": "3d0c27a78b67",
-    "sourceBranch": "dashboard-publish-20260524T114011Z",
-    "dashboardCommit": "96459203dd25fa07873a22bb0ba98c9637f5b196",
-    "dashboardCommitShort": "96459203dd25",
+    "generated": "2026-05-24 11:50:50 UTC",
+    "sourceCommit": "429fbac2fd8930ac7505fd747ac32c0d81b48329",
+    "sourceCommitShort": "429fbac2fd89",
+    "sourceBranch": "dashboard-publish-20260524T115009Z",
+    "dashboardCommit": "340c21e50d616c05dbbff6aa38a2aeceadca06f2",
+    "dashboardCommitShort": "340c21e50d61",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
@@ -213,17 +213,17 @@
         }
     ],
     "dependencyBacklog": {
-        "updated": "2026-05-24 11:14:00 UTC",
+        "updated": "2026-05-24 11:39:10 UTC",
         "policy": "Gate optional dependency ports behind base-tool blockers; a row becomes active only when a base lane is green enough for the next rich-function slice or is blocked on that component. Port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with mapped fixtures, PHP pass/fail counts, malformed/corrupt cases where relevant, and explicit non-goals; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
-        "count": 36,
+        "count": 37,
         "countsByPriority": {
             "critical": 4,
-            "high": 26,
+            "high": 27,
             "medium": 6
         },
         "countsByStatus": {
             "blocked": 1,
-            "candidate": 24,
+            "candidate": 25,
             "deferred": 11
         },
         "topGates": [
@@ -450,6 +450,15 @@
                 "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next",
                 "status": "candidate",
                 "testExpectation": "Require a JSON/JSON5-specific upstream/spec denominator with mapped libsqlite json101/json501/json502, esbuild JSON object/array/..."
+            },
+            {
+                "id": "yaml-metadata-core",
+                "name": "YAML metadata conversion core",
+                "neededBy": "pandoc",
+                "priority": "high",
+                "gate": "pandoc-yaml-metadata-next-or-pandoc-markdown-metadata-block-next",
+                "status": "candidate",
+                "testExpectation": "Require a YAML-specific spec/upstream denominator from YAML 1.2 plus mapped Pandoc metadata fixtures, PHP pass/fail counts, scala..."
             },
             {
                 "id": "source-map-v3-core",
