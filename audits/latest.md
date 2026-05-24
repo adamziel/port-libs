@@ -18,6 +18,7 @@ unless explicitly temporary oracle tooling.
 UTC samples: 2026-05-24T12:45Z and 2026-05-24T12:46Z
 sampled HEAD before this audit commit: 0bcb82e7f9fb
 recent history: 0bcb82e7 Refresh independent audit status; d9bfdc1d Record integration hold status; 46a07e64 Record integration hold status; a7c70e3d Refresh independent audit status; 48a0ac98 Record integration hold status
+post-sample note: integration-status commits landed after the 12:46Z sample; they do not clear the acceptance blockers below
 tracked dirty rows: 328 -> 327
 default status rows including untracked: 17852 -> 17851
 git diff --shortstat: 328 files changed, 236300 insertions(+), 30684 deletions(-) -> 327 files changed, 236402 insertions(+), 30686 deletions(-)
