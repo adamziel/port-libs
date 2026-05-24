@@ -44,6 +44,11 @@ Snapshot reviewed:
   `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php`.
   I did not wait on the lock and did not treat focused or moving-tree runner
   anecdotes as accepted root evidence.
+- Post-commit handoff sampling at `2026-05-24T12:55:43Z` then matched a
+  separate active no-argument root harness, PID `2994892`, PPID `2994808`,
+  owned by `claude`, command `php tools/run-tests.php`, cwd
+  `/home/claude/port-libs`. This pass did not start it, did not wait on its
+  lock, and did not accept its moving-tree result as integration evidence.
 - `dependency-backlog.json` is valid JSON and has `37` rows:
   `blocked=1`, `candidate=25`, `deferred=11`, `active=0`. This matches the
   current `progress.md` support-library narrative. No dependency row is active,
