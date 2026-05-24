@@ -1,5 +1,71 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T00:50:36Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `porting.html`/`porting-summary.json`, start the
+no-argument root harness, wait on `.upstream-cache/run-tests.lock`, or treat
+concurrent root/focused runner output as an accepted integration snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` is `ad376b78f1cd` on
+  `main...origin/main [ahead 617, behind 68]`.
+- Dirty scope is broad and still moving: `git status --porcelain=v1
+  --untracked-files=no` reports `288` tracked rows, `git status
+  --porcelain=v1 --untracked-files=all` reports `9771` rows, and
+  `git diff --shortstat` reports `288 files changed, 132549 insertions(+),
+  15366 deletions(-)`.
+- Dirty lane rows span every priority lane. Tracked-only lane rows are:
+  Difftastic `10`, Dolt `12`, esbuild `20`, Gitoxide `49`, libsqlite `9`,
+  LightningCSS `14`, markerPDF `77`, Pandoc `8`, Quadrable `38`, rclone `8`,
+  Readability `11`, and Syncthing `19`. Including untracked files, lane rows
+  are: Difftastic `233`, Dolt `107`, esbuild `27`, Gitoxide `124`,
+  libsqlite `94`, LightningCSS `139`, markerPDF `176`, Pandoc `62`,
+  Quadrable `83`, rclone `106`, Readability `185`, and Syncthing `147`.
+- `tmux list-sessions` reports `170` sessions. Active primary, reseed,
+  runner, watchdog, evaluator, dashboard, dependency, and capacity sessions
+  were visible, including all primary lanes. Dolt remains skipped despite
+  reauthorization because `port-dolt`, `port-dolt-reseed-*`, and
+  `port-dolt-runner` are still live rather than a frozen
+  implementation-plus-runner handoff.
+- The required exact PHP runner gate matched active processes:
+  `1389725 php tools/run-tests.php`,
+  `1389878 php tools/run-tests.php lanes/syncthing/tests`,
+  `1406673 php tools/run-tests.php lanes/markerpdf/tests`, and
+  `1407270 php tools/run-tests.php lanes/esbuild/tests/TypeScriptModuleLowererTest.php`.
+  Because another no-argument root harness was already active, this pass did
+  not start another root run and did not wait on the harness lock.
+- `.upstream-cache/run-tests.lock` exists as the zero-byte harness lock file
+  with mtime `2026-05-23 04:36:26 +0000`.
+- Recent log mtimes were advancing during review, including
+  `port-integrator-watchdog`, `port-capacity-executor-loop`,
+  `port-libsqlite-watchdog`, `port-libsqlite-reseed`, `port-gitoxide-watchdog`,
+  `port-quadrable-watchdog`, `port-difftastic-watchdog`,
+  `port-evaluator-fresh`, `port-rclone-watchdog`, and multiple capacity
+  dirty-PHP feed logs. Recent tails show useful lane-local handoffs such as
+  Difftastic HCL, Dolt query-diff `DATE_FORMAT`, Quadrable iterator/sync, and
+  Pandoc table/native-writer evidence, but they do not form one stable
+  accepted snapshot while the checkout and runner set are still moving.
+- `dependency-backlog.json` is valid JSON with `23` items, matching the
+  dependency backlog count currently recorded in `progress.md`. No dependency
+  implementation or support-library activation was accepted, and no rich-format
+  claim was advanced.
+- `porting.html`, `porting-summary.json`, `progress.md`, and
+  `audits/latest.md` are dirty from other status/dashboard/audit activity.
+  This pass did not regenerate or accept them because the underlying
+  lane-status files remain active worker handoffs.
+
+Decision: the tree remains too active for trustworthy lane acceptance. All
+priority lanes were skipped as active or unsafe. The next safe integration
+point is after active lane/reseed/runner/status sessions finish or are
+intentionally frozen, no exact root or focused PHP runners are active, Dolt has
+a coherent implementation-plus-runner handoff, and `HEAD`, tracked status,
+shortstat, runner state, and relevant log mtimes remain unchanged across two
+polls. Then accept one small lane-scoped batch with focused inspection/tests,
+one serialized `php tools/run-tests.php` from that same snapshot,
+`git diff --check`, dashboard regeneration, and a small commit.
+
 ## Integration Hold - 2026-05-24T00:47:07Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
