@@ -13,6 +13,19 @@ index root pages and option rows without the SQLite extension. Arithmetic and
 broader SQL expressions remain unsupported so this does not over-credit full
 SQLite expression evaluation.
 
+## `json_extract()` Option-Value Preflight Scenario
+
+Native JSON extraction now follows a bounded SQLite `json_extract(X,P...)`
+SQL-result typing slice for strict JSON text, SQLite JSON5 text, cast text
+BLOBs, JSONB blobs, SQL NULL option values, missing paths, scalar paths,
+object/array paths, and multi-path JSON array output. The example
+`examples/wordpress-json-extract-option-preflight.php` checks local
+`wp_options.option_value`-shaped copied plugin settings and reports extracted
+enabled flags as SQLite-style `1`/`0`, text titles as SQL text, object paths as
+canonical JSON text, missing paths as NULL, and multi-path summaries as JSON
+arrays. This gives WordPress import and repair tooling a local-only way to
+read copied plugin settings without requiring the SQLite extension.
+
 ## JSON Operator `min()`/`max()` RHS Index Preflight Scenario
 
 Native JSON operator expression-index preflight now folds reduced SQLite

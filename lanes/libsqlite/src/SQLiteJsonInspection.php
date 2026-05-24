@@ -41,6 +41,22 @@ final class SQLiteJsonInspection
             : 0;
     }
 
+    /**
+     * @return array{found:bool,value:mixed}
+     */
+    public static function locatePath(string|SQLiteBlobValue|null $value, string $path = '$'): array
+    {
+        if ($value === null) {
+            return ['found' => false, 'value' => null];
+        }
+
+        if ($value instanceof SQLiteBlobValue && SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
+            return self::locate(SQLiteJsonB::decode($value->bytes), $path);
+        }
+
+        return self::locate(self::decodeText($value instanceof SQLiteBlobValue ? $value->bytes : $value), $path);
+    }
+
     private static function decodeText(string $json): mixed
     {
         try {

@@ -20,6 +20,7 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonConstructor;
 use PortLibs\LibSqlite\SQLiteJsonErrorPosition;
+use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJson5Parser;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
@@ -3083,6 +3084,37 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::jsonType($settings, '$.a[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::jsonArrayLength('{enabled:true,,}', '$'));
+    },
+    'extracts sqlite json values with SQL result typing for text json5 and jsonb' => static function (TestRunner $t): void {
+        $json = '{"plugin":{"enabled":true,"title":"Cache","priority":7,"ratio":1.5,"rules":[{"name":"seo"},{"name":"cache"}],"empty":null}}';
+        $json5 = "{plugin:{enabled:false,title:'Cache',priority:+7,ratio:.5,rules:[{name:'seo'},],},}";
+        $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => true,
+                'title' => 'Cache',
+                'priority' => 7,
+                'rules' => [
+                    ['name' => 'seo'],
+                    ['name' => 'cache'],
+                ],
+            ],
+        ]));
+
+        $t->same(1, SQLiteJsonExtract::extract($json, '$.plugin.enabled'));
+        $t->same(0, SQLiteJsonExtract::extract($json5, '$.plugin.enabled'));
+        $t->same('Cache', SQLiteJsonExtract::extract($json, '$.plugin.title'));
+        $t->same(7, SQLiteJsonExtract::extract($json, '$.plugin.priority'));
+        $t->same(1.5, SQLiteJsonExtract::extract($json, '$.plugin.ratio'));
+        $t->same(null, SQLiteJsonExtract::extract($json, '$.plugin.empty'));
+        $t->same(null, SQLiteJsonExtract::extract($json, '$.plugin.missing'));
+        $t->same('{"name":"cache"}', SQLiteJsonExtract::extract($json, '$.plugin.rules[#-1]'));
+        $t->same('["Cache",7,null,true]', SQLiteJsonExtract::extract($json, '$.plugin.title', '$.plugin.priority', '$.plugin.missing', '$.plugin.enabled'));
+        $t->same('{"name":"seo"}', SQLiteJsonExtract::extract($jsonb, '$.plugin.rules[0]'));
+        $t->same('["Cache",true]', SQLiteJsonExtract::extract($jsonb, '$.plugin.title', '$.plugin.enabled'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extract($json));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extract($json, '$.plugin[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extract('{"plugin":,}', '$.plugin'));
     },
     'inspects focused sqlite jsonb types at root and paths' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode([

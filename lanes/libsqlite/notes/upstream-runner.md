@@ -4763,3 +4763,40 @@ Remaining boundaries: non-root composite-index parent redistribution when the
 adjacent interior-parent merge does not fit, cell-level FAST secure-delete
 freeblock clearing, journaling, WAL, and general SQL execution remain future
 slices.
+
+## Focused Native Mapping: `json_extract()` SQL Result Typing
+
+For the bounded JSON extraction slice, this isolated worktree reused prior
+focused upstream JSON evidence because the hydrated `.upstream-cache` checkout
+was absent here:
+
+```sh
+json101.test json102.test json501.test
+json107.test json101.test json102.test jsonb01.test
+```
+
+Prior accepted evidence for the first group passed 780 upstream tests with 0
+errors and covered JSON path inspection over strict JSON, JSON5 text, cast
+text BLOBs, missing paths, scalar paths, and array/object paths. Prior
+accepted evidence for the JSONB group passed 650 upstream tests with 0 errors
+and covered JSONB validation/path handling boundaries.
+
+The native PHP slice adds `json_extract(X,P...)` SQL-result typing for strict
+JSON text, JSON5 text, cast text BLOBs, JSONB blobs, SQL NULL option values,
+missing paths, booleans as `1`/`0` for a single path, object/array results as
+canonical JSON text, and multi-path JSON array output. The focused libsqlite
+harness passed 226 PHP tests with 1850 assertions and 0 failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-json-extract-option-preflight.php` script ran
+successfully, reporting strict JSON, JSON5, JSONB, and SQL NULL
+`wp_options.option_value` inputs with SQLite-style extracted enabled flags,
+titles, last rule objects, and multi-path summary JSON.
+
+Remaining boundaries: full SQL expression evaluation, `json_extract()` subtype
+propagation and all BLOB ambiguity edge cases beyond existing cast text/JSONB
+handling, JSON aggregates, table-valued `json_each`/`json_tree`, WAL,
+rollback/savepoint, and b-tree delete/rebalance remain future slices.

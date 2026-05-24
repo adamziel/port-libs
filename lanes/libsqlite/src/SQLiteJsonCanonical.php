@@ -513,7 +513,7 @@ final class SQLiteJsonCanonical
         return $encoded;
     }
 
-    private static function encodeDecodedJson(mixed $value): string
+    public static function encodeDecodedJson(mixed $value): string
     {
         if ($value === null) {
             return 'null';

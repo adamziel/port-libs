@@ -98659,3 +98659,14 @@ Root verification: PASS php tools/run-tests.php (208 test files, 24279 assertion
 Support-library/dependency closure: lane-local fixture repair only; no shared support-library row activated.
 Live-service exclusions: no live-service/provider/credentialed tests run; no secrets read or printed.
 Files staged: lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/@wordpress/tsconfig-base/base.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/@wordpress/tsconfig-base/package.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/wp-tsconfig-preset/configs/blocks.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/wp-tsconfig-preset/package.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/wp-tsconfig-preset/tsconfig.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/package-shared/card.ts lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/vendor/wp-element/index.ts  audits/integration-status.md
+
+## Clean-patch integration - libsqlite - 20260524T235520Z
+
+Accepted marker: .tmux-team/tmp/handoff-candidates/port-libsqlite-rebase-20260524T234505Z-51d1b903.ready
+Patch: /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-rebase-20260524T234505Z-51d1b903.patch
+Lane/slice/session: libsqlite / watchdog-next-20260524T233749Z / rebase-marker
+Focused verification: PASS php -l changed PHP files; PASS php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php (1 test files, 1850 assertions, 0 failures); PASS wordpress-json-extract-option example; PASS manifest/status JSON parse; PASS git diff --check.
+Root verification: PASS php tools/run-tests.php (208 test files, 24293 assertions, 0 failures).
+Support-library/dependency closure: lane-local only; no shared support-library or server dependency row activated.
+Live-service exclusions: no live-service, SQL server/client, provider, or credentialed tests run; no secrets read or printed.
+Files staged: lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/examples/wordpress-json-extract-option-preflight.php lanes/libsqlite/lane-status.json lanes/libsqlite/notes/upstream-runner.md lanes/libsqlite/notes/wordpress-scenarios.md lanes/libsqlite/src/SQLiteJsonCanonical.php lanes/libsqlite/src/SQLiteJsonExtract.php lanes/libsqlite/src/SQLiteJsonInspection.php lanes/libsqlite/tests/SQLiteHeaderTest.php  audits/integration-status.md
