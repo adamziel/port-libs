@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-24 11:14:00 UTC",
+  "updated": "2026-05-24 11:39:10 UTC",
   "policy": "Gate optional dependency ports behind base-tool blockers; a row becomes active only when a base lane is green enough for the next rich-function slice or is blocked on that component. Port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with mapped fixtures, PHP pass/fail counts, malformed/corrupt cases where relevant, and explicit non-goals; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
   "items": [
     {
@@ -408,6 +408,22 @@
       "reuseNotes": "Share the tokenizer/diagnostic/path helper below esbuild JSON imports, SQLite JSON/JSON5 functions, Readability metadata extraction, rclone/Syncthing local payloads, Dolt scalar fixtures, and Pandoc metadata import.",
       "status": "candidate",
       "blocker": "Activate only for bounded libsqlite JSON/JSON5, esbuild JSON loader/preflight, Readability JSON-LD, rclone local metadata/config, Syncthing config, Dolt JSON scalar, or Pandoc metadata JSON slices; do not expand into schema validation, live API payload coverage, or service clients."
+    },
+    {
+      "id": "yaml-metadata-core",
+      "name": "YAML metadata conversion core",
+      "source": "YAML 1.2 specification plus Pandoc Markdown reader metadata-block and front-matter evidence in lanes/pandoc/lane-status.json and lanes/pandoc/UPSTREAM_TEST_MANIFEST.json",
+      "neededBy": [
+        "pandoc"
+      ],
+      "essentialCapability": "Parses Pandoc YAML metadata blocks and front matter, normalizes scalar/list/map metadata values, renders fixture-backed metadata round trips, and hands results to Pandoc native document metadata without shelling out.",
+      "scopeBoundary": "In scope: Pandoc YAML metadata blocks, front matter, scalar/list/map metadata values, stable diagnostics, fixture-backed round-trip metadata rendering, and handoff to Pandoc native document metadata. Out of scope: full YAML application frameworks, arbitrary object deserialization, live includes, network fetches, shelling out to Pandoc, Ruby/Python/Node YAML tools, whole static-site generators, credentials, secret-bearing configs, and secret-bearing inputs.",
+      "priority": "high",
+      "activationGate": "pandoc-yaml-metadata-next-or-pandoc-markdown-metadata-block-next",
+      "testExpectation": "Require a YAML-specific spec/upstream denominator from YAML 1.2 plus mapped Pandoc metadata fixtures, PHP pass/fail counts, scalar/list/map/native metadata conversion evidence, malformed indentation/anchor/alias/tag/duplicate-key/invalid-scalar/front-matter-boundary cases, stable diagnostics, fixture-backed round-trip metadata rendering, and honest full-suite Pandoc runner evidence or bounded upstream exact-selector/static evidence with blockers recorded. No progress credit for shelling out to Pandoc, Ruby/Python/Node YAML tools, full YAML application frameworks, static-site generators, live includes, network fetches, arbitrary object deserialization, credentials, secret-bearing configs, or secret-bearing inputs.",
+      "reuseNotes": "Keep this Pandoc YAML metadata row separate from json-json5-document-core; share only Pandoc AST/meta handoff helpers and generic diagnostic patterns where they fit the YAML-specific denominator.",
+      "status": "candidate",
+      "blocker": "Do not activate until Pandoc opens a YAML metadata or Markdown metadata-block slice that is accepted-blocked on this exact component; keep general YAML application behavior and secret-bearing inputs out of scope."
     },
     {
       "id": "source-map-v3-core",
