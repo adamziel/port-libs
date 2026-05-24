@@ -1,5 +1,101 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 17:57 UTC
+
+No lane output was integrated in this pass. I read the required coordination
+state (`goal.md`, `progress.md`, `git status --short --branch`, recent
+`git log --oneline --decorate -30`, current `port-*.log` tails, dirty lane
+paths, tmux/process ownership, active root-runner state, and
+`dependency-backlog.json`). No lane files were staged, no lane/status claim was
+accepted, no dashboard artifacts were regenerated, and no support-library row
+was activated.
+
+Current state:
+
+- `HEAD` stayed at `d0cee5da9378` during the explicit candidate poll. The
+  branch sample was `main...origin/main [ahead 963, behind 68]`.
+- The dirty aggregate remained broad and moving. The untracked-inclusive
+  porcelain count moved from `20052` to `20076` during intake. The global
+  shortstat moved from `331 files changed, 265886 insertions(+), 31646
+  deletions(-)` to `331 files changed, 265900 insertions(+), 31649
+  deletions(-)`.
+- The exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'`
+  matched active root PID `477024 php tools/run-tests.php` throughout this
+  pass. I did not start another root run and did not treat this active dirty
+  root as an accepted integration snapshot, because no lane batch was accepted
+  from a frozen tree and the aggregate diff moved while it was running.
+- A separate clean scratch root feeder for committed `HEAD` `d0cee5da9378`
+  reported `php tools/run-tests.php` passed with `204` files, `23682`
+  assertions, and `0` failures. That is clean-head evidence only, not
+  acceptance for the dirty lane output.
+
+Candidate lane check:
+
+- Selected/held candidate: `port-lightningcss`. It was the only sampled
+  primary lane with its pane at `bash` and no direct child process. Two polls
+  at `17:56:25Z` and `17:56:47Z` showed stable lane ownership and lane file
+  state: no child for pane PID `427869`, stable lane digest
+  `70733869ecb6bea7eb0cabf3578ad505709f610cdaa0179ff04a4958f23cb0a6`,
+  stable `197` lane status rows, stable lane shortstat
+  `17 files changed, 44461 insertions(+), 9961 deletions(-)`, and stable
+  LightningCSS log size `1866237` bytes.
+- Focused evidence exists but is not acceptance evidence. The dirty focused
+  LightningCSS shards passed: part01 `16` files / `3558` assertions / `0`
+  failures; part02 `11` files / `678` assertions / `0` failures. Both shard
+  audit files also report `git diff --check` exit `0` for their dirty
+  snapshot.
+- Decision: rejected/deferred, not integrated. The batch is not reviewable as a
+  single lane slice: `17` tracked files plus `197` untracked-inclusive lane
+  rows, large rewrites in `CssMinifier.php` and `TransitionPrefixer.php`, and a
+  broad set of untracked visitor/prefixer examples, fixtures, sources, and
+  tests. The latest named handoff is a small custom-property/`attr()` slice,
+  but the dirty lane includes many prior visitor, selector, prefixer, CSSOM,
+  and SVG parser slices. The active root PID and moving aggregate tree also
+  block a serialized root acceptance run.
+- Exact next worker task for LightningCSS: split out a narrow
+  `src/lib.rs::test_custom_properties` / `attr()` handoff that contains only
+  the smallest useful native PHP change, focused tests, one WordPress example,
+  and normalized manifest/status metadata. Leave the accumulated visitor,
+  selector, prefixer, CSSOM, SVG, fixture, and example backlog for separate
+  reviewable batches.
+
+Skipped active/risky lanes:
+
+- Active Codex children were observed for libsqlite, Pandoc, Syncthing,
+  Readability, rclone, esbuild, Difftastic, Dolt runner, Quadrable, markerPDF,
+  Gitoxide, and Dolt. These lanes remain owned/active and were not integrated.
+- Dolt remains skipped despite reauthorization because both the implementation
+  and runner sessions are active while Dolt files are dirty; there is no
+  coherent implementation-plus-runner handoff to accept in this pass.
+- Recent dirty focused shard logs are useful triage evidence only. Several
+  lanes reported passing focused PHP shards, but they ran against a moving
+  dirty tree and do not replace an accepted lane review plus serialized
+  no-argument root result.
+
+Dependency/dashboard status:
+
+- `dependency-backlog.json` is valid JSON with `37` rows. It remains
+  consistent with `progress.md` as backlog-only support tracking: `0` support
+  rows are active.
+- No rich-function claim was accepted. Pandoc/markerPDF document rows for DOC,
+  DOCX/OpenXML, PDF input/output handoff, EPUB, ODT/OpenDocument, templates,
+  citations, math, tables, package containers, XML/HTML, Unicode/charset,
+  JSON/YAML metadata, syntax highlighting, archive, compression, OCR/layout,
+  PDF text/page, and table geometry remain inactive backlog rows.
+- `porting.html` and `porting-summary.json` were not regenerated because no
+  lane/status changes were accepted.
+
+Next safe integration target: first retry LightningCSS only after the worker
+reduces the current custom-property/`attr()` handoff to a small lane-scoped
+patch with stable ownership. If that does not happen, rclone WebDAV
+ServeContent/error-header work is the next concrete candidate only after its
+pane is owner-free and the missing/example-root failure is captured in a
+bounded handoff. Any accepted batch still needs focused inspection, focused
+verification, one serialized no-argument `php tools/run-tests.php` result
+through the root harness lock, `git diff --check`, dashboard regeneration from
+the accepted snapshot, and support-library gate review at base-lane
+granularity.
+
 ## Integration worker hold - 2026-05-24 17:53 UTC
 
 No lane output was integrated in this pass. I read the required coordination
