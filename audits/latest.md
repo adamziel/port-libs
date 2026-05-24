@@ -1,4 +1,4 @@
-# Independent Audit - 2026-05-24T11:30Z
+# Independent Audit - 2026-05-24T11:32Z
 
 Scope reviewed: `goal.md`, `progress.md`, current worktree `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, current
@@ -15,7 +15,7 @@ unless they are explicitly temporary oracle tooling.
 ## Current Snapshot
 
 ```text
-UTC samples: 2026-05-24T11:26:03Z, 11:26:23Z, 11:26:46Z, 11:28:04Z, 11:30:23Z
+UTC samples: 2026-05-24T11:26:03Z, 11:26:23Z, 11:26:46Z, 11:28:04Z, 11:30:23Z, 11:32:37Z
 HEAD: e4fc1f56e24b
 recent history: e4fc1f56 Record integration hold status; 106d9968 Refresh independent audit status; d0a30984 Record integration hold status; 535e559c Record integration hold status; 1e4d30e2 Record support dependency routing
 tracked dirty rows: 328
@@ -46,15 +46,22 @@ pgrep -af '^php tools/run-tests\.php( |$)' final validation sample at 2026-05-24
 
 owner evidence for active focused harness:
 PID 1938898 USER claude PPID 1883120 STAT Rs ETIMES 57 COMMAND php tools/run-tests.php lanes/syncthing/tests
+
+pgrep -af '^php tools/run-tests\.php( |$)' final handoff sample at 2026-05-24T11:32:37Z:
+1959730 php tools/run-tests.php lanes/readability/tests
+
+owner evidence for active focused harness:
+PID 1959730 USER claude PPID 1925189 STAT Rs ETIMES 4 COMMAND php tools/run-tests.php lanes/readability/tests
 ```
 
 I did not start `php tools/run-tests.php`. The exact process gate was clear
 during the 11:26-11:28 UTC stability samples, but the checkout failed the
 stability gate because untracked-inclusive status and shortstat changed across
-the audit samples; final validation then matched a focused Syncthing harness.
-A root result from this moving, unaccepted checkout would not prove the
-committed state. `jq empty` passed for all 12 lane manifests, all 12
-lane-status files, `porting-summary.json`, and `dependency-backlog.json`.
+the audit samples; final validation then matched focused Syncthing and
+Readability harnesses. A root result from this moving, unaccepted checkout
+would not prove the committed state. `jq empty` passed for all 12 lane
+manifests, all 12 lane-status files, `porting-summary.json`, and
+`dependency-backlog.json`.
 
 Current count sample:
 
@@ -100,7 +107,10 @@ syncthing     658 / 658                      7705 / 0          658 / 658 / 4579
      audit-owned samples, but the tree moved during those samples. Final
      validation then matched focused Syncthing PID `1938898` owned by
      `claude` (`php tools/run-tests.php lanes/syncthing/tests`, PPID
-     `1883120`, state `Rs`, elapsed `57s` at owner sample). I did not start a
+     `1883120`, state `Rs`, elapsed `57s` at owner sample), and the final
+     handoff sample matched focused Readability PID `1959730` owned by
+     `claude` (`php tools/run-tests.php lanes/readability/tests`, PPID
+     `1925189`, state `Rs`, elapsed `4s` at owner sample). I did not start a
      duplicate or audit-owned root run. Focused lane evidence remains useful
      local proof, but it is not a serialized no-argument aggregate result from
      a frozen accepted tree.
