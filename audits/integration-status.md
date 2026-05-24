@@ -1,5 +1,41 @@
 # Integration Status
 
+## Integration handoff rejection - LightningCSS - 2026-05-24 18:26 UTC
+
+No LightningCSS lane output was integrated. After the previous status-only
+commit, a new marker appeared at
+`.tmux-team/tmp/handoff-candidates/port-lightningcss.ready`
+(`timestamp=2026-05-24T18:23:41Z`). The pane was owner-free (`bash`, no child
+process), so I held it with
+`.tmux-team/tmp/integration-holds/port-lightningcss.hold` and took the required
+two stability polls.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `cac668c6ddd0`
+  (`Record integration handoff rejections`).
+- LightningCSS/status shortstat stayed
+  `17 files changed, 45220 insertions(+), 9891 deletions(-)`.
+- Dirty lane scope stayed `196` rows (`17` modified, `179` untracked).
+- Relevant ready/log/hold file timestamps stayed unchanged.
+- Exact no-argument root gate matched active PID
+  `774384 php tools/run-tests.php` in the first poll and returned no rows in
+  the second poll. I did not start another root harness and did not wait on
+  `.upstream-cache/run-tests.lock`.
+
+Decision: rejected/deferred, not integrated. The worker handoff is a focused
+`background-clip:text` slice with useful focused PHP evidence, but the dirty
+lane is accumulated far beyond that claim, including broad visitor,
+declaration, media, nesting, transition, examples, manifest/status, and notes
+churn. This is not reviewable as one coherent lane-scoped batch and cannot be
+accepted without a reduced patch plus one accepted serialized root snapshot.
+
+Exact next LightningCSS worker task: split the `background-clip:text` work into
+the smallest patch containing only `CssMinifier.php`, `TransitionPrefixer.php`,
+their focused tests, one WordPress example, and normalized manifest/status/notes.
+Leave unrelated background visitor, declaration, media, nesting, and older
+example backlog for separate batches.
+
 ## Integration handoff rejections - Pandoc and libsqlite - 2026-05-24 18:23 UTC
 
 No lane output was integrated in this pass. I read the required coordination
