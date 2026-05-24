@@ -1,5 +1,86 @@
 # Integration Status
 
+## Integration handoff rejection - Gitoxide - 2026-05-24 20:40 UTC
+
+No Gitoxide lane output was integrated. I selected the fresh handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-gitoxide.ready`
+(`timestamp=2026-05-24T20:37:33Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-gitoxide` pane was idle at `bash`
+(`pane_pid=1691696`) with no child process. I held only Gitoxide with
+`.tmux-team/tmp/integration-holds/port-gitoxide.hold` at
+`2026-05-24T20:38:20Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` moved during the hold from `53e9d2323ded` to `57fc4d7d00f3`, so
+  there was no single stable accepted integration snapshot for this intake.
+- The exact no-argument root gate was clear in both held polls. No
+  integration-owned root harness was started because the handoff was rejected
+  before acceptance.
+- Gitoxide tracked shortstat stayed
+  `58 files changed, 6999 insertions(+), 565 deletions(-)`.
+- Gitoxide untracked files stayed at `166`, including the advertised
+  `GitDiscover` files plus many older untracked commit-graph, config,
+  attributes, ignore, index, URL, mailmap, pathspec, refspec, protocol, SSH,
+  and pack-related source/test/example/fixture files.
+- The latest Gitoxide handoff log stayed focused on
+  `.tmux-team/logs/port-gitoxide-watchdog-20260524T202818Z.log`.
+
+Focused evidence reviewed:
+
+- Advertised slice: bounded `gix-discover` cross-filesystem discovery behavior,
+  adding default device-boundary stopping, `crossFs=true`, and a test-only
+  `deviceResolver` hook for deterministic filesystem-boundary coverage.
+- Worker-reported evidence was focused and green for the slice:
+  `php -l` on touched PHP files,
+  `php tools/run-tests.php lanes/gitoxide/tests/GitDiscoverTest.php`
+  (`1` file, `135` assertions, `0` failures),
+  `php lanes/gitoxide/examples/wordpress-discover.php`,
+  `php tools/run-tests.php lanes/gitoxide/tests`
+  (`55` files, `7609` assertions, `0` failures),
+  `jq empty` for lane manifest/status, and `git diff --check` for touched
+  lane files.
+- The worker also stated the real acceptance blocker up front: this cross-FS
+  slice sits on an accumulated untracked `GitDiscover` stack and cannot be
+  isolated cleanly from earlier unaccepted discovery slices without integrator
+  help. Root aggregate, full Cargo workspace parity, macOS-only upstream
+  `cross_fs` runner parity, and commit acceptance remain pending.
+
+Decision: rejected/deferred, not integrated. The current Gitoxide dirty scope
+is an accumulated multi-slice lane patch, and `lane-status.json`,
+`UPSTREAM_TEST_MANIFEST.json`, and `wordpress-scenarios.md` are coupled to
+that wider stack. Accepting all Gitoxide files would merge far more than the
+reviewed cross-FS evidence; staging only the advertised files would leave the
+new `GitDiscover` implementation and metadata claims dependent on earlier
+unaccepted discovery work. No dashboard artifacts were regenerated and no
+progress claim was advanced. `dependency-backlog.json` is valid JSON with
+`37` rows and remains consistent with the `progress.md` backlog count; no
+support-library row was activated or counted for this rejected Gitoxide slice.
+The held Gitoxide marker and hold file were removed; the watchdog may create a
+fresh marker if the pane remains idle and the worker has not yet emitted a
+reduced handoff.
+
+Exact next Gitoxide worker task: re-emit a reduced handoff from the accepted
+lane baseline. If the claim remains `gix-discover` cross-filesystem behavior,
+include only the minimal `GitDiscover` source, `GitDiscoverTest`,
+`wordpress-discover` fixture/example, handoff note, and normalized
+manifest/status/scenario updates required for that slice. If the slice depends
+on earlier `GitDiscover` discovery/trust/ceiling/head-validation behavior,
+either include that prerequisite as one coherent reduced `GitDiscover` stack
+with its own focused evidence, or split it into accepted-order handoffs. Do not
+bundle unaccepted commit-graph, config, attributes, ignore, index, URL,
+mailmap, pathspec, refspec, protocol, SSH, or pack work in the same handoff.
+
+Current skipped lanes: Difftastic, Dolt, Dolt runner, esbuild, libsqlite,
+LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability, and Syncthing
+remain dirty, active, or independently owned outside this selected Gitoxide
+hold. Dolt remains skipped until implementation and runner evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: a fresh Gitoxide marker only after the worker reduces
+the dirty scope to the stated handoff, otherwise libsqlite after it is
+owner-free and reduced or fully evidenced, otherwise the next owner-free
+`.ready` marker whose dirty scope exactly matches its worker evidence.
+
 ## Integration handoff rejection - Syncthing - 2026-05-24 20:36 UTC
 
 No Syncthing lane output was integrated. I selected the fresh handoff candidate
