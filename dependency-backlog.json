@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-24 11:39:10 UTC",
+  "updated": "2026-05-24 12:29:10 UTC",
   "policy": "Gate optional dependency ports behind base-tool blockers; a row becomes active only when a base lane is green enough for the next rich-function slice or is blocked on that component. Port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with mapped fixtures, PHP pass/fail counts, malformed/corrupt cases where relevant, and explicit non-goals; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
   "items": [
     {
@@ -305,18 +305,18 @@
     {
       "id": "layout-ocr-result-core",
       "name": "Layout and OCR result core",
-      "source": "markerPDF marker/ocr/recognition.py, marker/layout/layout.py, OCRMyPDF/Tesseract planning, and Surya result evidence in lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json",
+      "source": "markerPDF marker/ocr/recognition.py, marker/layout/layout.py, marker/layout/order.py supplied reading-order evidence, OCRMyPDF/Tesseract planning, and Surya result evidence in lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json",
       "neededBy": [
         "markerpdf"
       ],
-      "essentialCapability": "Allows scanned or garbled PDFs to enter the same structured document path through OCR language, polygon, line, and page-result handoffs.",
-      "scopeBoundary": "In scope: language maps, OCR job planning, hOCR/TSV/plain-result ingestion, supplied Surya-style layout/OCR predictions, polygon scaling, stats, and page replacement. Out of scope: porting Tesseract, OCRMyPDF, Ghostscript, Torch, Surya, Texify, or model inference.",
+      "essentialCapability": "Allows scanned or garbled PDFs to enter the same structured document path through OCR language, polygon, line, supplied reading-order, and page-result handoffs.",
+      "scopeBoundary": "In scope: language maps, OCR job planning, hOCR/TSV/plain-result ingestion, supplied Surya-style layout/OCR predictions, supplied reading-order result ingestion, polygon scaling, stats, and page replacement. Out of scope: porting Tesseract, OCRMyPDF, Ghostscript, Torch, Surya, Texify, or model inference.",
       "priority": "critical",
       "activationGate": "markerpdf-ocr-layout-result-next-or-markerpdf-scanned-pdf-handoff-next",
-      "testExpectation": "Require an OCR/layout-result upstream/spec denominator with mapped supplied hOCR/TSV/plain text, Surya-style layout/OCR prediction, language-map, polygon, and page-result fixtures, PHP pass/fail evidence, malformed/corrupt result cases including bad polygons, missing page refs, invalid language tags, impossible confidences, replacement-text conflicts, and explicit full-runner blockers. No progress credit for Tesseract/OCRMyPDF/Ghostscript/Surya/Torch/Texify or external OCR/model engines.",
+      "testExpectation": "Require an OCR/layout-result upstream/spec denominator with mapped supplied hOCR/TSV/plain text, Surya-style layout/OCR prediction, supplied reading-order/order.py, language-map, polygon, and page-result fixtures, PHP pass/fail evidence, malformed/corrupt result cases including bad polygons, malformed reading-order positions, missing page refs, invalid language tags, impossible confidences, replacement-text conflicts, and explicit full-runner blockers. No progress credit for Tesseract/OCRMyPDF/Ghostscript/Surya/Torch/Texify or external OCR/model engines.",
       "reuseNotes": "Use PDF geometry and Unicode repair; output should feed markerPDF and later any Pandoc PDF import pathway while keeping OCR/model execution as caller-supplied or external evidence only.",
       "status": "candidate",
-      "blocker": "Activate only when markerPDF opens scanned/garbled PDF handoff work that needs supplied OCR/layout-result ingestion; OCR engine ports, model stacks, and service wrappers remain explicit non-goals."
+      "blocker": "Activate only when markerPDF opens scanned/garbled PDF handoff work that needs supplied OCR/layout/reading-order result ingestion; OCR engine ports, model stacks, and service wrappers remain explicit non-goals."
     },
     {
       "id": "table-geometry-core",
