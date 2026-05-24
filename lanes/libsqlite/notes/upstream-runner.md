@@ -1,5 +1,633 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: `json_pretty(JSON[, INDENT])`
+
+Date: 2026-05-24
+
+This slice maps SQLite's `json_pretty()` boundary for strict JSON text,
+SQLite JSON5 text, cast text BLOB fallback, JSONB BLOB inputs, SQL NULL, and
+caller-supplied indentation text. The native `SQLiteJsonPretty` reuses the
+lane-local `SQLiteJsonCanonical` and `SQLiteJsonB` behavior, then renders
+arrays and objects with SQLite's newline placement, `": "` object separator,
+default four-space indentation, SQL NULL/default indent handling, empty
+indent strings, tab/custom indent strings, empty container handling, JSON5
+number spellings, and malformed JSON rejection. This is local-only formatting
+logic, not a SQL parser or SQLite extension wrapper.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json106.test json108.test
+```
+
+Result: passed 2 selected Tcl scripts, 45,007 tests, and 0 errors in 00:08.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Targeted upstream SQL smoke returned the exact pretty-output hex for default
+four-space formatting, JSON5 normalization, empty indent, tab indent, custom
+`--` indent, empty arrays/objects, JSONB BLOB rendering, SQL NULL
+propagation, JSON5 infinity/NaN/decimal/hex number spellings inside pretty
+output, and `malformed JSON` for duplicate comma input.
+
+Bounded static evidence:
+
+- 3 hydrated focused files: `src/json.c`, `test/json106.test`, and
+  `test/json108.test`.
+- 5857 inspected upstream lines across those files.
+- 37 focused `json_pretty`/`JsonPretty`/pretty source-test references.
+- 7 direct `json_pretty` references in the selected Tcl scripts.
+- 23 focused Tcl command/reference lines across the selected scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonPretty.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
+```
+
+Result: focused PHP passed 1 selected test file, 1812 assertions, and 0
+failures. The test file now contains 223 focused libsqlite cases. The new
+WordPress example reports SQLite-style `json_pretty()` output for strict JSON
+text, JSON5 plugin settings, custom indentation, cast text BLOBs, JSONB
+option blobs, NULL option values, and malformed copied settings. This worker
+did not start the root aggregate harness because root verification was not
+assigned to this lane.
+
+## Focused Native Mapping: `json(X)` Canonical Text And JSON5 Normalization
+
+Date: 2026-05-24
+
+This slice maps SQLite's `json(X)` one-argument canonicalization boundary for
+strict JSON text, SQLite JSON5 text, cast text BLOB fallback, JSONB BLOBs, and
+SQL NULL. The native `SQLiteJsonCanonical` removes insignificant whitespace,
+quotes JSON5 identifier keys, strips comments, accepts single trailing commas,
+normalizes JSON5 decimal forms such as `4.`, `+4.e1`, and `-.5e-1`, maps
+infinities and NaN to SQLite's canonical JSON spellings, decimalizes hex
+integers, converts single-quoted strings to JSON strings, escapes raw control
+characters, dispatches valid JSONB blobs through the existing bounded
+`SQLiteJsonB` decoder, and rejects malformed JSON. This is a local-only JSON
+canonicalizer, not a SQL parser or SQLite extension wrapper.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test json102.test json501.test json502.test
+```
+
+Result: passed 4 selected Tcl scripts, 793 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Targeted upstream SQL smoke returned canonical whitespace-free JSON text,
+JSON5 identifier/trailing-comma object and array normalization, `4.0`,
+`4.0e1`, `-0.5e-1`, `9e999`, `null`, `11259375`,
+`{"x":"a \"b\" c"}`, control-character text as hex
+`7B226C6162656C223A226162635C753030303178797A227D`, cast text BLOB
+fallback, JSONB BLOB text rendering, SQL NULL propagation, and malformed JSON
+errors for bad identifier punctuation and duplicate commas.
+
+Bounded static evidence:
+
+- 5 hydrated focused files: `src/json.c`, `test/json101.test`,
+  `test/json102.test`, `test/json501.test`, and `test/json502.test`.
+- 8173 inspected upstream lines across those files.
+- 368 focused `json`/`jsonb`/`json_valid`/`json_error_position`/translation
+  source-test references.
+- 144 direct `json()`/JSONB translation references in source and selected
+  Tcl scripts.
+- 829 focused Tcl command/reference lines across the selected scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonCanonical.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
+php lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
+```
+
+Result: focused PHP passed 1 selected test file, 1800 assertions, and 0
+failures. The test file now contains 222 focused libsqlite cases. The new
+WordPress example reports SQLite-style `json(X)` canonicalization for strict
+JSON text, JSON5 plugin settings, cast text BLOBs, JSONB option blobs, NULL
+option values, and malformed copied settings. This worker did not start the
+root aggregate harness because root verification was not assigned to this
+lane.
+
+## Focused Native Mapping: `json_array()` And `json_object()` SQL Constructors
+
+Date: 2026-05-24
+
+This slice maps SQLite's JSON constructor SQL-value boundary for
+`json_array(VALUE,...)` and `json_object(NAME,VALUE,...)`. The native
+`SQLiteJsonConstructor` renders SQL NULL, integer, REAL including infinities,
+TEXT, `TRUE`/`FALSE` integer expressions, explicit `SQLiteJsonSubtypeValue`
+passthrough, JSONB BLOB values through the existing `SQLiteJsonB` decoder, raw
+BLOB rejection, odd `json_object()` arity errors, and non-TEXT object-label
+errors. This is a local-only constructor helper, not a SQL parser or SQLite
+extension wrapper.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test subtype1.test
+```
+
+Result: passed 2 selected Tcl scripts, 305 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Targeted upstream SQL smoke returned `[1,2.5,null,"hello"]`, copied JSON text
+as a quoted string, JSON subtype passthrough inside arrays/objects, JSONB array
+passthrough, `TRUE`/`FALSE` as `1,0`, infinities as `9.0e+999` and
+`-9.0e+999`, `JSON cannot hold BLOB values` for raw BLOBs,
+`json_object() requires an even number of arguments`, `json_object() labels
+must be TEXT`, JSON subtype labels as ordinary TEXT, and JSONB labels rejected.
+
+Bounded static evidence:
+
+- 3 hydrated focused files: `src/json.c`, `test/json101.test`, and
+  `test/subtype1.test`.
+- 7030 inspected upstream lines across those files.
+- 95 focused `json_array`/`json_object`/constructor/BLOB/subtype
+  source-test references.
+- 251 focused Tcl command/reference lines across the selected scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonConstructor.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php
+php lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
+```
+
+Result: focused PHP passed 1 selected test file, 1782 assertions, and 0
+failures. The test file now contains 221 focused libsqlite cases. The new
+WordPress example reports SQLite-style JSON constructor diagnostics for copied
+plugin settings, JSON subtype payloads, JSONB migration queues, and raw BLOB
+rejection. This worker did not start the root aggregate harness because root
+verification was not assigned to this lane.
+
+## Focused Native Mapping: `json_quote()` SQL Values
+
+Date: 2026-05-24
+
+This slice maps SQLite's `json_quote(X)` SQL-value rendering boundary for SQL
+`NULL`, INTEGER, REAL, TEXT with quote/control-character escaping, JSONB BLOBs,
+raw BLOB rejection, and superficial-only malformed JSONB errors.
+`SQLiteJsonQuote` returns SQLite JSON text, maps PHP booleans like SQLite
+`TRUE`/`FALSE` integer expressions, preserves explicit `SQLiteJsonSubtypeValue`
+inputs, accepts strict JSONB blobs through the existing `SQLiteJsonB` decoder,
+and throws SQLite-style errors for raw BLOBs or malformed JSONB.
+`SQLiteCreateIndex` now reuses the helper for the existing bounded
+`json_quote(NULL/numeric)` JSON operator RHS constant folding without
+broadening unsupported text/BLOB RHS paths.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test json102.test subtype1.test
+```
+
+Result: passed 3 selected Tcl scripts, 622 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Targeted upstream SQL smoke returned `null`, `12345`, `3.14159`, `100.0`,
+`-0.25`, `"abc\"xyz"`, control-character text as hex
+`226C696E655C6E7461625C746E756C5C7530303030656E6422`, JSON subtype values
+`{"a":1}` and `[1,2]`, `TRUE`/`FALSE` as `1,0`, copied JSON-looking text as a
+quoted string, `JSON cannot hold BLOB values` for raw BLOBs, `malformed JSON`
+for a superficial-only JSONB BLOB, and upstream arity errors.
+
+Bounded static evidence:
+
+- 4 hydrated focused files: `src/json.c`, `test/json101.test`,
+  `test/json102.test`, and `test/subtype1.test`.
+- 7873 inspected upstream lines across those files.
+- 89 focused `json_quote`/`jsonQuoteFunc`/`jsonAppendSqlValue`/BLOB/subtype
+  source-test references.
+- 497 focused Tcl command/reference lines across the selected scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonQuote.php
+php -l lanes/libsqlite/src/SQLiteCreateIndex.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php
+php lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
+```
+
+Result: focused PHP passed 1 selected test file, 1767 assertions, and 0
+failures. The test file now contains 218 focused libsqlite cases. The new
+WordPress example reports SQLite-style `json_quote()` rendering for SQL NULL,
+integer, REAL, exponent REAL, copied text settings, control-character text,
+valid JSONB blobs, and raw BLOB rejection. This worker did not start the root
+aggregate harness because root verification was not assigned to this lane.
+
+## Focused Native Mapping: `json_type()` And `json_array_length()` Text, JSON5, BLOB, And NULL
+
+Date: 2026-05-24
+
+This slice maps SQLite's JSON inspection boundary for `json_type(X[,P])` and
+`json_array_length(X[,P])` across strict JSON text, SQLite JSON5 text, cast
+text BLOB fallback, JSONB-looking BLOBs, missing paths, scalar paths, and SQL
+NULL. `SQLiteJsonInspection` reuses the existing bounded JSON5 parser and
+JSONB inspector, returns SQLite type names, returns `0` for non-array scalar
+targets, returns `NULL` for missing paths or SQL NULL arguments, and raises on
+malformed JSON or malformed paths.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test json102.test json501.test
+```
+
+Result: passed 3 selected Tcl scripts, 780 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Targeted upstream SQL smoke returned:
+
+```text
+object,array,integer,real,true,false,null,text,NULL,6,0,0,NULL
+array,real,2,array,3,object,2,NULL,NULL
+```
+
+The values cover strict JSON root/path type names, missing-path SQL NULL,
+array length 6, scalar length 0, empty-array length 0, missing-array SQL NULL,
+JSON5 path type and length, cast text BLOB fallback, JSONB path inspection,
+and SQL NULL propagation.
+
+Bounded static evidence:
+
+- 4 hydrated focused files: `src/json.c`, `test/json101.test`,
+  `test/json102.test`, and `test/json501.test`.
+- 8093 inspected upstream lines across those files.
+- 450 focused `json_type`/`json_array_length`/`json_valid`/
+  `json_error_position`/JSONB/JSON5 source-test references.
+- 46 direct `json_type`/`json_array_length` references in the selected Tcl
+  scripts.
+- 564 focused Tcl command/reference lines across the selected scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonInspection.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-inspection-preflight.php
+php lanes/libsqlite/examples/wordpress-json-inspection-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
+```
+
+Result: focused PHP passed 1 selected test file, 1749 assertions, and 0
+failures. The test file now contains 217 focused libsqlite cases. The new
+WordPress example reports SQLite-style type and array-length inspection for
+strict JSON text, JSON5 plugin settings, cast text BLOBs, JSONB blobs, missing
+plugin paths, and SQL NULL option values. This worker did not start the root
+aggregate harness because root verification was not assigned to this lane.
+
+## Focused Native Mapping: `json_error_position()` Text, JSON5, BLOB, And NULL
+
+Date: 2026-05-24
+
+This slice maps SQLite's `json_error_position(X)` diagnostics across TEXT,
+SQLite JSON5, cast text BLOB fallback, JSONB BLOBs, and SQL NULL.
+`SQLiteJsonErrorPosition` dispatches BLOBs through SQLite-style superficial
+JSONB detection and otherwise uses the bounded JSON5 text parser. Text errors
+return 1-based character positions, valid JSON5 returns 0 even when strict
+`json_valid(X)` would reject it, JSONB errors return byte positions, and SQL
+NULL propagates as NULL.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test json102.test json501.test json502.test
+```
+
+Result: passed 4 selected Tcl scripts, 793 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Targeted upstream SQL smoke returned:
+
+```text
+0,0,16,16,9,15,1,1,7,0,NULL
+0,0,2,1
+```
+
+The values cover JSON5 object/array trailing-comma acceptance, duplicate-comma
+object/array offsets, nested malformed JSON5 object position 9, a
+WordPress-shaped duplicate-comma settings offset 15, unsupported identifier
+and trailing-content position 1, decimal leading-zero offset 7, JSON5 plus,
+leading-decimal, and trailing-decimal number acceptance, SQL NULL propagation,
+cast text BLOB fallback, valid JSONB, superficial-only corrupt JSONB byte
+offset 2, and non-JSONB BLOB text fallback at position 1.
+
+Bounded static evidence:
+
+- 5 hydrated focused files: `src/json.c`, `test/json101.test`,
+  `test/json102.test`, `test/json501.test`, and `test/json502.test`.
+- 8173 inspected upstream lines across those files.
+- 190 focused `json_error_position`/`json_valid`/JSON5/JSONB source-test
+  references.
+- 14 direct `json_error_position` references in the selected Tcl scripts.
+- 677 focused Tcl command/reference lines across the selected scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJson5Parser.php
+php -l lanes/libsqlite/src/SQLiteJsonB.php
+php -l lanes/libsqlite/src/SQLiteJsonErrorPosition.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
+```
+
+Result: focused PHP passed 1 selected test file, 1722 assertions, and 0
+failures. The test file now contains 216 focused libsqlite cases. The new
+WordPress example reports SQLite-style error positions for JSON5 plugin
+settings text, duplicate-comma and nested malformed settings, leading-zero
+numbers, cast text BLOBs, valid JSONB option blobs, superficial-only corrupt
+JSONB blobs, and SQL NULL option values. This worker did not start the root
+aggregate harness because root verification was not assigned to this lane.
+
+## Focused Native Mapping: `json_valid()` Text, JSON5, And BLOB Flags
+
+Date: 2026-05-24
+
+This slice maps SQLite's `json_valid(X, FLAGS)` dispatcher across text, JSON5,
+BLOB fallback, JSONB, NULL, and invalid flag boundaries. `SQLiteJsonValidity`
+uses strict RFC-8259 validation for the default/flag-1 text path, the existing
+bounded `SQLiteJson5Parser` for flag 2, the existing `SQLiteJsonB` superficial
+and strict validators for flags 4 and 8, and `SQLiteBlobValue` to preserve the
+SQLite distinction between TEXT and BLOB inputs.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test json501.test json107.test
+```
+
+Result: passed 3 selected Tcl scripts, 479 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Targeted upstream SQL smoke returned:
+
+```text
+1,0,1,1,0,1,1,0,1,0,1,1
+```
+
+The values cover strict JSON text acceptance, JSON5 default rejection, JSON5
+flag-2 acceptance, comments/trailing-comma JSON5 acceptance, strict
+control-character rejection, JSON5 control-character acceptance, cast text BLOB
+flag-1 acceptance, cast text BLOB flag-4 rejection, superficial-only JSONB
+flag-4 acceptance, strict JSONB rejection, combined flag-12 superficial
+acceptance, and SQL NULL propagation. Invalid flag 16 raised SQLite's
+`FLAGS parameter to json_valid() must be between 1 and 15` error.
+
+Bounded static evidence:
+
+- 4 hydrated focused files: `src/json.c`, `test/json101.test`,
+  `test/json501.test`, and `test/json107.test`.
+- 7336 inspected upstream lines across those files.
+- 176 focused `json_valid`/JSON5/FLAGS source-test references.
+- 518 focused Tcl command/reference lines across the selected scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonValidity.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-validity-preflight.php
+php lanes/libsqlite/examples/wordpress-json-validity-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
+```
+
+Result: focused PHP passed 1 selected test file, 1707 assertions, and 0
+failures. The test file now contains 215 focused libsqlite cases. The new
+WordPress example reports strict JSON text, JSON5 text, malformed text, cast
+text BLOB, valid JSONB, superficial-only JSONB, and SQL NULL option-value
+checks. This worker did not start the root aggregate harness because root
+verification was not assigned to this lane.
+
+## Focused Native Mapping: JSONB `json_valid()` Superficial Flag
+
+Date: 2026-05-24
+
+This slice maps SQLite's BLOB-side `json_valid(X, FLAGS)` distinction for
+JSONB inputs. `SQLiteJsonB::isSuperficiallyJsonB()` now mirrors the flag-4
+outer-header check used by `jsonArgIsJsonb()`: the element type must be
+within SQLite's JSONB type range, the outer payload size must consume the
+whole BLOB, scalar null/boolean payloads must be zero length, and small
+ambiguous BLOBs whose first byte overlaps JSON text (`{`, `[`, or ASCII
+digits) fall back to strict validation. `SQLiteJsonB::isStrictlyWellFormed()`
+adds a recursive byte-shape validator for the flag-8 boundary.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json107.test json101.test json102.test jsonb01.test
+```
+
+Result: passed 4 selected Tcl scripts, 650 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Targeted upstream SQL smoke:
+
+```tcl
+sqlite3 db :memory:
+puts [db one {SELECT json_valid(x'8bff00000000000000',4) || ',' ||
+                     json_valid(x'8bff00000000000000',8) || ',' ||
+                     json_valid(CAST('{"a":35}' AS BLOB),4) || ',' ||
+                     json_valid(x'1000',4)}]
+```
+
+Result: `1,0,0,0`, confirming the large corrupt outer-array BLOB is
+superficially JSONB but not strict JSONB, a cast text JSON BLOB is not accepted
+as superficial JSONB at the ambiguous small-BLOB boundary, and a scalar null
+header with a non-zero payload is rejected.
+
+Bounded static evidence:
+
+- 5 hydrated focused files: `src/json.c`, `test/json107.test`,
+  `test/json101.test`, `test/json102.test`, and `test/jsonb01.test`.
+- 7896 inspected upstream lines across those files.
+- 590 matching JSONB/json_valid/flag/source-test lines across the focused
+  files.
+- 732 focused Tcl command/reference lines across the selected scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonB.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-jsonb-validity-preflight.php
+php lanes/libsqlite/examples/wordpress-jsonb-validity-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'
+```
+
+Result: focused PHP passed 1 selected test file, 1678 assertions, and 0
+failures. The test file now contains 214 focused libsqlite cases. The new
+WordPress example reports valid settings JSONB as superficial+strict, the
+large corrupt BLOB `8bff00000000000000` as superficial-only, cast text JSON
+as not JSONB for flag 4, and a bad scalar payload as invalid. This worker did
+not start the root aggregate harness because root verification was not
+assigned to this lane.
+
+## Focused Native Mapping: JSON Full Path Validation
+
+Date: 2026-05-24
+
+This slice validates full SQLite JSON paths before a copied expression index is
+treated as reusable by native preflight code. `SQLiteCreateIndex` now rejects
+malformed full paths such as `$.`, `$.plugin[#-]`, `$.plugin[#9]`,
+`$.plugin[#+2]`, and unterminated quoted labels for `json_extract()`, `->`,
+and `->>` expression-index metadata. It still accepts valid root paths,
+quoted empty object labels (`$.""`), `[N]`, `[#]`, and `[#-N]`, and keeps the
+existing abbreviated operator RHS normalization for labels and integer array
+indexes.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test json105.test json102.test indexexpr1.test
+```
+
+Result: passed 4 selected Tcl scripts, 755 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Bounded static evidence:
+
+- 5 hydrated focused files: `src/json.c`, `test/json101.test`,
+  `test/json105.test`, `test/json102.test`, and `test/indexexpr1.test`.
+- 8560 inspected upstream lines across those files.
+- 39 focused JSON path error/source contract references around
+  `jsonLookupStep()`, `jsonBadPathError()`, `JSON_ABPATH`, and related path
+  validation code.
+- 169 focused JSON path/operator/index test references in the selected Tcl
+  scripts.
+- 954 JSON path/operator/index references across the focused files.
+- 738 Tcl command/reference lines across the focused scripts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonPath.php
+php -l lanes/libsqlite/src/SQLiteCreateIndex.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-path-validation-preflight.php
+php lanes/libsqlite/examples/wordpress-json-path-validation-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: focused PHP passed 1 selected test file, 1665 assertions, and 0
+failures. The test file now contains 213 focused libsqlite cases. The new
+WordPress example reports `$.""` as valid, malformed `$.`, `$.plugin[#-]`,
+and `$.plugin[#9]` as invalid, resolves root page 3 for the valid empty-label
+index, skips malformed copied-schema index root pages, and returns
+`plugin_empty_label_settings` without requiring the SQLite extension. This
+worker did not start the root aggregate harness because root verification was
+not assigned to this lane.
+
+## Focused Native Mapping: JSON Operator json_quote() RHS Forms
+
+Date: 2026-05-24
+
+This slice extends bounded SQLite constant-expression folding inside
+deterministic `->` / `->>` JSON operator RHS expressions to direct
+`json_quote(VALUE)` calls where SQLite renders SQL `NULL` and numeric SQL
+values as JSON text that can be reused as an abbreviated operator path. Native
+`SQLiteCreateIndex` now maps `json_quote(NULL)` to `$.null`,
+`json_quote(123)` to `$."123"`, and `json_quote(1.25)` to `$."1.25"`.
+Direct quoted text output, raw BLOB arguments, invalid arity, and parameters
+stay unsupported for reusable paths.
+
+Focused upstream runner:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test json102.test subtype1.test indexexpr1.test
+```
+
+Result: passed 4 selected Tcl scripts, 729 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Bounded static evidence:
+
+- 5 hydrated focused files: `src/json.c`, `test/json101.test`,
+  `test/json102.test`, `test/subtype1.test`, and `test/indexexpr1.test`.
+- 8558 inspected upstream lines across those files.
+- 21 focused `json_quote` / `jsonQuoteFunc` source-test references.
+- 999 JSON operator and expression-index references around `JSON_ABPATH`,
+  `jsonExtractFunc()`, `->`, `->>`, `CREATE INDEX`, and `json_quote()`.
+- 682 Tcl command/reference lines across the focused scripts.
+- Upstream `testfixture` smoke expressions confirmed 10 selected results:
+  `json_quote(NULL)`, integer, REAL, exponent REAL, quoted text rendering,
+  raw BLOB and arity errors, and `->>` lookups through `json_quote(NULL)`,
+  `json_quote(123)`, and `json_quote(1.25)`.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCreateIndex.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-operator-json-quote-rhs-forms.php
+php lanes/libsqlite/examples/wordpress-json-operator-json-quote-rhs-forms.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: focused PHP passed 1 selected test file, 1636 assertions, and 0
+failures. The test file now contains 211 focused libsqlite cases. The new
+WordPress example reports normalized paths `$.null`, `$."123"`, and
+`$."1.25"`, uses root pages 3-5 for copied `wp_options` JSON operator
+expression indexes, returns the expected `plugin_json_quote_*` rows, and
+leaves direct quoted text, raw BLOB, and invalid-arity RHS operands
+unsupported. This worker did not start the root aggregate harness because
+root verification was not assigned to this lane.
+
 Date: 2026-05-22
 
 Upstream checkout:

@@ -2,6 +2,159 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## `json_pretty()` Option-Value Review Scenario
+
+Native JSON pretty-printing now follows SQLite's `json_pretty(JSON[,INDENT])`
+boundary for strict JSON text, SQLite JSON5 text, cast text BLOBs, JSONB
+blobs, SQL NULL option values, malformed JSON, and custom indentation. The
+example `examples/wordpress-json-pretty-option-review.php` checks local
+`wp_options.option_value`-shaped inputs for copied strict plugin settings,
+JSON5 plugin settings with comments and trailing commas, tab-indented review
+output, cast text BLOBs, JSONB option blobs, NULL values, and malformed
+duplicate-comma settings. For WordPress migration and repair tooling this
+gives a local-only way to generate SQLite-style review output for copied
+plugin settings without requiring the SQLite extension or shelling out to
+SQLite.
+
+## `json(X)` Option-Value Canonicalization Scenario
+
+Native JSON canonicalization now follows SQLite's `json(X)` boundary for
+strict JSON text, SQLite JSON5 text, cast text BLOBs, JSONB blobs, malformed
+JSON, and SQL NULL option values. The example
+`examples/wordpress-json-canonical-option-preflight.php` checks local
+`wp_options.option_value`-shaped inputs for copied strict plugin settings,
+JSON5 plugin settings with comments and trailing commas, cast text BLOBs,
+JSONB option blobs, NULL values, and malformed duplicate-comma settings. For
+WordPress migration and repair tooling this gives a local-only way to produce
+SQLite-style canonical JSON before plugin settings are imported or compared,
+without requiring the SQLite extension or shelling out to SQLite.
+
+## JSON Constructor Option Diagnostics Scenario
+
+Native JSON constructor diagnostics now follow SQLite's `json_array()` and
+`json_object()` SQL-value boundary for SQL NULL, numeric values, text values,
+`TRUE`/`FALSE` integer expressions, JSON subtype passthrough, JSONB BLOB
+passthrough, raw BLOB rejection, and `json_object()` label/arity errors. The
+example `examples/wordpress-json-constructor-option-diagnostics.php` builds
+local `wp_options` import reports and migration queue diagnostics before
+copied plugin settings are trusted. For WordPress migration and repair tooling
+this gives a local-only way to construct SQLite-style JSON diagnostics without
+requiring the SQLite extension or shelling out to SQLite.
+
+## `json_quote()` Option-Value Preflight Scenario
+
+Native JSON quoting now follows SQLite's `json_quote(X)` SQL-value boundary
+for SQL NULL, numeric values, copied TEXT settings, control-character TEXT,
+JSONB option blobs, raw BLOB rejection, and superficial-only malformed JSONB
+errors. The example `examples/wordpress-json-quote-option-preflight.php`
+checks `wp_options.option_value`-shaped values before import and reports the
+quoted JSON text or SQLite-style rejection status. For WordPress migration and
+repair tooling this gives a local-only way to render copied scalar option
+values into JSON diagnostics, preserve JSONB option blobs as JSON text, and
+reject raw BLOBs before plugin settings are trusted without requiring the
+SQLite extension.
+
+## JSON Type And Array-Length Option-Value Inspection Scenario
+
+Native JSON inspection now follows SQLite's `json_type(X[,P])` and
+`json_array_length(X[,P])` boundary for strict JSON text, JSON5 text, cast
+text BLOBs, JSONB blobs, missing paths, scalar paths, and SQL NULL option
+values. The example `examples/wordpress-json-inspection-preflight.php` checks
+`wp_options.option_value`-shaped inputs for plugin settings roots, nested
+plugin objects, plugin `modes` arrays, missing plugin paths, and NULL values.
+For WordPress migration and repair tooling this gives local-only shape checks
+that can distinguish object, array, scalar, missing, JSONB, and JSON5 inputs
+before copied plugin settings are imported or trusted.
+
+## `json_error_position()` Option-Value Diagnostics Scenario
+
+Native JSON diagnostics now follow SQLite's `json_error_position(X)` boundary
+for text, JSON5, BLOB, JSONB, and SQL NULL option values. The example
+`examples/wordpress-json-error-position-preflight.php` checks
+`wp_options.option_value`-shaped inputs for JSON5 plugin settings, duplicate
+commas, nested malformed copied settings, leading-zero numeric mistakes, cast
+text BLOBs, valid JSONB blobs, superficial-only corrupt JSONB blobs, and NULL
+values. For WordPress migration and repair tooling this gives local-only
+offsets that can be shown in diagnostics or used to route copied plugin
+settings to strict import, JSON5 normalization, JSONB repair, or rejection
+before the SQLite extension is available.
+
+## `json_valid()` Option-Value Preflight Scenario
+
+Native JSON validity preflight now follows SQLite's `json_valid(X, FLAGS)`
+dispatcher across strict JSON text, SQLite JSON5 text, BLOB fallback, JSONB,
+and SQL NULL option values. The example
+`examples/wordpress-json-validity-preflight.php` checks local
+`wp_options.option_value`-shaped inputs for strict plugin settings JSON, JSON5
+plugin settings, malformed copied text, cast text BLOBs, valid JSONB blobs,
+superficial-only corrupt JSONB blobs, and NULL values. For WordPress migration
+and repair tooling this gives a local-only way to decide whether copied plugin
+settings should be accepted as strict JSON, accepted only under SQLite JSON5
+rules, treated as a text BLOB fallback, routed through JSONB strict validation,
+or rejected before import.
+
+## JSONB Validity Preflight Scenario
+
+Native JSONB preflight now distinguishes SQLite's fast `json_valid(X,4)`
+superficial BLOB check from strict recursive JSONB validation. The example
+`examples/wordpress-jsonb-validity-preflight.php` checks four local
+`wp_options.option_value`-shaped inputs: a valid plugin settings JSONB blob, a
+large corrupt BLOB that passes SQLite's superficial flag-4 header check but
+fails strict validation, a cast text JSON BLOB that is rejected at SQLite's
+ambiguous small-BLOB boundary, and a scalar null header with a non-zero
+payload. For WordPress migration and repair tooling this lets a local-only
+import preflight cheaply triage copied JSONB option blobs and route
+superficial-only settings to strict decode or repair before plugin settings
+are trusted.
+
+## JSON Path Validation Preflight Scenario
+
+Native expression-index preflight now validates full SQLite JSON paths before
+trusting copied `wp_options` schema metadata. The example
+`examples/wordpress-json-path-validation-preflight.php` builds a local fixture
+with one valid expression index:
+
+```sql
+option_value ->> '$.""'
+```
+
+and two malformed copied-schema expression indexes:
+
+```sql
+option_value ->> '$.plugin[#-]'
+json_extract(option_value, '$.')
+```
+
+For WordPress migration and database-repair tooling this prevents a damaged or
+hand-copied schema row from making native recovery code trust an unusable JSON
+expression-index root page. The scenario reports `$.""` as valid, `$.`,
+`$.plugin[#-]`, and `$.plugin[#9]` as invalid, resolves root page 3 for the
+valid empty-label path, skips the malformed plugin-path root page, returns
+`plugin_empty_label_settings`, and stays local-only without requiring the
+SQLite extension.
+
+## JSON Operator json_quote() RHS Scenario
+
+Native JSON operator expression-index preflights now fold direct SQLite
+`json_quote(VALUE)` constants for copied `wp_options` indexes when SQLite's
+JSON rendering yields a reusable abbreviated path. The example
+`examples/wordpress-json-operator-json-quote-rhs-forms.php` builds a local
+fixture with these indexes:
+
+```sql
+option_value ->> json_quote(NULL)
+option_value ->> json_quote(123)
+option_value ->> json_quote(1.25)
+```
+
+For WordPress migration and repair tooling this prevents copied plugin
+settings from ignoring SQLite's JSON rendering for SQL `NULL`, integer, and
+REAL RHS values inside schema SQL. The scenario reports `$.null`, `$."123"`,
+and `$."1.25"`, uses root pages 3-5, returns expected
+`plugin_json_quote_*` rows, leaves direct quoted text, raw BLOB, and
+invalid-arity RHS outputs unsupported as reusable paths, and stays local-only
+without requiring the SQLite extension.
+
 ## Current Native Slice
 
 Native SQLite database header parser, SQLite varint decoder and encoder,

@@ -6,6 +6,7 @@ use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteAutoincrementState;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
+use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteCreateIndex;
 use PortLibs\LibSqlite\SQLiteCreateTable;
 use PortLibs\LibSqlite\SQLiteDatabase;
@@ -16,8 +17,17 @@ use PortLibs\LibSqlite\SQLiteIndexColumn;
 use PortLibs\LibSqlite\SQLiteIndexInteriorPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteJsonB;
+use PortLibs\LibSqlite\SQLiteJsonCanonical;
+use PortLibs\LibSqlite\SQLiteJsonConstructor;
+use PortLibs\LibSqlite\SQLiteJsonErrorPosition;
 use PortLibs\LibSqlite\SQLiteJson5Parser;
+use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
+use PortLibs\LibSqlite\SQLiteJsonPath;
+use PortLibs\LibSqlite\SQLiteJsonPretty;
+use PortLibs\LibSqlite\SQLiteJsonQuote;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
+use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -1567,9 +1577,13 @@ return [
         $quotedPath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_key ON wp_options(json_extract(option_value, \'$."plugin.enabled"\'))');
         $escapedQuotedPath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_hex_key ON wp_options(json_extract(option_value, \'$."a\x62c"\'))');
         $bareQuotePath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_quote_key ON wp_options(json_extract(option_value, \'$.A"Key\'))');
+        $emptyQuotedPath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_empty_key ON wp_options(json_extract(option_value, \'$.""\'))');
         $arrayPath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_rule ON wp_options(json_extract(option_value, \'$.rules[0].enabled\'))');
         $reverseArrayPath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_last_rule ON wp_options(json_extract(option_value, \'$.rules[#-1].enabled\'))');
         $arrayAppendPath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_append ON wp_options(json_extract(option_value, \'$.rules[#]\'))');
+        $badEmptyBarePath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_bad_empty_key ON wp_options(json_extract(option_value, \'$.\'))');
+        $badHashReversePath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_bad_reverse ON wp_options(json_extract(option_value, \'$.rules[#-]\'))');
+        $badHashDigitsPath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_json_bad_hash_digits ON wp_options(json_extract(option_value, \'$.rules[#9]\'))');
         $constantJson = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_constant ON wp_options(json_extract(\'{"enabled":true}\', \'$.enabled\'))');
         $multiPath = SQLiteCreateIndex::firstJsonExtractExpression('CREATE INDEX idx_multi_path ON wp_options(json_extract(option_value, \'$.enabled\', \'$.version\'))');
         $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_json_enabled ON wp_options(json_extract(option_value, \'$.enabled\'))');
@@ -1585,9 +1599,13 @@ return [
         $t->same('$."plugin.enabled"', $quotedPath?->path);
         $t->same('$."a\x62c"', $escapedQuotedPath?->path);
         $t->same('$.A"Key', $bareQuotePath?->path);
+        $t->same('$.""', $emptyQuotedPath?->path);
         $t->same('$.rules[0].enabled', $arrayPath?->path);
         $t->same('$.rules[#-1].enabled', $reverseArrayPath?->path);
         $t->same('$.rules[#]', $arrayAppendPath?->path);
+        $t->same(null, $badEmptyBarePath);
+        $t->same(null, $badHashReversePath);
+        $t->same(null, $badHashDigitsPath);
         $t->same(null, $constantJson);
         $t->same(null, $multiPath);
         $t->same(null, $ordinaryColumn);
@@ -1602,6 +1620,18 @@ return [
         $dottedLabel = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_dotted ON wp_options(option_value ->> \'plugin.enabled\')');
         $numericLabel = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_numeric_label ON wp_options(option_value ->> \'2\')');
         $escapedLabel = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_escaped_label ON wp_options(option_value ->> \'a\x62c\')');
+        $emptyQuotedPath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_empty_key ON wp_options(option_value ->> \'$.""\')');
+        $jsonQuoteNull = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_quote_null ON wp_options(option_value ->> json_quote(NULL))');
+        $jsonQuoteInteger = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_quote_integer ON wp_options(option_value ->> json_quote(123))');
+        $jsonQuoteReal = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_quote_real ON wp_options(option_value ->> json_quote(1.25))');
+        $jsonQuoteNegative = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_quote_negative ON wp_options(option_value ->> json_quote(-1))');
+        $jsonQuoteExponent = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_quote_exponent ON wp_options(option_value ->> json_quote(1e2))');
+        $jsonQuoteString = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_quote_string ON wp_options(option_value ->> json_quote('plugin'))");
+        $jsonQuoteBlob = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_quote_blob ON wp_options(option_value ->> json_quote(X'3031'))");
+        $jsonQuoteArity = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_quote_arity ON wp_options(option_value ->> json_quote(1,2))');
+        $badEmptyBarePath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_empty_key ON wp_options(option_value ->> \'$.\')');
+        $badHashReversePath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_reverse ON wp_options(option_value ->> \'$.rules[#-]\')');
+        $badUnterminatedQuotedPath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_quote ON wp_options(option_value ->> \'$."unterminated\')');
         $jsonExtractIndex = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_enabled ON wp_options(json_extract(option_value, \'$.enabled\'))');
         $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_json_enabled ON wp_options(option_value ->> \'enabled\')');
 
@@ -1621,6 +1651,18 @@ return [
         $t->same('$."plugin.enabled"', $dottedLabel?->path);
         $t->same('$."2"', $numericLabel?->path);
         $t->same('$.abc', $escapedLabel?->path);
+        $t->same('$.""', $emptyQuotedPath?->path);
+        $t->same('$.null', $jsonQuoteNull?->path);
+        $t->same('$."123"', $jsonQuoteInteger?->path);
+        $t->same('$."1.25"', $jsonQuoteReal?->path);
+        $t->same('$."-1"', $jsonQuoteNegative?->path);
+        $t->same('$."100.0"', $jsonQuoteExponent?->path);
+        $t->same(null, $jsonQuoteString);
+        $t->same(null, $jsonQuoteBlob);
+        $t->same(null, $jsonQuoteArity);
+        $t->same(null, $badEmptyBarePath);
+        $t->same(null, $badHashReversePath);
+        $t->same(null, $badUnterminatedQuotedPath);
         $t->same(null, $jsonExtractIndex);
         $t->same(null, $ordinaryColumn);
     },
@@ -1632,6 +1674,8 @@ return [
         $dottedLabel = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_dotted_fragment ON wp_options(option_value -> \'plugin.enabled\')');
         $numericLabel = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_numeric_fragment ON wp_options(option_value -> \'2\')');
         $escapedLabel = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_escaped_fragment ON wp_options(option_value -> \'a\x62c\')');
+        $emptyQuotedPath = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_empty_fragment ON wp_options(option_value -> \'$.""\')');
+        $badHashDigitsPath = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_bad_hash_digits ON wp_options(option_value -> \'$.rules[#9]\')');
         $textOperatorIndex = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_enabled ON wp_options(option_value ->> \'enabled\')');
         $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_json_enabled_fragment ON wp_options(option_value -> \'enabled\')');
 
@@ -1649,8 +1693,88 @@ return [
         $t->same('$."plugin.enabled"', $dottedLabel?->path);
         $t->same('$."2"', $numericLabel?->path);
         $t->same('$.abc', $escapedLabel?->path);
+        $t->same('$.""', $emptyQuotedPath?->path);
+        $t->same(null, $badHashDigitsPath);
         $t->same(null, $textOperatorIndex);
         $t->same(null, $ordinaryColumn);
+    },
+    'validates sqlite full json path syntax for expression index preflight' => static function (TestRunner $t): void {
+        $t->true(SQLiteJsonPath::isWellFormed('$'));
+        $t->true(SQLiteJsonPath::isWellFormed('$.""'));
+        $t->true(SQLiteJsonPath::isWellFormed('$.rules[0].enabled'));
+        $t->true(SQLiteJsonPath::isWellFormed('$.rules[#]'));
+        $t->true(SQLiteJsonPath::isWellFormed('$.rules[#-1]'));
+        $t->true(SQLiteJsonPath::isWellFormed('$."a\x62c"[01]'));
+        $t->same(false, SQLiteJsonPath::isWellFormed(''));
+        $t->same(false, SQLiteJsonPath::isWellFormed('$.'));
+        $t->same(false, SQLiteJsonPath::isWellFormed('$.rules[#-]'));
+        $t->same(false, SQLiteJsonPath::isWellFormed('$.rules[#9]'));
+        $t->same(false, SQLiteJsonPath::isWellFormed('$.rules[#+2]'));
+        $t->same(false, SQLiteJsonPath::isWellFormed('$.rules[#-1'));
+        $t->same(false, SQLiteJsonPath::isWellFormed('$."unterminated'));
+    },
+    'uses wordpress json operator indexes with json_quote RHS constants' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $pageSize = 4096;
+        $textPath = static fn (string $expression): ?string => SQLiteCreateIndex::firstJsonTextOperatorExpression(
+            'CREATE INDEX fixture ON wp_options(' . $expression . ') WHERE option_value IS NOT NULL',
+        )?->path;
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_json_quote_null', 'wp_options', 3, 'CREATE INDEX wp_options_json_quote_null ON wp_options(option_value ->> json_quote(NULL)) WHERE option_value IS NOT NULL'], 2),
+            $schemaCell(['index', 'wp_options_json_quote_integer', 'wp_options', 4, 'CREATE INDEX wp_options_json_quote_integer ON wp_options(option_value ->> json_quote(123)) WHERE option_value IS NOT NULL'], 3),
+            $schemaCell(['index', 'wp_options_json_quote_real', 'wp_options', 5, 'CREATE INDEX wp_options_json_quote_real ON wp_options(option_value ->> json_quote(1.25)) WHERE option_value IS NOT NULL'], 4),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 5));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_json_quote_null_settings', '{"null":"json-null"}', 'no'], 1),
+            $schemaCell([null, 'plugin_json_quote_integer_settings', '{"123":"integer-label"}', 'no'], 2),
+            $schemaCell([null, 'plugin_json_quote_real_settings', '{"1.25":"real-label"}', 'no'], 3),
+        ], $pageSize);
+        $page3 = $indexLeafPage([$indexCell(['json-null', 1])], $pageSize);
+        $page4 = $indexLeafPage([$indexCell(['integer-label', 2])], $pageSize);
+        $page5 = $indexLeafPage([$indexCell(['real-label', 3])], $pageSize);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $t->same('$.null', $textPath('option_value ->> json_quote(NULL)'));
+        $t->same('$."123"', $textPath('option_value ->> json_quote(123)'));
+        $t->same('$."1.25"', $textPath('option_value ->> json_quote(1.25)'));
+        $t->same(null, $textPath("option_value ->> json_quote('plugin')"));
+        $t->same(null, $textPath("option_value ->> json_quote(X'3031')"));
+        $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.null', 'json-null'));
+        $t->same(4, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."123"', 'integer-label'));
+        $t->same(5, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."1.25"', 'real-label'));
+        $t->same(['plugin_json_quote_null_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$.null', 'json-null')));
+        $t->same(['plugin_json_quote_integer_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$."123"', 'integer-label')));
+        $t->same(['plugin_json_quote_real_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$."1.25"', 'real-label')));
+    },
+    'skips malformed wordpress json path expression indexes during preflight' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $pageSize = 1024;
+        $textPath = static fn (string $expression): ?string => SQLiteCreateIndex::firstJsonTextOperatorExpression(
+            'CREATE INDEX fixture ON wp_options(' . $expression . ') WHERE option_value IS NOT NULL',
+        )?->path;
+        $extractPath = static fn (string $path): ?string => SQLiteCreateIndex::firstJsonExtractExpression(
+            "CREATE INDEX fixture ON wp_options(json_extract(option_value, '{$path}')) WHERE option_value IS NOT NULL",
+        )?->path;
+
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_json_empty_label', 'wp_options', 3, 'CREATE INDEX wp_options_json_empty_label ON wp_options(option_value ->> \'$.""\') WHERE option_value IS NOT NULL'], 2),
+            $schemaCell(['index', 'wp_options_json_bad_reverse', 'wp_options', 4, 'CREATE INDEX wp_options_json_bad_reverse ON wp_options(option_value ->> \'$.plugin[#-]\') WHERE option_value IS NOT NULL'], 3),
+            $schemaCell(['index', 'wp_options_json_bad_extract', 'wp_options', 5, 'CREATE INDEX wp_options_json_bad_extract ON wp_options(json_extract(option_value, \'$.\')) WHERE option_value IS NOT NULL'], 4),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 5));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_empty_label_settings', '{"":"empty-label","plugin":["bad"]}', 'no'], 1),
+        ], $pageSize);
+        $page3 = $indexLeafPage([$indexCell(['empty-label', 1])], $pageSize);
+        $page4 = $indexLeafPage([$indexCell(['bad', 1])], $pageSize);
+        $page5 = $indexLeafPage([$indexCell(['bad-extract', 1])], $pageSize);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $t->same('$.""', $textPath('option_value ->> \'$.""\''));
+        $t->same(null, $textPath('option_value ->> \'$.plugin[#-]\''));
+        $t->same(null, $extractPath('$.'));
+        $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.""', 'empty-label'));
+        $t->same(null, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.plugin', 'bad'));
+        $t->same(['plugin_empty_label_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$.""', 'empty-label')));
     },
     'parses sqlite substr expression index metadata without treating it as a column index' => static function (TestRunner $t): void {
         $prefixIndex = SQLiteCreateIndex::firstSubstringExpression('CREATE INDEX idx_name_prefix ON wp_options(substr(main.wp_options."option_name", 1, 11) COLLATE nocase DESC) WHERE option_name IS NOT NULL');
@@ -2613,6 +2737,293 @@ return [
         $t->same('553965393939', bin2hex(SQLiteJsonB::encode(INF)));
         $t->same('652d3965393939', bin2hex(SQLiteJsonB::encode(-INF)));
         $t->same('00', bin2hex(SQLiteJsonB::encode(NAN)));
+    },
+    'checks sqlite json_valid jsonb superficial and strict blob flags' => static function (TestRunner $t): void {
+        $validSettings = SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => true,
+                'migrations' => ['core', 'cache'],
+            ],
+        ]);
+        $largeCorruptJsonb = "\x8b\xff" . str_repeat("\0", 7);
+        $castTextJsonBlob = '{"a":35}';
+        $badScalarPayload = "\x10\0";
+
+        $t->true(SQLiteJsonB::isSuperficiallyJsonB($validSettings));
+        $t->true(SQLiteJsonB::isStrictlyWellFormed($validSettings));
+        $t->true(SQLiteJsonB::isJsonB($validSettings));
+        $t->true(SQLiteJsonB::isSuperficiallyJsonB($largeCorruptJsonb));
+        $t->same(false, SQLiteJsonB::isStrictlyWellFormed($largeCorruptJsonb));
+        $t->same(false, SQLiteJsonB::isJsonB($largeCorruptJsonb));
+        $t->same(false, SQLiteJsonB::isSuperficiallyJsonB($castTextJsonBlob));
+        $t->same(false, SQLiteJsonB::isStrictlyWellFormed($castTextJsonBlob));
+        $t->same(false, SQLiteJsonB::isSuperficiallyJsonB($badScalarPayload));
+        $t->same(false, SQLiteJsonB::isStrictlyWellFormed($badScalarPayload));
+        $t->same(false, SQLiteJsonB::isSuperficiallyJsonB($validSettings . "\0"));
+        $t->true(SQLiteJsonB::isSuperficiallyJsonB(SQLiteJsonB::encode(null)));
+        $t->true(SQLiteJsonB::isStrictlyWellFormed(SQLiteJsonB::encode(null)));
+    },
+    'checks sqlite json_valid text json5 and blob flag combinations' => static function (TestRunner $t): void {
+        $strictJson = '{"enabled":true,"count":2}';
+        $json5 = "{enabled:true, modes:['dark',], /* copied option */}";
+        $controlCharacterString = '"abc' . chr(1) . 'xyz"';
+        $validJsonb = SQLiteJsonB::encode(['enabled' => true]);
+        $superficialOnlyJsonb = "\x8b\xff" . str_repeat("\0", 7);
+        $castTextJsonBlob = new SQLiteBlobValue('{"a":1}');
+        $castJson5Blob = new SQLiteBlobValue('{a:1}');
+
+        $t->true(SQLiteJsonValidity::jsonValid($strictJson));
+        $t->true(SQLiteJsonValidity::jsonValid($strictJson, 1));
+        $t->true(SQLiteJsonValidity::jsonValid($strictJson, 2));
+        $t->same(false, SQLiteJsonValidity::jsonValid($json5, 1));
+        $t->true(SQLiteJsonValidity::jsonValid($json5, 2));
+        $t->true(SQLiteJsonValidity::jsonValid($json5, 3));
+        $t->same(false, SQLiteJsonValidity::jsonValid($controlCharacterString, 1));
+        $t->true(SQLiteJsonValidity::jsonValid($controlCharacterString, 2));
+        $t->same(false, SQLiteJsonValidity::jsonValid('{enabled:true,,}', 2));
+        $t->same(null, SQLiteJsonValidity::jsonValid(null));
+
+        $t->true(SQLiteJsonValidity::jsonValid($castTextJsonBlob, 1));
+        $t->true(SQLiteJsonValidity::jsonValid($castTextJsonBlob, 2));
+        $t->same(false, SQLiteJsonValidity::jsonValid($castTextJsonBlob, 4));
+        $t->same(false, SQLiteJsonValidity::jsonValid($castTextJsonBlob, 8));
+        $t->true(SQLiteJsonValidity::jsonValid($castTextJsonBlob, 5));
+        $t->same(false, SQLiteJsonValidity::jsonValid($castJson5Blob, 1));
+        $t->true(SQLiteJsonValidity::jsonValid($castJson5Blob, 2));
+        $t->true(SQLiteJsonValidity::jsonValid($castJson5Blob, 6));
+
+        $t->same(false, SQLiteJsonValidity::jsonValid(new SQLiteBlobValue($validJsonb), 1));
+        $t->true(SQLiteJsonValidity::jsonValid(new SQLiteBlobValue($validJsonb), 4));
+        $t->true(SQLiteJsonValidity::jsonValid(new SQLiteBlobValue($validJsonb), 8));
+        $t->true(SQLiteJsonValidity::jsonValid(new SQLiteBlobValue($validJsonb), 9));
+        $t->true(SQLiteJsonValidity::jsonValid(new SQLiteBlobValue($superficialOnlyJsonb), 4));
+        $t->same(false, SQLiteJsonValidity::jsonValid(new SQLiteBlobValue($superficialOnlyJsonb), 8));
+        $t->true(SQLiteJsonValidity::jsonValid(new SQLiteBlobValue($superficialOnlyJsonb), 12));
+        $t->same(false, SQLiteJsonValidity::jsonValid('not json', 1));
+        $t->same(false, SQLiteJsonValidity::jsonValid('not json', 2));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValid($strictJson, 0));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValid($strictJson, 16));
+    },
+    'quotes sqlite sql values as json values for option preflight' => static function (TestRunner $t): void {
+        $jsonb = SQLiteJsonB::encode(['plugin' => ['enabled' => true, 'count' => 2]]);
+        $controlText = 'line' . "\n" . 'tab' . "\t" . 'nul' . "\0" . 'end';
+
+        $t->same('null', SQLiteJsonQuote::jsonQuote(null));
+        $t->same('12345', SQLiteJsonQuote::jsonQuote(12345));
+        $t->same('3.14159', SQLiteJsonQuote::jsonQuote(3.14159));
+        $t->same('100.0', SQLiteJsonQuote::jsonQuote(1e2));
+        $t->same('-0.25', SQLiteJsonQuote::jsonQuote(-0.25));
+        $t->same('1', SQLiteJsonQuote::jsonQuote(true));
+        $t->same('0', SQLiteJsonQuote::jsonQuote(false));
+        $t->same('"abc\"xyz"', SQLiteJsonQuote::jsonQuote('abc"xyz'));
+        $t->same('226c696e655c6e7461625c746e756c5c7530303030656e6422', bin2hex(SQLiteJsonQuote::jsonQuote($controlText)));
+        $t->same('"{\"a\":1}"', SQLiteJsonQuote::jsonQuote('{"a":1}'));
+        $t->same('{"a":1}', SQLiteJsonQuote::jsonQuote(new SQLiteJsonSubtypeValue('{"a":1}')));
+        $t->same('[1,2]', SQLiteJsonQuote::jsonQuote(new SQLiteJsonSubtypeValue('[1,2]')));
+        $t->same('{"plugin":{"enabled":true,"count":2}}', SQLiteJsonQuote::jsonQuote(new SQLiteBlobValue($jsonb)));
+        $t->same('9.0e+999', SQLiteJsonQuote::jsonQuote(INF));
+        $t->same('-9.0e+999', SQLiteJsonQuote::jsonQuote(-INF));
+        $t->same('null', SQLiteJsonQuote::jsonQuote(NAN));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuote(new SQLiteBlobValue('01234')));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuote(new SQLiteBlobValue("\x8b\xff" . str_repeat("\0", 7))));
+    },
+    'constructs sqlite json arrays from sql values for option diagnostics' => static function (TestRunner $t): void {
+        $jsonObject = new SQLiteJsonSubtypeValue('{"abc":2.5,"def":null,"ghi":"hello"}');
+        $jsonbArray = new SQLiteBlobValue(SQLiteJsonB::encode([1, 2, 3]));
+
+        $t->same('[1,2.5,null,"hello"]', SQLiteJsonConstructor::jsonArray(1, 2.5, null, 'hello'));
+        $t->same(
+            '[1,"{\"abc\":2.5,\"def\":null,\"ghi\":hello}",99]',
+            SQLiteJsonConstructor::jsonArray(1, '{"abc":2.5,"def":null,"ghi":hello}', 99),
+        );
+        $t->same(
+            '[1,{"abc":2.5,"def":null,"ghi":"hello"},99]',
+            SQLiteJsonConstructor::jsonArray(1, $jsonObject, 99),
+        );
+        $t->same('[1,0,9.0e+999,-9.0e+999]', SQLiteJsonConstructor::jsonArray(true, false, INF, -INF));
+        $t->same('[1,[1,2,3]]', SQLiteJsonConstructor::jsonArray(1, $jsonbArray));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonArray(1, new SQLiteBlobValue("\xab\xcd"), 3));
+    },
+    'constructs sqlite json objects from text labels and sql values' => static function (TestRunner $t): void {
+        $jsonArray = new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonArray('xyx', 77, 4.5));
+        $jsonbArray = new SQLiteBlobValue(SQLiteJsonB::encode([1, 2, 3]));
+
+        $t->same(
+            '{"a":1,"b":2.5,"c":null,"d":"String Test"}',
+            SQLiteJsonConstructor::jsonObject('a', 1, 'b', 2.5, 'c', null, 'd', 'String Test'),
+        );
+        $t->same(
+            '{"a":["xyx",77,4.5],"x":2.5}',
+            SQLiteJsonConstructor::jsonObject('a', $jsonArray, 'x', 2.5),
+        );
+        $t->same(
+            '{"a":[1,2,3],"b":9.0e+999}',
+            SQLiteJsonConstructor::jsonObject('a', $jsonbArray, 'b', INF),
+        );
+        $t->same('{"\"a\"":1}', SQLiteJsonConstructor::jsonObject(new SQLiteJsonSubtypeValue('"a"'), 1));
+    },
+    'rejects sqlite json object argument and blob label errors' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject('a', 1, 'b'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject(null, 5));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject(true, 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject(new SQLiteBlobValue(SQLiteJsonB::encode('a')), 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject('a', new SQLiteBlobValue("\xab\xcd")));
+    },
+    'canonicalizes sqlite json text json5 blob and null option values' => static function (TestRunner $t): void {
+        $jsonb = SQLiteJsonB::encode(['a' => 35, 'b' => [1, 2]]);
+        $controlCharacterSettings = '{label:"abc' . chr(1) . 'xyz"}';
+
+        $t->same('{"this":"is","a":["test"]}', SQLiteJsonCanonical::json(' { "this" : "is", "a": [ "test" ] } '));
+        $t->same('{"a":5,"b":6}', SQLiteJsonCanonical::json('{a:5,b:6,}'));
+        $t->same('[5,6]', SQLiteJsonCanonical::json('[5,6,]'));
+        $t->same('{"x":4.0}', SQLiteJsonCanonical::json('{x: 4.}'));
+        $t->same('{"x":4.0e1}', SQLiteJsonCanonical::json('{x: +4.e1}'));
+        $t->same('{"x":-0.5e-1}', SQLiteJsonCanonical::json('{x: -.5e-1}'));
+        $t->same('{"x":9e999}', SQLiteJsonCanonical::json('{x: +Infinity}'));
+        $t->same('{"x":null}', SQLiteJsonCanonical::json('{x: NaN}'));
+        $t->same('{"x":11259375}', SQLiteJsonCanonical::json('{x: 0xabcdef}'));
+        $t->same('{"x":"a \\"b\\" c"}', SQLiteJsonCanonical::json('{x:\'a "b" c\'}'));
+        $t->same('7b226c6162656c223a226162635c753030303178797a227d', bin2hex(SQLiteJsonCanonical::json($controlCharacterSettings) ?? ''));
+        $t->same('{"u":"\\u0062","slash":"a/b","nl":"a\\nb"}', SQLiteJsonCanonical::json('{"u":"\\u0062","slash":"a/b","nl":"a\\nb"}'));
+        $t->same('{"a":35}', SQLiteJsonCanonical::json(new SQLiteBlobValue('{"a":35}')));
+        $t->same('{"a":35,"b":[1,2]}', SQLiteJsonCanonical::json(new SQLiteBlobValue($jsonb)));
+        $t->same(null, SQLiteJsonCanonical::json(null));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::json('{ MNO_123/xyz : 789 }'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::json('{enabled:true,,}'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::json(new SQLiteBlobValue("\x8b\xff" . str_repeat("\0", 7))));
+    },
+    'pretty prints sqlite json text json5 blob and null option values' => static function (TestRunner $t): void {
+        $settings = '{"a":1,"b":[2,3],"c":{"d":4}}';
+        $json5Settings = "{a:1,b:[2,3,],/* copied option */c:'hi'}";
+        $jsonb = SQLiteJsonB::encode(['a' => 1, 'b' => [2, 3]]);
+
+        $t->same(
+            "{\n"
+                . '    "a": 1,' . "\n"
+                . '    "b": [' . "\n"
+                . '        2,' . "\n"
+                . '        3' . "\n"
+                . '    ],' . "\n"
+                . '    "c": {' . "\n"
+                . '        "d": 4' . "\n"
+                . '    }' . "\n"
+                . '}',
+            SQLiteJsonPretty::jsonPretty($settings),
+        );
+        $t->same(
+            "{\n"
+                . '    "a": 1,' . "\n"
+                . '    "b": [' . "\n"
+                . '        2,' . "\n"
+                . '        3' . "\n"
+                . '    ],' . "\n"
+                . '    "c": "hi"' . "\n"
+                . '}',
+            SQLiteJsonPretty::jsonPretty($json5Settings),
+        );
+        $t->same("{\n\"a\": 1,\n\"b\": [\n2,\n3\n]\n}", SQLiteJsonPretty::jsonPretty('{"a":1,"b":[2,3]}', ''));
+        $t->same("{\n\t\"a\": 1,\n\t\"b\": [\n\t\t2,\n\t\t3\n\t]\n}", SQLiteJsonPretty::jsonPretty('{"a":1,"b":[2,3]}', "\t"));
+        $t->same("{\n--\"a\": 1,\n--\"b\": [\n----2,\n----3\n--]\n}", SQLiteJsonPretty::jsonPretty('{"a":1,"b":[2,3]}', '--'));
+        $t->same(
+            "{\n"
+                . '    "empty": [],' . "\n"
+                . '    "obj": {},' . "\n"
+                . '    "x": 1' . "\n"
+                . '}',
+            SQLiteJsonPretty::jsonPretty('{"empty":[],"obj":{},"x":1}'),
+        );
+        $t->same(
+            "{\n"
+                . '    "x": "a\nb",' . "\n"
+                . '    "y": "a/b",' . "\n"
+                . '    "u": "\u0062"' . "\n"
+                . '}',
+            SQLiteJsonPretty::jsonPretty('{"x":"a\nb","y":"a/b","u":"\u0062"}'),
+        );
+        $t->same(
+            "{\n"
+                . '    "x": 9e999,' . "\n"
+                . '    "y": null,' . "\n"
+                . '    "z": 4.0,' . "\n"
+                . '    "h": 16' . "\n"
+                . '}',
+            SQLiteJsonPretty::jsonPretty('{x:+Infinity,y:NaN,z:4.,h:0x10}'),
+        );
+        $t->same(
+            "{\n"
+                . '    "a": 1,' . "\n"
+                . '    "b": [' . "\n"
+                . '        2,' . "\n"
+                . '        3' . "\n"
+                . '    ]' . "\n"
+                . '}',
+            SQLiteJsonPretty::jsonPretty(new SQLiteBlobValue($jsonb)),
+        );
+        $t->same(null, SQLiteJsonPretty::jsonPretty(null));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPretty::jsonPretty('{a:true,,}'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPretty::jsonPretty(new SQLiteBlobValue("\x8b\xff" . str_repeat("\0", 7))));
+    },
+    'reports sqlite json_error_position for text json5 blob and null option values' => static function (TestRunner $t): void {
+        $validJsonb = SQLiteJsonB::encode(['enabled' => true, 'modes' => ['dark']]);
+        $superficialOnlyJsonb = "\x8b\xff" . str_repeat("\0", 7);
+
+        $t->same(0, SQLiteJsonErrorPosition::jsonErrorPosition('{"a":55,"b":72,}'));
+        $t->same(0, SQLiteJsonErrorPosition::jsonErrorPosition('["a",55,"b",72,]'));
+        $t->same(16, SQLiteJsonErrorPosition::jsonErrorPosition('{"a":55,"b":72,,}'));
+        $t->same(16, SQLiteJsonErrorPosition::jsonErrorPosition('["a",55,"b",72,,]'));
+        $t->same(9, SQLiteJsonErrorPosition::jsonErrorPosition('{a:null,{"h":[1,[1,2,3]],"j":"abc"}:true}'));
+        $t->same(15, SQLiteJsonErrorPosition::jsonErrorPosition('{enabled:true,,}'));
+        $t->same(1, SQLiteJsonErrorPosition::jsonErrorPosition('not json'));
+        $t->same(1, SQLiteJsonErrorPosition::jsonErrorPosition('"ok" trailing'));
+        $t->same(7, SQLiteJsonErrorPosition::jsonErrorPosition('{"x":01.5}'));
+        $t->same(0, SQLiteJsonErrorPosition::jsonErrorPosition('{"x":+5,"y":.5,"z":1.}'));
+        $t->same(null, SQLiteJsonErrorPosition::jsonErrorPosition(null));
+
+        $t->same(0, SQLiteJsonErrorPosition::jsonErrorPosition(new SQLiteBlobValue('{"a":35}')));
+        $t->same(0, SQLiteJsonErrorPosition::jsonErrorPosition(new SQLiteBlobValue($validJsonb)));
+        $t->same(2, SQLiteJsonErrorPosition::jsonErrorPosition(new SQLiteBlobValue($superficialOnlyJsonb)));
+        $t->same(1, SQLiteJsonErrorPosition::jsonErrorPosition(new SQLiteBlobValue("\x10\0")));
+    },
+    'inspects sqlite json_type and json_array_length for text json5 blob and null option values' => static function (TestRunner $t): void {
+        $settings = '{"a":[2,3.5,true,false,null,"x"],"mode":"dark","empty":[]}';
+        $json5Settings = "{plugin:{modes:['dark','light',],enabled:true},threshold:.5}";
+        $jsonb = SQLiteJsonB::encode(['a' => [2, 3.5, true, false, null, 'x']]);
+        $castTextBlob = new SQLiteBlobValue('{"one":[1,2,3],"mode":"dark"}');
+
+        $t->same('object', SQLiteJsonInspection::jsonType($settings));
+        $t->same('array', SQLiteJsonInspection::jsonType($settings, '$.a'));
+        $t->same('integer', SQLiteJsonInspection::jsonType($settings, '$.a[0]'));
+        $t->same('real', SQLiteJsonInspection::jsonType($settings, '$.a[1]'));
+        $t->same('true', SQLiteJsonInspection::jsonType($settings, '$.a[2]'));
+        $t->same('false', SQLiteJsonInspection::jsonType($settings, '$.a[3]'));
+        $t->same('null', SQLiteJsonInspection::jsonType($settings, '$.a[4]'));
+        $t->same('text', SQLiteJsonInspection::jsonType($settings, '$.a[5]'));
+        $t->same(null, SQLiteJsonInspection::jsonType($settings, '$.a[6]'));
+        $t->same(null, SQLiteJsonInspection::jsonType($settings, null));
+
+        $t->same(6, SQLiteJsonInspection::jsonArrayLength($settings, '$.a'));
+        $t->same(0, SQLiteJsonInspection::jsonArrayLength($settings, '$.mode'));
+        $t->same(0, SQLiteJsonInspection::jsonArrayLength($settings, '$.empty'));
+        $t->same(null, SQLiteJsonInspection::jsonArrayLength($settings, '$.missing'));
+        $t->same(null, SQLiteJsonInspection::jsonArrayLength(null));
+        $t->same(null, SQLiteJsonInspection::jsonArrayLength($settings, null));
+
+        $t->same('object', SQLiteJsonInspection::jsonType($json5Settings));
+        $t->same('array', SQLiteJsonInspection::jsonType($json5Settings, '$.plugin.modes'));
+        $t->same('real', SQLiteJsonInspection::jsonType($json5Settings, '$.threshold'));
+        $t->same(2, SQLiteJsonInspection::jsonArrayLength($json5Settings, '$.plugin.modes'));
+
+        $t->same('object', SQLiteJsonInspection::jsonType(new SQLiteBlobValue($jsonb)));
+        $t->same('array', SQLiteJsonInspection::jsonType(new SQLiteBlobValue($jsonb), '$.a'));
+        $t->same(6, SQLiteJsonInspection::jsonArrayLength(new SQLiteBlobValue($jsonb), '$.a'));
+        $t->same('object', SQLiteJsonInspection::jsonType($castTextBlob));
+        $t->same(3, SQLiteJsonInspection::jsonArrayLength($castTextBlob, '$.one'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::jsonType($settings, '$.a[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::jsonArrayLength('{enabled:true,,}', '$'));
     },
     'inspects focused sqlite jsonb types at root and paths' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode([

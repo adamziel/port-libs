@@ -32,6 +32,59 @@ final class SQLiteJsonB
         }
     }
 
+    public static function isSuperficiallyJsonB(string $bytes): bool
+    {
+        if ($bytes === '') {
+            return false;
+        }
+
+        try {
+            [$type, $payloadOffset, $payloadLength] = self::readHeader($bytes, 0);
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+
+        $first = ord($bytes[0]);
+        if ($payloadOffset + $payloadLength !== strlen($bytes)) {
+            return false;
+        }
+        if ($type <= self::FALSE && $payloadLength !== 0) {
+            return false;
+        }
+        if ($payloadLength > 7) {
+            return true;
+        }
+        if ($first !== 0x7b && $first !== 0x5b && ($first < 0x30 || $first > 0x39)) {
+            return true;
+        }
+
+        return self::isStrictlyWellFormed($bytes);
+    }
+
+    public static function isStrictlyWellFormed(string $bytes): bool
+    {
+        if ($bytes === '') {
+            return false;
+        }
+
+        try {
+            self::validateElement($bytes, 0, strlen($bytes), 1);
+
+            return true;
+        } catch (\InvalidArgumentException) {
+            return false;
+        }
+    }
+
+    public static function errorPosition(string $bytes): int
+    {
+        if ($bytes === '') {
+            return 1;
+        }
+
+        return self::validateElementForErrorPosition($bytes, 0, strlen($bytes), 1);
+    }
+
     public static function decode(string $bytes): mixed
     {
         if ($bytes === '') {
@@ -1380,5 +1433,431 @@ final class SQLiteJsonB
         self::requireBytes($bytes, $offset, 4);
 
         return unpack('N', substr($bytes, $offset, 4))[1];
+    }
+
+    /**
+     * @return null|array{type:int,payloadOffset:int,payloadLength:int}
+     */
+    private static function readHeaderForValidation(string $bytes, int $offset): ?array
+    {
+        $length = strlen($bytes);
+        if ($offset < 0 || $offset >= $length) {
+            return null;
+        }
+
+        $first = ord($bytes[$offset]);
+        $type = $first & 0x0f;
+        if ($type > self::OBJECT) {
+            return null;
+        }
+
+        $sizeCode = $first >> 4;
+        if ($sizeCode <= 11) {
+            $payloadOffset = $offset + 1;
+            $payloadLength = $sizeCode;
+        } elseif ($sizeCode === 12) {
+            if ($offset + 2 > $length) {
+                return null;
+            }
+            $payloadOffset = $offset + 2;
+            $payloadLength = ord($bytes[$offset + 1]);
+        } elseif ($sizeCode === 13) {
+            if ($offset + 3 > $length) {
+                return null;
+            }
+            $payloadOffset = $offset + 3;
+            $payloadLength = (ord($bytes[$offset + 1]) << 8) | ord($bytes[$offset + 2]);
+        } elseif ($sizeCode === 14) {
+            if ($offset + 5 > $length) {
+                return null;
+            }
+            $payloadOffset = $offset + 5;
+            $payloadLength = self::readUInt32($bytes, $offset + 1);
+        } else {
+            if ($offset + 9 > $length || substr($bytes, $offset + 1, 4) !== "\0\0\0\0") {
+                return null;
+            }
+            $payloadOffset = $offset + 9;
+            $payloadLength = self::readUInt32($bytes, $offset + 5);
+        }
+
+        if ($payloadOffset + $payloadLength > $length) {
+            return null;
+        }
+
+        return [
+            'type' => $type,
+            'payloadOffset' => $payloadOffset,
+            'payloadLength' => $payloadLength,
+        ];
+    }
+
+    private static function validateElementForErrorPosition(string $bytes, int $offset, int $end, int $depth): int
+    {
+        if ($depth > self::MAX_DEPTH) {
+            return $offset + 1;
+        }
+
+        $element = self::readHeaderForValidation($bytes, $offset);
+        if ($element === null || self::payloadEnd($element) !== $end) {
+            return $offset + 1;
+        }
+
+        $payloadOffset = $element['payloadOffset'];
+        $payloadLength = $element['payloadLength'];
+        $payloadEnd = $payloadOffset + $payloadLength;
+        $payload = substr($bytes, $payloadOffset, $payloadLength);
+
+        return match ($element['type']) {
+            self::NULL, self::TRUE, self::FALSE => $payloadLength === 0 ? 0 : $offset + 1,
+            self::INT => self::integerPayloadErrorPosition($payload, $payloadOffset, false, $offset),
+            self::INT5 => self::integerPayloadErrorPosition($payload, $payloadOffset, true, $offset),
+            self::FLOAT, self::FLOAT5 => self::payloadValidatorErrorPosition(
+                static fn () => self::validateFloatPayload($payload, $element['type'] === self::FLOAT5),
+                $offset
+            ),
+            self::TEXT => self::payloadValidatorErrorPosition(static fn () => self::validatePlainTextPayload($payload), $offset),
+            self::TEXTJ => self::payloadValidatorErrorPosition(static fn () => self::validateEscapedTextPayload($payload, false), $offset),
+            self::TEXT5 => self::payloadValidatorErrorPosition(static fn () => self::validateEscapedTextPayload($payload, true), $offset),
+            self::TEXTRAW => 0,
+            self::ARRAY => self::arrayPayloadErrorPosition($bytes, $payloadOffset, $payloadEnd, $depth + 1),
+            self::OBJECT => self::objectPayloadErrorPosition($bytes, $payloadOffset, $payloadEnd, $depth + 1),
+            default => $offset + 1,
+        };
+    }
+
+    private static function integerPayloadErrorPosition(string $payload, int $payloadOffset, bool $json5, int $elementOffset): int
+    {
+        if ($json5) {
+            if (preg_match('/^-?0[xX][0-9A-Fa-f]+$/', $payload) === 1) {
+                return 0;
+            }
+
+            return $elementOffset + 1;
+        }
+
+        $length = strlen($payload);
+        if ($length === 0) {
+            return $elementOffset + 1;
+        }
+
+        $offset = 0;
+        if ($payload[0] === '-') {
+            if ($length === 1) {
+                return $elementOffset + 1;
+            }
+            $offset = 1;
+        }
+        for (; $offset < $length; $offset++) {
+            if (!ctype_digit($payload[$offset])) {
+                return $payloadOffset + $offset + 1;
+            }
+        }
+
+        return 0;
+    }
+
+    private static function payloadValidatorErrorPosition(\Closure $validator, int $elementOffset): int
+    {
+        try {
+            $validator();
+
+            return 0;
+        } catch (\InvalidArgumentException) {
+            return $elementOffset + 1;
+        }
+    }
+
+    private static function arrayPayloadErrorPosition(string $bytes, int $offset, int $end, int $depth): int
+    {
+        while ($offset < $end) {
+            $element = self::readHeaderForValidation($bytes, $offset);
+            if ($element === null || self::payloadEnd($element) > $end) {
+                return $offset + 1;
+            }
+
+            $error = self::validateElementForErrorPosition($bytes, $offset, self::payloadEnd($element), $depth);
+            if ($error !== 0) {
+                return $error;
+            }
+            $offset = self::payloadEnd($element);
+        }
+
+        return $offset === $end ? 0 : $offset + 1;
+    }
+
+    private static function objectPayloadErrorPosition(string $bytes, int $offset, int $end, int $depth): int
+    {
+        $count = 0;
+        while ($offset < $end) {
+            $element = self::readHeaderForValidation($bytes, $offset);
+            if ($element === null || self::payloadEnd($element) > $end) {
+                return $offset + 1;
+            }
+            if (($count & 1) === 0 && ($element['type'] < self::TEXT || $element['type'] > self::TEXTRAW)) {
+                return $offset + 1;
+            }
+
+            $error = self::validateElementForErrorPosition($bytes, $offset, self::payloadEnd($element), $depth);
+            if ($error !== 0) {
+                return $error;
+            }
+            $count++;
+            $offset = self::payloadEnd($element);
+        }
+
+        return ($count & 1) === 0 ? 0 : $offset + 1;
+    }
+
+    private static function validateElement(string $bytes, int $offset, int $end, int $depth): void
+    {
+        if ($depth > self::MAX_DEPTH) {
+            throw new \InvalidArgumentException('SQLite JSONB value exceeds the maximum nesting depth');
+        }
+
+        [$type, $payloadOffset, $payloadLength] = self::readHeader($bytes, $offset);
+        if ($payloadOffset + $payloadLength !== $end) {
+            throw new \InvalidArgumentException('SQLite JSONB element payload size is inconsistent');
+        }
+
+        $payload = substr($bytes, $payloadOffset, $payloadLength);
+        match ($type) {
+            self::NULL, self::TRUE, self::FALSE => self::validateZeroPayload($payloadLength),
+            self::INT => self::validateIntegerPayload($payload),
+            self::INT5 => self::validateJson5IntegerPayload($payload),
+            self::FLOAT => self::validateFloatPayload($payload, false),
+            self::FLOAT5 => self::validateFloatPayload($payload, true),
+            self::TEXT => self::validatePlainTextPayload($payload),
+            self::TEXTJ => self::validateEscapedTextPayload($payload, false),
+            self::TEXT5 => self::validateEscapedTextPayload($payload, true),
+            self::TEXTRAW => null,
+            self::ARRAY => self::validateArrayPayload($bytes, $payloadOffset, $end, $depth + 1),
+            self::OBJECT => self::validateObjectPayload($bytes, $payloadOffset, $end, $depth + 1),
+            default => throw new \InvalidArgumentException("Unsupported SQLite JSONB element type: {$type}"),
+        };
+    }
+
+    private static function validateZeroPayload(int $payloadLength): void
+    {
+        if ($payloadLength !== 0) {
+            throw new \InvalidArgumentException('SQLite JSONB null/boolean element has a non-zero payload');
+        }
+    }
+
+    private static function validateIntegerPayload(string $payload): void
+    {
+        if ($payload === '' || preg_match('/^-?[0-9]+$/', $payload) !== 1) {
+            throw new \InvalidArgumentException('SQLite JSONB integer payload is malformed');
+        }
+    }
+
+    private static function validateJson5IntegerPayload(string $payload): void
+    {
+        if (preg_match('/^-?0[xX][0-9A-Fa-f]+$/', $payload) !== 1) {
+            throw new \InvalidArgumentException('SQLite JSONB JSON5 integer payload is malformed');
+        }
+    }
+
+    private static function validateFloatPayload(string $payload, bool $json5): void
+    {
+        $length = strlen($payload);
+        if ($length < 2) {
+            throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+        }
+
+        $offset = 0;
+        $seen = 0;
+        if ($payload[$offset] === '-') {
+            $offset++;
+            if ($length < 3) {
+                throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+            }
+        }
+
+        if ($offset >= $length) {
+            throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+        }
+        if ($payload[$offset] === '.') {
+            if (!$json5 || $offset + 1 >= $length || !self::isAsciiDigit($payload[$offset + 1])) {
+                throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+            }
+            $offset += 2;
+            $seen = 1;
+        } elseif ($payload[$offset] === '0' && !$json5) {
+            if ($offset + 3 > $length) {
+                throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+            }
+            $next = $payload[$offset + 1];
+            if ($next !== '.' && $next !== 'e' && $next !== 'E') {
+                throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+            }
+            $offset++;
+        }
+
+        for (; $offset < $length; $offset++) {
+            $char = $payload[$offset];
+            if (self::isAsciiDigit($char)) {
+                continue;
+            }
+            if ($char === '.') {
+                if ($seen > 0 || (!$json5 && ($offset === $length - 1 || !self::isAsciiDigit($payload[$offset + 1])))) {
+                    throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+                }
+                $seen = 1;
+                continue;
+            }
+            if ($char === 'e' || $char === 'E') {
+                if ($seen === 2 || $offset === $length - 1) {
+                    throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+                }
+                if ($payload[$offset + 1] === '+' || $payload[$offset + 1] === '-') {
+                    $offset++;
+                    if ($offset === $length - 1) {
+                        throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+                    }
+                }
+                $seen = 2;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+        }
+
+        if ($seen === 0) {
+            throw new \InvalidArgumentException('SQLite JSONB float payload is malformed');
+        }
+    }
+
+    private static function validatePlainTextPayload(string $payload): void
+    {
+        $length = strlen($payload);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if (!self::isJsonSafeTextByte(ord($payload[$offset])) && $payload[$offset] !== "'") {
+                throw new \InvalidArgumentException('SQLite JSONB text payload is malformed');
+            }
+        }
+    }
+
+    private static function validateEscapedTextPayload(string $payload, bool $json5): void
+    {
+        $length = strlen($payload);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $payload[$offset];
+            $byte = ord($char);
+            if (self::isJsonSafeTextByte($byte) || $char === "'") {
+                continue;
+            }
+            if ($char === '"') {
+                if (!$json5) {
+                    throw new \InvalidArgumentException('SQLite JSONB escaped text payload is malformed');
+                }
+                continue;
+            }
+            if ($byte <= 0x1f) {
+                if (!$json5) {
+                    throw new \InvalidArgumentException('SQLite JSONB escaped text payload is malformed');
+                }
+                continue;
+            }
+            if ($char !== '\\' || $offset + 1 >= $length) {
+                throw new \InvalidArgumentException('SQLite JSONB escaped text payload is malformed');
+            }
+
+            $escape = $payload[$offset + 1];
+            if (str_contains('"\\/bfnrt', $escape)) {
+                $offset++;
+                continue;
+            }
+            if ($escape === 'u') {
+                if ($offset + 5 >= $length || !self::isHexSequence(substr($payload, $offset + 2, 4))) {
+                    throw new \InvalidArgumentException('SQLite JSONB unicode escape is malformed');
+                }
+                $offset += 5;
+                continue;
+            }
+            if (!$json5) {
+                throw new \InvalidArgumentException('SQLite JSONB escaped text payload is malformed');
+            }
+            if ($escape === "\n") {
+                $offset++;
+                continue;
+            }
+            if ($escape === "\r") {
+                $offset += ($offset + 2 < $length && $payload[$offset + 2] === "\n") ? 2 : 1;
+                continue;
+            }
+            if (substr($payload, $offset + 1, 3) === "\xE2\x80\xA8" || substr($payload, $offset + 1, 3) === "\xE2\x80\xA9") {
+                $offset += 3;
+                continue;
+            }
+            if ($escape === '0') {
+                if ($offset + 2 < $length && self::isAsciiDigit($payload[$offset + 2])) {
+                    throw new \InvalidArgumentException('SQLite JSONB JSON5 nul escape is malformed');
+                }
+                $offset++;
+                continue;
+            }
+            if ($escape === 'x') {
+                if ($offset + 3 >= $length || !self::isHexSequence(substr($payload, $offset + 2, 2))) {
+                    throw new \InvalidArgumentException('SQLite JSONB JSON5 hex escape is malformed');
+                }
+                $offset += 3;
+                continue;
+            }
+
+            $offset++;
+        }
+    }
+
+    private static function validateArrayPayload(string $bytes, int $offset, int $end, int $depth): void
+    {
+        while ($offset < $end) {
+            [, $payloadOffset, $payloadLength] = self::readHeader($bytes, $offset);
+            $next = $payloadOffset + $payloadLength;
+            if ($next > $end) {
+                throw new \InvalidArgumentException('SQLite JSONB array payload is malformed');
+            }
+            self::validateElement($bytes, $offset, $next, $depth);
+            $offset = $next;
+        }
+        if ($offset !== $end) {
+            throw new \InvalidArgumentException('SQLite JSONB array payload is malformed');
+        }
+    }
+
+    private static function validateObjectPayload(string $bytes, int $offset, int $end, int $depth): void
+    {
+        $count = 0;
+        while ($offset < $end) {
+            [$type, $payloadOffset, $payloadLength] = self::readHeader($bytes, $offset);
+            $next = $payloadOffset + $payloadLength;
+            if ($next > $end) {
+                throw new \InvalidArgumentException('SQLite JSONB object payload is malformed');
+            }
+            if ($count % 2 === 0 && ($type < self::TEXT || $type > self::TEXTRAW)) {
+                throw new \InvalidArgumentException('SQLite JSONB object label is not text');
+            }
+            self::validateElement($bytes, $offset, $next, $depth);
+            $count++;
+            $offset = $next;
+        }
+        if ($offset !== $end || $count % 2 !== 0) {
+            throw new \InvalidArgumentException('SQLite JSONB object payload is malformed');
+        }
+    }
+
+    private static function isAsciiDigit(string $char): bool
+    {
+        return $char >= '0' && $char <= '9';
+    }
+
+    private static function isHexSequence(string $text): bool
+    {
+        return $text !== '' && preg_match('/^[0-9A-Fa-f]+$/', $text) === 1;
+    }
+
+    private static function isJsonSafeTextByte(int $byte): bool
+    {
+        return $byte > 0x1f && $byte !== 0x22 && $byte !== 0x5c;
     }
 }

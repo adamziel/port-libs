@@ -734,6 +734,9 @@ final class SQLiteCreateIndex
         if ($path === null || trim(substr($arguments[1], $path[1])) !== '' || !is_string($path[0])) {
             return null;
         }
+        if (!SQLiteJsonPath::isWellFormed($path[0])) {
+            return null;
+        }
 
         $modifiers = self::parseIndexTermModifiers($term, $close + 1);
         if ($modifiers === null) {
@@ -835,7 +838,7 @@ final class SQLiteCreateIndex
             return null;
         }
         if (str_starts_with($operand, '$')) {
-            return $operand;
+            return SQLiteJsonPath::isWellFormed($operand) ? $operand : null;
         }
         if (preg_match('/^\[(?:\d+|#|#-\d+)\]$/', $operand) === 1) {
             return '$' . $operand;
@@ -1169,6 +1172,10 @@ final class SQLiteCreateIndex
         if ($offset >= strlen($text)) {
             return null;
         }
+        $jsonQuote = self::readJsonQuoteLiteral($text, $offset);
+        if ($jsonQuote !== null) {
+            return $jsonQuote;
+        }
         if ($text[$offset] === "'") {
             $end = self::skipQuoted($text, $offset, "'");
             if ($end <= $offset || $text[$end] !== "'") {
@@ -1182,6 +1189,90 @@ final class SQLiteCreateIndex
         }
         if (preg_match('/[+-]?\d+/A', substr($text, $offset), $matches)) {
             return [(int) $matches[0], $offset + strlen($matches[0])];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{0:string,1:int}
+     */
+    private static function readJsonQuoteLiteral(string $text, int $offset): ?array
+    {
+        $function = self::readIdentifier($text, $offset);
+        if ($function === null || strcasecmp($function[0], 'json_quote') !== 0) {
+            return null;
+        }
+
+        $open = self::skipWhitespace($text, $function[1]);
+        if (($text[$open] ?? null) !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($text, $open);
+        if ($close === null) {
+            return null;
+        }
+
+        $body = substr($text, $open + 1, $close - $open - 1);
+        $terms = trim($body) === '' ? [] : self::topLevelTerms($body);
+        if (count($terms) !== 1) {
+            return null;
+        }
+
+        $argument = self::readJsonQuoteArgumentLiteral($terms[0], 0);
+        if ($argument === null || trim(substr($terms[0], $argument[1])) !== '') {
+            return null;
+        }
+
+        $quoted = self::renderJsonQuoteLiteral($argument[0]);
+        if ($quoted === null) {
+            return null;
+        }
+
+        return [$quoted, $close + 1];
+    }
+
+    /**
+     * @return null|array{0:mixed,1:int}
+     */
+    private static function readJsonQuoteArgumentLiteral(string $text, int $offset): ?array
+    {
+        $offset = self::skipWhitespace($text, $offset);
+        if ($offset >= strlen($text)) {
+            return null;
+        }
+        if (self::isKeywordAt($text, $offset, 'NULL')) {
+            return [null, $offset + strlen('NULL')];
+        }
+        if ($text[$offset] === "'") {
+            $end = self::skipQuoted($text, $offset, "'");
+            if ($end <= $offset || $text[$end] !== "'") {
+                return null;
+            }
+
+            return [str_replace("''", "'", substr($text, $offset + 1, $end - $offset - 1)), $end + 1];
+        }
+        if (
+            preg_match(
+                '/[+-]?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)/A',
+                substr($text, $offset),
+                $matches,
+            ) === 1
+        ) {
+            return [(float) $matches[0], $offset + strlen($matches[0])];
+        }
+        if (preg_match('/[+-]?\d+/A', substr($text, $offset), $matches) === 1) {
+            return [(int) $matches[0], $offset + strlen($matches[0])];
+        }
+
+        return null;
+    }
+
+    private static function renderJsonQuoteLiteral(mixed $value): ?string
+    {
+        if ($value === null || is_int($value) || is_float($value)) {
+            return SQLiteJsonQuote::jsonQuote($value);
         }
 
         return null;

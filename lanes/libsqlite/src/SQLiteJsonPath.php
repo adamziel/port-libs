@@ -6,6 +6,60 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonPath
 {
+    public static function isWellFormed(string $path): bool
+    {
+        if ($path === '' || $path[0] !== '$') {
+            return false;
+        }
+
+        $offset = 1;
+        $length = strlen($path);
+        while ($offset < $length) {
+            $char = $path[$offset];
+            if ($char === '.') {
+                $offset++;
+                if ($offset >= $length) {
+                    return false;
+                }
+
+                if ($path[$offset] === '"') {
+                    $end = self::quotedMemberEnd($path, $offset);
+                    if ($end === null) {
+                        return false;
+                    }
+                    $offset = $end + 1;
+                    continue;
+                }
+
+                $end = $offset;
+                while ($end < $length && $path[$end] !== '.' && $path[$end] !== '[') {
+                    $end++;
+                }
+                if ($end === $offset) {
+                    return false;
+                }
+                $offset = $end;
+                continue;
+            }
+
+            if ($char === '[') {
+                $end = strpos($path, ']', $offset + 1);
+                if ($end === false) {
+                    return false;
+                }
+                if (!self::isWellFormedArrayToken(substr($path, $offset + 1, $end - $offset - 1))) {
+                    return false;
+                }
+                $offset = $end + 1;
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
     public static function decodeBareMember(string $member): ?string
     {
         $decoded = '';
@@ -76,6 +130,40 @@ final class SQLiteJsonPath
         }
 
         return $decoded;
+    }
+
+    private static function quotedMemberEnd(string $path, int $offset): ?int
+    {
+        $length = strlen($path);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            if ($path[$cursor] === '\\') {
+                if ($cursor + 1 >= $length) {
+                    return null;
+                }
+                $cursor++;
+                continue;
+            }
+            if ($path[$cursor] === '"') {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private static function isWellFormedArrayToken(string $token): bool
+    {
+        if ($token === '#') {
+            return true;
+        }
+        if (preg_match('/^\d+$/', $token) === 1) {
+            return true;
+        }
+        if (preg_match('/^#-\d+$/', $token) === 1) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
