@@ -17,7 +17,7 @@
 
 ## Worker Topology
 - supervisor: manage queue, liveness, resource use, integration pressure, and anti-drift.
-- lane workers: implement lane-local native PHP slices and leave focused evidence.
+- lane workers: implement lane-local native PHP slices and leave focused evidence. Normal watchdog restarts run as isolated worktree workers by default; use `WATCHDOG_USE_ISOLATED_LANE_WORKERS=0` only for an explicit shared-checkout compatibility fallback.
 - preflight/isolation workers: extract broad dirty handoffs into clean worktree patches and audits.
 - lane-group integrators: pre-review independent ready markers by disjoint lane group, run only focused checks, and queue acceptable candidates for the serialized root/commit gate.
 - integrator: accept or reject one isolated slice at a time after stability checks and verification; this remains the fallback and the only root/commit authority.
