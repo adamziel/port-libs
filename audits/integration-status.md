@@ -1,5 +1,47 @@
 # Integration Status
 
+## Integration handoff rejection - Pandoc - 2026-05-24 21:55 UTC
+
+No Pandoc lane output was integrated in this pass.
+
+Initial review inputs were read as required: `goal.md`, `progress.md`,
+`audits/integration-status.md`,
+`audits/preflight-pandoc-html-br-20260524T2210Z.md`,
+`audits/preflight-syncthing-bep-native-path-20260524T2210Z.md`,
+both queued ready markers, `git status --short --branch`, and recent
+`git log --oneline -20`. The selected marker was
+`.tmux-team/tmp/handoff-candidates/port-pandoc.ready` with
+`timestamp=2026-05-24T22:01:00Z`, `session=port-pandoc`, and
+`reason=supervisor-frozen-handoff-review-html-standalone-br-slice`.
+
+I held only `port-pandoc` with
+`.tmux-team/tmp/integration-holds/port-pandoc.hold`. Two held polls were
+stable:
+
+- Poll 1: `HEAD=c201145ce3f1`, Pandoc status rows `272`, tracked shortstat
+  `11 files changed, 35063 insertions(+), 2145 deletions(-)`, no selected
+  lane child process reported, and no exact no-argument
+  `php tools/run-tests.php` process.
+- Poll 2: `HEAD=c201145ce3f1`, Pandoc status rows `272`, the same tracked
+  shortstat, no selected lane child process reported, and no exact
+  no-argument `php tools/run-tests.php` process.
+
+Scope review used the preflight audit. The standalone HTML `<br>` /
+`LineBreak` behavior is coherent in isolation, but the live Pandoc dirty tree
+is too broad for this handoff: the named slice is mixed into a large
+`MarkdownReaderTest.php` diff and broader tracked Pandoc writer/status/notes
+changes, with many untracked Pandoc examples, fixtures, readers, and writers
+also present. I could not isolate the exact reviewed slice from the shared
+dirty tree without risking inclusion of unrelated accumulated Pandoc behavior.
+
+Decision: rejected/deferred, not integrated. I did not run focused checks or a
+no-argument root harness because no isolated accepted snapshot was staged. I
+did not regenerate dashboard artifacts and did not activate any support-library
+row; the reviewed behavior remains lane-local HTML parsing.
+
+Cleanup: removed the temporary Pandoc hold file and matching ready marker after
+this status-only decision.
+
 ## Integration handoff rejection - markerPDF - 2026-05-24 21:53 UTC
 
 No markerPDF lane output was integrated in this pass.
