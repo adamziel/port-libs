@@ -367,4 +367,10 @@ php lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php
 
 ## Next Task
 
-Tighten Python type-annotation context for builtin type names or map Ruby `def`/`end` structural delimiters.
+The WordPress Ruby migration helper now also exercises method-level Ruby block delimiter paths. The added `self.count` method in `wp-content/plugins/acme-migrator/tools/import_posts.rb` is emitted as a focused `def...end` insertion while the existing `records.each do ... end` body stays nested under its method path, making importer utility diffs reviewable without replacing the whole class.
+
+Dependency closure: no new support component is needed. This slice reuses the lane-local native tokenizer and syntax-list parser; a future broader Ruby parser component would only be justified behind a separate accepted gate with upstream Ruby corpus evidence for modifier forms, heredocs, and rescue/ensure blocks.
+
+## Next Task
+
+Tighten Python type-annotation context for builtin type names.

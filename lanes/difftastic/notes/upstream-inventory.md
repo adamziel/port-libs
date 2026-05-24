@@ -480,6 +480,23 @@ php tools/run-tests.php
 213 test files, 24473 assertions, 0 failures
 ```
 
+For this Ruby block delimiter slice, the lane reused the existing native PHP syntax-list parser and added no new support component. The activation gate was a focused Ruby syntax-list path test plus the existing WordPress Ruby migration example smoke; no parser generator, tree-sitter bridge, or upstream binary is needed for this bounded behavior.
+
+The Ruby block tokenizer now maps `module`, `class`, `def`, and `do` as open delimiters with shared `end` closes. This follows the upstream tree-sitter Ruby shape closely enough for nested method/iterator review: a changed record field inside `records.each do ... end` is reported under a nested `def...end` / `do...end` path, and a newly inserted method is reported as its own `def...end` list instead of replacing the full class body.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/TokenDiffer.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . $decoded["status"] . "\n"; foreach ($decoded["chunks"] as $chunk) { foreach ($chunk as $line) { foreach (($line["rhs"]["changes"] ?? []) as $change) { if (in_array($change["content"], ["def", "count"], true)) { echo $change["content"] . ":" . $change["highlight"] . "\n"; } } } }'
+git diff --check -- lanes/difftastic
+```
+
+The focused test expectation is 241 named tests, 1346 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
 ## Next Task
 
-Tighten Python type-annotation context for builtin type names or map Ruby `def`/`end` structural delimiters.
+Tighten Python type-annotation context for builtin type names.

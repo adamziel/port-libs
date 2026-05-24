@@ -16,6 +16,10 @@ $after = "class ImportRunner\n"
     . "  rescue StandardError\n"
     . "    require 'json'\n"
     . "  end\n"
+    . "\n"
+    . "  def self.count(records)\n"
+    . "    records.length\n"
+    . "  end\n"
     . "end\n";
 
 echo (new JsonDiffRenderer())->renderFileDiff(

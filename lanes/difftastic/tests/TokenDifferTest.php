@@ -3718,6 +3718,37 @@ return [
         $t->true($requireStart !== false, 'Fixture should contain require.');
         $t->true(!in_array(['start' => $requireStart, 'end' => $requireStart + strlen('require'), 'style' => '1'], $spans, true), 'Ruby function.method.builtin captures should remain normal because upstream does not promote function captures into display highlights.');
     },
+    'syntax list differ maps ruby def and end block delimiters' => static function (TestRunner $t): void {
+        $before = "class ImportRunner\n"
+            . "  def self.call(records)\n"
+            . "    records.each do |record|\n"
+            . "      record[:title]\n"
+            . "    end\n"
+            . "  end\n"
+            . "end\n";
+        $after = "class ImportRunner\n"
+            . "  def self.call(records)\n"
+            . "    records.each do |record|\n"
+            . "      record[:post_title]\n"
+            . "    end\n"
+            . "  end\n"
+            . "\n"
+            . "  def self.count(records)\n"
+            . "    records.length\n"
+            . "  end\n"
+            . "end\n";
+
+        $changes = (new TokenDiffer())->diffSyntaxLists($before, $after, ['language' => 'ruby']);
+        $encoded = implode("\n", array_map(
+            static fn (array $change): string => ($change['op'] ?? '') . ' ' . ($change['path'] ?? '') . ' ' . ($change['old'] ?? $change['new'] ?? $change['text'] ?? ''),
+            $changes,
+        ));
+
+        $t->contains('- $[0][0]/def0end[0]/do1end[0]/[0][0] :title', $encoded);
+        $t->contains('+ $[0][0]/def0end[0]/do1end[0]/[0][0] :post_title', $encoded);
+        $t->contains('+ $[0][0]/def1end defself.count(records)records.lengthend', $encoded);
+        $t->true(!str_contains($encoded, 'classImportRunnerdefself.call'), 'Ruby def/end block parsing should avoid replacing the whole class body.');
+    },
     'wordpress parser error ansi command honors syntax highlight control' => static function (TestRunner $t): void {
         $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";
         $after = "wp.blocks.registerBlockType('acme/card', { title: 'Card' }});\n";
@@ -4088,6 +4119,7 @@ return [
         }
         $t->contains('ImportRunner:type', $encoded);
         $t->contains('DEFAULT_LIMIT:keyword', $encoded);
+        $t->contains('count:normal', $encoded);
         $t->contains('require:normal', $encoded);
     },
     'wordpress tsx tag highlight display exposes component tags as types' => static function (TestRunner $t): void {

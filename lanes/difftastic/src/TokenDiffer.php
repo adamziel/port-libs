@@ -1288,6 +1288,14 @@ final class TokenDiffer
         if ($this->usesAngleDelimiters($options)) {
             $pairs['<'] = '>';
         }
+        if ($this->isRubyLanguage($options)) {
+            $pairs += [
+                'module' => 'end',
+                'class' => 'end',
+                'def' => 'end',
+                'do' => 'end',
+            ];
+        }
 
         return $pairs;
     }
