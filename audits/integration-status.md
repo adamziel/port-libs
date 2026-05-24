@@ -70272,3 +70272,293 @@ Files staged:
 - lanes/dolt/src/PreviewMergeConflictsTable.php
 - lanes/dolt/tests/PreviewMergeConflictsTableTest.php
 
+
+## Isolated integration deferred - esbuild - 2026-05-24T23:20:00Z UTC
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260524T231211Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260524T231211Z.patch`
+Lane/slice/session: `esbuild` / `watchdog-next-20260524T231211Z` / `port-esbuild`
+
+Decision: deferred; focused verification failed in clean worktree `/tmp/port-clean-integrator-esbuild-port-esbuild-20260524T231211Z-2576652`.
+
+Focused commands: PHP syntax on changed PHP files, `php tools/run-tests.php lanes/esbuild/tests`, and `git diff --check`.
+
+Exact result:
+```
+No syntax errors detected in lanes/esbuild/examples/wordpress-asset-preflight.php
+No syntax errors detected in lanes/esbuild/src/TsConfigPathResolver.php
+No syntax errors detected in lanes/esbuild/tests/TsConfigPathResolverTest.php
+Focused test run: 6 selected test files (root lock skipped)
+PASS javascript lexer skips comments and emits core token kinds
+PASS javascript lexer preserves token offsets
+PASS javascript lexer maps esbuild numeric literal forms
+PASS javascript lexer reports unterminated block comments
+PASS javascript lexer emits hashbang at file start
+PASS javascript lexer tokenizes decorator and private identifier syntax
+PASS javascript lexer rejects malformed base-prefixed numeric literals
+PASS wordpress block asset fixture tokenizes without node
+PASS maps upstream static and dynamic import forms
+PASS maps upstream no-substitution template literal sources
+PASS maps upstream conditional dynamic import records and skips dead branches
+PASS maps upstream commonjs require and require resolve string records
+PASS maps upstream conditional commonjs require records and skips dead branches
+PASS maps upstream dead logical and conditional require import branches
+PASS maps upstream relative glob require and dynamic import records
+PASS resolves upstream relative glob records against a wordpress fixture graph
+PASS maps upstream import assertion and attribute clauses
+PASS maps upstream typescript import equals and export equals forms
+PASS maps upstream typescript type only import and export forms
+PASS maps upstream typescript namespace exports without polluting module exports
+PASS maps upstream export as namespace as type only metadata
+PASS maps upstream dot qualified typescript namespaces as nested metadata
+PASS maps upstream typescript import pruning and side effect downgrades
+PASS maps upstream typescript import equals fixed point pruning
+PASS maps upstream namespace declare and import equals members
+PASS maps upstream namespace declared binding pattern members
+PASS maps upstream import meta module classification and properties
+PASS maps upstream new url import meta asset references
+PASS allows dynamic import expressions while rejecting malformed import calls
+PASS rejects malformed upstream import attribute objects
+PASS rejects malformed upstream typescript import export forms
+PASS maps upstream export and re-export forms
+PASS distinguishes wordpress package imports from relative asset imports
+PASS distinguishes wordpress typescript type imports from runtime assets
+PASS rejects upstream invalid namespace import without as
+PASS maps upstream package json main field defaults for browser platform
+PASS maps upstream package json main field defaults for node and neutral platforms
+PASS maps upstream package exports conditions subpaths and patterns
+PASS maps upstream package browser object root subpaths and disabled entries
+PASS maps containing package browser object remaps for package imports
+PASS maps upstream package imports local targets conditions patterns and package remaps
+PASS does not fall back around exact or unsafe package exports targets
+PASS returns no package resolution for missing packages and relative imports
+FAIL maps upstream tsconfig baseUrl paths exact star and fallback targets (lanes/esbuild/tests/TsConfigPathResolverTest.php)
+Values are not identical
+Expected: array (
+  '@blocks/card/view' => 'src/blocks/card/view.ts',
+  '@blocks/card/style.css' => 'src/blocks/card/style.css',
+  '@shared/settings' => 'src/shared/settings.ts',
+  'shared-config' => 'src/shared/config.ts',
+  '@theme/card' => 'src/theme/card.ts',
+  'wordpress-runtime' => 'src/vendor/wordpress-runtime/index.ts',
+  '/virtual/card' => 'src/virtual/card.ts',
+  '@package-shared/card' => 'src/package-shared/card.ts',
+  '@preset-block/card/view' => 'src/blocks/card/view.ts',
+  'wp-element' => 'src/vendor/wp-element/index.ts',
+)
+Actual: array (
+  '@blocks/card/view' => 'src/blocks/card/view.ts',
+  '@blocks/card/style.css' => 'src/blocks/card/style.css',
+  '@shared/settings' => 'src/shared/settings.ts',
+  'shared-config' => 'src/shared/config.ts',
+  '@theme/card' => 'src/theme/card.ts',
+  'wordpress-runtime' => 'src/vendor/wordpress-runtime/index.ts',
+  '/virtual/card' => 'src/virtual/card.ts',
+  '@package-shared/card' => 'src/package-shared/card.ts',
+  '@preset-block/card/view' => 'src/blocks/card/view.ts',
+)
+FAIL maps direct tsconfig path imports and ignores package-relative-unsafe cases (lanes/esbuild/tests/TsConfigPathResolverTest.php)
+Values are not identical
+Expected: 'src/vendor/wp-element/index.ts'
+Actual: ''
+FAIL maps package based tsconfig extends through node modules (lanes/esbuild/tests/TsConfigPathResolverTest.php)
+Values are not identical
+Expected: 'src/vendor/wp-element/index.ts'
+Actual: ''
+PASS lowers upstream typescript export equals assignments
+PASS lowers upstream top level import equals declarations
+PASS lowers upstream exported import equals declarations
+PASS rejects malformed upstream top level import equals declarations
+PASS lowers upstream typescript runtime enum declarations
+PASS folds upstream enum member constants and split enum blocks
+PASS rejects malformed upstream typescript enum members
+PASS inlines upstream same file enum member references
+PASS erases non exported const enums while inlining same file accesses
+PASS lowers upstream typescript type annotation erasure subset
+PASS lowers upstream typescript using declarations
+PASS rejects upstream exported typescript using declarations
+PASS rejects upstream switch case using declarations unless block wrapped
+PASS lowers upstream switch case block using declarations through explicit resource helpers
+PASS lowers upstream switch case for using headers through explicit resource helpers
+PASS rejects wordpress switch case disposable asset declarations without node
+PASS maps upstream using nullish initializer optimization boundaries
+PASS lowers upstream using declarations through explicit resource helpers
+PASS keeps upstream module statements outside top level using helper scopes
+PASS keeps upstream local exports outside top level using helper scopes
+PASS keeps upstream exported class self references inside hoisted class expressions
+PASS keeps upstream local classes inside top level using helper scopes as class expressions
+PASS keeps upstream destructured local exports outside top level using helper scopes
+PASS keeps upstream function declarations outside top level using helper scopes
+PASS keeps upstream default class and expression exports outside top level using helper scopes
+PASS renames upstream using helper symbols when source names collide
+PASS renames upstream for using helper symbols when source names collide
+PASS lowers upstream block scoped using declarations through explicit resource helpers
+PASS lowers upstream control flow block scoped using declarations through explicit resource helpers
+PASS erases upstream class async generator method await using types
+PASS lowers upstream class async generator method await using cleanup
+PASS erases upstream object async generator method await using types
+PASS lowers upstream object async generator method await using cleanup
+PASS lowers upstream async generator functions through runtime helpers
+PASS lowers upstream async generator await operands with nested commas
+PASS lowers upstream async generator await operands with unary and binary precedence
+PASS lowers upstream async generator await operands with optional chain and nullish precedence
+PASS lowers upstream async generator for await bodies through runtime helpers
+PASS renames upstream async generator helper symbols after prior statements
+PASS lowers upstream class and object async generator methods through runtime helpers
+PASS lowers upstream default export async generator expressions through runtime helpers
+PASS lowers upstream parenthesized async generator expressions through runtime helpers
+PASS lowers upstream nested async generator expressions through runtime helpers
+PASS lowers upstream object property async generator expressions through runtime helpers
+PASS lowers multiple upstream async generator expressions in one statement
+PASS lowers upstream function scoped using declarations through explicit resource helpers
+PASS erases upstream function scoped typescript using declarations
+PASS lowers upstream for using declarations with erased types
+PASS lowers upstream for using loops through explicit resource helpers
+PASS erases upstream ambient typescript declarations
+PASS erases upstream decorated abstract ambient class declarations
+PASS erases upstream class member declare fields
+PASS rejects upstream invalid declare class member boundaries
+PASS lowers upstream abstract class members and headers
+PASS erases upstream class method type parameters and optional markers
+PASS lowers upstream typescript auto accessor markers and types
+PASS normalizes upstream plain typescript auto accessor fields
+PASS erases upstream decorated typescript auto accessor types
+PASS erases upstream typescript decorator type arguments on class members
+PASS rejects upstream invalid decorator boundaries
+PASS keeps upstream class decorators on lowered class statements
+PASS lowers upstream class decorators through helper calls
+PASS lowers upstream mixed class and member decorators through shared helper calls
+PASS lowers upstream exported mixed class and member decorators through shared helper calls
+PASS lowers upstream instance method decorators through helper calls
+PASS lowers upstream static method decorators through helper calls
+PASS lowers upstream public field decorators through helper calls
+PASS lowers upstream private field decorators through helper calls
+PASS lowers upstream private auto accessor decorators through helper calls
+PASS lowers upstream auto accessor decorators through helper calls
+PASS lowers upstream computed field and accessor decorators through helper calls
+PASS lowers upstream computed method decorators through helper calls
+PASS lowers upstream getter and setter decorators through helper calls
+PASS lowers upstream computed getter and setter decorators through helper calls
+PASS lowers upstream private getter and setter decorators through helper calls
+PASS lowers upstream derived member decorators through helper calls
+PASS rejects wordpress block decorators on non-class declarations without node
+PASS rejects malformed upstream typescript auto accessors
+PASS rejects upstream definite assignment markers on class methods
+PASS lowers upstream class fields in assign semantics mode
+PASS lowers upstream static class fields in assign semantics mode
+PASS lowers upstream static class fields after class for es2021 targets
+PASS lowers upstream default static class fields after class for es2021 targets
+PASS lowers upstream class expression static fields after class for es2021 targets
+PASS keeps upstream decorators on lowered class expressions
+PASS lowers upstream decorated class expression static fields after class for es2021 targets
+PASS lowers upstream class expression field key ordering in assign semantics mode
+PASS caches upstream computed class field keys in assign semantics mode
+PASS preserves upstream computed class field key order in derived assign semantics classes
+PASS preserves upstream computed class key side effect order in assign semantics mode
+PASS lowers upstream constructor parameter properties
+PASS lowers upstream constructor parameter properties in assign semantics mode
+PASS inserts upstream derived constructor parameter properties after super
+PASS wraps upstream multiple derived super calls for parameter properties
+PASS wraps upstream conditional derived super calls for parameter properties
+PASS wraps upstream logical assignment derived super calls for assign semantics fields
+PASS keeps upstream dead false super branches outside the helper path
+PASS injects upstream assign semantics fields into one line derived constructors
+PASS splits upstream comma expression derived super calls before assignment injection
+PASS splits upstream return and throw comma expression derived super calls before assignment injection
+PASS splits upstream switch tests and for initializers around derived super calls
+PASS lowers upstream private class fields in assign semantics super insertion
+PASS keeps upstream private static fields inside assign semantics classes
+PASS erases upstream private method and accessor type annotations
+PASS keeps non ambient declare line breaks and rejects malformed export as namespace
+PASS lowers wordpress commonjs block export without node
+PASS lowers wordpress typed block callbacks without node
+PASS lowers wordpress runtime enum config without node
+PASS lowers wordpress const enum config without node
+PASS lowers wordpress enum alias config without node
+PASS erases wordpress ambient type declarations without node
+PASS erases wordpress ambient exported class declarations without node
+PASS erases wordpress declared class fields without node
+PASS lowers wordpress constructor property controller without node
+PASS lowers wordpress constructor properties in assign semantics without field declarations
+PASS lowers wordpress class field assign semantics without node
+PASS keeps wordpress private static block settings inside legacy target classes without node
+PASS lowers wordpress anonymous default static controller fields without node
+PASS lowers wordpress class expression controller static fields without node
+PASS lowers wordpress decorated class expression controller without node
+PASS lowers wordpress computed class field asset keys without node
+PASS lowers wordpress computed super controller without node
+PASS lowers wordpress conditional super constructor controller without node
+PASS lowers wordpress lazy super controller without node
+PASS lowers wordpress comma super controller without node
+PASS lowers wordpress return super controller without node
+PASS lowers wordpress control statement super controllers without node
+PASS lowers wordpress private settings controller without node
+PASS lowers wordpress private accessor block settings without node
+PASS lowers wordpress auto accessor controller without node
+PASS lowers wordpress decorated block controller without node
+PASS lowers wordpress block controller decorators for legacy targets without node
+PASS lowers wordpress default block controller decorators for legacy targets without node
+PASS lowers wordpress method decorators for legacy targets without node
+PASS lowers wordpress method decorators into existing constructors without node
+PASS lowers wordpress derived method decorators after super without node
+PASS lowers wordpress mixed class and member decorators for legacy targets without node
+PASS lowers wordpress default mixed class and member decorators for legacy targets without node
+PASS lowers wordpress static method decorators for legacy targets without node
+PASS lowers wordpress static field decorators for legacy targets without node
+PASS lowers wordpress private field decorators for legacy targets without node
+PASS lowers wordpress private accessor decorators for legacy targets without node
+PASS lowers wordpress private getter decorators for legacy targets without node
+PASS lowers wordpress accessor decorators for legacy targets without node
+PASS lowers wordpress computed field decorators for legacy targets without node
+PASS lowers wordpress computed method decorators for legacy targets without node
+PASS lowers wordpress computed getter and setter decorators for legacy targets without node
+PASS lowers wordpress using disposable asset handles without node
+PASS lowers wordpress imported using asset cleanup without trapping module statements
+PASS lowers wordpress exported using asset settings without trapping exports
+PASS lowers wordpress destructured exported using asset settings without trapping exports
+PASS lowers wordpress exported using asset functions without trapping exports
+PASS lowers wordpress default exported using asset controller without trapping exports
+PASS lowers wordpress local using asset controller without trapping exports
+PASS lowers wordpress function scoped disposable asset handles without node
+PASS lowers wordpress function scoped disposable asset cleanup without node
+PASS lowers wordpress block scoped disposable asset cleanup without node
+PASS lowers wordpress switch case disposable asset cleanup without node
+PASS lowers wordpress for using asset loops without node
+PASS lowers wordpress for using asset cleanup without node
+PASS lowers wordpress for using asset cleanup with colliding helper names without node
+PASS lowers wordpress async asset queue using cleanup without node
+PASS lowers wordpress async generator function asset queue runtime without node
+PASS lowers wordpress default async generator asset stream runtime without node
+PASS lowers wordpress exported async generator constant runtime without node
+PASS lowers wordpress async generator registry array runtime without node
+PASS lowers wordpress async generator helper collisions without node
+PASS lowers wordpress async generator asset queue class cleanup without node
+PASS lowers wordpress object async generator asset queue cleanup without node
+PASS lowers upstream namespace import equals emission cases
+PASS rejects upstream namespace exported using declarations
+PASS lowers upstream namespace scoped using declarations through explicit resource helpers
+PASS renames upstream namespace using helper symbols when source names collide
+PASS lowers upstream namespace function scoped using declarations through explicit resource helpers
+PASS lowers upstream namespace exported variable declarations
+PASS rewrites upstream namespace exported value references
+PASS lowers upstream namespace exported function and class declarations
+PASS lowers upstream nested namespace function and enum exports
+PASS lowers upstream dot qualified namespace declarations
+PASS maps upstream namespace value merge declaration rules
+PASS rewrites simple upstream declared namespace variable exports
+PASS rewrites upstream declared namespace binding pattern exports
+PASS lowers upstream namespace destructuring exports
+PASS lowers wordpress namespace import equals aliases without node
+PASS lowers wordpress namespace exported block settings without node
+PASS lowers wordpress namespace exported registration function without node
+PASS lowers wordpress nested namespace enum settings without node
+PASS lowers wordpress dot namespace block runtime without node
+PASS lowers wordpress destructured namespace settings without node
+PASS lowers wordpress function namespace merge settings without node
+PASS lowers wordpress namespace scoped disposable preview asset without node
+PASS lowers wordpress namespace disposable preview with colliding helper names without node
+PASS lowers wordpress namespace async disposable preview without node
+
+6 test files, 1781 assertions, 3 failures
+```
+
