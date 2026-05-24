@@ -56,9 +56,9 @@ Snapshot reviewed:
   `php tools/run-tests.php` exit `0` with
   `379 test files, 60904 assertions, 0 failures`. I committed that as
   moving-tree root-red follow-up evidence only; it does not accept unrelated
-  dirty lane output. The final exact process gate still matched focused
-  Syncthing `tools/run-tests.php` work, and untracked-inclusive status rows had
-  moved again to `18945`.
+  dirty lane output. A later exact process gate sample at that point still
+  matched focused Syncthing `tools/run-tests.php` work, and
+  untracked-inclusive status rows had moved again to `18945`.
 - Active tmux ownership remains present for every main lane plus auditor,
   evaluator, dashboard-updater, integrator, capacity controller/executor rows,
   dependency/support scouts, Dolt, and Dolt-runner. Dolt remains skipped despite
