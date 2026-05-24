@@ -1,5 +1,94 @@
 # Integration Status
 
+## Integration handoff rejection - Gitoxide - 2026-05-24 19:05 UTC
+
+No Gitoxide lane output was integrated. I selected the current handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-gitoxide.ready`
+(`timestamp=2026-05-24T19:03:19Z`, reason `no-codex-handoff-grace`) and held
+only that lane with `.tmux-team/tmp/integration-holds/port-gitoxide.hold` during
+inspection. The `port-gitoxide` pane was idle at `bash` (`pane_pid=936415`) with
+no child process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `fb2cbe491951`
+  (`Record markerPDF handoff rejection`).
+- Gitoxide tracked shortstat stayed
+  `58 files changed, 8697 insertions(+), 352 deletions(-)`.
+- Gitoxide dirty scope stayed at `58` tracked rows and `214` total status rows.
+  Tracked name hash stayed
+  `9ad0692a591373d059b50d40798584d2ae1ab8f783d676903e750f676ee2461e`;
+  total Gitoxide status hash stayed
+  `9c0cedbf35ccdfbb6a1f389bd6b1887ec87d6dec412e67420e590b4234a1c7da`.
+- Exact no-argument root gate matched active PID
+  `1015626 php tools/run-tests.php` in both polls; owner sample showed
+  `1015626 claude 1015519 R+ php tools/run-tests.php` with elapsed time moving
+  from `01:26` to `01:51`. I did not start another root harness, did not bypass
+  `.upstream-cache/run-tests.lock`, and did not treat this moving-tree root run
+  as accepted Gitoxide evidence.
+- Ready marker, hold marker, and current Gitoxide watchdog log timestamps stayed
+  stable in the decision poll: ready mtime `1779649399`, hold mtime
+  `1779649452`, log mtime `1779649373`.
+- `jq empty` passed for `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/gitoxide/lane-status.json`, `dependency-backlog.json`, and
+  `porting-summary.json`.
+- The existing `url-percent-encoding-core` support row is an inactive
+  `candidate` row. This discovery handoff did not activate it or count support
+  progress; before any future Gitoxide URL/refspec rich slice is accepted, that
+  row still needs explicit denominator/evidence expectation fields tightened.
+
+Focused evidence reviewed:
+
+- Worker handoff reported a bounded `gix-discover` bare/worktree heuristic
+  slice: `GitDiscover::isBareGitDirCandidate()`, focused
+  `GitDiscoverTest.php` coverage, `wordpress-discover.php` fixture/example
+  additions, and manifest/status/notes updates.
+- Worker evidence recorded PHP lint on changed discovery files, focused
+  `php tools/run-tests.php lanes/gitoxide/tests/GitDiscoverTest.php` passing
+  `132` assertions, full Gitoxide lane PHP passing `55` files and `7,606`
+  assertions, the WordPress discover example exiting `0`, `jq` on lane JSON,
+  and `git diff --check` on touched lane files.
+- New bounded Cargo for `gix-discover --test discover is_git` was explicitly
+  deferred because root/focused runners were active and capacity was under the
+  project disk guard. The lane blocker leads with root aggregate verification
+  and full Cargo workspace runner parity rather than claiming upstream parity.
+
+Decision: rejected/deferred, not integrated. The latest `is_bare` handoff is
+focused and evidenced, but the dirty Gitoxide state is accumulated far beyond
+that claim. The tracked diff also touches older credential, protocol, fetch,
+pack, push, receive-pack transport, sparse checkout, object database, reference,
+and multi-pack-index files/tests/examples. The untracked Gitoxide scope includes
+broad commit-graph, config, index, attributes, date, ignore, URL, mailmap,
+filter, pathspec, refspec, SHA-256, SSH, daemon, and discovery files. Accepting
+this as one commit would conflate many older unaccepted slices under the newest
+focused discovery evidence.
+
+Exact next Gitoxide worker task: re-emit a reduced, reviewable handoff. If the
+`is_bare` slice depends on unaccepted `GitDiscover` foundation files, first
+produce the smallest foundation batch needed for repository discovery with its
+own source/test/example/status evidence. Then produce the `is_bare` heuristic
+slice containing only the minimal `GitDiscover.php` behavior, focused
+`GitDiscoverTest.php` assertions, the single `wordpress-discover.php`
+fixture/example delta, and normalized manifest/status/notes. Leave credential,
+protocol, fetch, push, pack, index, config, attributes, URL/refspec, SHA-256,
+SSH/daemon transport, and unrelated examples/tests for separate batches. Run the
+exact bounded `gix-discover --test discover is_git` Cargo selector when
+root/capacity is quiet, or record the exact bounded deferral again. Keep the
+blocker led by root aggregate verification and full Cargo parity, and do not
+activate support-library progress unless a bounded row is tightened with its own
+upstream/spec denominator and evidence expectations.
+
+Current skipped lanes: Dolt remains skipped because both implementation and
+runner sessions are present while Dolt files are dirty. Most other dirty lanes
+currently have live `node` worker children. A no-argument root harness is already
+running in the capacity root session (`1015626 php tools/run-tests.php`), so no
+integration-owned root run was started. No dashboard artifacts were regenerated
+because no lane/status batch was accepted.
+
+Next concrete intake target: the next owner-free `.ready` marker whose dirty
+scope is reduced enough to review under the same two-poll gate; Gitoxide should
+be retried only after the worker emits a reduced discovery patch.
+
 ## Integration handoff rejection - markerPDF - 2026-05-24 19:03 UTC
 
 No markerPDF lane output was integrated. I selected
