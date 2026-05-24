@@ -1,5 +1,72 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T08:53:21Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, run `php tools/generate-dashboard.php`, update `porting.html` or
+`porting-summary.json`, push, or start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  recent `.tmux-team/logs/port-*.log` tails for active/just-finished workers,
+  dirty lane files from Git, live tmux/process state, and
+  `dependency-backlog.json`.
+- Current `HEAD` sample is `d12fa1dc` on
+  `main...origin/main [ahead 786, behind 68]`. The latest commit is the
+  status-only `d12fa1dc Record support-library tracker expansion`, followed by
+  hold/audit records rather than accepted lane implementation batches.
+- The checkout remains a broad active aggregate: tracked dirty status has
+  `325` rows, untracked-inclusive status has `16307` rows, and
+  `git diff --shortstat` reports `325 files changed, 203784 insertions(+),
+  27997 deletions(-)`.
+- Dirty tracked files span every priority lane plus `.tmux-team` prompts,
+  `audits/latest.md`, `porting.html`, `porting-summary.json`, and shared
+  scripts. Recent log tails still show lane-local edits or handoffs in
+  Readability, Syncthing, Difftastic, libsqlite, rclone, Dolt, esbuild,
+  Gitoxide, markerPDF, Pandoc, LightningCSS, and Quadrable.
+- Live sampling found `77` tmux sessions and `37` `port-*.log` files modified
+  in the last ten minutes. Exact process sampling found no active
+  `php tools/run-tests.php` or `php tools/generate-dashboard.php` rows, but the
+  Dolt local BATS shard is still running as PIDs `4075310` and `4075320`
+  against 14 integration files including `diff.bats`, `query-diff.bats`, and
+  `keyless-foreign-keys.bats`.
+- `jq empty dependency-backlog.json lanes/*/lane-status.json
+  lanes/*/UPSTREAM_TEST_MANIFEST.json porting-summary.json` passed.
+  `dependency-backlog.json` is valid JSON with `29` items (`19` candidate,
+  `10` deferred, `0` active), but `porting-summary.json` still publishes
+  `22` dependency rows from source snapshot `79768df0c427`. Eleven candidate
+  dependency rows still lead with `blocker: "none"` despite being gated
+  support-library candidates, so the backlog is not yet dashboard/public-status
+  consistent.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild. Dolt remains skipped despite reauthorization because implementation,
+runner, and capacity BATS contexts are still active and have not converged into
+one coherent lane-scoped handoff with passing verification.
+
+Waiting: a hard writer/runner/status/dashboard freeze, the active Dolt BATS
+process to finish, and two stable polls of `HEAD`, tracked row count,
+untracked-inclusive row count, shortstat, exact PHP runner state, focused PHP
+runner state, Dolt/rclone runner state, dashboard generator state, dependency
+backlog count/blocker quality, capacity queue state, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, stale dashboard
+artifacts, a fresh support-library tracker that is not yet dashboard-consistent,
+long-running Dolt runner evidence, focused lane evidence, and prior dirty-root
+anecdotes from different snapshots.
+
+Next safe integration target: after the freeze, retry only the esbuild JSON and
+TypeScript/template-preflight batch if `port-esbuild` and its preflight session
+are inactive and `lanes/esbuild/**` is stable. If esbuild cannot be isolated,
+fall back to Quadrable after its proof/store handoff is quiet. For any accepted
+batch, run focused lane verification, `git diff --check`, one serialized
+no-argument `php tools/run-tests.php` from the same frozen snapshot with
+lock-wait status recorded, then regenerate dashboard artifacts only after
+accepting the lane/status batch.
+
 ## Integration Hold - 2026-05-24T08:47:09Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
