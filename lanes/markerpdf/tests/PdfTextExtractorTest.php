@@ -30,6 +30,19 @@ return [
         $pdf = "%PDF-1.4\n1 0 obj\n<< /Filter /FlateDecode /Length " . strlen($compressed) . " >>\nstream\n{$compressed}\nendstream\nendobj\n%%EOF";
         $t->same('Hello', (new PdfTextExtractor())->extractPlainText($pdf));
     },
+    'extracts ASCIIHex stream filters before WordPress paragraph rendering' => static function (TestRunner $t): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (ASCII Hex Import) Tj ET';
+        $encoded = chunk_split(strtoupper(bin2hex($content)), 16, "\n") . '>';
+        $pdf = "%PDF-1.4\n1 0 obj\n<< /Filter /ASCIIHexDecode /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n%%EOF";
+
+        $compressed = gzcompress('BT /F1 12 Tf 72 720 Td (Stacked Filter Import) Tj ET');
+        $stacked = strtoupper(bin2hex($compressed)) . '>';
+        $stackedPdf = "%PDF-1.4\n1 0 obj\n<< /Filter [ /ASCIIHexDecode /FlateDecode ] /Length " . strlen($stacked) . " >>\nstream\n{$stacked}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same('ASCII Hex Import', $extractor->extractPlainText($pdf));
+        $t->same('Stacked Filter Import', $extractor->extractPlainText($stackedPdf));
+    },
     'groups adjacent text operators on the same PDF text line' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Heading) Tj T* (First ) Tj (paragraph) Tj 0 -16 Td (Second line) Tj ET';
         $lines = (new PdfTextExtractor())->extractTextLines($pdfWithContent($content));

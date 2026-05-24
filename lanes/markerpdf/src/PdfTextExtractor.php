@@ -104,20 +104,82 @@ final class PdfTextExtractor
         foreach ($matches as $match) {
             $dict = $match[1];
             $stream = $match[2];
-            if (str_contains($dict, '/FlateDecode')) {
-                $inflated = @gzuncompress($stream);
-                if ($inflated === false) {
-                    $inflated = @gzinflate($stream);
-                }
-                if ($inflated === false) {
-                    continue;
-                }
-                $stream = $inflated;
+            $decoded = $this->decodeStream($dict, $stream);
+            if ($decoded === null) {
+                continue;
             }
-            $streams[] = $stream;
+            $streams[] = $decoded;
         }
 
         return $streams;
+    }
+
+    private function decodeStream(string $dict, string $stream): ?string
+    {
+        foreach ($this->streamFilters($dict) as $filter) {
+            $decoded = match ($filter) {
+                'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
+                default => $stream,
+            };
+
+            if ($decoded === null) {
+                return null;
+            }
+            $stream = $decoded;
+        }
+
+        return $stream;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function streamFilters(string $dict): array
+    {
+        if (!preg_match('/\/Filter\s*(?:\[(.*?)\]|\/([A-Za-z0-9]+))/s', $dict, $match)) {
+            return [];
+        }
+
+        if (($match[1] ?? '') !== '') {
+            preg_match_all('/\/([A-Za-z0-9]+)/', $match[1], $filters);
+            return $filters[1] ?? [];
+        }
+
+        return isset($match[2]) ? [$match[2]] : [];
+    }
+
+    private function decodeAsciiHexStream(string $stream): ?string
+    {
+        $body = strstr($stream, '>', true);
+        if ($body === false) {
+            $body = $stream;
+        }
+
+        $hex = preg_replace('/\s+/', '', $body);
+        if ($hex === null || preg_match('/^[\da-fA-F]*$/', $hex) !== 1) {
+            return null;
+        }
+
+        if (strlen($hex) % 2 === 1) {
+            $hex .= '0';
+        }
+
+        $decoded = hex2bin($hex);
+        return $decoded === false ? null : $decoded;
+    }
+
+    private function decodeFlateStream(string $stream): ?string
+    {
+        $inflated = @gzuncompress($stream);
+        if ($inflated === false) {
+            $inflated = @gzinflate($stream);
+        }
+        if ($inflated === false) {
+            $inflated = @gzdecode($stream);
+        }
+
+        return $inflated === false ? null : $inflated;
     }
 
     /**

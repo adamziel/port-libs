@@ -14,6 +14,8 @@ The 2026-05-24 19:30 UTC TJ positioning slice applies numeric adjustments inside
 
 The 2026-05-24 19:52 UTC Tm horizontal-scale slice applies a non-identity text matrix horizontal scale to the same native end-X estimate before later `Tm` gap decisions. `examples/wordpress-pdf-tm-horizontal-scale-import.php` demonstrates the WordPress import effect by emitting `Import Profiles` from widened matrix text and `SiteMap Index` from compressed matrix text without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+The 2026-05-24 20:08 UTC ASCIIHex stream-filter slice decodes encoded PDF content streams before native text-token parsing, including an ordered `/ASCIIHexDecode` then `/FlateDecode` filter-array path. `examples/wordpress-pdf-asciihex-filter-import.php` demonstrates the WordPress import effect by emitting `Encoded PDF Import` and `Clean WordPress Blocks` from an encoded content stream without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 The lane now also maps the upstream `pdftext` dictionary boundary from `marker/pdf/extract_text.py::pdftext_format_to_blocks`. `PdfTextBlockConverter` converts supplied pdftext page dictionaries into Marker's native Page/Block/Line/Span arrays, including font flag suffixes, span IDs, rotation-aware page bboxes, and pdftext hyphen/newline cleanup before later layout annotation.
 
 The lane now also maps the supplied-data boundary of `marker/pdf/extract_text.py::get_text_blocks`. `PdfTextDocumentExtractor` applies upstream `start_page`/`max_pages` page-range semantics to supplied pdftext dictionaries, restarts span IDs relative to the selected range, preserves original PDF page numbers, and carries PDF TOC metadata for partial WordPress imports.
@@ -202,4 +204,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Root aggregate verification and supervisor/integrator acceptance remain pending for this reduced `Tm` horizontal-scale slice. After acceptance, choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of this spacing handoff.
+Root aggregate verification and supervisor/integrator acceptance remain pending for this reduced `ASCIIHexDecode` stream-filter slice. After acceptance, choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of this stream-filter handoff.
