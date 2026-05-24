@@ -1,5 +1,96 @@
 # Integration Status
 
+## Integration handoff rejection - markerPDF - 2026-05-24 21:29 UTC
+
+No markerPDF lane output was integrated in this pass.
+
+Selected handoff: no `.ready` marker was present, but `port-markerpdf` was the
+only owner-free primary lane after the Syncthing ready handoff was rejected.
+The `port-markerpdf` pane was idle at `bash` with no direct child process. I
+held only markerPDF with
+`.tmux-team/tmp/integration-holds/port-markerpdf.hold` at
+`2026-05-24T21:25:51Z` for the combined bounded searchable-PDF font/text
+extraction handoff.
+
+Stability and ownership:
+
+- The two held polls stayed stable at `HEAD=96cb5683a606`.
+- Exact no-argument root gate returned no rows in both held polls before the
+  integration-owned root run.
+- markerPDF dirty scope stayed stable: `10` lane status rows, tracked
+  shortstat `6 files changed, 858 insertions(+), 39 deletions(-)`, plus four
+  lane-local untracked WordPress PDF text examples.
+- The relevant worker log stayed
+  `.tmux-team/logs/port-markerpdf-watchdog-20260524T211436Z.log` at
+  `mtime=1779657890.7772375280`, size `2910073`, with tail hash
+  `26919a641431329155fa7b8c5b9e144f80acbfa31416737f98c1be20ba512200`.
+- The `port-markerpdf` pane stayed idle with no direct child process during the
+  held polls.
+
+Focused evidence run by this intake:
+
+- `php -l` passed for `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, and
+  all four WordPress examples:
+  `wordpress-pdf-tounicode-import.php`, `wordpress-pdf-winansi-import.php`,
+  `wordpress-pdf-differences-import.php`, and
+  `wordpress-pdf-cmap-fallback-import.php`.
+- The four WordPress examples emitted the expected native text output without
+  Python/model/external-PDF execution: `WP Searchable Text`,
+  `WordPress’s café` / `“Media” Import`, `€ “Media” — café`, and
+  `WordPress Blocks`.
+- `jq empty lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json
+  lanes/markerpdf/lane-status.json dependency-backlog.json` passed.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`
+  passed: `1` selected file, `34` assertions, `0` failures.
+- `php tools/run-tests.php lanes/markerpdf/tests` passed: `47` selected files,
+  `967` assertions, `0` failures.
+- `git diff --check -- lanes/markerpdf dependency-backlog.json` passed.
+
+Support-library review: the slice is bounded to searchable-PDF text extraction
+and references the existing inactive `pdf-text-dictionary-core` row. That row
+names markerPDF and Pandoc consumers, the activation gate
+`markerpdf-pdf-text-next-or-pandoc-pdf-input-handoff-next`, native PHP text
+operator/filter/font/CMap/error expectations, reuse notes, and explicit
+no-credit rules for pdftext subprocesses, Poppler, PDFium, Ghostscript,
+pypdfium, OCR/model engines, or external PDF converters. No shared support
+library port was activated by this intake.
+
+Root decision:
+
+- Required integration-owned root command: `php tools/run-tests.php`.
+- Root-lock behavior: no lock-wait notice was printed before test output.
+- Root result: failed with `342` test files, `47521` assertions, and `243`
+  failures.
+- First root failures were in `lanes/difftastic/tests/TokenDifferTest.php` with
+  `Call to undefined method PortLibs\Difftastic\TokenDiffer::isDartLanguage()`.
+  A later dirty Syncthing failure also appeared in
+  `lanes/syncthing/tests/BepSessionTest.php` with
+  `Call to undefined function syncthing_session_outbound_frames()`.
+
+Decision: rejected/deferred, not integrated. The markerPDF lane-local evidence
+is coherent and green, but the required serialized no-argument root harness is
+red on the current dirty tree. The root failures are outside markerPDF, but they
+still block acceptance under the integration gate. The stale hold file was
+removed after this decision. No dashboard artifacts were regenerated and no
+progress claim was advanced.
+
+Exact next markerPDF worker task: keep this searchable-PDF font/text extraction
+handoff frozen and do not add new markerPDF behavior until Difftastic and
+Syncthing root blockers are cleared or the supervisor provides an accepted
+clean snapshot. The next integration attempt may reuse the current markerPDF
+focused evidence, but must rerun the exact no-argument root harness from a
+frozen tree before commit.
+
+Current skipped lanes: Difftastic and Syncthing are immediate root blockers in
+the dirty aggregate. Dolt remains skipped until the implementation and runner
+workers have a coherent handoff and neither session is editing shared Dolt
+metadata/source files. Gitoxide, LightningCSS, libsqlite, Pandoc, Quadrable,
+rclone, Readability, esbuild, and remaining Syncthing/Difftastic work are dirty
+or actively owned outside this rejected markerPDF intake. Next concrete intake
+target: a small Difftastic root-red fix for `TokenDiffer::isDartLanguage`, or a
+small Syncthing root-red fix for `syncthing_session_outbound_frames`, whichever
+is owner-free and has a reduced handoff with focused evidence.
+
 ## Integration handoff rejection - Syncthing - 2026-05-24 21:24 UTC
 
 No Syncthing lane output was integrated in this pass.
