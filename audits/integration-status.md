@@ -1,5 +1,85 @@
 # Integration Status
 
+## Integration handoff rejection - Readability - 2026-05-24 18:41 UTC
+
+No Readability lane output was integrated. I selected the current handoff
+candidate `.tmux-team/tmp/handoff-candidates/port-readability.ready`
+(`timestamp=2026-05-24T18:39:38Z`, reason `no-codex-handoff-grace`) and held it
+with `.tmux-team/tmp/integration-holds/port-readability.hold` at
+`2026-05-24T18:40:08Z`. The expected plain
+`.tmux-team/logs/port-readability.log` path did not exist, so I used the pane
+capture plus the current watchdog log
+`.tmux-team/logs/port-readability-watchdog-20260524T183023Z.log`. The
+`port-readability` pane was at `bash` with pane PID `833952` and no child
+process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `0cffb030e29f`
+  (`Refresh independent audit status`).
+- Readability tracked shortstat stayed
+  `15 files changed, 14194 insertions(+), 2377 deletions(-)`.
+- Readability dirty scope stayed broad: the tracked diff covers
+  `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, notes, examples,
+  `ArticleExtractor.php`, and `ArticleExtractorTest.php`, and untracked files
+  include a large copied Mozilla fixture corpus plus many WordPress examples.
+- Exact no-argument root gate returned no rows in both formal polls. I did not
+  start a root harness, did not wait on `.upstream-cache/run-tests.lock`, and
+  did not treat any moving-tree root anecdote as accepted integration evidence
+  because no lane batch was accepted.
+
+Focused evidence reviewed:
+
+- Worker handoff reported a narrow Mozilla Readability raw `html@lang`
+  metadata slice: `ArticleExtractor::documentAttribute()` now preserves a
+  present `lang` attribute exactly, including surrounding whitespace and an
+  explicit empty string, while missing `lang` remains `null`.
+- Worker evidence recorded `php tools/run-tests.php lanes/readability/tests`
+  passing `287` behavior entries / `3839` assertions / `0` failures; `php -l`
+  passing for `ArticleExtractor.php`, `ArticleExtractorTest.php`, and
+  `wordpress-language-attribute-boundary.php`; `jq empty` passing for the lane
+  manifest/status; the focused WordPress example passing; and a local upstream
+  jsdom/Readability oracle returning raw `html@lang` values exactly as
+  authored.
+- `jq` reads of `lanes/readability/lane-status.json` and
+  `lanes/readability/UPSTREAM_TEST_MANIFEST.json` passed during intake.
+- The lane correctly states the real blocker first: aggregate root
+  verification and integration acceptance remain pending. The handoff says the
+  slice is lane-local metadata behavior and does not activate a support-library
+  row; broader HTML DOM, JSON/JSON-LD normalization, URL, Unicode, charset, or
+  CSSOM work remains tied to existing bounded backlog rows if those gates open.
+
+Decision: rejected/deferred, not integrated. The latest `html@lang` handoff is
+narrow and evidenced, but the dirty lane is accumulated far beyond that claim.
+The tracked diff includes broad publisher cleanup, URL cleanup, readerable
+preflight, JSON-LD, serializer, fixture, and WordPress block output changes in
+addition to the advertised `documentAttribute()` boundary. The untracked files
+add many older examples and fixture directories. Accepting this as one batch
+would conflate older unaccepted Readability slices under the latest focused
+evidence and would make the public status overstate what the integration pass
+actually reviewed.
+
+Exact next Readability worker task: re-emit only the raw `html@lang` metadata
+slice as a reduced patch containing the minimal `ArticleExtractor.php`
+`documentAttribute()` change, the focused
+`preserves upstream html lang attribute values verbatim` test, the single
+`wordpress-language-attribute-boundary.php` example, and normalized
+manifest/status/notes. Leave JSON-LD title/context work, URL cleanup, lazy
+media, readerable preflight, copied fixture corpus, publisher-specific cleanup,
+serializer changes, and unrelated WordPress examples for separate reviewable
+batches. Keep the blocker led by aggregate root verification and do not claim
+support-library progress unless a concrete HTML/JSON/URL/Unicode/charset/CSSOM
+support row is activated with its own evidence.
+
+Current skipped lanes: Dolt remains skipped because both the implementation
+and runner sessions are present while Dolt files are dirty and no coherent
+implementation-plus-runner handoff has been accepted. Other dirty lanes remain
+active or broadly accumulated; no non-Readability marker was held in this pass.
+
+Next concrete intake target: Gitoxide if it re-emits a `.ready` marker and the
+pane remains owner-free. If Gitoxide is active or still broad, fall back to
+markerPDF under the same two-poll gate.
+
 ## Integration handoff rejection - Quadrable - 2026-05-24 18:37 UTC
 
 No Quadrable lane output was integrated. After the Pandoc rejection commits, a
