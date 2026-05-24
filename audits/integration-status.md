@@ -1,5 +1,67 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T08:36:17Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, run `php tools/generate-dashboard.php`, update `porting.html` or
+`porting-summary.json`, push, or start a root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recent worker/root/preflight
+  handoffs, dirty lane files from Git, live tmux/process state, existing
+  integration status, and `dependency-backlog.json`.
+- Current `HEAD` sample is `a66862f5e90d` on
+  `main...origin/main [ahead 780, behind 68]`; the latest commit is
+  `a66862f5 Record integration hold status`.
+- The checkout is still a broad moving aggregate: `git status --short` reports
+  `16192` rows, `git status --short --untracked-files=all` reports `16280`
+  rows, and `git diff --shortstat` reports `322 files changed, 203862
+  insertions(+), 30419 deletions(-)`.
+- Live tmux/process sampling found `73` tmux sessions, including active core
+  lane sessions and capacity/integration/preflight sessions. The esbuild
+  preflight worker recommends esbuild as the next narrow candidate only after a
+  freeze; `port-esbuild` and `port-esbuild-integration-preflight-20260524T081927Z`
+  are still active, so esbuild was skipped as active.
+- Recent root evidence remains diagnostic only. The dirty-root run recorded in
+  `.tmux-team/logs/port-capacity-feed-dirty-root-3ee5e8f197d9-9dce792bbd9e.log`
+  completed `php tools/run-tests.php` at `2026-05-24T08:31:35Z` with exit `0`,
+  `370` files, `54002` assertions, and `0` failures, but the observer log also
+  recorded a moving checkout and no integrator freeze. I did not treat it as an
+  accepted integration snapshot and did not run another root harness.
+- Exact process sampling found no active `php tools/run-tests.php` rows and no
+  active `php tools/generate-dashboard.php` rows during this pass.
+- `dependency-backlog.json` is valid JSON with `24` items. I did not include it
+  in dashboard/status publication because no lane/status batch was accepted and
+  the local dashboard summary still publishes source `79768df0c427` with `22`
+  dependency rows.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild. Dolt remains skipped despite reauthorization because implementation,
+runner, and capacity BATS contexts are still active and have not converged into
+one coherent lane-scoped handoff with passing verification.
+
+Waiting: a hard writer/runner/status/dashboard freeze, followed by two stable
+polls of `HEAD`, status row counts, shortstat, exact PHP runner state, focused
+runner state, Dolt/rclone runner state, dashboard generator state, capacity
+queue state, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, stale dashboard
+artifacts, dependency backlog changes, focused runner anecdotes, and the
+externally-started dirty-root result from different snapshots.
+
+Next safe integration target: retry only the esbuild TypeScript/template-lowering
+batch after `port-esbuild` and its preflight session are inactive and the
+`lanes/esbuild/**` diff is stable. If that cannot be isolated, fall back to the
+Quadrable proof-transport batch after its upstream handoff is complete. For any
+accepted batch, run focused lane verification, `git diff --check`, one
+serialized no-argument `php tools/run-tests.php` from the same frozen snapshot
+with lock-wait status recorded, then regenerate dashboard artifacts only after
+acceptance.
+
 ## Integration Hold - 2026-05-24T08:32:02Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
