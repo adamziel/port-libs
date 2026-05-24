@@ -1,57 +1,51 @@
 # Integration Status
 
-## Accepted isolated integration - Syncthing BEP native path - 2026-05-24 22:03 UTC
+## Integration handoff rejection - isolated Syncthing BEP path - 2026-05-24 22:04 UTC
 
-Slice: `syncthing-bep-path`.
+No Syncthing output was integrated in this pass.
 
-Base commit: `45aa82fbaadfbe28ed0a6670370611faae4f788f`.
-
-Patch path:
-`.tmux-team/tmp/isolate-syncthing-bep-path-20260524T215758Z.patch`.
-
-Isolation audit copied into this commit:
+Selected marker:
+`.tmux-team/tmp/handoff-candidates/port-isolate-syncthing-bep-path.ready`
+with `timestamp=2026-05-24T22:01:00Z`, base
+`30f1c09c9059e8b6ac4fbf5b295cda3060ec298c`, patch
+`.tmux-team/tmp/isolate-syncthing-bep-path-20260524T215758Z.patch`, and audit
 `audits/isolate-syncthing-bep-path-20260524T215758Z.md`.
+Temporary hold:
+`.tmux-team/tmp/integration-holds/port-isolate-syncthing-bep-path.hold`,
+created for isolated BEP native-path intake.
 
-Focused checks repeated by integrator from the clean worktree:
+The isolated audit is coherent on its recorded clean base: it limits the slice
+to seven Syncthing files, reports `php -l`, focused
+`php tools/run-tests.php lanes/syncthing/tests/BepSessionTest.php`, example
+JSON validation, and `git diff --check` as green. However, the patch does not
+apply to the current dirty checkout:
 
-- `jq empty lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json`
-- `php -l lanes/syncthing/src/BepSession.php`
-- `php -l lanes/syncthing/src/ProtocolValidation.php`
-- `php -l lanes/syncthing/src/Index.php`
-- `php -l lanes/syncthing/src/IndexUpdate.php`
-- `php -l lanes/syncthing/src/Request.php`
-- `php -l lanes/syncthing/tests/BepSessionTest.php`
-- `php -l lanes/syncthing/examples/wordpress-bep-session.php`
-- `php tools/run-tests.php lanes/syncthing/tests/BepSessionTest.php`
-- `php lanes/syncthing/examples/wordpress-bep-session.php | jq empty`
-- `git diff --check -- lanes/syncthing`
+- `git apply --check .tmux-team/tmp/isolate-syncthing-bep-path-20260524T215758Z.patch`
+  failed for `wordpress-bep-session.php`, `BepSession.php`,
+  `ProtocolValidation.php`, and `BepSessionTest.php`.
+- The current dirty files already contain the native-path concepts, including
+  `nativeDirectorySeparator`, native inbound request/index conversion, and
+  `NO_SUCH_FILE` handling, but those changes are mixed with a broader dirty
+  seven-file Syncthing diff.
 
-Root result: `php tools/run-tests.php` passed from the same clean worktree with
-`204 test files, 23907 assertions, 0 failures`.
+Two held polls did not produce an acceptable frozen snapshot:
 
-Files staged for source behavior:
+- Poll 1: `HEAD=45aa82fb`, total status rows `24668`, selected seven-file
+  Syncthing shortstat `7 files changed, 853 insertions(+), 51 deletions(-)`,
+  and exact no-argument root PID `2265383 php tools/run-tests.php` was active.
+- Poll 2: `HEAD=45aa82fb`, total status rows `24668`, selected seven-file
+  Syncthing shortstat moved to
+  `7 files changed, 873 insertions(+), 51 deletions(-)`, and the exact root
+  gate was clear. Because the selected files moved during the hold, the root
+  run observed in Poll 1 cannot be treated as evidence for Poll 2.
 
-- `lanes/syncthing/src/BepSession.php`
-- `lanes/syncthing/src/ProtocolValidation.php`
-- `lanes/syncthing/src/Index.php`
-- `lanes/syncthing/src/IndexUpdate.php`
-- `lanes/syncthing/src/Request.php`
-- `lanes/syncthing/tests/BepSessionTest.php`
-- `lanes/syncthing/examples/wordpress-bep-session.php`
-
-Evidence files staged:
-
-- `audits/isolate-syncthing-bep-path-20260524T215758Z.md`
-- `audits/integration-status.md`
-
-Support-library decision: no support-library row activated. This is lane-local
-BEP protocol path conversion/filtering behavior and does not require a shared
-support package.
-
-Exclusions: no dirty-main Syncthing folder scan/watch, folder completion,
-folder database, request exchange, REST/config/debug/system/discovery/GUI,
-manifest/status, notes, dashboard, or support-library backlog changes were
-accepted.
+Decision: rejected/deferred, not integrated. I did not stage partial hunks from
+the active dirty files, did not rerun focused checks, did not start a duplicate
+no-argument root harness, did not regenerate dashboard artifacts, and did not
+advance a support-library claim. The next safe integration target is either a
+rebased isolated Syncthing BEP native-path patch that applies to current
+`HEAD`, or the next owner-free isolated Pandoc HTML `<br>` marker if it still
+applies cleanly and survives two stable polls.
 
 ## Integration handoff rejection - Gitoxide - 2026-05-24 22:01 UTC
 
