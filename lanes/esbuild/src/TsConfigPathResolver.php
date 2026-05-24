@@ -189,13 +189,47 @@ final class TsConfigPathResolver
             return null;
         }
 
-        $resolution = (new PackageResolver('node', extensions: ['.json']))
+        $resolution = (new PackageResolver('node', mainFields: ['tsconfig'], extensions: ['.json']))
             ->resolveImport(new ModuleImport('tsconfig-extends', $specifier, [], 0), $configDir);
         if ($resolution === null || !str_ends_with($resolution->path, '.json')) {
-            return null;
+            return $this->resolveDefaultPackageTsConfig($specifier, $configDir);
         }
 
         return $resolution->path;
+    }
+
+    private function resolveDefaultPackageTsConfig(string $specifier, string $configDir): ?string
+    {
+        $packageName = $this->packageNameFromSpecifier($specifier);
+        if ($packageName === null || $specifier !== $packageName) {
+            return null;
+        }
+
+        for ($dir = $configDir; true; $dir = dirname($dir)) {
+            $candidate = $dir . DIRECTORY_SEPARATOR . 'node_modules' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $packageName) . DIRECTORY_SEPARATOR . 'tsconfig.json';
+            if (is_file($candidate)) {
+                return realpath($candidate) ?: $candidate;
+            }
+
+            $parent = dirname($dir);
+            if ($parent === $dir) {
+                return null;
+            }
+        }
+    }
+
+    private function packageNameFromSpecifier(string $specifier): ?string
+    {
+        if (str_starts_with($specifier, '@')) {
+            $parts = explode('/', $specifier);
+
+            return count($parts) >= 2 && $parts[0] !== '@' && $parts[1] !== '' ? $parts[0] . '/' . $parts[1] : null;
+        }
+
+        $slash = strpos($specifier, '/');
+        $packageName = $slash === false ? $specifier : substr($specifier, 0, $slash);
+
+        return $packageName !== '' && $packageName !== '.' && $packageName !== '..' ? $packageName : null;
     }
 
     /**

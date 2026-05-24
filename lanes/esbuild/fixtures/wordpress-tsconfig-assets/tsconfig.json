@@ -1,7 +1,10 @@
 {
   "extends": [
     "./tsconfig.paths.json",
-    "@wordpress/tsconfig/block"
+    "@wordpress/tsconfig/block",
+    "@wordpress/tsconfig-base",
+    "wp-tsconfig-preset",
+    "wp-tsconfig-preset/configs/blocks"
   ],
   "compilerOptions": {
     "baseUrl": "./src"

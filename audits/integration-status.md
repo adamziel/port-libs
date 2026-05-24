@@ -98637,3 +98637,14 @@ Root verification: PASS php tools/run-tests.php (208 test files, 24270 assertion
 Support-library/dependency closure: lane-local only; no shared support-library or dependency row activated.
 Live-service exclusions: no live-service/provider/credentialed tests run; no secrets read or printed.
 Files staged: lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php lanes/difftastic/lane-status.json lanes/difftastic/tests/TokenDifferTest.php  audits/integration-status.md
+
+## Clean-patch integration - esbuild - 20260524T235133Z
+
+Accepted marker: .tmux-team/tmp/handoff-candidates/port-esbuild-rebase-20260524T234505Z-30852607.ready
+Patch: /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-rebase-20260524T234505Z-30852607.patch
+Lane/slice/session: esbuild / rework-package-tsconfig-extends / rebase-marker
+Focused verification: PASS php -l changed PHP files; PASS php tools/run-tests.php lanes/esbuild/tests/TsConfigPathResolverTest.php (1 test files, 27 assertions, 0 failures); PASS php tools/run-tests.php lanes/esbuild/tests (6 test files, 1818 assertions, 0 failures); PASS WordPress asset preflight grep; PASS manifest/status JSON parse; PASS git diff --check.
+Root verification: PASS php tools/run-tests.php (208 test files, 24279 assertions, 0 failures).
+Support-library/dependency closure: lane-local only; js-package/source-map/dependency backlog rows remain inactive.
+Live-service exclusions: no live-service/provider/credentialed tests run; no secrets read or printed.
+Files staged: lanes/esbuild/examples/wordpress-asset-preflight.php lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/entry.ts lanes/esbuild/fixtures/wordpress-tsconfig-assets/tsconfig.json lanes/esbuild/notes/upstream-inventory.md lanes/esbuild/src/TsConfigPathResolver.php lanes/esbuild/tests/TsConfigPathResolverTest.php  audits/integration-status.md

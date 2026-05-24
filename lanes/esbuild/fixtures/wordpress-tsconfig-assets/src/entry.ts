@@ -7,5 +7,8 @@ import runtime from 'wordpress-runtime';
 import virtualCard from '/virtual/card';
 import blockRuntime from '@wordpress/block-runtime';
 import packageThemeCard from '@wordpress/package-theme/card';
+import packageSharedCard from '@package-shared/card';
+import presetBlockView from '@preset-block/card/view';
+import wpElement from 'wp-element';
 
-export { view, style, settings, sharedConfig, themeCard, runtime, virtualCard, blockRuntime, packageThemeCard };
+export { view, style, settings, sharedConfig, themeCard, runtime, virtualCard, blockRuntime, packageThemeCard, packageSharedCard, presetBlockView, wpElement };

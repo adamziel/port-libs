@@ -28,12 +28,15 @@ return [
             '/virtual/card' => 'src/virtual/card.ts',
             '@wordpress/block-runtime' => 'src/package-shared/block-runtime.ts',
             '@wordpress/package-theme/card' => 'src/package-theme/card.ts',
+            '@package-shared/card' => 'src/package-shared/card.ts',
+            '@preset-block/card/view' => 'src/blocks/card/view.ts',
+            'wp-element' => 'src/vendor/wp-element/index.ts',
         ], array_combine(
             array_map(static fn ($resolution): string => $resolution->import->source, $resolutions),
             array_map(static fn ($resolution): string => $normalizeFixturePath($resolution->path), $resolutions),
         ));
-        $t->same(['@blocks/*', '@blocks/*', '@shared/*', 'shared-config', '@theme/*', 'wordpress-runtime', '/virtual/*', '@wordpress/block-runtime', '@wordpress/package-theme/*'], array_map(static fn ($resolution): string => $resolution->matchedPattern, $resolutions));
-        $t->same(['./blocks/*', './blocks/*', './shared/*', './shared/config', './theme/*', './vendor/wordpress-runtime', './virtual/*', './package-shared/block-runtime', './package-theme/*'], array_map(static fn ($resolution): string => $resolution->targetPattern, $resolutions));
+        $t->same(['@blocks/*', '@blocks/*', '@shared/*', 'shared-config', '@theme/*', 'wordpress-runtime', '/virtual/*', '@wordpress/block-runtime', '@wordpress/package-theme/*', '@package-shared/*', '@preset-block/*', 'wp-element'], array_map(static fn ($resolution): string => $resolution->matchedPattern, $resolutions));
+        $t->same(['./blocks/*', './blocks/*', './shared/*', './shared/config', './theme/*', './vendor/wordpress-runtime', './virtual/*', './package-shared/block-runtime', './package-theme/*', './package-shared/*', './blocks/*', './vendor/wp-element'], array_map(static fn ($resolution): string => $resolution->targetPattern, $resolutions));
         $t->same(['tsconfig.json'], array_values(array_unique(array_map(static fn ($resolution): string => basename($resolution->tsconfigPath), $resolutions))));
         $t->same('src', basename($resolutions[0]->baseUrl));
     },
@@ -56,9 +59,26 @@ return [
         $t->same('src/blocks/card/view.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', '@blocks/card/view', [], 0), $entryDir)?->path ?? ''));
         $t->same('src/vendor/wordpress-runtime/index.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', 'wordpress-runtime', [], 0), $entryDir)?->path ?? ''));
         $t->same('src/package-shared/block-runtime.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', '@wordpress/block-runtime', [], 0), $entryDir)?->path ?? ''));
+        $t->same('src/package-shared/card.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', '@package-shared/card', [], 0), $entryDir)?->path ?? ''));
+        $t->same('src/blocks/card/view.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', '@preset-block/card/view', [], 0), $entryDir)?->path ?? ''));
+        $t->same('src/vendor/wp-element/index.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', 'wp-element', [], 0), $entryDir)?->path ?? ''));
         $t->same(null, $resolver->resolveImport(new ModuleImport('named', './relative.js', [], 0), $entryDir));
         $t->same(null, $resolver->resolveImport(new ModuleImport('named', '@missing/card', [], 0), $entryDir));
         $t->same(null, $resolver->resolveImport(new ModuleImport('named', 'unsafe-runtime', [], 0), $entryDir));
         $t->same(null, $resolver->resolveImport(new ModuleImport('named', 'http://example.test/runtime.js', [], 0), $entryDir));
+    },
+    'maps package based tsconfig extends through node modules' => static function (TestRunner $t) use ($entryDir, $normalizeFixturePath): void {
+        $resolver = new TsConfigPathResolver();
+
+        $packageField = $resolver->resolveImport(new ModuleImport('named', '@package-shared/card', [], 0), $entryDir);
+        $packageRoot = $resolver->resolveImport(new ModuleImport('named', 'wp-element', [], 0), $entryDir);
+        $packageSubpath = $resolver->resolveImport(new ModuleImport('named', '@preset-block/card/view', [], 0), $entryDir);
+
+        $t->same('src/package-shared/card.ts', $normalizeFixturePath($packageField?->path ?? ''));
+        $t->same('@package-shared/*', $packageField?->matchedPattern);
+        $t->same('src/vendor/wp-element/index.ts', $normalizeFixturePath($packageRoot?->path ?? ''));
+        $t->same('wp-element', $packageRoot?->matchedPattern);
+        $t->same('src/blocks/card/view.ts', $normalizeFixturePath($packageSubpath?->path ?? ''));
+        $t->same('@preset-block/*', $packageSubpath?->matchedPattern);
     },
 ];
