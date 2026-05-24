@@ -31,11 +31,11 @@
     <div class="summary">
       <span>Average progress: <strong>84.8%</strong></span>
       <span>Lanes: <strong>12</strong></span>
-      <span>Generated: <strong>2026-05-24 00:10:32 UTC</strong></span>
-      <span>Snapshot: <strong>dashboard-publish-20260524T000959Z bd8e4a851ecd</strong></span>
+      <span>Generated: <strong>2026-05-24 00:26:37 UTC</strong></span>
+      <span>Snapshot: <strong>dashboard-publish-20260524T0026Z d5ffc5970af0</strong></span>
     </div>
   </header>
-  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit bd8e4a851ecd; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
+  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit d5ffc5970af0; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
   <div class="table-wrap">
   <table>
     <thead>
@@ -72,10 +72,10 @@
     <h2>Auxiliary Dependency Backlog</h2>
     <p class="note">Optional dependency ports stay gated behind base-tool progress. Counts and rows come from <a href="dependency-backlog.json">dependency-backlog.json</a>; candidate rows are not active work unless their status says active.</p>
     <div class="summary">
-      <span>Items: <strong>22</strong></span>
-      <span>Priority: <strong>critical: 4 | high: 8 | medium: 10</strong></span>
-      <span>Status: <strong>candidate: 12 | deferred: 10</strong></span>
-      <span>Top Gates: <strong>pandoc-rich-format-next: 4 | markerpdf-ocr-next: 3 | shared-infra-after-base-green: 3 | esbuild-rich-output-next: 1 | markerpdf-table-next: 1</strong></span>
+      <span>Items: <strong>23</strong></span>
+      <span>Priority: <strong>critical: 4 | high: 8 | medium: 11</strong></span>
+      <span>Status: <strong>candidate: 13 | deferred: 10</strong></span>
+      <span>Top Gates: <strong>pandoc-rich-format-next: 4 | markerpdf-ocr-next: 3 | shared-infra-after-base-green: 3 | esbuild-rich-output-next: 1 | markerpdf-table-next: 1 | pandoc-template-writer-next: 1</strong></span>
     </div>
     <div class="table-wrap">
     <table>
@@ -96,6 +96,7 @@
 <tr><th scope="row">legacy-doc-cfb-core<br>Legacy DOC/Compound File Binary extraction core</th><td>pandoc</td><td>high</td><td>pandoc-rich-format-next</td><td>candidate</td><td>Require a DOC/CFB-specific MS-CFB/MS-DOC spec denominator, mapped legacy .doc fixtures, PHP pass/fail evidence, text/paragraph/ta...</td></tr>
 <tr><th scope="row">epub3-package-core<br>EPUB package and spine core</th><td>pandoc, readability, rclone</td><td>high</td><td>pandoc-rich-format-next</td><td>candidate</td><td>Track an EPUB-specific W3C/upstream denominator with mapped package fixtures, PHP pass/fail evidence, spine/nav/metadata/assets p...</td></tr>
 <tr><th scope="row">odf-open-document-core<br>OpenDocument text package core</th><td>pandoc</td><td>medium</td><td>pandoc-rich-format-next</td><td>deferred</td><td>Require an ODT/OpenDocument-specific OASIS/upstream denominator, mapped ODT fixtures, PHP pass/fail evidence, semantic AST compar...</td></tr>
+<tr><th scope="row">pandoc-doctemplates-core<br>Pandoc doctemplates rendering core</th><td>pandoc</td><td>medium</td><td>pandoc-template-writer-next</td><td>candidate</td><td>Require a doctemplates-specific upstream denominator from jgm/doctemplates plus mapped Pandoc writer/template fixtures, PHP pass/...</td></tr>
 <tr><th scope="row">citation-bibliography-csl-core<br>Citation, bibliography, and CSL conversion core</th><td>pandoc</td><td>medium</td><td>pandoc-citation-next</td><td>deferred</td><td>Require a citation/CSL-specific upstream/spec denominator with mapped Pandoc citation and bibliography fixtures, PHP pass/fail ev...</td></tr>
 <tr><th scope="row">math-tex-conversion-core<br>Math and TeX conversion core</th><td>pandoc, markerpdf, readability</td><td>medium</td><td>pandoc-math-next</td><td>deferred</td><td>Require a math/TeX-specific upstream/spec denominator with mapped Pandoc, markerPDF, and Readability math fixtures, PHP pass/fail...</td></tr>
 <tr><th scope="row">pdf-text-dictionary-core<br>PDF text dictionary extraction core</th><td>markerpdf, pandoc</td><td>critical</td><td>markerpdf-ocr-next</td><td>candidate</td><td>Use a PDF-text/pdftext-specific upstream/spec denominator with mapped markerPDF benchmark/reference pairs and mapped synthetic PD...</td></tr>

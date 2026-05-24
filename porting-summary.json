@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 00:10:32 UTC",
-    "sourceCommit": "bd8e4a851ecd0ddf2bfd714999556243f5ea7ee5",
-    "sourceCommitShort": "bd8e4a851ecd",
-    "sourceBranch": "dashboard-publish-20260524T000959Z",
-    "dashboardCommit": "475f68f4cb0e105a182d1ff88e723d4bcc602369",
-    "dashboardCommitShort": "475f68f4cb0e",
+    "generated": "2026-05-24 00:26:37 UTC",
+    "sourceCommit": "d5ffc5970af039a88ddd428a57663c47cc16c975",
+    "sourceCommitShort": "d5ffc5970af0",
+    "sourceBranch": "dashboard-publish-20260524T0026Z",
+    "dashboardCommit": "f51142b7f84d6ff00d29b93c5f41da34bbfe98b1",
+    "dashboardCommitShort": "f51142b7f84d",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
@@ -213,16 +213,16 @@
         }
     ],
     "dependencyBacklog": {
-        "updated": "2026-05-23 23:39:28 UTC",
+        "updated": "2026-05-24 00:14:31 UTC",
         "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications, and reuse shared ports across lanes with honest upstream/full-suite evidence.",
-        "count": 22,
+        "count": 23,
         "countsByPriority": {
             "critical": 4,
             "high": 8,
-            "medium": 10
+            "medium": 11
         },
         "countsByStatus": {
-            "candidate": 12,
+            "candidate": 13,
             "deferred": 10
         },
         "topGates": [
@@ -244,6 +244,10 @@
             },
             {
                 "gate": "markerpdf-table-next",
+                "count": 1
+            },
+            {
+                "gate": "pandoc-template-writer-next",
                 "count": 1
             }
         ],
@@ -301,6 +305,15 @@
                 "gate": "pandoc-rich-format-next",
                 "status": "deferred",
                 "testExpectation": "Require an ODT/OpenDocument-specific OASIS/upstream denominator, mapped ODT fixtures, PHP pass/fail evidence, semantic AST compar..."
+            },
+            {
+                "id": "pandoc-doctemplates-core",
+                "name": "Pandoc doctemplates rendering core",
+                "neededBy": "pandoc",
+                "priority": "medium",
+                "gate": "pandoc-template-writer-next",
+                "status": "candidate",
+                "testExpectation": "Require a doctemplates-specific upstream denominator from jgm/doctemplates plus mapped Pandoc writer/template fixtures, PHP pass/..."
             },
             {
                 "id": "citation-bibliography-csl-core",
