@@ -1,5 +1,96 @@
 # Integration Status
 
+## Integration handoff rejection - Quadrable - 2026-05-24 19:17 UTC
+
+No Quadrable lane output was integrated. I selected the current handoff
+candidate `.tmux-team/tmp/handoff-candidates/port-quadrable.ready`
+(`timestamp=2026-05-24T19:14:34Z`, reason
+`supervisor-owner-free-handoff`). The first candidate check still showed the
+`port-quadrable` pane owned by an active Codex child, so I did not hold it at
+that point. A later poll showed the pane idle at `bash` with no child process,
+so I held only Quadrable with
+`.tmux-team/tmp/integration-holds/port-quadrable.hold` at
+`2026-05-24T19:15:50Z`.
+
+Pre-hold safety note: `HEAD` moved during the initial intake poll from
+`7370ac38f396` (`Record libsqlite handoff rejection`) to `eebc7e291846`
+(`Refresh independent audit status`), and global tracked dirty state moved
+from `249 files changed, 257560 insertions(+), 33593 deletions(-)` to
+`247 files changed, 257500 insertions(+), 33452 deletions(-)`. I treated that
+as a moving-tree warning and did not use any concurrent root anecdotes as
+accepted evidence.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `eebc7e291846`
+  (`Refresh independent audit status`).
+- Quadrable tracked shortstat stayed
+  `42 files changed, 13505 insertions(+), 2704 deletions(-)`.
+- Quadrable total status stayed at `126` rows, with status hash
+  `861defb51e50882ce06b15baafca69ec28178a5fc8267af68c130a3c288ff14a`.
+- Exact no-argument root gate matched transient active PID
+  `1160629 php tools/run-tests.php` in the first held poll and returned no
+  rows in the second. I did not start an integration-owned root harness, did
+  not bypass `.upstream-cache/run-tests.lock`, and did not treat the moving
+  root run as accepted evidence.
+- Ready marker, hold marker, and current Quadrable worker log timestamps stayed
+  stable in both held polls: ready mtime `1779650074`, hold mtime
+  `1779650169`, log mtime `1779650036`.
+- The `port-quadrable` pane stayed idle at `bash` with no child process during
+  the held polls.
+- `dependency-backlog.json` is valid JSON. It already contains the inactive
+  `quadrable-proof-transport-codec-core` row; no support-library row was
+  activated or counted.
+
+Focused evidence reviewed:
+
+- The latest worker report is a narrow compact proof hash-empty marker ramp
+  slice: marker bytes `0x20`, `0x10`, `0x08`, `0x04`, and `0x02` decode to one
+  through five `HashEmpty @ 0` commands, canonicalize unchanged, and fail
+  trusted import with `node depth underflow`.
+- Worker-reported verification: `php -l` on `ProofTest.php` and
+  `wordpress-proof-decode-guard.php`, the WordPress proof-decode example,
+  focused `php tools/run-tests.php lanes/quadrable/tests/ProofTest.php`
+  passing `1,298` assertions, full Quadrable lane PHP passing `12` files and
+  `5,568` assertions, upstream
+  `make -C .upstream-cache/quadrable -r test` passing all `34` scenarios,
+  `git diff --check -- lanes/quadrable`, and `jq empty` on lane JSON.
+- The actual tracked diff is much broader than that claim. It includes
+  manifest rewrites plus older examples, BLAKE2s/key/proof/store/sparse-tree
+  sync/tracked-node sources, and broad tests across hash tree, iterator, key,
+  proof, store, sparse tree, and sync behavior. The untracked Quadrable scope
+  also contains many older command/example/source/test files, including
+  varint, transport key-hash, iterator checkpoint, memstore, and sync-bench
+  material.
+
+Decision: rejected/deferred, not integrated. The newest proof-marker slice has
+focused evidence, but the dirty lane state is an accumulated multi-slice patch.
+Accepting it would commit far more than the reviewed proof-marker ramp, while
+staging only the advertised files would still include older unaccepted hunks in
+the same files. No dashboard artifacts were regenerated because no lane/status
+batch was accepted.
+
+Exact next Quadrable worker task: re-emit a reduced, reviewable handoff whose
+dirty files match exactly one slice. If the claim is the hash-empty marker ramp,
+include only the minimal `Proof.php`/`ProofTest.php` behavior if needed, the
+single `wordpress-proof-decode-guard.php` example delta, and normalized
+manifest/status/notes for that slice. Leave older BLAKE2s/key/store/sync,
+iterator, varint, transport key-hash, memstore, sync-bench, raw-restored, and
+unrelated command examples/tests for separate batches. Keep the blocker led by
+root aggregate verification and optional full sync-fuzzer/syncBench capacity
+evidence; do not activate `quadrable-proof-transport-codec-core` unless a
+bounded support row becomes the explicit acceptance gate with its own
+denominator, mapped fixtures, malformed/corrupt cases, native PHP pass/fail
+ledger, and upstream/spec-suite expectation.
+
+Current skipped lanes: Difftastic, esbuild, Gitoxide, libsqlite,
+LightningCSS, markerPDF, Pandoc, rclone, Readability, and Syncthing all had
+active worker children during the final skip sample. Dolt remained skipped
+because both `port-dolt` and `port-dolt-runner` had active children while Dolt
+files are dirty. Next concrete intake target: wait for a fresh owner-free
+`.ready` marker whose dirty scope matches its worker evidence; Quadrable should
+be retried only after a reduced single-slice patch is emitted.
+
 ## Integration handoff rejection - libsqlite - 2026-05-24 19:12 UTC
 
 No libsqlite lane output was integrated. I selected the current handoff
