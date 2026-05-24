@@ -1,5 +1,43 @@
 # Integration Status
 
+## Integration handoff rejection - Syncthing - 2026-05-24 21:56 UTC
+
+No Syncthing lane output was integrated in this pass.
+
+The selected marker was
+`.tmux-team/tmp/handoff-candidates/port-syncthing.ready` with
+`timestamp=2026-05-24T22:01:00Z`, `session=port-syncthing`, and
+`reason=supervisor-frozen-handoff-review-bep-native-path-slice`. I held only
+`port-syncthing` with
+`.tmux-team/tmp/integration-holds/port-syncthing.hold`.
+
+Two held polls were stable:
+
+- Poll 1: `HEAD=29b4eecb72d3`, Syncthing status rows `276`, tracked
+  shortstat `33 files changed, 13967 insertions(+), 1056 deletions(-)`, no
+  selected lane child process reported, and no exact no-argument
+  `php tools/run-tests.php` process.
+- Poll 2: `HEAD=29b4eecb72d3`, Syncthing status rows `276`, the same tracked
+  shortstat, no selected lane child process reported, and no exact
+  no-argument `php tools/run-tests.php` process.
+
+Scope review used
+`audits/preflight-syncthing-bep-native-path-20260524T2210Z.md`. The claimed
+BEP inbound native-model path conversion/filtering slice is coherent in
+isolation, but the whole Syncthing dirty tree remains too broad for this
+handoff. The reviewed files are mixed with unrelated accumulated changes for
+folder completion/errors, folder scan/watch services, request exchange,
+pull-db/update behavior, broad metadata, and a large untracked surface covering
+REST/config/debug/system/discovery/GUI examples, sources, and tests.
+
+Decision: rejected/deferred, not integrated. I did not run focused checks or a
+no-argument root harness because no exact isolated snapshot was staged. I did
+not regenerate dashboard artifacts and did not activate a support-library row;
+the reviewed path normalization remains lane-local BEP protocol behavior.
+
+Cleanup: removed the temporary Syncthing hold file and matching ready marker
+after this status-only decision.
+
 ## Integration handoff rejection - Pandoc - 2026-05-24 21:55 UTC
 
 No Pandoc lane output was integrated in this pass.
