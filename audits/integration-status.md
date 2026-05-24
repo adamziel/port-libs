@@ -1,5 +1,87 @@
 # Integration Status
 
+## Integration handoff rejection - Readability - 2026-05-24 19:37 UTC
+
+No Readability lane output was integrated. I selected the fresh handoff
+candidate `.tmux-team/tmp/handoff-candidates/port-readability.ready`
+(`timestamp=2026-05-24T19:34:45Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-readability` pane was idle at `bash`
+(`pane_pid=1223256`) with no child process. I held only Readability with
+`.tmux-team/tmp/integration-holds/port-readability.hold` at
+`2026-05-24T19:35:41Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `64cf436db560`.
+- Readability tracked shortstat stayed
+  `15 files changed, 14506 insertions(+), 2377 deletions(-)`.
+- Readability status stayed at `200` rows with status-list hash
+  `ed94b14f342f02a9f01f11758e28f394b5c1b95bb63ea2d3d1cdbd13cc14c8f1`.
+- The selected handoff marker and hold marker stayed stable with mtimes
+  `1779651285` and `1779651343`.
+- Relevant logs stayed stable: the latest focused PHP shard log mtime was
+  `1779651214`, and the current Readability watchdog log mtime was
+  `1779651284`.
+- The exact no-argument root gate was clear during the initial and first held
+  checks, then later matched non-integration PID
+  `1325562 php tools/run-tests.php` (`claude`, parent `1302121`, state `Rs`,
+  elapsed `00:11`). I did not start an integration-owned root harness, did not
+  bypass `.upstream-cache/run-tests.lock`, and did not record a lock wait.
+- `dependency-backlog.json` is valid JSON. Readability-relevant support rows
+  (`xml-html5-dom-core`, `url-percent-encoding-core`, `epub3-package-core`,
+  `math-tex-conversion-core`, `table-geometry-core`,
+  `unicode-text-repair-width`, `charset-encoding-core`, and
+  `json-json5-document-core`) remain inactive candidate/deferred rows with
+  explicit activation gates. No support-library progress was activated or
+  counted.
+
+Focused evidence reviewed:
+
+- Worker-reported slice: Mozilla-style JavaScript truthiness for
+  `keepClasses` and `disableJSONLD`/`disableJsonLd`, with string `"0"` treated
+  as truthy and empty string as falsey.
+- Worker-reported verification: local jsdom/Readability oracle for the option
+  truthiness boundary; `php tools/run-tests.php
+  lanes/readability/tests/ArticleExtractorTest.php` passed `3,875`
+  assertions; `php tools/run-tests.php lanes/readability/tests` passed `2`
+  files, `3,881` assertions, `0` failures; PHP syntax checks and the new
+  WordPress example passed; the focused dirty-worktree capacity shard repeated
+  the lane test result with `2` files, `3,881` assertions, `0` failures and
+  `git diff --check` exit `0`.
+
+Decision: rejected/deferred, not integrated. The worker report is a narrow
+boolean-option slice, but the actual dirty Readability state is an accumulated
+multi-slice patch. `ArticleExtractor.php` alone contains a broad rewrite
+covering parser, URL, JSON-LD, scoring, sibling/table, serializer, media, and
+fixture behavior beyond the advertised option truthiness delta; the test diff
+is likewise broad, and the lane has many untracked fixtures/examples/notes
+from older unaccepted slices. Accepting all Readability files would merge far
+more than the reviewed evidence, while staging only the advertised files would
+still include older unaccepted hunks in the same files. No dashboard artifacts
+were regenerated because no lane/status batch was accepted.
+
+Exact next Readability worker task: re-emit one reduced handoff whose dirty
+files match exactly one advertised slice. If the claim remains boolean option
+truthiness, keep only the minimal `ArticleExtractor.php` truthiness change,
+the focused `ArticleExtractorTest.php` case, the single
+`wordpress-boolean-option-string-zero-boundary.php` example, the
+`boolean-option-truthiness-20260524.md` note, and normalized
+manifest/status/scenario updates for that slice. Do not include accumulated
+readerable, URL cleanup, JSON-LD, table/sibling, serializer, media, Mozilla
+fixture, or EPUB/math/charset-related work in the same handoff. Keep the
+blocker led by root aggregate verification and integrator acceptance, and add
+the matching inactive support row gate if the next offered slice depends on
+HTML/DOM parsing, URL cleanup, JSON-LD, tables, math, Unicode, charset, or
+EPUB behavior.
+
+Current skipped lanes: Difftastic, Dolt, Dolt runner, esbuild, Gitoxide,
+libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone, and Syncthing
+all have active Codex child processes or active focused-runner ownership in
+the current sample. Dolt remains skipped while both implementation and runner
+sessions are active. Next concrete intake target: the next owner-free `.ready`
+marker whose dirty scope exactly matches its worker evidence; Readability
+should be retried only after a reduced single-slice patch is emitted.
+
 ## Integration handoff rejection - rclone - 2026-05-24 19:34 UTC
 
 No rclone lane output was integrated. I selected the fresh handoff candidate
