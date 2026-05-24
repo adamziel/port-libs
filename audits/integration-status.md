@@ -1,5 +1,67 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T00:18:05Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `porting.html`/`porting-summary.json`, start the
+no-argument root harness, wait on `.upstream-cache/run-tests.lock`, or treat
+another worker's moving dirty-tree root run as an accepted integration
+snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` moved during this pass from the initially observed `4c3d49f4` to
+  `168462c880df` on `main...origin/main [ahead 602, behind 68]`.
+- Dirty scope is still broad and live: latest samples showed `9181`
+  `git status --porcelain -uall` rows, `286` tracked changed files, and
+  `286 files changed, 125437 insertions(+), 12574 deletions(-)`.
+- Dirty lane rows span every priority lane: Difftastic `211`, Dolt `103`,
+  esbuild `26`, Gitoxide `122`, libsqlite `90`, LightningCSS `134`,
+  markerPDF `175`, Pandoc `58`, Quadrable `80`, rclone `102`, Readability
+  `181`, and Syncthing `141`.
+- Current process/session sampling showed active primary lane agents for
+  Difftastic, Dolt, Gitoxide, Syncthing, rclone, esbuild, Quadrable,
+  LightningCSS, markerPDF, Pandoc, libsqlite, and Readability, plus active
+  auditor/integrator/candidate-selector/dependency/control loops. Recent log
+  mtimes continued updating within seconds of the sample.
+- A no-argument dirty root runner from another capacity worker was active
+  during the first process sample. It completed at `2026-05-24T00:17:24Z`
+  with `php tools/run-tests.php` exit `0`, `312` files, `41281` assertions,
+  and `0` failures, and its audit recorded `git diff --check` exit `0`.
+  That run started from `HEAD` `4c3d49f4d796` with `8973` dirty rows and did
+  not record a lock wait field, while this pass later observed `HEAD`
+  `168462c880df` and `9181` dirty rows. It is useful evidence only, not an
+  accepted integration snapshot.
+- Focused Syncthing PHP runners were still active after the root runner
+  finished (`tools/run-tests.php lanes/syncthing/tests/...` and
+  `tools/run-tests.php lanes/syncthing/tests`). New libsqlite and Readability
+  watchdog agents also started during the sampling window.
+- Recent candidate-selector/log tails show several lane-local handoffs with
+  focused evidence and `latestCommit: pending`, including Pandoc doctemplates,
+  Quadrable diff behavior, rclone VFS traversal, Readability ad/loading
+  cleanup, and Syncthing system-version routing. They are not frozen together
+  with the root run or with each other.
+- Dolt remains skipped despite reauthorization. The Dolt implementation lane
+  and Dolt runner are active, Dolt source/metadata/test files are dirty, and
+  the runner/implementation evidence is not a coherent same-snapshot handoff.
+- `dependency-backlog.json` is valid JSON with schema keys
+  `schemaVersion`, `updated`, `policy`, and `items`; it contains `23` gated
+  items (`13` candidate, `10` deferred, `0` active-like) and remains
+  consistent with the `progress.md` dependency backlog section. No dependency
+  implementation was accepted.
+- `porting.html` and `porting-summary.json` remain dirty from updater
+  activity. They were not regenerated or accepted by this pass because doing
+  so would publish active, unaccepted lane-status edits.
+
+Decision: the tree is still too active for trustworthy lane acceptance. All
+priority lanes were skipped as active or unsafe. The next safe integration
+point is to freeze or let finish active lane/control workers, confirm no root
+or focused runners are active, and verify `HEAD`, tracked status, shortstat,
+runner state, upstream runner state, and relevant log mtimes are unchanged
+across two polls. Then accept exactly one lane-scoped batch with focused
+inspection/tests, one serialized `php tools/run-tests.php`, `git diff
+--check`, and dashboard regeneration from that same accepted snapshot.
+
 ## Integration Hold - 2026-05-24T00:14:20Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
