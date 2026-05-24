@@ -1,5 +1,84 @@
 # Integration Status
 
+## Integration handoff rejection - rclone - 2026-05-24 18:56 UTC
+
+No rclone lane output was integrated. I selected the current handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-rclone.ready`
+(`timestamp=2026-05-24T18:53:56Z`, reason `supervisor-owner-free-handoff`) and
+held only that lane with `.tmux-team/tmp/integration-holds/port-rclone.hold`
+at `2026-05-24T18:54:43Z`. The expected plain
+`.tmux-team/logs/port-rclone.log` path did not exist, so I used the current
+pane capture plus the latest watchdog/supervisor logs. The `port-rclone` pane
+was idle at `bash` (`pane_pid=913890`) with no child process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `22254a69af79`
+  (`Record LightningCSS handoff rejection`).
+- rclone tracked shortstat stayed
+  `8 files changed, 5793 insertions(+), 103 deletions(-)`.
+- rclone dirty source/test/example scope stayed at `250` status rows,
+  including many untracked files.
+- Exact no-argument root gate was clear in the final two decision polls:
+  `pgrep -af '^php tools/run-tests\.php$'` returned no rows. Earlier intake
+  samples saw moving no-argument root PIDs `950914` and `962415`; I did not
+  start another root harness, did not bypass `.upstream-cache/run-tests.lock`,
+  and did not use any moving-tree root run as accepted evidence.
+- The rclone pane capture stayed at a completed prompt and reported the latest
+  COPY read-error/close-precedence handoff with focused evidence.
+- `jq empty dependency-backlog.json` passed. The existing
+  `webdav-protocol-core` backlog row is present and inactive; no support row
+  was activated or counted.
+
+Focused evidence reviewed:
+
+- Worker handoff reported a bounded WebDAV COPY source-read versus
+  destination-close precedence slice in `VfsWebDavMutationResponse.php`,
+  `VfsWebDavMutationResponseTest.php`, and
+  `wordpress-webdav-copy-read-close-precedence-preflight.php`.
+- Worker evidence recorded PHP lint on touched files, focused
+  `php tools/run-tests.php lanes/rclone/tests/VfsWebDavMutationResponseTest.php`
+  passing `1,153` assertions, adjacent VFS/WebDAV PHP passing `1,940`
+  assertions, rclone-only PHP passing `69` files and `10,252` assertions,
+  focused upstream x/net/webdav `TestMemFS|TestCopyMoveProps` passing, `jq`
+  on lane JSON, and `git diff --check -- lanes/rclone`.
+- The lane blocker field leads with the real acceptance gate: root aggregate
+  verification and supervisor/integrator acceptance are still pending. Live
+  providers, remotes, FUSE/mount, Docker/service, platform logging, and
+  credential-bound parity remain excluded.
+
+Decision: rejected/deferred, not integrated. The latest COPY precedence
+handoff is focused and evidenced, but the dirty rclone state is accumulated far
+beyond that claim. The tracked diff still rewrites older OneDrive permission
+planner files, lane manifest/status, and notes, while the untracked rclone
+scope includes broad VFS, WebDAV, accounting, logging, OneDrive API, range,
+metadata, and example/test files. Accepting this as one commit would conflate
+many older unaccepted slices under the newest focused evidence and would make
+the public status unreviewable.
+
+Exact next rclone worker task: re-emit a reduced, reviewable handoff. If the
+COPY read-error/close-precedence slice depends on unaccepted WebDAV mutation
+foundation classes, first produce the smallest foundation batch needed for that
+slice with its own source/test/example/status evidence. Then produce the COPY
+precedence slice containing only the minimal
+`VfsWebDavMutationResponse.php` behavior, the focused
+`VfsWebDavMutationResponseTest.php` assertions, the single
+`wordpress-webdav-copy-read-close-precedence-preflight.php` example, and
+normalized manifest/status/notes. Leave accounting, logging, VFS cache/read,
+OneDrive, range, gzip/content-type, unrelated WebDAV methods, and broad example
+backlog for separate batches. Keep the blocker led by root aggregate
+verification and do not activate or claim support-library progress unless a
+bounded `webdav-protocol-core` gate is explicitly opened with its own evidence.
+
+Current skipped lanes: Dolt remains skipped because both implementation and
+runner sessions are present while Dolt files are dirty. Other dirty lanes are
+active or broadly accumulated. No dashboard artifacts were regenerated because
+no lane/status batch was accepted.
+
+Next concrete intake target: the next owner-free `.ready` marker, with
+Gitoxide or markerPDF preferred only if their dirty scope is reduced enough to
+review under the same two-poll gate.
+
 ## Integration handoff rejection - LightningCSS - 2026-05-24 18:51 UTC
 
 No LightningCSS lane output was integrated. A current handoff marker appeared at
