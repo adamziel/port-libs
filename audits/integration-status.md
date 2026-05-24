@@ -1,5 +1,76 @@
 # Integration Status
 
+## Integration handoff accepted - markerPDF - 2026-05-24 19:54 UTC
+
+Accepted the owner-free markerPDF handoff from
+`.tmux-team/tmp/handoff-candidates/port-markerpdf.ready`
+(`timestamp=2026-05-24T19:38:53Z`, reason `no-codex-handoff-grace`). The
+`port-markerpdf` pane was idle at `bash` (`pane_pid=1223181`) with no child
+process. I held only markerPDF with
+`.tmux-team/tmp/integration-holds/port-markerpdf.hold` at
+`2026-05-24T19:40:39Z`.
+
+Two-poll held snapshot and post-root stability:
+
+- Initial `HEAD` moved once during intake from `57e13cae6849` to
+  `116ccf106c9b` because an independent audit/status commit landed before
+  verification. After restarting the stability window, `HEAD` stayed at
+  `116ccf106c9b` through focused checks, the integration-owned root run, and
+  the implementation commit.
+- markerPDF tracked shortstat stayed
+  `6 files changed, 649 insertions(+), 24 deletions(-)` before and after the
+  root run, plus three untracked markerPDF examples. The markerPDF pane stayed
+  idle with no child process.
+- The exact no-argument root gate was clear before starting the integration
+  root harness. A later exact root process appeared only after the accepted
+  root run had completed; it was not used as evidence for this decision.
+- Unrelated global dirty shortstat moved during the window, so the root result
+  is not counted for any other lane claim or upstream parity claim.
+
+Reviewed scope:
+
+- `PdfTextExtractor.php` now keeps minimal text-position state, estimates text
+  end-X for same-line `Tm` gap decisions, applies `Tc`/`Tw`/`Tz` and
+  double-quote spacing, scopes those fields through `q`/`Q`, and applies
+  `TJ` numeric positioning adjustments.
+- Focused tests and WordPress examples cover `Database`, `Import Profiles`,
+  `Media Importer`, `Data Import Tool`, and `SiteMap Index` output without
+  Python, model execution, or external PDF tools.
+- Support-library tracking is bounded and inactive: existing rows
+  `pdf-text-dictionary-core`, `layout-ocr-result-core`, and
+  `table-geometry-core` cover the broader PDF text/OCR/table gates. No support
+  row was activated or counted for this native text-positioning slice.
+
+Verification:
+
+- `jq empty lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json
+  lanes/markerpdf/lane-status.json dependency-backlog.json`: pass.
+- `php -l` passed for the touched markerPDF source, test, and three examples.
+- The three markerPDF WordPress examples executed and emitted the expected
+  paragraph output with `executes_python_or_models=false` and
+  `executes_external_pdf_tools=false`.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`:
+  `1` file, `19` assertions, `0` failures.
+- `php tools/run-tests.php lanes/markerpdf/tests`: `47` files, `952`
+  assertions, `0` failures.
+- Integration-owned `php tools/run-tests.php`: `341` test files, `52446`
+  assertions, `0` failures. No lock-wait message was printed.
+- `git diff --check` and `git diff --cached --check`: pass.
+
+Implementation commit: `4aff9012 Integrate markerPDF text positioning slice`.
+The follow-up status/dashboard refresh updates markerPDF `latestCommit` and
+regenerates the public dashboard from a clean worktree at `84a9d33d` so
+unrelated dirty lane statuses do not leak into publication artifacts.
+
+Skipped active or dirty lanes: Difftastic, Dolt, Dolt runner, esbuild,
+Gitoxide, libsqlite, LightningCSS, Pandoc, Quadrable, rclone, Readability, and
+Syncthing remain dirty or independently owned outside this markerPDF hold.
+Dolt remains skipped until implementation and runner handoff evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: the next owner-free `.ready` marker whose dirty scope
+matches its worker evidence; currently the remaining marker is the old
+markerPDF ready file, which will be removed with this accepted hold.
+
 ## Integration handoff rejection - Readability - 2026-05-24 19:37 UTC
 
 No Readability lane output was integrated. I selected the fresh handoff
