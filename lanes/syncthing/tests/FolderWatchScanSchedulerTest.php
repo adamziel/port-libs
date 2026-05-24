@@ -150,6 +150,50 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler cleanup clears restart and in-progress state without consuming pending events' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/poster.webp', 'ijklmnop');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore());
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+
+            $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 4000);
+            $watch->markItemStarted('wordpress-media', 'wp-content/uploads/2026/05/poster.webp');
+            $watch->recordWatcherError('wordpress-media', 'watcher overflow', scanOnWatchError: false, now: 4001);
+            $scheduler->pauseFolder('wordpress-media');
+
+            $t->same(true, $watch->stopWatchingFolder('wordpress-media'));
+            $status = $watch->watchStatus('wordpress-media', 4010);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $status['pendingPaths'] ?? []);
+            $t->same([], $status['inProgressPaths'] ?? ['missing']);
+            $t->true(array_key_exists('watcherRestart', $status));
+            $t->same(null, $status['watcherRestart']);
+            $t->same([], $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 4010)->snapshots());
+            $t->same(null, $service->checkpoint(4010));
+
+            $scheduler->resumeFolder('wordpress-media');
+            $due = $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 4010);
+            $t->same(1, $due->snapshot('wordpress-media')?->revision);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $due->snapshot('wordpress-media')?->checkpoint->completedPaths());
+
+            $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 4020);
+            $t->same(true, $watch->stopWatchingFolder('wordpress-media', discardPendingEvents: true));
+            $t->same(null, $watch->watchStatus('wordpress-media', 4030));
+            $t->same(false, $watch->stopWatchingFolder('wordpress-media'));
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string

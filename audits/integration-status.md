@@ -98368,3 +98368,61 @@ error: patch failed: lanes/syncthing/src/FolderWatchScanScheduler.php:16
 error: lanes/syncthing/src/FolderWatchScanScheduler.php: patch does not apply
 ```
 
+## Isolated integration accepted - syncthing - 2026-05-24T23:40:00Z UTC
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T233034Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T233034Z.patch`
+Lane/slice/session: `syncthing` / `watchdog-next-20260524T233034Z` / `port-syncthing`
+
+Patch integrity: `sha256sum` matched
+`3df8fb6efd5d42d499fe74421d4f6427d523fcb146f6b043d05591efb45963f4`.
+
+Focused commands and exact results:
+
+```
+php -l lanes/syncthing/src/FolderWatchEventAggregator.php
+No syntax errors detected in lanes/syncthing/src/FolderWatchEventAggregator.php
+
+php -l lanes/syncthing/src/FolderWatchScanScheduler.php
+No syntax errors detected in lanes/syncthing/src/FolderWatchScanScheduler.php
+
+php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
+No syntax errors detected in lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
+
+php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php
+No syntax errors detected in lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php
+
+php -r 'json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents($argv[2]), true, 512, JSON_THROW_ON_ERROR);' lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json
+passed
+
+php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
+1 test files, 53 assertions, 0 failures
+
+php tools/run-tests.php lanes/syncthing/tests/FolderWatchEventAggregatorTest.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
+2 test files, 70 assertions, 0 failures
+
+php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php
+passed
+
+git diff --check
+passed
+```
+
+Root command and exact result:
+
+```
+php tools/run-tests.php
+208 test files, 24198 assertions, 0 failures
+```
+
+Support-library/dependency-closure decision: no support-library activation; this is bounded lane-local watcher lifecycle cleanup using existing Syncthing scheduler, aggregator, scan service, and checkpoint store components.
+Live-service exclusions: no live-service provider tests run; no OS watcher/provider integration was exercised.
+Files staged:
+- lanes/syncthing/UPSTREAM_TEST_MANIFEST.json
+- lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php
+- lanes/syncthing/lane-status.json
+- lanes/syncthing/notes/wordpress-scenarios.md
+- lanes/syncthing/src/FolderWatchEventAggregator.php
+- lanes/syncthing/src/FolderWatchScanScheduler.php
+- lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
+- audits/integration-status.md

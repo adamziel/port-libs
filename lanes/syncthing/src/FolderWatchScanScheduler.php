@@ -155,6 +155,26 @@ final class FolderWatchScanScheduler
         return true;
     }
 
+    public function stopWatchingFolder(string $folderId, bool $discardPendingEvents = false): bool
+    {
+        self::assertFolderId($folderId);
+
+        $hadState = isset($this->watchRestarts[$folderId]) || isset($this->aggregators[$folderId]);
+        unset($this->watchRestarts[$folderId], $this->lastDispatchedBatches[$folderId]);
+
+        if ($discardPendingEvents) {
+            unset($this->aggregators[$folderId]);
+
+            return $hadState;
+        }
+
+        if (isset($this->aggregators[$folderId])) {
+            $this->aggregators[$folderId]->clearInProgress();
+        }
+
+        return $hadState;
+    }
+
     /**
      * @return null|array{folder:string, pendingEventCount:int, pendingPaths:list<string>, pendingTypes:array<string, string>, inProgressPaths:list<string>, notifyDelaySeconds:int, notifyTimeoutSeconds:int, nextScanAt:?int, due:bool, watcherRestart:?array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, remainingSeconds:int, due:bool, scanOnWatchError:bool}}
      */

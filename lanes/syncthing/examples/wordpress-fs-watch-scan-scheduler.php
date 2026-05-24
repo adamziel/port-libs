@@ -38,6 +38,7 @@ try {
     $pendingStatus = $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 1000);
     $beforeDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1009);
     $due = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1010);
+    $dispatchedBatches = $watchScheduler->lastDispatchedBatches();
     wordpress_fs_watch_write($mediaRoot, 'wp-content/uploads/2026/05/gallery.jpg', 'qrstuvwx');
     $watchErrorScan = $watchScheduler->recordWatcherError(
         'wordpress-media',
@@ -46,16 +47,22 @@ try {
         blockSize: 4,
         now: 1020,
     );
+    $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 1030);
+    $scheduler->pauseFolder('wordpress-media');
+    $watchScheduler->stopWatchingFolder('wordpress-media');
+    $pausedStatus = $watchScheduler->watchStatus('wordpress-media', 1040);
+    $pausedScan = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1040);
 
     echo json_encode([
         'watcher' => 'Syncthing FSWatcherDelay-style media scan and restart fallback',
         'folder' => 'wordpress-media',
         'pendingStatus' => $pendingStatus,
         'beforeDueResult' => $beforeDue->toRestStatus(),
-        'dispatchedBatches' => $watchScheduler->lastDispatchedBatches(),
+        'dispatchedBatches' => $dispatchedBatches,
         'dueResult' => $due->toRestStatus(),
         'watchErrorScanResult' => $watchErrorScan->toRestStatus(),
-        'watcherRestartStatus' => $watchScheduler->watchStatus('wordpress-media', 1021)['watcherRestart'] ?? null,
+        'pausedStatusAfterCleanup' => $pausedStatus,
+        'pausedScanResult' => $pausedScan->toRestStatus(),
         'checkpointRevision' => $service->checkpoint(1021)?->revision,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } finally {

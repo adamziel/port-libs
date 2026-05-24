@@ -63,6 +63,11 @@ final class FolderWatchEventAggregator
         unset($this->inProgress[self::normalizePath($path)]);
     }
 
+    public function clearInProgress(): void
+    {
+        $this->inProgress = [];
+    }
+
     public function recordEvent(string $path, string $eventType = self::EVENT_NON_REMOVE, ?int $now = null): void
     {
         $now = self::clock($now);
