@@ -1,5 +1,45 @@
 # Integration Status
 
+## Integration handoff rejection - Readability - 2026-05-24 22:50 UTC
+
+No Readability lane output was integrated in this pass.
+
+Selected marker: `.tmux-team/tmp/handoff-candidates/port-readability.ready`
+(`timestamp=2026-05-24T22:46:23Z`, `session=port-readability`,
+`reason=no-codex-handoff-grace`). Temporary hold:
+`.tmux-team/tmp/integration-holds/port-readability.hold`, created for
+Readability-only intake. The selected pane `port-readability` was idle at
+`bash` with no child process.
+
+Safety sample: `HEAD=e0062d740c63`, active no-argument root PID `2460970`
+(`php tools/run-tests.php`), Readability status rows `56`, and tracked
+shortstat `7 files changed, 1427 insertions(+), 49 deletions(-)`.
+
+Scope review failed. The lane status explicitly says the dirty Readability
+state contains sixteen advertised slices interleaved across the same tracked
+files: aktualne perex envelope, blogger table import, daringfireball list
+blocks, reordering-paragraphs body order, inline SVG Custom HTML, Quanta React
+post cleanup, missing-paragraphs body-only fixture, CNET Taboola cleanup, AO3
+chapter root, UTF-16 byline length, negative heading cleanup, WebMD textArea
+root promotion, Breitbart header-media envelope, Folha gallery cleanup,
+Topicseed Gatsby root promotion, and Lifehacker Working media-block
+serialization. The current dirty tree also has many untracked upstream fixture
+directories, examples, and per-slice notes. Accepting this marker would not be
+a small reviewable lane-scoped batch.
+
+Decision: rejected/deferred, not integrated. I did not run focused
+Readability checks or a duplicate no-argument root harness because there was
+no coherent slice to stage and an exact root harness was already active from a
+moving shared checkout. I did not regenerate dashboard artifacts and did not
+advance Readability upstream, full-suite, or support-library claims.
+
+Next safe integration target: split one Readability fixture package, preferably
+the latest `aktualne` perex-envelope slice, into only its source hunk, copied
+fixture files, one example, one note, focused test additions, and minimal
+manifest/status/WordPress-scenario lines. After that split is frozen, run the
+targeted upstream grep evidence, focused PHP tests, `git diff --check`, and one
+serialized no-argument root harness from the same snapshot before acceptance.
+
 ## Integration handoff rejection - markerPDF - 2026-05-24 22:47 UTC
 
 No markerPDF lane output was integrated in this pass.
