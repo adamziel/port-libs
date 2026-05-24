@@ -1,5 +1,77 @@
 # Integration Status
 
+## Integration handoff rejection - libsqlite - 2026-05-24 19:12 UTC
+
+No libsqlite lane output was integrated. I selected the current handoff
+candidate `.tmux-team/tmp/handoff-candidates/port-libsqlite.ready`
+(`timestamp=2026-05-24T19:10:33Z`, reason `no-codex-handoff-grace`) and held
+only that lane with `.tmux-team/tmp/integration-holds/port-libsqlite.hold` at
+`2026-05-24T19:11:18Z`. The `port-libsqlite` pane was idle at `bash`
+(`pane_pid=972092`) with no child process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `3ebca3ab3ad9`
+  (`Record rclone handoff rejection`).
+- libsqlite tracked shortstat stayed
+  `13 files changed, 46788 insertions(+), 8066 deletions(-)`.
+- libsqlite tracked dirty files stayed at `13`: lane manifest/status/notes,
+  `SQLiteBTreePageHeader.php`, `SQLiteCreateIndex.php`, `SQLiteDatabase.php`,
+  `SQLiteHeader.php`, `SQLiteJson5Parser.php`, `SQLiteJsonB.php`,
+  `SQLiteJsonPath.php`, and `SQLiteHeaderTest.php`.
+- libsqlite untracked scope stayed broad at `164` files, including older WAL,
+  rollback-journal, savepoint, JSON operator, B-tree delete/rebalance, and
+  WordPress example/test/source files from previous unaccepted slices.
+- Exact no-argument root gate was clear in both polls:
+  `pgrep -af '^php tools/run-tests\.php$'` returned no rows. I did not start
+  an integration-owned root harness because no lane batch was accepted.
+- Ready marker and hold marker timestamps stayed stable in the decision poll:
+  ready mtime `1779649833`, hold mtime `1779649881`.
+
+Focused evidence reviewed:
+
+- Current `lanes/libsqlite/lane-status.json` reports a `json_quote(VALUE)` RHS
+  folding slice with `378` PHP cases and focused upstream evidence.
+- Current worker logs also advertise other recently completed slices, including
+  `trim()/ltrim()/rtrim()`, `abs()`, `json_valid()`, and `min()/max()` RHS
+  folding, each with separate focused evidence.
+- The actual tracked diff is an accumulated multi-slice rewrite across JSON5,
+  JSONB, JSON path, B-tree/page/header/database, create-index parsing, notes,
+  and one very large `SQLiteHeaderTest.php` expansion. The untracked set adds
+  many more older storage, WAL, rollback, savepoint, delete/rebalance, and
+  example files.
+- Relevant support rows already exist in `dependency-backlog.json`, including
+  `charset-encoding-core`, `json-json5-document-core`, and
+  `sql-expression-semantics-core`. None is active for this handoff, and this
+  batch provides no dependency-specific support manifest or pass/fail ledger.
+
+Decision: rejected/deferred, not integrated. The lane has useful focused
+evidence, but the dirty scope does not match one reviewable slice. Accepting
+the tracked subset would commit status that only describes `json_quote` while
+also landing many unrelated JSON/storage changes. Accepting all files would
+conflate 164 untracked older files plus the 13 tracked files into one
+unreviewable batch. No dashboard artifacts were regenerated because no
+lane/status batch was accepted.
+
+Exact next libsqlite worker task: re-emit a reduced, reviewable handoff whose
+dirty files match exactly one advertised slice. If the claim is `json_quote()`
+RHS folding, include only the minimal `SQLiteCreateIndex.php` changes, focused
+`SQLiteHeaderTest.php` assertions, the single
+`wordpress-json-operator-json-quote-rhs-forms.php` example, and normalized
+manifest/status/notes for that slice. Leave trim/abs/min/max/json_valid,
+JSON5/JSONB internals, WAL/rollback/savepoint, B-tree delete/rebalance, and
+unrelated examples/tests for separate batches. Keep the blocker led by root
+aggregate verification and full SQLite runner parity; do not activate
+`charset-encoding-core`, `json-json5-document-core`, or
+`sql-expression-semantics-core` until a bounded support row is the explicit
+acceptance gate with its own denominator and evidence expectations.
+
+Current skipped lanes: Dolt remains skipped because both implementation and
+runner sessions are present while Dolt files are dirty. Other dirty lanes are
+active or broadly accumulated. Next concrete intake target: the next
+owner-free `.ready` marker whose dirty scope and status evidence match;
+libsqlite should be retried only after a reduced single-slice patch is emitted.
+
 ## Integration handoff rejection - rclone - 2026-05-24 19:10 UTC
 
 No rclone lane output was integrated. I selected the current handoff candidate
