@@ -1,10 +1,10 @@
-# Independent Audit - 2026-05-24T17:34Z
+# Independent Audit - 2026-05-24T17:41Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`, all 12
 `lanes/*/UPSTREAM_TEST_MANIFEST.json`, all 12 sampled
 `lanes/*/lane-status.json`, `dependency-backlog.json`,
 `porting-summary.json`, `audits/integration-status.md`, and recent Git
-history through `28e78548 Record integration hold status`. I did not edit
+history through `b4220188 Record integration root hold status`. I did not edit
 lane implementation files, launch agents or tmux sessions, push, read secrets,
 inspect process environments, credential stores, provider configs, or auth
 files.
@@ -16,13 +16,13 @@ unless they are explicitly temporary oracle tooling.
 ## Current Snapshot
 
 ```text
-UTC samples: 2026-05-24 17:28-17:34
-observed HEAD movement during this audit: c3da13ff -> ce8f34918d64 -> 28e785481486
-recent history: 28e78548 Record integration hold status; ce8f3491 Record integration hold status; e6519412 Refresh independent audit status
-branch: main...origin/main [ahead 955, behind 68]
+UTC samples: 2026-05-24 17:28-17:41
+observed HEAD movement during this audit: c3da13ff -> ce8f34918d64 -> 28e785481486 -> b4220188539a
+recent history: b4220188 Record integration root hold status; c5ed7ccd Record integration hold status; b171aca3 Refresh independent audit status
+branch: main...origin/main [ahead 958, behind 68]
 tracked dirty files: 329 -> 331
-default status rows including untracked: 19502 -> 19511
-git diff --shortstat HEAD samples: 329 files changed, 263993 insertions(+), 32105 deletions(-) -> 329 files changed, 264075 insertions(+), 32107 deletions(-) -> 331 files changed, 264555 insertions(+), 32220 deletions(-)
+default status rows including untracked: 19502 -> 19558
+git diff --shortstat HEAD samples: 329 files changed, 263993 insertions(+), 32105 deletions(-) -> 329 files changed, 264075 insertions(+), 32107 deletions(-) -> 331 files changed, 264555 insertions(+), 32220 deletions(-) -> 331 files changed, 264769 insertions(+), 32114 deletions(-)
 dashboard snapshot: porting.html and porting-summary.json still publish source 89260857cc71 generated 2026-05-24 12:29:46 UTC
 dependency backlog: 37 rows (0 active, 25 candidate, 1 blocked, 11 deferred), updated 2026-05-24 12:29:10 UTC
 json validation by this audit: jq empty passed for all 12 lane manifests, all 12 lane-status files, dependency-backlog.json, and porting-summary.json
@@ -36,15 +36,22 @@ Required exact pre-root process gate:
 17:29Z pgrep -af '^php tools/run-tests\.php$': no rows
 17:30Z pgrep -af '^php tools/run-tests\.php$': no rows
 17:34Z pgrep -af '^php tools/run-tests\.php$': no rows
+17:36Z pgrep -af '^php tools/run-tests\.php$': 361102 php tools/run-tests.php
+17:36Z ps -o pid,user,ppid,stat,etimes,command -p 361102: PID 361102, USER claude, PPID 361056, STAT R+, ELAPSED 27s, COMMAND php tools/run-tests.php
+17:38Z ps -o pid,user,ppid,stat,etimes,command -p 361102: PID 361102, USER claude, PPID 361056, STAT R+, ELAPSED 98s, COMMAND php tools/run-tests.php
+17:41Z pgrep -af '^php tools/run-tests\.php$': 393065 php tools/run-tests.php
+17:41Z ps -o pid,user,ppid,stat,etimes,command -p 393065: PID 393065, USER claude, PPID 393013, STAT R+, ELAPSED 53s, COMMAND php tools/run-tests.php
 ```
 
 I did not start `php tools/run-tests.php`. The exact duplicate-root gate was
-empty in my samples, but the checkout failed the stability gate: `HEAD`
-advanced during this run, dirty counts changed on repeated polls, manifest
-values changed while being inspected, and no owner-free lane batch was
-accepted. The immediately preceding integration hold also recorded a transient
-exact root process (`219862 php tools/run-tests.php`), so recent root-runner
-churn reinforces the hold.
+empty during the audit decision samples, and the checkout failed the stability
+gate: `HEAD` advanced during this run, dirty counts changed on repeated polls,
+manifest values changed while being inspected, and no owner-free lane batch
+was accepted. Before finishing, no-argument root harnesses appeared as PID
+`361102` and then PID `393065`, both owned by `claude`; I did not start a
+duplicate. The immediately preceding integration hold also recorded a
+transient exact root process (`219862 php tools/run-tests.php`), so recent
+root-runner churn reinforces the hold.
 
 Latest sampled manifest/status counts versus the published dashboard:
 
@@ -52,14 +59,14 @@ Latest sampled manifest/status counts versus the published dashboard:
 lane          latest sampled manifest/status                                  dashboard
 difftastic    manifest 1030/1213; status 3556 assertions                      3245 pass, 851/1077
 dolt          manifest 613/613, phpBehaviorTests 442; status 442 PASS         425 pass, 613/613
-esbuild       manifest 461/2567; status 461 tests / 4338 assertions           429 pass, 429/2567
+esbuild       manifest 462/2567; status 462 tests / 4339 assertions           429 pass, 429/2567
 gitoxide      manifest 2877/2877; status 7517 assertions                      7152 pass, 2877/2877
 libsqlite     manifest 370/1589; status 370 cases / 5910 assertions           348 pass, 349/1589
-LightningCSS  manifest 2888/3548; status 4209 assertions                      4065 pass, 2765/3548
+LightningCSS  manifest 2893/3548; status 4215 assertions                      4065 pass, 2765/3548
 markerPDF     manifest 373/422, phpBehaviorTests 511; status 511 tests        484 pass, 347/396
 pandoc        manifest 2182/2276; lane status still says 2162 / 386 tests     362 pass, 1891/2276
 quadrable     manifest 55/55; status 5406 assertions                          232 pass, 55/55
-rclone        manifest 965/1601, phpBehaviorTests 965; status 9983 assertions 906 pass, 906/1601
+rclone        manifest 967/1601, phpBehaviorTests 967; status 10013 assertions 906 pass, 906/1601
 readability   manifest 1984/1984, phpBehaviorTests 282; status 3753 assertions 3545 pass, 1984/1984
 syncthing     manifest 658/658; status 8634 assertions                        7902 pass, 658/658
 ```
@@ -73,11 +80,11 @@ syncthing     manifest 658/658; status 8634 assertions                        79
      `goal.md:52` require small reviewable committed slices, verified
      handoffs, and visible stable progress for every lane.
    - Evidence: `HEAD` moved from `c3da13ff` to `ce8f34918d64` during this
-     audit, then to `28e785481486` before commit prep. Dirty state kept
-     moving: tracked shortstat changed from
+     audit, then to `28e785481486` and `b4220188539a` before final commit
+     prep. Dirty state kept moving: tracked shortstat changed from
      `329 files changed, 263993 insertions(+), 32105 deletions(-)` to
-     `331 files changed, 264555 insertions(+), 32220 deletions(-)`, and
-     default status rows moved `19502 -> 19511`. Lane status files continue
+     `331 files changed, 264769 insertions(+), 32114 deletions(-)`, and
+     default status rows moved `19502 -> 19558`. Lane status files continue
      to record unaccepted handoffs: Difftastic `latestCommit` is pending in a
      shared dirty worktree (`lanes/difftastic/lane-status.json:13`), Dolt is
      `not committed` (`lanes/dolt/lane-status.json:13`), esbuild is
@@ -96,15 +103,17 @@ syncthing     manifest 658/658; status 8634 assertions                        79
      audit, current work, blocker, and commit.
    - Evidence: the dashboard still publishes source `89260857cc71`, generated
      `2026-05-24 12:29:46 UTC`, while the sampled `HEAD` is
-     `28e785481486`. Current manifest/status samples differ from every
+     `b4220188539a`. Current manifest/status samples differ from every
      dashboard row: Difftastic is `1030/1213` with `3556` assertions while the
-     dashboard says `851/1077` and `3245`; esbuild is `461/2567` with `4338`
+     dashboard says `851/1077` and `3245`; esbuild is `462/2567` with `4339`
      assertions while the dashboard says `429/2567` and `429`; Gitoxide is
      `7517` assertions while the dashboard says `7152`; libsqlite is
      `370/1589` with `5910` assertions while the dashboard says `349/1589`
      and `348`; markerPDF is `373/422` with `511` behavior tests while the
      dashboard says `347/396` and `484`; Pandoc manifest is `2182/2276` while
-     the dashboard says `1891/2276`; rclone is `965/1601` with `9983`
+     the dashboard says `1891/2276`; LightningCSS is `2893/3548` with `4215`
+     assertions while the dashboard says `2765/3548` and `4065`; rclone is
+     `967/1601` with `10013`
      assertions while the dashboard says `906/1601` and `906`; Readability is
      now `282` behavior tests while the dashboard says `3545` pass; Syncthing
      is `8634` assertions while the dashboard says `7902`.
@@ -116,8 +125,14 @@ syncthing     manifest 658/658; status 8634 assertions                        79
      and honest failure recording; the current user instruction requires the
      exact duplicate-root guard before any no-argument root run.
    - Evidence: `pgrep -af '^php tools/run-tests\.php$'` returned no rows at
-     17:28Z, 17:29Z, 17:30Z, and 17:34Z, but the audit did not start a root run
-     because the tree was changing during the gate samples. The prior
+     17:28Z, 17:29Z, 17:30Z, and 17:34Z, so the audit did not start a root run
+     because the tree was changing during the gate samples. A final pre-finish
+     gate at 17:36Z then matched active PID `361102` owned by `claude`
+     (`php tools/run-tests.php`, parent `361056`, state `R+`, elapsed `27s`;
+     still active at 17:38Z with elapsed `98s`), and a later 17:41Z sample
+     matched active PID `393065` owned by `claude` (`php tools/run-tests.php`,
+     parent `393013`, state `R+`, elapsed `53s`), so no duplicate root was
+     started. The prior
      integration hold recorded a transient exact root process
      `219862 php tools/run-tests.php` before acceptance
      (`audits/integration-status.md:45-52`). Current lane status files still
@@ -143,9 +158,9 @@ syncthing     manifest 658/658; status 8634 assertions                        79
    - Evidence: `progress.md:51` still records the previous audit counts
      (`Difftastic 1029`, `esbuild 460`, `libsqlite 369`, `markerPDF
      371/420`, `Pandoc 2148/2276`, `rclone 963`), while the current manifests
-     sampled during this run report Difftastic `1030`, esbuild `461`,
+     sampled during this run report Difftastic `1030`, esbuild `462`,
      libsqlite `370`, markerPDF `373/422`, Pandoc `2182/2276`, rclone
-     `965`, and Readability `282` behavior tests. Dolt's latest evidence says
+     `967`, LightningCSS `2893`, and Readability `282` behavior tests. Dolt's latest evidence says
      `442 PASS cases` at
      `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:28`, but the warning prose still
      says `430 PASS cases` at `lanes/dolt/UPSTREAM_TEST_MANIFEST.json:2578`.
@@ -250,9 +265,10 @@ status timestamps, and relevant log mtimes. Then accept or reject exactly one
 owner-free lane batch at a time. First normalize manifest/status/dashboard
 counts and stale metadata, especially Pandoc manifest `2182` versus status
 `2162`, Difftastic `1030` versus stale `1029` warning prose, Dolt `442`
-versus stale warning `430`, libsqlite `370` versus stale dashboard `349`,
-markerPDF `373/422` versus dashboard `347/396`, rclone `965` versus
-dashboard `906`, Readability `282` behavior tests versus dashboard `3545`
+versus stale warning `430`, esbuild `462` versus dashboard `429`,
+LightningCSS `2893` versus dashboard `2765`, libsqlite `370` versus stale
+dashboard `349`, markerPDF `373/422` versus dashboard `347/396`, rclone
+`967` versus dashboard `906`, Readability `282` behavior tests versus dashboard `3545`
 pass, and every dashboard row still tied to `89260857cc71`. After
 focused verification plus `git diff --check`, regenerate dashboard artifacts
 from the accepted commit and run one serialized no-argument root result only
