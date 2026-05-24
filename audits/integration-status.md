@@ -1,6 +1,6 @@
 # Integration Status
 
-## Integration worker hold - 2026-05-24 17:19 UTC
+## Integration worker hold - 2026-05-24 17:17 UTC
 
 No lane output was integrated in this pass. The checkout is still a broad
 active multi-writer workspace, so no lane files were staged, no lane/status
@@ -14,14 +14,18 @@ Required intake and current state:
   tails, dirty lane summaries from Git, active tmux/process state,
   `dependency-backlog.json`, `porting-summary.json`, `audits/latest.md`, and
   this status file.
-- `HEAD` stayed at `a32f6308935a` during this pass, on
-  `main...origin/main [ahead 948, behind 68]`, but the workspace failed the
-  stability gate because worker log mtimes continued advancing and the tracked
-  shortstat moved during sampling from `329 files changed, 262926
-  insertions(+), 32134 deletions(-)` to `329 files changed, 262947
-  insertions(+), 32134 deletions(-)`.
-- Dirty state remains broad: `329` tracked dirty files and `19573`
-  untracked-inclusive porcelain rows. Current dirty path counts include
+- `HEAD` stayed at `a32f6308935a` during intake and this worker then committed
+  the previous hold record as `748e8ca9`. The branch was
+  `main...origin/main [ahead 949, behind 68]` after that commit, but the
+  workspace still failed the stability gate because worker log mtimes
+  continued advancing, another worker updated `audits/latest.md`, and the
+  tracked shortstat moved from `329 files changed, 262926 insertions(+),
+  32134 deletions(-)` through `329 files changed, 262947 insertions(+),
+  32134 deletions(-)` to a final post-commit sample of `331 files changed,
+  263099 insertions(+), 32246 deletions(-)`.
+- Dirty state remains broad: latest post-commit samples showed `331` tracked
+  dirty files and `19575` untracked-inclusive porcelain rows. Intake dirty path
+  counts included
   audits `9083`, `.tmux-team` `7766`, Difftastic `466`, markerPDF `267`,
   Readability `258`, Syncthing `247`, rclone `246`, Pandoc `224`, Dolt
   `215`, Gitoxide `210`, LightningCSS `194`, libsqlite `172`, Quadrable
@@ -50,10 +54,13 @@ Root, runner, dashboard, and dependency gates:
   `.upstream-cache/run-tests.lock`, and did not treat any focused or
   moving-tree result as an accepted integration snapshot.
 - Dolt remains skipped despite reauthorization because the implementation lane
-  is dirty and the Dolt runner is still active. The bounded BATS shard started
-  at `20260524T170657Z` was still running under `timeout 60m bats ...` and had
-  reached `ok 116` in `primary-key-changes.bats` at the latest tail, so there
-  is no completed coherent Dolt handoff yet.
+  is dirty and the Dolt runner is still active. During intake, the bounded BATS
+  shard started at `20260524T170657Z` was still running under
+  `timeout 60m bats ...` and had reached `ok 116` in
+  `primary-key-changes.bats`. A final follow-up tail showed `ok 131/131`, and
+  the Dolt-runner log reported the bounded upstream Go/BATS work exited `0`,
+  but that runner then moved into Dolt metadata updates and focused PHP
+  verification. There is still no completed integrator-accepted Dolt handoff.
 - `jq empty dependency-backlog.json porting-summary.json
   lanes/*/UPSTREAM_TEST_MANIFEST.json lanes/*/lane-status.json` passed.
   `dependency-backlog.json` remains valid with `37` rows: `25` candidate,
