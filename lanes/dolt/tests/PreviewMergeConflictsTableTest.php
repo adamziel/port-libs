@@ -120,6 +120,77 @@ return [
 
         $t->same([], $rows);
     },
+    'preview merge conflicts projects keyless cardinality rows' => static function (TestRunner $t): void {
+        $table = new PreviewMergeConflictsTable();
+
+        $rows = $table->keylessConflictRows(
+            [
+                ['event' => 'scan', 'object_id' => 42, 'status' => 'queued'],
+                ['event' => 'scan', 'object_id' => 42, 'status' => 'queued'],
+                ['event' => 'delete', 'object_id' => 77, 'status' => 'old'],
+            ],
+            [
+                ['event' => 'scan', 'object_id' => 42, 'status' => 'queued'],
+                ['event' => 'scan', 'object_id' => 42, 'status' => 'queued'],
+                ['event' => 'scan', 'object_id' => 42, 'status' => 'queued'],
+            ],
+            [
+                ['event' => 'scan', 'object_id' => 42, 'status' => 'queued'],
+                ['event' => 'delete', 'object_id' => 77, 'status' => 'old'],
+                ['event' => 'delete', 'object_id' => 77, 'status' => 'old'],
+            ],
+            ['event', 'object_id', 'status'],
+            'right-root-hash',
+        );
+
+        $t->same(2, count($rows));
+        foreach ($rows as $row) {
+            $t->same(32, strlen((string) $row['dolt_row_hash']));
+            $t->same(22, strlen((string) $row['dolt_conflict_id']));
+        }
+
+        $withoutIds = array_map(static function (array $row): array {
+            unset($row['dolt_row_hash'], $row['dolt_conflict_id']);
+            return $row;
+        }, $rows);
+
+        $t->same([
+            [
+                'from_root_ish' => 'right-root-hash',
+                'base_event' => 'delete',
+                'base_object_id' => 77,
+                'base_status' => 'old',
+                'base_cardinality' => 1,
+                'our_event' => null,
+                'our_object_id' => null,
+                'our_status' => null,
+                'our_cardinality' => 0,
+                'our_diff_type' => PreviewMergeConflictsTable::DIFF_REMOVED,
+                'their_event' => 'delete',
+                'their_object_id' => 77,
+                'their_status' => 'old',
+                'their_cardinality' => 2,
+                'their_diff_type' => PreviewMergeConflictsTable::DIFF_MODIFIED,
+            ],
+            [
+                'from_root_ish' => 'right-root-hash',
+                'base_event' => 'scan',
+                'base_object_id' => 42,
+                'base_status' => 'queued',
+                'base_cardinality' => 2,
+                'our_event' => 'scan',
+                'our_object_id' => 42,
+                'our_status' => 'queued',
+                'our_cardinality' => 3,
+                'our_diff_type' => PreviewMergeConflictsTable::DIFF_MODIFIED,
+                'their_event' => 'scan',
+                'their_object_id' => 42,
+                'their_status' => 'queued',
+                'their_cardinality' => 1,
+                'their_diff_type' => PreviewMergeConflictsTable::DIFF_MODIFIED,
+            ],
+        ], $withoutIds);
+    },
     'preview merge conflicts maps upstream schema-conflict error boundary' => static function (TestRunner $t): void {
         $table = new PreviewMergeConflictsTable();
 

@@ -135,6 +135,74 @@ final class PreviewMergeConflictsTable
     }
 
     /**
+     * Project keyless/cardinality conflicts returned by upstream
+     * `dolt_preview_merge_conflicts`.
+     *
+     * Keyless tables compare duplicate row cardinality instead of primary-key
+     * identity. Dolt exposes the synthetic `dolt_row_hash` so clients can
+     * distinguish duplicate-value groups without inventing a WordPress key.
+     *
+     * @param list<array<string, scalar|null>> $baseRows
+     * @param list<array<string, scalar|null>> $ourRows
+     * @param list<array<string, scalar|null>> $theirRows
+     * @param list<non-empty-string>|null $columns
+     * @return list<array<string, scalar|null>>
+     */
+    public function keylessConflictRows(
+        array $baseRows,
+        array $ourRows,
+        array $theirRows,
+        ?array $columns = null,
+        string $theirRootish = 'THEIRS',
+        int $schemaConflictCount = 0,
+    ): array {
+        if ($schemaConflictCount < 0) {
+            throw new \InvalidArgumentException('Dolt preview schema conflict count must be a non-negative integer.');
+        }
+        if ($schemaConflictCount > 0) {
+            throw new \InvalidArgumentException($this->schemaConflictError($schemaConflictCount));
+        }
+        if ($theirRootish === '') {
+            throw new \InvalidArgumentException('Dolt preview from_root_ish must be a non-empty string.');
+        }
+
+        $columns = $columns === null
+            ? $this->inferColumns($baseRows, $ourRows, $theirRows)
+            : $this->validateColumns($columns);
+
+        $base = $this->cardinalityIndex($baseRows, $columns);
+        $ours = $this->cardinalityIndex($ourRows, $columns);
+        $theirs = $this->cardinalityIndex($theirRows, $columns);
+
+        $rows = [];
+        foreach ($this->orderedKeys($base, $ours, $theirs) as $key) {
+            $baseGroup = $base[$key] ?? null;
+            $ourGroup = $ours[$key] ?? null;
+            $theirGroup = $theirs[$key] ?? null;
+
+            $baseCount = $baseGroup['count'] ?? 0;
+            $ourCount = $ourGroup['count'] ?? 0;
+            $theirCount = $theirGroup['count'] ?? 0;
+            if ($ourCount === $baseCount || $theirCount === $baseCount || $ourCount === $theirCount) {
+                continue;
+            }
+
+            $rowValues = ($ourGroup ?? $theirGroup ?? $baseGroup)['row'];
+            $rows[] = $this->formatKeylessConflictRow(
+                $key,
+                $theirRootish,
+                $rowValues,
+                $baseCount,
+                $ourCount,
+                $theirCount,
+                $columns,
+            );
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param array<string,array{data:int,schema:int}> $stats
      * @param list<non-empty-string> $order
      */
@@ -388,5 +456,76 @@ final class PreviewMergeConflictsTable
     private function conflictId(string $key, string $theirRootish): string
     {
         return rtrim(base64_encode(substr(hash('sha256', $key . "\0" . $theirRootish, true), 0, 16)), '=');
+    }
+
+    /**
+     * @param list<array<string, scalar|null>> $rows
+     * @param list<non-empty-string> $columns
+     * @return array<string, array{row: array<string, scalar|null>, count: int}>
+     */
+    private function cardinalityIndex(array $rows, array $columns): array
+    {
+        $indexed = [];
+        foreach ($rows as $row) {
+            $values = [];
+            foreach ($columns as $column) {
+                $values[$column] = $row[$column] ?? null;
+            }
+
+            $key = json_encode($values, JSON_THROW_ON_ERROR);
+            if (!isset($indexed[$key])) {
+                $indexed[$key] = ['row' => $values, 'count' => 0];
+            }
+            $indexed[$key]['count']++;
+        }
+
+        return $indexed;
+    }
+
+    /**
+     * @param array<string, scalar|null> $rowValues
+     * @param list<non-empty-string> $columns
+     * @return array<string, scalar|null>
+     */
+    private function formatKeylessConflictRow(
+        string $key,
+        string $theirRootish,
+        array $rowValues,
+        int $baseCount,
+        int $ourCount,
+        int $theirCount,
+        array $columns,
+    ): array {
+        $row = ['from_root_ish' => $theirRootish];
+        foreach ($columns as $column) {
+            $row["base_{$column}"] = $baseCount > 0 ? $rowValues[$column] : null;
+        }
+        $row['base_cardinality'] = $baseCount;
+        foreach ($columns as $column) {
+            $row["our_{$column}"] = $ourCount > 0 ? $rowValues[$column] : null;
+        }
+        $row['our_cardinality'] = $ourCount;
+        $row['our_diff_type'] = $this->cardinalityDiffType($baseCount, $ourCount);
+        foreach ($columns as $column) {
+            $row["their_{$column}"] = $theirCount > 0 ? $rowValues[$column] : null;
+        }
+        $row['their_cardinality'] = $theirCount;
+        $row['their_diff_type'] = $this->cardinalityDiffType($baseCount, $theirCount);
+        $row['dolt_row_hash'] = substr(hash('sha256', $key), 0, 32);
+        $row['dolt_conflict_id'] = $this->conflictId($key, $theirRootish);
+
+        return $row;
+    }
+
+    private function cardinalityDiffType(int $baseCount, int $rowCount): string
+    {
+        if ($baseCount === 0) {
+            return self::DIFF_ADDED;
+        }
+        if ($rowCount === 0) {
+            return self::DIFF_REMOVED;
+        }
+
+        return self::DIFF_MODIFIED;
     }
 }

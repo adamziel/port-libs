@@ -115,6 +115,19 @@ return [
     'previewMergePrimaryKey' => 'ID',
     'previewMergeColumns' => ['ID', 'post_title', 'post_status'],
     'previewMergeRightRootish' => 'wp-import-branch-head',
+    'previewKeylessBaseRows' => [
+        ['event' => 'media-scan', 'object_id' => 42, 'status' => 'queued'],
+        ['event' => 'media-scan', 'object_id' => 42, 'status' => 'queued'],
+    ],
+    'previewKeylessOurRows' => [
+        ['event' => 'media-scan', 'object_id' => 42, 'status' => 'queued'],
+        ['event' => 'media-scan', 'object_id' => 42, 'status' => 'queued'],
+        ['event' => 'media-scan', 'object_id' => 42, 'status' => 'queued'],
+    ],
+    'previewKeylessTheirRows' => [
+        ['event' => 'media-scan', 'object_id' => 42, 'status' => 'queued'],
+    ],
+    'previewKeylessColumns' => ['event', 'object_id', 'status'],
     'previewSchemaConflictCount' => 1,
     'successfulMergeStats' => [
         [

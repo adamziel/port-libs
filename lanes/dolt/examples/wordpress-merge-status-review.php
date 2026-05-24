@@ -56,6 +56,13 @@ return [
         $fixture['previewMergeColumns'],
         $fixture['previewMergeRightRootish'],
     ),
+    'previewKeylessConflictRows' => $previewConflicts->keylessConflictRows(
+        $fixture['previewKeylessBaseRows'],
+        $fixture['previewKeylessOurRows'],
+        $fixture['previewKeylessTheirRows'],
+        $fixture['previewKeylessColumns'],
+        $fixture['previewMergeRightRootish'],
+    ),
     'previewSchemaConflictRows' => $previewSchemaConflictRows,
     'previewSchemaConflictError' => $previewSchemaConflictError,
     'statusGuidance' => $mergeStatus->statusGuidance(
