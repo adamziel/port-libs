@@ -1,5 +1,96 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 18:16 UTC
+
+No lane output was integrated in this pass. I read the required coordination
+state (`goal.md`, `progress.md`, `git status --short --branch`, recent
+`git log --oneline --decorate -30`, current `port-*.log` tails, dirty lane
+file paths, tmux/process ownership, exact root-runner state, lane blocker
+fields, and `dependency-backlog.json`). No lane files were staged, no
+lane/status claim was accepted, no dashboard artifacts were regenerated, and no
+support-library row was activated.
+
+Current intake state:
+
+- `HEAD` was stable during this pass at `aba25b9cd969`
+  (`Record integration hold status`), with branch status sampled as
+  `main...origin/main [ahead 970, behind 68]`.
+- There were no current `.tmux-team/tmp/handoff-candidates/port-*.ready`
+  markers and no current `.tmux-team/tmp/integration-holds/port-*.hold`
+  markers.
+- The dirty aggregate is still broad and moving. The sampled untracked-inclusive
+  porcelain count moved from `20604` to `20615` rows, and tracked shortstat
+  moved from `330 files changed, 267767 insertions(+), 31538 deletions(-)` to
+  `330 files changed, 267836 insertions(+), 31533 deletions(-)`.
+- The largest dirty areas in the sample were `audits` (`9620` rows),
+  `.tmux-team` (`8209`), Difftastic (`466`), markerPDF (`272`), Readability
+  (`262`), Syncthing (`254`), rclone (`251`), Pandoc (`236`), Dolt (`221`),
+  Gitoxide (`214`), LightningCSS (`198`), libsqlite (`173`), Quadrable (`125`),
+  esbuild (`73`), `scripts` (`18`), and other files (`12`).
+- Exact no-argument root gate first matched active PID
+  `668308 php tools/run-tests.php` from a dirty-root capacity run. That run
+  later completed at `2026-05-24T18:15:18Z` with `384` files, `63393`
+  assertions, and `0` failures, but it remains moving-tree triage evidence
+  because no lane batch was accepted before it ran. A later sample matched
+  active PID `680357 php tools/run-tests.php` from a scratch-clone clean-root
+  capacity run at committed `HEAD` `aba25b9cd969`; that clean-root run then
+  completed at `2026-05-24T18:16:03Z` with `204` files, `23682` assertions,
+  and `0` failures. The precommit root gate later matched active PID
+  `683871 php tools/run-tests.php` from dirty-root run
+  `capacity-feed-dirty-root-7efe0af399c2-e16687c968ae`. I did not start
+  another root harness, did not wait on `.upstream-cache/run-tests.lock`, and
+  did not treat any root anecdote as an accepted integration snapshot.
+
+Ownership and skipped lanes:
+
+- Active child processes were observed for every primary lane: Difftastic,
+  Dolt, Dolt runner, esbuild, Gitoxide, libsqlite, LightningCSS, markerPDF,
+  Pandoc, Quadrable, rclone, Readability, and Syncthing. Each had an active
+  `node` worker child under the lane pane during the ownership sample.
+- Dolt remains skipped despite reauthorization because both the Dolt
+  implementation and Dolt runner sessions are active while Dolt metadata and
+  source files are dirty. There is no coherent implementation-plus-runner
+  handoff to accept.
+- Recent focused capacity logs are useful triage only: clean scratch-clone
+  focused PHP passed for sql/css/quad/diff/esbuild (`24` files, `8718`
+  assertions), rclone/syncthing (`79` files, `6198` assertions),
+  markerPDF/Pandoc/Readability (`49` files, `5028` assertions), and
+  Gitoxide/Dolt (`52` files, `3738` assertions). Dirty focused shards also
+  passed for Difftastic, Dolt parts, LightningCSS parts, Pandoc, rclone parts,
+  and Quadrable. These runs do not replace a frozen lane review plus one
+  serialized no-argument root result.
+
+Status and dependency checks:
+
+- `jq empty` passed for all 12 lane manifests, all 12 lane-status files,
+  `dependency-backlog.json`, and `porting-summary.json`.
+- Lane blocker fields sampled from `lane-status.json` lead with real acceptance
+  gates such as root aggregate verification, full upstream runner parity,
+  live-provider/service exclusions, or unactivated support-library gates. I did
+  not rewrite lane metadata.
+- `dependency-backlog.json` is valid JSON with `37` rows: `25` candidate,
+  `11` deferred, `1` blocked, and `0` active. This remains consistent with
+  `progress.md` as backlog-only support tracking.
+- No rich-function claim was accepted. Pandoc/markerPDF support rows for DOC,
+  DOCX/OpenXML, PDF input/output handoff, EPUB, ODT/OpenDocument, templates,
+  citations, math, tables, package containers, XML/HTML, Unicode/charset,
+  JSON/YAML metadata, syntax highlighting, archive/compression, OCR/layout,
+  PDF text/page, and table geometry remain inactive backlog rows.
+- `porting.html` and `porting-summary.json` were not regenerated because no
+  lane/status changes were accepted.
+
+Next safe integration target: rclone's WebDAV range-overflow/read-response
+slice is the most concrete next candidate if it produces a ready marker, the
+lane pane becomes owner-free, and the diff is reduced to the bounded
+ServeContent/range-error files with focused evidence. Do not accept the current
+broad rclone accounting/example backlog as part of that slice. If rclone stays
+active, the next candidate is LightningCSS only after the visitor/background
+work is split into a small lane-scoped patch instead of the current broad
+visitor backlog. Any accepted batch still needs focused inspection, focused
+verification, one serialized no-argument `php tools/run-tests.php` result
+through the root harness lock, `git diff --check`, dashboard regeneration from
+the accepted snapshot, and support-library gate review at base-lane granularity.
+
 ## Integration worker hold - 2026-05-24 18:11 UTC
 
 No lane output was integrated in this pass. I read the required coordination
