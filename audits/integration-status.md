@@ -1,5 +1,74 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T09:11:20Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, update `progress.md`, regenerate `porting.html` or
+`porting-summary.json`, push, or start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files from Git, live tmux/process state, recent `HEAD`, and the
+  committed dependency-scout update.
+- Current `HEAD` is `a4392cb2bf56` (`Record dependency scout tracker updates`)
+  on `main...origin/main [ahead 794, behind 68]`. The latest commit added the
+  dependency scout/status artifacts and updated `dependency-backlog.json` plus
+  `progress.md`; I reviewed it as already-committed status work, not a lane
+  implementation batch.
+- `dependency-backlog.json` is valid JSON with `31` unique item IDs. The local
+  `porting-summary.json` still reports source
+  `79768df0c427aa9c96e6d97c5137c2d79ae9ce6e` and dependency row count `22`,
+  while both `porting-summary.json` and `porting.html` are dirty. I did not
+  regenerate dashboard artifacts because no lane/status batch was accepted.
+- The checkout failed the stability gate. Two polls kept the same `HEAD` and
+  tracked dirty count (`326`), but untracked-inclusive rows moved
+  `16311 -> 16312`, `git diff --shortstat` moved from
+  `326 files changed, 205426 insertions(+), 27902 deletions(-)` to
+  `326 files changed, 205432 insertions(+), 27872 deletions(-)`, and recent
+  `port-*.log` counts remained active (`39 -> 35` files modified in the last
+  ten minutes).
+- Dirty tracked lane files still span every priority lane: markerPDF `88`,
+  Gitoxide `58`, Quadrable `39`, Syncthing `26`, esbuild `20`,
+  Readability `15`, LightningCSS `14`, libsqlite `13`, Dolt `12`, Pandoc `10`,
+  Difftastic `10`, and rclone `8`, plus prompt/script/public status files.
+- Live tmux sampling found `81` sessions, including active core lane sessions
+  for Gitoxide, LightningCSS, markerPDF, libsqlite, Readability, Pandoc,
+  Quadrable, Syncthing, Difftastic, rclone, Dolt, and esbuild, plus auditor,
+  dashboard, evaluator, capacity, dependency/support, watchdog, and integrator
+  sessions.
+- Initial process sampling saw a focused Syncthing PHP harness
+  (`php tools/run-tests.php lanes/syncthing/tests`) active. Later samples found
+  no active `php tools/run-tests.php`, `php tools/generate-dashboard.php`,
+  `timeout 90m bats`, Go test, or BATS process. I did not wait on
+  `.upstream-cache/run-tests.lock` because I did not start the no-argument root
+  harness; starting it would not produce an accepted integration snapshot
+  against this moving dirty tree.
+- Recent log tails include bounded lane handoffs such as Gitoxide `gix-date`,
+  markerPDF ToUnicode CMap, Quadrable iterator checkpoint, and Dolt runner
+  refresh evidence, but those files are still part of active dirty lanes and
+  cannot be accepted as one coherent snapshot.
+- Dolt remains skipped despite reauthorization because `port-dolt` and
+  `port-dolt-runner` sessions are active and Dolt source/status/runner files
+  remain dirty.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze active writers and status/dashboard publishers, confirm no
+focused/root PHP runners or dashboard generator are active, and require two
+stable polls of `HEAD`, tracked rows, untracked-inclusive rows, shortstat,
+process gates, dependency/dashboard counts, and relevant log mtimes.
+
+Next safe integration target: after the freeze, isolate one owner-free batch
+only. Esbuild remains the first candidate if `port-esbuild` and its preflight
+session are quiet; otherwise Quadrable is the fallback. Dolt should remain
+deferred until both Dolt sessions are quiet and their implementation plus runner
+handoff is coherent.
+
 ## Integration Hold Follow-Up - 2026-05-24T09:07:18Z
 
 No lane implementation output was integrated by this follow-up. This update
