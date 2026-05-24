@@ -1,5 +1,115 @@
 # Integration Status
 
+## Integration handoff rejection - LightningCSS - 2026-05-24 21:42 UTC
+
+No LightningCSS lane output was integrated in this pass.
+
+Initial review inputs were read as required: `goal.md`, `progress.md`,
+`git status --short --branch`, recent `git log --oneline --decorate -30`,
+current `.tmux-team/logs/port-*.log` tails for the just-finished lane, and
+dirty lane files shown by Git. The current ready marker was
+`.tmux-team/tmp/handoff-candidates/port-lightningcss.ready` with
+`timestamp=2026-05-24T21:38:17Z`, `session=port-lightningcss`, and
+`reason=no-codex-handoff-grace`.
+
+I held only `port-lightningcss` at `2026-05-24T21:39:50Z`. The lane pane was
+idle at `bash` with no direct child process, and no exact no-argument root
+harness PID was present. A focused Difftastic test process was active during
+the first sample, but it was not the serialized root harness.
+
+Two held polls:
+
+- Poll 1: `HEAD=e4442a134da0`, tracked LightningCSS shortstat
+  `17 files changed, 48934 insertions(+), 10810 deletions(-)`, lane status
+  rows `229`, exact no-argument root PID `none`, LightningCSS pane child
+  `none`.
+- Poll 2: `HEAD=e4442a134da0`, the same tracked LightningCSS shortstat and
+  lane status rows, exact no-argument root PID `none`, LightningCSS pane child
+  `none`. The relevant log files stayed at sizes `2897952` and `1541677`
+  bytes, and `lanes/lightningcss/lane-status.json` hashed to
+  `0a66b958648c603997097441ee0b930e762d2b018ece846ad193f131c8d25056`.
+
+The handoff failed scope review. The latest LightningCSS log advertises a
+native `@page` formatter slice with focused green evidence, but the earlier
+handoff note for the same new `CssFormatter.php` and `CssFormatterTest.php`
+explicitly says the files are untracked whole-file additions that also contain
+prior unaccepted `@property` and `background-image` formatter behavior. The
+dirty lane contains `215` untracked LightningCSS files plus broad tracked
+metadata/scenario changes, so accepting the ready marker would accept more than
+the evidenced page-rule slice and would advance accumulated metadata claims.
+
+Decision: rejected/deferred, not integrated. I did not run the no-argument root
+harness, did not regenerate `porting.html`, and did not advance any upstream
+parity or rich-function claim. No support-library row was activated; the
+reviewed URL formatting remains lane-local CSS serialization and does not open
+`url-percent-encoding-core`.
+
+Cleanup: removed the temporary LightningCSS hold file and matching ready marker
+after this decision.
+
+Skipped active lanes in the ownership sample: Difftastic, Syncthing, rclone,
+libsqlite, Gitoxide, Pandoc, Quadrable, Readability, esbuild, markerPDF, Dolt,
+and Dolt runner all had active child processes or runner ownership. Next
+concrete intake target: an owner-free reduced Difftastic
+`TokenDiffer::isDartLanguage()` root-red fix, or a re-emitted LightningCSS
+formatter handoff that separates `@property`, `background-image`, and `@page`
+into coherent reviewable batches with matching metadata and root evidence.
+
+## Integration intake - Dolt skipped - 2026-05-24 21:38 UTC
+
+No lane output was integrated in this pass.
+
+Initial review inputs were read as required: `goal.md`, `progress.md`,
+`git status --short --branch`, recent `git log --oneline --decorate -30`,
+current `.tmux-team/logs/port-*.log` tails around the finished handoff, and
+dirty lane files shown by Git. The only ready marker was
+`.tmux-team/tmp/handoff-candidates/port-dolt.ready` with
+`timestamp=2026-05-24T21:35:13Z`, `session=port-dolt`, and
+`reason=no-codex-handoff-grace`.
+
+I created a short intake hold for only `port-dolt` at
+`2026-05-24T21:36:46Z` while inspecting the handoff. The Dolt implementation
+pane itself was idle at `bash` with no direct child process, but the Dolt
+runner pane still had active child PID `2023913`
+(`node /usr/local/bin/codex -a never exec -C /home/claude/port-libs ...`).
+That fails the Dolt-specific acceptance rule requiring implementation and
+runner handoff coherence with no active session editing shared Dolt metadata or
+source.
+
+Two held polls:
+
+- Poll 1 at `2026-05-24T21:37:09Z`: `HEAD=e4442a134da0`, Dolt status rows
+  `245`, Dolt status hash
+  `112c7d7f82a537ec2a7ab8d843b1368a054d2471a8a53f9dedbf764aec247663`,
+  tracked Dolt shortstat `12 files changed, 11091 insertions(+), 56
+  deletions(-)`, `233` untracked Dolt files, exact no-argument root PID
+  `none`, Dolt pane child `none`, Dolt runner child `2023913`.
+- Poll 2 at `2026-05-24T21:37:19Z`: `HEAD=e4442a134da0`, Dolt status rows
+  `245`, the same Dolt status hash and tracked shortstat, `233` untracked
+  Dolt files, exact no-argument root PID `none`, Dolt pane child `none`, Dolt
+  runner child `2023913`.
+
+The relevant log fingerprint changed between the two polls while the runner
+child remained active, so this was not a frozen Dolt handoff. The dirty Dolt
+scope is also incoherent for one acceptance batch: the tracked Dolt diff lists
+merge-status/information-schema files, while the ready handoff report describes
+a REGEXP_REPLACE query-diff slice that currently appears in untracked
+`RevisionDatabaseSession.php`, `QueryDiffCommandTest.php`, fixture, and example
+files. The runner log contains audit-only upstream evidence for a separate
+`JSON_SET with quoted field names` BATS case and explicitly says it did not
+edit `lanes/dolt/*` metadata.
+
+Decision: skipped/rejected for this intake, not integrated. I did not run the
+no-argument root harness, did not regenerate `porting.html`, and did not commit.
+No upstream/full-suite parity claim was advanced. Support-library tracking
+remains backlog-only; no Dolt support row was activated by this skipped batch.
+
+Next concrete intake target: a reduced, owner-free Difftastic root-red fix if
+the `TokenDiffer` blocker is isolated and the lane re-emits focused evidence.
+Otherwise retry Dolt only after both `port-dolt` and `port-dolt-runner` are
+idle, the merge-status/REGEXP_REPLACE/JSON_SET scopes are separated, and one
+coherent lane-scoped batch has focused PHP plus upstream evidence.
+
 ## Integration intake - no acceptance - 2026-05-24 21:33 UTC
 
 No lane output was integrated in this pass.
