@@ -1,5 +1,88 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 15:17 UTC
+
+No worker output was integrated in this pass. No lane files were staged or
+committed, no dashboard artifacts were regenerated, no dependency row was
+activated, and no upstream parity or rich-function claim is accepted from this
+moving dirty snapshot.
+
+Required intake was sampled:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, current `.tmux-team/logs/port-*.log`
+  tails for recently active workers, dirty lane files shown by Git, active
+  tmux/process state, and `dependency-backlog.json`.
+- Current `HEAD` sampled as `712f22ba2551` on
+  `main...origin/main [ahead 927, behind 68]`.
+- Recent history remains audit/hold dominated:
+  `712f22ba Record integration hold status`,
+  `b03fca97 Refresh independent audit status`,
+  `3e616649 Record integration hold status`,
+  `05a6bd1a Record integration hold status`, and older hold/audit commits.
+- JSON validation passed for all 12 lane `UPSTREAM_TEST_MANIFEST.json` files,
+  all 12 lane-status files, `porting-summary.json`, and
+  `dependency-backlog.json`.
+- `dependency-backlog.json` is valid JSON with 37 rows: 25 `candidate`,
+  11 `deferred`, and 1 `blocked`. No row is active.
+
+Current movement/risk:
+
+- The worktree is not owner-free. Active tmux samples show every primary lane
+  session still present (`port-gitoxide`, `port-lightningcss`,
+  `port-markerpdf`, `port-libsqlite`, `port-readability`, `port-pandoc`,
+  `port-quadrable`, `port-syncthing`, `port-difftastic`, `port-rclone`,
+  `port-dolt`, and `port-esbuild`), plus Dolt runner, auditor, evaluator,
+  dashboard-updater, integrator, capacity, watchdog, and dependency/support
+  scout sessions.
+- Dirty scope spans all priority lanes. The untracked-inclusive status count
+  sampled at `19075`.
+- Tracked shortstat moved during this pass from
+  `331 files changed, 254556 insertions(+), 32334 deletions(-)` to
+  `331 files changed, 254588 insertions(+), 32348 deletions(-)`.
+- Tracked dirty lane file counts sampled from Git: markerPDF 89, Gitoxide 58,
+  Quadrable 41, Syncthing 26, esbuild 20, LightningCSS 17, Readability 15,
+  libsqlite 13, Dolt 12, Pandoc 11, Difftastic 10, and rclone 8.
+- Untracked-inclusive lane/status rows remain much larger, including
+  Difftastic 448, markerPDF 259, Syncthing 244, rclone 240, Pandoc 212,
+  Gitoxide 205, Dolt 203, LightningCSS 183, Readability 176, libsqlite 167,
+  Quadrable 117, and esbuild 73.
+- Fresh log mtimes continued moving after the first tail pass, including
+  Dolt, Readability, Gitoxide, esbuild, Syncthing, evaluator, dashboard,
+  libsqlite, and rclone logs.
+- Recent worker tails show candidate handoffs or active edits in multiple
+  lanes: markerPDF nested indirect PDF resource resolution, esbuild data URL
+  metafile input attribution, Syncthing GUI static trailing-slash asset serving,
+  rclone WebDAV root-delete preservation, Pandoc HTML softbreak/linebreak
+  rendering, LightningCSS selector specificity work, Readability lazy image URL
+  behavior, Gitoxide index extension diagnostics, Quadrable tracked-key patch
+  metadata, and Dolt JSON/query-diff plus BATS runner evidence. These remain
+  lane-local handoffs, not accepted integration batches.
+- Dolt remains skipped despite reauthorization because `port-dolt`,
+  `port-dolt-runner`, and capacity/BATS sessions are active while Dolt
+  metadata/source/test files are dirty.
+
+Root, dashboard, and dependency status:
+
+- Exact PHP process sample for `pgrep -af '^php tools/run-tests\.php$'`
+  matched active no-argument root PID `544441` (`php tools/run-tests.php`,
+  elapsed about two minutes at sample). A later exact sample returned no rows.
+  This worker did not start `php tools/run-tests.php`, did not wait on
+  `.upstream-cache/run-tests.lock`, and did not bypass the lock.
+- Because the checkout moved while root/log/status sampling was underway, no
+  concurrent root result is treated as an accepted integration snapshot.
+- `php tools/generate-dashboard.php` was not run because no lane/status batch
+  was accepted from this snapshot.
+
+Next safe integration point: freeze or wait out all lane, Dolt runner,
+capacity, dashboard, evaluator, auditor, integrator, and status-review loops;
+then take two stable polls of `HEAD`, tracked status, shortstat, exact PHP test
+PIDs, and relevant log mtimes. Accept one coherent owner-free lane batch only
+after focused inspection, focused lane verification, a serialized
+no-argument `php tools/run-tests.php` on that frozen snapshot, full
+`git diff --check`, dashboard regeneration from the accepted commit, and
+honest dependency/support-library gating.
+
 ## Integration worker hold - 2026-05-24 15:14 UTC
 
 No worker output was integrated in this pass. No lane files were staged, no
