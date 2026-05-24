@@ -8,7 +8,7 @@ use PortLibs\Difftastic\JsonDiffRenderer;
 
 $before = "def migrate_blocks(posts):\n"
     . "    return posts\n";
-$after = "def migrate_blocks(posts: list[dict[str, int]]) -> list[dict[str, int]]:\n"
+$after = "def migrate_blocks(posts: list[dict[str, int]]) -> tuple[int, list[str]]:\n"
     . "    migrated = []\n"
     . "    list = migrated\n"
     . "    def record(post):\n"
@@ -18,7 +18,7 @@ $after = "def migrate_blocks(posts: list[dict[str, int]]) -> list[dict[str, int]
     . "                migrated.append(dict(post))\n"
     . "        print(len(migrated))\n"
     . "        return migrated\n"
-    . "    return [record(post) for post in posts]\n";
+    . "    return (len(migrated), [record(post) for post in posts])\n";
 
 echo (new JsonDiffRenderer())->renderFileDiff(
     $before,

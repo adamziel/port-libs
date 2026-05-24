@@ -3504,9 +3504,9 @@ return [
     },
     'json display renderer maps upstream python builtin type annotations only in annotation context' => static function (TestRunner $t): void {
         $before = "def migrate_post(post):\n    return post\n";
-        $after = "def migrate_post(post: dict[str, int]) -> list[str]:\n"
+        $after = "def migrate_post(post: dict[str, int]) -> tuple[int, list[str]]:\n"
             . "    list = post.get('blocks', [])\n"
-            . "    return list\n";
+            . "    return (len(list), list)\n";
         $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
             $before,
             $after,
@@ -3526,7 +3526,7 @@ return [
         $encoded = implode("\n", $changes);
 
         $t->same('Python', $decoded['language']);
-        foreach (['dict', 'str', 'int'] as $type) {
+        foreach (['dict', 'str', 'int', 'tuple'] as $type) {
             $t->contains("{$type}:type", $encoded);
         }
         $t->contains('list:type', $encoded);
@@ -3731,10 +3731,10 @@ return [
         }
     },
     'ansi highlighter maps upstream python builtin type names only in annotations' => static function (TestRunner $t): void {
-        $line = 'def migrate(post: dict[str, int]) -> list[str]: list = []';
+        $line = 'def migrate(post: dict[str, int]) -> tuple[int, list[str]]: list = []';
         $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'python']);
 
-        foreach (['dict', 'str', 'int'] as $type) {
+        foreach (['dict', 'str', 'int', 'tuple'] as $type) {
             $start = strpos($line, $type);
             $t->true($start !== false, "Fixture should contain {$type}.");
             $t->true(in_array(['start' => $start, 'end' => $start + strlen($type), 'style' => '1'], $spans, true), "{$type} should follow upstream type capture handling inside Python annotations.");
@@ -4144,7 +4144,7 @@ return [
         foreach (['print', 'len', 'dict'] as $builtin) {
             $t->contains("{$builtin}:normal", $encoded);
         }
-        foreach (['dict', 'str', 'int', 'list'] as $type) {
+        foreach (['dict', 'str', 'int', 'list', 'tuple'] as $type) {
             $t->contains("{$type}:type", $encoded);
         }
         $t->contains('list:normal', $encoded);
