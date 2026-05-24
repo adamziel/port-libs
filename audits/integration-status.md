@@ -1,5 +1,63 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 15:57 UTC
+
+No lane output was integrated in this pass. The checkout is still a moving
+shared worktree, so no lane files were staged, no lane/status claims were
+accepted, no dashboard artifacts were regenerated, and no support-library row
+was activated.
+
+Required intake was re-sampled:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, current
+  `.tmux-team/logs/port-*.log` tails for recently active workers, dirty lane
+  paths/summaries from Git, active tmux/process state, and existing
+  `audits/integration-status.md`.
+- `HEAD` is `2b242ec4e117` on `main...origin/main [ahead 935, behind 68]`.
+  Recent commits remain audit/status-hold dominated.
+- Dirty tracked shortstat moved during this pass from
+  `329 files changed, 258896 insertions(+), 32484 deletions(-)` through
+  `329 files changed, 258985 insertions(+), 32460 deletions(-)` to
+  `329 files changed, 259077 insertions(+), 32445 deletions(-)`.
+  Untracked-inclusive status rows also moved to `19426`.
+- Active tmux panes still include every primary lane plus auditor, evaluator,
+  dashboard updater, capacity controller/executor/miners, Dolt runner,
+  watchdogs, and an integrator session.
+- Exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'` first
+  returned no rows, then matched PID `1037362` (`php tools/run-tests.php`,
+  started `2026-05-24 15:56:26 UTC`). This worker did not run
+  `php tools/run-tests.php`, did not wait on `.upstream-cache/run-tests.lock`,
+  and did not bypass the lock.
+- `jq empty` passed for all 12 lane manifests, all 12 lane-status files,
+  `dependency-backlog.json`, and `porting-summary.json`.
+- `git diff --check` passed before this hold write.
+
+Waiting/risky:
+
+- All lane scopes are skipped as active: Difftastic, Dolt, esbuild, Gitoxide,
+  libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability,
+  and Syncthing all have dirty lane files and live sessions.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` are active while Dolt source, metadata, and tests are
+  dirty; the latest runner tail still showed lane-local focused failures before
+  later unaccepted metadata claimed green.
+- Recent worker tails show lane-local handoffs and ongoing watchdog activity,
+  not owner-free batches. Moving-tree focused/root anecdotes are not accepted
+  as integration evidence.
+- `dependency-backlog.json` remains valid with 37 rows and 0 active bounded
+  support ports. Pandoc rich-conversion dependencies remain routed to bounded
+  candidate/deferred rows, but no activation gate or component evidence is
+  accepted from this pass.
+
+Next safe integration point: freeze or wait out lane, runner, capacity,
+dashboard, evaluator, auditor, integrator, and status-review loops; take two
+stable polls of `HEAD`, dirty counts, shortstat, exact root PIDs, and relevant
+log mtimes; then accept at most one owner-free lane batch after focused
+inspection, focused verification, serialized no-argument root verification on
+that frozen snapshot, `git diff --check`, and dashboard regeneration from the
+accepted commit.
+
 ## Integration worker hold - 2026-05-24 15:53 UTC
 
 No lane output was integrated in this pass. The tree is still too active for a
