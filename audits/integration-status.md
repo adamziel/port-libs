@@ -1,5 +1,78 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 18:11 UTC
+
+No lane output was integrated in this pass. I read the required coordination
+state (`goal.md`, `progress.md`, `git status --short --branch`, recent
+`git log --oneline --decorate -30`, recent `port-*.log` tails, dirty lane file
+paths, tmux/process ownership, the exact root-runner gate, and
+`dependency-backlog.json`). No lane files were staged, no lane/status claim was
+accepted, no dashboard artifacts were regenerated, and no support-library row
+was activated.
+
+Current intake state:
+
+- `HEAD` was `92805f12b0c2` during the primary intake samples
+  (`Record readability handoff rejection`), then moved to `5b28ae3aaccc`
+  (`Refresh independent audit status`) while this status note was being
+  staged. I rechecked the staged diff against the new `HEAD` before committing.
+  Branch status was sampled as `main...origin/main [ahead 968, behind 68]`
+  before that move.
+- There are no current `.tmux-team/tmp/handoff-candidates/port-*.ready`
+  markers and no current `.tmux-team/tmp/integration-holds/port-*.hold`
+  markers.
+- The dirty aggregate is still broad and moving. The sampled tracked shortstat
+  moved from `332 files changed, 267050 insertions(+), 31649 deletions(-)` to
+  `332 files changed, 267113 insertions(+), 31649 deletions(-)`, then after
+  the independent audit commit sampled as
+  `330 files changed, 267063 insertions(+), 31503 deletions(-)`. The final
+  untracked-inclusive porcelain count was `20425` rows.
+- The largest tracked dirty lane areas in the later sample were markerPDF
+  (`89` tracked paths), Gitoxide (`58`), Quadrable (`42`), Syncthing (`26`),
+  esbuild (`20`), LightningCSS (`17`), Readability (`15`), libsqlite (`13`),
+  Dolt (`12`), Pandoc (`11`), Difftastic (`10`), and rclone (`8`), plus
+  prompt/status script churn. This is not a coherent owner-free lane batch.
+- The exact no-argument root gate matched active PIDs during the pass:
+  first `652045 php tools/run-tests.php`, then
+  `663756 php tools/run-tests.php`. I did not start another root harness, did
+  not wait on `.upstream-cache/run-tests.lock`, and did not treat either moving
+  dirty-root run as accepted integration evidence.
+
+Ownership and skipped lanes:
+
+- Active Codex child processes were observed for every primary lane sampled:
+  Difftastic, Dolt, Dolt runner, esbuild, Gitoxide, libsqlite, LightningCSS,
+  markerPDF, Pandoc, Quadrable, rclone, Readability, and Syncthing.
+- Dolt remains skipped despite reauthorization because both Dolt implementation
+  and Dolt runner sessions are active while Dolt files are dirty; there is no
+  coherent implementation-plus-runner handoff to accept.
+- Recent focused shard and worker log tails remain triage evidence only. They
+  were generated against moving dirty checkouts and do not replace a frozen
+  lane review plus one serialized no-argument root result.
+
+Status and dependency checks:
+
+- `dependency-backlog.json` is valid JSON with `37` rows: `25` candidate,
+  `11` deferred, `1` blocked, and `0` active. This remains consistent with
+  `progress.md` as backlog-only support tracking.
+- No rich-function claim was accepted. Pandoc/markerPDF document rows for DOC,
+  DOCX/OpenXML, PDF input/output handoff, EPUB, ODT/OpenDocument, templates,
+  citations, math, tables, package containers, XML/HTML, Unicode/charset,
+  JSON/YAML metadata, syntax highlighting, archive/compression, OCR/layout,
+  PDF text/page, and table geometry remain inactive backlog rows.
+- `porting.html` and `porting-summary.json` were not regenerated because no
+  lane/status changes were accepted.
+
+Next safe integration target: LightningCSS remains the concrete candidate only
+if it produces a new ready marker, the lane pane has no active child process,
+and the custom-property/`attr()` work is split into a small lane-scoped patch
+with focused evidence. If rclone exits first with a bounded WebDAV
+ServeContent/error-header handoff and stable files, inspect that instead. Any
+accepted batch still needs focused inspection, focused verification, one
+serialized no-argument `php tools/run-tests.php` result through the root
+harness lock, `git diff --check`, dashboard regeneration from the accepted
+snapshot, and support-library gate review at base-lane granularity.
+
 ## Integration handoff rejection - Readability - 2026-05-24 18:07 UTC
 
 No Readability lane output was integrated. After the previous status-only
