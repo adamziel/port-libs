@@ -274,6 +274,35 @@ return [
         $t->same(['refs/heads/side'], $packed->names());
         $t->same($other, $packed->find('refs/heads/side')->targetObjectId());
     },
+    'reference store deletes broken loose refs with permissive constraints like upstream gix ref' => static function (TestRunner $t) use ($old): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-delete-broken-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        mkdir($dir . '/refs/heads', 0777, true);
+        mkdir($dir . '/logs/refs/heads', 0777, true);
+        file_put_contents($dir . '/refs/heads/broken', 'not-an-object-id');
+        file_put_contents($dir . '/logs/refs/heads/broken', 'stale audit log');
+
+        $result = $store->deleteWithReport('refs/heads/broken', ReferenceStore::PREVIOUS_MUST_EXIST);
+
+        $t->same(null, $result->reference);
+        $t->same(['refs/heads/broken'], array_map(static fn ($edit): string => $edit->name, $result->edits));
+        $t->same([null], array_map(static fn ($edit): mixed => $edit->previousTarget?->value, $result->edits));
+        $t->same([true], array_map(static fn ($edit): bool => $edit->updatesReference, $result->edits));
+        $t->same(false, is_file($dir . '/refs/heads/broken'));
+        $t->same(false, is_file($dir . '/logs/refs/heads/broken'));
+
+        mkdir($dir . '/refs/heads', 0777, true);
+        file_put_contents($dir . '/refs/heads/broken', 'still-not-an-object-id');
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->deleteReference(
+                'refs/heads/broken',
+                ReferenceStore::PREVIOUS_EXISTING_MUST_MATCH,
+                ReferenceTarget::object($old),
+            ),
+        );
+        $t->same('still-not-an-object-id', file_get_contents($dir . '/refs/heads/broken'));
+    },
     'reference store update leaves default packed refs shadowed by loose refs' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-shadow-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -863,6 +892,27 @@ return [
         $t->same(true, is_dir($dir . '/logs/refs/heads/review/plugin-a'));
         $t->same($old, $store->find('refs/heads/review/plugin-a')->targetObjectId());
     },
+    'prepared reference transaction deletes broken loose refs after staging locks' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-broken-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        mkdir($dir . '/refs/heads/review/plugin-b', 0777, true);
+        file_put_contents($dir . '/refs/heads/review/plugin-b/broken', 'broken-ref');
+
+        $transaction = $store->prepareLooseDeleteTransaction(
+            ['refs/heads/review/plugin-b/broken'],
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+        );
+
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-b/broken.lock'));
+        $edits = $transaction->commit();
+
+        $t->same(['refs/heads/review/plugin-b/broken'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same([true], array_map(static fn ($edit): bool => $edit->updatesReference, $edits));
+        $t->same([null], array_map(static fn ($edit): mixed => $edit->previousTarget?->value, $edits));
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-b/broken'));
+        $t->same(false, is_file($dir . '/refs/heads/review/plugin-b/broken.lock'));
+        $t->same(false, is_dir($dir . '/refs'));
+    },
     'prepared reference transaction lock collision rolls back already prepared locks' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-lock-collision-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -968,6 +1018,10 @@ return [
         $t->same($fixture['expectedPreparedDeleteCleanedLock'], $summary['preparedDeleteCleanedLock']);
         $t->same($fixture['expectedPreparedDeleteRefStillExists'], $summary['preparedDeleteRefStillExists']);
         $t->same($fixture['expectedPreparedDeleteReflogExists'], $summary['preparedDeleteReflogExists']);
+        $t->same($fixture['expectedPreparedBrokenDeleteEditNames'], $summary['preparedBrokenDeleteEditNames']);
+        $t->same($fixture['expectedPreparedBrokenDeleteHadLock'], $summary['preparedBrokenDeleteHadLock']);
+        $t->same($fixture['expectedPreparedBrokenDeleteCleanedLock'], $summary['preparedBrokenDeleteCleanedLock']);
+        $t->same($fixture['expectedPreparedBrokenDeleteRefStillExists'], $summary['preparedBrokenDeleteRefStillExists']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

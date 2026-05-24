@@ -204,4 +204,4 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 ## Next Task
 
-Map broken loose-reference deletion parity for prepared/direct deletes, another focused `gix-merge` tree fixture, or broaden protocol/transport runner evidence with a controlled focused crate probe.
+Broaden protocol/transport runner evidence with a controlled focused crate probe, map packed-ref mmap/buffer invalidation races in a bounded reference-store slice, or map another focused `gix-merge` tree fixture.

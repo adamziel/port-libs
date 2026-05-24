@@ -59,6 +59,11 @@ final class LooseReferenceStore
         return true;
     }
 
+    public function exists(string $name): bool
+    {
+        return is_file($this->pathFor($name));
+    }
+
     public function read(string $name, string $algorithm = 'sha1'): LooseReference
     {
         $reference = $this->tryRead($name, $algorithm);

@@ -161,8 +161,8 @@ final class ReferenceStore
                 }
 
                 [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName($name), $deref, $algorithm);
-                $existing = $this->tryFindPhysical($physicalName, $algorithm);
-                $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget);
+                [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
+                $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
 
                 foreach ($this->deleteReport($derefParents, $existing?->target, $physicalName, $reflogMode) as $edit) {
                     $editPhysicalName = $this->physicalName($edit->name);
@@ -193,7 +193,7 @@ final class ReferenceStore
                         'edit' => $edit,
                         'delete' => [
                             'physicalName' => $editPhysicalName,
-                            'deleteReference' => $edit->updatesReference,
+                            'deleteReference' => $edit->updatesReference || ($editPhysicalName === $physicalName && $brokenLooseExists),
                             'deleteReflog' => true,
                         ],
                     ];
@@ -351,15 +351,15 @@ final class ReferenceStore
 
         if (!$deleteReflog) {
             $physicalName = $this->dereferenceName($this->physicalName($name), $deref, $algorithm);
-            $existing = $this->tryFindPhysical($physicalName, $algorithm);
+            [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
 
-            $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget);
+            $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
 
-            if ($existing === null) {
+            if ($existing === null && !$brokenLooseExists) {
                 return null;
             }
 
-            if ($existing->source === 'loose') {
+            if (($existing?->source === 'loose') || $brokenLooseExists) {
                 $this->loose->delete($physicalName);
             }
 
@@ -367,7 +367,7 @@ final class ReferenceStore
                 $this->rewritePackedReferences([], [$physicalName], $algorithm);
             }
 
-            return $this->storeRelativeReference($existing);
+            return $existing === null ? null : $this->storeRelativeReference($existing);
         }
 
         return $this->deleteWithReport(
@@ -399,9 +399,9 @@ final class ReferenceStore
         }
 
         [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName($name), $deref, $algorithm);
-        $existing = $this->tryFindPhysical($physicalName, $algorithm);
+        [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
 
-        $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget);
+        $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
         $edits = $this->deleteReport($derefParents, $existing?->target, $physicalName, $reflogMode);
 
         foreach ($derefParents as $parent) {
@@ -410,15 +410,15 @@ final class ReferenceStore
 
         $this->deleteReflog($physicalName);
 
-        if ($existing === null) {
+        if ($existing === null && !$brokenLooseExists) {
             return new ReferenceDeleteResult(null, $edits);
         }
 
         if ($reflogMode === ReferenceTransactionEdit::REFLOG_ONLY) {
-            return new ReferenceDeleteResult($this->storeRelativeReference($existing), $edits);
+            return new ReferenceDeleteResult($existing === null ? null : $this->storeRelativeReference($existing), $edits);
         }
 
-        if ($existing->source === 'loose') {
+        if (($existing?->source === 'loose') || $brokenLooseExists) {
             $this->loose->delete($physicalName);
         }
 
@@ -426,7 +426,7 @@ final class ReferenceStore
             $this->rewritePackedReferences([], [$physicalName], $algorithm);
         }
 
-        return new ReferenceDeleteResult($this->storeRelativeReference($existing), $edits);
+        return new ReferenceDeleteResult($existing === null ? null : $this->storeRelativeReference($existing), $edits);
     }
 
     public function tryFind(string $name, string $algorithm = 'sha1'): ?ResolvedReference
@@ -791,6 +791,22 @@ final class ReferenceStore
 
         $packed = $this->packed->tryFind($physicalName);
         return $packed === null ? null : ResolvedReference::fromPacked($packed);
+    }
+
+    /**
+     * @return array{0:?ResolvedReference,1:bool}
+     */
+    private function tryFindPhysicalForDeletion(string $physicalName, string $algorithm): array
+    {
+        try {
+            return [$this->tryFindPhysical($physicalName, $algorithm), false];
+        } catch (\InvalidArgumentException $exception) {
+            if (!$this->loose->exists($physicalName)) {
+                throw $exception;
+            }
+
+            return [null, true];
+        }
     }
 
     private function maybeAppendReflog(
@@ -1160,19 +1176,24 @@ final class ReferenceStore
         ?ResolvedReference $existing,
         string $previous,
         ?ReferenceTarget $expectedTarget,
+        bool $brokenLooseExists = false,
     ): void {
         match ($previous) {
             self::PREVIOUS_ANY => null,
-            self::PREVIOUS_MUST_EXIST => $existing === null
+            self::PREVIOUS_MUST_EXIST => $existing === null && !$brokenLooseExists
                 ? throw new \RuntimeException("Reference must exist before deletion: {$physicalName}")
                 : null,
-            self::PREVIOUS_MUST_EXIST_AND_MATCH => $this->assertExpectedTargetMatches(
+            self::PREVIOUS_MUST_EXIST_AND_MATCH => $brokenLooseExists
+                ? throw new \RuntimeException("Reference is out of date: {$physicalName}")
+                : $this->assertExpectedTargetMatches(
                 $physicalName,
                 $existing,
                 $expectedTarget,
                 true,
             ),
-            self::PREVIOUS_EXISTING_MUST_MATCH => $this->assertExpectedTargetMatches(
+            self::PREVIOUS_EXISTING_MUST_MATCH => $brokenLooseExists
+                ? throw new \RuntimeException("Reference is out of date: {$physicalName}")
+                : $this->assertExpectedTargetMatches(
                 $physicalName,
                 $existing,
                 $expectedTarget,

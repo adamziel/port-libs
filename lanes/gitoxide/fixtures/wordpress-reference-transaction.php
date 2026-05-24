@@ -35,14 +35,21 @@ return [
     'expectedPreparedCommitCleanedLocks' => true,
     'expectedPreparedCommitOpenAfterCommit' => false,
     'preparedDeleteRef' => 'refs/heads/review/plugin-d/stale',
+    'preparedBrokenDeleteRef' => 'refs/heads/review/plugin-e/broken',
     'expectedPreparedDeleteEditNames' => [
         'refs/heads/review/plugin-d/stale',
+    ],
+    'expectedPreparedBrokenDeleteEditNames' => [
+        'refs/heads/review/plugin-e/broken',
     ],
     'expectedPreparedDeleteHadLock' => true,
     'expectedPreparedDeleteCleanedLock' => true,
     'expectedPreparedDeleteRefStillExists' => false,
     'expectedPreparedDeleteReflogExists' => false,
+    'expectedPreparedBrokenDeleteHadLock' => true,
+    'expectedPreparedBrokenDeleteCleanedLock' => true,
+    'expectedPreparedBrokenDeleteRefStillExists' => false,
     'preparedReflogMessage' => 'prepared tenant review refs',
     'preparedReflogCommitter' => 'Deploy Bot <deploy@example.com> 1234 +0000',
-    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, prune stale review refs through prepared delete locks, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
+    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, prune stale and broken review refs through prepared delete locks, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
 ];

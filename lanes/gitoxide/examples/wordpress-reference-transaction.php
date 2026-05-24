@@ -73,6 +73,19 @@ $preparedDelete = $store->prepareLooseDeleteTransaction(
 $preparedDeleteHadLock = is_file($dir . '/' . $prefix . $preparedDeleteRef . '.lock');
 $preparedDeleteEdits = $preparedDelete->commit();
 $preparedDeleteCleanedLock = !is_file($dir . '/' . $prefix . $preparedDeleteRef . '.lock');
+$preparedBrokenDeleteRef = $fixture['preparedBrokenDeleteRef'];
+$preparedBrokenPath = $dir . '/' . $prefix . $preparedBrokenDeleteRef;
+if (!is_dir(dirname($preparedBrokenPath))) {
+    mkdir(dirname($preparedBrokenPath), 0777, true);
+}
+file_put_contents($preparedBrokenPath, 'interrupted-deploy-left-a-broken-ref');
+$preparedBrokenDelete = $store->prepareLooseDeleteTransaction(
+    [$preparedBrokenDeleteRef],
+    ReferenceStore::PREVIOUS_MUST_EXIST,
+);
+$preparedBrokenDeleteHadLock = is_file($preparedBrokenPath . '.lock');
+$preparedBrokenDeleteEdits = $preparedBrokenDelete->commit();
+$preparedBrokenDeleteCleanedLock = !is_file($preparedBrokenPath . '.lock');
 
 return [
     'namespace' => $fixture['namespace'],
@@ -99,5 +112,9 @@ return [
     'preparedDeleteCleanedLock' => $preparedDeleteCleanedLock,
     'preparedDeleteRefStillExists' => $store->tryFind($preparedDeleteRef) !== null,
     'preparedDeleteReflogExists' => $store->reflogExists($preparedDeleteRef),
+    'preparedBrokenDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedBrokenDeleteEdits),
+    'preparedBrokenDeleteHadLock' => $preparedBrokenDeleteHadLock,
+    'preparedBrokenDeleteCleanedLock' => $preparedBrokenDeleteCleanedLock,
+    'preparedBrokenDeleteRefStillExists' => is_file($preparedBrokenPath),
     'wordpressUse' => $fixture['wordpressUse'],
 ];
