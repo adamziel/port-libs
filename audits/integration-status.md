@@ -1,5 +1,32 @@
 # Integration Status
 
+## Integration Hold Follow-Up - 2026-05-24T09:07:18Z
+
+No lane implementation output was integrated by this follow-up. This update
+only corrects the hold state after the Dolt runner advanced.
+
+- Current `HEAD` is `565db9db8d14` (`Record integration hold status`).
+- The tree is still moving: tracked dirty rows are now `326`,
+  untracked-inclusive rows are `16391`, and `git diff --shortstat` is now
+  `326 files changed, 205035 insertions(+), 27902 deletions(-)`.
+- The previously active Dolt bounded BATS shard has exited. Its TAP log at
+  `.upstream-cache/dolt/tmp/runner-refresh-20260524T083550Z-bats-local.log`
+  reports `1..369`, `369` ok, `30` skipped, and `0` not ok. This is bounded
+  runner evidence only, not accepted integration evidence for the dirty Dolt
+  lane.
+- Exact process sampling found no active `php tools/run-tests.php`, no
+  `php tools/generate-dashboard.php`, and no remaining `timeout 90m bats`
+  process. I still did not start the root harness because the tree moved again
+  and lane agents remain active.
+- Dolt remains skipped despite the BATS completion because both `port-dolt` and
+  `port-dolt-runner` sessions remain active and dirty Dolt source, metadata,
+  fixtures, examples, tests, and runner notes are present.
+
+Next safe integration target remains one owner-free lane batch after a hard
+writer/status/dashboard freeze and two stable polls. Dolt can be reconsidered
+only after both Dolt sessions are quiet and their source/status handoff is
+coherent.
+
 ## Integration Hold - 2026-05-24T09:05:07Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
