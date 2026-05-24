@@ -1,5 +1,79 @@
 # Integration Status
 
+## Integration intake - no acceptance - 2026-05-24 21:33 UTC
+
+No lane output was integrated in this pass.
+
+Initial review inputs were read as required: `goal.md`, `progress.md`,
+`git status --short --branch`, recent `git log --oneline --decorate -30`,
+recent `.tmux-team/logs/port-*.log` tails, and dirty lane status from Git.
+The checkout was not stable enough for an acceptance snapshot:
+
+- `HEAD` moved during the pass from `216f5b86` to `a42ca8aa9efe`
+  (`Refresh independent audit status`).
+- Untracked-inclusive status rows moved from `23753` to `23766`; tracked dirty
+  rows stayed at `219`.
+- Dirty shortstat moved from
+  `219 files changed, 186916 insertions(+), 23108 deletions(-)` to
+  `219 files changed, 186917 insertions(+), 23108 deletions(-)`.
+- No exact no-argument root harness was active in the final samples, but
+  focused Syncthing and Quadrable harnesses were active:
+  `php tools/run-tests.php lanes/syncthing/tests/...` and
+  `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`.
+  I did not start a duplicate no-argument root run.
+
+Handoff review:
+
+- `.tmux-team/tmp/handoff-candidates/port-gitoxide.ready` appeared with
+  `timestamp=2026-05-24T21:32:06Z`, `session=port-gitoxide`, and
+  `reason=no-codex-handoff-grace`, but the `port-gitoxide` pane already had
+  active child PID `1993081`
+  (`node /usr/local/bin/codex -a never exec -C /home/claude/port-libs ...`).
+  I skipped it as still owned. The marker was gone by the final handoff-marker
+  sample, so no hold file was created.
+- All primary lanes had active child processes in the ownership sample
+  (`port-difftastic`, `port-syncthing`, `port-rclone`, `port-libsqlite`,
+  `port-lightningcss`, `port-gitoxide`, `port-pandoc`, `port-quadrable`,
+  `port-readability`, `port-esbuild`, `port-markerpdf`, `port-dolt`, and
+  `port-dolt-runner`).
+- Difftastic remains unsafe despite a visible `isDartLanguage()` fix because
+  its dirty scope is broad (`515` status rows; tracked shortstat
+  `10 files changed, 50535 insertions(+), 5609 deletions(-)`) and the lane is
+  actively owned.
+- Syncthing remains unsafe because it has a broad accumulated dirty scope
+  (`272` status rows; tracked shortstat
+  `29 files changed, 13604 insertions(+), 1054 deletions(-)`), active focused
+  shard tests, and an active worker.
+- rclone has a coherent latest WebDAV LOCK log with focused green evidence,
+  but the lane is actively owned and its dirty scope is mixed with earlier
+  unaccepted WebDAV mutation/property work (`21` status rows; tracked
+  shortstat `6 files changed, 3219 insertions(+), 18 deletions(-)`).
+- markerPDF was not retried because the previous intake already rejected its
+  coherent local slice on the serialized root failure, and the current tree is
+  still moving.
+- Dolt was skipped because both `port-dolt` and `port-dolt-runner` are active.
+
+JSON/status checks:
+
+- `jq empty` passed for all 12 lane manifests, all 12 `lane-status.json` files,
+  `dependency-backlog.json`, and `porting-summary.json`.
+- `dependency-backlog.json` is valid JSON with `37` rows and remains consistent
+  with the `progress.md` statement that support-library coverage is backlog
+  only. No support row was activated.
+
+Decision: no commit, no dashboard regeneration, and no root acceptance run.
+Public status should continue to treat the latest accepted implementation
+snapshot as the libsqlite JSON integration plus later rejection/status commits,
+not as acceptance of the dirty lane batches. The previous Difftastic
+`TokenDiffer::isDartLanguage()` and Syncthing
+`syncthing_session_outbound_frames()` aggregate root blockers remain the first
+root-red checks to clear before retrying markerPDF or any other reduced handoff.
+
+Next concrete intake target: `port-gitoxide` if it re-emits an owner-free ready
+marker and the Gitoxide pane has no child process for two stable polls.
+Otherwise prefer the smallest owner-free reduced Difftastic or Syncthing
+root-red fix whose dirty files match its focused evidence.
+
 ## Integration handoff rejection - markerPDF - 2026-05-24 21:29 UTC
 
 No markerPDF lane output was integrated in this pass.
