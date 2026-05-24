@@ -222,7 +222,7 @@ The `../examples/wordpress-onedrive-permissions-metadata-preflight.php` scenario
 
 The `../examples/wordpress-onedrive-permission-write-plan.php` scenario maps OneDrive metadata-permissions write planning for migration review handoffs. It upgrades a direct reviewer permission on a WXR export, replaces a Business sharing-link permission through the upstream remove-plus-add workaround, removes a stale contractor permission, preserves the owner role that Graph cannot remove, and records `failok` suppression for a simulated Graph invite error without OAuth or live provider credentials.
 
-The `../examples/wordpress-onedrive-permission-refresh-dir-metadata.php` scenario maps OneDrive permission write execution and directory metadata sequencing for a migration review folder. It creates `site-backups/review` with WXR reviewer permissions, records the pre-write permission refresh and post-write refreshed-permission materialization, shows that existing-directory permissions-only metadata cannot reach permission writing because the directory metadata PATCH has no mtime/btime payload, and then updates reviewer access after btime/mtime metadata is patched without OAuth or live provider credentials.
+The `../examples/wordpress-onedrive-permission-refresh-dir-metadata.php` scenario maps OneDrive permission write execution and directory metadata sequencing for a migration review folder. It creates `site-backups/review` through a known parent ID with `conflictBehavior=fail`, records the pre-write permission refresh and post-write refreshed-permission materialization, captures the Graph item-to-directory cache handoff, surfaces create `nameAlreadyExists` conflicts before cache mutation, shows that existing-directory permissions-only metadata cannot reach permission writing because the directory metadata PATCH has no mtime/btime payload, and then updates reviewer access after btime/mtime metadata is patched without OAuth or live provider credentials.
 
 The `../examples/wordpress-onedrive-object-metadata-update.php` scenario maps OneDrive object `updateMetadata` sequencing for a migration WXR review export. It refreshes reviewer permissions before metadata `Set`, updates object mtime plus reviewer permissions, records refreshed permission IDs, shows that permissions-only object metadata fails before permission writing because Graph has no file-system metadata PATCH payload, and proves `NoVersions` cleanup runs after object metadata has already been cached, all without OAuth or live provider credentials.
 
@@ -236,4 +236,4 @@ The `../examples/wordpress-onedrive-put-create-object.php` scenario maps OneDriv
 
 ## Next Task
 
-Map OneDrive `createDir`/`MkdirMetadata` parent-directory creation conflicts, existing directory metadata refresh, and Graph item-to-dir-entry cache updates.
+Map OneDrive `ChangeNotify` polling runner lifecycle, empty page/token handling, and callback cancellation/error propagation.

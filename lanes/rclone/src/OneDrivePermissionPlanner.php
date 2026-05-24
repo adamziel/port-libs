@@ -106,7 +106,7 @@ final class OneDrivePermissionPlanner
 
     /**
      * @param array<string, string> $metadata
-     * @param array{exists?: bool, directoryId?: string, normalizedId?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
+     * @param array{exists?: bool, directoryId?: string, normalizedId?: string, parentId?: string, parentLookupError?: string, createError?: string, createConflict?: bool, itemToDirEntryError?: string, itemToDirEntryType?: string, childCount?: int, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
      * @return array<string, mixed>
      */
     public static function directoryMetadataFlow(string $remote, array $metadata, array $options = []): array
@@ -125,6 +125,7 @@ final class OneDrivePermissionPlanner
         $flow = [
             'remote' => $remote,
             'exists' => $exists,
+            'parentId' => self::optionalString($options['parentId'] ?? null),
             'writeableMetadata' => $writeable,
             'apiMetadata' => $apiMetadata,
             'needsUpdatePermissions' => $needsPermissions,
@@ -134,6 +135,10 @@ final class OneDrivePermissionPlanner
             'queuedPermissionsCleared' => false,
             'directoryReturned' => false,
             'systemMetadataSet' => false,
+            'conflictBehavior' => null,
+            'graphItemConverted' => false,
+            'dirCachePut' => null,
+            'childCount' => null,
             'error' => null,
         ];
 
@@ -145,7 +150,29 @@ final class OneDrivePermissionPlanner
 
         if (!$exists) {
             $flow['sequence'][] = 'find-parent';
+            $parentLookupError = self::optionalString($options['parentLookupError'] ?? null);
+            if ($parentLookupError !== null && $parentLookupError !== '') {
+                $flow['error'] = $parentLookupError;
+
+                return $flow;
+            }
+
+            $flow['parentId'] ??= 'parent:' . dirname($remote);
             $flow['sequence'][] = 'create-dir';
+            $flow['conflictBehavior'] = 'fail';
+            if ((bool) ($options['createConflict'] ?? false)) {
+                $flow['error'] = 'nameAlreadyExists';
+
+                return $flow;
+            }
+
+            $createError = self::optionalString($options['createError'] ?? null);
+            if ($createError !== null && $createError !== '') {
+                $flow['error'] = $createError;
+
+                return $flow;
+            }
+
             if ($apiMetadata !== []) {
                 $flow['sequence'][] = 'create-dir:api-metadata';
             }
@@ -189,6 +216,26 @@ final class OneDrivePermissionPlanner
         }
 
         $flow['sequence'][] = 'item-to-dir-entry';
+        $itemToDirEntryError = self::optionalString($options['itemToDirEntryError'] ?? null);
+        if ($itemToDirEntryError !== null && $itemToDirEntryError !== '') {
+            $flow['error'] = $itemToDirEntryError;
+
+            return $flow;
+        }
+
+        $entryType = self::optionalString($options['itemToDirEntryType'] ?? null) ?? 'directory';
+        if ($entryType !== 'directory') {
+            $flow['error'] = 'internal error: expecting OneDrive item to be a directory';
+
+            return $flow;
+        }
+
+        $flow['graphItemConverted'] = true;
+        $flow['dirCachePut'] = [
+            'remote' => $remote,
+            'id' => $normalizedId,
+        ];
+        $flow['childCount'] = (int) ($options['childCount'] ?? -1);
         $flow['sequence'][] = 'set-system-metadata';
         $flow['directoryReturned'] = true;
         $flow['systemMetadataSet'] = true;

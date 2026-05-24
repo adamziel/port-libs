@@ -16,7 +16,9 @@ $createFlow = OneDrivePermissionPlanner::directoryMetadataFlow(
     ],
     [
         'exists' => false,
+        'parentId' => 'business-drive#site-backups-dir',
         'directoryId' => 'business-drive#review-dir',
+        'childCount' => 2,
         'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
         'refreshBeforePermissions' => [
             ['id' => 'owner', 'roles' => ['owner']],
@@ -25,6 +27,18 @@ $createFlow = OneDrivePermissionPlanner::directoryMetadataFlow(
             ['id' => 'owner', 'roles' => ['owner']],
             ['id' => 'reviewer-created', 'roles' => ['read']],
         ],
+    ],
+);
+
+$createConflict = OneDrivePermissionPlanner::directoryMetadataFlow(
+    'site-backups/review',
+    [
+        'mtime' => '2026-05-24T10:00:00Z',
+    ],
+    [
+        'exists' => false,
+        'parentId' => 'business-drive#site-backups-dir',
+        'createConflict' => true,
     ],
 );
 
@@ -63,7 +77,12 @@ $updateFlow = OneDrivePermissionPlanner::directoryMetadataFlow(
 return [
     'source' => 'onedrive-permission-refresh-dir-metadata',
     'createSequence' => $createFlow['sequence'],
+    'createParentId' => $createFlow['parentId'],
+    'createConflictBehavior' => $createFlow['conflictBehavior'],
+    'createDirCachePut' => $createFlow['dirCachePut'],
+    'createChildCount' => $createFlow['childCount'],
     'createdPermissionIds' => array_column($createFlow['permissions'], 'id'),
+    'createConflictError' => $createConflict['error'],
     'permissionsOnlySequence' => $permissionsOnly['sequence'],
     'permissionsOnlyError' => $permissionsOnly['error'],
     'updateSequence' => $updateFlow['sequence'],

@@ -370,6 +370,90 @@ return [
         $t->same(['update'], array_column($withMetadata['permissionWrite']['operations'], 'action'));
         $t->same(true, $withMetadata['queuedPermissionsCleared']);
     },
+    'onedrive mkdir metadata creates with fail conflict behavior and caches graph directory id' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::directoryMetadataFlow(
+            'site-backups/review/exports',
+            [
+                'mtime' => '2026-05-24T10:00:00Z',
+            ],
+            [
+                'exists' => false,
+                'parentId' => 'business-drive#review-dir',
+                'directoryId' => 'business-drive#exports-dir',
+                'childCount' => 3,
+            ],
+        );
+
+        $t->same([
+            'find-dir:missing',
+            'find-parent',
+            'create-dir',
+            'create-dir:api-metadata',
+            'write-directory-metadata-after-create',
+            'item-to-dir-entry',
+            'set-system-metadata',
+        ], $flow['sequence']);
+        $t->same('business-drive#review-dir', $flow['parentId']);
+        $t->same('fail', $flow['conflictBehavior']);
+        $t->same(true, $flow['graphItemConverted']);
+        $t->same([
+            'remote' => 'site-backups/review/exports',
+            'id' => 'business-drive#exports-dir',
+        ], $flow['dirCachePut']);
+        $t->same(3, $flow['childCount']);
+        $t->same(true, $flow['directoryReturned']);
+        $t->same(null, $flow['error']);
+    },
+    'onedrive mkdir metadata surfaces parent create and conversion failures before cache update' => static function (TestRunner $t): void {
+        $parentFailure = OneDrivePermissionPlanner::directoryMetadataFlow(
+            'site-backups/review/exports',
+            [
+                'mtime' => '2026-05-24T10:00:00Z',
+            ],
+            [
+                'exists' => false,
+                'parentLookupError' => 'directory not found',
+            ],
+        );
+        $nameConflict = OneDrivePermissionPlanner::directoryMetadataFlow(
+            'site-backups/review/exports',
+            [
+                'mtime' => '2026-05-24T10:00:00Z',
+            ],
+            [
+                'exists' => false,
+                'parentId' => 'business-drive#review-dir',
+                'createConflict' => true,
+            ],
+        );
+        $wrongType = OneDrivePermissionPlanner::directoryMetadataFlow(
+            'site-backups/review/exports',
+            [
+                'mtime' => '2026-05-24T10:00:00Z',
+            ],
+            [
+                'exists' => false,
+                'parentId' => 'business-drive#review-dir',
+                'directoryId' => 'business-drive#exports-dir',
+                'itemToDirEntryType' => 'object',
+            ],
+        );
+
+        $t->same(['find-dir:missing', 'find-parent'], $parentFailure['sequence']);
+        $t->same('directory not found', $parentFailure['error']);
+        $t->same(false, $parentFailure['graphItemConverted']);
+        $t->same([
+            'find-dir:missing',
+            'find-parent',
+            'create-dir',
+        ], $nameConflict['sequence']);
+        $t->same('fail', $nameConflict['conflictBehavior']);
+        $t->same('nameAlreadyExists', $nameConflict['error']);
+        $t->same('item-to-dir-entry', $wrongType['sequence'][5]);
+        $t->same('internal error: expecting OneDrive item to be a directory', $wrongType['error']);
+        $t->same(null, $wrongType['dirCachePut']);
+        $t->same(false, $wrongType['directoryReturned']);
+    },
     'onedrive object metadata flow refreshes permissions before set and cleans versions last' => static function (TestRunner $t): void {
         $flow = OneDrivePermissionPlanner::objectMetadataFlow(
             'exports/site.wxr',
@@ -954,7 +1038,15 @@ return [
 
         $t->same('onedrive-permission-refresh-dir-metadata', $example['source']);
         $t->same('set-system-metadata', $example['createSequence'][10]);
+        $t->same('business-drive#site-backups-dir', $example['createParentId']);
+        $t->same('fail', $example['createConflictBehavior']);
+        $t->same([
+            'remote' => 'site-backups/review',
+            'id' => 'business-drive#review-dir',
+        ], $example['createDirCachePut']);
+        $t->same(2, $example['createChildCount']);
         $t->same(['owner', 'reviewer-created'], $example['createdPermissionIds']);
+        $t->same('nameAlreadyExists', $example['createConflictError']);
         $t->same(['find-dir:exists', 'update-dir'], $example['permissionsOnlySequence']);
         $t->same('site-backups/review: no writeable metadata found', $example['permissionsOnlyError']);
         $t->same(['update'], $example['updateActions']);

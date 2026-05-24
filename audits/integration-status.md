@@ -98681,3 +98681,14 @@ Root verification: PASS php tools/run-tests.php (208 test files, 24297 assertion
 Support-library/dependency closure: lane-local ASCII85 stream-filter handling only; no shared PDF/DOC/archive/XML/charset/compression support row activated.
 Live-service exclusions: no live-service/provider/credentialed tests run; no secrets read or printed.
 Files staged: lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json lanes/markerpdf/examples/wordpress-pdf-ascii85-filter-import.php lanes/markerpdf/lane-status.json lanes/markerpdf/notes/upstream-test-inventory.md lanes/markerpdf/notes/wordpress-scenarios.md lanes/markerpdf/src/PdfTextExtractor.php lanes/markerpdf/tests/PdfTextExtractorTest.php  audits/integration-status.md
+
+## Clean-patch integration - rclone - 20260524T235821Z
+
+Accepted marker: .tmux-team/tmp/handoff-candidates/port-rclone-rebase-20260524T234505Z-962e037a.ready
+Patch: /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-rebase-20260524T234505Z-962e037a.patch
+Lane/slice/session: rclone / watchdog-next-20260524T233749Z / rebase-marker
+Focused verification: PASS php -l changed PHP files; PASS php tools/run-tests.php lanes/rclone/tests/OneDrivePermissionPlannerTest.php (1 test files, 253 assertions, 0 failures); PASS OneDrive permission refresh dir metadata example; PASS manifest/status JSON parse; PASS git diff --check.
+Root verification: PASS php tools/run-tests.php (208 test files, 24320 assertions, 0 failures).
+Support-library/dependency closure: lane-local only; no provider/live-service or shared dependency row activated.
+Live-service exclusions: no live-service/network-provider/credentialed tests run; no secrets read or printed.
+Files staged: lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/examples/wordpress-onedrive-permission-refresh-dir-metadata.php lanes/rclone/lane-status.json lanes/rclone/notes/upstream-inventory.md lanes/rclone/notes/wordpress-scenarios.md lanes/rclone/src/OneDrivePermissionPlanner.php lanes/rclone/tests/OneDrivePermissionPlannerTest.php  audits/integration-status.md
