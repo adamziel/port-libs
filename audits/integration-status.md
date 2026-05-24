@@ -39927,6 +39927,78 @@ coherent owner-free lane batch with focused inspection, focused lane tests, the
 serialized no-argument `php tools/run-tests.php`, `git diff --check`, and
 dashboard regeneration from that same accepted snapshot.
 
+## Integration worker hold - 2026-05-23 23:58 UTC
+
+No worker output was integrated in this pass. No lane files were staged, no
+lane commits were created, `php tools/generate-dashboard.php` was not run, and
+no upstream parity claim is accepted from this moving dirty tree.
+
+Current snapshot:
+
+- `HEAD` moved during the pass from `5cd1bec2c4cd` to `3ee5e8f197d9`
+  (`Refresh independent audit status`), so the workspace did not provide a
+  stable review boundary.
+- Branch status: `main...origin/main [ahead 594, behind 68]`.
+- Untracked-inclusive dirty count: `8855` rows from `git status --porcelain
+  -uall`.
+- Tracked dirty count: `281` rows from `git status --porcelain
+  --untracked-files=no`.
+- `git diff --shortstat`: `281 files changed, 123811 insertions(+), 12477
+  deletions(-)`.
+- Dirty lane rows still span every priority lane: Difftastic `211`, Dolt `99`,
+  esbuild `26`, Gitoxide `120`, libsqlite `88`, LightningCSS `131`,
+  markerPDF `172`, Pandoc `57`, Quadrable `79`, rclone `101`, Readability
+  `179`, and Syncthing `135`. Non-lane dirty scope includes `.tmux-team`
+  prompts/log-adjacent prompts (`3189` rows), `audits/` (`4241` rows), loop
+  scripts (`18` rows), `porting.html`, and `porting-summary.json`.
+
+Active-lane risk:
+
+- Process sampling showed `140` tmux sessions and `29`
+  `scripts/run-tmux-agent.sh` processes. Active lane or runner agents were
+  present for Dolt runner, Quadrable, Syncthing, Gitoxide, markerPDF,
+  libsqlite, Pandoc, auditor, esbuild, rclone, Readability, Difftastic,
+  LightningCSS, Dolt, integrator, dashboard/capacity/evaluator support, and
+  multiple capacity helpers.
+- Recent log mtimes were still updating within seconds of the sample, including
+  Dolt runner, Readability, capacity controller/cache cleanup, Quadrable,
+  auditor, evaluator, Pandoc, rclone, and integrator logs.
+- Dolt remains skipped despite reauthorization. The Dolt implementation session
+  and Dolt runner are both active, Dolt lane source/metadata/test files are
+  dirty, and there is no frozen implementation-plus-runner handoff with passing
+  verification from the same snapshot.
+
+Root and hygiene:
+
+- Exact PHP runner sampling returned no active `php tools/run-tests.php` at this
+  pass. Because no coherent lane batch was accepted and active writers remained,
+  this worker did not start the serialized no-argument root harness and did not
+  wait on `.upstream-cache/run-tests.lock`.
+- A long Dolt BATS runner was active outside the PHP root harness. Its output is
+  treated as runner activity only, not an accepted integration snapshot.
+- `dependency-backlog.json` is valid JSON and consistent with `progress.md` at
+  `22` gated dependency items. It was used as status context only.
+- `porting.html` and `porting-summary.json` are dirty from updater activity and
+  were not regenerated or accepted by this pass because doing so would fold
+  unaccepted lane-status edits into the public dashboard.
+
+Waiting:
+
+- Every priority lane has dirty files and an active or recently active lane
+  process.
+- Public status artifacts and audits are changing while lane agents continue to
+  write.
+- The current dirty tree is too broad to associate focused test anecdotes with
+  one accepted source snapshot.
+
+Next safe integration point: freeze or wait out active lane, Dolt runner,
+capacity, dashboard, evaluator, auditor, integrator, and status-review loops;
+confirm `HEAD`, tracked status, diff shortstat, exact PHP test PIDs, and
+relevant log mtimes are unchanged across two polls; then accept exactly one
+coherent owner-free lane batch with focused inspection/tests, the serialized
+no-argument `php tools/run-tests.php`, `git diff --check`, and dashboard
+regeneration from that same accepted snapshot.
+
 ## Integration worker hold - 2026-05-23 20:35 UTC
 
 No worker output was integrated in this pass. No lane files were staged or
