@@ -1,4 +1,4 @@
-# Independent Audit - 2026-05-24T05:15Z
+# Independent Audit - 2026-05-24T05:21Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, all 12 `lanes/*/UPSTREAM_TEST_MANIFEST.json` files,
@@ -15,14 +15,14 @@ treated as non-progress unless explicitly temporary oracle tooling.
 ## Current Snapshot
 
 ```text
-UTC samples: 2026-05-24T05:15:23Z and 2026-05-24T05:15:40Z
-HEAD observed: a76f0a1f364d
-recent commits: a76f0a1f Record integration hold status; 5021b031 Refresh independent audit status; a843795f Record integration hold status
-branch divergence: main...origin/main [ahead 712, behind 68]
+UTC samples: 2026-05-24T05:20:29Z and 2026-05-24T05:21:29Z
+HEAD observed: c7bc8a1003e5
+recent commits: c7bc8a10 Record integration hold status; 3d18e326 Refresh independent audit status; a76f0a1f Record integration hold status
+branch divergence: main...origin/main [ahead 714, behind 68]
 tracked dirty rows: 307
-default status rows including untracked: 13535
-git diff --shortstat moved: 307 files changed, 167903 insertions(+), 21925 deletions(-) -> 307 files changed, 167952 insertions(+), 21925 deletions(-)
-recent port logs touched in last five minutes: 22
+default status rows including untracked: 13537 -> 13539
+git diff --shortstat moved: 307 files changed, 168519 insertions(+), 22042 deletions(-) -> 307 files changed, 168766 insertions(+), 22144 deletions(-)
+recent writes observed in lane files and upstream-cache runner output during this audit window
 manifest/status JSON validation: jq empty passed for all lane manifests, lane-status files, porting-summary.json, and dependency-backlog.json
 root run by this audit: not started
 ```
@@ -30,18 +30,22 @@ root run by this audit: not started
 Required root-run gate evidence:
 
 ```text
-pgrep -af '^php tools/run-tests\.php( |$)' at 2026-05-24T05:15:23Z:
-<no rows>
+pgrep -af '^php tools/run-tests\.php( |$)' at 2026-05-24T05:20:29Z:
+1088744 php tools/run-tests.php
 
-pgrep -af '^php tools/run-tests\.php( |$)' at 2026-05-24T05:15:40Z:
+owner sample for PID 1088744:
+process exited before `ps -o pid,user,ppid,etime,stat,args -p 1088744` could attach
+
+pgrep -af '^php tools/run-tests\.php( |$)' at 2026-05-24T05:21:29Z:
 <no rows>
 ```
 
-I did not start `php tools/run-tests.php`. The exact process gate was clear,
-but the tree was not stable enough: `git diff --shortstat` changed across a
-17-second sample window, the checkout remains a broad 307-file dirty aggregate,
-and recent history is still audit/status-only rather than accepted lane
-implementation commits.
+I did not start `php tools/run-tests.php`. The first exact process gate found a
+transient no-argument root runner and the later gate cleared, but the tree was
+not stable enough: untracked-inclusive status rows and `git diff --shortstat`
+changed across the sample window, the checkout remains a broad 307-file dirty
+aggregate, and recent history is still audit/status-only rather than accepted
+lane implementation commits.
 
 ## Findings
 
@@ -51,11 +55,12 @@ implementation commits.
    - Goal requirement at risk: `goal.md:29`, `goal.md:48`, and `goal.md:52`
      require small reviewable slices, verification before acceptance, commits,
      and a visible stable baseline.
-   - Evidence: latest history is status-only (`a76f0a1f`, `5021b031`,
-     `a843795f`), branch state is `ahead 712, behind 68`, the worktree has 307
-     tracked dirty rows and 13,535 total status rows, and shortstat still
-     changed during this audit from 167,903 to 167,952 insertions. That is an
-     active aggregate, not a lane-scoped handoff.
+   - Evidence: latest history is status-only (`c7bc8a10`, `3d18e326`,
+     `a76f0a1f`), branch state is `ahead 714, behind 68`, the worktree has 307
+     tracked dirty rows and at least 13,539 total status rows, and shortstat
+     still changed during this audit from 168,519 insertions / 22,042 deletions
+     to 168,766 insertions / 22,144 deletions. That is an active aggregate, not
+     a lane-scoped handoff.
 
 2. **Critical - there is no coherent root-harness result for the current
    snapshot.**
@@ -63,11 +68,12 @@ implementation commits.
      `lanes/*/lane-status.json`.
    - Goal requirement at risk: `goal.md:49` requires repo-wide tests/static
      checks and honest failure recording.
-   - Evidence: the exact duplicate-root gate was clear twice, but no
-     audit-owned root run was started because the tree moved during the
-     stability sample. Lane statuses cite focused green checks; those do not
-     substitute for one serialized no-argument root run from the frozen source
-     snapshot.
+   - Evidence: the exact duplicate-root gate first matched transient
+     no-argument PID `1088744` (`php tools/run-tests.php`) before it exited
+     ahead of owner sampling, and a later gate was clear. No audit-owned root
+     run was started because the tree moved during the stability sample. Lane
+     statuses cite focused green checks; those do not substitute for one
+     serialized no-argument root run from the frozen source snapshot.
 
 3. **Critical - `porting.html` and `porting-summary.json` are stale and still
    miss the dashboard contract.**
@@ -80,7 +86,7 @@ implementation commits.
      commit.
    - Evidence: local dashboard artifacts still publish generated time
      `2026-05-23 23:43:54 UTC` and source/dashboard commit `79768df0c427`,
-     while reviewed `HEAD` is `a76f0a1f364d`. The HTML still collapses
+     while reviewed `HEAD` is `c7bc8a1003e5`. The HTML still collapses
      benchmark source, denominator, mapped tests, and PHP pass/fail into broad
      `Benchmark`/`Mapped` columns, and commit cells still contain non-commit
      prose fragments such as `pending`, `uncommi`, `not com`, and `HEAD 8d`.
@@ -93,13 +99,15 @@ implementation commits.
    - Goal requirement at risk: `goal.md:25`, `goal.md:44`, and `goal.md:45`
      require real denominators and reliable status/dashboard tracking.
    - Evidence: current manifests/statuses disagree with the published
-     dashboard. Difftastic is now 834 total / 480 mapped / 2,744 PHP pass, but
-     dashboard says 735 / 374 / 374. esbuild is 350 manifest mapped and 349
-     status pass, but dashboard says 311. markerPDF is 355 total / 306 mapped
-     / 443 PHP pass, but dashboard says 330 / 280 / 416. Pandoc maps 1,471,
-     but dashboard says 1,061. rclone maps 810, but dashboard says 698.
-     Syncthing status says 6,356 PHP assertions/pass units, while dashboard
-     says 4,579.
+     dashboard. Difftastic is now 834 total / 480 mapped / 2,756 PHP pass, but
+     dashboard says 735 / 374 / 374. esbuild maps 351 and status reports 350
+     PHP pass, but dashboard says 311. libsqlite maps 313, but dashboard says
+     286. LightningCSS maps 2,123 and status reports 2,666 PHP pass, but
+     dashboard says 1,732 / 2,197. markerPDF is 356 total / 307 mapped / 443
+     PHP pass, but dashboard says 330 / 280 / 416. Pandoc maps 1,471, but
+     dashboard says 1,061. Quadrable status says 206 PHP pass while dashboard
+     says 190. rclone maps 810, but dashboard says 698. Syncthing status says
+     6,356 PHP assertions/pass units, while dashboard says 4,579.
 
 5. **High - manifest/status schemas remain too free-form for reliable
    acceptance.**
