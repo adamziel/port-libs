@@ -1,5 +1,84 @@
 # Integration Status
 
+## Integration handoff rejection - Syncthing - 2026-05-24 21:24 UTC
+
+No Syncthing lane output was integrated in this pass.
+
+Selected handoff: `.tmux-team/tmp/handoff-candidates/port-syncthing.ready`
+with `timestamp=2026-05-24T21:17:42Z`, `session=port-syncthing`, and
+`reason=no-codex-handoff-grace`. I held only Syncthing with
+`.tmux-team/tmp/integration-holds/port-syncthing.hold` at
+`2026-05-24T21:22:33Z` after confirming the `port-syncthing` pane was idle at
+`bash` and had no direct child process.
+
+Stability and ownership decision:
+
+- The pre-hold sample saw `HEAD=94bc614e88b3`, but the first held poll had
+  already moved to `HEAD=4c1945f49852` after an independent audit-status commit
+  landed. The two held polls then stayed stable at `HEAD=4c1945f49852`.
+- Exact no-argument root gate returned no rows in both held polls. A focused
+  Quadrable lane harness was active in the second poll
+  (`1959215 php tools/run-tests.php lanes/quadrable/tests`), but no integration
+  root run was started because the handoff failed scope review before
+  acceptance.
+- Syncthing dirty scope stayed stable but was too broad for the reported slice:
+  `272` lane status rows and tracked shortstat
+  `29 files changed, 13445 insertions(+), 1048 deletions(-)`, plus many
+  untracked Syncthing source, test, example, and note files.
+- The relevant Syncthing log stayed
+  `.tmux-team/logs/port-syncthing-watchdog-20260524T210826Z.log` at
+  `mtime=1779657433.2202307100`, size `1308480`, with tail hash
+  `4f8158e9db5d83ea598d1130efa0407789e4ab5a8a19b6c50b1bfd2af4edbdaf`.
+- The `port-syncthing` pane stayed idle with no direct child process during the
+  held polls.
+
+Focused evidence reviewed:
+
+- The worker report advertises a narrow native BEP Hello exchange slice:
+  `BepHelloExchange.php`, `BepHelloExchangeTest.php`,
+  `wordpress-bep-hello-exchange.php`, and Syncthing manifest/status/scenario
+  metadata.
+- Worker-reported evidence was focused and green for that narrow claim:
+  `go test ./lib/protocol -run '^(TestVersion14Hello|TestOldHelloMsgs)$'
+  -count=1 -timeout=60s -p=1`, PHP lints for the new source/test/example,
+  focused BepHelloExchange PHP (`1` file, `33` assertions, `0` failures),
+  adjacent BEP PHP (`5` files, `494` assertions, `0` failures), full lane PHP
+  (`123` files, `9235` assertions, `0` failures), WordPress example JSON
+  validation, Syncthing JSON validation, and slice-scoped `git diff --check`.
+- The actual dirty lane was not limited to that evidence. It also contains
+  accumulated BEP/session, device, file scanner, folder completion/index/scan,
+  ignore matcher, pull DB, request exchange, service/route, discovery, config,
+  GUI, receive-encrypted, statistics, filesystem watch, and other untracked
+  artifacts from prior unaccepted Syncthing work.
+
+Decision: rejected/deferred, not integrated. Accepting the whole Syncthing lane
+would merge far more behavior than the reviewed BEP Hello evidence. Partial
+staging is also unsafe because the shared metadata currently overstates a broad
+accumulated lane phase rather than one accepted slice. The stale hold file and
+matching handoff marker were removed after this decision. No dashboard artifacts
+were regenerated and no support-library row was activated; Syncthing's URL,
+protobuf, QR, storage, checksum, and Unicode support rows remain inactive until
+a bounded accepted base-lane gate or blocker opens them.
+
+Exact next Syncthing worker task: stop adding behavior and re-emit one reduced
+handoff from the accepted baseline. If the claim remains BEP Hello exchange,
+include only `BepHelloExchange.php`, `BepHelloExchangeTest.php`,
+`wordpress-bep-hello-exchange.php`, and metadata that does not claim unrelated
+Syncthing slices. Keep global discovery, QR, service routes, config routes,
+BEP lifecycle/session pump, filesystem watch, receive-encrypted, statistics,
+and prior folder/request/pull work out of that batch unless each is separately
+split with its own focused evidence and root/integrator acceptance.
+
+Current skipped lanes: Dolt remains skipped until the implementation and runner
+workers have a coherent handoff and neither session is editing shared Dolt
+metadata/source files. Gitoxide, LightningCSS, markerPDF, Pandoc, Quadrable,
+rclone, Readability, esbuild, Difftastic, and other Syncthing work remain dirty,
+active, or independently owned outside this rejected handoff. Next concrete
+intake target: inspect the next owner-free `.ready` marker with a dirty scope
+that exactly matches its worker evidence; otherwise prefer a small owner-free
+lane such as markerPDF only after confirming no cross-lane root blocker and no
+active worker ownership.
+
 ## Integration acceptance - libsqlite - 2026-05-24 21:18 UTC
 
 Integrated libsqlite lane output in commit `9784b10c` (`Port libsqlite JSON
