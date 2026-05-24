@@ -98606,3 +98606,23 @@ Support-library/dependency closure: no support-library activation. This is a lan
 Live-service exclusions: none; no live-service provider tests were run.
 
 Files staged: `lanes/readability/src/ArticleExtractor.php`, `lanes/readability/tests/ArticleExtractorTest.php`, `lanes/readability/examples/wordpress-lifehacker-kinja-list-import.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated quadrable sync fuzzer summary rework - 2026-05-24 23:49 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260524T233916Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260524T233916Z.patch`.
+
+Lane/slice/session: `quadrable` / `rework-sync-fuzzer-summary` / `port-rework-quadrable`. Patch sha256 verified as `7f8ef9fccd61ae40e8d50693a9fc094d5f3f92378ee5691717c72442559e2eaa`. The patch applied cleanly to detached clean worktree `/tmp/port-clean-integrator-quadrable-rework-20260524T234639Z` from old head `edb7ca4e2298a921542c8246dede84729adcf76d`.
+
+Focused verification in the clean worktree:
+- `php -l lanes/quadrable/src/SyncFuzzer.php`: pass.
+- `php -l lanes/quadrable/tests/SyncTest.php`: pass.
+- `php tools/run-tests.php lanes/quadrable/tests/SyncTest.php`: pass, 1 selected test file, 229 assertions, 0 failures.
+- `git diff --check`: pass.
+
+Root verification: pre-root exact no-argument process gate `pgrep -af '^php tools/run-tests\.php$'` was empty, then `php tools/run-tests.php` ran in the same clean worktree and passed: 208 test files, 24266 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. This is a lane-local sync fuzzer summary/watchdog-evidence surface using existing Quadrable primitives.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged: `lanes/quadrable/src/SyncFuzzer.php`, `lanes/quadrable/tests/SyncTest.php`, `lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php`, and `audits/integration-status.md`.

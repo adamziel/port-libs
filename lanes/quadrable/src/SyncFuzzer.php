@@ -96,6 +96,62 @@ final class SyncFuzzer
     }
 
     /**
+     * @param list<array{
+     *     trial: int,
+     *     numElems: int,
+     *     numAlterations: int,
+     *     roundTrips: int,
+     *     requests: int,
+     *     responses: int,
+     *     diffCount: int,
+     *     scanDiffCount: int,
+     *     rootHash: string
+     * }> $results
+     *
+     * @return array{
+     *     trials: int,
+     *     firstRoot: ?string,
+     *     lastRoot: ?string,
+     *     maxRoundTrips: int,
+     *     totalRequests: int,
+     *     totalResponses: int,
+     *     totalDiffs: int,
+     *     totalScanDiffs: int,
+     *     maxRecords: int,
+     *     maxEdits: int
+     * }
+     */
+    public static function summarizeResults(array $results): array
+    {
+        $first = $results[0] ?? null;
+        $last = $results === [] ? null : $results[array_key_last($results)];
+        $summary = [
+            'trials' => count($results),
+            'firstRoot' => $first['rootHash'] ?? null,
+            'lastRoot' => $last['rootHash'] ?? null,
+            'maxRoundTrips' => 0,
+            'totalRequests' => 0,
+            'totalResponses' => 0,
+            'totalDiffs' => 0,
+            'totalScanDiffs' => 0,
+            'maxRecords' => 0,
+            'maxEdits' => 0,
+        ];
+
+        foreach ($results as $result) {
+            $summary['maxRoundTrips'] = max($summary['maxRoundTrips'], $result['roundTrips']);
+            $summary['totalRequests'] += $result['requests'];
+            $summary['totalResponses'] += $result['responses'];
+            $summary['totalDiffs'] += $result['diffCount'];
+            $summary['totalScanDiffs'] += $result['scanDiffCount'];
+            $summary['maxRecords'] = max($summary['maxRecords'], $result['numElems']);
+            $summary['maxEdits'] = max($summary['maxEdits'], $result['numAlterations']);
+        }
+
+        return $summary;
+    }
+
+    /**
      * @return array{
      *     trial: int,
      *     numElems: int,

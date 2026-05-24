@@ -479,6 +479,28 @@ return [
             $t->same(64, strlen($result['rootHash']));
         }
     },
+    'sync fuzzer summarizes optional watchdog evidence without running slow probes in fast suite' => static function (TestRunner $t): void {
+        $fuzzer = new SyncFuzzer(maxRoundTrips: 200);
+        $results = $fuzzer->run(3, 0);
+        $summary = SyncFuzzer::summarizeResults($results);
+
+        $t->same(3, $summary['trials']);
+        $t->same($results[0]['rootHash'], $summary['firstRoot']);
+        $t->same($results[2]['rootHash'], $summary['lastRoot']);
+        $t->same(max(array_column($results, 'roundTrips')), $summary['maxRoundTrips']);
+        $t->same(array_sum(array_column($results, 'requests')), $summary['totalRequests']);
+        $t->same(array_sum(array_column($results, 'responses')), $summary['totalResponses']);
+        $t->same(array_sum(array_column($results, 'diffCount')), $summary['totalDiffs']);
+        $t->same($summary['totalDiffs'], $summary['totalScanDiffs']);
+        $t->same(max(array_column($results, 'numElems')), $summary['maxRecords']);
+        $t->same(max(array_column($results, 'numAlterations')), $summary['maxEdits']);
+
+        $emptySummary = SyncFuzzer::summarizeResults([]);
+        $t->same(0, $emptySummary['trials']);
+        $t->same(null, $emptySummary['firstRoot']);
+        $t->same(null, $emptySummary['lastRoot']);
+        $t->same(0, $emptySummary['totalRequests']);
+    },
 ];
 
 function quadrableSyncWordPressSnapshotTree(): SparseTree
