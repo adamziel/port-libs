@@ -1,5 +1,67 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: JSON Operator `min()`/`max()` RHS Reduced Constants
+
+Date: 2026-05-24
+
+This isolated slice extends bounded SQLite constant-expression folding inside
+deterministic `->` / `->>` JSON operator RHS expressions to reduced
+`min()`/`max()` calls over homogeneous literal strings or homogeneous numeric
+literals. Native `SQLiteCreateIndex` now maps `min('seo','cache')` to
+`$.cache`, `max('plugin.enabled','plugin.disabled')` to
+`$."plugin.enabled"`, and `min(2,1)` to `$[1]` for expression-index preflight.
+Mixed-type arguments, single-argument calls, SQL NULL, BLOBs, and general SQL
+expressions stay unsupported in this reduced slice.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses the prior focused JSON operator/index runner
+evidence for the same upstream behavior cluster:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json101.test json102.test subtype1.test indexexpr1.test
+```
+
+Prior result: passed 4 selected Tcl scripts, 729 tests, and 0 errors in 00:00.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Bounded static evidence:
+
+- Same 5 focused upstream files as the accepted JSON operator RHS slice:
+  `src/json.c`, `test/json101.test`, `test/json102.test`,
+  `test/subtype1.test`, and `test/indexexpr1.test`.
+- The native smoke covers 8 focused RHS outcomes: string min/max path labels,
+  dotted-label quoting, numeric min/max array indexes, mixed-type rejection,
+  and single-argument rejection.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCreateIndex.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-operator-minmax-rhs.php
+php lanes/libsqlite/examples/wordpress-json-operator-minmax-rhs.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported normalized paths
+`$.cache`, `$."plugin.enabled"`, and `$[1]`, plus unsupported mixed/single
+argument cases as `null`; focused PHP passed 1 selected test file, 1829
+assertions, and 0 failures; `git diff --check -- lanes/libsqlite` passed. This
+worker did not start the root aggregate harness because root verification was
+not assigned to this lane.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local `SQLiteCreateIndex` literal reader and JSON path
+normalization; it does not activate or count progress against shared
+`json-json5-document-core` or broader SQL expression support.
+
 ## Focused Native Mapping: `json_pretty(JSON[, INDENT])`
 
 Date: 2026-05-24

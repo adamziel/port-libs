@@ -63547,3 +63547,34 @@ shortstat. The required acceptance path remains focused markerPDF verification,
 `git diff --check`, one serialized no-argument `php tools/run-tests.php` from
 the same frozen snapshot, dashboard regeneration only after acceptance, then a
 small commit or a precise rejection.
+
+## Integration accepted - libsqlite isolated min/max RHS - 2026-05-24 23:10 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-iso-libsqlite-minmax-rhs-20260524T224329Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-iso-libsqlite-minmax-rhs-20260524T224329Z.patch` (`sha256 06b3575ad9ac535bc31164280c6bce1cbebddb34cb663ca9cc7b80b6a684c18d`, verified).
+Lane/slice/session: `libsqlite` / `libsqlite-json-minmax-rhs-reduced` / `port-iso-libsqlite-minmax-rhs`.
+
+Focused verification in clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteCreateIndex.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-operator-minmax-rhs.php` passed.
+- `php lanes/libsqlite/examples/wordpress-json-operator-minmax-rhs.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: 1 file, 1829 assertions, 0 failures.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+- `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree: 225 test files, 25707 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The slice reuses lane-local `SQLiteCreateIndex` literal/path handling; broader SQL min/max scalar semantics, mixed affinity/collation, NULL, and non-literal expressions remain future libsqlite work.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-operator-minmax-rhs.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteCreateIndex.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`

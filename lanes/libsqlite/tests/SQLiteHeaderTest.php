@@ -1629,6 +1629,12 @@ return [
         $jsonQuoteString = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_quote_string ON wp_options(option_value ->> json_quote('plugin'))");
         $jsonQuoteBlob = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_quote_blob ON wp_options(option_value ->> json_quote(X'3031'))");
         $jsonQuoteArity = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_quote_arity ON wp_options(option_value ->> json_quote(1,2))');
+        $minInteger = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_min_integer ON wp_options(option_value ->> min(2, 1))');
+        $maxInteger = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_max_integer ON wp_options(option_value ->> max(1, 2))');
+        $minString = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_min_string ON wp_options(option_value ->> min('seo', 'cache'))");
+        $maxDottedString = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_max_string ON wp_options(option_value ->> max('plugin.enabled', 'plugin.disabled'))");
+        $minMixed = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_min_mixed ON wp_options(option_value ->> min('1', 2))");
+        $maxArity = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_max_arity ON wp_options(option_value ->> max(2))');
         $badEmptyBarePath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_empty_key ON wp_options(option_value ->> \'$.\')');
         $badHashReversePath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_reverse ON wp_options(option_value ->> \'$.rules[#-]\')');
         $badUnterminatedQuotedPath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_quote ON wp_options(option_value ->> \'$."unterminated\')');
@@ -1660,6 +1666,12 @@ return [
         $t->same(null, $jsonQuoteString);
         $t->same(null, $jsonQuoteBlob);
         $t->same(null, $jsonQuoteArity);
+        $t->same('$[1]', $minInteger?->path);
+        $t->same('$[2]', $maxInteger?->path);
+        $t->same('$.cache', $minString?->path);
+        $t->same('$."plugin.enabled"', $maxDottedString?->path);
+        $t->same(null, $minMixed);
+        $t->same(null, $maxArity);
         $t->same(null, $badEmptyBarePath);
         $t->same(null, $badHashReversePath);
         $t->same(null, $badUnterminatedQuotedPath);
@@ -1745,6 +1757,39 @@ return [
         $t->same(['plugin_json_quote_null_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$.null', 'json-null')));
         $t->same(['plugin_json_quote_integer_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$."123"', 'integer-label')));
         $t->same(['plugin_json_quote_real_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$."1.25"', 'real-label')));
+    },
+    'uses wordpress json operator indexes with min max RHS constants' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $pageSize = 4096;
+        $textPath = static fn (string $expression): ?string => SQLiteCreateIndex::firstJsonTextOperatorExpression(
+            'CREATE INDEX fixture ON wp_options(' . $expression . ') WHERE option_value IS NOT NULL',
+        )?->path;
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'wp_options_json_min_cache', 'wp_options', 3, "CREATE INDEX wp_options_json_min_cache ON wp_options(option_value ->> min('seo', 'cache')) WHERE option_value IS NOT NULL"], 2),
+            $schemaCell(['index', 'wp_options_json_max_plugin_enabled', 'wp_options', 4, "CREATE INDEX wp_options_json_max_plugin_enabled ON wp_options(option_value ->> max('plugin.enabled', 'plugin.disabled')) WHERE option_value IS NOT NULL"], 3),
+            $schemaCell(['index', 'wp_options_json_min_slot', 'wp_options', 5, 'CREATE INDEX wp_options_json_min_slot ON wp_options(option_value ->> min(2, 1)) WHERE option_value IS NOT NULL'], 4),
+        ], $pageSize, 100, $makeFirstPage($pageSize, 5));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'plugin_min_cache_settings', '{"cache":"hit"}', 'no'], 1),
+            $schemaCell([null, 'plugin_max_enabled_settings', '{"plugin.enabled":"yes"}', 'no'], 2),
+            $schemaCell([null, 'plugin_min_slot_settings', '["zero","one","two"]', 'no'], 3),
+        ], $pageSize);
+        $page3 = $indexLeafPage([$indexCell(['hit', 1])], $pageSize);
+        $page4 = $indexLeafPage([$indexCell(['yes', 2])], $pageSize);
+        $page5 = $indexLeafPage([$indexCell(['one', 3])], $pageSize);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $t->same('$.cache', $textPath("option_value ->> min('seo', 'cache')"));
+        $t->same('$."plugin.enabled"', $textPath("option_value ->> max('plugin.enabled', 'plugin.disabled')"));
+        $t->same('$[1]', $textPath('option_value ->> min(2, 1)'));
+        $t->same(null, $textPath("option_value ->> min('1', 2)"));
+        $t->same(null, $textPath('option_value ->> max(2)'));
+        $t->same(3, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$.cache', 'hit'));
+        $t->same(4, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$."plugin.enabled"', 'yes'));
+        $t->same(5, $database->indexRootPageForJsonExtractPointLookup('wp_options', 'option_value', '$[1]', 'one'));
+        $t->same(['plugin_min_cache_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$.cache', 'hit')));
+        $t->same(['plugin_max_enabled_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$."plugin.enabled"', 'yes')));
+        $t->same(['plugin_min_slot_settings'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $database->wordpressOptionsByIndexedJsonOptionValue('$[1]', 'one')));
     },
     'skips malformed wordpress json path expression indexes during preflight' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $pageSize = 1024;

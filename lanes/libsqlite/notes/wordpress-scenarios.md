@@ -2,6 +2,19 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Operator `min()`/`max()` RHS Index Preflight Scenario
+
+Native JSON operator expression-index preflight now folds reduced SQLite
+`min()`/`max()` RHS constants over homogeneous literal strings or homogeneous
+numeric literals. The example `examples/wordpress-json-operator-minmax-rhs.php`
+checks copied `wp_options` JSON operator indexes such as
+`option_value ->> min('seo','cache')`,
+`option_value ->> max('plugin.enabled','plugin.disabled')`, and
+`option_value ->> min(2,1)`, then proves the normalized paths can resolve
+index root pages and option rows without the SQLite extension. Mixed-type and
+single-argument calls remain unsupported so broader SQLite scalar semantics do
+not get over-credited.
+
 ## `json_pretty()` Option-Value Review Scenario
 
 Native JSON pretty-printing now follows SQLite's `json_pretty(JSON[,INDENT])`

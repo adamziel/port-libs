@@ -1172,6 +1172,10 @@ final class SQLiteCreateIndex
         if ($offset >= strlen($text)) {
             return null;
         }
+        $minMax = self::readMinMaxLiteral($text, $offset);
+        if ($minMax !== null) {
+            return $minMax;
+        }
         $jsonQuote = self::readJsonQuoteLiteral($text, $offset);
         if ($jsonQuote !== null) {
             return $jsonQuote;
@@ -1188,6 +1192,97 @@ final class SQLiteCreateIndex
             return [(float) $matches[0], $offset + strlen($matches[0])];
         }
         if (preg_match('/[+-]?\d+/A', substr($text, $offset), $matches)) {
+            return [(int) $matches[0], $offset + strlen($matches[0])];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{0:int|float|string,1:int}
+     */
+    private static function readMinMaxLiteral(string $text, int $offset): ?array
+    {
+        $function = self::readIdentifier($text, $offset);
+        if ($function === null) {
+            return null;
+        }
+
+        $functionName = strtolower($function[0]);
+        if ($functionName !== 'min' && $functionName !== 'max') {
+            return null;
+        }
+
+        $open = self::skipWhitespace($text, $function[1]);
+        if (($text[$open] ?? null) !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($text, $open);
+        if ($close === null) {
+            return null;
+        }
+
+        $body = substr($text, $open + 1, $close - $open - 1);
+        $terms = trim($body) === '' ? [] : self::topLevelTerms($body);
+        if (count($terms) < 2) {
+            return null;
+        }
+
+        $values = [];
+        foreach ($terms as $term) {
+            $literal = self::readMinMaxArgumentLiteral($term, 0);
+            if ($literal === null || trim(substr($term, $literal[1])) !== '') {
+                return null;
+            }
+            $values[] = $literal[0];
+        }
+
+        $first = $values[0];
+        if (is_string($first)) {
+            if (array_filter($values, static fn (mixed $value): bool => !is_string($value)) !== []) {
+                return null;
+            }
+            sort($values, SORT_STRING);
+        } elseif (is_int($first) || is_float($first)) {
+            if (array_filter($values, static fn (mixed $value): bool => !is_int($value) && !is_float($value)) !== []) {
+                return null;
+            }
+            sort($values, SORT_NUMERIC);
+        } else {
+            return null;
+        }
+
+        return [$functionName === 'min' ? $values[0] : $values[count($values) - 1], $close + 1];
+    }
+
+    /**
+     * @return null|array{0:int|float|string,1:int}
+     */
+    private static function readMinMaxArgumentLiteral(string $text, int $offset): ?array
+    {
+        $offset = self::skipWhitespace($text, $offset);
+        if ($offset >= strlen($text)) {
+            return null;
+        }
+        if ($text[$offset] === "'") {
+            $end = self::skipQuoted($text, $offset, "'");
+            if ($end <= $offset || $text[$end] !== "'") {
+                return null;
+            }
+
+            return [str_replace("''", "'", substr($text, $offset + 1, $end - $offset - 1)), $end + 1];
+        }
+        if (
+            preg_match(
+                '/[+-]?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)/A',
+                substr($text, $offset),
+                $matches,
+            ) === 1
+        ) {
+            return [(float) $matches[0], $offset + strlen($matches[0])];
+        }
+        if (preg_match('/[+-]?\d+/A', substr($text, $offset), $matches) === 1) {
             return [(int) $matches[0], $offset + strlen($matches[0])];
         }
 
