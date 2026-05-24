@@ -50,6 +50,10 @@ Root, runner, dashboard, and dependency gates:
   returned no rows in both samples. This worker did not start a root run, did
   not wait on or bypass `.upstream-cache/run-tests.lock`, and did not treat
   any concurrent moving-tree result as an accepted integration snapshot.
+- Post-commit readback at 2026-05-24 17:37 UTC then saw a new exact root
+  process, `361102 php tools/run-tests.php`, after commit `c5ed7ccd5847`.
+  This worker did not start that process and did not use it as acceptance
+  evidence.
 - Dolt remains skipped despite reauthorization because `port-dolt` and
   `port-dolt-runner` are both active and Dolt files are dirty. The runner
   process was still executing
