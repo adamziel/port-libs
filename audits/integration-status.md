@@ -1,5 +1,80 @@
 # Integration Status
 
+## Integration handoff rejection - Readability - 2026-05-24 19:53 UTC
+
+No Readability lane output was integrated. I selected the fresh handoff
+candidate `.tmux-team/tmp/handoff-candidates/port-readability.ready`
+(`timestamp=2026-05-24T19:50:13Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-readability` pane was idle at `bash`
+(`pane_pid=1334338`) with no child process. I held only Readability with
+`.tmux-team/tmp/integration-holds/port-readability.hold` at
+`2026-05-24T19:52:18Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `353fefd8a39f`.
+- Readability tracked shortstat stayed
+  `15 files changed, 14563 insertions(+), 2383 deletions(-)`.
+- Readability untracked scope stayed at `263` files, including many older
+  examples, Mozilla fixture directories, notes, and tests outside the
+  advertised UTF-16 byline handoff.
+- Latest Readability file mtimes and relevant logs stayed stable across the
+  held polls. The selected lane pane stayed idle at `bash`.
+- The exact no-argument root gate matched non-integration PID
+  `1396266 php tools/run-tests.php` during both held polls; it was later clear
+  at `2026-05-24T19:53:25Z`. I did not start an integration-owned root run,
+  did not bypass `.upstream-cache/run-tests.lock`, and did not use the moving
+  root process as acceptance evidence.
+
+Focused evidence reviewed:
+
+- Worker-reported slice: Mozilla/JavaScript UTF-16 code-unit length for byline
+  validation, accepting a 49-emoji byline and rejecting a 50-emoji byline.
+- Worker-reported verification: local upstream jsdom/Readability oracle for
+  the 49/50 emoji boundary; `php tools/run-tests.php
+  lanes/readability/tests/ArticleExtractorTest.php` passed `3881`
+  assertions; `php tools/run-tests.php lanes/readability/tests` passed `2`
+  files, `3887` assertions, `0` failures; PHP syntax checks, the focused
+  WordPress example, JSON checks, and `git diff --check` were reported clean.
+- The focused capacity shard repeated `php tools/run-tests.php
+  lanes/readability/tests` with `2` files, `3887` assertions, `0` failures.
+
+Decision: rejected/deferred, not integrated. The worker report is a narrow
+UTF-16 byline boundary, but the actual dirty Readability state is still a broad
+accumulated multi-slice patch. Tracked Readability diffs include
+`ArticleExtractor.php` (`6454` insertions / `2057` deletions),
+`ArticleExtractorTest.php` (`4712` insertions / `201` deletions), a
+`686`-line manifest rewrite, and large upstream/WordPress scenario note
+rewrites, plus the `263` untracked files. Accepting all Readability files
+would merge far more than the reviewed evidence, while staging only the
+advertised files would still include older unaccepted hunks in the same files.
+No dashboard artifacts were regenerated because no lane/status batch was
+accepted.
+
+Exact next Readability worker task: re-emit one reduced handoff whose dirty
+files match exactly one advertised slice. If the claim remains UTF-16 byline
+length, keep only the minimal `ArticleExtractor.php` byline length/cleanup
+change, the focused `ArticleExtractorTest.php` case, the single
+`wordpress-emoji-byline-length-boundary.php` example, the
+`emoji-byline-length-boundary-20260524.md` note, and normalized
+manifest/status/scenario updates for that slice. Do not include accumulated
+readerable, URL cleanup, JSON-LD, table/sibling, serializer, media, Mozilla
+fixture, option-coercion, or publisher-cleanup work in the same handoff. Keep
+the blocker led by root aggregate verification and integrator acceptance. No
+support-library row is activated by this lane-local Unicode length slice; if
+the next offered slice depends on HTML/DOM parsing, URL cleanup, JSON-LD,
+tables, math, Unicode repair, charset, or EPUB behavior, use the matching
+inactive bounded support row instead of a broad dependency claim.
+
+Current skipped lanes: Difftastic, Dolt, Dolt runner, esbuild, Gitoxide,
+libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone, and Syncthing
+remain dirty or independently owned outside this selected Readability hold.
+Dolt remains skipped until implementation and runner handoff evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: the next owner-free `.ready` marker whose dirty scope
+exactly matches the worker evidence; Readability should be retried only after a
+reduced single-slice patch is emitted.
+
 ## Integration handoff accepted - markerPDF - 2026-05-24 19:54 UTC
 
 Accepted the owner-free markerPDF handoff from
