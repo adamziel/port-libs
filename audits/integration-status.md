@@ -1,5 +1,90 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 17:53 UTC
+
+No lane output was integrated in this pass. I read the required coordination
+state (`goal.md`, `progress.md`, `git status --short --branch`, recent
+`git log --oneline --decorate -30`, fresh worker log tails, dirty lane paths,
+tmux/process ownership, and dependency status). No lane files were staged, no
+lane/status claim was accepted, no dashboard artifacts were regenerated, and no
+support-library row was activated.
+
+Current state:
+
+- `HEAD` stayed at `288b01b7aec7` during the explicit candidate polls. The
+  branch sample was `main...origin/main [ahead 962, behind 68]`.
+- The dirty aggregate remained broad and moving. The first sampled shortstat was
+  `329 files changed, 265128 insertions(+), 31472 deletions(-)`. During the
+  esbuild poll it moved from `329 files changed, 265308 insertions(+), 31473
+  deletions(-)` to `329 files changed, 265304 insertions(+), 31407
+  deletions(-)`. During the markerPDF poll it moved from `329 files changed,
+  265403 insertions(+), 31489 deletions(-)` to `329 files changed, 265428
+  insertions(+), 31489 deletions(-)`.
+- Untracked-inclusive porcelain rows moved from `19925` to `19938` during the
+  esbuild poll and from `19951` to `19964` during the markerPDF poll.
+- The exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'`
+  returned no rows in the two-poll checks. I did not start
+  `php tools/run-tests.php` because there was no accepted frozen lane snapshot.
+  Focused runners appeared during the same window, including Syncthing,
+  Readability, markerPDF/Pandoc/Readability, rclone/Syncthing, and
+  libsqlite/LightningCSS/Quadrable/Difftastic/esbuild shards, so root anecdotes
+  from this moving tree would not be accepted integration evidence.
+
+Candidate lane checks:
+
+- `port-esbuild` was checked first because it remains a small-surface follow-up
+  candidate from prior holds. It is not owner-free: the pane was at `bash`, but
+  child PID `423397` (`node /usr/local/bin/codex ...`) was active in both
+  samples. Its latest log also advanced from size `2499535` to `2524454` bytes
+  during the poll. The lane file-name digests stayed stable, but ownership and
+  moving aggregate state block integration. Next worker task: let the esbuild
+  Codex session finish and produce a bounded handoff that separates the current
+  DataURL/metafile slice from the accumulated source-map/decorator fixture
+  backlog, then rerun focused lane PHP and leave root for integration.
+- `port-markerpdf` became owner-free at the process level during intake, so it
+  received the required two-poll check. The lane log and file-name digests were
+  stable, and its latest handoff reports focused green evidence for a hybrid
+  `/XRefStm` PDF text extraction slice. It was still rejected/deferred because
+  the lane delta is accumulated rather than reviewable: `89` tracked
+  markerPDF files and `181` untracked markerPDF files are dirty, and even the
+  named slice files show `7228 insertions(+), 367 deletions(-)` across
+  extractor, tests, and metadata. Next worker task: provide a smaller
+  reviewable markerPDF handoff, ideally only the hybrid `/XRefStm` extractor
+  boundary plus one example and normalized status metadata, with prior
+  accumulated PDF text changes split out or already committed by integration.
+
+Skipped active/risky lanes:
+
+- Active Codex children were observed for Difftastic, Dolt, Dolt runner,
+  esbuild, Gitoxide, libsqlite, LightningCSS, Pandoc, Quadrable, rclone,
+  Readability, and Syncthing. markerPDF was owner-free but too broad to accept.
+- Dolt remains skipped despite reauthorization because `port-dolt` and
+  `port-dolt-runner` both have active Codex children while Dolt files are
+  dirty; there is still no coherent implementation-plus-runner handoff to
+  integrate.
+
+Dependency/dashboard status:
+
+- `dependency-backlog.json` is valid JSON with `37` rows: `25` candidate,
+  `11` deferred, `1` blocked, and `0` active. That remains consistent with
+  `progress.md`: support-library tracking is backlog-only until a bounded
+  base-lane gate is accepted or blocked on a specific component.
+- No rich-function claim was accepted. Pandoc/markerPDF document support rows
+  for PDF text/dictionary/layout/table/OCR handoff, DOC, DOCX/OpenXML, EPUB,
+  ODT/OpenDocument, templates, citations, math, tables, package containers,
+  XML/HTML, Unicode/charset, JSON/YAML metadata, syntax highlighting, archive,
+  and compression remain inactive backlog rows.
+- `porting.html` and `porting-summary.json` were not regenerated because no
+  lane/status changes were accepted.
+
+Next safe integration target: markerPDF hybrid `/XRefStm` is the most concrete
+owner-free target only if the worker reduces it to a small lane-scoped patch and
+keeps the log/files stable. Otherwise prefer esbuild after `port-esbuild` exits
+and stops advancing its log. Any accepted batch still needs focused inspection,
+focused verification, one serialized no-argument `php tools/run-tests.php`
+through the root harness lock, `git diff --check`, dashboard regeneration from
+the accepted snapshot, and support-library gate review at base-lane granularity.
+
 ## Integration worker hold - 2026-05-24 17:49 UTC
 
 No lane output was integrated in this pass. The workspace is still a live
