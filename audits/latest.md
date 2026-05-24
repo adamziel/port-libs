@@ -1,9 +1,9 @@
-# Independent Audit - 2026-05-24T10:46Z
+# Independent Audit - 2026-05-24T10:50Z
 
 Scope reviewed: `goal.md`, `progress.md`, current worktree `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, current
 `lanes/*/lane-status.json`, `dependency-backlog.json`, and recent Git history
-through `23eafd37 Record integration hold status`. I did not edit lane
+through `f62f2053 Record integration hold status`. I did not edit lane
 implementation files, launch agents or tmux sessions, push, read secrets,
 inspect process environments, credential stores, provider configs, or auth
 files.
@@ -15,12 +15,12 @@ unless they are explicitly temporary oracle tooling.
 ## Current Snapshot
 
 ```text
-UTC samples: 2026-05-24T10:40Z through 2026-05-24T10:46Z
-HEAD moved during audit validation: 4ce14f9bde5d -> 23eafd3788c6
-recent history: 23eafd37 Record integration hold status; 4ce14f9b Refresh independent audit status; c3ea2210 Record integration hold status; 0184c8c8 Record integration hold status
-tracked dirty rows moved: 328 -> 329 -> 328 -> 330
-default status rows including untracked moved: 16930 -> 16939 -> 16940 -> 16946
-git diff --shortstat moved: 328 files changed, 218746 insertions(+), 29074 deletions(-) -> 329 files changed, 219043 insertions(+), 29076 deletions(-) -> 328 files changed, 219271 insertions(+), 29105 deletions(-) -> 330 files changed, 219678 insertions(+), 29153 deletions(-)
+UTC samples: 2026-05-24T10:40Z through 2026-05-24T10:50Z
+HEAD moved during audit validation: 4ce14f9bde5d -> 23eafd3788c6 -> 2e436fba -> f62f2053
+recent history: f62f2053 Record integration hold status; 9a91e686 Refresh independent audit status; 2e436fba Record integration hold status; 23eafd37 Record integration hold status
+tracked dirty rows moved: 328 -> 329 -> 328 -> 330 -> 328
+default status rows including untracked moved: 16930 -> 16939 -> 16940 -> 16946 -> 16949
+git diff --shortstat moved: 328 files changed, 218746 insertions(+), 29074 deletions(-) -> 329 files changed, 219043 insertions(+), 29076 deletions(-) -> 328 files changed, 219271 insertions(+), 29105 deletions(-) -> 330 files changed, 219678 insertions(+), 29153 deletions(-) -> 328 files changed, 219921 insertions(+), 29107 deletions(-)
 dashboard worktree snapshot: porting.html and porting-summary.json generated 2026-05-23 23:43:54 UTC from source 79768df0c427
 dependency backlog: dependency-backlog.json updated 2026-05-24 10:42:36 UTC with 34 rows (23 candidate, 11 deferred); dashboard still shows 22 rows
 root run by this audit: not started
@@ -61,11 +61,11 @@ gitoxide      2877 / 2877                    7012 / 0          2877 / 2751 / 563
 libsqlite     1589 / 340                     340 / 0           1589 / 286 / 286
 LightningCSS  3535 / 2741                    4006 / 0          3532 / 1732 / 2197
 markerPDF     385 / 336                      473 / 0           330 / 280 / 416
-pandoc        2276 / 1827                    350 / 0           2276 / 1061 / 278
+pandoc        2276 / 1827                    351 / 0           2276 / 1061 / 278
 quadrable     55 / 55                        227 / 0           55 / 55 / 190
-rclone        1601 / 877                     880 / 0           1601 / 698 / 698
+rclone        1601 / 879                     880 / 0           1601 / 698 / 698
 readability   1984 / 1984                    252 / 0           1984 / 1984 / 204
-syncthing     658 / 658                      7432 / 0          658 / 658 / 4579
+syncthing     658 / 658                      7518 / 0          658 / 658 / 4579
 ```
 
 ## Findings
@@ -85,12 +85,12 @@ syncthing     658 / 658                      7432 / 0          658 / 658 / 4579
    - Goal requirement at risk: `goal.md` requires small, reviewable committed
      slices with passing tests, and requires the supervisor to verify, commit,
      integrate, and clean up finished agent work.
-   - Evidence: `HEAD` moved from `4ce14f9bde5d` to `23eafd3788c6` during
-     audit validation, and the aggregate worktree moved during this audit:
-     tracked dirty rows moved `328 -> 329 -> 328 -> 330`,
-     untracked-inclusive rows moved `16930 -> 16939 -> 16940 -> 16946`, and shortstat
+   - Evidence: `HEAD` moved from `4ce14f9bde5d` through `23eafd3788c6` and
+     `2e436fba` to `f62f2053` during audit validation, and the aggregate
+     worktree moved during this audit: tracked dirty rows moved `328 -> 329 -> 328 -> 330 -> 328`,
+     untracked-inclusive rows moved `16930 -> 16939 -> 16940 -> 16946 -> 16949`, and shortstat
      moved from `328 files changed, 218746 insertions(+), 29074 deletions(-)`
-     to `330 files changed, 219678 insertions(+), 29153 deletions(-)`. Lane
+     to `328 files changed, 219921 insertions(+), 29107 deletions(-)`. Lane
      statuses still describe pending, uncommitted, or supervisor-owned batches.
 
 2. **Critical - there is still no acceptable no-argument repo-wide PHP result
@@ -126,7 +126,7 @@ syncthing     658 / 658                      7432 / 0          658 / 658 / 4579
    - Evidence: the dashboard still publishes average progress `97.7%`,
      generated time `2026-05-23 23:43:54 UTC`, source snapshot
      `79768df0c427`, and 22 dependency rows. Current `HEAD` is
-     `23eafd3788c6`, and `dependency-backlog.json` has 34 rows.
+     `f62f2053`, and `dependency-backlog.json` has 34 rows.
 
 4. **High - manifest, lane-status, and dashboard counts remain non-normalized
    and contradictory across active lanes.**
@@ -150,8 +150,8 @@ syncthing     658 / 658                      7432 / 0          658 / 658 / 4579
      commit fields at a glance.
    - Evidence: the count sample above shows every lane disagreeing with at
      least one of manifest, status, or dashboard. Examples: rclone is manifest
-     `1601/877`, status `880/0`, dashboard `1601/698/698`; pandoc is manifest
-     `2276/1827`, status `350/0`, dashboard `2276/1061/278`; markerPDF is
+     `1601/879`, status `880/0`, dashboard `1601/698/698`; pandoc is manifest
+     `2276/1827`, status `351/0`, dashboard `2276/1061/278`; markerPDF is
      manifest `385/336`, status `473/0`, dashboard `330/280/416`.
 
 5. **High - Dolt still has a non-machine-checkable denominator.**
