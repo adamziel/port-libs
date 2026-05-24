@@ -1,5 +1,86 @@
 # Integration Status
 
+## Integration handoff rejection - esbuild - 2026-05-24 19:59 UTC
+
+No esbuild lane output was integrated. I selected the fresh handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-esbuild.ready`
+(`timestamp=2026-05-24T19:56:24Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-esbuild` pane was idle at `bash`
+(`pane_pid=1357601`) with no child process. I held only esbuild with
+`.tmux-team/tmp/integration-holds/port-esbuild.hold` at
+`2026-05-24T19:57:14Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `d8bada7cffcb`.
+- esbuild tracked shortstat stayed
+  `20 files changed, 18665 insertions(+), 1178 deletions(-)`.
+- esbuild dirty scope stayed broad: 20 tracked files plus untracked fixtures,
+  `src/DataURL.php`, metafile/source-map support classes, and
+  `tests/DataURLTest.php`, `tests/MetafileAnalyzerTest.php`, and
+  `tests/SourceMapTest.php`.
+- Global dirty shortstat moved from
+  `242 files changed, 211668 insertions(+), 26541 deletions(-)` to
+  `243 files changed, 211752 insertions(+), 26564 deletions(-)`.
+- The exact no-argument root gate was clear in the first poll, then matched
+  non-integration PID `1419767 php tools/run-tests.php` in the second poll.
+  That process exited before a later `ps` sample. I did not start an
+  integration-owned root harness, did not bypass
+  `.upstream-cache/run-tests.lock`, and did not use the moving-tree root
+  process as acceptance evidence.
+- Latest esbuild watchdog output reported a narrow no-substitution template
+  literal source slice, but the lane dirty state includes older unaccepted
+  metafile/source-map/data-URL/TypeScript analyzer work outside that claim.
+
+Focused evidence reviewed:
+
+- Worker-reported slice: treat no-substitution template literals as
+  string-like sources for `require(...)`, direct `require.resolve(...)`, and
+  conditional branch collection, while skipping concatenated
+  `require.resolve(...)` expressions.
+- Worker-reported verification: PHP syntax checks on touched files; `jq empty`
+  for `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/esbuild/lane-status.json`; `php tools/run-tests.php
+  lanes/esbuild/tests/JsModuleAnalyzerTest.php
+  lanes/esbuild/tests/MetafileAnalyzerTest.php` passed `2` files and `448`
+  assertions; `php tools/run-tests.php lanes/esbuild/tests` passed `7` files
+  and `4416` assertions; direct lane count `pass=480 fail=0`; the WordPress
+  example reported template literal require support; `git diff --check --
+  lanes/esbuild` was reported clean.
+
+Decision: rejected/deferred, not integrated. The worker report is coherent as
+a small analyzer slice, but the actual esbuild dirty tree is an accumulated
+multi-slice patch. The claimed `MetafileAnalyzerTest.php` is an untracked file
+inside broader unaccepted metafile infrastructure, and the tracked
+`JsModuleAnalyzer.php`/test diffs also include many older TypeScript,
+phase-import, top-level-await, JSON, numeric, and fixture changes outside the
+advertised template-literal handoff. Accepting all esbuild files would merge
+far more than the reviewed evidence, while staging only the advertised files
+would still include older hunks and unaccepted dependencies. No dashboard
+artifacts were regenerated because no lane/status batch was accepted.
+
+Exact next esbuild worker task: re-emit one reduced handoff whose dirty files
+match exactly one advertised slice. If the claim remains no-substitution
+template literal source handling, start from the accepted lane baseline and
+include only the minimal `JsModuleAnalyzer.php` changes, focused
+`JsModuleAnalyzerTest.php` cases, one WordPress example/preflight update, and
+normalized manifest/status/scenario notes for that slice. Do not include
+unaccepted `MetafileAnalyzerTest.php`, source-map/data-URL/metafile classes,
+TypeScript phase-import/top-level-await work, or accumulated fixtures in the
+same handoff. If the next offered slice depends on package resolution,
+source-map v3, JSON/YAML metadata, URL/data-URL parsing, Unicode/charset, or
+archive/compression support, reference the matching inactive bounded support
+row instead of counting broad dependency progress.
+
+Current skipped lanes: Difftastic, Dolt, Dolt runner, Gitoxide, libsqlite,
+LightningCSS, markerPDF, Pandoc, Quadrable, rclone, Readability, and Syncthing
+remain dirty, active, or independently owned outside this selected esbuild
+hold. Dolt remains skipped until implementation and runner handoff evidence
+are coherent and neither session is editing the same metadata/source files.
+Next concrete intake target: a reduced esbuild analyzer-only handoff, or the
+next owner-free `.ready` marker whose dirty scope exactly matches its worker
+evidence.
+
 ## Integration handoff rejection - Readability - 2026-05-24 19:53 UTC
 
 No Readability lane output was integrated. I selected the fresh handoff
