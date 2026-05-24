@@ -1906,6 +1906,52 @@ Verification for this batch:
   returned no active exact root harness. `php tools/run-tests.php` then passed
   223 files, 25545 assertions, and 0 failures.
 
+## 2026-05-24 Reduced Folder Scan Route Registry
+
+This isolated micro-slice adds a native WordPress activation boundary around the
+already mapped scan API behavior. The upstream behavior cluster remains the
+`/rest/db/scan` path mapped from `lib/api/api.go` `postDBScan`,
+`lib/rc/rc.go` `Rescan`/`RescanSubs`, and `lib/model/model.go`
+`ScanFolders`/`ScanFolderSubdirs`; the previous focused upstream model runner
+passed with `ok github.com/syncthing/syncthing/lib/model 0.043s`. No new Go
+runner was needed for the WordPress route registry itself because it is a
+native PHP registration/dispatch boundary over the existing coordinator and
+queue.
+
+Native PHP now adds `FolderScanRouteRegistry`. It registers the reduced
+WordPress REST-style scan routes, normalizes both direct lane paths and
+`/wp-json/local-first/v1/...` paths, dispatches `POST /syncthing/db/scan` to
+`FolderScanApiCoordinator`, optionally dispatches
+`POST /syncthing/db/scan/queue` to `FolderScanApiRequestQueue`, exposes route
+metadata for WordPress registration, and returns REST-shaped missing-route or
+method-not-allowed errors. `wordpress-folder-scan-route-registry.php` shows a
+queued WordPress media scan accepted through the registered route and completed
+by the native scan queue.
+
+Dependency closure: no new native PHP support component is needed beyond the
+bounded `FolderScanRouteRegistry` added in this slice. It reuses the existing
+scan coordinator, request queue, scheduler, and checkpoint components; the
+activation gate is registering it from a WordPress REST callback, and the
+evidence plan is the focused route tests plus the local WordPress example smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanRouteRegistry.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-route-registry.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php`
+  passed 1 file, 19 assertions, and 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php lanes/syncthing/tests/FolderScanApiCoordinatorTest.php lanes/syncthing/tests/FolderScanApiRequestQueueTest.php`
+  passed 3 files, 124 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` ran
+  successfully and reported two registered routes, one queued request, and one
+  completed queue response.
+- `php tools/run-tests.php lanes/syncthing/tests` passed 50 files, 2510
+  assertions, and 0 failures.
+- `git diff --check -- lanes/syncthing` passed.
+- Root harness status: not run - isolated micro-slice.
+
 ## Next Task
 
 Map Syncthing watcher restart/error recovery (`restartWatchChan`,

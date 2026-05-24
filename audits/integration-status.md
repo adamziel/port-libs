@@ -63641,3 +63641,35 @@ Files staged:
 - `lanes/pandoc/src/MarkdownWriter.php`
 - `lanes/pandoc/tests/MarkdownReaderTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - Syncthing isolated folder scan route registry - 2026-05-24 23:47 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-iso-syncthing-route-registry-20260524T224329Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-iso-syncthing-route-registry-20260524T224329Z.patch` (`sha256 cdf060e89480ec15a5b08c2cb5837b0d7c3f78da41a3ad4b2775bc318508f635`, verified).
+Lane/slice/session: `syncthing` / `syncthing-route-registry-reduced` / `port-iso-syncthing-route-registry`.
+
+Focused verification in clean worktree:
+- `php -l lanes/syncthing/src/FolderScanRouteRegistry.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` passed.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed: 1 file, 19 assertions, 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php lanes/syncthing/tests/FolderScanApiCoordinatorTest.php lanes/syncthing/tests/FolderScanApiRequestQueueTest.php` passed: 3 files, 124 assertions, 0 failures.
+- `php tools/run-tests.php lanes/syncthing/tests` passed: 50 files, 2510 assertions, 0 failures.
+- `jq empty lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json` passed.
+- `git diff --check` passed.
+
+Root gate: an exact no-argument root PID `2504032` appeared before the root acceptance run; it cleared within the allowed wait window. Root verification then ran from this clean worktree: `php tools/run-tests.php` passed with 227 test files, 25864 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The route registry is bounded lane-local PHP and reuses existing scan coordinator, request queue, scheduler, and checkpoint code.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/syncthing/examples/wordpress-folder-scan-route-registry.php`
+- `lanes/syncthing/lane-status.json`
+- `lanes/syncthing/notes/wordpress-scenarios.md`
+- `lanes/syncthing/src/FolderScanRouteRegistry.php`
+- `lanes/syncthing/tests/FolderScanRouteRegistryTest.php`
+- `audits/integration-status.md`
