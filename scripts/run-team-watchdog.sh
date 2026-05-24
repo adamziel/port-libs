@@ -18,7 +18,7 @@ BACKPRESSURE_DIR="$TMP_DIR/handoff-backpressure"
 SLICE_QUEUE_DIR="$TMP_DIR/watchdog-lane-slices"
 INTEGRATION_HOLD_MAX_SECONDS="${INTEGRATION_HOLD_MAX_SECONDS:-900}"
 HANDOFF_GRACE_SECONDS="${WATCHDOG_HANDOFF_GRACE_SECONDS:-90}"
-HANDOFF_MAX_CANDIDATES="${WATCHDOG_HANDOFF_MAX_CANDIDATES:-2}"
+HANDOFF_MAX_CANDIDATES="${WATCHDOG_HANDOFF_MAX_CANDIDATES:-12}"
 mkdir -p "$LOG_DIR" "$TMP_DIR" "$HOLD_DIR" "$HANDOFF_DIR" "$BACKPRESSURE_DIR" "$SLICE_QUEUE_DIR" audits
 
 LOCK_FILE="${WATCHDOG_LOCK_FILE:-$TMP_DIR/port-watchdog.lock}"
@@ -89,6 +89,31 @@ handoff_grace_active() {
   local marker="$HANDOFF_DIR/${session}.ready"
   local now mtime age candidate_count
   now="$(date +%s)"
+  if is_truthy "$WATCHDOG_USE_ISOLATED_LANE_WORKERS"; then
+    if [[ -f "$marker" ]]; then
+      if grep -q '^patch=' "$marker" && grep -q '^metadata=' "$marker"; then
+        return 0
+      fi
+      rm -f "$marker"
+      printf '%s removed stale shared-checkout handoff marker for %s in isolated-worker mode: %s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$session" "$marker"
+    fi
+    candidate_count="$(
+      for ready in "$HANDOFF_DIR"/port-*.ready; do
+        [[ -f "$ready" ]] || continue
+        grep -q '^patch=' "$ready" && grep -q '^metadata=' "$ready" && printf '.\n'
+      done | wc -l | tr -d ' '
+    )"
+    if (( candidate_count >= HANDOFF_MAX_CANDIDATES )); then
+      printf 'timestamp=%s\nsession=%s\nreason=isolated-handoff-queue-full\ncandidate_count=%s\ncandidate_limit=%s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$session" "$candidate_count" "$HANDOFF_MAX_CANDIDATES" > "$BACKPRESSURE_DIR/${session}.hold"
+      printf '%s isolated handoff queue full (%s/%s); holding %s idle until intake catches up: %s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$candidate_count" "$HANDOFF_MAX_CANDIDATES" "$session" "$BACKPRESSURE_DIR/${session}.hold"
+      return 0
+    fi
+    rm -f "$BACKPRESSURE_DIR/${session}.hold"
+    return 1
+  fi
   if [[ ! -f "$marker" ]]; then
     candidate_count="$(find "$HANDOFF_DIR" -maxdepth 1 -type f -name 'port-*.ready' 2>/dev/null | wc -l | tr -d ' ')"
     if (( candidate_count >= HANDOFF_MAX_CANDIDATES )); then
