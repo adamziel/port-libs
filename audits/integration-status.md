@@ -1,5 +1,109 @@
 # Integration Status
 
+## Integration handoff rejection - LightningCSS - 2026-05-24 20:50 UTC
+
+No lane output was integrated in this pass.
+
+Initial candidate intake: the fresh Quadrable marker
+`.tmux-team/tmp/handoff-candidates/port-quadrable.ready` was present at
+`2026-05-24T20:46:49Z`. I created
+`.tmux-team/tmp/integration-holds/port-quadrable.hold` at
+`2026-05-24T20:48:32Z`, but the marker disappeared before review and the
+`port-quadrable` pane had already rearmed with active child PID `1806078`
+running `bash scripts/run-tmux-agent.sh port-quadrable ...`. Quadrable was
+therefore skipped as active/owned. Its dirty lane scope was also still an
+accumulated multi-slice patch: 42 tracked modified files with
+`13762 insertions(+), 2705 deletions(-)` plus numerous untracked examples,
+helpers, and tests. No Quadrable root or focused tests were run by this
+integration pass.
+
+Selected handoff: `.tmux-team/tmp/handoff-candidates/port-lightningcss.ready`
+with `timestamp=2026-05-24T20:48:52Z`, `session=port-lightningcss`, and
+`reason=no-codex-handoff-grace`. I held only LightningCSS with
+`.tmux-team/tmp/integration-holds/port-lightningcss.hold` at
+`2026-05-24T20:49:39Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `617623095838`.
+- The `port-lightningcss` pane was idle at `bash` with no child process in both
+  polls.
+- The exact no-argument root gate returned no rows in both polls. No
+  integration-owned `php tools/run-tests.php` was started because the handoff
+  was rejected before acceptance; there was no root-lock wait to record.
+- LightningCSS tracked shortstat stayed
+  `17 files changed, 48686 insertions(+), 10765 deletions(-)`.
+- LightningCSS status rows were `217`: `17` tracked modified files and `203`
+  untracked files under `lanes/lightningcss`.
+- Relevant latest logs stayed focused on
+  `.tmux-team/logs/port-lightningcss-watchdog-20260524T203835Z.log`
+  (`mtime=1779655696`, `3015524` bytes) and the earlier reduced-supervisor log
+  `.tmux-team/logs/port-lightningcss-supervisor-reduced-20260524T201904Z.log`
+  (`mtime=1779654457`, `3054787` bytes).
+
+Focused evidence reviewed:
+
+- Advertised latest slice: `CssMinifier::minifyStyleAttribute()` target-aware
+  advanced-color fallback behavior for the three upstream
+  `src/lib.rs::test_style_attr` target helpers, with WordPress inline-style
+  fallback output for old embedded browsers.
+- Worker-reported evidence was focused and green for that narrow claim:
+  pristine upstream source read for the 6 `attr_test` helpers, PHP lint on
+  touched PHP files, `php lanes/lightningcss/examples/wordpress-style-attribute-minifier.php`,
+  `jq empty` on lane JSON, focused
+  `php tools/run-tests.php lanes/lightningcss/tests/CssMinifierTest.php`
+  (`1` file, `3324` assertions, `0` failures), and full focused
+  `php tools/run-tests.php lanes/lightningcss/tests` (`28` files, `4393`
+  assertions, `0` failures).
+- The lane blocker correctly leads with supervisor/integrator root verification
+  and review from the still-dirty shared lane tree. No whole-application
+  dependency port or support-library row was activated; `url-percent-encoding-core`,
+  `js-package-resolution-core`, `source-map-v3-core`, broader asset graph
+  behavior, and browser target-data remain inactive until a concrete accepted
+  slice requires them.
+
+Decision: rejected/deferred, not integrated. The latest style-attribute
+target-fallback claim is small and evidenced, but the checked-out LightningCSS
+lane is an accumulated dirty pile: the same tracked files and metadata also
+carry older media-query, merge-rule, border, background, selector recovery,
+visitor, bundle, CSS Modules, SVG, grid, and prefixer work, plus 203 untracked
+lane files. Accepting all LightningCSS files would merge far more than the
+reviewed style-attribute evidence. Staging only the advertised hunks would
+leave `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, notes, and
+`CssMinifier.php` coupled to earlier unaccepted slices. No dashboard artifacts
+were regenerated and no progress claim was advanced. `dependency-backlog.json`
+validated with `37` items, `0` active rows, `1` blocked row, `25` candidate
+rows, and `11` deferred rows, consistent with the current `progress.md`
+backlog text. No support-library progress was counted.
+
+The held LightningCSS marker and hold file were removed after the decision.
+The watchdog immediately recreated a new `port-lightningcss.ready` marker at
+`2026-05-24T20:50:55Z` for the same unreduced idle lane; that marker is not a
+new accepted handoff.
+
+Exact next LightningCSS worker task: re-emit one reduced handoff from the
+accepted lane baseline. If the claim remains style-attribute target fallback,
+include only the minimal `CssMinifier.php` style-attribute API/fallback hunks,
+the corresponding `CssMinifierTest.php` assertions,
+`wordpress-style-attribute-minifier.php`, the focused slice note, and
+normalized manifest/status/scenario updates. If this depends on the earlier
+raw style-attribute minifier API, submit that prerequisite as one coherent
+reduced style-attribute stack with its own focused evidence. Do not bundle
+unaccepted visitor, bundle, CSS Modules, SVG, grid, media-query, border,
+background, selector recovery, prefixer, or unrelated minifier work in the same
+handoff.
+
+Current skipped lanes: Difftastic, Dolt, Dolt runner, esbuild, Gitoxide,
+libsqlite, markerPDF, Pandoc, Quadrable, rclone, Readability, and Syncthing
+remain dirty, active, or independently owned outside this selected
+LightningCSS hold. Dolt remains skipped until implementation and runner
+evidence are coherent and neither session is editing the same metadata/source
+files. Next concrete intake target: a fresh reduced LightningCSS marker only
+if the worker narrows the dirty scope to the stated style-attribute handoff,
+otherwise libsqlite after it is owner-free and reduced or fully evidenced,
+otherwise the next owner-free `.ready` marker whose dirty scope exactly matches
+its worker evidence.
+
 ## Integration handoff rejection - Quadrable - 2026-05-24 20:45 UTC
 
 No Quadrable lane output was integrated. I selected the fresh handoff candidate
