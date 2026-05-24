@@ -1,51 +1,44 @@
 # Integration Status
 
-## Integration handoff rejection - isolated Syncthing BEP path - 2026-05-24 22:04 UTC
+## Isolated marker intake ownership correction - 2026-05-24 22:06 UTC
 
-No Syncthing output was integrated in this pass.
+The earlier dirty-check intake for `port-isolate-*` markers is superseded.
+Isolated patch markers are owned by the clean-patch integrator and must be
+applied, focused-tested, root-tested, and committed from detached clean
+worktrees rather than from the active dirty main checkout.
 
-Selected marker:
-`.tmux-team/tmp/handoff-candidates/port-isolate-syncthing-bep-path.ready`
-with `timestamp=2026-05-24T22:01:00Z`, base
-`30f1c09c9059e8b6ac4fbf5b295cda3060ec298c`, patch
-`.tmux-team/tmp/isolate-syncthing-bep-path-20260524T215758Z.patch`, and audit
-`audits/isolate-syncthing-bep-path-20260524T215758Z.md`.
-Temporary hold:
-`.tmux-team/tmp/integration-holds/port-isolate-syncthing-bep-path.hold`,
-created for isolated BEP native-path intake.
+The legacy integrator was stopped after it inspected isolated markers from the
+dirty checkout. Its dirty-check rejections for `port-isolate-syncthing-bep-path`
+and `port-isolate-pandoc-html-br` are not authoritative acceptance evidence for
+those isolated patch artifacts.
 
-The isolated audit is coherent on its recorded clean base: it limits the slice
-to seven Syncthing files, reports `php -l`, focused
-`php tools/run-tests.php lanes/syncthing/tests/BepSessionTest.php`, example
-JSON validation, and `git diff --check` as green. However, the patch does not
-apply to the current dirty checkout:
+Actual accepted source result:
 
-- `git apply --check .tmux-team/tmp/isolate-syncthing-bep-path-20260524T215758Z.patch`
-  failed for `wordpress-bep-session.php`, `BepSession.php`,
-  `ProtocolValidation.php`, and `BepSessionTest.php`.
-- The current dirty files already contain the native-path concepts, including
-  `nativeDirectorySeparator`, native inbound request/index conversion, and
-  `NO_SUCH_FILE` handling, but those changes are mixed with a broader dirty
-  seven-file Syncthing diff.
+- `365e1596dee7deb00745111b5a1cc6a3db548259` (`Integrate Syncthing BEP native
+  path slice`) accepted the Syncthing BEP native-path isolated patch from a
+  detached clean worktree.
+- Focused Syncthing check repeated by the clean-patch integrator:
+  `php tools/run-tests.php lanes/syncthing/tests/BepSessionTest.php` passed
+  with `75 assertions, 0 failures`.
+- Clean-worktree root check repeated by the clean-patch integrator:
+  `php tools/run-tests.php` passed with `204 test files, 23907 assertions,
+  0 failures`.
+- `git diff --check` passed before the accepted clean-worktree commit.
+- No support-library row was activated; this is lane-local BEP protocol path
+  conversion/filtering behavior.
 
-Two held polls did not produce an acceptable frozen snapshot:
+Current isolated queue after the correction:
 
-- Poll 1: `HEAD=45aa82fb`, total status rows `24668`, selected seven-file
-  Syncthing shortstat `7 files changed, 853 insertions(+), 51 deletions(-)`,
-  and exact no-argument root PID `2265383 php tools/run-tests.php` was active.
-- Poll 2: `HEAD=45aa82fb`, total status rows `24668`, selected seven-file
-  Syncthing shortstat moved to
-  `7 files changed, 873 insertions(+), 51 deletions(-)`, and the exact root
-  gate was clear. Because the selected files moved during the hold, the root
-  run observed in Poll 1 cannot be treated as evidence for Poll 2.
+- `.tmux-team/tmp/handoff-candidates/port-isolate-pandoc-html-br.ready` remains
+  pending for the clean-patch integrator.
+- `.tmux-team/tmp/handoff-candidates/port-isolate-markerpdf-cmap-codespace.ready`
+  remains pending for the clean-patch integrator.
+- `.tmux-team/tmp/handoff-candidates/port-isolate-gitoxide-signature-consuming.ready`
+  remains pending for the clean-patch integrator.
 
-Decision: rejected/deferred, not integrated. I did not stage partial hunks from
-the active dirty files, did not rerun focused checks, did not start a duplicate
-no-argument root harness, did not regenerate dashboard artifacts, and did not
-advance a support-library claim. The next safe integration target is either a
-rebased isolated Syncthing BEP native-path patch that applies to current
-`HEAD`, or the next owner-free isolated Pandoc HTML `<br>` marker if it still
-applies cleanly and survives two stable polls.
+Operational fix: `.tmux-team/prompts/integrator.md` now tells the legacy
+integrator to ignore `port-isolate-*.ready` markers so isolated patch intake is
+not raced again.
 
 ## Integration handoff rejection - Gitoxide - 2026-05-24 22:01 UTC
 
