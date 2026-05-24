@@ -1,5 +1,69 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T00:54:05Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `porting.html`/`porting-summary.json`, start the
+no-argument root harness, wait on `.upstream-cache/run-tests.lock`, or treat
+concurrent lane-local/root anecdotes as an accepted integration snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` is `541a0b49fffa` on
+  `main...origin/main [ahead 618, behind 68]`.
+- Dirty scope remains broad and was still growing during review:
+  `git status --porcelain=v1 --untracked-files=no` reports `292` tracked rows,
+  `git status --porcelain=v1 --untracked-files=all` reports `9837` rows, and
+  `git diff --shortstat` reports `292 files changed, 133149 insertions(+),
+  15339 deletions(-)`.
+- Dirty lane rows span every priority lane. Tracked-only lane rows are:
+  Difftastic `10`, Dolt `12`, esbuild `20`, Gitoxide `53`, libsqlite `9`,
+  LightningCSS `14`, markerPDF `77`, Pandoc `8`, Quadrable `38`, rclone `8`,
+  Readability `11`, and Syncthing `19`. Including untracked files, lane rows
+  are: Difftastic `233`, Dolt `107`, esbuild `27`, Gitoxide `129`,
+  libsqlite `94`, LightningCSS `140`, markerPDF `176`, Pandoc `63`,
+  Quadrable `83`, rclone `106`, Readability `186`, and Syncthing `147`.
+- `tmux ls` reports `160` sessions. Active primary/reseed sessions remain
+  visible for Gitoxide, LightningCSS, markerPDF, libsqlite, Readability,
+  Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and esbuild.
+  Dolt remains skipped despite reauthorization because `port-dolt`,
+  `port-dolt-reseed-20260524T003206Z`, and `port-dolt-runner` are live
+  instead of a frozen implementation-plus-runner handoff.
+- The required exact PHP runner gate returned no active
+  `php tools/run-tests.php` process at the final poll. Because no lane batch
+  was accepted and the tree remained active, this pass did not start the
+  serialized root harness and no lock wait occurred. The lock file still
+  exists as `.upstream-cache/run-tests.lock`, size `0`, mtime
+  `2026-05-23 04:36:26.190609916 +0000`.
+- Recent log mtimes advanced during review, including
+  `port-integrator-watchdog`, `port-pandoc-watchdog`,
+  `port-gitoxide-watchdog`, `port-syncthing-watchdog`,
+  `port-readability-watchdog`, `port-markerpdf-watchdog`,
+  `port-dolt-reseed`, `port-quadrable-watchdog`,
+  `port-lightningcss-watchdog`, `port-dolt-runner-watchdog`, and
+  `port-rclone-watchdog`. Recent tails show active or unfinished handoffs such
+  as Difftastic Java/HCL syntax-list work, Dolt query-diff `DATE_FORMAT`
+  probes, Syncthing system route slices, Readability link-density cleanup, and
+  Gitoxide allocation-limit work, but not one stable accepted snapshot.
+- `dependency-backlog.json` is valid JSON with `23` items, matching the
+  `23` gated items recorded in `progress.md`. No dependency implementation or
+  support-library activation was accepted, and no rich-format claim was
+  advanced.
+- `porting.html`, `porting-summary.json`, `progress.md`,
+  `.tmux-team/prompts/*`, and `audits/latest.md` remain dirty from active
+  status/dashboard/prompt workers. This pass did not regenerate or accept
+  those files because their underlying lane-status inputs are active handoffs.
+
+Decision: the tree remains too active for trustworthy lane acceptance. All
+priority lanes were skipped as active or unsafe. The next safe integration
+point is after active lane/reseed/runner/status sessions finish or are
+intentionally frozen, no exact root/focused PHP runners are active, Dolt has a
+coherent implementation-plus-runner handoff, and `HEAD`, tracked status,
+shortstat, runner state, and relevant log mtimes remain unchanged across two
+polls. Then accept one small lane-scoped batch with focused inspection/tests,
+one serialized `php tools/run-tests.php` from that same snapshot,
+`git diff --check`, dashboard regeneration, and a small commit.
+
 ## Integration Hold - 2026-05-24T00:50:36Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
