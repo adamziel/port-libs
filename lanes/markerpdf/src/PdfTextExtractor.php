@@ -1257,9 +1257,9 @@ final class PdfTextExtractor
         $operand = trim($operand);
         if (str_starts_with($operand, '[')) {
             $text = '';
-            if (preg_match_all('/\((?:\\\\.|[^\\\\()])*\)|<[\da-fA-F\s]+>/', $operand, $parts)) {
-                foreach ($parts[0] as $part) {
-                    $text .= $this->decodeTextOperand($part, $toUnicodeMap);
+            foreach ($this->textArrayElements($operand) as $element) {
+                if ($element['type'] === 'text') {
+                    $text .= $this->decodeTextOperand((string) $element['value'], $toUnicodeMap);
                 }
             }
             return $text;
@@ -1406,7 +1406,7 @@ final class PdfTextExtractor
     {
         $value = preg_replace("/\\\\\r\n|\\\\\n|\\\\\r/s", '', $value) ?? $value;
 
-        return preg_replace_callback('/\\\\([nrtbf()\\\\]|[0-7]{1,3})/s', static function (array $match): string {
+        return preg_replace_callback('/\\\\([0-7]{1,3}|.)/s', static function (array $match): string {
             return match ($match[1]) {
                 'n' => "\n",
                 'r' => "\r",
@@ -1416,7 +1416,7 @@ final class PdfTextExtractor
                 '(' => '(',
                 ')' => ')',
                 '\\' => '\\',
-                default => chr(octdec($match[1])),
+                default => preg_match('/^[0-7]+$/', $match[1]) === 1 ? chr(octdec($match[1]) & 0xff) : $match[1],
             };
         }, $value) ?? $value;
     }

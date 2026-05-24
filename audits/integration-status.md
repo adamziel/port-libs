@@ -63578,3 +63578,35 @@ Files staged:
 - `lanes/libsqlite/src/SQLiteCreateIndex.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - markerPDF isolated literal escape - 2026-05-24 23:26 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-iso-markerpdf-literal-escape-20260524T224329Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-iso-markerpdf-literal-escape-20260524T224329Z.patch` (`sha256 0e93059525d20344ecc9f3d3f5d7446f1d527d95146bd443cc5e5a6ccc41b8e9`, verified).
+Lane/slice/session: `markerpdf` / `markerpdf-literal-escape-reduced` / `port-iso-markerpdf-literal-escape`.
+
+Focused verification in clean retry worktree from updated main:
+- `php -l lanes/markerpdf/src/PdfTextExtractor.php` passed.
+- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php` passed.
+- `php -l lanes/markerpdf/examples/wordpress-pdf-literal-escape-import.php` passed.
+- `php lanes/markerpdf/examples/wordpress-pdf-literal-escape-import.php` passed.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed: 1 file, 29 assertions, 0 failures.
+- `php tools/run-tests.php lanes/markerpdf/tests` passed: 47 files, 962 assertions, 0 failures.
+- `jq empty lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json lanes/markerpdf/lane-status.json` passed.
+- `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean retry worktree: 226 test files, 25712 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. This remains inside the existing native `PdfTextExtractor` literal-string parser; searchable PDF dictionary extraction stays gated to the inactive `pdf-text-dictionary-core` row for future richer PDF input.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/markerpdf/examples/wordpress-pdf-literal-escape-import.php`
+- `lanes/markerpdf/lane-status.json`
+- `lanes/markerpdf/notes/upstream-test-inventory.md`
+- `lanes/markerpdf/notes/wordpress-scenarios.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+- `lanes/markerpdf/tests/PdfTextExtractorTest.php`
+- `audits/integration-status.md`

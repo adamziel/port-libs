@@ -132,6 +132,24 @@ return [
         $lines = (new PdfTextExtractor())->extractTextLines($pdfWithContent($content));
         $t->same(['WordPress import', 'Data Liberation'], $lines);
     },
+    'decodes PDF literal escapes in Tj and TJ WordPress text' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $content = "BT (Editor\\'s \\(PDF\\) import\\040notes) Tj T* [(Clean\\053blocks) 120 ( keep nested \\(review\\) text)] TJ T* (Line\\\r\ncontinued and slash\\qkept) Tj ET";
+        $extractor = new PdfTextExtractor();
+        $lines = $extractor->extractTextLines($pdfWithContent($content));
+        $runs = $extractor->extractTextRuns($pdfWithContent($content));
+
+        $t->same([
+            "Editor's (PDF) import notes",
+            'Clean+blocks keep nested (review) text',
+            'Linecontinued and slashqkept',
+        ], $lines);
+        $t->same([
+            "Editor's (PDF) import notes",
+            'Clean+blocks keep nested (review) text',
+            'Linecontinued and slashqkept',
+        ], $runs);
+        $t->true(!str_contains($extractor->extractPlainText($pdfWithContent($content)), '\\q'));
+    },
     'extracts block-ready lines from a WordPress import fixture' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-import-content.pdf');
         $t->true(is_string($fixture), 'Fixture should be readable');
