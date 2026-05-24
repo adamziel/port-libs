@@ -74,7 +74,7 @@ final class PackageResolver
         }
 
         if ($this->platform === 'node' && $this->isNodeBuiltin($import->source)) {
-            return null;
+            return new PackageResolution($import, $packageName, $subpath, '', '', null, 'node-builtin', [], true);
         }
 
         $packageDir = $this->findPackageDir($sourceDir, $packageName);

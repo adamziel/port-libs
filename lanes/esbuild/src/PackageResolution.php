@@ -18,6 +18,7 @@ final class PackageResolution
         public readonly ?string $packageJsonPath = null,
         public readonly ?string $mainField = null,
         public readonly array $tried = [],
+        public readonly bool $external = false,
     ) {
     }
 }

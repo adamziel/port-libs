@@ -196,10 +196,42 @@ return [
         $t->same('browser', $builtinPathShim?->mainField);
         $t->same('node_modules/containing-browser-map-pkg/path-browser.js', $normalizeFixturePath($builtinNodePathShim?->path ?? ''));
         $t->same(null, $browser->resolveImport(new ModuleImport('named', 'crypto', [], 0), $packageSourceDir));
-        $t->same(null, $node->resolveImport(new ModuleImport('named', 'path', [], 0), $packageSourceDir));
-        $t->same(null, $node->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageSourceDir));
+        $nodePath = $node->resolveImport(new ModuleImport('named', 'path', [], 0), $packageSourceDir);
+        $nodePrefixPath = $node->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageSourceDir);
+
+        $t->same(true, $nodePath?->external);
+        $t->same('node-builtin', $nodePath?->mainField);
+        $t->same('path', $nodePath?->packageName);
+        $t->same('.', $nodePath?->subpath);
+        $t->same('', $nodePath?->path);
+        $t->same(true, $nodePrefixPath?->external);
+        $t->same('node-builtin', $nodePrefixPath?->mainField);
+        $t->same('path', $nodePrefixPath?->packageName);
         $t->same('node_modules/node-pkg/index.js', $normalizeFixturePath($node->resolveImport(new ModuleImport('named', 'node-pkg', [], 0), $packageSourceDir)?->path ?? ''));
         $t->same('node_modules/node-pkg-package/index.js', $normalizeFixturePath($node->resolveImport(new ModuleImport('named', 'node-pkg-package', [], 0), $packageSourceDir)?->path ?? ''));
+    },
+    'records node builtins as external on node platform without probing node_modules' => static function (TestRunner $t) use ($entryDir): void {
+        $node = new PackageResolver('node');
+        $browser = new PackageResolver('browser');
+        $neutral = new PackageResolver('neutral');
+
+        $path = $node->resolveImport(new ModuleImport('named', 'path', [], 0), $entryDir);
+        $fsPromises = $node->resolveImport(new ModuleImport('commonjs-require', 'fs/promises', [], 0), $entryDir);
+        $nodePath = $node->resolveImport(new ModuleImport('named', 'node:path', [], 0), $entryDir);
+
+        $t->same(true, $path?->external);
+        $t->same('node-builtin', $path?->mainField);
+        $t->same('path', $path?->packageName);
+        $t->same('.', $path?->subpath);
+        $t->same([], $path?->tried);
+        $t->same(true, $fsPromises?->external);
+        $t->same('fs', $fsPromises?->packageName);
+        $t->same('./promises', $fsPromises?->subpath);
+        $t->same(true, $nodePath?->external);
+        $t->same('path', $nodePath?->packageName);
+        $t->same('.', $nodePath?->subpath);
+        $t->same(null, $browser->resolveImport(new ModuleImport('named', 'fs/promises', [], 0), $entryDir));
+        $t->same(false, $neutral->resolveImport(new ModuleImport('named', 'path', [], 0), $entryDir)?->external);
     },
     'maps upstream package imports local targets conditions patterns and package remaps' => static function (TestRunner $t) use ($entryDir, $normalizeFixturePath): void {
         $browser = new PackageResolver('browser');

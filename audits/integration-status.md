@@ -98479,3 +98479,64 @@ Files staged:
 - lanes/difftastic/src/SyntaxHighlightClassifier.php
 - lanes/difftastic/tests/TokenDifferTest.php
 - audits/integration-status.md
+
+## Clean-patch integration accepted - esbuild - 2026-05-24 23:40 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260524T233034Z.ready`
+Patch: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260524T233034Z.patch`
+Lane/slice/session: `esbuild` / `watchdog-next-20260524T233034Z` / `port-esbuild`
+Base accepted HEAD in marker: `b2ca0fb0af4b5a8ff6a42229986beadd08b0b779`
+Clean integration base: `cf51b7e04fdf203a9ea4c2874fe536386b179538`
+Patch sha256 verified: `54d40e744ddd2eb50cd9673954dae06f679e3d944be5e468b38205b24f27aac3`
+
+Focused commands and exact results:
+
+```
+php -l lanes/esbuild/src/PackageResolution.php
+No syntax errors detected in lanes/esbuild/src/PackageResolution.php
+
+php -l lanes/esbuild/src/PackageResolver.php
+No syntax errors detected in lanes/esbuild/src/PackageResolver.php
+
+php -l lanes/esbuild/tests/PackageResolverTest.php
+No syntax errors detected in lanes/esbuild/tests/PackageResolverTest.php
+
+php -l lanes/esbuild/examples/wordpress-asset-preflight.php
+No syntax errors detected in lanes/esbuild/examples/wordpress-asset-preflight.php
+
+php tools/run-tests.php lanes/esbuild/tests/PackageResolverTest.php
+1 test files, 79 assertions, 0 failures
+
+php tools/run-tests.php lanes/esbuild/tests
+6 test files, 1809 assertions, 0 failures
+
+php -r 'json_decode(file_get_contents("lanes/esbuild/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/esbuild/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+exit 0
+
+php lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'WordPress (node builtin browser maps|node builtin external records)'
+WordPress node builtin browser maps: yes
+WordPress node builtin external records: yes
+
+git diff --check
+exit 0
+```
+
+Root command and exact result:
+
+```
+php tools/run-tests.php
+208 test files, 24238 assertions, 0 failures
+```
+
+Support-library/dependency-closure decision: no support-library activation; this is bounded lane-local package resolver metadata for node-platform builtin externals. The shared `js-package-resolution-core` backlog row remains inactive.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- lanes/esbuild/UPSTREAM_TEST_MANIFEST.json
+- lanes/esbuild/examples/wordpress-asset-preflight.php
+- lanes/esbuild/lane-status.json
+- lanes/esbuild/notes/upstream-inventory.md
+- lanes/esbuild/notes/wordpress-scenarios.md
+- lanes/esbuild/src/PackageResolution.php
+- lanes/esbuild/src/PackageResolver.php
+- lanes/esbuild/tests/PackageResolverTest.php
+- audits/integration-status.md
