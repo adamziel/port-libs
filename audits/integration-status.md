@@ -1,5 +1,83 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 18:03 UTC
+
+No lane output was integrated in this pass. I read the required coordination
+state (`goal.md`, `progress.md`, `git status --short --branch`, recent
+`git log --oneline --decorate -30`, current `port-*.log` tails, dirty lane
+paths, active tmux/process ownership, active root-runner state, lane blocker
+fields, and `dependency-backlog.json`). No lane files were staged, no
+lane/status claim was accepted, no dashboard artifacts were regenerated, and no
+support-library row was activated.
+
+Current state:
+
+- `HEAD` moved during intake from `b8a59524731e` to `726dad0861dd`
+  (`Refresh independent audit status`). The branch sample after that move was
+  `main...origin/main [ahead 966, behind 68]`.
+- There are no current `.tmux-team/tmp/handoff-candidates/port-*.ready`
+  markers.
+- The dirty aggregate remains broad and moving. Untracked-inclusive porcelain
+  rows moved from `20236` to `20238` between the two samples. The tracked
+  shortstat moved from `329 files changed, 266439 insertions(+), 31514
+  deletions(-)` to `329 files changed, 266441 insertions(+), 31514
+  deletions(-)`.
+- The largest dirty areas in the later sample were `audits` (`9427` rows),
+  `.tmux-team` (`8046` rows), Difftastic (`466`), markerPDF (`271`),
+  Readability (`262`), Syncthing (`250`), rclone (`250`), Pandoc (`234`),
+  Dolt (`221`), Gitoxide (`214`), LightningCSS (`198`), libsqlite (`172`),
+  Quadrable (`123`), and esbuild (`73`).
+- The exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'`
+  returned no rows in both samples. I did not start `php tools/run-tests.php`
+  because no coherent owner-free lane snapshot was accepted, so there was no
+  root-harness lock wait by this worker.
+
+Ownership and candidate decision:
+
+- Active Codex child processes were observed for every primary lane sampled:
+  Readability, Dolt runner, Quadrable, markerPDF, Gitoxide, Dolt,
+  LightningCSS, libsqlite, Pandoc, Difftastic, esbuild, Syncthing, and rclone.
+  The prior LightningCSS handoff is no longer owner-free, and the lane delta is
+  still accumulated rather than reviewable as the named custom-property/`attr()`
+  slice (`17` tracked lane files plus a large untracked visitor/prefixer/example
+  backlog).
+- Dolt remains skipped despite reauthorization because the implementation and
+  runner sessions are both active while Dolt files are dirty; there is still no
+  coherent implementation-plus-runner handoff.
+- Recent focused shard logs and worker reports remain triage evidence only.
+  They were generated against a moving dirty checkout and do not replace a
+  frozen lane review plus one serialized root result.
+
+Status and dependency checks:
+
+- `jq empty` passed for all 12 lane manifests, all 12 lane-status files,
+  `dependency-backlog.json`, and `porting-summary.json`.
+- Current lane `blocker` fields already lead with real acceptance gates such as
+  root aggregate verification, full upstream runner parity, live-service
+  exclusions, or support-library gates. I did not rewrite lane metadata.
+- `dependency-backlog.json` is valid JSON with `37` items:
+  `25` candidate, `11` deferred, `1` blocked, and `0` active. This remains
+  consistent with `progress.md` as backlog-only support tracking.
+- No rich-function claim was accepted. Pandoc/markerPDF document support rows
+  for DOC, DOCX/OpenXML, PDF input/output handoff, EPUB, ODT/OpenDocument,
+  templates, citations, math, tables, package containers, XML/HTML,
+  Unicode/charset, JSON/YAML metadata, syntax highlighting, archive,
+  compression, OCR/layout, PDF text/page, and table geometry remain inactive
+  backlog rows.
+- `porting.html` and `porting-summary.json` were not regenerated because no
+  lane/status changes were accepted.
+
+Next safe integration target: wait for an actual owner-free handoff marker or
+a lane pane with no active child process. LightningCSS remains the most concrete
+candidate only if the worker reduces the current custom-property/`attr()` work
+to a small lane-scoped patch with stopped logs and stable files. If rclone exits
+first, the WebDAV ServeContent/error-header work is the next bounded candidate,
+but only after its missing/example-root failure is captured in a coherent
+handoff. Any accepted batch still needs focused inspection, focused
+verification, one serialized no-argument `php tools/run-tests.php` result
+through the root harness lock, `git diff --check`, dashboard regeneration from
+the accepted snapshot, and support-library gate review at base-lane granularity.
+
 ## Integration worker hold - 2026-05-24 17:57 UTC
 
 No lane output was integrated in this pass. I read the required coordination
