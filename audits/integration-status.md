@@ -1,5 +1,66 @@
 # Integration Status
 
+## Integration handoff rejection - markerPDF - 2026-05-24 21:53 UTC
+
+No markerPDF lane output was integrated in this pass.
+
+Initial review inputs were read as required: `goal.md`, `progress.md`,
+`git status --short --branch`, recent `git log --oneline --decorate -30`,
+current `.tmux-team/logs/port-*.log` discovery for the just-finished lanes,
+and dirty markerPDF files shown by Git. The ready marker was
+`.tmux-team/tmp/handoff-candidates/port-markerpdf.ready` with
+`timestamp=2026-05-24T21:53:00Z`, `session=port-markerpdf`, and
+`reason=supervisor-frozen-handoff-review-cmap-codespace-slice`.
+
+I held only `port-markerpdf` at `2026-05-24T21:52:20Z`. The markerPDF pane was
+idle at `bash` with no direct child process. The lane diff was bounded to six
+tracked files:
+
+- `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/markerpdf/lane-status.json`
+- `lanes/markerpdf/notes/upstream-test-inventory.md`
+- `lanes/markerpdf/notes/wordpress-scenarios.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+- `lanes/markerpdf/tests/PdfTextExtractorTest.php`
+
+Two held polls failed the acceptance stability gate:
+
+- Poll 1: `HEAD=c7e35a6ca6c2`, markerPDF status rows `11`, tracked shortstat
+  `6 files changed, 976 insertions(+), 39 deletions(-)`. An exact
+  no-argument root harness appeared during this poll as PID `2171825`
+  (`php tools/run-tests.php`), owned by another session.
+- Poll 2: `HEAD=3cb7c1f2e63b`, markerPDF status rows `11`, the same tracked
+  shortstat, markerPDF pane child `none`. The no-argument root harness had
+  cleared by the final sample, but it was not integration-owned and did not
+  run from a stable frozen snapshot.
+
+Scope review found the handoff itself plausibly lane-bounded: it extends
+`PdfTextExtractor` for `/ToUnicode` CMap `begincodespacerange` variable-width
+fallback alignment and updates markerPDF status/manifest notes. The lane status
+reports focused green evidence, including `php -l` checks, the WordPress CMap
+codespace example, focused `PdfTextExtractorTest`, and markerPDF-only focused
+harness results. I did not rerun those checks because `HEAD` moved during the
+hold and a concurrent no-argument root harness occupied the serialized root
+gate during the intake window.
+
+Decision: rejected/deferred, not integrated. I did not run a duplicate
+no-argument root harness, did not regenerate `porting.html`, and did not
+commit. No upstream/full-suite parity claim was advanced. The broader PDF text
+capability remains gated by the existing inactive `pdf-text-dictionary-core`
+support-library row; this handoff did not activate a shared support-library
+port.
+
+Cleanup: removed the temporary markerPDF hold file and matching ready marker
+after this decision.
+
+Skipped active or unaccepted lanes in this pass: Pandoc and Syncthing still
+have ready markers but were not selected after the markerPDF stability failure;
+other lane panes had been rearmed by fast worker sessions or remained dirty
+with unaccepted output. Next concrete intake target: retry markerPDF only if
+the worker re-emits the same reduced CMap codespacerange batch from a stable
+`HEAD` with no exact root PID, otherwise inspect the next owner-free Pandoc or
+Syncthing ready marker with two stable polls before any focused/root tests.
+
 ## Integration handoff rejection - LightningCSS - 2026-05-24 21:42 UTC
 
 No LightningCSS lane output was integrated in this pass.
