@@ -1,5 +1,93 @@
 # Integration Status
 
+## Integration handoff rejection - Difftastic - 2026-05-24 18:31 UTC
+
+No Difftastic lane output was integrated. I read the required coordination
+state (`goal.md`, `progress.md`, `git status --short --branch`, recent
+`git log --oneline --decorate -30`, current `port-*.log` tails for the
+finished handoff, dirty Difftastic files, tmux/process ownership, exact
+root-runner state, lane blocker fields, and `dependency-backlog.json`). No
+lane/status claim was accepted, no dashboard artifacts were regenerated, and no
+support-library row was activated.
+
+Selected marker:
+
+- `.tmux-team/tmp/handoff-candidates/port-difftastic.ready`
+  (`timestamp=2026-05-24T18:26:47Z`, reason `no-codex-handoff-grace`).
+- Held with `.tmux-team/tmp/integration-holds/port-difftastic.hold` at
+  `2026-05-24T18:28:14Z`.
+- Pane sample: `port-difftastic` was at `bash` with no child process.
+
+Two-poll snapshot:
+
+- Poll 1 at `2026-05-24T18:28:31Z`: `HEAD` `12a79d56`; exact root gate
+  matched `818257 php tools/run-tests.php`; Difftastic tracked shortstat
+  `10 files changed, 46488 insertions(+), 4445 deletions(-)`; Difftastic
+  untracked-inclusive status rows `466`.
+- Poll 2 at `2026-05-24T18:28:42Z`: `HEAD` still `12a79d56`; exact root gate
+  returned no rows; Difftastic tracked shortstat and status rows were unchanged.
+- A later ownership sample showed a separate clean-root capacity runner active:
+  `834683 php tools/run-tests.php`. I did not start another no-argument root
+  harness, did not wait on `.upstream-cache/run-tests.lock`, and did not treat
+  any moving-tree root run as accepted integration evidence.
+
+Focused evidence reviewed:
+
+- Worker handoff reported a scoped TypeScript ambient/global namespace abstract
+  overload slice, with focused `php tools/run-tests.php
+  lanes/difftastic/tests/TokenDifferTest.php` passing `1` file, `3624`
+  assertions, `0` failures.
+- Capacity focused audit
+  `audits/capacity-feed-dirty-php-8ae8ed158965-6526dbcd5847-difftastic.md`
+  independently recorded the same focused result and `git diff --check` exit
+  `0` for that dirty snapshot.
+- `jq empty` passed for `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/difftastic/lane-status.json`, `dependency-backlog.json`, and
+  `porting-summary.json`.
+- `dependency-backlog.json` remains valid with `37` rows: `25` candidate,
+  `11` deferred, `1` blocked, and `0` active, consistent with the current
+  backlog-only support-library state in `progress.md`.
+
+Decision: rejected/deferred, not integrated. The handoff itself is narrow, but
+the dirty lane is accumulated far beyond that claim: `TokenDiffer.php` alone is
+`29550` added / `3012` deleted lines, `TokenDifferTest.php` is `7844` added /
+`1402` deleted lines, notes/manifests add thousands more lines, and the lane
+has hundreds of untracked examples/fixtures. The modified tracked files also
+cover unrelated language/tokenizer and command/display changes
+(`DiffCommandRunner.php`, `InlineDiffRenderer.php`, `LanguageCatalog.php`,
+`SyntaxHighlightClassifier.php`, broad `TokenDiffer.php` changes) in addition
+to the advertised ambient-overload test. This is not a small reviewable
+lane-scoped batch, and accepting it would conflate many prior unaccepted
+Difftastic slices under one focused test result. The lane status also contains
+a future audit timestamp (`2026-05-24 18:38 UTC`) relative to the intake sample,
+so the status text needs normalization before it can be accepted as an honest
+public artifact.
+
+Exact next Difftastic worker task: re-emit the TypeScript ambient
+global/namespace abstract-overload slice as a reduced patch containing only the
+minimum implementation hunk needed for scoped ambient abstract overload
+ordering, `TokenDifferTest.php` assertions for that slice, the two
+`wordpress-block-editor-global-namespace` fixtures, the one matching WordPress
+example, and normalized manifest/status/notes. Leave the older Newick/Nix/Racket,
+Go/Swift/Java/SQL/PHP/JS language expansion, broad tokenizer/display changes,
+and unrelated untracked fixtures for separate reviewable batches. Use actual
+UTC completion times in `lane-status.json`, keep the blocker led by full
+upstream runner parity plus root aggregate verification, and provide focused
+PHP evidence again.
+
+Current skipped lanes: Dolt remains skipped because both `port-dolt` and
+`port-dolt-runner` have active Codex child processes while Dolt files are
+dirty. Gitoxide, libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable,
+rclone, Readability, and Syncthing also had active lane children in the
+ownership sample. Esbuild was owner-free but had no current handoff marker, so
+I did not hold or integrate it.
+
+Next concrete intake target: Difftastic is the next target only after the
+worker re-emits the reduced ambient-overload patch above. If no reduced
+Difftastic marker appears, sample the owner-free esbuild lane next if it emits
+a `.ready` marker with a bounded diff; otherwise wait for the next current
+handoff marker and apply the same two-poll gate.
+
 ## Integration queue note - 2026-05-24 18:28 UTC
 
 After the LightningCSS rejection commit, two new handoff markers appeared:
