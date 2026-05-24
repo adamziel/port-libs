@@ -14,9 +14,12 @@ Required intake was re-sampled:
   tails for the freshest workers, dirty lane summaries from Git, active tmux
   state, `dependency-backlog.json`, `porting-summary.json`, and this
   integration-status artifact.
-- `HEAD` stayed at `47dd223097a4` on
-  `main...origin/main [ahead 943, behind 68]`. Recent local commits remain
-  integration-hold/audit/status commits, not accepted lane batches.
+- During the intake samples, `HEAD` stayed at `47dd223097a4` on
+  `main...origin/main [ahead 943, behind 68]`. Before this status note was
+  committed, a concurrent independent-audit status commit moved `HEAD` to
+  `9f77fc48`, so this hold record was layered on top of that audit status
+  move. Recent local commits remain integration-hold/audit/status commits, not
+  accepted lane batches.
 - The frozen-snapshot gate failed. Dirty tracked shortstat moved from
   `329 files changed, 263009 insertions(+), 33598 deletions(-)` to
   `330 files changed, 263147 insertions(+), 33716 deletions(-)`, tracked
