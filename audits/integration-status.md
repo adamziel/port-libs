@@ -1,5 +1,86 @@
 # Integration Status
 
+## Integration handoff rejection - rclone - 2026-05-24 19:10 UTC
+
+No rclone lane output was integrated. I selected the current handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-rclone.ready`
+(`timestamp=2026-05-24T19:07:28Z`, reason `no-codex-handoff-grace`) and held
+only that lane with `.tmux-team/tmp/integration-holds/port-rclone.hold` at
+`2026-05-24T19:08:11Z`. The `port-rclone` pane was idle at `bash`
+(`pane_pid=972501`) with no child process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `836e60b2fb57`
+  (`Record Gitoxide handoff rejection`).
+- rclone tracked shortstat stayed
+  `8 files changed, 5805 insertions(+), 103 deletions(-)`.
+- rclone tracked dirty files stayed limited to
+  `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, notes, the
+  `wordpress-onedrive-permission-write-plan.php` example,
+  `MemoryProvider.php`, `OneDrivePermissionPlanner.php`, and
+  `OneDrivePermissionPlannerTest.php`.
+- rclone untracked scope stayed broad at `247` files, including accumulated
+  WebDAV/VFS/accounting/logging/OneDrive/range/metadata source, test, and
+  example files from older unaccepted slices.
+- Exact no-argument root gate matched active PID
+  `1070120 php tools/run-tests.php` in the first poll and returned no rows in
+  the second poll. I did not start an integration-owned root harness, did not
+  bypass `.upstream-cache/run-tests.lock`, and did not treat the moving-tree
+  root run as accepted evidence.
+- Ready marker and hold marker timestamps stayed stable in the decision poll:
+  ready mtime `1779649648`, hold mtime `1779649694`.
+- The current rclone watchdog/rearm logs report the newest WebDAV PUT
+  body-copy-error handoff with focused PHP, adjacent PHP, rclone-only PHP, and
+  focused x/net/webdav evidence, but that claim does not match the tracked
+  file set currently dirty in Git.
+
+Focused evidence reviewed:
+
+- The latest worker log reports a WebDAV PUT body-copy-error slice in
+  `VfsVirtualTree.php`, `VfsWebDavMutationResponse.php`,
+  `VfsWebDavMutationResponseTest.php`, and
+  `wordpress-webdav-put-body-error-preflight.php`.
+- Current `lanes/rclone/lane-status.json` also publishes that WebDAV PUT
+  body-copy-error slice and `975` PHP behavior tests / `10,280` assertions.
+- The actual tracked diff is instead an accumulated OneDrive permission,
+  metadata, upload-session, and MemoryProvider batch. The WebDAV PUT files
+  are not in the tracked dirty name set, while many files needed by the
+  advertised status remain untracked.
+- `dependency-backlog.json` already contains the inactive
+  `webdav-protocol-core` row. The current handoff does not provide a
+  dependency-specific support manifest or PHP pass/fail ledger, and no
+  support-library row was activated or counted.
+
+Decision: rejected/deferred, not integrated. Accepting the tracked subset would
+commit status and manifest text that claims a WebDAV PUT slice not present in
+the tracked patch. Accepting all rclone files would conflate at least 247
+untracked older source/test/example files plus the 8 tracked files into one
+unreviewable batch. No dashboard artifacts were regenerated because no
+lane/status batch was accepted.
+
+Exact next rclone worker task: re-emit a reduced, reviewable handoff whose
+dirty files match the advertised evidence. If the next claim is WebDAV PUT
+body-copy-error, include only the minimal WebDAV foundation files it depends on,
+then the PUT slice files, focused `VfsWebDavMutationResponseTest.php`
+assertions, the single `wordpress-webdav-put-body-error-preflight.php` example,
+and normalized manifest/status/notes. If the next claim is the OneDrive
+permission/metadata/upload batch currently tracked, rewrite the lane status and
+manifest to describe that exact batch, split out unrelated MemoryProvider and
+untracked WebDAV/VFS/accounting/logging files, and provide focused upstream,
+focused PHP, full rclone-lane PHP, `jq`, `git diff --check`, and root-harness
+expectations for that specific scope. Keep the blocker led by root aggregate
+verification and full upstream/provider parity exclusions; do not activate
+`webdav-protocol-core` or any other support row without its own bounded
+denominator and evidence plan.
+
+Current skipped lanes: Dolt remains skipped because both implementation and
+runner sessions are present while Dolt files are dirty. Other dirty lanes are
+active or broadly accumulated. Next concrete intake target: the next
+owner-free `.ready` marker whose dirty scope and status evidence match; rclone
+should be retried only after a reduced patch or corrected OneDrive-scoped
+handoff is emitted.
+
 ## Integration handoff rejection - Gitoxide - 2026-05-24 19:05 UTC
 
 No Gitoxide lane output was integrated. I selected the current handoff candidate
