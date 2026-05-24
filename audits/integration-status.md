@@ -1,5 +1,74 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T10:45:40Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate `porting.html` or `porting-summary.json`, push, or
+start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files shown by Git, live tmux/process state, dashboard/dependency
+  status artifacts, and existing integration holds.
+- Current `HEAD` was `23eafd3788c6` on
+  `main...origin/main [ahead 826, behind 68]`.
+- The checkout remained active and moving during this pass. Earlier samples
+  showed `329 files changed, 219564 insertions(+), 29095 deletions(-)`;
+  the latest sample showed `330 files changed, 219674 insertions(+), 29153
+  deletions(-)`, with tracked rows at `330` and untracked-inclusive rows at
+  `17034`.
+- Dirty tracked files still span every priority lane plus prompt templates,
+  `audits/latest.md`, `dependency-backlog.json`, dashboard artifacts,
+  `progress.md`, runner scripts, and scratch/status output. I did not rewrite
+  those active status files.
+- Recent worker tails showed candidate or active lane changes in Difftastic,
+  Readability, rclone, Dolt, Quadrable, markerPDF, Syncthing, libsqlite,
+  esbuild, LightningCSS, Pandoc, Gitoxide, plus active evaluator/auditor and
+  dashboard/integrator status work. These are not accepted integration
+  evidence while the same scopes remain active and moving.
+- Exact process sampling found active Dolt BATS work under `port-dolt-runner`
+  (`show.bats`, `sql-show.bats`, `multiple-tables.bats`, and
+  `rename-tables.bats`) plus multiple Dolt capacity sessions. The same sample
+  found no active `php tools/run-tests.php` or
+  `php tools/generate-dashboard.php` row. I did not start the serialized
+  no-argument root harness, so there was no `.upstream-cache/run-tests.lock`
+  wait to record and no accepted root result.
+- JSON validation passed for `dependency-backlog.json`, `porting-summary.json`,
+  all 12 root lane manifests, and all 12 lane-status files.
+  `dependency-backlog.json` currently has `34` items
+  (`candidate:23,deferred:11`) and is consistent with the current
+  `progress.md` 10:42 UTC backlog note. Local generated
+  `porting-summary.json` remains stale at `sourceCommit=79768df0c427...` with
+  `dependencyBacklog.count=22`; I did not regenerate it because no
+  lane/status batch was accepted.
+- Dolt remains unsafe to integrate despite reauthorization because both the
+  implementation lane and runner/capacity sessions are active while Dolt
+  metadata, source, examples, fixtures, and tests are dirty.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze active writers plus status/dashboard publishers; confirm no
+focused/root PHP harnesses, dashboard generator, Dolt BATS, Go, Rust, Node, or
+SQLite upstream runners are active; then require two stable polls of `HEAD`,
+tracked rows, untracked-inclusive rows, shortstat, exact process gates,
+dependency/dashboard counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, moving untracked
+state, stale local dashboard artifacts, worker-log-only focused evidence, and
+blocker fields that still need acceptance-gate review.
+
+Next safe integration target: after a hard freeze, isolate one owner-free lane
+batch, run focused lane verification, run `git diff --check`, run one
+serialized no-argument `php tools/run-tests.php` from the same frozen snapshot
+with lock-wait status recorded, and regenerate dashboard artifacts only after
+accepting the lane/status batch. Dolt should wait until both implementation
+and runner/capacity sessions are quiet.
+
 ## Integration Hold - 2026-05-24T10:42:30Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
