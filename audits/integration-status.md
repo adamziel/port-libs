@@ -1,5 +1,67 @@
 # Integration Status
 
+## Integration handoff rejection - Readability - 2026-05-24 18:07 UTC
+
+No Readability lane output was integrated. After the previous status-only
+commit, new handoff markers appeared for Readability, Quadrable, and Gitoxide;
+I selected the newest marker, `port-readability.ready`, created the required
+short hold at `.tmux-team/tmp/integration-holds/port-readability.hold`, and
+took two stability polls before rejecting the batch as not reviewable.
+
+Two-poll snapshot:
+
+- Hold file: `timestamp=2026-05-24T18:04:15Z`, `lane=readability`.
+- Ready marker: `timestamp=2026-05-24T18:03:39Z`,
+  `reason=no-codex-handoff-grace`.
+- Polls: `2026-05-24T18:04:43Z` and `2026-05-24T18:06:51Z`.
+- `HEAD` stayed stable at `53f6bfd934e`.
+- Readability ownership was owner-free in both polls: pane
+  `port-readability 423146 bash`, with no direct child process.
+- Readability lane file state was stable in both polls:
+  `262` untracked-inclusive status rows,
+  status digest `a388768c6c0b729ee82494c61c70b4b1c8171c8281e13acff6a5b58c30c9c4e0`,
+  tree digest `0418122e6ea2476c6b93c7a21a5869982e2c6cb11bee88b05de0677a13777d42`,
+  and diff-stat digest `c0c6e2f6b242ed833073ba385e0e1d877b2d9aa55866e25c51b995b804c08576`.
+- Relevant Readability log state was stable: latest log
+  `.tmux-team/logs/port-readability-watchdog-20260524T174707Z.log` stayed at
+  `3887715` bytes with mtime `1779645791`.
+- The shared tree was not stable. Global shortstat moved from
+  `329 files changed, 266614 insertions(+), 31496 deletions(-)` to
+  `329 files changed, 266772 insertions(+), 31490 deletions(-)`.
+- Exact no-argument root runners were active and changing:
+  first `623820 php tools/run-tests.php`, then
+  `636557 php tools/run-tests.php` and `636948 php tools/run-tests.php`.
+  I did not start another root harness and therefore did not wait on
+  `.upstream-cache/run-tests.lock`.
+
+Decision: rejected/deferred, not integrated. The named worker handoff is a
+focused UTF-16 link-density cleanup slice with useful evidence, but the dirty
+lane is accumulated: `15` tracked files, `262` untracked-inclusive lane rows,
+and `14001 insertions(+), 2382 deletions(-)` across copied fixtures, many
+examples, broad manifest/status/notes churn, and `ArticleExtractor.php` /
+`ArticleExtractorTest.php`. This is too broad to accept as the stated
+link-density slice, and the active root runners plus moving shared tree block a
+serialized accepted-root snapshot.
+
+Cleanup: removed `.tmux-team/tmp/integration-holds/port-readability.hold` and
+`.tmux-team/tmp/handoff-candidates/port-readability.ready` after the rejection.
+
+Exact next Readability worker task: split a narrow UTF-16 link-density handoff
+containing only the smallest useful native scoring change, one focused PHP
+test, one WordPress example, and normalized manifest/status notes. Leave the
+copied Mozilla fixture inventory, older publisher examples, broad URI/metadata
+examples, and accumulated notes churn for separate reviewable batches or for a
+previously accepted commit.
+
+Queue after release: ready markers continued moving while this status was being
+prepared. The latest precommit sample showed `port-rclone`,
+`port-pandoc`, reappeared `port-readability`, `port-lightningcss`,
+`port-libsqlite`, and `port-markerpdf` markers. They were not inspected in this
+hold because only one lane was held at a time. Next safe integration target is
+the newest ready marker only if it remains owner-free and can be reduced to a
+coherent bounded slice; otherwise prefer the first owner-free marker with a
+small diff over another broad accumulated lane handoff.
+
 ## Integration worker hold - 2026-05-24 18:03 UTC
 
 No lane output was integrated in this pass. I read the required coordination
