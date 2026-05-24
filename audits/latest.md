@@ -16,12 +16,12 @@ unless explicitly temporary oracle tooling.
 
 ```text
 UTC samples: 2026-05-24T12:45Z and 2026-05-24T12:46Z
-HEAD: 0bcb82e7f9fb
+sampled HEAD before this audit commit: 0bcb82e7f9fb
 recent history: 0bcb82e7 Refresh independent audit status; d9bfdc1d Record integration hold status; 46a07e64 Record integration hold status; a7c70e3d Refresh independent audit status; 48a0ac98 Record integration hold status
 tracked dirty rows: 328 -> 327
 default status rows including untracked: 17852 -> 17851
 git diff --shortstat: 328 files changed, 236300 insertions(+), 30684 deletions(-) -> 327 files changed, 236402 insertions(+), 30686 deletions(-)
-dashboard snapshot: porting.html and porting-summary.json generated 2026-05-24 12:29:46 UTC from source 89260857cc71; current HEAD is 0bcb82e7f9fb
+dashboard snapshot: porting.html and porting-summary.json generated 2026-05-24 12:29:46 UTC from source 89260857cc71; sampled pre-audit HEAD is 0bcb82e7f9fb
 dependency backlog: dependency-backlog.json updated 2026-05-24 12:29:10 UTC with 37 rows (1 blocked, 25 candidate, 11 deferred, 0 active)
 root run by this audit: not started
 ```
@@ -65,12 +65,12 @@ syncthing     status 7930 php pass           7902 php pass
    - Goal requirement at risk: small reviewable slices must be committed with
      passing tests, and finished agent work must be verified, integrated,
      cleaned up, and assigned onward.
-   - Evidence: `HEAD` is `0bcb82e7f9fb`, but the tree still has hundreds of
-     tracked dirty files and the sampled shape moved from `328` to `327`
-     tracked dirty rows while shortstat changed to `327 files changed, 236402
-     insertions(+), 30686 deletions(-)`. All 12 lane-status files still record
-     `latestCommit` as pending, uncommitted, not committed, or equivalent
-     shared-dirty handoff prose.
+   - Evidence: the sampled pre-audit `HEAD` was `0bcb82e7f9fb`, but the tree
+     still had hundreds of tracked dirty files and the sampled shape moved from
+     `328` to `327` tracked dirty rows while shortstat changed to `327 files
+     changed, 236402 insertions(+), 30686 deletions(-)`. All 12 lane-status
+     files still record `latestCommit` as pending, uncommitted, not committed,
+     or equivalent shared-dirty handoff prose.
 
 2. **Critical - there is still no audit-acceptable root PHP result for the
    current snapshot.**
@@ -80,7 +80,8 @@ syncthing     status 7930 php pass           7902 php pass
    - Evidence: the required exact process gate was clear at 12:45Z and
      12:46Z, but the checkout changed between samples and no coherent lane
      batch has been accepted. Focused lane-green results remain lane-local
-     evidence, not root evidence for `0bcb82e7f9fb` plus the current dirty tree.
+     evidence, not root evidence for the sampled pre-audit `0bcb82e7f9fb`
+     plus the current dirty tree.
 
 3. **High - the dashboard and compact summary are stale and internally
    misleading against current source metadata.**
@@ -92,7 +93,7 @@ syncthing     status 7930 php pass           7902 php pass
      current denominator, mapped tests, PHP pass/fail, phase, audit, current
      work, blocker, and commit.
    - Evidence: `porting.html` still claims source snapshot `89260857cc71` while
-     current `HEAD` is `0bcb82e7f9fb`. Live metadata has moved past the
+     the sampled pre-audit `HEAD` was `0bcb82e7f9fb`. Live metadata has moved past the
      dashboard for Difftastic, esbuild, Gitoxide, libsqlite, LightningCSS,
      markerPDF, Pandoc, rclone, Readability, and Syncthing. Some live metadata
      is also out of sync internally, for example Difftastic manifest
