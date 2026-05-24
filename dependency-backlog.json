@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-24 09:19:25 UTC",
+  "updated": "2026-05-24 09:35:12 UTC",
   "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
   "items": [
     {
@@ -60,21 +60,22 @@
     {
       "id": "url-percent-encoding-core",
       "name": "URL percent-encoding core",
-      "source": "RFC 3986, targeted WHATWG URL cases, Go net/url and x/net WebDAV filename escaping evidence, Gitoxide gix-url evidence, esbuild new URL asset evidence, and LightningCSS URL/import token fixtures",
+      "source": "RFC 3986, targeted WHATWG URL cases, Go net/url and x/net WebDAV filename escaping evidence, Gitoxide gix-url evidence, esbuild new URL asset evidence, LightningCSS URL/import token fixtures, and Readability relative URI cleanup evidence",
       "neededBy": [
         "rclone",
         "gitoxide",
         "esbuild",
-        "lightningcss"
+        "lightningcss",
+        "readability"
       ],
-      "essentialCapability": "Provides shared URL/path escaping and resolution for WebDAV href/Destination/If handling, Git remote URL parsing/rendering, esbuild new URL asset references, and LightningCSS url()/@import token handling without browser, Node, Git, rclone, or provider runtimes.",
+      "essentialCapability": "Provides shared URL/path escaping and resolution for WebDAV href/Destination/If handling, Git remote URL parsing/rendering, esbuild new URL asset references, LightningCSS url()/@import token handling, and Readability article link/media URI cleanup without browser, Node, Git, rclone, or provider runtimes.",
       "scopeBoundary": "In scope: RFC 3986 path/query/fragment percent encoding and decoding, path-segment escaping, caller-requested dot-segment normalization, relative URL resolution for asset references, file URL/path boundaries, Go net/url EscapedPath compatibility cases needed by WebDAV, and deterministic diagnostics. Out of scope: HTTP clients, DNS, TLS, cookies, redirects, OAuth, live network access, browser navigation, package fetching, provider APIs, credential-bearing URLs, whole browser URL/runtime parity beyond fixture-backed cases, and broad generic URL frameworks.",
       "priority": "high",
-      "activationGate": "rclone-webdav-filename-destination-next-or-gitoxide-url-parse-next-or-esbuild-new-url-asset-next-or-lightningcss-css-url-token-next",
-      "testExpectation": "Require a dependency-specific vector manifest with PHP pass/fail counts for percent-escape round trips, path-segment preservation, relative asset resolution, local WebDAV href serialization, Git remote URL parse/render cases, JS/CSS asset URL token cases, malformed bad-percent/stray-percent/encoded-slash/CRLF/NUL/invalid-UTF-8/overlong/path-traversal/Windows-path/unsupported-scheme cases, and bounded upstream runner/static evidence where available. No progress credit for shelling out to Git/rclone/Node/browsers, live HTTP requests, live provider remotes, credential-bearing configs, OAuth/browser auth state, or whole browser URL runtimes.",
-      "reuseNotes": "Keep this below webdav-protocol-core, js-package-resolution-core, source-map-v3-core, rclone provider paths, and Gitoxide URL/refspec adapters. It supplies bytes/URL helpers only; each lane keeps protocol and application semantics outside this support row.",
+      "activationGate": "rclone-webdav-filename-destination-next-or-gitoxide-url-parse-next-or-esbuild-new-url-asset-next-or-lightningcss-css-url-token-next-or-readability-relative-uri-cleanup-next",
+      "testExpectation": "Require a dependency-specific vector manifest with PHP pass/fail counts for percent-escape round trips, path-segment preservation, relative asset resolution, local WebDAV href serialization, Git remote URL parse/render cases, JS/CSS asset URL token cases, Readability relative link/media cleanup cases, malformed bad-percent/stray-percent/encoded-slash/CRLF/NUL/invalid-UTF-8/overlong/path-traversal/Windows-path/unsupported-scheme cases, and bounded upstream runner/static evidence where available. No progress credit for shelling out to Git/rclone/Node/browsers, live HTTP requests, live provider remotes, credential-bearing configs, OAuth/browser auth state, or whole browser URL runtimes.",
+      "reuseNotes": "Keep this below webdav-protocol-core, js-package-resolution-core, source-map-v3-core, rclone provider paths, Gitoxide URL/refspec adapters, and Readability cleanup. It supplies bytes/URL helpers only; each lane keeps protocol and application semantics outside this support row.",
       "status": "candidate",
-      "blocker": "Activate only when a concrete WebDAV URL escaping, Git URL parse, JS new URL asset, or CSS URL token slice opens; do not expand into live services, credential inspection, package fetching, or broad browser URL compatibility."
+      "blocker": "Activate only when a concrete WebDAV URL escaping, Git URL parse, JS new URL asset, CSS URL token, or Readability relative URI cleanup slice opens; do not expand into live services, credential inspection, package fetching, or broad browser URL compatibility."
     },
     {
       "id": "docx-openxml-core",
@@ -306,7 +307,7 @@
     {
       "id": "unicode-text-repair-width",
       "name": "Unicode repair, width, and segmentation core",
-      "source": "python-ftfy concepts, Unicode UAX #11/#14/#29, and local markerPDF/Pandoc/Difftastic/esbuild/LightningCSS/Gitoxide/Dolt/Quadrable evidence",
+      "source": "python-ftfy concepts, Unicode UAX #11/#14/#29, and local markerPDF/Pandoc/Difftastic/esbuild/LightningCSS/Gitoxide/Dolt/Quadrable/Syncthing evidence",
       "neededBy": [
         "markerpdf",
         "pandoc",
@@ -316,21 +317,22 @@
         "esbuild",
         "gitoxide",
         "dolt",
-        "quadrable"
+        "quadrable",
+        "syncthing"
       ],
-      "essentialCapability": "Keeps imported text, tables, diffs, identifiers, and excerpts readable when source content contains mojibake, combining marks, East Asian width, or zero-width characters.",
+      "essentialCapability": "Keeps imported text, tables, diffs, identifiers, sync paths, and excerpts readable when source content contains mojibake, combining marks, East Asian width, or zero-width characters.",
       "scopeBoundary": "In scope: NFC normalization, selected mojibake/C1 repair, entity-aware text repair, grapheme/display-width calculations, line wrapping helpers, and stable segmentation. Out of scope: translation, spellchecking, NLP, and locale-specific typography beyond fixture-backed rules.",
       "priority": "high",
-      "activationGate": "shared-infra-after-base-green",
-      "testExpectation": "Create a Unicode/ftfy/UAX-specific denominator with mapped Pandoc, Difftastic, Readability, LightningCSS, esbuild, Gitoxide, Dolt, Quadrable, and markerPDF text fixtures, PHP pass/fail evidence, normalization/width/segmentation parity, malformed byte/entity/mojibake cases, and no progress credit for shelling out to external text-repair engines.",
-      "reuseNotes": "Avoid per-lane duplicate width/repair logic; expose deterministic helpers for table, diff, OCR, and content cleanup lanes.",
+      "activationGate": "markerpdf-text-repair-next-or-pandoc-table-width-next-or-difftastic-unicode-display-next-or-readability-mojibake-cleanup-next-or-lightningcss-unicode-token-next-or-esbuild-unicode-identifier-next-or-gitoxide-path-display-next-or-dolt-unicode-query-diff-next-or-quadrable-key-display-next-or-syncthing-path-normalization-next",
+      "testExpectation": "Create a Unicode/ftfy/UAX-specific denominator with mapped Pandoc, Difftastic, Readability, LightningCSS, esbuild, Gitoxide, Dolt, Quadrable, Syncthing, and markerPDF text/path fixtures, PHP pass/fail evidence, normalization/width/segmentation parity, malformed byte/entity/mojibake/invalid-UTF-8/NFC-conflict cases, and no progress credit for shelling out to external text-repair engines, filesystem watchers, sync daemons, or normalization services.",
+      "reuseNotes": "Avoid per-lane duplicate width/repair logic; expose deterministic helpers for table, diff, OCR, sync-path, and content cleanup lanes.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only when a concrete text repair, display width, Unicode identifier, query-diff string, key display, or Syncthing path-normalization blocker opens; keep broad locale typography and service-backed normalization out of scope."
     },
     {
       "id": "charset-encoding-core",
       "name": "Charset and byte-decoding core",
-      "source": "WHATWG Encoding Standard plus difftastic UTF-16/mostly-valid UTF-8 evidence, JS/CSS asset import needs, Git/Dolt byte-path evidence, and Readability/Pandoc import needs",
+      "source": "WHATWG Encoding Standard plus difftastic UTF-16/mostly-valid UTF-8 evidence, JS/CSS asset import needs, Git/Dolt byte-path evidence, SQLite UTF-16 database text evidence, and Readability/Pandoc import needs",
       "neededBy": [
         "difftastic",
         "readability",
@@ -341,16 +343,17 @@
         "lightningcss",
         "gitoxide",
         "dolt",
-        "quadrable"
+        "quadrable",
+        "libsqlite"
       ],
-      "essentialCapability": "Allows declared or known byte-decoding before structural parsing for PDF, document, web import, source diff, and package metadata text that is not clean UTF-8.",
+      "essentialCapability": "Allows declared or known byte-decoding before structural parsing for PDF, document, web import, SQLite database records, source diff, and package metadata text that is not clean UTF-8.",
       "scopeBoundary": "In scope: BOM handling, UTF-8/UTF-16, Windows-1252, declared HTML/XML charset handling, PDFDocEncoding/WinAnsi/MacRoman maps where conversion-boundary fixtures require them, replacement policy, binary detection hints, and byte-span preservation. Out of scope: broad statistical charset detection unless separately fixture-gated, translation, NLP, and shell-out converters.",
       "priority": "high",
-      "activationGate": "markerpdf-pdfdocencoding-next-or-pandoc-legacy-doc-cfb-next-or-pandoc-html-charset-next-or-readability-declared-charset-next-or-shared-nonutf8-import-next",
-      "testExpectation": "Require WHATWG Encoding plus PDF/document encoding tables and mapped markerPDF/Pandoc/Readability byte fixtures, with PHP pass/fail evidence for decoded text parity, replacement behavior, span preservation, binary-vs-text decisions, declared charset handling, WordPress output, invalid bytes, BOM/declaration conflicts, truncated UTF-16, undefined bytes, overlong UTF-8, and binary misclassification cases, and no progress credit for iconv/recode shell-outs, broad detector services, translation, or NLP.",
-      "reuseNotes": "Sit below PDF text, Pandoc HTML/DOC imports, Readability HTML, source diffs, package metadata, and Git/Dolt/Quadrable text boundaries.",
+      "activationGate": "markerpdf-pdfdocencoding-next-or-pandoc-legacy-doc-cfb-next-or-pandoc-html-charset-next-or-readability-declared-charset-next-or-libsqlite-utf16-record-encoding-next-or-shared-nonutf8-import-next",
+      "testExpectation": "Require WHATWG Encoding plus PDF/document/SQLite encoding tables and mapped markerPDF/Pandoc/Readability/libsqlite byte fixtures, with PHP pass/fail evidence for decoded text parity, replacement behavior, span preservation, binary-vs-text decisions, declared charset handling, UTF-16 SQLite record text read/write, WordPress output, invalid bytes, BOM/declaration conflicts, truncated UTF-16, undefined bytes, overlong UTF-8, and binary misclassification cases, and no progress credit for iconv/recode shell-outs, broad detector services, translation, NLP, sqlite3 shell-outs, or external database engines.",
+      "reuseNotes": "Sit below PDF text, Pandoc HTML/DOC imports, Readability HTML, SQLite record/page codecs, source diffs, package metadata, and Git/Dolt/Quadrable text boundaries.",
       "status": "candidate",
-      "blocker": "Activate when markerPDF opens PDFDocEncoding, Pandoc opens legacy DOC/HTML charset work, Readability opens declared charset work, or another current lane opens non-UTF-8 import/asset decoding beyond lane-local helpers; keep broad statistical charset detection deferred unless fixture-backed."
+      "blocker": "Activate when markerPDF opens PDFDocEncoding, Pandoc opens legacy DOC/HTML charset work, Readability opens declared charset work, libsqlite opens UTF-16 record encoding, or another current lane opens non-UTF-8 import/asset decoding beyond lane-local helpers; keep broad statistical charset detection deferred unless fixture-backed."
     },
     {
       "id": "json-json5-document-core",
