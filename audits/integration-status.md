@@ -1,5 +1,78 @@
 # Integration Status
 
+## Integration handoff rejection - Syncthing - 2026-05-24 20:36 UTC
+
+No Syncthing lane output was integrated. I selected the fresh handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-syncthing.ready`
+(`timestamp=2026-05-24T20:31:23Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-syncthing` pane was idle at `bash`
+(`pane_pid=1584230`) with no child process. I held only Syncthing with
+`.tmux-team/tmp/integration-holds/port-syncthing.hold` at
+`2026-05-24T20:33:40Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `9ec803396b93`.
+- The exact no-argument root gate was clear in both held polls. A root PID
+  `1774605 php tools/run-tests.php` was observed before the hold, but it had
+  exited before the stable held samples. No integration-owned root harness was
+  started because the handoff was rejected before acceptance.
+- Syncthing tracked shortstat stayed
+  `26 files changed, 13069 insertions(+), 1017 deletions(-)`.
+- Syncthing tracked files stayed at the same 26 modified paths, mostly BEP,
+  folder scan/completion, request exchange, and lane metadata files.
+- Syncthing untracked files stayed at `238`, including the advertised global
+  discovery files plus many older untracked config, route, GUI,
+  discovery-manager, receive-loop, BEP/session, stats, and system route
+  classes/tests.
+- The latest Syncthing handoff log stayed unchanged at
+  `.tmux-team/logs/port-syncthing-watchdog-20260524T201902Z.log`
+  (`mtime=2026-05-24 20:28:53 +0000`).
+
+Focused evidence reviewed:
+
+- Advertised slice: `GlobalDiscoveryServer::deviceIdPinningDecision()` for
+  global discovery `id=` TLS peer-certificate checking, with focused PHP,
+  adjacent discovery PHP, full lane PHP, focused upstream
+  `go test ./lib/discover -run '^TestGlobalOverHTTPS$'`, WordPress example
+  JSON, and lane manifest/status JSON reported green by the worker.
+- Related untracked files also include earlier global discovery
+  option/lookup-response/announcement-response/debounce/query-encoding work,
+  but the tracked `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and
+  `wordpress-scenarios.md` now include many additional unaccepted Syncthing
+  slices outside that global-discovery scope.
+- The reported blocker correctly leads with the real gate: supervisor/integrator
+  root verification pending, and full upstream `go test ./...` intentionally
+  unrun because it spans the full module/integration breadth.
+
+Decision: rejected/deferred, not integrated. The worker report is coherent for
+a small global-discovery security slice, but the current Syncthing dirty scope
+is an accumulated multi-slice patch. Accepting all Syncthing files would merge
+far more than the reviewed evidence. Staging only the advertised global
+discovery files would leave status/manifest/scenario claims coupled to older
+unaccepted work. No dashboard artifacts were regenerated and no progress claim
+was advanced. The Syncthing hold and ready marker were removed.
+
+Exact next Syncthing worker task: re-emit one reduced handoff from the accepted
+lane baseline. If the claim remains global discovery `id=` TLS peer-certificate
+checking, include only the minimal global-discovery source/test/example files
+and normalized manifest/status/scenario notes for that slice. Do not include
+unaccepted config, route, GUI QR/static/token/auth, discovery-manager,
+receive-loop, BEP/session, stats, folder scan/completion, request exchange, or
+system/noauth/service/event classes and tests in the same handoff. If the
+slice depends on URL/query escaping or QR generation, reference the existing
+bounded `url-percent-encoding-core` or `qr-code-matrix-core` support rows
+instead of counting broad dependency progress.
+
+Current skipped lanes: Difftastic, Dolt, Dolt runner, esbuild, Gitoxide,
+libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone, and Readability
+remain dirty, active, or independently owned outside this selected Syncthing
+hold. Dolt remains skipped until implementation and runner evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: libsqlite only after it is owner-free and reduced or
+fully evidenced, otherwise the next owner-free `.ready` marker whose dirty
+scope exactly matches its worker evidence.
+
 ## Integration handoff rejection - Syncthing - 2026-05-24 20:30 UTC
 
 No Syncthing lane output was integrated. I selected the fresh handoff candidate
