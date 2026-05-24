@@ -79,8 +79,13 @@ final class SyntaxHighlightClassifier
             return 'keyword';
         }
 
-        if ($this->isPythonLanguage($language) && $this->isPythonBuiltinFunctionCall($source, $token)) {
-            return 'normal';
+        if ($this->isPythonLanguage($language)) {
+            if ($this->isPythonBuiltinFunctionCall($source, $token)) {
+                return 'normal';
+            }
+            if ($this->isPythonBuiltinTypeName($token->text)) {
+                return $this->isPythonTypeAnnotationContext($source, $token) ? 'type' : 'normal';
+            }
         }
 
         if (in_array($lower, $this->languageKeywords($language), true)) {
@@ -227,6 +232,32 @@ final class SyntaxHighlightClassifier
         return $this->nextNonWhitespaceCharacter($source, $token->end) === '(';
     }
 
+    private function isPythonBuiltinTypeName(string $text): bool
+    {
+        return in_array($text, ['bool', 'bytes', 'dict', 'float', 'int', 'list', 'set', 'str', 'tuple'], true);
+    }
+
+    private function isPythonTypeAnnotationContext(string $source, Token $token): bool
+    {
+        $previous = $this->previousNonWhitespaceCharacter($source, $token->start);
+        if ($previous === ':') {
+            $colon = $this->previousNonWhitespaceCharacterPosition($source, $token->start);
+            $beforeColon = $colon === null ? null : $this->previousNonWhitespaceCharacter($source, $colon);
+
+            return $beforeColon !== ')' && $beforeColon !== ']';
+        }
+
+        if ($previous === '[' || $previous === ',' || $previous === '|') {
+            return $this->pythonLinePrefixHasAnnotationMarker($source, $token->start);
+        }
+
+        if ($previous !== '>') {
+            return false;
+        }
+
+        return $this->previousNonWhitespaceCharacters($source, $token->start, 2) === '->';
+    }
+
     /**
      * @return list<string>
      */
@@ -252,6 +283,17 @@ final class SyntaxHighlightClassifier
         return preg_match('/^[A-Z][A-Za-z0-9_$]*$/', $text) === 1;
     }
 
+    private function pythonLinePrefixHasAnnotationMarker(string $source, int $start): bool
+    {
+        $lineStart = max(strrpos(substr($source, 0, $start), "\n") ?: 0, 0);
+        if ($lineStart > 0) {
+            $lineStart++;
+        }
+        $prefix = substr($source, $lineStart, $start - $lineStart);
+
+        return str_contains($prefix, ':') || str_contains($prefix, '->');
+    }
+
     private function previousNonWhitespaceCharacter(string $source, int $start): ?string
     {
         for ($index = $start - 1; $index >= 0; $index--) {
@@ -264,6 +306,34 @@ final class SyntaxHighlightClassifier
         }
 
         return null;
+    }
+
+    private function previousNonWhitespaceCharacterPosition(string $source, int $start): ?int
+    {
+        for ($index = $start - 1; $index >= 0; $index--) {
+            $character = $source[$index];
+            if ($character === ' ' || $character === "\t" || $character === "\n" || $character === "\r") {
+                continue;
+            }
+
+            return $index;
+        }
+
+        return null;
+    }
+
+    private function previousNonWhitespaceCharacters(string $source, int $start, int $count): string
+    {
+        $characters = '';
+        for ($index = $start - 1; $index >= 0 && strlen($characters) < $count; $index--) {
+            $character = $source[$index];
+            if ($character === ' ' || $character === "\t" || $character === "\n" || $character === "\r") {
+                continue;
+            }
+            $characters = $character . $characters;
+        }
+
+        return $characters;
     }
 
     private function nextNonWhitespaceCharacter(string $source, int $start): ?string

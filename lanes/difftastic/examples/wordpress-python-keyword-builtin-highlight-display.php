@@ -8,8 +8,9 @@ use PortLibs\Difftastic\JsonDiffRenderer;
 
 $before = "def migrate_blocks(posts):\n"
     . "    return posts\n";
-$after = "def migrate_blocks(posts):\n"
+$after = "def migrate_blocks(posts: list[dict[str, int]]) -> list[dict[str, int]]:\n"
     . "    migrated = []\n"
+    . "    list = migrated\n"
     . "    def record(post):\n"
     . "        nonlocal migrated\n"
     . "        match post.get('needsMigration'):\n"

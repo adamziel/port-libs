@@ -3502,6 +3502,36 @@ return [
             $t->contains("{$builtin}:normal", $encoded);
         }
     },
+    'json display renderer maps upstream python builtin type annotations only in annotation context' => static function (TestRunner $t): void {
+        $before = "def migrate_post(post):\n    return post\n";
+        $after = "def migrate_post(post: dict[str, int]) -> list[str]:\n"
+            . "    list = post.get('blocks', [])\n"
+            . "    return list\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/python_type_annotation_highlight.py',
+            'Python',
+            ['language' => 'python'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Python', $decoded['language']);
+        foreach (['dict', 'str', 'int'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        $t->contains('list:type', $encoded);
+        $t->contains('list:normal', $encoded);
+    },
     'json display renderer maps upstream ruby keyword constant and constructor captures' => static function (TestRunner $t): void {
         $before = "puts 'legacy'\n";
         $after = "module AcmeTools\n"
@@ -3699,6 +3729,24 @@ return [
             $t->true($start !== false, "Fixture should contain {$builtin}.");
             $t->true(!in_array(['start' => $start, 'end' => $start + strlen($builtin), 'style' => '1'], $spans, true), "{$builtin} should remain normal because upstream function.builtin captures are not promoted into display highlights.");
         }
+    },
+    'ansi highlighter maps upstream python builtin type names only in annotations' => static function (TestRunner $t): void {
+        $line = 'def migrate(post: dict[str, int]) -> list[str]: list = []';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'python']);
+
+        foreach (['dict', 'str', 'int'] as $type) {
+            $start = strpos($line, $type);
+            $t->true($start !== false, "Fixture should contain {$type}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($type), 'style' => '1'], $spans, true), "{$type} should follow upstream type capture handling inside Python annotations.");
+        }
+
+        $returnListStart = strpos($line, 'list[str]');
+        $t->true($returnListStart !== false, 'Fixture should contain return list annotation.');
+        $t->true(in_array(['start' => $returnListStart, 'end' => $returnListStart + strlen('list'), 'style' => '1'], $spans, true), 'Return annotation list should be styled as a type.');
+
+        $localListStart = strrpos($line, 'list');
+        $t->true($localListStart !== false && $localListStart !== $returnListStart, 'Fixture should contain local list identifier.');
+        $t->true(!in_array(['start' => $localListStart, 'end' => $localListStart + strlen('list'), 'style' => '1'], $spans, true), 'Local identifiers named like builtin types should remain normal outside annotation context.');
     },
     'ansi highlighter maps upstream ruby keywords constants and constructors' => static function (TestRunner $t): void {
         $line = "class ImportRunner; DEFAULT_LIMIT = nil; def call; end; require 'json'";
@@ -4096,6 +4144,10 @@ return [
         foreach (['print', 'len', 'dict'] as $builtin) {
             $t->contains("{$builtin}:normal", $encoded);
         }
+        foreach (['dict', 'str', 'int', 'list'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        $t->contains('list:normal', $encoded);
     },
     'wordpress ruby migration helper display follows upstream keyword boundary' => static function (TestRunner $t): void {
         ob_start();

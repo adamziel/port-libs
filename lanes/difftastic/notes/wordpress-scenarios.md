@@ -262,6 +262,8 @@ Python syntax highlighting now maps the upstream constructor/decorator capture e
 
 Python syntax highlighting now also maps the upstream keyword and builtin-function boundary from the exact tree-sitter Python query. The WordPress Python keyword/builtin example emits `nonlocal`, `match`, `case`, and `True` as `keyword` spans while keeping `print`, `len`, and `dict` calls normal, so migration helper review data can highlight control-flow semantics without over-styling ordinary builtin calls.
 
+Python syntax highlighting now tightens builtin type-name promotion to annotation contexts. The WordPress Python keyword/builtin example emits `dict`, `list`, `str`, and `int` as `type` spans in parameter/return/generic annotations while a local `list` identifier remains normal, preserving upstream's distinction between type captures and `function.builtin` or ordinary identifier captures.
+
 Ruby syntax highlighting now maps the upstream keyword, constant, operator, constructor, and function-method boundary from the exact tree-sitter Ruby query. The WordPress Ruby migration helper example emits `class`, `def`, `do`, `next`, `unless`, `rescue`, and `nil` as `keyword` spans, `ImportRunner` as a `type` span, `DEFAULT_LIMIT` as a keyword constant, and `require` as normal, so migration-script review data can style Ruby control flow without over-styling builtin method calls.
 
 Compact JSON display now also maps upstream `src/display/json.rs` `tree_sitter_error` highlight output for parser-error atoms. The WordPress parser-error display example compares block registration JavaScript with an extra `}` and, when the parse-error budget allows structural display, exposes that delimiter as a `tree_sitter_error` span for editor review tools instead of treating it as ordinary punctuation.
@@ -365,12 +367,10 @@ php lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display
 php lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php
 ```
 
-## Next Task
-
 The WordPress Ruby migration helper now also exercises method-level Ruby block delimiter paths. The added `self.count` method in `wp-content/plugins/acme-migrator/tools/import_posts.rb` is emitted as a focused `def...end` insertion while the existing `records.each do ... end` body stays nested under its method path, making importer utility diffs reviewable without replacing the whole class.
 
-Dependency closure: no new support component is needed. This slice reuses the lane-local native tokenizer and syntax-list parser; a future broader Ruby parser component would only be justified behind a separate accepted gate with upstream Ruby corpus evidence for modifier forms, heredocs, and rescue/ensure blocks.
+Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for multi-line annotations, `typing` aliases, and PEP 604 unions.
 
 ## Next Task
 
-Tighten Python type-annotation context for builtin type names.
+Tighten Python `typing`/PEP 604 union annotation edge cases and avoid over-styling runtime expressions in multi-line annotations.

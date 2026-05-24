@@ -98426,3 +98426,56 @@ Files staged:
 - lanes/syncthing/src/FolderWatchScanScheduler.php
 - lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
 - audits/integration-status.md
+
+## Clean-patch integration accepted - difftastic - 2026-05-24 23:37 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260524T233034Z.ready`
+Patch: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260524T233034Z.patch`
+Lane/slice/session: `difftastic` / `watchdog-next-20260524T233034Z` / `port-difftastic`
+Base accepted HEAD in marker: `b2ca0fb0af4b5a8ff6a42229986beadd08b0b779`
+Clean integration base: `639bb514bca93fcb0ed9fd0ac578582ded93fb45`
+Patch sha256 verified: `394b79af271eff398f6246a777352ba05310b4e669bdd551775c66205ae8e87e`
+
+Focused commands and exact results:
+
+```
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+No syntax errors detected in lanes/difftastic/src/SyntaxHighlightClassifier.php
+
+php -l lanes/difftastic/tests/TokenDifferTest.php
+No syntax errors detected in lanes/difftastic/tests/TokenDifferTest.php
+
+php -l lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php
+No syntax errors detected in lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php
+
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+1 test files, 1367 assertions, 0 failures
+
+php -r 'json_decode(file_get_contents("lanes/difftastic/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/difftastic/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+exit 0
+
+php lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php
+exit 0
+
+git diff --check
+exit 0
+```
+
+Root command and exact result:
+
+```
+php tools/run-tests.php
+208 test files, 24219 assertions, 0 failures
+```
+
+Support-library/dependency-closure decision: no support-library activation; this is bounded lane-local Python annotation highlight classification using the existing Difftastic tokenizer/highlighter surface.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- lanes/difftastic/UPSTREAM_TEST_MANIFEST.json
+- lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php
+- lanes/difftastic/lane-status.json
+- lanes/difftastic/notes/upstream-inventory.md
+- lanes/difftastic/notes/wordpress-scenarios.md
+- lanes/difftastic/src/SyntaxHighlightClassifier.php
+- lanes/difftastic/tests/TokenDifferTest.php
+- audits/integration-status.md
