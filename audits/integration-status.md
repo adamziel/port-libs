@@ -1,5 +1,80 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T08:32:02Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate `progress.md`, run `php tools/generate-dashboard.php`,
+update `porting.html` or `porting-summary.json`, push, or commit lane output.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recent worker/capacity/root
+  handoffs, dirty lane files from Git, live tmux/process state, existing
+  integration status, and `dependency-backlog.json`.
+- Current `HEAD` sample is `e3be5bb8a540` on
+  `main...origin/main [ahead 778, behind 68]`. The latest commit is still
+  `e3be5bb8 Record integration hold status`; recent commits remain hold/audit
+  records rather than accepted lane implementations.
+- Dirty scope remains broad and non-isolated: `git status --short` reports
+  `16184` rows, and `git diff --shortstat` reports `324 files changed,
+  203237 insertions(+), 30395 deletions(-)`. Tracked dirty rows span every
+  priority lane plus `.tmux-team` prompts, `audits/latest.md`, shared scripts,
+  `dependency-backlog.json`, `porting.html`, and `porting-summary.json`.
+- Recent worker log tails still show active or newly-mutated lane work after
+  earlier candidate/preflight recommendations. Examples: esbuild applied a
+  fresh `JsLexer.php` JSON raw-control-character patch after the preflight;
+  Dolt is adding `MD5`/`SHA`/`SHA1`/`SHA2` query-diff work while the Dolt
+  runner records bounded Go/BATS evidence; Gitoxide applied a fresh
+  `GitDate` format-name normalization patch; Difftastic, libsqlite,
+  LightningCSS, Readability, rclone, Syncthing, markerPDF, Pandoc, and
+  Quadrable logs all show current diffs, probes, or handoff text rather than a
+  quiet accepted batch.
+- An externally-started no-argument dirty-root run completed during this pass:
+  `.tmux-team/logs/port-capacity-feed-dirty-root-3ee5e8f197d9-9dce792bbd9e.log`
+  records `php tools/run-tests.php` from `2026-05-24T08:29:36Z` to
+  `2026-05-24T08:31:35Z`, exit `0`, `370` files, `54002` assertions, and `0`
+  failures. The audit file records `active PHP focused/root runners: 0` at the
+  gate and does not show a lock wait. This is useful dirty-worktree evidence,
+  not an accepted integration snapshot, because no lane batch was frozen or
+  accepted before the run and worker edits were still active around it.
+- Exact process sampling after that run found no active
+  `php tools/run-tests.php` rows and no active `php tools/generate-dashboard.php`
+  rows. I did not start another root harness and did not bypass
+  `.upstream-cache/run-tests.lock`.
+- `git diff --check` passed during this pass. `dependency-backlog.json` is
+  valid JSON, but I did not fold it into dashboard/status publication because
+  no lane/status batch was accepted and existing dashboard artifacts remain
+  stale relative to the current dirty tree.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild. Dolt remains skipped despite reauthorization because implementation
+and runner contexts are still both active and have not converged into one
+coherent lane-scoped handoff.
+
+Waiting: a hard writer/runner/status freeze. The next safe point is after
+`HEAD`, tracked dirty count, untracked-inclusive status count, shortstat,
+exact PHP runner state, focused PHP runner state, Dolt runner state, rclone Go
+runner state, capacity queue state, dashboard publication state, and relevant
+log mtimes stay stable across two samples.
+
+Risky: accepting any lane now would mix active source edits, generated status
+edits, stale dashboard artifacts, externally-started dirty-root evidence,
+focused lane evidence, and dependency backlog changes from different snapshots.
+
+Next safe integration target: after the freeze, retry esbuild only if
+`port-esbuild` and `port-esbuild-integration-preflight-20260524T081927Z` are
+inactive and the selected TypeScript/template-lowering diff can be isolated to
+lane-local files including the later `JsLexer.php` JSON patch. Otherwise fall
+back to Quadrable proof transport after its upstream `make -r test` handoff is
+complete. For either batch, run focused lane verification, run
+`git diff --check`, then run exactly one serialized no-argument
+`php tools/run-tests.php` from the same frozen source snapshot and record
+whether it waited on `.upstream-cache/run-tests.lock`; regenerate dashboard
+artifacts only after accepting the lane/status batch.
+
 ## Integration Hold - 2026-05-24T08:28:06Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
