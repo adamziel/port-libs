@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-24 10:51:38 UTC",
+  "updated": "2026-05-24 11:14:00 UTC",
   "policy": "Gate optional dependency ports behind base-tool blockers; a row becomes active only when a base lane is green enough for the next rich-function slice or is blocked on that component. Port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with mapped fixtures, PHP pass/fail counts, malformed/corrupt cases where relevant, and explicit non-goals; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
   "items": [
     {
@@ -92,6 +92,38 @@
       "reuseNotes": "Build after shared-zip-package-core and xml-html5-dom-core have the needed reader evidence; share relationship and media helpers with EPUB and ODT.",
       "status": "candidate",
       "blocker": "Activate only when Pandoc opens a DOCX/OpenXML reader or writer slice beyond lane-local fixture notes; require shared ZIP/XML support evidence if package or relationship parsing becomes the blocker before claiming rich DOCX conversion."
+    },
+    {
+      "id": "git-wire-protocol-core",
+      "name": "Git wire protocol packet core",
+      "source": "Git pack-protocol and protocol-v2 specs plus gix-packetline, gix-protocol, and selected Gitoxide transport/fetch evidence recorded in lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json",
+      "neededBy": [
+        "gitoxide"
+      ],
+      "essentialCapability": "Provides bounded native pkt-line and protocol v1/v2 framing for Gitoxide fetch, receive-pack, upload-pack, and fake transport exchanges without launching Git or network services.",
+      "scopeBoundary": "In scope: pkt-line length framing, flush/delim/response-end packets, protocol v1/v2 request and response section framing, capability negotiation and advertisement, sideband channel splitting, ref advertisement, fetch and receive-pack transcript boundaries, shallow/wanted-ref/packfile section envelopes, and deterministic fake-transport byte transcripts. Out of scope: live remotes, Git CLI shell-outs, SSH/HTTP credential handling, network listeners or services, credential helpers or stores, secret-bearing configs, pack-object storage, and full receive-pack/upload-pack server implementations.",
+      "priority": "high",
+      "activationGate": "gitoxide-protocol-v2-pktline-next-or-gitoxide-receive-pack-wire-next-or-gitoxide-upload-pack-wire-next",
+      "testExpectation": "Require Git pack-protocol/protocol-v2 specs plus gix-packetline/gix-protocol/Gitoxide transport/fetch fixture denominators, with PHP pass/fail evidence for pkt-line parse/render, protocol v1/v2 request/response framing, capability negotiation, sideband packets, ref advertisement, fetch transcripts, receive-pack transcripts, malformed packet length/truncation/overlong-length/missing-flush/unexpected-delim/illegal-sideband/duplicate-capability/out-of-order-section cases, and no progress credit for live remotes, Git CLI shell-outs, SSH/HTTP credentials, network services, credential stores, or secret-bearing configs.",
+      "reuseNotes": "Build on url-percent-encoding-core, checksum-hash-suite, and archive-compression-streams where those rows are activated; keep Git object databases, pack storage, URL policy, auth policy, and repository service adapters in the Gitoxide lane.",
+      "status": "candidate",
+      "blocker": "Activate only when Gitoxide opens an accepted or accepted-blocked protocol v1/v2, pkt-line, fetch, receive-pack, or upload-pack wire slice from a frozen snapshot; current protocol evidence remains lane-local and pending."
+    },
+    {
+      "id": "quadrable-proof-transport-codec-core",
+      "name": "Quadrable proof and sync transport codec core",
+      "source": "Quadrable transport.h, include/quadrable/impl/proof.h, include/quadrable/impl/sync.h, check.cpp proof/sync scenarios, and lanes/quadrable/UPSTREAM_TEST_MANIFEST.json proof transport evidence",
+      "neededBy": [
+        "quadrable"
+      ],
+      "essentialCapability": "Provides bounded native proof and sync transport byte contracts for Quadrable delegated proof exchange, import/export, and sync fixtures without widening storage or hash rows.",
+      "scopeBoundary": "In scope: proof command encoding/decoding, proof strand command jumps, BER/base-128 varints, compressed key-hash paths, FullKeys/HashedKeys proof encodings, sync request/response frames, proof import/export byte contracts, canonical byte rendering, and deterministic diagnostics. Out of scope: LMDB/database engines, network sync services, quadb shell-out progress, unrelated SQL/page codecs, BLAKE2s implementation, whole quadb application behavior, secret-bearing inputs, credential material, credentials, secret-bearing configs, and database servers.",
+      "priority": "high",
+      "activationGate": "quadrable-proof-transport-codec-next-or-quadrable-sync-codec-next",
+      "testExpectation": "Require Quadrable proof/sync transport source and fixture denominators with PHP pass/fail evidence for proof encode/decode, proof strand command jumps, sync request/response frames, proof import/export byte parity, malformed varint/frame/opcode/jump/root/count/truncation cases, mismatched-root diagnostics, and no progress credit for LMDB/database engines, network sync services, quadb shell-outs, unrelated SQL/page codecs, service remotes, secret-bearing inputs, credential material, credentials, or secret-bearing configs.",
+      "reuseNotes": "Use checksum-hash-suite for BLAKE2s and unicode-text-repair-width/charset-encoding-core only for display and manifest text; do not hide proof or sync transport bytes under sql-storage-codec-core.",
+      "status": "candidate",
+      "blocker": "Activate only when Quadrable opens an accepted or accepted-blocked proof transport, proof import/export, or sync codec slice from a frozen snapshot; current proof/sync transport evidence remains lane-local and pending."
     },
     {
       "id": "legacy-doc-cfb-core",
@@ -434,18 +466,16 @@
       "name": "Tree-sitter grammar/query compatibility subset",
       "source": "Difftastic upstream tree-sitter parser evidence and selected grammar fixtures recorded in lanes/difftastic/UPSTREAM_TEST_MANIFEST.json",
       "neededBy": [
-        "difftastic",
-        "esbuild",
-        "lightningcss"
+        "difftastic"
       ],
-      "essentialCapability": "Improves syntax-aware structural diffs for code, block assets, and embedded HTML style/script sections.",
-      "scopeBoundary": "In scope: selected grammar metadata, node-type/query/highlight compatibility, fixture-backed delimiter semantics, and language-specific token trees needed by review output. Out of scope: porting every tree-sitter grammar, native parser generator/runtime completeness, and Cargo build integration.",
+      "essentialCapability": "Improves Difftastic-first syntax-aware structural diffs for code, block assets, and selected embedded document/source review output.",
+      "scopeBoundary": "In scope: selected grammar metadata, node-type/query/highlight compatibility, fixture-backed delimiter and atom semantics, parser-error fallbacks, and language-specific token trees needed by Difftastic review output one language family at a time. Out of scope: porting every tree-sitter grammar, native parser generator/runtime completeness, Cargo build integration, esbuild JS parser replacement, LightningCSS CSS parser replacement, and syntax-highlighter application ports.",
       "priority": "high",
       "activationGate": "difftastic-concrete-grammar-structural-next",
-      "testExpectation": "Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, PHP pass/fail evidence, syntax-highlight query parity, malformed/corrupt parse-error and unsupported-grammar fallbacks, and no progress credit for invoking tree-sitter/Cargo parsers as external engines.",
-      "reuseNotes": "Prefer consuming native esbuild/LightningCSS parsers for JS/CSS where feasible before adding grammar-specific duplicate parsers.",
+      "testExpectation": "Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, exact grammar crate/version and node-types/query evidence, PHP pass/fail evidence, syntax-highlight query parity, malformed source/invalid-byte/unsupported-grammar/parser-error/resource-cap fallbacks, and no progress credit for invoking tree-sitter/Cargo parsers as external engines.",
+      "reuseNotes": "Keep esbuild and LightningCSS as future reuse notes only: if either later opens an explicit shared structural-review-span gate, extend this row deliberately; otherwise prefer their native lane parsers for normal bundler, parser, minifier, and CSS-token behavior.",
       "status": "candidate",
-      "blocker": "Difftastic is already mapping concrete PHP/Hack, Go, Swift, Java, SQL, and related grammar boundaries lane-locally; activate this support row only when the supervisor chooses a shared grammar/query subset denominator for one concrete language family."
+      "blocker": "Difftastic is already mapping concrete PHP/Hack, TypeScript, Go, Swift, Java, SQL, and related grammar boundaries lane-locally; activate this support row only when the supervisor chooses a Difftastic-first shared grammar/query subset denominator for one concrete language family from a frozen snapshot."
     },
     {
       "id": "sequence-diff-merge-core",
