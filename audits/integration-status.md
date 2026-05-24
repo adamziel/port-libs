@@ -1,5 +1,76 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T10:38:20Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate `porting.html` or `porting-summary.json`, push, or
+start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files shown by Git, live tmux/process state,
+  `dependency-backlog.json`, dashboard summary artifacts, and the existing
+  integration status history.
+- Current `HEAD` stayed at `0184c8c88e5c` during this short pass on
+  `main...origin/main [ahead 823, behind 68]`, but the checkout was not a
+  stable owner-free integration snapshot.
+- The tracked dirty row count stayed at `328`, while untracked-inclusive status
+  moved from `16921` to `16922` rows and shortstat moved from `328 files
+  changed, 217105 insertions(+), 28857 deletions(-)` to `328 files changed,
+  217289 insertions(+), 28855 deletions(-)`.
+- Dirty tracked files still span every priority lane plus prompt templates,
+  `dependency-backlog.json`, dashboard artifacts, runner scripts, and
+  scratch/status output. Untracked-inclusive status remains dominated by
+  `.tmux-team`, audits, lane fixtures/examples, and capacity-runner artifacts.
+- Live tmux still shows every priority lane plus auditor, evaluator, dashboard
+  updater, integrator, capacity controller/executor, Dolt runner, dependency
+  and support-library scouts, root observers, cleanup sessions, and many
+  Dolt/rclone/capacity sessions.
+- Recent worker log tails showed completed candidate slices in Gitoxide and
+  libsqlite, Difftastic fixture churn, active dashboard publication reporting,
+  and repeated integrator/status holds. These are useful handoff clues, but
+  they are not accepted integration evidence because the same shared checkout
+  and lane scopes remain active and moving.
+- Exact process sampling found no active `php tools/run-tests.php` and no
+  active `php tools/generate-dashboard.php` rows. I did not start the
+  serialized no-argument root harness, so there was no
+  `.upstream-cache/run-tests.lock` wait to record and no accepted root result.
+- Dolt remains unsafe to integrate despite reauthorization: `port-dolt`,
+  `port-dolt-runner`, and multiple Dolt capacity/BATS sessions remain present
+  while Dolt source, metadata, manifests, examples, fixtures, and tests are
+  dirty or recently moving.
+- JSON validation passed for `dependency-backlog.json`, `porting-summary.json`,
+  all 12 root lane manifests, and all 12 lane-status files.
+  `dependency-backlog.json` has `32` backlog items and is consistent with
+  `progress.md`, but local generated `porting-summary.json` still reports
+  `dependencyBacklog.count=22`. I did not regenerate the dashboard because no
+  lane/status batch was accepted.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze active writers plus status/dashboard publishers; confirm no
+focused/root PHP harnesses, dashboard generator, Dolt BATS, Go, Rust, Node, or
+SQLite upstream runners are active; then require two stable polls of `HEAD`,
+tracked rows, untracked-inclusive rows, shortstat, exact process gates,
+dependency/dashboard counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, moving untracked
+state, stale local dashboard artifacts, broad lane-local untracked files,
+candidate focused evidence from worker logs, Dolt runner/capacity output, and
+blocker fields that still need acceptance-gate review.
+
+Next safe integration target: after a hard freeze, isolate one owner-free lane
+batch, run focused lane verification, run `git diff --check`, run one
+serialized no-argument `php tools/run-tests.php` from the same frozen snapshot
+with lock-wait status recorded, then regenerate dashboard artifacts only after
+accepting the lane/status batch. Dolt should wait until both implementation
+and runner/capacity sessions are quiet.
+
 ## Integration Hold - 2026-05-24T10:34:17Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
