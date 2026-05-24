@@ -50,6 +50,7 @@ final class TransitionPrefixer
         $output = '';
         $cursor = 0;
         $length = strlen($css);
+        $emittedKeyframes = [];
 
         while ($cursor < $length) {
             $open = $this->findNextTopLevel($css, '{', $cursor);
@@ -63,6 +64,11 @@ final class TransitionPrefixer
             $body = substr($css, $open + 1, $close - $open - 1);
             if (str_starts_with($prelude, '@')) {
                 $prelude = $this->rewriteSupportsBackdropFilterPrelude($prelude, $targetOptions);
+                if ($this->isKeyframesPrelude($prelude)) {
+                    $output .= $this->rewriteKeyframesRule($prelude, $body, $targetOptions, $emittedKeyframes);
+                    $cursor = $close + 1;
+                    continue;
+                }
                 if ($this->isFontPaletteValuesPrelude($prelude)) {
                     $output .= $this->rewriteFontPaletteValuesRule($prelude, $body, $insideAdvancedColorSupports);
                     $cursor = $close + 1;
@@ -80,6 +86,58 @@ final class TransitionPrefixer
         }
 
         return $output;
+    }
+
+    private function isKeyframesPrelude(string $prelude): bool
+    {
+        return preg_match('/^@(?:-(?:webkit|moz)-)?keyframes\b/i', $prelude) === 1;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @param array<string, true> $emittedKeyframes
+     */
+    private function rewriteKeyframesRule(string $prelude, string $body, array $targetOptions, array &$emittedKeyframes): string
+    {
+        if (preg_match('/^@(?:(-(?:webkit|moz)-))?keyframes\s+(.+)$/i', $prelude, $matches) !== 1) {
+            return $prelude . '{' . $body . '}';
+        }
+
+        $prefix = strtolower($matches[1] ?? '');
+        $name = $matches[2];
+        $rules = [];
+        if ($targetOptions['keyframesNeedsWebkit']) {
+            $this->appendKeyframesRule($rules, $emittedKeyframes, '@-webkit-keyframes', $name, $body);
+        } elseif ($prefix === '-webkit-') {
+            return '';
+        }
+
+        if ($targetOptions['keyframesNeedsMoz']) {
+            $this->appendKeyframesRule($rules, $emittedKeyframes, '@-moz-keyframes', $name, $body);
+        } elseif ($prefix === '-moz-') {
+            return '';
+        }
+
+        if ($prefix === '') {
+            $this->appendKeyframesRule($rules, $emittedKeyframes, '@keyframes', $name, $body);
+        }
+
+        return implode('', $rules);
+    }
+
+    /**
+     * @param list<string> $rules
+     * @param array<string, true> $emittedKeyframes
+     */
+    private function appendKeyframesRule(array &$rules, array &$emittedKeyframes, string $keyword, string $name, string $body): void
+    {
+        $key = strtolower($keyword . ' ' . $name);
+        if (isset($emittedKeyframes[$key])) {
+            return;
+        }
+
+        $emittedKeyframes[$key] = true;
+        $rules[] = $keyword . ' ' . $name . '{' . $body . '}';
     }
 
     private function isFontPaletteValuesPrelude(string $prelude): bool
@@ -558,6 +616,9 @@ final class TransitionPrefixer
                 || ($safari !== null && $safari < 17.5)
             ),
             'lightDarkNormalizeAdvancedColor' => !$lightDarkExcluded && $firefox !== null,
+            'keyframesNeedsWebkit' => ($chrome !== null && $chrome <= 42.0)
+                || ($safari !== null && $safari <= 8.0),
+            'keyframesNeedsMoz' => $firefox !== null && $firefox <= 15.0,
         ];
     }
 

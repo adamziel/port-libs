@@ -682,6 +682,30 @@ CSS;
             $prefixer->prefixForTargets('.foo { background: url(foo.png); background: image-set(url("foo.png") 2x, url(bar.png) 1x); }', ['ie' => 11, 'chrome' => 95])
         );
     },
+    'transition prefixer maps upstream keyframes target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@-webkit-keyframes test{0%{opacity:0}to{opacity:1}}@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['safari' => 8])
+        );
+        $t->same(
+            '@-moz-keyframes test{0%{opacity:0}to{opacity:1}}@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['firefox' => 15])
+        );
+        $t->same(
+            '@-webkit-keyframes test{0%{opacity:0}to{opacity:1}}@-moz-keyframes test{0%{opacity:0}to{opacity:1}}@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['chrome' => 42, 'firefox' => 15])
+        );
+        $t->same(
+            '@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@-webkit-keyframes test { from { opacity: 0 } to { opacity: 1 } } @keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['chrome' => 95])
+        );
+        $t->same(
+            '@-webkit-keyframes test{0%{opacity:0}to{opacity:1}}@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@-webkit-keyframes test { from { opacity: 0 } to { opacity: 1 } } @keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['safari' => 8])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {
