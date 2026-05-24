@@ -1,4 +1,4 @@
-# Independent Audit - 2026-05-24T03:38Z
+# Independent Audit - 2026-05-24T03:41Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, every `lanes/*/UPSTREAM_TEST_MANIFEST.json`, current
@@ -14,13 +14,13 @@ treated as non-progress unless they are explicitly temporary oracle tooling.
 ## Current Snapshot
 
 ```text
-UTC sample: 2026-05-24T03:38Z
-HEAD observed during audit: 2179fa42df43 -> a6d18cd76696
-recent commits: a6d18cd7 Record integration hold status; 2179fa42 Refresh independent audit status; 3e5b77fd Record integration hold status
-branch sample: main...origin/main [ahead 676, behind 68]
+UTC sample: 2026-05-24T03:41Z
+HEAD observed during audit: 2179fa42df43 -> a6d18cd76696 -> 66b7b91d917c
+recent commits: 66b7b91d Record integration hold status; 543d4737 Refresh independent audit status; a6d18cd7 Record integration hold status
+branch sample: main...origin/main [ahead 678, behind 68]
 tracked dirty rows: 302
-default status rows including untracked: 12983
-git diff --shortstat: 302 files changed, 154538 insertions(+), 19163 deletions(-)
+default status rows including untracked: 13045
+git diff --shortstat: 302 files changed, 154833 insertions(+), 19171 deletions(-)
 root run by this audit: not started
 ```
 
@@ -43,13 +43,22 @@ owner sampling after the initial gate:
 The no-argument root PID 4143906 exited before owner sampling, so owner evidence
 could not be recovered without inspecting process environments or external logs.
 
-final pgrep -af '^php tools/run-tests\.php( |$)': <no rows>
-final exact no-argument pgrep '^php tools/run-tests\.php$': <no rows>
+pre-commit pgrep -af '^php tools/run-tests\.php( |$)': <no rows>
+
+post-commit/before-finish pgrep -af '^php tools/run-tests\.php( |$)':
+2447 php tools/run-tests.php
+5141 php tools/run-tests.php lanes/syncthing/tests/PullItemUpdaterTest.php ...
+
+post-commit owner evidence:
+2447 claude php tools/run-tests.php
+5141 claude php tools/run-tests.php lanes/syncthing/tests/PullItemUpdaterTest.php ...
 ```
 
 I did not start a root run. The initial required gate matched another
 no-argument root harness, and by the time it cleared `HEAD` had moved to
-`a6d18cd76696` while the checkout remained a broad dirty aggregate.
+`a6d18cd76696` while the checkout remained a broad dirty aggregate. Before
+finish, `HEAD` moved again to `66b7b91d917c` and an external no-argument root
+PID `2447` owned by `claude` was active, so no duplicate was started.
 
 ## Findings
 
@@ -61,10 +70,10 @@ no-argument root harness, and by the time it cleared `HEAD` had moved to
      `lanes/syncthing/lane-status.json:13`.
    - Goal requirement at risk: `goal.md:29`, `goal.md:48`,
      `goal.md:49`, and `goal.md:52`.
-   - Evidence: `HEAD` moved during this audit from `2179fa42df43` to
-     `a6d18cd76696`; recent commits are audit/status-only integration-hold
-     commits; tracked dirty rows are 302; default status rows are 12,983; and
-     shortstat is 302 files changed with 154,538 insertions. Current lane
+   - Evidence: `HEAD` moved during this audit from `2179fa42df43` through
+     `a6d18cd76696` to `66b7b91d917c`; recent commits are audit/status-only integration-hold
+     commits; tracked dirty rows are 302; default status rows are 13,045; and
+     shortstat is 302 files changed with 154,833 insertions. Current lane
      statuses still say handoffs are `pending`, `uncommitted`, or not accepted
      by supervisor/integrator ownership.
 
@@ -78,9 +87,11 @@ no-argument root harness, and by the time it cleared `HEAD` had moved to
    - Goal requirement at risk: `goal.md:48` and `goal.md:49`.
    - Evidence: the initial gate matched root PID `4143906 php
      tools/run-tests.php`; it exited before owner sampling. Later exact root
-     gates were clear, but the checkout had moved and all lane handoffs
-     remained dirty or pending. Focused lane-green records in lane statuses do
-     not establish accepted aggregate evidence for `a6d18cd76696`.
+     gates were briefly clear, but the checkout had moved and all lane
+     handoffs remained dirty or pending. Before finish, another external
+     no-argument root PID `2447` owned by `claude` was active. Focused
+     lane-green records in lane statuses do not establish accepted aggregate
+     evidence for `66b7b91d917c`.
 
 3. **Critical - `porting.html` and `porting-summary.json` are stale
    coordination artifacts.**
@@ -92,7 +103,7 @@ no-argument root harness, and by the time it cleared `HEAD` had moved to
      `goal.md:52`.
    - Evidence: the dashboard still advertises snapshot `79768df0c427`
      generated on `2026-05-23 23:43:54 UTC`, while current `HEAD` is
-     `a6d18cd76696` with newer dirty manifests/statuses. The dashboard reports
+     `66b7b91d917c` with newer dirty manifests/statuses. The dashboard reports
      22 dependency items; `dependency-backlog.json` has 23.
 
 4. **High - dashboard, manifest, and lane-status counts disagree across active
