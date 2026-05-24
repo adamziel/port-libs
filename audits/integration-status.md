@@ -1,5 +1,91 @@
 # Integration Status
 
+## Integration handoff rejection - Pandoc - 2026-05-24 18:35 UTC
+
+No Pandoc lane output was integrated. I read the required coordination state
+(`goal.md`, `progress.md`, `git status --short --branch`, recent
+`git log --oneline --decorate -30`, current `port-*.log` tails for the current
+handoff, dirty Pandoc files, tmux/process ownership, exact root-runner state,
+lane blocker fields, and `dependency-backlog.json`). No lane/status claim was
+accepted, no dashboard artifacts were regenerated, and no support-library row
+was activated.
+
+Selected marker:
+
+- `.tmux-team/tmp/handoff-candidates/port-pandoc.ready`
+  (`timestamp=2026-05-24T18:33:28Z`, reason `no-codex-handoff-grace`).
+- Held with `.tmux-team/tmp/integration-holds/port-pandoc.hold` at
+  `2026-05-24T18:34:11Z`.
+- Pane sample: `port-pandoc` was at `bash` with no child process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `fad2bb259fa7`
+  (`Record Difftastic handoff rejection`).
+- Pandoc tracked shortstat stayed
+  `11 files changed, 31825 insertions(+), 1576 deletions(-)`.
+- Pandoc dirty scope stayed `238` rows including untracked files.
+- Relevant ready/log/hold timestamps stayed unchanged.
+- A pre-hold sample matched active exact root PID
+  `847232 php tools/run-tests.php`; both formal Pandoc polls returned no exact
+  no-argument root runner. I did not start a root harness, did not wait on
+  `.upstream-cache/run-tests.lock`, and did not treat any moving-tree root run
+  as accepted integration evidence because no lane batch was accepted.
+
+Focused evidence reviewed:
+
+- Worker handoff reported a bounded HTML reader raw-HTML-disabled skip slice:
+  `MarkdownReader.php` skips DOM-backed inline/block `style`, generic
+  `script`, and `textarea` raw payloads when `htmlRawHtml/rawHtml` is false,
+  while preserving body-level `math/tex` scripts as native math plain blocks.
+- Worker evidence recorded `php tools/run-tests.php
+  lanes/pandoc/tests/MarkdownReaderTest.php` passing `1` file, `4055`
+  assertions, `0` failures; `jq empty` on the lane manifest/status; lane-local
+  `git diff --check`; and a WordPress example emitting sanitized output without
+  raw `style`/`script`/`textarea` tags.
+- `jq empty` passed during intake for
+  `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/pandoc/lane-status.json`, `dependency-backlog.json`, and
+  `porting-summary.json`.
+- `dependency-backlog.json` remains valid with `37` backlog-only rows. Pandoc's
+  DOC, DOCX/OpenXML, PDF input/output handoff, EPUB, ODT/OpenDocument,
+  templates, citations, math, tables, package containers, XML/HTML,
+  Unicode/charset, JSON/YAML metadata, syntax highlighting, and
+  archive/compression rows remain inactive and unaccepted.
+
+Decision: rejected/deferred, not integrated. The latest raw-HTML-disabled
+handoff itself is narrow, but the dirty lane is still accumulated far beyond
+that claim. The tracked files include broad `LatexWriter.php`,
+`MarkdownReader.php`, `MarkdownWriter.php`, `WordPressBlockWriter.php`, and
+`MarkdownReaderTest.php` changes plus thousands of manifest and note edits, and
+the untracked files include older HTML writer, Native reader/writer, DOCX, ODT,
+EPUB, citation, table, template, math, Markdown, LaTeX, and WordPress handoff
+fixtures/examples. Accepting this batch would conflate many prior unaccepted
+Pandoc slices under one focused test result and would risk advancing rich
+document-conversion claims while their bounded support rows remain only
+candidate/deferred tracker items.
+
+Exact next Pandoc worker task: re-emit only the HTML raw-HTML-disabled skip
+slice as a reduced patch containing the minimal `MarkdownReader.php` changes,
+the focused `MarkdownReaderTest.php` assertions, `upstream-html-raw-disabled-skip.html`,
+`wordpress-native-html-raw-disabled-handoff.php`, and normalized
+manifest/status/notes. Leave previous script/style/doc-noteref work, broad
+writer/native reader additions, DOCX/ODT/EPUB/citation/table/template/math
+artifacts, and unrelated untracked examples for separate reviewable batches.
+Keep the lane blocker led by aggregate root verification and full upstream
+Pandoc runner parity, and keep rich-format dependencies tied to existing
+backlog rows until their activation gates and evidence are accepted.
+
+Current skipped lanes: Dolt remains skipped because both `port-dolt` and
+`port-dolt-runner` are live sessions while Dolt files are dirty and there is no
+coherent implementation-plus-runner handoff. Other dirty lanes remain active or
+broadly accumulated; no non-Pandoc marker was held in this pass.
+
+Next concrete intake target: the next current `.ready` marker after releasing
+the Pandoc hold. If no marker is present, sample the newest owner-free lane
+handoff created by the watchdog and apply the same two-poll gate before
+accepting or rejecting it.
+
 ## Integration handoff rejection - Difftastic - 2026-05-24 18:31 UTC
 
 No Difftastic lane output was integrated. I read the required coordination
