@@ -1,5 +1,43 @@
 # Integration Status
 
+## Integration handoff rejection - markerPDF - 2026-05-24 20:28 UTC
+
+No markerPDF lane output was integrated. I selected the fresh handoff
+candidate `.tmux-team/tmp/handoff-candidates/port-markerpdf.ready`
+(`timestamp=2026-05-24T20:27:16Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-markerpdf` pane was idle at `bash`
+(`pane_pid=1460441`) with no child process. I held only markerPDF with
+`.tmux-team/tmp/integration-holds/port-markerpdf.hold` at
+`2026-05-24T20:28:01Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `b66f0343af9d`.
+- The exact no-argument root gate was clear in both polls; no integration-owned
+  root harness was started because there was no markerPDF batch to accept.
+- markerPDF lane diff and `git status --short -- lanes/markerpdf` were empty in
+  both polls.
+- The latest markerPDF log was unchanged at
+  `.tmux-team/logs/port-markerpdf-supervisor-restart-20260524T200606Z.log`
+  (`mtime=2026-05-24 20:14:42 +0000`, `2326017` bytes). Its tail describes the
+  already accepted ASCIIHex stream-filter slice, not a new dirty handoff.
+
+Decision: rejected as a stale ready marker. The previous ASCIIHex slice was
+already accepted as `5e46840f` and status-refreshed through `b66f0343`; this
+handoff had no lane-scoped dirty files and no new evidence to integrate. The
+markerPDF hold was removed, and the matching ready marker was already gone by
+cleanup time. No dashboard artifacts were regenerated and no public progress
+claim was advanced.
+
+Skipped active or dirty lanes: Difftastic, Dolt, Dolt runner, esbuild,
+Gitoxide, libsqlite, LightningCSS, Pandoc, Quadrable, rclone, Readability, and
+Syncthing remain dirty or independently owned outside this stale markerPDF
+handoff. Dolt remains skipped until implementation and runner evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: libsqlite only after it is owner-free and reduced or
+fully evidenced, otherwise the next owner-free `.ready` marker whose dirty
+scope exactly matches its worker evidence.
+
 ## Integration handoff accepted - markerPDF - 2026-05-24 20:20 UTC
 
 Accepted the owner-free markerPDF handoff from
