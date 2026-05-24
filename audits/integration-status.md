@@ -63683,3 +63683,28 @@ Correct root summaries:
 - `port-iso-markerpdf-literal-escape-20260524T224329Z.ready`: first retryable acceptance attempt passed root with 207 test files, 24035 assertions, 0 failures but was not published because `main` moved; the accepted retry passed root with 207 test files, 24052 assertions, 0 failures.
 - `port-iso-pandoc-noscript-20260524T224329Z.ready`: `php tools/run-tests.php` passed with 207 test files, 24053 assertions, 0 failures.
 - `port-iso-syncthing-route-registry-20260524T224329Z.ready`: `php tools/run-tests.php` passed with 208 test files, 24072 assertions, 0 failures after waiting for exact root PID `2504032` to clear.
+
+## Integration accepted - libsqlite isolated parenthesized JSON RHS - 2026-05-25 00:06 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260524T230804Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260524T230804Z.patch` (`sha256 c594d10ca8578bbc26c1cd46bc3b87382ce3c2d9379990091eca987473bf16b5`, verified).
+Lane/slice/session: `libsqlite` / `libsqlite-json-scalar-rhs-forms-reduced` / `port-libsqlite`.
+
+Apply result: first acceptance attempt on `e96090b8c8e27ac1bfb7d34d900e437088b1429d` passed focused and root checks but was not published because `main` moved to `80bd51d82b96a3eb6d74b75219f8917cf5e71ee2`. This retry started from `80bd51d82b96a3eb6d74b75219f8917cf5e71ee2`; `git apply --check` passed and no three-way repair was needed.
+
+Focused verification in clean retry worktree `/tmp/port-clean-integrator-libsqlite-json-scalar-rhs-forms-20260524T230804Z-retry`:
+
+- `php -l lanes/libsqlite/src/SQLiteCreateIndex.php`: passed, no syntax errors.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, no syntax errors.
+- `php -l lanes/libsqlite/examples/wordpress-json-operator-parenthesized-rhs.php`: passed, no syntax errors.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed with 1 test file, 1836 assertions, 0 failures.
+- `php lanes/libsqlite/examples/wordpress-json-operator-parenthesized-rhs.php`: passed and emitted normalized parenthesized RHS paths/matches for WordPress option JSON preflight.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+- `git diff --check`: passed.
+
+Root verification: exact no-argument root gate `pgrep -af '^php tools/run-tests\.php$'` was clear before launch. `php tools/run-tests.php` passed in the same clean retry worktree with 208 test files, 24079 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component is needed. The patch reuses existing lane-local SQLite JSON operator path normalization and does not activate broader SQL expression evaluation or shared support-library rows. Live-service provider tests were not run.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/examples/wordpress-json-operator-parenthesized-rhs.php`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, `lanes/libsqlite/src/SQLiteCreateIndex.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `audits/integration-status.md`.

@@ -1635,6 +1635,10 @@ return [
         $maxDottedString = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_max_string ON wp_options(option_value ->> max('plugin.enabled', 'plugin.disabled'))");
         $minMixed = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_min_mixed ON wp_options(option_value ->> min('1', 2))");
         $maxArity = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_max_arity ON wp_options(option_value ->> max(2))');
+        $parenthesizedLabel = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_parenthesized_label ON wp_options(option_value ->> ('cache'))");
+        $parenthesizedInteger = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_parenthesized_integer ON wp_options(option_value ->> (1))');
+        $nestedParenthesizedMin = SQLiteCreateIndex::firstJsonTextOperatorExpression("CREATE INDEX idx_json_nested_parenthesized_min ON wp_options(option_value ->> ((min('seo', 'cache'))))");
+        $parenthesizedExpression = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_parenthesized_expression ON wp_options(option_value ->> (1 + 1))');
         $badEmptyBarePath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_empty_key ON wp_options(option_value ->> \'$.\')');
         $badHashReversePath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_reverse ON wp_options(option_value ->> \'$.rules[#-]\')');
         $badUnterminatedQuotedPath = SQLiteCreateIndex::firstJsonTextOperatorExpression('CREATE INDEX idx_json_bad_quote ON wp_options(option_value ->> \'$."unterminated\')');
@@ -1672,6 +1676,10 @@ return [
         $t->same('$."plugin.enabled"', $maxDottedString?->path);
         $t->same(null, $minMixed);
         $t->same(null, $maxArity);
+        $t->same('$.cache', $parenthesizedLabel?->path);
+        $t->same('$[1]', $parenthesizedInteger?->path);
+        $t->same('$.cache', $nestedParenthesizedMin?->path);
+        $t->same(null, $parenthesizedExpression);
         $t->same(null, $badEmptyBarePath);
         $t->same(null, $badHashReversePath);
         $t->same(null, $badUnterminatedQuotedPath);
@@ -1687,6 +1695,9 @@ return [
         $numericLabel = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_numeric_fragment ON wp_options(option_value -> \'2\')');
         $escapedLabel = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_escaped_fragment ON wp_options(option_value -> \'a\x62c\')');
         $emptyQuotedPath = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_empty_fragment ON wp_options(option_value -> \'$.""\')');
+        $parenthesizedLabel = SQLiteCreateIndex::firstJsonValueOperatorExpression("CREATE INDEX idx_json_parenthesized_fragment ON wp_options(option_value -> ('settings.v1'))");
+        $parenthesizedInteger = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_parenthesized_integer_fragment ON wp_options(option_value -> (0))');
+        $parenthesizedExpression = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_parenthesized_expression_fragment ON wp_options(option_value -> (0 + 1))');
         $badHashDigitsPath = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_bad_hash_digits ON wp_options(option_value -> \'$.rules[#9]\')');
         $textOperatorIndex = SQLiteCreateIndex::firstJsonValueOperatorExpression('CREATE INDEX idx_json_enabled ON wp_options(option_value ->> \'enabled\')');
         $ordinaryColumn = SQLiteCreateIndex::firstColumn('CREATE INDEX idx_json_enabled_fragment ON wp_options(option_value -> \'enabled\')');
@@ -1706,6 +1717,9 @@ return [
         $t->same('$."2"', $numericLabel?->path);
         $t->same('$.abc', $escapedLabel?->path);
         $t->same('$.""', $emptyQuotedPath?->path);
+        $t->same('$."settings.v1"', $parenthesizedLabel?->path);
+        $t->same('$[0]', $parenthesizedInteger?->path);
+        $t->same(null, $parenthesizedExpression);
         $t->same(null, $badHashDigitsPath);
         $t->same(null, $textOperatorIndex);
         $t->same(null, $ordinaryColumn);

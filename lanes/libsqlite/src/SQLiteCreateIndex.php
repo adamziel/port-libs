@@ -1172,6 +1172,10 @@ final class SQLiteCreateIndex
         if ($offset >= strlen($text)) {
             return null;
         }
+        $parenthesized = self::readParenthesizedLiteral($text, $offset);
+        if ($parenthesized !== null) {
+            return $parenthesized;
+        }
         $minMax = self::readMinMaxLiteral($text, $offset);
         if ($minMax !== null) {
             return $minMax;
@@ -1196,6 +1200,29 @@ final class SQLiteCreateIndex
         }
 
         return null;
+    }
+
+    /**
+     * @return null|array{0:mixed,1:int}
+     */
+    private static function readParenthesizedLiteral(string $text, int $offset): ?array
+    {
+        if (($text[$offset] ?? null) !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($text, $offset);
+        if ($close === null) {
+            return null;
+        }
+
+        $body = substr($text, $offset + 1, $close - $offset - 1);
+        $literal = self::readLiteral($body, 0);
+        if ($literal === null || trim(substr($body, $literal[1])) !== '') {
+            return null;
+        }
+
+        return [$literal[0], $close + 1];
     }
 
     /**

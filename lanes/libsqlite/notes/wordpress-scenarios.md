@@ -2,6 +2,17 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Operator Parenthesized RHS Index Preflight Scenario
+
+Native JSON operator expression-index preflight now folds parenthesized scalar
+RHS constants for copied `wp_options` JSON operator indexes. The example
+`examples/wordpress-json-operator-parenthesized-rhs.php` checks indexes such
+as `option_value ->> ('cache')`, `option_value ->> (1)`, and
+`option_value -> ('settings.v1')`, then proves the normalized paths can resolve
+index root pages and option rows without the SQLite extension. Arithmetic and
+broader SQL expressions remain unsupported so this does not over-credit full
+SQLite expression evaluation.
+
 ## JSON Operator `min()`/`max()` RHS Index Preflight Scenario
 
 Native JSON operator expression-index preflight now folds reduced SQLite
