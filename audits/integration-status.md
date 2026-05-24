@@ -1,5 +1,71 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T01:16:42Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `porting.html`/`porting-summary.json`, start another
+no-argument root harness, wait on `.upstream-cache/run-tests.lock`, or treat
+focused/runner anecdotes as an accepted integration snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` is `2a7bb6acda6c` on
+  `main...origin/main [ahead 627, behind 68]`. Recent history is still
+  dominated by integration-hold/audit commits rather than accepted lane
+  batches.
+- Dirty scope remains broad: `git status --porcelain=v1 --untracked-files=no`
+  reports `292` tracked rows, `git status --porcelain=v1
+  --untracked-files=all` reports `10449` rows, and `git diff --shortstat`
+  reports `292 files changed, 136003 insertions(+), 15432 deletions(-)`.
+- Dirty lane rows span every priority lane. Tracked-only lane rows are:
+  Gitoxide `54`, LightningCSS `14`, markerPDF `77`, libsqlite `9`,
+  Readability `11`, Pandoc `9`, Quadrable `38`, Syncthing `19`,
+  Difftastic `10`, rclone `8`, Dolt `12`, and esbuild `20`. Including
+  untracked files, lane rows are: Gitoxide `136`, LightningCSS `140`,
+  markerPDF `177`, libsqlite `97`, Readability `188`, Pandoc `68`,
+  Quadrable `84`, Syncthing `153`, Difftastic `238`, rclone `110`,
+  Dolt `111`, and esbuild `27`.
+- `tmux list-sessions` reports `163` sessions. Active primary/reseed/runner
+  sessions remain visible for every priority lane, including `port-dolt`,
+  `port-dolt-reseed-20260524T003206Z`, and `port-dolt-runner`, plus auditor,
+  evaluator, integrator, dashboard, dependency, support-library, and capacity
+  sessions.
+- Exact PHP runner sampling found no no-argument root runner, but did find an
+  active focused runner:
+  `1717394 php tools/run-tests.php lanes/readability/tests`. Because no lane
+  batch was frozen or accepted and focused runners were active, this pass did
+  not start `php tools/run-tests.php`.
+- `.upstream-cache/run-tests.lock` exists as a zero-byte lock file with mtime
+  `2026-05-23 04:36:26.190609916 +0000`; no lock wait occurred in this pass.
+- Recent worker tails still show live or unfinished handoffs rather than
+  completed integration candidates: Difftastic is editing Java declaration
+  mapping, Gitoxide is adding mailmap behavior, rclone is working VFS RC cache
+  refresh/forget behavior, libsqlite is changing WAL checksum error metadata,
+  Quadrable is probing upstream command error parity, and esbuild reports a
+  focused lane pass only. Dolt runner evidence is explicitly still in flight:
+  a 14-file, 369-case local BATS subset is active under the
+  `20260524T010205Z` run.
+- Dolt remains skipped despite reauthorization. The implementation and runner
+  sessions are both live, and there is no frozen coherent
+  implementation-plus-runner handoff.
+- `dependency-backlog.json` is valid JSON with `23` `items`, matching the
+  `23` gated support-library items recorded in `progress.md`. No dependency
+  implementation or support-library activation was accepted, and no
+  rich-format claim was advanced.
+- `porting.html` and `porting-summary.json` remain dirty updater/publisher
+  artifacts. This pass did not regenerate or accept them because the
+  underlying lane-status inputs are active handoffs.
+
+Decision: the tree remains too active for trustworthy lane acceptance. All
+priority lanes were skipped as active or unsafe. The next safe integration
+point is after active lane/reseed/runner/status sessions finish or are
+intentionally frozen, no exact root/focused PHP runners are active, Dolt has a
+coherent implementation-plus-runner handoff, and `HEAD`, tracked status,
+shortstat, runner state, and relevant log mtimes remain unchanged across two
+polls. Then accept one small lane-scoped batch with focused inspection/tests,
+one serialized `php tools/run-tests.php` from that same dirty snapshot,
+`git diff --check`, dashboard regeneration, and a small commit.
+
 ## Integration Hold - 2026-05-24T01:12:40Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
