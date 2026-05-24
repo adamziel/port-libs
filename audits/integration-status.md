@@ -1,5 +1,80 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T04:57:41Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `progress.md`, run `php tools/generate-dashboard.php`, update
+`porting.html` or `porting-summary.json`, or start a no-argument
+`php tools/run-tests.php`.
+
+Snapshot reviewed:
+
+- `HEAD` is `05135080cb2d` on `main...origin/main [ahead 705, behind 68]`.
+  Recent history remains dominated by status/audit commits, including
+  `05135080 Record integration hold status`, `de6bde4b Refresh independent
+  audit status`, and `2197c855 Record integration hold status`.
+- Two samples at `2026-05-24T04:57:23Z` and `2026-05-24T04:57:41Z`
+  kept `HEAD`, branch, total status rows, and tracked status rows stable at
+  `13509` untracked-inclusive rows and `308` tracked dirty rows, but
+  `git diff --shortstat` still moved from
+  `306 files changed, 168037 insertions(+), 24284 deletions(-)` to
+  `307 files changed, 168394 insertions(+), 24293 deletions(-)`. The checkout
+  is still an active aggregate rather than a frozen lane-scoped handoff.
+- Tracked dirty lane scope remains broad: markerPDF `88`, Gitoxide `54`,
+  Quadrable `39`, Syncthing `20`, esbuild `20`, LightningCSS `14`, Dolt `12`,
+  Readability `11`, Difftastic `10`, Pandoc `9`, libsqlite `9`, and rclone
+  `8`, plus dirty `.tmux-team` prompts, scripts, `dependency-backlog.json`,
+  `porting.html`, `porting-summary.json`, and audit files touched by other
+  sessions.
+- `tmux list-sessions | wc -l` reports `189` sessions, and recent
+  `port-*.log` activity remains high (`25` files touched in the first
+  five-minute sample, `23` in the second). Active or recently active lane,
+  runner, watchdog, evaluator, auditor, dashboard, capacity, support-library,
+  and integration contexts are present.
+- The exact PHP runner gate was clear in this pass:
+  `pgrep -af '^php tools/run-tests\.php($| )'` returned no rows. This pass did
+  not start the serialized root harness, did not wait on
+  `.upstream-cache/run-tests.lock`, and did not accept any moving-tree focused
+  or root runner anecdote as an integration checkpoint.
+- Dolt remains skipped despite reauthorization because `port-dolt`,
+  `port-dolt-runner`, and a bounded BATS runner are active. The current Dolt
+  local BATS log advanced from `ok 258 keyless: table export CSV` to
+  `ok 267 keyless: diff deletes from two branches` during this review, so the
+  runner evidence is still in flight and not a coherent handoff.
+- Recent evaluator feedback says the checkout is not an acceptance checkpoint:
+  it records broad dirty work across all lanes, no accepted root-harness result
+  for this snapshot, dashboard/publication inconsistency, backlog-only
+  support-library tracking, and overly optimistic blocker wording.
+- `dependency-backlog.json` parsed as valid JSON with `23` items, matching the
+  latest `progress.md` backlog text. It was not integrated. The dirty
+  `porting-summary.json` still reports `dependencyBacklog.count=22` and
+  source/dashboard commit `79768df0c427`, so dashboard publication remains
+  inconsistent until regenerated from an accepted snapshot.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild. Each has dirty lane files and active or recently active lane, runner,
+watchdog, capacity, evaluator, auditor, dashboard, integrator,
+support-library, or Dolt runner context.
+
+Waiting: a writer/runner/status freeze. The next safe point is after `HEAD`,
+tracked status count, untracked-inclusive status count, shortstat, exact PHP
+runner state, Dolt runner state, capacity queue running count, and relevant log
+mtimes stay stable across two samples, with no exact root or focused PHP
+runner active and Dolt implementation/runner sessions idle.
+
+Risky: accepting any lane now would mix source edits, generated status edits,
+dependency-backlog edits, dashboard publisher evidence, focused PHP helper
+output, scratch-clone clean-head evidence, dirty-tree focused evidence, and
+Dolt runner evidence from different moving intervals.
+
+Next safe integration point: select one quiet lane-scoped batch after the
+freeze, inspect only that batch, run focused lane verification, run the
+serialized no-argument `php tools/run-tests.php` from the same accepted source
+snapshot, record whether it waited on `.upstream-cache/run-tests.lock`, run
+`git diff --check`, regenerate dashboard artifacts only after accepted
+lane/status changes, then commit a small reviewable batch.
+
 ## Integration Hold - 2026-05-24T04:53:03Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
