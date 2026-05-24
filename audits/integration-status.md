@@ -97176,3 +97176,25 @@ PASS wordpress option store hashes unsafe folder IDs and rejects malformed paylo
 208 test files, 24164 assertions, 1 failures
 ```
 
+
+## Integration repair accepted - missing isolated fixture examples - 2026-05-24T23:27:25Z UTC
+
+Repair scope: bounded missing fixture inclusion after accepted isolated rclone/lightningcss patches. The prior rclone root-gated deferrals exposed that `lanes/rclone/examples/wordpress-onedrive-put-create-object.php` was required by `OneDrivePermissionPlannerTest.php` but absent from `main`; `lanes/lightningcss/examples/wordpress-keyframes-prefixer.php` was also present in the accepted patch worktree but not tracked in `main`.
+
+Focused commands: `php -l` on both examples; `php tools/run-tests.php lanes/rclone/tests/OneDrivePermissionPlannerTest.php lanes/lightningcss/tests/TransitionPrefixerTest.php`; `git diff --check`.
+Root command: `php tools/run-tests.php`.
+Root result:
+```
+PASS wordpress option store expires snapshots and deletes stale options before reuse
+PASS folder scan service resumes through a wordpress option checkpoint store
+PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads
+
+208 test files, 24150 assertions, 0 failures
+```
+
+Support-library/dependency-closure decision: no activation; fixture/example inclusion only.
+Live-service exclusions: none run.
+Files staged:
+- lanes/rclone/examples/wordpress-onedrive-put-create-object.php
+- lanes/lightningcss/examples/wordpress-keyframes-prefixer.php
+
