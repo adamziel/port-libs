@@ -1,5 +1,127 @@
 # Integration Status
 
+## Integration handoff rejection - Syncthing - 2026-05-24 22:43 UTC
+
+No Syncthing lane output was integrated in this pass.
+
+Selected marker: `.tmux-team/tmp/handoff-candidates/port-syncthing.ready`.
+Temporary hold: `.tmux-team/tmp/integration-holds/port-syncthing.hold`,
+created for Syncthing-only intake. The selected pane `port-syncthing` was idle
+at `bash` with no child process.
+
+Held poll results:
+
+- Poll 1: `HEAD=2e8fae5cac6a`, Syncthing status rows `279`, tracked shortstat
+  `33 files changed, 14358 insertions(+), 1057 deletions(-)`, and no exact
+  no-argument `php tools/run-tests.php` process.
+- Poll 2 after the hold grace: same `HEAD`, status row count, tracked
+  shortstat, no exact no-argument root process, and `port-syncthing` still idle
+  at `bash`.
+
+Scope review failed. The lane status reports a bounded REST route-registry
+slice with `SystemRouteRegistry.php`, `SystemRouteRegistryTest.php`, and
+`wordpress-system-route-registry.php`, but the current dirty Syncthing tree is
+not isolated to that slice. It contains 279 status rows, 246 untracked
+Syncthing files, and broad accumulated changes across BEP/session, folder
+scan/watch, request exchange, GUI/config/debug/discovery/system/service route
+surfaces, plus very large manifest and WordPress-scenario rewrites. The
+manifest/scenario diffs also record multiple prior unaccepted Syncthing slices,
+so accepting them would advance more than the route-registry evidence actually
+supports.
+
+Decision: rejected/deferred, not integrated. I did not run focused Syncthing
+checks or the serialized no-argument root harness because there was no coherent
+lane-scoped batch to stage. I did not regenerate dashboard artifacts and did
+not advance any Syncthing upstream, full-suite, rich-function, or
+support-library claim. The next safe integration target is a re-emitted
+Syncthing patch isolating only the route-registry source, test, example, and
+minimal status/manifest/notes lines, or a smaller prerequisite batch for the
+existing BEP/session stack with its own evidence.
+
+Skipped active/unsafe lanes: `port-pandoc.ready` remains queued but is broader
+than a safe intake candidate in this pass; its dirty set includes extensive
+rich-format examples/fixtures and tracked writer/reader changes that require a
+separate dependency-granularity review before any rich conversion claim can be
+accepted.
+
+## Integration handoff rejection - Syncthing - 2026-05-24 22:34 UTC
+
+No Syncthing lane output was integrated in this pass.
+
+Selected marker: `.tmux-team/tmp/handoff-candidates/port-syncthing.ready`
+(`timestamp=2026-05-24T22:31:18Z`, `session=port-syncthing`,
+`reason=no-codex-handoff-grace`). Temporary hold:
+`.tmux-team/tmp/integration-holds/port-syncthing.hold`, created at
+`2026-05-24T22:33:30Z` for Syncthing-only intake. The selected pane
+`port-syncthing` was idle at `bash`.
+
+Held poll results:
+
+- Poll 1 at `2026-05-24T22:33:37Z`: `HEAD=2392e5c5100c`, Syncthing status
+  rows `279`, tracked shortstat `33 files changed, 14354 insertions(+), 1057
+  deletions(-)`, and active no-argument root PID `2382476`
+  (`php tools/run-tests.php`).
+- Poll 2 at `2026-05-24T22:33:44Z`: same `HEAD`, Syncthing status rows, and
+  tracked shortstat, with root PID `2382476` still active plus focused
+  Readability and markerPDF test processes.
+
+Scope review failed. The latest Syncthing worker report describes a bounded
+REST route-registry slice, but the current dirty Syncthing tree spans a broad
+accumulated stack: BEP frame/session/keepalive/lifecycle work, folder scan and
+watch state, ignore matching, request exchange, device ID changes, many REST
+route examples, config/debug/discovery/GUI/system/service helpers, and 279
+status rows including large untracked source and test surfaces. Accepting this
+ready marker would sweep in many unreviewed behaviors beyond the focused route
+registry evidence.
+
+Decision: rejected/deferred, not integrated. I did not run focused Syncthing
+checks or a duplicate no-argument root harness because the snapshot is not an
+isolated route-registry batch and root verification was already active. I did
+not regenerate dashboard artifacts and did not advance any Syncthing upstream,
+full-suite, or support-library claim. The next safe integration target is a
+re-emitted Syncthing patch isolating `SystemRouteRegistry` plus its one test,
+one WordPress example, and minimal manifest/status/notes updates, or a smaller
+accepted prerequisite batch for the existing BEP/session stack.
+
+## Integration handoff rejection - libsqlite - 2026-05-24 22:33 UTC
+
+No libsqlite lane output was integrated in this pass.
+
+Selected marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite.ready`
+(`timestamp=2026-05-24T22:30:16Z`, `session=port-libsqlite`,
+`reason=no-codex-handoff-grace`). Temporary hold:
+`.tmux-team/tmp/integration-holds/port-libsqlite.hold`, created at
+`2026-05-24T22:32:20Z` for libsqlite-only intake. The selected pane
+`port-libsqlite` was idle at `bash`.
+
+Held poll results:
+
+- Poll 1 at `2026-05-24T22:32:32Z`: `HEAD=2392e5c5100c`, libsqlite status
+  rows `24`, tracked shortstat `10 files changed, 1241 insertions(+), 26
+  deletions(-)`, and no exact no-argument `php tools/run-tests.php` process.
+- Poll 2 at `2026-05-24T22:32:47Z`: same `HEAD`, libsqlite status rows, and
+  tracked shortstat, but an active no-argument root harness appeared as PID
+  `2381414` (`php tools/run-tests.php`), so no duplicate root run was started.
+
+Scope review failed. The ready marker was not a small reviewable slice against
+the current shared checkout. The libsqlite dirty tree currently contains
+accumulated tracked and untracked work for JSONB validity/error-position,
+JSON/JSONB aggregate output, json_each/json_tree table output, JSON mutation,
+patch, remove, string scalar helpers, and numeric `abs()`. The lane-status
+blocker also describes that multi-slice stack as pending root/integrator
+acceptance. The latest pane tail reported a different min/max JSON-operator
+slice, which is not represented cleanly by the current libsqlite diff.
+
+Decision: rejected/deferred, not integrated. I did not run focused libsqlite
+checks or the serialized no-argument root harness because there was no exact
+isolated snapshot to stage and a root harness started during the held poll.
+I did not regenerate dashboard artifacts and did not advance any SQLite
+upstream/full-suite or support-library claim. The next safe integration target
+is a re-emitted libsqlite patch that isolates one bounded slice, preferably
+`SQLiteNumericFunctions::abs()` or `SQLiteStringFunctions`, with only its
+source/test/example/status/manifest/notes files and focused evidence; larger
+JSON aggregate/table/mutation work should be split into separate batches.
+
 ## Integration accepted - esbuild resolver slice - 2026-05-24 22:33 UTC
 
 Accepted one owner-free non-isolate handoff:
@@ -63158,118 +63280,143 @@ No markerPDF source output was integrated into `refs/heads/main` in this pass.
 - Support-library decision: no activation; this remains lane-local markerPDF CMap fallback decoding.
 - Exclusions: broad dirty-main lane state, markerPDF manifest/status/count changes, RunLengthDecode, ASCII85Decode, WinAnsi/simple-font Differences, OCR/model/table/layout/runtime behavior, and dashboard publication.
 
-## Accepted isolated integration - Gitoxide signature-consuming - 2026-05-24 22:11 UTC
+## Latest integration intake - 2026-05-24 22:36 UTC
 
-Accepted the focused Gitoxide signature-consuming slice from a detached clean
-worktree.
+No lane output was integrated, no lane files were staged, no commit was made,
+and `php tools/generate-dashboard.php` was not run.
 
-- Slice: `gitoxide-signature-consuming`.
-- Base commit: `326ccc3744ac5b1d491ad5e63dfcd6ab0d63cb7a`.
-- Patch path: `.tmux-team/tmp/isolate-gitoxide-signature-consuming-20260524T220041Z.patch`.
-- Isolation audit copied into commit: `audits/isolate-gitoxide-signature-consuming-20260524T220041Z.md`.
-- Focused checks repeated by clean-patch integrator: PHP lint passed for touched Gitoxide PHP files; `php lanes/gitoxide/examples/wordpress-commit-signature-consuming.php` passed; `php tools/run-tests.php lanes/gitoxide/tests/CommitTest.php` passed with 1 test file, 204 assertions, 0 failures; `php tools/run-tests.php lanes/gitoxide/tests` passed with 32 test files, 2659 assertions, 0 failures; bounded offline upstream oracle `cargo test -p gix-actor signature -- --nocapture` passed with 16 tests, 0 failures, 2 filtered out from `/home/claude/port-libs/.upstream-cache/gitoxide`; `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed.
-- Root result: `php tools/run-tests.php` passed in the clean worktree with 204 test files, 23906 assertions, 0 failures.
-- Files staged: `lanes/gitoxide/src/CommitSignature.php`, `lanes/gitoxide/tests/CommitTest.php`, `lanes/gitoxide/fixtures/wordpress-commit-signature-consuming.php`, `lanes/gitoxide/examples/wordpress-commit-signature-consuming.php`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/notes/wordpress-scenarios.md`, `audits/isolate-gitoxide-signature-consuming-20260524T220041Z.md`, and `audits/integration-status.md`.
-- Support-library decision: no activation; this is lane-local Git commit signature parsing/consumption behavior.
-- Exclusions: broad dirty-main Gitoxide discovery, mailmap, protocol, fetch, push, pack, index, config, attributes, URL/refspec, SHA-256, SSH/daemon, credential, unrelated examples/tests, all non-Gitoxide lane state, and dashboard publication.
+Held lane: `port-libsqlite`.
 
-## Accepted isolated integration - LightningCSS page rule formatter - 2026-05-24 22:14 UTC
+Decision: rejected this libsqlite intake as an unsafe mixed handoff.
 
-Slice: `lightningcss-page-rule-formatter`.
+Evidence reviewed:
 
-Base commit: `59f843747d45fe2c0ef70dd7bf167cc785adc743`.
+- Non-isolate ready markers at intake were `port-libsqlite.ready` and
+  `port-quadrable.ready`; no `port-isolate-*` markers were processed.
+- The `port-libsqlite` pane was idle at `bash` with no child process, and the
+  exact no-argument root harness gate `pgrep -af '^php tools/run-tests\.php$'`
+  returned no rows at the first poll.
+- The first poll saw `HEAD` at `f292e50e623a`; the second poll saw `HEAD` move
+  to `bf77aeb5fb86` during the hold window, so there was no stable integration
+  snapshot for this worker to root-test or commit.
+- The libsqlite ready-marker report described a narrow JSON operator
+  `min()`/`max()` RHS handoff, but current `lanes/libsqlite/lane-status.json`
+  described a broader unaccepted abs/string scalar plus JSON aggregate,
+  table-output, patch/remove, mutation, and subtype validity/error-position
+  handoff. The dirty lane files also included tracked JSONB/validity/error
+  position changes and untracked scalar/JSON helper files from other libsqlite
+  slices. Accepting this marker would have mixed scopes and advanced metadata
+  beyond the reported handoff.
+- No serialized no-argument root harness was started or waited on because the
+  lane snapshot was not stable and the handoff scope was inconsistent.
+- `dependency-backlog.json` was not integrated or changed. No support-library
+  row was activated or counted.
 
-Patch path: `.tmux-team/tmp/isolate-lightningcss-page-rule-formatter-20260524T220041Z.patch`.
+Queue action: removed only `.tmux-team/tmp/integration-holds/port-libsqlite.hold`
+and `.tmux-team/tmp/handoff-candidates/port-libsqlite.ready` after rejection.
 
-Focused checks repeated by clean-patch integrator:
+Skipped active/pending lanes: `port-quadrable.ready` remains the next
+non-isolate queued candidate, pending its own hold and two stable polls.
+Other dirty lane files remain unaccepted.
 
-- `git apply --check` against detached clean worktree based at the base commit.
-- `php -l lanes/lightningcss/src/CssFormatter.php`
-- `php -l lanes/lightningcss/tests/CssFormatterTest.php`
-- `php -l lanes/lightningcss/examples/wordpress-page-rule-formatter.php`
-- `php -l lanes/lightningcss/examples/wordpress-page-rule-validation.php`
-- `php lanes/lightningcss/examples/wordpress-page-rule-formatter.php`
-- `php lanes/lightningcss/examples/wordpress-page-rule-validation.php`
-- `php tools/run-tests.php lanes/lightningcss/tests/CssFormatterTest.php`
-- `php tools/run-tests.php lanes/lightningcss/tests`
-- `jq empty lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
+Next worker task for libsqlite: submit one coherent reduced handoff whose ready
+marker, `lane-status.json`, manifest, notes, source, tests, and examples all
+describe the same bounded slice. If the intended slice is JSON `min()`/`max()`
+RHS folding, exclude the later abs/string/JSON aggregate/table/patch/remove/
+mutation files from the handoff and provide focused PHP evidence plus the
+fullest relevant SQLite upstream/spec evidence. If the intended slice is the
+broader JSON/scalar batch, split it into reviewable sub-slices or explicitly
+request review of the combined batch with matching evidence and root
+verification from a frozen snapshot.
 
-Root result: clean-worktree `php tools/run-tests.php` passed with `205 test files, 23911 assertions, 0 failures`; `git diff --check` passed.
+Next integration target: `port-quadrable.ready`, provided the pane remains
+owner-free and `HEAD`, lane files, relevant logs, root-test PID state, and diff
+shortstat are stable across two polls.
 
-Files staged:
+## Latest integration intake - 2026-05-24 22:37 UTC
 
-- `audits/isolate-lightningcss-page-rule-formatter-20260524T220041Z.md`
-- `audits/integration-status.md`
-- `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
-- `lanes/lightningcss/src/CssFormatter.php`
-- `lanes/lightningcss/tests/CssFormatterTest.php`
-- `lanes/lightningcss/examples/wordpress-page-rule-formatter.php`
-- `lanes/lightningcss/examples/wordpress-page-rule-validation.php`
+No lane output was integrated, no lane files were staged, no commit was made,
+and `php tools/generate-dashboard.php` was not run.
 
-Support-library decision: no support-library row activated; paged-media/PDF, source-map, package-resolution, and browser-target support rows remain inactive.
+Reviewed queued lane: `port-quadrable`.
 
-Exclusions: excluded unrelated dirty-main LightningCSS formatter/minifier/prefixer/source-map/package-resolution/browser-target examples, metadata/status prose, and any live-service/provider behavior.
+Decision: rejected this Quadrable intake as an unsafe mixed handoff before
+creating a hold.
 
-## Accepted isolated integration - markerPDF CMap codespace - 2026-05-24 22:17 UTC
+Evidence reviewed:
 
-Slice: `markerpdf-cmap-codespace`.
+- The `port-quadrable` pane was idle at `bash` with no child process, and the
+  exact no-argument root harness gate `pgrep -af '^php tools/run-tests\.php$'`
+  returned no rows.
+- The ready-marker report described a narrow upstream `data.mdb` startup guard
+  slice, but current `lanes/quadrable/lane-status.json` described current work
+  on `QuadbStore::metadataArgumentsCommandOutput()` docopt metadata handling.
+- The same blocker field explicitly said the dirty lane contains unrelated
+  unaccepted slices, including proof transport, noTrack metadata,
+  iterator/checkpoint, external MemStore, sync, raw-LMDB, binary/stdin,
+  path-display, stateful LMDB marker guards, proof-backed patch precedence,
+  stale/empty/lock-only LMDB marker guards, hoytech hex helper evidence,
+  docopt stderr parity/submodule inventory, docopt metadata dispatcher,
+  argv-level metadata short-circuit, option-value precedence, unknown-option
+  full-argv preflight, and unknown short-option preflight work.
+- The lane diff shortstat was correspondingly broad: 43 files changed with
+  13,996 insertions and 2,553 deletions. Accepting the marker would have mixed
+  multiple Quadrable slices and advanced metadata beyond the reported
+  `data.mdb` guard.
+- No serialized no-argument root harness was started or waited on because there
+  was no coherent reduced batch to test.
+- No support-library row was activated or counted.
 
-Base commit: `c65d5e26e68df48c133edefbfb67865106a15dfc`.
+Queue action: removed only
+`.tmux-team/tmp/handoff-candidates/port-quadrable.ready` after rejection.
 
-Patch path: `.tmux-team/tmp/isolate-markerpdf-cmap-codespace-20260524T220041Z.patch`.
+Next worker task for Quadrable: submit a reduced handoff where the ready marker,
+`lane-status.json`, manifest, notes, source, tests, and examples all name the
+same bounded slice. Good candidates are either the `data.mdb` startup guard
+alone or the docopt metadata dispatcher alone, but not the accumulated dirty
+lane pile. Include focused PHP evidence, upstream `make -C
+.upstream-cache/quadrable -r test` evidence, valid JSON metadata, and leave the
+root aggregate gate to the integrator from a frozen snapshot.
 
-Focused checks repeated by clean-patch integrator:
+Next integration target: wait for the next non-isolate owner-free
+`port-<lane>.ready` marker with a coherent reduced diff and two stable polls.
 
-- `git apply --check` against detached clean worktree based at the base commit.
-- `php -l lanes/markerpdf/src/PdfTextExtractor.php`
-- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`
-- `php -l lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-import.php`
-- `php lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-import.php`
-- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`
-- `php tools/run-tests.php lanes/markerpdf/tests`
+## Latest integration intake - 2026-05-24 22:38 UTC
 
-Root result: clean-worktree `php tools/run-tests.php` passed with `205 test files, 23913 assertions, 0 failures`; `git diff --check` passed.
+No markerPDF output was integrated, no lane files were staged, no commit was
+made, and `php tools/generate-dashboard.php` was not run.
 
-Files staged:
+Queued lane observed: `port-markerpdf`.
 
-- `audits/isolate-markerpdf-cmap-codespace-20260524T220041Z.md`
-- `audits/integration-status.md`
-- `lanes/markerpdf/src/PdfTextExtractor.php`
-- `lanes/markerpdf/tests/PdfTextExtractorTest.php`
-- `lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-import.php`
+Decision: left this marker pending for the next intake pass because the root
+gate and `HEAD` were already moving.
 
-Support-library decision: no support-library row activated; `pdf-text-dictionary-core` remains inactive and this CMap behavior remains lane-local.
+Evidence reviewed:
 
-Exclusions: excluded unrelated dirty-main markerPDF stream filters, WinAnsi and Differences decoding, manifest/status/notes count expansions, OCR/model/table/layout/runtime behavior, and live-service/provider behavior.
+- `.tmux-team/tmp/handoff-candidates/port-markerpdf.ready` appeared after the
+  libsqlite and Quadrable rejections.
+- The `port-markerpdf` pane was idle at `bash` with no child process.
+- Current markerPDF lane metadata describes a reduced PDF unknown
+  literal-string escape handoff, with a bounded six-file lane diff
+  (`UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, two notes files,
+  `PdfTextExtractor.php`, and `PdfTextExtractorTest.php`).
+- The exact no-argument root harness gate already matched active root PID
+  `2416152` (`php tools/run-tests.php`) owned by `claude`; this worker did not
+  start a duplicate and did not count that moving-tree root run as acceptance
+  evidence.
+- `HEAD` had also moved again to `fdae6bf75078` during intake sampling, so this
+  was not a frozen snapshot for integration-owned root verification.
+- `jq empty dependency-backlog.json lanes/markerpdf/lane-status.json
+  lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json` passed. The markerPDF blocker
+  correctly leaves broader rich PDF/OCR/table behavior gated behind inactive
+  support rows (`pdf-text-dictionary-core`, `layout-ocr-result-core`, and
+  `table-geometry-core`) and does not count them as accepted support-library
+  progress.
 
-## Accepted isolated integration - Pandoc HTML standalone linebreak - 2026-05-24 22:18 UTC
-
-Slice: `pandoc-html-br`.
-
-Base commit: `5fa9dbe6345e15bf497765d94194bde5eebc8fc9`.
-
-Patch path: `.tmux-team/tmp/isolate-pandoc-html-br-20260524T215758Z.patch`.
-
-Focused checks repeated by clean-patch integrator:
-
-- `git apply --check` against detached clean worktree based at the base commit.
-- `php -l lanes/pandoc/src/MarkdownReader.php`
-- `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
-- `php -l lanes/pandoc/examples/wordpress-native-html-standalone-linebreak-handoff.php`
-- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
-- `php lanes/pandoc/examples/wordpress-native-html-standalone-linebreak-handoff.php`
-
-Root result: clean-worktree `php tools/run-tests.php` passed with `205 test files, 23926 assertions, 0 failures`; `git diff --check` passed.
-
-Files staged:
-
-- `audits/isolate-pandoc-html-br-20260524T215758Z.md`
-- `audits/integration-status.md`
-- `lanes/pandoc/src/MarkdownReader.php`
-- `lanes/pandoc/tests/MarkdownReaderTest.php`
-- `lanes/pandoc/fixtures/upstream-html-standalone-linebreak.html`
-- `lanes/pandoc/examples/wordpress-native-html-standalone-linebreak-handoff.php`
-
-Support-library decision: no support-library row activated; this remains lane-local HTML parsing behavior.
-
-Exclusions: excluded unrelated dirty-main Pandoc manifest/status/notes, writer changes, broad reader/writer examples and fixtures, and any live-service/provider behavior.
+Next integration target: `port-markerpdf.ready` is the best current candidate
+once active root PID `2416152` exits and a new intake can take two stable polls
+of `HEAD`, the markerPDF files, relevant logs, root-test PID state, and diff
+shortstat. The required acceptance path remains focused markerPDF verification,
+`git diff --check`, one serialized no-argument `php tools/run-tests.php` from
+the same frozen snapshot, dashboard regeneration only after acceptance, then a
+small commit or a precise rejection.
