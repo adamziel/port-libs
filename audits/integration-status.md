@@ -98648,3 +98648,14 @@ Root verification: PASS php tools/run-tests.php (208 test files, 24279 assertion
 Support-library/dependency closure: lane-local only; js-package/source-map/dependency backlog rows remain inactive.
 Live-service exclusions: no live-service/provider/credentialed tests run; no secrets read or printed.
 Files staged: lanes/esbuild/examples/wordpress-asset-preflight.php lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/entry.ts lanes/esbuild/fixtures/wordpress-tsconfig-assets/tsconfig.json lanes/esbuild/notes/upstream-inventory.md lanes/esbuild/src/TsConfigPathResolver.php lanes/esbuild/tests/TsConfigPathResolverTest.php  audits/integration-status.md
+
+## Clean-patch integration repair - esbuild missing fixtures - 20260524T235423Z
+
+Repair for accepted marker: .tmux-team/tmp/handoff-candidates/port-esbuild-rebase-20260524T234505Z-30852607.ready
+Patch source: /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-rework-20260524T234438Z.patch
+Reason: bounded missing fixture inclusion; previous accepted commit staged tracked diffs but omitted new tsconfig fixture files required by TsConfigPathResolverTest.
+Focused verification: PASS php tools/run-tests.php lanes/esbuild/tests/TsConfigPathResolverTest.php (1 test files, 27 assertions, 0 failures); PASS git diff --cached --check.
+Root verification: PASS php tools/run-tests.php (208 test files, 24279 assertions, 0 failures).
+Support-library/dependency closure: lane-local fixture repair only; no shared support-library row activated.
+Live-service exclusions: no live-service/provider/credentialed tests run; no secrets read or printed.
+Files staged: lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/@wordpress/tsconfig-base/base.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/@wordpress/tsconfig-base/package.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/wp-tsconfig-preset/configs/blocks.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/wp-tsconfig-preset/package.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/wp-tsconfig-preset/tsconfig.json lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/package-shared/card.ts lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/vendor/wp-element/index.ts  audits/integration-status.md
