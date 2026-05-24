@@ -24,10 +24,14 @@ Marker ownership:
   `.tmux-team/tmp/handoff-candidates/port-readability.ready`,
   `.tmux-team/tmp/handoff-candidates/port-pandoc.ready`, and
   `.tmux-team/tmp/handoff-candidates/port-markerpdf.ready`.
-- You may also inspect isolated patch markers only when the marker text or
-  adjacent audit explicitly tags `group=content-docs` or names one of the
-  owned lanes. Do not remove `port-isolate-*` markers; clean-patch/root
-  acceptance remains serialized.
+- You may also inspect isolated patch markers when the marker text, adjacent
+  metadata, or ready-file key/value fields explicitly tag `group=content-docs`
+  or name one of the owned lanes. Do not rely on filename prefixes: isolated
+  launcher markers may be named `port-isolate-*`, `port-iso-*`, or
+  `port-<lane>-<timestamp>.ready`. Treat any `.ready` file with `lane=<owned
+  lane>` plus `patch=...` and `metadata=...` as an owned isolated patch marker.
+  Do not remove isolated patch markers; clean-patch/root acceptance remains
+  serialized.
 - Ignore every marker for lanes outside this group. Do not create holds for
   outside-group lanes.
 

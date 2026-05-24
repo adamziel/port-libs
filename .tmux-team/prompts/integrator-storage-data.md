@@ -13,7 +13,10 @@ Process only:
 - `.tmux-team/tmp/handoff-candidates/port-dolt.ready`
 - `.tmux-team/tmp/handoff-candidates/port-quadrable.ready`
 - isolated patch markers explicitly tagged `group=storage-data` or naming one
-  of these lanes
+  of these lanes. Do not rely on filename prefixes: isolated launcher markers
+  may be named `port-isolate-*`, `port-iso-*`, or
+  `port-<lane>-<timestamp>.ready`. Treat any `.ready` file with `lane=<owned
+  lane>` plus `patch=...` and `metadata=...` as an owned isolated patch marker.
 
 Dolt remains accepted only when implementation and runner evidence are
 coherent and no Dolt session is actively editing the same files. Do not run the
