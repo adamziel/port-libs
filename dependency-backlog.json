@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-24 09:02:27 UTC",
+  "updated": "2026-05-24 09:19:25 UTC",
   "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
   "items": [
     {
@@ -157,6 +157,25 @@
       "testExpectation": "Require a doctemplates-specific upstream denominator from jgm/doctemplates plus mapped Pandoc writer/template fixtures, PHP pass/fail evidence, rendered output and diagnostics parity, malformed/corrupt template cases including recursive/deep partials and unclosed delimiters, and no progress credit for shelling out to Pandoc, doctemplates, Haskell runners, or external template engines.",
       "reuseNotes": "Keep the rendering core under Pandoc writer/output needs; reuse Unicode, charset, table, and document AST helpers, and expose deterministic template rendering for Markdown, PlainText, LaTeX, HTML, and WordPress writers rather than duplicating per writer.",
       "blocker": "Activate only when Pandoc writer work needs a dependency-specific doctemplates denominator or shared renderer boundary beyond lane-local template slices."
+    },
+    {
+      "id": "pandoc-syntax-highlighting-core",
+      "name": "Pandoc syntax highlighting core",
+      "source": "Pandoc HTML/LaTeX writer evidence in lanes/pandoc/UPSTREAM_TEST_MANIFEST.json and lanes/pandoc/notes/upstream-inventory.md plus Skylighting-style syntax definition and token-style behavior needed for document conversion parity",
+      "lanes": [
+        "pandoc"
+      ],
+      "neededBy": [
+        "pandoc"
+      ],
+      "essentialCapability": "Preserves highlighted code blocks and inline code classes when Pandoc converts technical documents to HTML, LaTeX, Markdown review packets, and WordPress blocks without invoking Pandoc, Haskell, tree-sitter, or external highlighter tools.",
+      "scopeBoundary": "In scope: fixture-backed language aliases, fenced-code info/class mapping, token category output, style/theme lookup, HTML span/class rendering, LaTeX macro/style handoff, unsupported-language diagnostics, and WordPress-safe highlighted code metadata. Out of scope: a full parser-generator runtime, every language grammar, IDE features, browser highlighting, JavaScript highlighter runtimes, broad tree-sitter compatibility, and executing Pandoc/Skylighting/Haskell binaries.",
+      "priority": "high",
+      "status": "candidate",
+      "activationGate": "pandoc-syntax-highlighting-next",
+      "testExpectation": "Require a syntax-highlighting-specific upstream denominator from Pandoc writer fixtures and Skylighting-style syntax definition/style fixtures, with PHP pass/fail evidence for language alias resolution, token category parity, HTML and LaTeX output parity, WordPress code-block metadata, unsupported-language fallbacks, malformed syntax/style definition cases, oversized code resource limits, and as much bounded upstream runner/static evidence as can honestly run. No progress credit for shelling out to Pandoc, Haskell, Skylighting executables, tree-sitter/Cargo parsers, Node/browser highlighters, or external code-formatting tools.",
+      "reuseNotes": "Keep this Pandoc document-output row separate from tree-sitter-grammar-subset, which is for Difftastic structural parsing and selected JS/CSS grammar reuse. Reuse charset-encoding-core, unicode-text-repair-width, and HTML/LaTeX writer helpers; do not make this a generic syntax-highlighting framework until another base lane opens the same bounded denominator.",
+      "blocker": "Activate only after Pandoc opens an HTML/LaTeX/code-output slice that needs highlighted token/style parity beyond the current code-role and code-block attribute handoff."
     },
     {
       "id": "citation-bibliography-csl-core",
