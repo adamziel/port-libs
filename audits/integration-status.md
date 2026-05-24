@@ -63078,3 +63078,19 @@ Next integration target: wait for the clean-patch integrator to handle the
 three current isolate markers, or take the next non-isolate owner-free
 `port-<lane>.ready` marker that appears with two stable polls of lane files,
 logs, `HEAD`, exact root PID state, and diff shortstat.
+
+## Deferred isolated integration - markerPDF CMap codespace - 2026-05-24 22:12 UTC
+
+No markerPDF source output was integrated into `refs/heads/main` in this pass.
+
+- Ready marker processed: `.tmux-team/tmp/handoff-candidates/port-isolate-markerpdf-cmap-codespace.ready`.
+- Patch path: `.tmux-team/tmp/isolate-markerpdf-cmap-codespace-20260524T220041Z.patch`.
+- Audit path: `audits/isolate-markerpdf-cmap-codespace-20260524T220041Z.md`.
+- First clean attempt base: `ef33da781577c622a2b25bfb1886f441aa439393`; clean commit candidate `aeeb56a9952d497e262172e2f3029ae1c8c90305` was not published because `refs/heads/main` moved to `7b9664ea9b8e1970712fa0982219c13706987da2` before atomic update.
+- Required retry base: `7b9664ea9b8e1970712fa0982219c13706987da2`; clean commit candidate `8e9aa45d6c105c72786b1d31ab2e195e6cc229dc` was not published because `refs/heads/main` moved again to `b530b4cf4d81374d52a2d5f0226e66820a83be2c` before atomic update.
+- Repeated focused checks in the retry clean worktree: PHP lint for `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, and `wordpress-pdf-cmap-codespace-import.php` passed; the WordPress example emitted `WordPress Blocks` with external execution flags false; `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed with 1 test file, 26 assertions, 0 failures; `php tools/run-tests.php lanes/markerpdf/tests` passed with 47 test files, 959 assertions, 0 failures.
+- Retry root result: `php tools/run-tests.php` passed in the clean worktree with 204 test files, 23895 assertions, 0 failures.
+- Retry whitespace result: `git diff --check` passed before the retry clean commit candidate.
+- Decision: deferred after the one allowed retry because `main` moved twice before atomic `update-ref`; no source files, isolation audit, dashboard files, or support-library rows were accepted.
+- Support-library decision: no activation; this remains lane-local markerPDF CMap fallback decoding.
+- Exclusions: broad dirty-main lane state, markerPDF manifest/status/count changes, RunLengthDecode, ASCII85Decode, WinAnsi/simple-font Differences, OCR/model/table/layout/runtime behavior, and dashboard publication.
