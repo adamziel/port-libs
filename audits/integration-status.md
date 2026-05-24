@@ -1,5 +1,52 @@
 # Integration Status
 
+## Integration handoff rejection - markerPDF - 2026-05-24 22:47 UTC
+
+No markerPDF lane output was integrated in this pass.
+
+Selected marker: `.tmux-team/tmp/handoff-candidates/port-markerpdf.ready`
+(`timestamp=2026-05-24T22:45:45Z`, `session=port-markerpdf`,
+`reason=no-codex-handoff-grace`). Temporary hold:
+`.tmux-team/tmp/integration-holds/port-markerpdf.hold`, created for
+markerPDF-only intake after the first safety sample. The selected shared
+checkout pane `port-markerpdf` was idle at `bash`, but markerPDF was not
+owner-free overall: `port-iso-markerpdf-literal-escape` had an active child
+process (`node /usr/local/bin/codex ...` in a detached markerPDF isolate
+worktree).
+
+Safety samples:
+
+- Initial sample: active no-argument root PID `2459563`
+  (`php tools/run-tests.php`), markerPDF tracked shortstat `6 files changed,
+  1236 insertions(+), 92 deletions(-)`, and 13 untracked markerPDF WordPress
+  examples.
+- Recheck before decision: `HEAD=87171c01999a`, total status rows `25183`,
+  markerPDF tracked shortstat still `6 files changed, 1236 insertions(+), 92
+  deletions(-)`, and active no-argument root PIDs `2460970` and `2461658`.
+
+Scope review failed. The lane status describes a reduced indirect stream
+`/Filter` and `/DecodeParms` handoff, but the current shared markerPDF diff is
+not isolated to that slice. It includes accumulated untracked examples for
+ASCII85, CMap fallback, Differences, Flate predictor, indirect encoding,
+indirect filter, inline image, literal escape, name escape, RunLength,
+ToUnicode, UTF-16 literal, and WinAnsi behavior, plus broad manifest/status
+updates that advance many prior unaccepted text-extraction edges. Accepting
+this marker would sweep in more than the worker evidence for the latest
+indirect-filter slice supports.
+
+Decision: rejected/deferred, not integrated. I did not run focused markerPDF
+checks or a duplicate no-argument root harness because markerPDF still had an
+active isolate worker and exact root harnesses were already running from a
+moving tree. I did not regenerate dashboard artifacts and did not advance any
+markerPDF upstream, full-suite, rich-function, or support-library claim.
+
+Next safe integration target: re-emit markerPDF as one isolated patch containing
+only the indirect stream `/Filter`/`/DecodeParms` source, test, one WordPress
+example, and minimal manifest/status/notes lines, after the markerPDF isolate
+worker is idle and the root-process gate is clear. If the older CMap/font/filter
+examples are still desired, split them into separate clean-patch or lane-local
+batches with their own focused evidence and support-library references.
+
 ## Integration handoff rejection - libsqlite - 2026-05-24 22:45 UTC
 
 No libsqlite lane output was integrated in this pass.
