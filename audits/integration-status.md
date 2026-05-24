@@ -1,5 +1,45 @@
 # Integration Status
 
+## Integration handoff rejection - Gitoxide - 2026-05-24 22:00 UTC
+
+No Gitoxide lane output was integrated in this pass.
+
+The selected marker was
+`.tmux-team/tmp/handoff-candidates/port-gitoxide.ready` with
+`timestamp=2026-05-24T21:56:49Z`, `session=port-gitoxide`, and
+`reason=no-codex-handoff-grace`. I held only `port-gitoxide` with
+`.tmux-team/tmp/integration-holds/port-gitoxide.hold`.
+
+Two held polls were stable:
+
+- Poll 1: `HEAD=30f1c09c9059`, Gitoxide status rows `239`, status hash
+  `77f580b26d768feffde9f9dee343aa18dcf8705b7400f08b4052bf8a8a72835a`,
+  tracked shortstat `61 files changed, 7226 insertions(+), 559 deletions(-)`,
+  selected lane pane idle at `bash`, and no exact no-argument
+  `php tools/run-tests.php` process.
+- Poll 2: `HEAD=30f1c09c9059`, the same Gitoxide status rows, status hash,
+  and tracked shortstat, selected lane pane idle at `bash`, and no exact
+  no-argument `php tools/run-tests.php` process.
+
+Scope review failed. The lane status claims a path-limited
+`gix-actor` signature-consuming slice touching `CommitSignature.php`,
+`CommitTest.php`, one fixture, one example, manifest/status, and notes.
+The actual Gitoxide dirty tree is not that slice: it contains 61 tracked
+files plus a large untracked Gitoxide surface spanning accumulated
+repository-discovery, mailmap, actor identity/signature, protocol v2,
+receive-pack/SSH, pack/index/object database, config, attributes, index,
+URL/refspec, and many WordPress examples/fixtures/tests. Accepting this ready
+marker would integrate multiple unaccepted behaviors and metadata claims
+beyond the focused evidence.
+
+Decision: rejected/deferred, not integrated. I did not run focused Gitoxide
+checks or a no-argument root harness because there was no exact isolated
+snapshot to stage. I did not regenerate dashboard artifacts and did not
+advance any upstream/full-suite parity claim. The `gix-actor`
+signature-consuming behavior may be reconsidered only as an isolated patch or
+after the prerequisite accumulated Gitoxide stack is accepted in coherent
+reviewable batches.
+
 ## Integration handoff rejection - Syncthing - 2026-05-24 21:56 UTC
 
 No Syncthing lane output was integrated in this pass.
