@@ -2675,6 +2675,34 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer bracketed span attributes' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Reviewer span: '),
+                new AstNode('span', [
+                    'id' => 'migration-span',
+                    'classes' => ['review-span', 'wp-import'],
+                    'attributes' => [
+                        'data-source' => 'batch-42',
+                        'title' => 'Migration span',
+                    ],
+                ], [
+                    new AstNode('emph', [], [$text('urgent')]),
+                    $text(' source flag '),
+                    new AstNode('link', ['url' => '/wp-admin/post.php?post=42&action=edit'], [$text('edit')]),
+                ]),
+                $text(' and empty attrs '),
+                new AstNode('span', [], [$text('plain')]),
+                $text('.'),
+            ]),
+        ]);
+
+        $t->same(
+            'Reviewer span: [*urgent* source flag [edit](/wp-admin/post.php?post=42&action=edit)]{#migration-span .review-span .wp-import data-source="batch-42" title="Migration span"} and empty attrs plain.',
+            (new MarkdownWriter())->write($document)
+        );
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

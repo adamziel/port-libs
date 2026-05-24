@@ -318,6 +318,7 @@ final class MarkdownWriter
             'code' => $this->renderCode($node),
             'emph' => $this->delimitInlineContent('*', '*', $this->renderInlines($node->children)),
             'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
+            'span' => $this->renderSpan($node),
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
             'citation' => (string) $node->attr('text', $this->renderInlines($node->children)),
@@ -402,6 +403,14 @@ final class MarkdownWriter
     private function renderCode(AstNode $node): string
     {
         return '`' . str_replace('`', '\\`', (string) $node->attr('text', '')) . '`' . $this->renderLinkAttributes($node);
+    }
+
+    private function renderSpan(AstNode $node): string
+    {
+        $content = $this->renderInlines($node->children);
+        $attrs = $this->renderLinkAttributes($node);
+
+        return $attrs === '' ? $content : '[' . $content . ']' . $attrs;
     }
 
     /**
@@ -992,6 +1001,7 @@ final class MarkdownWriter
             'text',
             'emph',
             'strong',
+            'span',
             'softbreak',
             'linebreak',
             'code',

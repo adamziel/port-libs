@@ -79,6 +79,26 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer span marker: ']),
+        new AstNode('span', [
+            'id' => 'migration-span',
+            'classes' => ['review-span'],
+            'attributes' => [
+                'data-source' => 'batch-42',
+                'title' => 'Migration span',
+            ],
+        ], [
+            new AstNode('emph', [], [new AstNode('text', ['text' => 'urgent'])]),
+            new AstNode('text', ['text' => ' source flag ']),
+            new AstNode('link', [
+                'url' => '/wp-admin/post.php?post=42&action=edit',
+            ], [
+                new AstNode('text', ['text' => 'edit']),
+            ]),
+        ]),
+        new AstNode('text', ['text' => '.']),
+    ]),
+    new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
 ]);
