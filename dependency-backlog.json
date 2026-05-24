@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-24 09:55:45 UTC",
-  "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
+  "updated": "2026-05-24 10:51:38 UTC",
+  "policy": "Gate optional dependency ports behind base-tool blockers; a row becomes active only when a base lane is green enough for the next rich-function slice or is blocked on that component. Port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with mapped fixtures, PHP pass/fail counts, malformed/corrupt cases where relevant, and explicit non-goals; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
   "items": [
     {
       "id": "shared-zip-package-core",
@@ -15,11 +15,11 @@
       "essentialCapability": "Unlocks DOCX, EPUB, ODT, benchmark archive, and archive-provider package inspection without zip shell-outs or external package tools.",
       "scopeBoundary": "In scope: central directory parsing, stored/deflated entries, CRC checks, path safety, deterministic writing, and package metadata hooks. Out of scope: encrypted archives, application launchers, full office suites, zip/unzip shell-outs, and broad archive applications.",
       "priority": "critical",
-      "activationGate": "pandoc-rich-format-next-or-markerpdf-benchmark-archive-next-or-rclone-archive-provider-next",
-      "testExpectation": "Require PKWARE APPNOTE plus mapped Pandoc DOCX/EPUB/ODT package fixtures, markerPDF benchmark archive fixtures, PHP pass/fail evidence for read/list/extract/write/readback, CRC and path-safety checks, malformed central directory/bad CRC/duplicate/traversal/missing-entry/unsupported-method cases, and no progress credit for zip/unzip shell-outs or external package tools.",
+      "activationGate": "pandoc-docx-openxml-package-next-or-pandoc-epub-package-next-or-pandoc-odt-package-next-or-markerpdf-benchmark-archive-next-or-rclone-archive-provider-next",
+      "testExpectation": "Require an upstream/spec denominator from PKWARE APPNOTE plus mapped Pandoc DOCX/EPUB/ODT package fixtures, markerPDF benchmark archive fixtures, PHP pass/fail evidence for read/list/extract/write/readback, CRC and path-safety checks, malformed central directory/bad CRC/duplicate/traversal/missing-entry/unsupported-method cases, and no progress credit for zip/unzip shell-outs or external package tools.",
       "reuseNotes": "Use one container layer for DOCX, EPUB, ODT, markerPDF benchmark archives, and later archive-provider work; keep ZIP package specifics separate from archive-compression-streams.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only for a concrete package/container blocker in Pandoc DOCX/EPUB/ODT, markerPDF benchmark archives, or rclone archive-provider work; do not use this broad row to activate every rich-format dependency at once."
     },
     {
       "id": "xml-html5-dom-core",
@@ -91,7 +91,7 @@
       "testExpectation": "Require Pandoc DOCX reader/writer fixtures plus OpenXML/OPC package specifications, PHP pass/fail evidence for semantic AST parity over paragraphs, notes, review spans, tables, styles, media relationships, package readback, WordPress output fixtures, malformed relationship/content-type/XML/media/numbering/style/corrupt-ZIP cases, and no progress credit for Microsoft Word, LibreOffice/OpenOffice, Pandoc, office converter subprocesses, or whole-application automation.",
       "reuseNotes": "Build after shared-zip-package-core and xml-html5-dom-core have the needed reader evidence; share relationship and media helpers with EPUB and ODT.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only when Pandoc opens a DOCX/OpenXML reader or writer slice beyond lane-local fixture notes; require shared ZIP/XML support evidence if package or relationship parsing becomes the blocker before claiming rich DOCX conversion."
     },
     {
       "id": "legacy-doc-cfb-core",
@@ -107,7 +107,7 @@
       "testExpectation": "Require Microsoft MS-CFB/MS-DOC specifications plus mapped Pandoc or generated legacy .doc fixtures, PHP pass/fail evidence for CFB stream traversal, text extraction, fixture-backed paragraph/list/table handoff, metadata, WordPress block output, corrupt FAT/MiniFAT/missing-stream/invalid-FIB/piece-table/truncated/encrypted cases, and no progress credit for Word, LibreOffice/OpenOffice, antiword/wv, Pandoc, converter subprocesses, embedded OLE execution, or VBA.",
       "reuseNotes": "Reuse charset/Unicode repair, table geometry, and shared Pandoc AST helpers; keep this separate from docx-openxml-core because .doc is CFB/binary Word, not ZIP/OpenXML.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only when Pandoc opens a legacy .doc import slice or is blocked on CFB/MS-DOC parsing; keep DOCX/OpenXML and office-suite/converter behavior outside this row."
     },
     {
       "id": "epub3-package-core",
@@ -125,7 +125,7 @@
       "testExpectation": "Require W3C EPUB 3 specifications plus mapped Pandoc EPUB fixtures and any Readability article-package export fixtures, PHP pass/fail evidence for package parse/write/readback, spine/nav ordering, metadata/assets parity, XHTML handoff into AST/blocks, missing OPF/container/broken refs/duplicate IDs/bad XML/corrupt-ZIP cases, and no progress credit for ebook converter shell-outs, external validators as progress, DRM engines, browser renderers, or store applications.",
       "reuseNotes": "Reuse ZIP, XML/HTML, charset, Unicode, and media helpers shared with DOCX/ODT and Readability.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only when Pandoc or Readability opens an EPUB package/spine slice or is blocked on EPUB package parsing/writing; shared ZIP and XML/HTML evidence must stay explicit before rich EPUB conversion credit."
     },
     {
       "id": "odf-open-document-core",
@@ -141,7 +141,7 @@
       "testExpectation": "Require OASIS OpenDocument specifications plus mapped Pandoc ODT fixtures, PHP pass/fail evidence for semantic AST parity over text, lists, tables, refs, styles, images, package readback, WordPress output, missing manifest/content/style parts, bad namespaces, dangling image refs, corrupt ZIP, encrypted-package cases, and no progress credit for LibreOffice/OpenOffice applications, macro execution, spreadsheet/presentation expansion, page-layout engines, or converter shell-outs.",
       "reuseNotes": "Build on shared ZIP/XML plus table geometry and Unicode width helpers.",
       "status": "deferred",
-      "blocker": "none"
+      "blocker": "Activate only when Pandoc opens an ODT/OpenDocument text package slice or is blocked on OpenDocument package/XML/table/media mapping; LibreOffice/OpenOffice and converter shell-outs remain non-goals."
     },
     {
       "id": "pandoc-doctemplates-core",
@@ -255,20 +255,20 @@
     },
     {
       "id": "pdf-page-render-plan-core",
-      "name": "PDF page render and crop planning core",
-      "source": "markerPDF marker/images/extract.py, marker_app.py preview, and debug render evidence in lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json",
+      "name": "PDF page layout and render-planning core",
+      "source": "markerPDF marker/images/extract.py, page/layout/debug render evidence, marker_app.py preview contracts, and PDF page tree/page box specifications",
       "neededBy": [
         "markerpdf",
         "pandoc"
       ],
-      "essentialCapability": "Provides deterministic page boxes, crop payloads, image placeholders, and preview metadata for OCR, tables, equations, and WordPress media review.",
-      "scopeBoundary": "In scope: page count, page boxes, crop rectangles, renderer callback contracts, image placeholder naming, debug overlay plans, and safe image metadata. Out of scope: native PDFium, PIL, Ghostscript, or full raster engine ports; actual rendering may be supplied by bounded adapters.",
+      "essentialCapability": "Provides deterministic PDF page/layout contracts, page boxes, crop payloads, image placeholders, and preview metadata for OCR, tables, equations, and WordPress media review.",
+      "scopeBoundary": "In scope: PDF page tree traversal, page count, page boxes, rotations, crop rectangles, renderer callback contracts, image placeholder naming, debug overlay plans, and safe image metadata. Out of scope: native PDFium, PIL, Ghostscript, Poppler, or full raster engine ports; actual rendering may be supplied by bounded adapters.",
       "priority": "high",
-      "activationGate": "markerpdf-ocr-next",
-      "testExpectation": "Require a PDF page/render-planning upstream/spec denominator with mapped page/crop/debug fixtures, PHP pass/fail evidence, supplied-renderer contract tests, malformed/corrupt page-box cases, explicit live-raster blockers, and no progress credit for PDFium/PIL/Ghostscript/Poppler or external render engines.",
-      "reuseNotes": "Share page geometry and media handoff with pdf-text-dictionary-core, table-geometry-core, and layout-ocr-result-core.",
+      "activationGate": "markerpdf-page-layout-next-or-markerpdf-ocr-page-plan-next-or-pandoc-pdf-page-handoff-next",
+      "testExpectation": "Require a PDF page/layout/render-planning upstream/spec denominator with mapped page-tree, page-box, crop, debug, and supplied-renderer fixtures, PHP pass/fail evidence, page count/rotation/crop parity, malformed/corrupt page tree, missing MediaBox, out-of-range page ref, cyclic page tree, bad crop, and broken renderer-result cases, explicit live-raster blockers, and no progress credit for PDFium/PIL/Ghostscript/Poppler or external render engines.",
+      "reuseNotes": "Share page geometry and media handoff with pdf-text-dictionary-core, table-geometry-core, and layout-ocr-result-core; keep actual rasterization behind supplied renderer callbacks.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only when markerPDF opens a page/layout, OCR page-planning, or table/equation crop blocker, or when Pandoc opens an explicit PDF page handoff; do not treat PDFium/PIL/Ghostscript/Poppler rendering as dependency-port progress."
     },
     {
       "id": "layout-ocr-result-core",
@@ -280,29 +280,29 @@
       "essentialCapability": "Allows scanned or garbled PDFs to enter the same structured document path through OCR language, polygon, line, and page-result handoffs.",
       "scopeBoundary": "In scope: language maps, OCR job planning, hOCR/TSV/plain-result ingestion, supplied Surya-style layout/OCR predictions, polygon scaling, stats, and page replacement. Out of scope: porting Tesseract, OCRMyPDF, Ghostscript, Torch, Surya, Texify, or model inference.",
       "priority": "critical",
-      "activationGate": "markerpdf-ocr-next",
-      "testExpectation": "Require an OCR/layout-result upstream/spec denominator with mapped supplied OCR/layout fixtures, PHP pass/fail evidence, language-map and polygon/page-result tests, malformed/corrupt result cases, explicit full-runner blockers, and no progress credit for Tesseract/OCRMyPDF/Ghostscript/Surya/Torch/Texify or external OCR/model engines.",
-      "reuseNotes": "Uses PDF geometry and Unicode repair; output should feed markerPDF and later any Pandoc PDF import pathway.",
+      "activationGate": "markerpdf-ocr-layout-result-next-or-markerpdf-scanned-pdf-handoff-next",
+      "testExpectation": "Require an OCR/layout-result upstream/spec denominator with mapped supplied hOCR/TSV/plain text, Surya-style layout/OCR prediction, language-map, polygon, and page-result fixtures, PHP pass/fail evidence, malformed/corrupt result cases including bad polygons, missing page refs, invalid language tags, impossible confidences, replacement-text conflicts, and explicit full-runner blockers. No progress credit for Tesseract/OCRMyPDF/Ghostscript/Surya/Torch/Texify or external OCR/model engines.",
+      "reuseNotes": "Use PDF geometry and Unicode repair; output should feed markerPDF and later any Pandoc PDF import pathway while keeping OCR/model execution as caller-supplied or external evidence only.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only when markerPDF opens scanned/garbled PDF handoff work that needs supplied OCR/layout-result ingestion; OCR engine ports, model stacks, and service wrappers remain explicit non-goals."
     },
     {
       "id": "table-geometry-core",
-      "name": "Table geometry and formatter core",
-      "source": "markerPDF tabled-pdf evidence in lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json plus Pandoc table fixture evidence",
+      "name": "Table extraction, geometry, and formatter core",
+      "source": "markerPDF tabled-pdf/table extraction evidence in lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json plus Pandoc table fixture evidence",
       "neededBy": [
         "markerpdf",
         "pandoc",
         "readability"
       ],
-      "essentialCapability": "Turns PDF, HTML, DOCX/ODT/Markdown, and article tables into usable Markdown, HTML, AST, and WordPress table blocks with spans and alignment preserved.",
+      "essentialCapability": "Turns PDF table extraction results plus HTML, DOCX/ODT/Markdown, and article tables into usable Markdown, HTML, AST, and WordPress table blocks with spans and alignment preserved.",
       "scopeBoundary": "In scope: bbox row/column assignment, spanning, multiline merge, column clustering, Unicode-width Markdown padding, CSV/HTML/Markdown formatting, and AST handoff. Out of scope: spreadsheet engines, CV table-detection inference, Pandoc shell-outs, and renderer-based layout reconstruction.",
       "priority": "high",
       "activationGate": "markerpdf-table-next-or-pandoc-table-rich-next-or-readability-table-cleanup-next",
-      "testExpectation": "Require markerPDF/tabled table evidence, Pandoc table fixtures, selected HTML table semantics for Readability, and mapped WordPress table outputs, with PHP pass/fail evidence for row/column/span parity, formatter parity, Unicode width alignment, Pandoc AST table read/write, Readability retained data-table cleanup, WordPress block output, overlapping/zero-area/gapped/malformed-rowspan-colspan/invalid-Markdown/supplied-detector cases, and no progress credit for CV table-detection model ports, spreadsheet engines, Pandoc shell-outs, or renderer-based layout reconstruction.",
+      "testExpectation": "Require a table extraction/geometry upstream/spec denominator with mapped markerPDF/tabled table evidence, Pandoc table fixtures, selected HTML table semantics for Readability, and mapped WordPress table outputs, with PHP pass/fail evidence for row/column/span parity, formatter parity, Unicode width alignment, Pandoc AST table read/write, Readability retained data-table cleanup, WordPress block output, overlapping/zero-area/gapped/malformed-rowspan-colspan/invalid-Markdown/supplied-detector cases, and no progress credit for CV table-detection model ports, spreadsheet engines, Pandoc shell-outs, or renderer-based layout reconstruction.",
       "reuseNotes": "Share row/column and width helpers across markerPDF, Pandoc, and Readability.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only when markerPDF, Pandoc, or Readability opens a table extraction/geometry/formatting blocker that would otherwise duplicate lane-local table logic; model-based table detection and spreadsheet engines remain non-goals."
     },
     {
       "id": "unicode-text-repair-width",
@@ -483,6 +483,22 @@
       "blocker": "Syncthing is green enough for bounded BEP wire slices, but activate only when a concrete serialization/unknown-field/protocol fixture is selected; keep protoc/compiler/gRPC behavior out of scope."
     },
     {
+      "id": "qr-code-matrix-core",
+      "name": "QR code matrix and image contract core",
+      "source": "Syncthing /qr route next-task evidence in lanes/syncthing/lane-status.json plus ISO/IEC 18004 QR Code behavior needed for bounded route-body parity",
+      "neededBy": [
+        "syncthing"
+      ],
+      "essentialCapability": "Allows Syncthing GUI/REST QR route bodies and WordPress-safe device-pairing previews to be generated or validated without shelling out to QR tools or porting browser/mobile scanner applications.",
+      "scopeBoundary": "In scope: byte/alphanumeric payload encoding where fixture-backed, version/error-correction selection, mask scoring, matrix module output, deterministic SVG/PNG-or-supplied-image result contracts, MIME metadata, and redacted WordPress preview summaries. Out of scope: camera/scanner apps, browser UI, mobile pairing applications, zbar/libqrencode/qrencode shell-outs, secret-bearing device-pairing flows, live network pairing, and broad barcode suites.",
+      "priority": "medium",
+      "activationGate": "syncthing-qr-route-next",
+      "testExpectation": "Require a QR-specific upstream/spec denominator from ISO/IEC 18004 or a bounded public vector set plus mapped Syncthing /qr route fixtures, PHP pass/fail evidence for payload encoding, error-correction level, mask/matrix parity, SVG/PNG-or-supplied-image contracts, MIME metadata, redacted WordPress output, malformed overlong/invalid-byte/unsupported-mode/bad-ecc/bad-version/broken-renderer-result cases, and no progress credit for qrencode/libqrencode/zbar shell-outs, browser/mobile scanner apps, live pairing services, camera access, or secret-bearing device IDs.",
+      "reuseNotes": "Keep this separate from protobuf-wire-core and provider-metadata-normalization-core; QR output may display sanitized pairing metadata, but device identity, trust, and protocol semantics stay in Syncthing lane adapters.",
+      "status": "blocked",
+      "blocker": "Blocked until the Syncthing `/qr/` route-body slice is accepted by the integrator/evaluator from a frozen snapshot. Current evidence is lane-local only: the QR implementation reports green focused/full lane PHP and sanitized WordPress output, but the lane status still records `latestCommit` as pending and root/integrator acceptance is absent. Do not mark active or count support-library QR progress from unaccepted lane-local code, QR shell-outs, browser/mobile scanner applications, live pairing flows, or raw/secret-bearing device IDs."
+    },
+    {
       "id": "checksum-hash-suite",
       "name": "Checksum and hash suite",
       "source": "rclone fs/hash evidence, gitoxide object evidence, Dolt content-addressed storage evidence, quadrable BLAKE2s evidence, Syncthing block evidence, markerPDF benchmark/package integrity evidence, and OneDrive QuickXorHash evidence in lane manifests",
@@ -525,6 +541,22 @@
       "testExpectation": "Require SQLite file-format specs and libsqlite evidence, Dolt/prolly storage fixture evidence, and Quadrable raw LMDB/dump/restore oracle evidence tracked as separate sub-denominators, with PHP pass/fail counts for each selected subfamily, row/chunk/page/key/value parity, binary fixture readback, truncated cell/page/chunk, invalid varint, inconsistent length, bad checksum, impossible key ordering, overflow ref, cycle, and non-UTF-8/binary preservation cases. No progress credit for sqlite3, dolt, mysql, LMDB tools, database servers, network services, or a full storage engine hidden inside the support row.",
       "reuseNotes": "Share only byte/codec primitives and ordering helpers; keep SQL expression semantics in sql-expression-semantics-core and each storage engine's policy in lane adapters.",
       "blocker": "Activate only when Dolt, libsqlite, or Quadrable opens one exact storage-codec gate rather than lane-local row/page/proof slices."
+    },
+    {
+      "id": "mysql-wire-protocol-core",
+      "name": "MySQL wire protocol packet core",
+      "source": "Dolt MySQL-compatible behavior goal, Dolt/go-mysql-server protocol evidence, and future bounded sql-server/client fixture needs recorded in the Dolt lane",
+      "neededBy": [
+        "dolt"
+      ],
+      "essentialCapability": "Provides a bounded native packet/result-set contract for Dolt MySQL-compatible behavior without porting a full MySQL server, client, or network service.",
+      "scopeBoundary": "In scope: packet framing, sequence IDs, capability flags, handshake and auth-result fixtures with fake credentials, length-encoded integers/strings, OK/error/EOF/result-set packets, column metadata, prepared-statement packet shapes where fixture-backed, and deterministic diagnostics. Out of scope: full SQL engines, query planners, storage engines, TLS/auth implementations, live mysqld/Dolt/sql-server processes, network listeners, credential stores, ORM/application suites, replication, and shelling out to mysql/dolt clients.",
+      "priority": "medium",
+      "activationGate": "dolt-mysql-wire-protocol-next",
+      "testExpectation": "Require a MySQL wire-protocol-specific upstream/spec denominator with mapped Dolt/go-mysql-server packet fixtures and any selected public MySQL protocol vectors, PHP pass/fail evidence for handshake/result-set/error/OK/EOF/length-encoded fields/column metadata/prepared-statement packet cases, malformed truncated packet/bad sequence/oversized length/unsupported capability/auth-plugin/invalid charset/bad column count cases, and no progress credit for launching MySQL, Dolt sql-server, live network listeners, mysql clients, ORM suites, credential-bearing configs, or external database processes.",
+      "reuseNotes": "Use sql-expression-semantics-core for scalar evaluation and sql-storage-codec-core for storage bytes; this row only owns wire packets and fake-runner contracts needed for MySQL-compatible protocol surfaces.",
+      "status": "deferred",
+      "blocker": "Activate only when Dolt opens an explicit MySQL-compatible wire/server/client slice; current query-diff, SQL-expression, and storage work must not claim MySQL protocol progress from external Dolt/MySQL processes or live network tests."
     },
     {
       "id": "sql-expression-semantics-core",
