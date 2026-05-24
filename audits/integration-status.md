@@ -63109,3 +63109,40 @@ worktree.
 - Files staged: `lanes/gitoxide/src/CommitSignature.php`, `lanes/gitoxide/tests/CommitTest.php`, `lanes/gitoxide/fixtures/wordpress-commit-signature-consuming.php`, `lanes/gitoxide/examples/wordpress-commit-signature-consuming.php`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/notes/wordpress-scenarios.md`, `audits/isolate-gitoxide-signature-consuming-20260524T220041Z.md`, and `audits/integration-status.md`.
 - Support-library decision: no activation; this is lane-local Git commit signature parsing/consumption behavior.
 - Exclusions: broad dirty-main Gitoxide discovery, mailmap, protocol, fetch, push, pack, index, config, attributes, URL/refspec, SHA-256, SSH/daemon, credential, unrelated examples/tests, all non-Gitoxide lane state, and dashboard publication.
+
+## Accepted isolated integration - LightningCSS page rule formatter - 2026-05-24 22:14 UTC
+
+Slice: `lightningcss-page-rule-formatter`.
+
+Base commit: `59f843747d45fe2c0ef70dd7bf167cc785adc743`.
+
+Patch path: `.tmux-team/tmp/isolate-lightningcss-page-rule-formatter-20260524T220041Z.patch`.
+
+Focused checks repeated by clean-patch integrator:
+
+- `git apply --check` against detached clean worktree based at the base commit.
+- `php -l lanes/lightningcss/src/CssFormatter.php`
+- `php -l lanes/lightningcss/tests/CssFormatterTest.php`
+- `php -l lanes/lightningcss/examples/wordpress-page-rule-formatter.php`
+- `php -l lanes/lightningcss/examples/wordpress-page-rule-validation.php`
+- `php lanes/lightningcss/examples/wordpress-page-rule-formatter.php`
+- `php lanes/lightningcss/examples/wordpress-page-rule-validation.php`
+- `php tools/run-tests.php lanes/lightningcss/tests/CssFormatterTest.php`
+- `php tools/run-tests.php lanes/lightningcss/tests`
+- `jq empty lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
+
+Root result: clean-worktree `php tools/run-tests.php` passed with `205 test files, 23911 assertions, 0 failures`; `git diff --check` passed.
+
+Files staged:
+
+- `audits/isolate-lightningcss-page-rule-formatter-20260524T220041Z.md`
+- `audits/integration-status.md`
+- `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/lightningcss/src/CssFormatter.php`
+- `lanes/lightningcss/tests/CssFormatterTest.php`
+- `lanes/lightningcss/examples/wordpress-page-rule-formatter.php`
+- `lanes/lightningcss/examples/wordpress-page-rule-validation.php`
+
+Support-library decision: no support-library row activated; paged-media/PDF, source-map, package-resolution, and browser-target support rows remain inactive.
+
+Exclusions: excluded unrelated dirty-main LightningCSS formatter/minifier/prefixer/source-map/package-resolution/browser-target examples, metadata/status prose, and any live-service/provider behavior.

@@ -192,14 +192,16 @@
                 "path": "src/lib.rs",
                 "test": "test_page_rule",
                 "totalHelperCases": 14,
-                "mappedCases": 12,
-                "unmappedPrettyPrintCases": 2,
+                "mappedCases": 14,
+                "unmappedPrettyPrintCases": 0,
                 "countEvidence": "Targeted pristine read: git -C .upstream-cache/lightningcss show HEAD:src/lib.rs | sed -n '14975,15079p' | rg -c '\\b(minify_test|test|error_test)\\(' returned 14 helper invocations: 10 minify_test, 2 pretty-printer test cases, and 2 error_test.",
                 "newlyMappedThisRun": [
                     "minify_test @page page selectors and page pseudo-classes remove redundant whitespace and minify margin 0.5cm to .5cm",
                     "minify_test comma-separated named pages serialize as @page toc,index",
                     "minify_test page margin boxes such as @bottom-left remain nested and their declarations minify",
                     "minify_test @page declarations before margin boxes preserve declaration order",
+                    "test pretty-prints a page margin box with two-space indentation",
+                    "test pretty-prints page declarations followed by separated page margin boxes",
                     "error_test rejects unknown nested @page at-rules such as @foo",
                     "error_test rejects nested margin boxes inside another page margin box"
                 ]
