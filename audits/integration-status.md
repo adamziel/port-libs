@@ -1,5 +1,159 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T10:30:16Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate `porting.html` or `porting-summary.json`, push, or
+start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files shown by Git, live tmux/process state,
+  `dependency-backlog.json`, current dashboard summary artifacts, and the
+  existing integration status history.
+- Current `HEAD` stayed at `78bdee1ceecb` across this short sampling window on
+  `main...origin/main [ahead 820, behind 68]`, but the checkout is still not an
+  owner-free integration snapshot. Tracked dirty rows stayed at `329`,
+  untracked-inclusive rows stayed at `16901`, and shortstat moved from
+  `329 files changed, 216757 insertions(+), 28832 deletions(-)` to
+  `329 files changed, 216759 insertions(+), 28832 deletions(-)`.
+- Dirty tracked and untracked files still span every priority lane plus
+  prompts, audit/status, dependency backlog, dashboard artifacts, runner
+  scripts, and scratch output. The largest current dirty concentrations are
+  audits `7961`, `.tmux-team` `6706`, Difftastic `381`, Syncthing `234`,
+  markerPDF `230`, rclone `195`, Gitoxide `188`, Pandoc `182`, Dolt `181`,
+  LightningCSS `161`, Readability `153`, libsqlite `142`, Quadrable `107`, and
+  esbuild `55`.
+- Live tmux still shows every priority lane plus auditor, evaluator, dashboard
+  updater, integrator, capacity controller/executor, Dolt runner, dependency
+  and support-library scouts, root-run observers, cleanup sessions, and many
+  Dolt/rclone/capacity verification sessions.
+- Exact process gates were active, so no serialized root acceptance snapshot
+  was possible. At `10:28:59Z`, focused PHP runners were active for Syncthing
+  PID `1218156` and markerPDF PID `1231732`, while Dolt BATS shard PID
+  `1218539` was running `diff.bats diff-stat.bats query-diff.bats
+  schema-changes.bats primary-key-changes.bats`. At `10:29:59Z`, the Dolt BATS
+  shard was still running and focused Readability PHP PID `1249597` had
+  started. I did not start `php tools/run-tests.php`, so there was no
+  `.upstream-cache/run-tests.lock` wait to record and no accepted root result.
+- JSON validation passed for `dependency-backlog.json`, all 12 root lane
+  manifests, all 12 lane-status files, and `porting-summary.json`.
+  `dependency-backlog.json` is valid with `32` items and remains consistent
+  with the `progress.md` backlog count, but local generated
+  `porting-summary.json` still reports `dependencyBacklog.count=22`. I did not
+  regenerate the dashboard because no lane/status batch was accepted.
+- Recent worker tails show active candidate edits rather than a clean handoff:
+  markerPDF reported a focused harness pass and then lane metadata updates;
+  Syncthing was adding `meta.js` REST/auth metadata tests; Dolt runner had a
+  passing Go selector and an in-progress 131-case local BATS shard; Dolt source
+  was adding query-diff base64 handling; Pandoc was still adjusting LaTeX code
+  rendering; Difftastic, LightningCSS, rclone, Gitoxide, Readability, Quadrable,
+  esbuild, and libsqlite all had fresh lane-local diffs in their tails.
+- Dolt remains skipped despite reauthorization because `port-dolt`,
+  `port-dolt-runner`, and Dolt capacity sessions are active while Dolt source,
+  metadata, and runner evidence are dirty or still moving.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze active writers plus status/dashboard publishers; confirm no
+focused/root PHP harnesses, dashboard generator, Dolt BATS, Go, Rust, Node, or
+SQLite upstream runners are active; then require two stable polls of `HEAD`,
+tracked rows, untracked-inclusive rows, shortstat, exact process gates,
+dependency/dashboard counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, stale generated
+dashboard artifacts, broad untracked lane files, moving-tree focused evidence,
+support-library backlog/dashboard mismatches, Dolt runner output, and blocker
+fields that still need acceptance-gate review.
+
+Next safe integration target: after a hard freeze, isolate one owner-free lane
+batch, run focused lane verification, run `git diff --check`, run one
+serialized no-argument `php tools/run-tests.php` from the same frozen snapshot
+with lock-wait status recorded, then regenerate dashboard artifacts only after
+accepting the lane/status batch. Dolt should wait until both implementation
+and runner/capacity sessions are quiet.
+
+## Integration Hold - 2026-05-24T10:26:28Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate `porting.html` or `porting-summary.json`, push, or
+start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files shown by Git, live tmux/process state,
+  `dependency-backlog.json`, current dashboard summary artifacts, and the
+  existing integration status history.
+- Current `HEAD` is `a2bd26468fde` on
+  `main...origin/main [ahead 819, behind 68]`. The newest commits remain
+  integration-hold/audit status updates rather than accepted lane batches.
+- The checkout remains too active to accept a lane snapshot: `330` tracked
+  dirty rows, `16895` untracked-inclusive status rows, and shortstat
+  `330 files changed, 216871 insertions(+), 29579 deletions(-)`.
+- Dirty tracked files span all priority lanes plus prompts, audit/status,
+  dashboard, dependency backlog, and runner scripts. The largest tracked
+  lane deltas include Difftastic `TokenDiffer`, LightningCSS minifier/prefixer
+  work, libsqlite JSON/header evidence, markerPDF runtime/PDF slices,
+  Gitoxide transport/index work, Dolt merge/status metadata, Pandoc writer
+  slices, Syncthing REST/BEP slices, rclone provider work, Readability
+  fixture expansion, Quadrable sync/CLI work, and esbuild parser/lowering work.
+- Live tmux sampling still shows every priority lane plus auditor, evaluator,
+  dashboard updater, integrator, capacity controller/executor, Dolt runner,
+  support/dependency scouts, watchdogs, cleanup sessions, and many Dolt/rclone
+  capacity-verification sessions.
+- Exact process sampling found no active `php tools/run-tests.php` row and no
+  active `php tools/generate-dashboard.php` row at this instant. I did not
+  start the no-argument root harness, so there was no
+  `.upstream-cache/run-tests.lock` wait to record and no accepted serialized
+  root result for this moving checkout.
+- `jq empty` passed for `dependency-backlog.json`, all 12 root lane manifests,
+  all 12 lane-status files, and `porting-summary.json`.
+  `dependency-backlog.json` is valid JSON with `32` `items`.
+- Local `porting-summary.json` remains stale and dirty: it still reports
+  `dependencyBacklog.count=22` from source snapshot
+  `79768df0c427aa9c96e6d97c5137c2d79ae9ce6e`, while
+  `dependency-backlog.json` has `32` rows. I did not run
+  `php tools/generate-dashboard.php` because no lane/status batch was accepted
+  in this checkout.
+- Recent worker tails show live candidate diffs rather than a clean owner-free
+  handoff. Syncthing was still appending REST/BEP metadata tests, Pandoc had
+  writer test changes in the log tail, the integrator log tail reflected live
+  process/status sampling, and Dolt runner/capacity sessions remain present.
+  These are not accepted integration evidence for the current shared tree.
+- Dolt remains skipped despite reauthorization because `port-dolt`,
+  `port-dolt-runner`, and Dolt capacity sessions are still present while Dolt
+  source, status, metadata, and runner evidence are dirty or recently moving.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze active writers plus status/dashboard publishers; confirm no
+focused/root PHP harnesses, dashboard generator, Dolt BATS, Go, Rust, Node, or
+SQLite upstream runners are active; then require two stable polls of `HEAD`,
+tracked rows, untracked-inclusive rows, shortstat, exact process gates,
+dependency/dashboard counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, stale generated
+dashboard artifacts, broad untracked lane files, moving-tree focused/root
+evidence, support-library backlog/dashboard mismatches, Dolt runner output, and
+blocker fields that still need acceptance-gate review.
+
+Next safe integration target: after a hard freeze, isolate one owner-free lane
+batch, run focused lane verification, run `git diff --check`, run one
+serialized no-argument `php tools/run-tests.php` from the same frozen snapshot
+with lock-wait status recorded, then regenerate dashboard artifacts only after
+accepting the lane/status batch. Dolt should wait until both implementation
+and runner/capacity sessions are quiet.
+
 ## Integration Hold - 2026-05-24T10:23:05Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
