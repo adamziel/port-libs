@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-05-24 09:35:12 UTC",
+  "updated": "2026-05-24 09:55:45 UTC",
   "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
   "items": [
     {
@@ -35,11 +35,11 @@
       "essentialCapability": "Provides shared safe XML/HTML parsing and serialization for Pandoc readers/package payloads, Readability cleanup, markerPDF HTML/image output, structural diffs, and WebDAV XML payloads.",
       "scopeBoundary": "In scope: tokenizer/tree construction needed by readers, namespaces, entities, comments, fragments, malformed HTML recovery where selected, and safe serializers. Out of scope: browser layout, JavaScript execution, CSS cascade/layout, network fetching, converter engines, and full browser DOM compatibility.",
       "priority": "critical",
-      "activationGate": "pandoc-html-docbook-next-or-pandoc-rich-package-xml-next-or-readability-dom-parser-gap-next-or-rclone-webdav-xml-next",
+      "activationGate": "pandoc-html-docbook-next-or-pandoc-rich-package-xml-next-or-readability-dom-parser-gap-next-or-markerpdf-html-output-next-or-difftastic-xml-structure-next-or-rclone-webdav-xml-next",
       "testExpectation": "Require WHATWG HTML, XML 1.0/namespaces, and mapped Pandoc HTML/DocBook/OpenXML/EPUB/ODT, Readability, markerPDF, Difftastic, and selected WebDAV XML fixtures with PHP pass/fail evidence, parse/serialize round trips, entity/namespace/comment/fragment cases, malformed/deep-tree/package-XML failures, and no progress credit for browser engines, JS execution, DOM service wrappers, network fetchers, or converter engines.",
       "reuseNotes": "One parser/serializer surface should serve Pandoc, Readability, markerPDF, Difftastic, and rclone instead of per-lane divergent parsers.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate only for a concrete Pandoc HTML/package XML, Readability parser, markerPDF HTML output, Difftastic XML structure, or rclone WebDAV XML blocker; keep browser layout, JavaScript execution, network fetchers, and converter engines out of scope."
     },
     {
       "id": "webdav-protocol-core",
@@ -371,16 +371,16 @@
       "essentialCapability": "Keeps JSON imports, block metadata, JSON-LD article data, SQLite JSON/JSON5 functions, sync/config payloads, and query-diff scalar values consistent across native PHP lanes.",
       "scopeBoundary": "In scope: strict JSON parse/serialize, duplicate-key policy hooks, JSON5 parse options where fixture-backed, path/operator handoff helpers, stable diagnostics, number/string/control-character boundaries, and optional lossless token spans for import review. Out of scope: JavaScript evaluation, JSON Schema validators, database engines, network API clients, live service calls, and whole document-management applications.",
       "priority": "high",
-      "activationGate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next",
-      "testExpectation": "Require a JSON/JSON5-specific upstream/spec denominator with mapped libsqlite json101/json501/json502, esbuild JSON object/array/string/number, Readability JSON-LD, rclone/Syncthing config, and Dolt JSON fixtures, PHP pass/fail evidence, malformed/truncated/control-character/duplicate-key/path cases, focused upstream runner evidence where bounded, and no progress credit for shelling out to Node, sqlite3, Dolt, rclone, Syncthing, or external JSON tools.",
+      "activationGate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next",
+      "testExpectation": "Require a JSON/JSON5-specific upstream/spec denominator with mapped libsqlite json101/json501/json502, esbuild JSON object/array/string/number, Readability JSON-LD, rclone/Syncthing local config or metadata payloads, Dolt JSON scalar fixtures, and Pandoc metadata JSON fixtures, PHP pass/fail evidence, malformed/truncated/control-character/duplicate-key/path cases, focused upstream runner evidence where bounded, and no progress credit for shelling out to Node, sqlite3, Dolt, rclone, Syncthing, Pandoc, or external JSON tools.",
       "reuseNotes": "Share the tokenizer/diagnostic/path helper below esbuild JSON imports, SQLite JSON/JSON5 functions, Readability metadata extraction, rclone/Syncthing local payloads, Dolt scalar fixtures, and Pandoc metadata import.",
       "status": "candidate",
-      "blocker": "Activate now only for bounded libsqlite JSON/JSON5, esbuild JSON loader/preflight, or Readability JSON-LD slices; do not expand into schema validation or live API payload coverage."
+      "blocker": "Activate only for bounded libsqlite JSON/JSON5, esbuild JSON loader/preflight, Readability JSON-LD, rclone local metadata/config, Syncthing config, Dolt JSON scalar, or Pandoc metadata JSON slices; do not expand into schema validation, live API payload coverage, or service clients."
     },
     {
       "id": "source-map-v3-core",
       "name": "Source Map v3 parser and writer core",
-      "source": "Source Map v3 specification plus esbuild and LightningCSS upstream manifest evidence",
+      "source": "Source Map v3 specification plus esbuild, LightningCSS, and Difftastic upstream manifest evidence",
       "neededBy": [
         "esbuild",
         "lightningcss",
@@ -389,11 +389,11 @@
       "essentialCapability": "Preserves JS/CSS bundle traceability for shared-hosting builds and review UIs without requiring Node tooling.",
       "scopeBoundary": "In scope: VLQ mappings, sources/sourceContent, names, sections where needed, path normalization, and deterministic writer output. Out of scope: bundler transforms, minification, browser devtools integration, and live filesystem watchers.",
       "priority": "high",
-      "activationGate": "esbuild-rich-output-next-or-lightningcss-source-map-next",
-      "testExpectation": "Require a Source Map v3/upstream denominator with mapped esbuild/LightningCSS fixtures, PHP pass/fail evidence, malformed/corrupt VLQ/section cases, round-trip writer tests, fixture-level path normalization, and no progress credit for shelling out to Node bundlers or external source-map tools.",
+      "activationGate": "esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next",
+      "testExpectation": "Require a Source Map v3/upstream denominator with mapped esbuild, LightningCSS, and Difftastic review-span fixtures, PHP pass/fail evidence, malformed/corrupt VLQ/section cases, round-trip writer tests, fixture-level path normalization, mapped review-span lookup cases, and no progress credit for shelling out to Node bundlers, browser devtools, or external source-map tools.",
       "reuseNotes": "One core should serve esbuild JS/TS output and LightningCSS CSS output; Difftastic can consume it for mapped review spans later.",
       "status": "candidate",
-      "blocker": "none"
+      "blocker": "Activate when esbuild or LightningCSS opens source-map writer/reader work, or when Difftastic needs mapped source-review spans; keep transforms, minification, browser devtools, and file watchers outside this support row."
     },
     {
       "id": "browser-compat-target-data-core",
@@ -485,7 +485,7 @@
     {
       "id": "checksum-hash-suite",
       "name": "Checksum and hash suite",
-      "source": "rclone fs/hash evidence, gitoxide object evidence, Dolt content-addressed storage evidence, quadrable BLAKE2s evidence, and OneDrive QuickXorHash evidence in lane manifests",
+      "source": "rclone fs/hash evidence, gitoxide object evidence, Dolt content-addressed storage evidence, quadrable BLAKE2s evidence, Syncthing block evidence, markerPDF benchmark/package integrity evidence, and OneDrive QuickXorHash evidence in lane manifests",
       "neededBy": [
         "rclone",
         "gitoxide",
@@ -497,11 +497,11 @@
       "essentialCapability": "Provides shared streaming integrity checks for object stores, sync manifests, Git objects/packs, Dolt content hashes, Quadrable BLAKE2s keys, Syncthing blocks, and package/benchmark artifacts.",
       "scopeBoundary": "In scope: official-vector-backed CRC32/CRC32C, MD5/SHA compatibility modes, BLAKE2s, QuickXorHash, streaming/chunked updates, manifest formatting helpers, and constant-time comparisons where relevant. Out of scope: TLS, password hashing, authentication protocols, secret handling, new crypto design, unbounded cryptographic suites, live provider reads, and shell-out hash utilities.",
       "priority": "high",
-      "activationGate": "rclone-checksum-next-or-gitoxide-object-hash-next-or-dolt-content-hash-next-or-quadrable-blake2s-next-or-syncthing-block-hash-next",
-      "testExpectation": "Require official algorithm vectors plus rclone hash/QuickXorHash evidence, Gitoxide object hash evidence, Dolt hash/scalar fixtures, Quadrable BLAKE2s runner evidence, and Syncthing block-hash fixtures, with per-algorithm PHP pass/fail counts, streaming vs one-shot parity, large/chunked payload vectors, manifest parse/render cases, selected lane fixtures, truncated/wrong-length/invalid-encoding/mismatched-algorithm/empty/binary/unsupported-algorithm cases, and no progress credit for shell-out hash utilities, TLS/password/auth protocol work, secret material, or live provider reads.",
+      "activationGate": "rclone-checksum-next-or-gitoxide-object-hash-next-or-dolt-content-hash-next-or-quadrable-blake2s-next-or-syncthing-block-hash-next-or-markerpdf-benchmark-integrity-next",
+      "testExpectation": "Require official algorithm vectors plus rclone hash/QuickXorHash evidence, Gitoxide object hash evidence, Dolt hash/scalar fixtures, Quadrable BLAKE2s runner evidence, Syncthing block-hash fixtures, and markerPDF benchmark/package integrity fixtures, with per-algorithm PHP pass/fail counts, streaming vs one-shot parity, large/chunked payload vectors, manifest parse/render cases, selected lane fixtures, truncated/wrong-length/invalid-encoding/mismatched-algorithm/empty/binary/unsupported-algorithm cases, and no progress credit for shell-out hash utilities, TLS/password/auth protocol work, secret material, or live provider reads.",
       "reuseNotes": "Centralize low-level hash code, but keep lane-specific object IDs, security policy, and digest display formats in adapters.",
       "status": "candidate",
-      "blocker": "Activate only when a concrete rclone checksum, Gitoxide object hash, Dolt content hash, Quadrable BLAKE2s, or Syncthing block hash slice opens."
+      "blocker": "Activate only when a concrete rclone checksum, Gitoxide object hash, Dolt content hash, Quadrable BLAKE2s, Syncthing block hash, or markerPDF benchmark-integrity slice opens."
     },
     {
       "id": "sql-storage-codec-core",
