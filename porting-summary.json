@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 09:44:10 UTC",
-    "sourceCommit": "989bdc9ef61155383980d4fe3d6cb616cb7b57fb",
-    "sourceCommitShort": "989bdc9ef611",
-    "sourceBranch": "dashboard-publish-20260524T094343Z",
-    "dashboardCommit": "9e5f025ab908893ce30fae60cafdf92ec2e4a1a3",
-    "dashboardCommitShort": "9e5f025ab908",
+    "generated": "2026-05-24 10:04:42 UTC",
+    "sourceCommit": "fca48fb88c5b3ba0bf0da3665db7b885ad32e8a3",
+    "sourceCommitShort": "fca48fb88c5b",
+    "sourceBranch": "dashboard-publish-20260524T100343Z",
+    "dashboardCommit": "235940517bb188943d5bf757121169b19f3219bb",
+    "dashboardCommitShort": "235940517bb1",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
@@ -213,7 +213,7 @@
         }
     ],
     "dependencyBacklog": {
-        "updated": "2026-05-24 09:35:12 UTC",
+        "updated": "2026-05-24 09:55:45 UTC",
         "policy": "Gate optional dependency ports behind base-tool blockers; port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with malformed/corrupt cases where relevant; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
         "count": 32,
         "countsByPriority": {
@@ -243,11 +243,11 @@
                 "count": 1
             },
             {
-                "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next",
+                "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next",
                 "count": 1
             },
             {
-                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next",
+                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next",
                 "count": 1
             }
         ],
@@ -266,7 +266,7 @@
                 "name": "XML and HTML5 parse/serialize core",
                 "neededBy": "pandoc, readability, markerpdf, difftastic, rclone",
                 "priority": "critical",
-                "gate": "pandoc-html-docbook-next-or-pandoc-rich-package-xml-next-or-readability-dom-parser-gap-next-or-rclone-webdav-xml-next",
+                "gate": "pandoc-html-docbook-next-or-pandoc-rich-package-xml-next-or-readability-dom-parser-gap-next-or-markerpdf-html-output-next-or-difftastic-xml-structure-next-or-rclone-webdav-xml-next",
                 "status": "candidate",
                 "testExpectation": "Require WHATWG HTML, XML 1.0/namespaces, and mapped Pandoc HTML/DocBook/OpenXML/EPUB/ODT, Readability, markerPDF, Difftastic, and..."
             },
@@ -428,7 +428,7 @@
                 "name": "JSON, JSON5, and JSON document import core",
                 "neededBy": "libsqlite, esbuild, readability, rclone, syncthing, dolt, pandoc",
                 "priority": "high",
-                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next",
+                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next",
                 "status": "candidate",
                 "testExpectation": "Require a JSON/JSON5-specific upstream/spec denominator with mapped libsqlite json101/json501/json502, esbuild JSON object/array/..."
             },
@@ -437,9 +437,9 @@
                 "name": "Source Map v3 parser and writer core",
                 "neededBy": "esbuild, lightningcss, difftastic",
                 "priority": "high",
-                "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next",
+                "gate": "esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next",
                 "status": "candidate",
-                "testExpectation": "Require a Source Map v3/upstream denominator with mapped esbuild/LightningCSS fixtures, PHP pass/fail evidence, malformed/corrupt..."
+                "testExpectation": "Require a Source Map v3/upstream denominator with mapped esbuild, LightningCSS, and Difftastic review-span fixtures, PHP pass/fai..."
             },
             {
                 "id": "browser-compat-target-data-core",
@@ -491,7 +491,7 @@
                 "name": "Checksum and hash suite",
                 "neededBy": "rclone, gitoxide, dolt, quadrable, syncthing, markerpdf",
                 "priority": "high",
-                "gate": "rclone-checksum-next-or-gitoxide-object-hash-next-or-dolt-content-hash-next-or-quadrable-blake2s-next-or-syncthing-block-hash-next",
+                "gate": "rclone-checksum-next-or-gitoxide-object-hash-next-or-dolt-content-hash-next-or-quadrable-blake2s-next-or-syncthing-block-hash-next-or-markerpdf-benchmark-integrity-next",
                 "status": "candidate",
                 "testExpectation": "Require official algorithm vectors plus rclone hash/QuickXorHash evidence, Gitoxide object hash evidence, Dolt hash/scalar fixtur..."
             },
