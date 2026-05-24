@@ -418,7 +418,7 @@ final class ArticleExtractor
         } elseif ($tag === 'figure' && $this->isImageFigure($element)) {
             $blocks[] = '<!-- wp:image -->' . "\n" . $html . "\n" . '<!-- /wp:image -->';
         } elseif (($tag === 'ul' || $tag === 'ol')
-            && ($this->isMediaOnlyList($element) || $this->isKinjaAnnotatedTextList($element))) {
+            && $this->isWordPressListBlock($element)) {
             $metadata = $tag === 'ol' ? ' {"ordered":true}' : '';
             $blocks[] = '<!-- wp:list' . $metadata . ' -->' . "\n" . $html . "\n" . '<!-- /wp:list -->';
         } elseif ($tag === 'table') {
@@ -439,6 +439,13 @@ final class ArticleExtractor
         }
 
         return $this->innerHtml($element);
+    }
+
+    private function isWordPressListBlock(\DOMElement $element): bool
+    {
+        return $this->isMediaOnlyList($element)
+            || $this->isKinjaAnnotatedTextList($element)
+            || $this->isCompactOrderedEditorialList($element);
     }
 
     private function isImageFigure(\DOMElement $element): bool
@@ -481,6 +488,60 @@ final class ArticleExtractor
         }
 
         return $items > 0;
+    }
+
+    private function isCompactOrderedEditorialList(\DOMElement $element): bool
+    {
+        if (strtolower($element->tagName) !== 'ol') {
+            return false;
+        }
+
+        $items = 0;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+                return false;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (strtolower($child->tagName) !== 'li'
+                || $this->hasInteractiveListChrome($child)
+                || $child->getElementsByTagName('ol')->length > 0
+                || $child->getElementsByTagName('ul')->length > 0
+                || $child->getElementsByTagName('table')->length > 0
+                || $child->getElementsByTagName('figure')->length > 0
+                || $child->getElementsByTagName('img')->length > 0
+                || $child->getElementsByTagName('picture')->length > 0
+                || $this->normalizeWhitespace($child->textContent) === '') {
+                return false;
+            }
+
+            $items++;
+        }
+
+        return $items === 1;
+    }
+
+    private function hasInteractiveListChrome(\DOMElement $element): bool
+    {
+        foreach ($element->getElementsByTagName('*') as $descendant) {
+            if (!$descendant instanceof \DOMElement) {
+                continue;
+            }
+
+            if (in_array(strtolower($descendant->tagName), ['button', 'form', 'input', 'nav', 'script', 'select', 'style', 'textarea'], true)) {
+                return true;
+            }
+
+            $role = strtolower(trim($descendant->getAttribute('role')));
+            if (in_array($role, self::UNLIKELY_ROLES, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function isKinjaAnnotatedTextList(\DOMElement $element): bool

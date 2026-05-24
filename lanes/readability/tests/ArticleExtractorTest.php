@@ -239,6 +239,27 @@ return [
         );
         $t->same(count($attributeValues($expected, '//ol')), count($attributeValues($article->contentHtml, '//ol')));
         $t->same(count($attributeValues($expected, '//li')), count($attributeValues($article->contentHtml, '//li')));
+
+        $blocks = $extractor->toWordPressBlocks($article);
+        $t->same(count($attributeValues($expected, '//ol')), substr_count($blocks, '<!-- wp:list {"ordered":true} -->'));
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<ol>"), 'retained ordered lists should not be paragraph-wrapped in WordPress output');
+    },
+    'serializes compact ordered editorial list imports as WordPress list blocks' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Migration Checklist</title></head><body><article>'
+            . '<h1>Migration Checklist</h1>'
+            . '<p>' . str_repeat('A migration note can keep article prose before a compact ordered pullout. ', 3) . '</p>'
+            . '<ol><li><p>Keep one retained ordered item as a list block.</p></li></ol>'
+            . '<p>' . str_repeat('A final paragraph after the lists should remain separate for clean WordPress block output. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:list {"ordered":true} -->'));
+        $t->same(2, substr_count($blocks, '<!-- wp:paragraph -->'));
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<ol>"), 'compact ordered editorial lists should not be paragraph-wrapped');
+        $t->contains('<li><p>Keep one retained ordered item as a list block.</p></li>', $blocks);
     },
     'maps Mozilla remove-aria-hidden fixture during extraction cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/remove-aria-hidden';

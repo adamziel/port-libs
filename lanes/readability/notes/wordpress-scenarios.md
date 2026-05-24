@@ -267,6 +267,10 @@ The current parse-options slice maps upstream Readability API option boundaries:
 - `lanes/readability/examples/wordpress-script-comment-parser-cleanup.php` demonstrates importing the copied parser fixture with title `Test script parsing`, no imported script comment payload, five paragraph blocks, and zero heading blocks.
 - The current `lifehacker-post-comment-load` slice maps Kinja/Lifehacker imports where retained editorial lists use `data-textannotation-id` list items and comment UI is appended around the article: the native extractor preserves the story metadata, 37 paragraphs, 8 headings, 16 list items, and 9 image payloads while removing comment/ad/follow/navigation chrome.
 - `lanes/readability/examples/wordpress-lifehacker-kinja-list-import.php` demonstrates importing the copied Lifehacker fixture with title/byline/site metadata, 37 paragraph blocks, 8 heading blocks, 4 list blocks, no retained Kinja chrome, and no paragraph-wrapped `<ul>` lists.
+- The current compact ordered-list slice maps the copied Mozilla `ol` fixture into WordPress output: a single retained ordered editorial item serializes as a core ordered list block instead of a paragraph-wrapped `<ol>`, while long encyclopedia/book/release-note list fixtures keep their existing paragraph-review block behavior.
+- `lanes/readability/examples/wordpress-editorial-list-import.php` demonstrates importing the copied Mozilla ordered-list fixture with 1 ordered list block and no paragraph-wrapped ordered list markup.
+- Verification delta for this isolated micro-slice: syntax checks passed for changed PHP files; `php tools/run-tests.php lanes/readability/tests` passed 1 selected test file, 1831 assertions, and 0 failures; `php lanes/readability/examples/wordpress-editorial-list-import.php` reported `Ordered list blocks: 1` and `Paragraph-wrapped ordered lists: no`; root harness not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing bounded DOM cleanup and WordPress block serializer.
 - The focused SVG sprite cleanup test covers WordPress themes that repeat inline symbol sprite sheets around article content: duplicate sprites are removed by symbol signature, but reusable symbols and editorial inline SVG diagrams remain available to block output.
 - The focused visible-date metadata test covers WordPress themes that expose a visible `<time datetime>` in article chrome: the date does not become trusted published metadata without upstream-supported JSON-LD, `article:published_time`, or `parsely-pub-date` evidence.
 - The focused syndication footer cleanup test covers syndicated WordPress imports where a source platform appends an `Originally published at` note after the article body: the source note and link are removed before paragraph block serialization.
@@ -302,4 +306,4 @@ The current parse-options slice maps upstream Readability API option boundaries:
 
 ## Next Task
 
-Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted upstream oracle, then continue publisher cleanup only with named upstream fixtures.
+Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted upstream oracle, or broaden ordinary list-block serialization only with deliberate updates to the affected long-list fixture expectations.

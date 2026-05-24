@@ -97773,3 +97773,188 @@ Files staged:
 - lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/package-shared/block-runtime.ts
 - lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/package-theme/card.ts
 
+
+## Isolated integration accepted - readability - 2026-05-24T23:29:35Z UTC
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260524T231152Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260524T231152Z.patch`
+Lane/slice/session: `readability` / `watchdog-next-20260524T231152Z` / `port-readability`
+
+Focused commands: PHP syntax on changed PHP files; `php tools/run-tests.php lanes/readability/tests`; `git diff --check`.
+Focused result:
+```
+No syntax errors detected in lanes/readability/src/ArticleExtractor.php
+No syntax errors detected in lanes/readability/tests/ArticleExtractorTest.php
+No syntax errors detected in lanes/readability/examples/wordpress-editorial-list-import.php
+Focused test run: 1 selected test files (root lock skipped)
+PASS extracts article text while removing navigation and asides
+PASS decodes entity escaped metadata descriptions
+PASS maps Mozilla 005 metadata entity unescape fixture
+PASS normalizes invalid numeric metadata entities before WordPress excerpt import
+PASS converts extracted content to block comments
+PASS matches upstream readerable default scoring thresholds
+PASS honors upstream readerable length and score options
+PASS skips invisible list and unlikely readerable nodes
+PASS maps Mozilla ordered-list fixture without counting list paragraphs as readerable
+PASS serializes compact ordered editorial list imports as WordPress list blocks
+PASS maps Mozilla remove-aria-hidden fixture during extraction cleanup
+PASS maps Mozilla hidden-nodes fixture without dropping retained headers
+PASS maps Mozilla rtl direction fixtures from article ancestors
+PASS maps Mozilla visibility-hidden fixture to the visible section only
+PASS maps Mozilla basic tag and empty paragraph cleanup fixtures
+PASS maps Mozilla invalid-attributes fixture while sanitizing malformed wrapper markup
+PASS maps Mozilla script style and WordPress social button cleanup fixtures
+PASS maps Mozilla comment-inside-script parser fixture without leaking script text
+PASS maps Mozilla lifehacker fixture and serializes retained lists as blocks
+PASS removes WordPress Jetpack like widgets and inline executable fragments before block output
+PASS removes hidden WordPress export duplicates while preserving fallback images
+PASS preserves WordPress RTL article direction metadata from migrated wrappers
+PASS removes inline WordPress stylesheet links and fieldset controls before block output
+PASS removes WordPress page-builder chrome with upstream unlikely candidate rules
+PASS turns the WordPress migration fixture into core blocks
+PASS maps Mozilla wordpress fixture articleBody images and Jetpack cleanup
+PASS prefers WordPress articleBody microdata over trailing theme chrome
+PASS removes duplicate post title headings and demotes body h1s for WordPress blocks
+PASS strips source classes and simplifies nested wrappers like upstream post processing
+PASS preserves configured classes like upstream cleanClasses options
+PASS honors upstream keepClasses extraction option
+PASS maps Mozilla heise fixture with caption class preservation and article promotion
+PASS maps Mozilla ars-1 fixture by removing figure credit-only caption chrome
+PASS maps Mozilla guardian-1 fixture with media captions and articleBody wrapper parity
+PASS maps Mozilla nytimes-1 fixture with rich figure caption and hidden feedback cleanup
+PASS maps Mozilla nytimes-2 fixture with continuation links and hidden story interrupters
+PASS maps Mozilla nytimes-3 fixture with figure itemid lazy images and related-card cleanup
+PASS maps Mozilla nytimes-4 fixture with debt article graphics and related-link cleanup
+PASS maps Mozilla nytimes-5 section front with collection card pruning
+PASS maps Mozilla telegraph fixture with text sections and publisher media chrome cleanup
+PASS maps Mozilla liberation-1 fixture by pruning trailing wire author source credit
+PASS maps Mozilla la-nacion fixture with UTF-8 BOM and article description lead
+PASS maps Mozilla bbc-1 fixture with RDFa articleBody and unsupported video placeholders
+PASS maps Mozilla cnn fixture with storytext root and widget chrome cleanup
+PASS maps Mozilla citylab-1 fixture by pruning author RSS feed chrome
+PASS maps Mozilla aclu fixture through Drupal panel sidebar wrappers
+PASS maps Mozilla wapo-1 fixture with inline gallery and graphic chrome cleanup
+PASS maps Mozilla wapo-2 fixture with lead media and author bio siblings
+PASS maps Mozilla yahoo-2 fixture without treating application-name as site metadata
+PASS maps Mozilla yahoo-3 fixture by pruning GMA provider action chrome
+PASS maps Mozilla yahoo-4 fixture with Japanese article-body selection
+PASS maps Mozilla buzzfeed-1 fixture by removing print image and bio chrome
+PASS maps Mozilla lemonde-1 fixture with French articleBody and Dailymotion video
+PASS maps Mozilla theverge fixture with content wrapper pullquote and newsletter boundaries
+PASS maps Mozilla engadget fixture with review gallery and buy chrome cleanup
+PASS preserves requested WordPress caption classes without keeping theme classes
+PASS removes WordPress image credit-only caption wrappers before block output
+PASS collapses single paragraph div wrappers like upstream scoring cleanup
+PASS weights hash-only links lightly when collapsing WordPress footnote wrappers
+PASS wraps phrasing media in div paragraphs like upstream preprocessing
+PASS removes leading byline and action controls before article content
+PASS maps Mozilla base URL fixture relative link and media cleanup
+PASS maps Mozilla base URL fixture family including paragraphized div content
+PASS maps Mozilla javascript link replacement fixture to inert span content
+PASS absolutizes WordPress migration links and media against the source URL
+PASS maps Mozilla clean-links fixture popup links and whitespace-trimmed URIs
+PASS trims selected-root nonbreaking whitespace from classic WordPress exports
+PASS removes trailing WordPress footer link bars after article content
+PASS removes trailing WordPress wire source credits without losing metadata bylines
+PASS promotes single article bodies and removes empty paragraphs before block migration
+PASS unwraps single-cell layout tables while retaining real data tables
+PASS turns single-cell block layout tables into div wrappers for WordPress imports
+PASS strips presentational table and font markup for WordPress imports
+PASS maps Mozilla table style attributes fixture cleanup
+PASS maps Mozilla links-in-tables fixture with retained table links
+PASS maps Mozilla keep-tabular-data fixture table rows and status images
+PASS preserves upstream marked data tables while unwrapping presentational one cell tables
+PASS maps Mozilla normalize-spaces fixture metadata and article text
+PASS maps Mozilla parsely metadata fixture metadata and article text
+PASS maps Mozilla metadata-content-missing fixture metadata precedence
+PASS maps Mozilla metadata preferred and space separated property fixtures
+PASS uses Dublin Core metadata for WordPress import titles bylines and excerpts
+PASS maps Mozilla 001 fixture body itemprop author byline
+PASS maps Mozilla article-author-tag fixture with Atlas Obscura article body root
+PASS maps Mozilla 002 fixture with Mozilla Hacks code blocks and content-main root
+PASS maps Mozilla google-sre-book-1 fixture by promoting the chapter main root
+PASS maps Mozilla toc-missing fixture while pruning interactive editor CTA chrome
+PASS keeps technical article TOCs while dropping external editor CTAs before WordPress blocks
+PASS maps Mozilla wikipedia-4 fixture with list table and category chrome cleanup
+PASS maps Mozilla wikipedia fixture with article hatnote and shell cleanup
+PASS maps Mozilla wikipedia-2 country fixture without status indicator chrome
+PASS maps Mozilla wikipedia-3 fixture with math article shell cleanup
+PASS extracts WordPress itemprop body bylines without importing byline blocks
+PASS maps Mozilla title-en-dash fixture title separator cleanup
+PASS maps Mozilla title and h1 discrepancy fixture without replacing the document title
+PASS removes source site suffixes from WordPress import titles
+PASS uses JSON-LD name when headline does not match the WordPress import title
+PASS maps Mozilla v8-blog fixture without generic time datetime published metadata
+PASS does not turn visible WordPress article times into published metadata without upstream fields
+PASS maps Mozilla schema-org context object fixture without leading news chrome
+PASS maps Mozilla mozilla-2 fixture metadata and retained content markers
+PASS maps Mozilla tumblr fixture by promoting the single post over theme sidebars
+PASS maps Mozilla mozilla-1 fixture with main content wrapper and sync CTA cleanup
+PASS maps Mozilla firefox-nightly-blog fixture with article-header rel author byline
+PASS maps Mozilla medicalnewstoday fixture with byline inside site header wrapper
+PASS maps Mozilla embedded-videos fixture allowed iframe preservation
+PASS maps Mozilla videos-2 JSON-LD metadata and video article body
+PASS removes non-video embeds while preserving Mozilla allowed video hosts
+PASS honors upstream custom allowed video regex extraction option
+PASS honors upstream maxElemsToParse extraction option
+PASS honors upstream charThreshold retry with the longest nonempty attempt
+PASS returns null for chrome-only WordPress imports after charThreshold retries
+PASS maps Mozilla lazy-image noscript replacement semantics
+PASS maps Mozilla lazy data-srcset promotion semantics
+PASS maps Mozilla data-url-image fixture media retention boundaries
+PASS maps Mozilla cnet svg sprite dedupe fixture
+PASS deduplicates repeated WordPress inline SVG symbol sprites before block output
+PASS maps Mozilla keep-images fixture full-width editorial media retention
+PASS preserves named Medium section wrappers for oracle output while flattening WordPress blocks
+PASS maps Mozilla medium-1 empty heading cleanup and boundary spacing
+PASS removes empty imported headings before WordPress paragraph serialization
+PASS maps Mozilla medium-2 trailing syndication footer cleanup
+PASS maps Mozilla medium-3 hr page breaks to readability page sections
+PASS removes Medium page break separators before WordPress block output
+PASS removes trailing WordPress syndication source notes before block output
+PASS maps Mozilla simplyfound-1 fixture by pruning trailing account approval modal chrome
+PASS removes trailing WordPress account modals and ad containers before block output
+PASS maps Mozilla lazy-image-1 metadata lazy images and post-article chrome cleanup
+PASS serializes upstream readability page wrapper and collapses emptied Medium author wrappers
+PASS unwraps transparent WordPress section wrappers before block output
+PASS drops out-of-band full-width figure wrappers during WordPress migration cleanup
+PASS preserves WordPress editorial full-width figures while dropping decorative media wrappers
+PASS maps Mozilla lazy-image-2 responsive image fixture
+PASS maps Mozilla lazy-image-3 full data-src fixture
+PASS promotes responsive image candidates behind short data URI placeholders
+PASS maps Mozilla replace-brs fixture paragraph breaks
+PASS maps Mozilla remove-extra-brs fixture cleanup
+PASS splits legacy WordPress br-separated exports before block serialization
+PASS keeps WordPress import text separated across block and table boundaries
+PASS maps Mozilla dev418 fixture with mixed image list media retention
+PASS maps Mozilla iab-1 fixture with leading header chrome cleanup and retained author bio
+PASS maps Mozilla bug-1255978 fixture by preserving articleBody despite share-like id
+PASS serializes retained image lists from media fixtures as WordPress blocks
+PASS maps Mozilla replace-font-tags fixture to span markup
+PASS maps Mozilla tmz-1 fixture with legacy post headline envelope
+PASS normalizes legacy WordPress font tags before block output
+
+1 test files, 1831 assertions, 0 failures
+```
+
+Root command: `php tools/run-tests.php`
+Root result:
+```
+PASS wordpress option store expires snapshots and deletes stale options before reuse
+PASS folder scan service resumes through a wordpress option checkpoint store
+PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads
+
+208 test files, 24163 assertions, 0 failures
+```
+
+Support-library/dependency-closure decision: no support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- lanes/readability/UPSTREAM_TEST_MANIFEST.json
+- lanes/readability/lane-status.json
+- lanes/readability/notes/upstream-inventory.md
+- lanes/readability/notes/wordpress-scenarios.md
+- lanes/readability/src/ArticleExtractor.php
+- lanes/readability/tests/ArticleExtractorTest.php
+- lanes/readability/examples/wordpress-editorial-list-import.php
+
