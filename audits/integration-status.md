@@ -1,5 +1,45 @@
 # Integration Status
 
+## Isolate-only intake skipped - 2026-05-24 22:08 UTC
+
+No lane implementation output was integrated in this pass.
+
+Current handoff-candidate scan found only isolated clean-patch markers:
+
+- `.tmux-team/tmp/handoff-candidates/port-isolate-gitoxide-signature-consuming.ready`
+- `.tmux-team/tmp/handoff-candidates/port-isolate-lightningcss-page-rule-formatter.ready`
+- `.tmux-team/tmp/handoff-candidates/port-isolate-markerpdf-cmap-codespace.ready`
+- `.tmux-team/tmp/handoff-candidates/port-isolate-pandoc-html-br.ready`
+
+Per the integration ownership rule, the legacy/shared-checkout integrator must
+not process `port-isolate-*` markers. Those artifacts require clean-patch
+integration from detached clean worktrees, including patch apply, focused tests,
+the serialized no-argument root harness, `git diff --check`, dashboard
+regeneration only after acceptance, and a clean-worktree commit. I did not
+remove any isolate marker or hold file. Existing isolate hold observed:
+`.tmux-team/tmp/integration-holds/port-isolate-markerpdf-cmap-codespace.hold`.
+
+Recent isolate logs report candidate evidence, but it is not accepted by this
+worker:
+
+- Gitoxide signature-consuming patch: PHP lint/example/focused/full lane tests,
+  bounded offline `cargo test -p gix-actor signature`, JSON validation,
+  `git diff --check`, and clean apply check reportedly passed.
+- LightningCSS page-rule formatter patch: PHP lint/examples/focused/full lane
+  tests, upstream page-rule inventory read, JSON validation, `git diff --check`,
+  and clean apply checks reportedly passed.
+- markerPDF CMap codespace patch: PHP lint/example/focused/full lane tests and
+  `git diff --check` reportedly passed; no JSON touched.
+- Pandoc HTML `<br>` patch: PHP lint, focused `MarkdownReaderTest.php`, example,
+  and path-limited `git diff --check` reportedly passed.
+
+No exact no-argument root harness was active at this intake sample. The shared
+checkout remains broadly dirty with active lane output, so there is no
+owner-free non-isolate lane batch to accept here. Next safe integration target:
+the clean-patch integrator should process the isolate queue one patch at a
+time from detached clean worktrees, starting with any still-applicable
+`port-isolate-*` marker and recording the accepted source snapshot.
+
 ## Isolated marker intake ownership correction - 2026-05-24 22:06 UTC
 
 The earlier dirty-check intake for `port-isolate-*` markers is superseded.
