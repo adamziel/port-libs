@@ -1,5 +1,42 @@
 # Integration Status
 
+## Integration handoff rejection - Gitoxide - 2026-05-24 22:01 UTC
+
+No Gitoxide lane output was integrated in this pass.
+
+Selected marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide.ready`.
+Temporary hold: `.tmux-team/tmp/integration-holds/port-gitoxide.hold`,
+created at `2026-05-24T22:01:25Z` for Gitoxide-only intake.
+
+Two held polls were stable:
+
+- Poll 1: `HEAD=cd6a6b6997a2`, Gitoxide status rows `239`, tracked
+  shortstat `61 files changed, 7226 insertions(+), 559 deletions(-)`,
+  selected pane `port-gitoxide` idle at `bash` with no child process, and no
+  exact no-argument `php tools/run-tests.php` process.
+- Poll 2: `HEAD=cd6a6b6997a2`, Gitoxide status rows `239`, the same tracked
+  shortstat, and no exact no-argument `php tools/run-tests.php` process.
+
+Scope review failed. The latest worker log reports a bounded `gix-actor`
+signature-consuming slice with focused PHP and bounded Cargo evidence, but the
+current Gitoxide tree is not an isolated slice: it has 61 tracked dirty files
+and 178 untracked Gitoxide files. The lane status itself says the
+signature-consuming work is embedded in an accumulated discover/mailmap/actor
+stack that cannot be independently isolated without accepting prerequisite
+unaccepted work or reconstructing a smaller patch. Accepting this marker would
+also sweep in unrelated discovery, mailmap, protocol, receive-pack/SSH,
+pack/index/object database, config, attributes, URL/refspec, SHA-256, and
+example/fixture/test output.
+
+Decision: rejected/deferred, not integrated. I did not run focused Gitoxide
+checks or the serialized no-argument root harness because there was no exact
+isolated snapshot to stage. I did not regenerate dashboard artifacts and did
+not advance any upstream/full-suite parity or support-library claim. The next
+safe integration target is a re-emitted Gitoxide slice that isolates
+`CommitSignature::parseConsuming()` and its fixture/example/test/metadata
+against an accepted base, or a coherent smaller batch that first accepts the
+required discover/mailmap/actor prerequisites with matching root evidence.
+
 ## Integration handoff rejection - Gitoxide - 2026-05-24 22:00 UTC
 
 No Gitoxide lane output was integrated in this pass.
