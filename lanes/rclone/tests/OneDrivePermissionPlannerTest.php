@@ -829,6 +829,97 @@ return [
         $t->same(['exports/site.wxr: Failed to remove versions: Graph versions denied'], $flow['suppressedErrors']);
         $t->same(null, $flow['error']);
     },
+    'onedrive put create object finds parent and reuses singlepart upload selection' => static function (TestRunner $t): void {
+        $flow = OneDrivePermissionPlanner::putCreateObjectFlow(
+            'exports/empty-review.wxr',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+            ],
+            [
+                'size' => 0,
+                'uploadCutoff' => -1,
+                'parentId' => 'business-drive#exports-dir',
+                'metadataPermissions' => 'write',
+                'hasObjectMetadata' => false,
+            ],
+        );
+
+        $t->same('business-drive#exports-dir', $flow['parentId']);
+        $t->same(false, $flow['temporaryObjectHasMetadata']);
+        $t->same('singlepart', $flow['selectedUpload']);
+        $t->same([
+            'fs-put',
+            'create-object',
+            'find-parent',
+            'create-temporary-object',
+            'upload-singlepart',
+            'set-upload-metadata',
+            'fetch-and-update-metadata',
+            'get-source-metadata-options',
+            'new-object-metadata',
+            'get-current-metadata',
+            'set-metadata',
+            'write-object-metadata',
+            'set-system-metadata',
+            'set-object-metadata',
+            'set-upload-metadata-from-fetch',
+        ], $flow['sequence']);
+        $t->same(true, $flow['upload']['infoReturned']);
+        $t->same(null, $flow['error']);
+    },
+    'onedrive put create object maps parent lookup failure multipart reuse and onenote conflict hint' => static function (TestRunner $t): void {
+        $missingParent = OneDrivePermissionPlanner::putCreateObjectFlow(
+            'exports/site.wxr',
+            null,
+            [
+                'size' => 0,
+                'parentLookupError' => 'directory not found',
+            ],
+        );
+        $multipart = OneDrivePermissionPlanner::putCreateObjectFlow(
+            'exports/site.wxr',
+            [
+                'mtime' => '2026-05-23T10:00:00Z',
+                'permissions' => '[{"id":"reviewer","roles":["write"],"grantedToV2":{"user":{"id":"reviewer@example.com"}}}]',
+            ],
+            [
+                'size' => 8 * 1024 * 1024,
+                'uploadCutoff' => 4 * 1024 * 1024,
+                'metadataPermissions' => 'read,write',
+                'normalizedId' => 'business-drive#site-wxr',
+                'driveType' => OneDrivePermissionPlanner::DRIVE_TYPE_BUSINESS,
+                'currentPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['read'], 'grantedToV2' => ['user' => ['id' => 'reviewer@example.com']]],
+                ],
+                'refreshedPermissions' => [
+                    ['id' => 'reviewer', 'roles' => ['write']],
+                ],
+            ],
+        );
+        $nameConflict = OneDrivePermissionPlanner::putCreateObjectFlow(
+            'exports/site-notes.one',
+            null,
+            [
+                'size' => 256,
+                'uploadCutoff' => 1024,
+                'uploadError' => 'nameAlreadyExists',
+                'nameAlreadyExists' => true,
+            ],
+        );
+
+        $t->same([
+            'fs-put',
+            'create-object',
+            'find-parent',
+        ], $missingParent['sequence']);
+        $t->same("couldn't find parent ID: directory not found", $missingParent['error']);
+        $t->same('multipart', $multipart['selectedUpload']);
+        $t->same('upload-multipart', $multipart['sequence'][4]);
+        $t->same(['update'], array_column($multipart['upload']['metadataUpdate']['permissionWrite']['operations'], 'action'));
+        $t->same(null, $multipart['error']);
+        $t->same('singlepart', $nameConflict['selectedUpload']);
+        $t->same('nameAlreadyExists (OneNote files cannot be overwritten by rclone)', $nameConflict['error']);
+    },
     'wordpress onedrive permission write plan example keeps owner and plans review changes' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-permission-write-plan.php';
 
@@ -914,5 +1005,18 @@ return [
         $t->same(['update'], $example['largePermissionActions']);
         $t->same("can't upload content to a OneNote file", $example['oneNoteError']);
         $t->same('unknown-sized upload not supported', $example['unknownSizeError']);
+    },
+    'wordpress onedrive put create object example records parent and conflict boundaries' => static function (TestRunner $t): void {
+        $example = require __DIR__ . '/../examples/wordpress-onedrive-put-create-object.php';
+
+        $t->same('onedrive-put-create-object', $example['source']);
+        $t->same('business-drive#exports-dir', $example['zeroByteParentId']);
+        $t->same(false, $example['zeroByteTemporaryObjectHasMetadata']);
+        $t->same('singlepart', $example['zeroByteUpload']);
+        $t->same('create-temporary-object', $example['zeroByteSequence'][3]);
+        $t->same('multipart', $example['largeUpload']);
+        $t->same(['update'], $example['largePermissionActions']);
+        $t->same("couldn't find parent ID: directory not found", $example['missingParentError']);
+        $t->same('nameAlreadyExists (OneNote files cannot be overwritten by rclone)', $example['oneNoteNameConflictError']);
     },
 ];

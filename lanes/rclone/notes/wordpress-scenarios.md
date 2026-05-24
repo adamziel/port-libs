@@ -232,6 +232,8 @@ The `../examples/wordpress-onedrive-multipart-upload-metadata.php` scenario maps
 
 The `../examples/wordpress-onedrive-update-upload-selection.php` scenario maps OneDrive `Object.Update` upload selection for WXR migration preflights. It sends a zero-byte WXR marker through the singlepart path, a large WXR export with reviewer permissions through the multipart metadata path, rejects a OneNote migration notebook before upload, and rejects an unknown-size WXR stream with the upstream error, all without OAuth or live provider credentials.
 
+The `../examples/wordpress-onedrive-put-create-object.php` scenario maps OneDrive `Fs.Put`/`createObject` setup for WXR migration preflights. It creates a zero-byte WXR marker through a known parent ID and temporary no-metadata object, sends a large reviewer-permission WXR export through the multipart path, reports missing parent lookup failure before upload, and annotates a OneNote `nameAlreadyExists` conflict with the upstream overwrite hint, all without OAuth or live provider credentials.
+
 ## Next Task
 
-Map OneDrive `Put`/`createObject` path behavior around parent directory lookup, temporary objects with no existing metadata, upload-selection reuse, and singlepart `nameAlreadyExists` OneNote-hint errors.
+Map OneDrive `createDir`/`MkdirMetadata` parent-directory creation conflicts, existing directory metadata refresh, and Graph item-to-dir-entry cache updates.

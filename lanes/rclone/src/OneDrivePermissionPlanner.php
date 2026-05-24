@@ -677,6 +677,70 @@ final class OneDrivePermissionPlanner
     }
 
     /**
+     * Model backend/onedrive Fs.Put/createObject upload setup without Graph calls.
+     *
+     * @param array<string, string>|null $sourceMetadata Null models --metadata disabled or a source without metadata.
+     * @param array{size?: int, uploadCutoff?: int, parentId?: string, parentID?: string, parentLookupError?: string, nameAlreadyExists?: bool, uploadError?: string, createSessionError?: string, uploadFragmentError?: string, setUploadedMetadataError?: string, setFetchedMetadataError?: string, setFinalMetadataError?: string, sourceMetadataError?: string, metadataReadError?: string, hasObjectMetadata?: bool, setModTimeError?: string, normalizedId?: string, normalizedID?: string, objectId?: string, id?: string, driveType?: string, metadataPermissions?: string, metadata_permissions?: string, currentPermissions?: list<array<string, mixed>>, refreshBeforePermissions?: list<array<string, mixed>>, refreshedPermissions?: list<array<string, mixed>>, refreshBeforeError?: string, refreshError?: string, operationErrors?: array<string, string>, failOk?: bool} $options
+     * @return array<string, mixed>
+     */
+    public static function putCreateObjectFlow(string $remote, ?array $sourceMetadata, array $options = []): array
+    {
+        $size = (int) ($options['size'] ?? 0);
+        $uploadCutoff = (int) ($options['uploadCutoff'] ?? -1);
+        $parentId = self::optionalString($options['parentId'] ?? $options['parentID'] ?? null);
+
+        $flow = [
+            'remote' => $remote,
+            'sourceSize' => $size,
+            'uploadCutoff' => $uploadCutoff,
+            'parentId' => $parentId,
+            'temporaryObjectHasMetadata' => false,
+            'selectedUpload' => null,
+            'sequence' => [
+                'fs-put',
+                'create-object',
+            ],
+            'upload' => null,
+            'error' => null,
+        ];
+
+        $flow['sequence'][] = 'find-parent';
+        $parentLookupError = self::optionalString($options['parentLookupError'] ?? null);
+        if ($parentLookupError !== null && $parentLookupError !== '') {
+            $flow['error'] = "couldn't find parent ID: " . $parentLookupError;
+
+            return $flow;
+        }
+
+        $flow['parentId'] = $parentId ?? 'parent:' . self::parentRemote($remote);
+        $flow['sequence'][] = 'create-temporary-object';
+
+        if ($size < 0) {
+            $flow['error'] = 'unknown-sized upload not supported';
+
+            return $flow;
+        }
+
+        if ($size > 0 && $size >= $uploadCutoff) {
+            $flow['selectedUpload'] = 'multipart';
+            $upload = self::uploadMultipartMetadataFlow($remote, $sourceMetadata, $options);
+        } else {
+            $flow['selectedUpload'] = 'singlepart';
+            $upload = self::uploadSinglepartMetadataFlow($remote, $sourceMetadata, $options);
+        }
+
+        if ($upload['error'] !== null && (bool) ($options['nameAlreadyExists'] ?? false)) {
+            $upload['error'] .= ' (OneNote files cannot be overwritten by rclone)';
+        }
+
+        $flow['upload'] = $upload;
+        $flow['sequence'] = array_merge($flow['sequence'], $upload['sequence']);
+        $flow['error'] = $upload['error'];
+
+        return $flow;
+    }
+
+    /**
      * @param list<array<string, mixed>> $currentPermissions
      * @param array<string, mixed> $metadata
      * @param array{driveType?: string, metadataPermissions?: string, addOnly?: bool, operationErrors?: array<string, string>} $options
@@ -1374,5 +1438,16 @@ final class OneDrivePermissionPlanner
         }
 
         return null;
+    }
+
+    private static function parentRemote(string $remote): string
+    {
+        $remote = trim($remote, '/');
+        $slash = strrpos($remote, '/');
+        if ($slash === false) {
+            return '';
+        }
+
+        return substr($remote, 0, $slash);
     }
 }
