@@ -1,5 +1,156 @@
 # Integration Status
 
+## Integration handoff accepted - markerPDF - 2026-05-24 20:20 UTC
+
+Accepted the owner-free markerPDF handoff from
+`.tmux-team/tmp/handoff-candidates/port-markerpdf.ready`
+(`timestamp=2026-05-24T20:14:54Z`, reason `no-codex-handoff-grace`). The
+`port-markerpdf` pane was idle at `bash` (`pane_pid=1460441`) with no child
+process. I held only markerPDF with
+`.tmux-team/tmp/integration-holds/port-markerpdf.hold` at
+`2026-05-24T20:15:59Z`.
+
+Two-poll held snapshot and root result:
+
+- `HEAD` stayed stable at `65f206b33220` through held polling and root
+  verification, then advanced to implementation commit `5e46840f`.
+- markerPDF tracked shortstat stayed
+  `6 files changed, 124 insertions(+), 35 deletions(-)`, plus one untracked
+  markerPDF example:
+  `lanes/markerpdf/examples/wordpress-pdf-asciihex-filter-import.php`.
+- The ready marker and latest markerPDF log mtimes stayed stable, and the
+  markerPDF pane stayed idle with no child process.
+- The exact no-argument root gate was clear before starting the
+  integration-owned root harness. `php tools/run-tests.php` printed no
+  lock-wait message and passed with `338` test files, `48339` assertions, and
+  `0` failures.
+- Unrelated global dirty shortstat moved during the hold
+  (`213 files changed, 181581 insertions(+), 22984 deletions(-)` to
+  `213 files changed, 181600 insertions(+), 22984 deletions(-)`), so this
+  root result is scoped to this held markerPDF batch and is not reused for any
+  other dirty lane claim or upstream parity claim.
+
+Reviewed scope:
+
+- `PdfTextExtractor.php` now decodes `/ASCIIHexDecode` content streams and
+  ordered `/ASCIIHexDecode` then `/FlateDecode` filter arrays before native
+  text-token parsing.
+- Focused tests and the WordPress example cover encoded content streams
+  emitting `Encoded PDF Import` and `Clean WordPress Blocks` without Python,
+  pdftext, pypdfium, Poppler, Ghostscript, or other external PDF tools.
+- Support-library tracking remains bounded and inactive: broader searchable
+  PDF dictionary extraction should reuse `pdf-text-dictionary-core`, and
+  OCR/layout/table claims remain behind `layout-ocr-result-core` and
+  `table-geometry-core`. No support-library row was activated or counted for
+  this native stream-filter slice.
+
+Verification:
+
+- `php -l` passed for the touched markerPDF source, test, and example.
+- `jq empty lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json
+  lanes/markerpdf/lane-status.json dependency-backlog.json`: pass.
+- `php lanes/markerpdf/examples/wordpress-pdf-asciihex-filter-import.php`
+  emitted `Encoded PDF Import` and `Clean WordPress Blocks` with
+  `executes_python_or_models=false` and
+  `executes_external_pdf_tools=false`.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`:
+  `1` file, `24` assertions, `0` failures.
+- `php tools/run-tests.php lanes/markerpdf/tests`: `47` files, `957`
+  assertions, `0` failures.
+- Integration-owned `php tools/run-tests.php`: `338` test files, `48339`
+  assertions, `0` failures. No lock-wait message was printed.
+- `git diff --check`, `git diff --check -- lanes/markerpdf`, and
+  `git diff --cached --check`: pass.
+
+Implementation commit: `5e46840f Integrate markerPDF ASCIIHex stream filter
+slice`. Follow-up status/dashboard refresh updates markerPDF `latestCommit`
+and regenerates public artifacts from the accepted commit without counting the
+other dirty lane claims.
+
+Skipped active or dirty lanes: Difftastic, Dolt, Dolt runner, esbuild,
+Gitoxide, libsqlite, LightningCSS, Pandoc, Quadrable, rclone, Readability,
+and Syncthing remain dirty or independently owned outside this markerPDF hold.
+Dolt remains skipped until implementation and runner handoff evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: libsqlite only after the pane is owner-free and the
+dirty scope is reduced or fully evidenced, otherwise the next owner-free
+`.ready` marker whose dirty scope exactly matches its worker evidence.
+
+## Integration handoff accepted - markerPDF - 2026-05-24 20:04 UTC
+
+Accepted the owner-free markerPDF handoff from
+`.tmux-team/tmp/handoff-candidates/port-markerpdf.ready`
+(`timestamp=2026-05-24T19:59:28Z`, reason `no-codex-handoff-grace`). The
+`port-markerpdf` pane was idle at `bash` (`pane_pid=1383420`) with no child
+process. I held only markerPDF with
+`.tmux-team/tmp/integration-holds/port-markerpdf.hold` at
+`2026-05-24T20:00:03Z`.
+
+Two-poll held snapshot and root result:
+
+- `HEAD` stayed stable at `4756c15a0453` through held polling and focused
+  checks, then advanced to implementation commit `958ad536ba58`.
+- markerPDF tracked shortstat stayed
+  `6 files changed, 67 insertions(+), 29 deletions(-)`, plus one untracked
+  markerPDF example:
+  `lanes/markerpdf/examples/wordpress-pdf-tm-horizontal-scale-import.php`.
+- The markerPDF pane stayed idle with no child process.
+- The exact no-argument root gate was clear before starting the
+  integration-owned root harness. `php tools/run-tests.php` printed no
+  lock-wait message and passed with `341` test files, `50811` assertions, and
+  `0` failures.
+- Unrelated global dirty shortstat moved during the hold
+  (`227 files changed, 197155 insertions(+), 24007 deletions(-)` to
+  `228 files changed, 197180 insertions(+), 24007 deletions(-)`), so this
+  root result is not reused for any other dirty lane claim or upstream parity
+  claim.
+
+Reviewed scope:
+
+- `PdfTextExtractor.php` now tracks the non-identity horizontal scale from a
+  `Tm` text matrix and folds it into the existing text end-X estimate before
+  later same-line `Tm` gap decisions.
+- Focused tests and the WordPress example cover widened matrix text joining
+  `Import Profile` + `s` as `Import Profiles` and compressed matrix text still
+  inserting the readable `SiteMap Index` gap.
+- Support-library tracking remains bounded and inactive: broader searchable
+  PDF dictionary extraction should reuse `pdf-text-dictionary-core`, and
+  OCR/layout/table claims remain behind `layout-ocr-result-core` and
+  `table-geometry-core`. No support-library row was activated or counted for
+  this native text-positioning slice.
+
+Verification:
+
+- `php -l` passed for the touched markerPDF source, test, and example.
+- `jq empty lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json
+  lanes/markerpdf/lane-status.json dependency-backlog.json`: pass.
+- `php lanes/markerpdf/examples/wordpress-pdf-tm-horizontal-scale-import.php`
+  emitted `Import Profiles` and `SiteMap Index` with
+  `executes_python_or_models=false` and
+  `executes_external_pdf_tools=false`.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`:
+  `1` file, `22` assertions, `0` failures.
+- `php tools/run-tests.php lanes/markerpdf/tests`: `47` files, `955`
+  assertions, `0` failures.
+- Integration-owned `php tools/run-tests.php`: `341` test files, `50811`
+  assertions, `0` failures. No lock-wait message was printed.
+- `git diff --check`, `git diff --check -- lanes/markerpdf`, and
+  `git diff --cached --check`: pass.
+
+Implementation commit: `958ad536 Integrate markerPDF Tm horizontal scale
+slice`. Follow-up status/dashboard refresh updates markerPDF `latestCommit`
+and regenerates public artifacts from the accepted commit without counting the
+other dirty lane claims.
+
+Skipped active or dirty lanes: Difftastic, Dolt, Dolt runner, esbuild,
+Gitoxide, libsqlite, LightningCSS, Pandoc, Quadrable, rclone, Readability,
+and Syncthing remain dirty or independently owned outside this markerPDF hold.
+Dolt remains skipped until implementation and runner handoff evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: a reduced esbuild analyzer-only handoff or the next
+owner-free `.ready` marker whose dirty scope exactly matches its worker
+evidence.
+
 ## Integration handoff rejection - esbuild - 2026-05-24 19:59 UTC
 
 No esbuild lane output was integrated. I selected the fresh handoff candidate
@@ -25672,6 +25823,78 @@ one coherent owner-free lane batch, reviewed with focused inspection, focused
 lane tests, serialized `php tools/run-tests.php`, full `git diff --check`, and
 dashboard regeneration from that same accepted snapshot.
 
+## Integration worker esbuild hold - 2026-05-24 20:08 UTC
+
+No worker output was integrated in this pass. No lane files were staged, no
+commit was made, `php tools/generate-dashboard.php` was not run, and no
+upstream parity claim is accepted from this snapshot.
+
+Held lane: `port-esbuild`. It was the only base-lane pane found at `bash`
+without an active child process, so
+`.tmux-team/tmp/integration-holds/port-esbuild.hold` was created at
+`2026-05-24T20:07:13Z` for a short intake review.
+
+Evidence reviewed:
+
+- Worker report in
+  `.tmux-team/logs/port-esbuild-watchdog-20260524T195929Z.log` claimed the
+  dynamic-import trailing-comma slice with `php -l` pass, focused
+  `php tools/run-tests.php lanes/esbuild/tests/JsModuleAnalyzerTest.php
+  lanes/esbuild/tests/MetafileAnalyzerTest.php` at `454` assertions and `0`
+  failures, full esbuild lane PHP tests at `7` files, `4422` assertions and
+  `0` failures, `jq empty` pass, and `git diff --check -- lanes/esbuild`
+  pass.
+- Capacity evidence
+  `.tmux-team/logs/port-capacity-feed-dirty-php-a2bd26468fde-6ef15647f35c-esbuild.log`
+  reported `php tools/run-tests.php lanes/esbuild/tests` complete with `7`
+  files, `4422` assertions, `0` failures.
+- Local `jq empty lanes/esbuild/UPSTREAM_TEST_MANIFEST.json
+  lanes/esbuild/lane-status.json dependency-backlog.json` exited `0`.
+
+Rejected intake reason:
+
+- Dirty esbuild scope did not match the focused report. `git status --short --
+  lanes/esbuild` showed `73` rows: `20` tracked modified files plus broad
+  untracked fixtures/source files including source-map, metafile, data URL,
+  output-path, JSON-expression, legal-comment, and many WordPress fixture
+  slices. `git diff --shortstat -- lanes/esbuild` was `20 files changed,
+  18732 insertions(+), 1177 deletions(-)`, far wider than the trailing-comma
+  claim.
+- Required two-poll stability failed. Poll 1 at `2026-05-24T20:07:35Z` saw
+  `HEAD` `958ad536ba58`, no exact root PID, repo shortstat `234 files
+  changed, 198841 insertions(+), 23772 deletions(-)`, esbuild shortstat `20
+  files changed, 18732 insertions(+), 1177 deletions(-)`, esbuild dirty rows
+  `73`, and stable relevant log mtimes. Poll 2 at `2026-05-24T20:08:01Z` saw
+  `HEAD` move to `1d3c64bfaee4`, exact no-argument root PID `1469750 php
+  tools/run-tests.php`, repo shortstat change to `233 files changed, 198864
+  insertions(+), 23620 deletions(-)`, esbuild shortstat still `20 files
+  changed, 18732 insertions(+), 1177 deletions(-)`, esbuild dirty rows `73`,
+  and stable relevant log mtimes.
+- Because `HEAD` moved and a no-argument root harness appeared during the
+  intake window, this worker did not start or wait on
+  `.upstream-cache/run-tests.lock` and did not treat any concurrent root result
+  as an accepted integration snapshot.
+
+Skipped active lanes:
+
+- Active child agents were present under `port-difftastic`, `port-dolt`,
+  `port-gitoxide`, `port-libsqlite`, `port-lightningcss`, `port-markerpdf`,
+  `port-pandoc`, `port-quadrable`, `port-rclone`, `port-readability`, and
+  `port-syncthing`.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` were active while dirty Dolt lane files were present.
+- `port-integrator` also had an active child agent, so this pass avoided
+  staging or committing shared status artifacts.
+
+Next safe integration target: `port-esbuild` only if a worker produces a
+reduced handoff whose dirty scope exactly matches the dynamic-import
+trailing-comma evidence, or a single broader esbuild handoff that explicitly
+covers the source-map/metafile/data URL/output-path/status changes with focused
+evidence, dependency-backlog references for source maps/package-resolution
+where applicable, and a frozen two-poll window before the serialized
+no-argument root harness. Otherwise, wait for the next
+`handoff-candidates/port-*.ready` marker with an owner-free pane.
+
 ## Integration Hold - 2026-05-23T18:20:17Z
 
 No worker output was integrated by this pass. No lane files were staged, no
@@ -27597,6 +27820,47 @@ and relevant log mtimes are unchanged across two polls. After that, accept one
 coherent owner-free lane batch with focused inspection, focused lane tests, the
 serialized no-argument `php tools/run-tests.php`, `git diff --check`, and
 dashboard regeneration from that same accepted snapshot.
+
+## Latest integration worker rejection - 2026-05-24 20:08 UTC
+
+No worker output was integrated. No lane files were staged, no commit was made,
+and `php tools/generate-dashboard.php` was not run.
+
+Held lane reviewed: `port-esbuild`. It was the only base lane pane at `bash`
+without an active child process, so a short hold file was created at
+`2026-05-24T20:07:13Z` and removed after rejection.
+
+Evidence was present but not acceptably scoped. The esbuild worker reported a
+dynamic-import trailing-comma slice with focused/lane PHP tests green (`454`
+focused assertions and `4422` lane assertions, both `0` failures), `jq empty`
+green, and lane `git diff --check` green. The dirty lane scope did not match:
+`git status --short -- lanes/esbuild` showed `73` rows, including `20` tracked
+modified files and broad untracked source-map, metafile, data URL, output-path,
+JSON-expression, legal-comment, and WordPress fixture files. Lane shortstat was
+`20 files changed, 18732 insertions(+), 1177 deletions(-)`.
+
+Two-poll stability failed. Poll 1 at `2026-05-24T20:07:35Z` saw `HEAD`
+`958ad536ba58`, no exact no-argument root PID, repo shortstat `234 files
+changed, 198841 insertions(+), 23772 deletions(-)`, and stable esbuild log
+mtimes. Poll 2 at `2026-05-24T20:08:01Z` saw `HEAD` move to `1d3c64bfaee4`,
+exact no-argument root PID `1469750 php tools/run-tests.php`, repo shortstat
+`233 files changed, 198864 insertions(+), 23620 deletions(-)`, and unchanged
+esbuild lane/log samples. This worker did not start or wait on the serialized
+root harness and did not accept any concurrent root result as integration
+evidence.
+
+Skipped lanes: all other base lanes had active child agents, and Dolt remains
+skipped despite reauthorization because both `port-dolt` and `port-dolt-runner`
+were active while Dolt files were dirty. `port-integrator` also had an active
+child agent, so this pass avoided staging or committing shared status
+artifacts.
+
+Next integration target: `port-libsqlite.ready` is now the concrete handoff
+marker to inspect next, but only after confirming the pane is owner-free and
+taking the required two stable polls. Retry esbuild only if a worker narrows
+the handoff to the trailing-comma slice or supplies explicit evidence for the
+broader source-map/metafile/data URL/output-path batch, including support-row
+references where required.
 
 ## Integration Hold - 2026-05-23T16:42:00Z
 
@@ -61216,3 +61480,142 @@ relevant log mtimes are unchanged across two polls. After that, accept one
 coherent owner-free lane batch with focused inspection, focused lane tests, the
 serialized no-argument `php tools/run-tests.php`, `git diff --check`, and
 dashboard regeneration from that same accepted snapshot.
+
+## Latest integration worker rejection - 2026-05-24 20:08 UTC
+
+No worker output was integrated. No lane files were staged, no commit was made,
+and `php tools/generate-dashboard.php` was not run.
+
+Held lane reviewed: `port-esbuild`. It was the only base lane pane at `bash`
+without an active child process, so a short hold file was created at
+`2026-05-24T20:07:13Z` and removed after rejection.
+
+Evidence was present but not acceptably scoped. The esbuild worker reported a
+dynamic-import trailing-comma slice with focused/lane PHP tests green (`454`
+focused assertions and `4422` lane assertions, both `0` failures), `jq empty`
+green, and lane `git diff --check` green. The dirty lane scope did not match:
+`git status --short -- lanes/esbuild` showed `73` rows, including `20` tracked
+modified files and broad untracked source-map, metafile, data URL, output-path,
+JSON-expression, legal-comment, and WordPress fixture files. Lane shortstat was
+`20 files changed, 18732 insertions(+), 1177 deletions(-)`.
+
+Two-poll stability failed. Poll 1 at `2026-05-24T20:07:35Z` saw `HEAD`
+`958ad536ba58`, no exact no-argument root PID, repo shortstat `234 files
+changed, 198841 insertions(+), 23772 deletions(-)`, and stable esbuild log
+mtimes. Poll 2 at `2026-05-24T20:08:01Z` saw `HEAD` move to `1d3c64bfaee4`,
+exact no-argument root PID `1469750 php tools/run-tests.php`, repo shortstat
+`233 files changed, 198864 insertions(+), 23620 deletions(-)`, and unchanged
+esbuild lane/log samples. This worker did not start or wait on the serialized
+root harness and did not accept any concurrent root result as integration
+evidence.
+
+Skipped lanes: all other base lanes had active child agents, and Dolt remains
+skipped despite reauthorization because both `port-dolt` and `port-dolt-runner`
+were active while Dolt files were dirty. `port-integrator` also had an active
+child agent, so this pass avoided staging or committing shared status
+artifacts.
+
+Next integration target: `port-libsqlite.ready` is now the concrete handoff
+marker to inspect next, but only after confirming the pane is owner-free and
+taking the required two stable polls. Retry esbuild only if a worker narrows
+the handoff to the trailing-comma slice or supplies explicit evidence for the
+broader source-map/metafile/data URL/output-path batch, including support-row
+references where required.
+
+## Latest libsqlite handoff rejection - 2026-05-24 20:11 UTC
+
+No libsqlite output was integrated. No lane files were staged, no commit was
+made, and `php tools/generate-dashboard.php` was not run.
+
+Held lane reviewed: `port-libsqlite`. The ready marker
+`.tmux-team/tmp/handoff-candidates/port-libsqlite.ready` appeared at
+`2026-05-24T20:08:44Z`, and the pane was at `bash` with no active child
+process. A short hold was created at `2026-05-24T20:10:43Z`.
+
+Evidence reviewed:
+
+- Worker report in
+  `.tmux-team/logs/port-libsqlite-watchdog-20260524T195725Z.log` claimed the
+  bounded `json_error_position()` slice with `php -l` pass, focused
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` at `1`
+  file, `1722` assertions and `0` failures, focused upstream SQLite
+  `json101.test json102.test json501.test json502.test` at `793` tests and
+  `0` errors, WordPress example pass, and lane JSON `jq empty` pass.
+
+Rejected intake reason:
+
+- Dirty libsqlite scope did not match that focused report. `git status --short
+  -- lanes/libsqlite` showed `16` rows, including older JSON validity,
+  JSON-path/operator, and create-index files/examples in addition to the
+  reported `json_error_position()` files. Lane shortstat was `9 files changed,
+  1493 insertions(+), 33 deletions(-)`.
+- Required stability failed for the wider checkout. Poll 1 at
+  `2026-05-24T20:10:53Z` saw `HEAD` `1d3c64bfaee4`, no exact no-argument root
+  PID, repo shortstat `234 files changed, 199408 insertions(+), 23625
+  deletions(-)`, libsqlite dirty rows `16`, and stable ready/log mtimes. Poll
+  2 at `2026-05-24T20:11:18Z` kept `HEAD` and libsqlite lane samples stable
+  with no exact root PID, but repo shortstat moved to `234 files changed,
+  199414 insertions(+), 23626 deletions(-)`.
+- This worker did not start or wait on the serialized no-argument root harness,
+  because the accepted-snapshot gate was not met. No concurrent moving-tree
+  focused or root result is accepted as integration evidence.
+
+Next worker task for libsqlite: reduce the handoff to exactly the
+`json_error_position()` slice, or provide one coherent evidence bundle for all
+currently dirty libsqlite JSON validity/path/operator/create-index files. The
+handoff should include focused PHP results, focused upstream SQLite/spec
+results, malformed/corrupt cases where relevant, valid JSON metadata, and an
+owner-free two-poll window before integrator root verification.
+
+## Latest libsqlite handoff rejection - 2026-05-24 20:15 UTC
+
+No libsqlite output was integrated. No lane files were staged, no commit was
+made, and `php tools/generate-dashboard.php` was not run.
+
+Held lane/session reviewed: `port-libsqlite`. The ready marker
+`.tmux-team/tmp/handoff-candidates/port-libsqlite.ready` was current at intake
+with `timestamp=2026-05-24T20:12:50Z`, `session=port-libsqlite`, and reason
+`no-codex-handoff-grace`. A short hold was created at
+`2026-05-24T20:13:38Z`.
+
+Decision: rejected as unsafe/stale, not integrated.
+
+Evidence reviewed:
+
+- The selected pane was no longer owner-free. `port-libsqlite` was at `bash`
+  with pane PID `1493018`, but had active child PID `1493066`
+  (`node /usr/local/bin/codex -a never exec -C /home/claude/port-libs -s
+  danger-full-access -`) during intake.
+- Worker evidence in `.tmux-team/logs/port-libsqlite.log` reported a bounded
+  scalar `min()`/`max()` JSON operator RHS slice with focused PHP evidence
+  (`php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1`
+  file, `5790` assertions, `0` failures), a focused SQLite upstream shard
+  (`func.test coalesce.test json102.test indexexpr1.test`: `15465` tests,
+  `0` errors), lane JSON checks, a WordPress example pass, and lane
+  `git diff --check` pass.
+- The actual libsqlite dirty scope remained broader than that report:
+  `16` status rows, including older JSON validity, JSON path/operator, JSONB,
+  and create-index files plus several untracked examples/classes. Lane
+  shortstat was `9 files changed, 1493 insertions(+), 33 deletions(-)`.
+- Required stability failed. Poll 1 at `2026-05-24T20:13:50Z` saw `HEAD`
+  `1d3c64bfaee4`, no exact no-argument root PID, and repo shortstat `214 files
+  changed, 181138 insertions(+), 22665 deletions(-)`. Poll 2 at
+  `2026-05-24T20:14:13Z` kept `HEAD` stable and no exact root PID, but repo
+  shortstat moved to `215 files changed, 181139 insertions(+), 22665
+  deletions(-)`.
+- `jq empty dependency-backlog.json` passed. No support-library row was
+  activated or counted; `charset-encoding-core` remains gated until UTF-16
+  record parity is the accepted active slice.
+
+This worker did not start or wait on the serialized no-argument root harness,
+because the selected lane had an active child and the snapshot was moving. No
+concurrent moving-tree focused or root result is accepted as integration
+evidence, and no upstream parity claim is accepted from this pass.
+
+Next worker task for libsqlite: re-emit one owner-free reduced handoff whose
+dirty scope exactly matches the scalar `min()`/`max()` JSON operator RHS slice,
+or provide one coherent evidence bundle for the full current libsqlite JSON
+validity/path/operator/JSONB/create-index batch. The next integration target is
+libsqlite again only after `port-libsqlite` is idle with no child process and
+the lane files, relevant logs, `HEAD`, exact root PID state, and shortstat are
+stable across two polls; otherwise take the next owner-free `.ready` marker.

@@ -204,4 +204,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Root aggregate verification and supervisor/integrator acceptance remain pending for this reduced `ASCIIHexDecode` stream-filter slice. After acceptance, choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of this stream-filter handoff.
+Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of the accepted stream-filter slice.
