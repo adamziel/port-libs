@@ -1,5 +1,72 @@
 # Integration Status
 
+## Integration handoff rejection - Syncthing - 2026-05-24 20:30 UTC
+
+No Syncthing lane output was integrated. I selected the fresh handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-syncthing.ready`
+(`timestamp=2026-05-24T20:29:20Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-syncthing` pane was idle at `bash`
+(`pane_pid=1584230`) with no child process. I held only Syncthing with
+`.tmux-team/tmp/integration-holds/port-syncthing.hold` at
+`2026-05-24T20:29:51Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `6d25aa9cc616`.
+- The exact no-argument root gate was clear in both polls; no integration-owned
+  root harness was started because the handoff was rejected before acceptance.
+- Syncthing tracked shortstat stayed
+  `26 files changed, 13069 insertions(+), 1017 deletions(-)`.
+- `git status --short -- lanes/syncthing` stayed broad at `264` rows,
+  including the advertised global discovery files plus many older untracked
+  config, route, GUI, discovery, BEP/session, stats, receive-loop, and system
+  route classes/tests.
+- The latest Syncthing log stayed unchanged at
+  `.tmux-team/logs/port-syncthing-watchdog-20260524T201902Z.log`
+  (`mtime=2026-05-24 20:28:53 +0000`, `2796937` bytes).
+
+Focused evidence reviewed:
+
+- Advertised slice: `GlobalDiscoveryServer::deviceIdPinningDecision()` for
+  global discovery `id=` TLS peer-certificate checking, with focused PHP,
+  adjacent discovery PHP, full lane PHP, focused upstream
+  `go test ./lib/discover -run '^TestGlobalOverHTTPS$'`, WordPress example
+  JSON, and lane manifest/status JSON reported green by the worker.
+- Reported blocker correctly leads with the real gate: supervisor/integrator
+  root verification pending, and full upstream `go test ./...` intentionally
+  unrun because it spans the full module/integration breadth.
+
+Decision: rejected/deferred, not integrated. The worker report is coherent for
+a small global-discovery security slice, but the actual Syncthing dirty scope is
+an accumulated multi-slice patch. The advertised files are untracked inside a
+much larger untracked set, while `lane-status.json`, `UPSTREAM_TEST_MANIFEST.json`,
+and `wordpress-scenarios.md` also describe many previously unaccepted slices.
+Accepting all Syncthing files would merge far more than the reviewed evidence;
+staging only the advertised files would leave status/manifest claims coupled to
+older unaccepted work. No dashboard artifacts were regenerated and no progress
+claim was advanced. The Syncthing hold and ready marker were removed.
+
+Exact next Syncthing worker task: re-emit one reduced handoff from the accepted
+lane baseline. If the claim remains global discovery `id=` TLS peer-certificate
+checking, include only the minimal `GlobalDiscoveryServer.php`,
+`GlobalDiscoveryServerTest.php`, `wordpress-global-discovery-options.php`, and
+normalized manifest/status/scenario notes for that slice. Do not include
+unaccepted config, route, GUI QR/static/token/auth, discovery-manager,
+receive-loop, BEP/session, stats, or system/noauth/service/event classes and
+tests in the same handoff. If a future slice depends on URL/query escaping or
+QR generation, reference the existing bounded `url-percent-encoding-core` or
+`qr-code-matrix-core` support rows instead of counting broad dependency
+progress.
+
+Current skipped lanes: Difftastic, Dolt, Dolt runner, esbuild, Gitoxide,
+libsqlite, LightningCSS, markerPDF, Pandoc, Quadrable, rclone, and Readability
+remain dirty, active, or independently owned outside this selected Syncthing
+hold. Dolt remains skipped until implementation and runner evidence are
+coherent and neither session is editing the same metadata/source files. Next
+concrete intake target: libsqlite only after it is owner-free and reduced or
+fully evidenced, otherwise the next owner-free `.ready` marker whose dirty
+scope exactly matches its worker evidence.
+
 ## Integration handoff rejection - markerPDF - 2026-05-24 20:28 UTC
 
 No markerPDF lane output was integrated. I selected the fresh handoff
