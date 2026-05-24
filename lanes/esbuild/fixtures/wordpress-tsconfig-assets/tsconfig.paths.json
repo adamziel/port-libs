@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@blocks/*": ["./blocks/*"],
+      "@shared/*": ["./shared/*"],
+      "@theme/*": ["./theme/*"],
+      "shared-config": ["./shared/config"],
+      "wordpress-runtime": ["./vendor/missing-runtime", "./vendor/wordpress-runtime"],
+      "/virtual/*": ["./virtual/*"],
+      "unsafe-runtime": ["../outside-runtime"]
+    }
+  }
+}

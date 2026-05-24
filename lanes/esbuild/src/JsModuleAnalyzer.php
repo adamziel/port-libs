@@ -15,9 +15,10 @@ final class JsModuleAnalyzer
     public function analyze(string $source): ModuleAnalysis
     {
         $this->source = $source;
-        $this->tokens = (new JsLexer())->tokenize($source);
+        $this->tokens = (new JsLexer())->tokenize($this->sourceWithNoSubstitutionTemplateStrings($source));
         $imports = [];
         $exports = [];
+        $deadControlFlowRanges = $this->deadControlFlowRanges();
 
         $count = count($this->tokens);
         $depth = 0;
@@ -28,15 +29,29 @@ final class JsModuleAnalyzer
                 continue;
             }
 
-            if ($token->text === 'import') {
-                if (($this->tokens[$index + 1] ?? null)?->text !== '(' && $depth !== 0) {
-                    $depth = $this->adjustDepth($depth, $token);
-                    continue;
+            if ($token->text === 'require') {
+                foreach ($this->parseCommonJsRequire($index, $deadControlFlowRanges) as $commonJsImport) {
+                    $imports[] = $commonJsImport;
                 }
+                $depth = $this->adjustDepth($depth, $token);
+                continue;
+            }
 
-                $import = $this->parseImport($index);
-                if ($import !== null) {
-                    $imports[] = $import;
+            if ($token->text === 'import') {
+                if (($this->tokens[$index + 1] ?? null)?->text === '(') {
+                    foreach ($this->parseDynamicImports($index, $deadControlFlowRanges) as $dynamicImport) {
+                        $imports[] = $dynamicImport;
+                    }
+                } else {
+                    if ($depth !== 0) {
+                        $depth = $this->adjustDepth($depth, $token);
+                        continue;
+                    }
+
+                    $import = $this->parseImport($index);
+                    if ($import !== null) {
+                        $imports[] = $import;
+                    }
                 }
                 $depth = $this->adjustDepth($depth, $token);
                 continue;
@@ -74,7 +89,9 @@ final class JsModuleAnalyzer
         }
 
         if ($next->text === '(') {
-            return $this->parseDynamicImport($index);
+            $imports = $this->parseDynamicImports($index, []);
+
+            return $imports[0] ?? null;
         }
 
         if ($next->kind === 'identifier' && ($this->tokens[$index + 2] ?? null)?->text === '=') {
@@ -235,8 +252,18 @@ final class JsModuleAnalyzer
         );
     }
 
-    private function parseDynamicImport(int $index): ?ModuleImport
+    /**
+     * @param list<array{0:int, 1:int}> $deadControlFlowRanges
+     * @return list<ModuleImport>
+     */
+    private function parseDynamicImports(int $index, array $deadControlFlowRanges): array
     {
+        if ($this->isIndexInRanges($index, $deadControlFlowRanges)
+            || $this->isIndexInProvablyDeadExpressionBranch($index)
+        ) {
+            return [];
+        }
+
         $end = $this->findMatchingPunctuator($index + 1, '(', ')');
         $source = $this->tokens[$index + 2] ?? null;
         if ($source === null || $source->text === ')') {
@@ -248,18 +275,438 @@ final class JsModuleAnalyzer
         ) {
             throw new \InvalidArgumentException('Dynamic import cannot use a spread argument');
         }
-        if ($source->kind !== 'string') {
-            return null;
-        }
 
         $attributesKeyword = null;
         $attributes = [];
         $comma = $this->findTopLevelPunctuator(',', $index + 3, $end);
+        $argumentEnd = $comma ?? $end;
         if ($comma !== null) {
             [$attributesKeyword, $attributes] = $this->parseDynamicImportOptions($comma + 1, $end);
         }
 
-        return new ModuleImport('dynamic', $this->stringValue($source), [], $this->tokens[$index]->offset, $attributesKeyword, $attributes);
+        $imports = [];
+        foreach ($this->conditionalStringArgumentSources($index + 2, $argumentEnd) as $source) {
+            $imports[] = new ModuleImport('dynamic', $source, [], $this->tokens[$index]->offset, $attributesKeyword, $attributes);
+        }
+        foreach ($this->conditionalGlobArgumentSources($index + 2, $argumentEnd) as $source) {
+            $imports[] = new ModuleImport('dynamic-glob', $source, [], $this->tokens[$index]->offset, $attributesKeyword, $attributes);
+        }
+
+        return $imports;
+    }
+
+    /**
+     * @param list<array{0:int, 1:int}> $deadControlFlowRanges
+     * @return list<ModuleImport>
+     */
+    private function parseCommonJsRequire(int $index, array $deadControlFlowRanges): array
+    {
+        if ($this->isTypeScriptImportEqualsRequireTargetAt($index)
+            || ($this->tokens[$index - 1] ?? null)?->text === '.'
+            || $this->isIndexInRanges($index, $deadControlFlowRanges)
+            || $this->isIndexInProvablyDeadExpressionBranch($index)
+        ) {
+            return [];
+        }
+
+        $kind = null;
+        $open = null;
+        $sourceIndex = null;
+        if (($this->tokens[$index + 1] ?? null)?->text === '(') {
+            $kind = 'commonjs-require';
+            $open = $index + 1;
+            $sourceIndex = $index + 2;
+        } elseif (($this->tokens[$index + 1] ?? null)?->text === '.'
+            && ($this->tokens[$index + 2] ?? null)?->kind === 'identifier'
+            && $this->tokens[$index + 2]->text === 'resolve'
+            && ($this->tokens[$index + 3] ?? null)?->text === '('
+        ) {
+            $kind = 'commonjs-require-resolve';
+            $open = $index + 3;
+            $sourceIndex = $index + 4;
+        }
+
+        if ($kind === null || $open === null || $sourceIndex === null) {
+            return [];
+        }
+
+        $end = $this->findMatchingPunctuator($open, '(', ')');
+        $comma = $this->findTopLevelPunctuator(',', $sourceIndex + 1, $end);
+        $argumentEnd = $end;
+        if ($comma !== null) {
+            if ($comma + 1 !== $end) {
+                return [];
+            }
+            $argumentEnd = $comma;
+        }
+
+        $sources = $kind === 'commonjs-require-resolve'
+            ? $this->commonJsDirectStringArgumentSource($sourceIndex, $argumentEnd)
+            : $this->conditionalStringArgumentSources($sourceIndex, $argumentEnd);
+        $globSources = [];
+        if ($sources === [] && $kind === 'commonjs-require') {
+            $globSources = $this->conditionalGlobArgumentSources($sourceIndex, $argumentEnd);
+        }
+        if ($sources === [] && $globSources === []) {
+            return [];
+        }
+
+        $imports = [];
+        foreach ($sources as $source) {
+            $imports[] = new ModuleImport($kind, $source, [], $this->tokens[$index]->offset);
+        }
+        foreach ($globSources as $source) {
+            $imports[] = new ModuleImport('commonjs-require-glob', $source, [], $this->tokens[$index]->offset);
+        }
+
+        return $imports;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function commonJsDirectStringArgumentSource(int $start, int $end): array
+    {
+        [$start, $end] = $this->trimOuterParentheses($start, $end);
+        $source = $this->tokens[$start] ?? null;
+        if ($source?->kind !== 'string' || $start + 1 !== $end) {
+            return [];
+        }
+
+        return [$this->stringValue($source)];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function conditionalStringArgumentSources(int $start, int $end): array
+    {
+        [$start, $end] = $this->trimOuterParentheses($start, $end);
+        if ($start >= $end) {
+            return [];
+        }
+
+        $source = $this->tokens[$start] ?? null;
+        if ($source?->kind === 'string' && $start + 1 === $end) {
+            return [$this->stringValue($source)];
+        }
+
+        $question = $this->findTopLevelConditionalQuestion($start, $end);
+        if ($question === null) {
+            return [];
+        }
+
+        $colon = $this->findMatchingConditionalColon($question + 1, $end);
+        if ($colon === null) {
+            return [];
+        }
+
+        return [
+            ...$this->conditionalStringArgumentSources($question + 1, $colon),
+            ...$this->conditionalStringArgumentSources($colon + 1, $end),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function conditionalGlobArgumentSources(int $start, int $end): array
+    {
+        [$start, $end] = $this->trimOuterParentheses($start, $end);
+        if ($start >= $end) {
+            return [];
+        }
+
+        $source = $this->globPatternArgumentSource($start, $end);
+        if ($source !== null) {
+            return [$source];
+        }
+
+        $question = $this->findTopLevelConditionalQuestion($start, $end);
+        if ($question === null) {
+            return [];
+        }
+
+        $colon = $this->findMatchingConditionalColon($question + 1, $end);
+        if ($colon === null) {
+            return [];
+        }
+
+        return [
+            ...$this->conditionalGlobArgumentSources($question + 1, $colon),
+            ...$this->conditionalGlobArgumentSources($colon + 1, $end),
+        ];
+    }
+
+    private function globPatternArgumentSource(int $start, int $end): ?string
+    {
+        [$start, $end] = $this->trimOuterParentheses($start, $end);
+        $rawParts = $this->globRawPartsFromExpression($start, $end);
+        if ($rawParts === null) {
+            return null;
+        }
+
+        $pattern = $this->globPatternStringFromRawParts($rawParts);
+        if ($pattern === null) {
+            return null;
+        }
+
+        return str_starts_with($pattern, './') || str_starts_with($pattern, '../') ? $pattern : null;
+    }
+
+    /**
+     * @return list<array{text?:string, wildcard?:true}>|null
+     */
+    private function globRawPartsFromExpression(int $start, int $end): ?array
+    {
+        [$start, $end] = $this->trimOuterParentheses($start, $end);
+        if ($start >= $end) {
+            return null;
+        }
+
+        $plus = $this->findLastTopLevelPunctuator('+', $start, $end);
+        if ($plus !== null) {
+            $left = $this->globRawPartsFromExpression($start, $plus);
+            if ($left === null) {
+                return null;
+            }
+
+            $right = $this->globRawPartsFromExpression($plus + 1, $end);
+
+            return [
+                ...$left,
+                ...($right ?? [['wildcard' => true]]),
+            ];
+        }
+
+        $token = $this->tokens[$start] ?? null;
+        if ($token?->kind === 'string' && $start + 1 === $end) {
+            return [['text' => $this->stringValue($token)]];
+        }
+
+        if ($token?->kind === 'identifier'
+            && $start + 1 === $end
+            && ($this->source[$token->offset] ?? null) === '`'
+        ) {
+            return $this->templateGlobRawPartsAt($token->offset);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{text?:string, wildcard?:true}> $rawParts
+     */
+    private function globPatternStringFromRawParts(array $rawParts): ?string
+    {
+        $parts = [];
+        $last = ['prefix' => '', 'wildcard' => 'none'];
+
+        foreach ($rawParts as $part) {
+            if (($part['wildcard'] ?? false) === true) {
+                if ($last['wildcard'] === 'none') {
+                    if (!str_ends_with($last['prefix'], '/')) {
+                        $last['wildcard'] = 'except-slash';
+                    } else {
+                        $last['wildcard'] = 'including-slash';
+                        $parts[] = $last;
+                        $last = ['prefix' => '/', 'wildcard' => 'except-slash'];
+                    }
+                }
+                continue;
+            }
+
+            $text = $part['text'] ?? '';
+            if ($text === '') {
+                continue;
+            }
+            if ($last['wildcard'] !== 'none') {
+                $parts[] = $last;
+                $last = ['prefix' => '', 'wildcard' => 'none'];
+            }
+            $last['prefix'] .= $text;
+        }
+
+        $parts[] = $last;
+
+        if (count($parts) === 1 && $parts[0]['wildcard'] === 'none') {
+            return null;
+        }
+
+        $pattern = '';
+        foreach ($parts as $part) {
+            $pattern .= $part['prefix'];
+            if ($part['wildcard'] === 'except-slash') {
+                $pattern .= '*';
+            } elseif ($part['wildcard'] === 'including-slash') {
+                $pattern .= '**';
+            }
+        }
+
+        return $pattern;
+    }
+
+    /**
+     * @return list<array{text?:string, wildcard?:true}>|null
+     */
+    private function templateGlobRawPartsAt(int $offset): ?array
+    {
+        if (($this->source[$offset] ?? null) !== '`') {
+            return null;
+        }
+
+        $parts = [];
+        $length = strlen($this->source);
+        $chunkStart = $offset + 1;
+        $hasWildcard = false;
+
+        for ($cursor = $chunkStart; $cursor < $length; $cursor++) {
+            $char = $this->source[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($char === '$' && ($this->source[$cursor + 1] ?? null) === '{') {
+                $text = substr($this->source, $chunkStart, $cursor - $chunkStart);
+                if ($text !== '') {
+                    $parts[] = ['text' => stripcslashes($text)];
+                }
+                $parts[] = ['wildcard' => true];
+                $hasWildcard = true;
+
+                $end = $this->templateExpressionEnd($cursor + 1);
+                if ($end === null) {
+                    return null;
+                }
+                $cursor = $end;
+                $chunkStart = $cursor + 1;
+                continue;
+            }
+            if ($char === '`') {
+                $text = substr($this->source, $chunkStart, $cursor - $chunkStart);
+                if ($text !== '') {
+                    $parts[] = ['text' => stripcslashes($text)];
+                }
+
+                return $hasWildcard ? $parts : null;
+            }
+        }
+
+        return null;
+    }
+
+    private function templateExpressionEnd(int $openBraceOffset): ?int
+    {
+        $length = strlen($this->source);
+        $depth = 1;
+
+        for ($cursor = $openBraceOffset + 1; $cursor < $length; $cursor++) {
+            $char = $this->source[$cursor];
+            if ($char === '"' || $char === "'") {
+                $cursor = $this->quotedLiteralEnd($this->source, $cursor, $char) - 1;
+                continue;
+            }
+            if ($char === '`') {
+                $end = $this->templateLiteralEnd($this->source, $cursor);
+                if ($end === null) {
+                    return null;
+                }
+                $cursor = $end - 1;
+                continue;
+            }
+            if ($char === '/' && ($this->source[$cursor + 1] ?? null) === '/') {
+                $cursor += strcspn($this->source, "\r\n", $cursor) - 1;
+                continue;
+            }
+            if ($char === '/' && ($this->source[$cursor + 1] ?? null) === '*') {
+                $close = strpos($this->source, '*/', $cursor + 2);
+                if ($close === false) {
+                    return null;
+                }
+                $cursor = $close + 1;
+                continue;
+            }
+            if ($char === '{') {
+                $depth++;
+                continue;
+            }
+            if ($char === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    return $cursor;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private function trimOuterParentheses(int $start, int $end): array
+    {
+        while (($this->tokens[$start] ?? null)?->text === '('
+            && $this->findMatchingPunctuator($start, '(', ')') === $end - 1
+        ) {
+            $start++;
+            $end--;
+        }
+
+        return [$start, $end];
+    }
+
+    private function findTopLevelConditionalQuestion(int $start, int $end): ?int
+    {
+        $depth = 0;
+        for ($i = $start; $i < $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0 && $text === '?') {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function findMatchingConditionalColon(int $start, int $end): ?int
+    {
+        $depth = 0;
+        $conditionalDepth = 0;
+        for ($i = $start; $i < $end; $i++) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, ['(', '{', '['], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+            if ($text === '?') {
+                $conditionalDepth++;
+                continue;
+            }
+            if ($text === ':') {
+                if ($conditionalDepth === 0) {
+                    return $i;
+                }
+                $conditionalDepth--;
+            }
+        }
+
+        return null;
     }
 
     private function parseImportEquals(int $index, bool $typeOnly, int $localIndex): ModuleImport
@@ -1028,7 +1475,11 @@ final class JsModuleAnalyzer
                 continue;
             }
 
-            if ($import->kind === 'dynamic' || $import->kind === 'side-effect') {
+            if ($import->kind === 'dynamic'
+                || $import->kind === 'dynamic-glob'
+                || $import->kind === 'side-effect'
+                || str_starts_with($import->kind, 'commonjs-')
+            ) {
                 $runtimeImports[] = $import;
                 continue;
             }
@@ -1309,6 +1760,200 @@ final class JsModuleAnalyzer
         return false;
     }
 
+    private function isIndexInProvablyDeadExpressionBranch(int $index): bool
+    {
+        return $this->isIndexInDeadLogicalRightHandSide($index)
+            || $this->isIndexInDeadConditionalBranch($index);
+    }
+
+    private function isIndexInDeadLogicalRightHandSide(int $index): bool
+    {
+        $depth = 0;
+        for ($i = $index - 1; $i >= 0; $i--) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                if ($depth === 0) {
+                    return false;
+                }
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+            if (in_array($text, [',', ';', ':'], true)) {
+                return false;
+            }
+
+            $operator = null;
+            $operatorStart = $i;
+            if ($text === '&&' || $text === '||') {
+                $operator = $text;
+            } elseif ($this->isNullishCoalescingOperatorEndingAt($i)) {
+                $operator = '??';
+                $operatorStart = $i - 1;
+            }
+
+            if ($operator === null) {
+                continue;
+            }
+
+            $left = $this->previousTopLevelExpressionToken($operatorStart - 1);
+            if ($left?->kind !== 'identifier') {
+                return false;
+            }
+
+            return ($operator === '&&' && $left->text === 'false')
+                || ($operator === '||' && $left->text === 'true')
+                || ($operator === '??' && in_array($left->text, ['true', 'false'], true));
+        }
+
+        return false;
+    }
+
+    private function isIndexInDeadConditionalBranch(int $index): bool
+    {
+        $depth = 0;
+        $statementEnd = $this->findStatementEndOrLineBreak($index);
+        for ($i = $index - 1; $i >= 0; $i--) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                if ($depth === 0) {
+                    return false;
+                }
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+            if (in_array($text, [',', ';'], true)) {
+                return false;
+            }
+
+            if ($text === ':') {
+                $question = $this->findMatchingConditionalQuestionBefore($i);
+                if ($question === null) {
+                    return false;
+                }
+
+                $condition = $this->previousTopLevelExpressionToken($question - 1);
+                return $condition?->kind === 'identifier' && $condition->text === 'true';
+            }
+
+            if ($this->isConditionalQuestionTokenAt($i)) {
+                $colon = $this->findMatchingConditionalColon($i + 1, $statementEnd);
+                if ($colon === null || $colon <= $index) {
+                    return false;
+                }
+
+                $condition = $this->previousTopLevelExpressionToken($i - 1);
+                return $condition?->kind === 'identifier' && $condition->text === 'false';
+            }
+        }
+
+        return false;
+    }
+
+    private function findMatchingConditionalQuestionBefore(int $colon): ?int
+    {
+        $depth = 0;
+        $conditionalDepth = 0;
+        for ($i = $colon - 1; $i >= 0; $i--) {
+            $text = $this->tokens[$i]->text;
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                if ($depth === 0) {
+                    return null;
+                }
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+            if ($text === ':') {
+                $conditionalDepth++;
+                continue;
+            }
+            if ($this->isConditionalQuestionTokenAt($i)) {
+                if ($conditionalDepth === 0) {
+                    return $i;
+                }
+                $conditionalDepth--;
+            }
+        }
+
+        return null;
+    }
+
+    private function previousTopLevelExpressionToken(int $start): ?Token
+    {
+        $depth = 0;
+        for ($i = $start; $i >= 0; $i--) {
+            $token = $this->tokens[$i] ?? null;
+            if ($token === null) {
+                return null;
+            }
+
+            $text = $token->text;
+            if (in_array($text, [')', '}', ']'], true)) {
+                $depth++;
+                continue;
+            }
+            if (in_array($text, ['(', '{', '['], true)) {
+                if ($depth === 0) {
+                    return null;
+                }
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+            if (in_array($text, [',', ';', '?', ':', '&&', '||'], true) || $this->isNullishCoalescingOperatorEndingAt($i)) {
+                return null;
+            }
+
+            return $token;
+        }
+
+        return null;
+    }
+
+    private function isConditionalQuestionTokenAt(int $index): bool
+    {
+        return ($this->tokens[$index] ?? null)?->text === '?'
+            && !$this->isNullishCoalescingOperatorStartingAt($index)
+            && !$this->isNullishCoalescingOperatorEndingAt($index)
+            && ($this->tokens[$index + 1] ?? null)?->text !== '.';
+    }
+
+    private function isNullishCoalescingOperatorStartingAt(int $index): bool
+    {
+        return ($this->tokens[$index] ?? null)?->text === '?'
+            && ($this->tokens[$index + 1] ?? null)?->text === '?'
+            && $this->tokens[$index + 1]->offset === $this->tokens[$index]->offset + 1;
+    }
+
+    private function isNullishCoalescingOperatorEndingAt(int $index): bool
+    {
+        return ($this->tokens[$index] ?? null)?->text === '?'
+            && ($this->tokens[$index - 1] ?? null)?->text === '?'
+            && $this->tokens[$index]->offset === $this->tokens[$index - 1]->offset + 1;
+    }
+
     private function tokenIndexAtOffset(int $offset): ?int
     {
         foreach ($this->tokens as $index => $token) {
@@ -1382,6 +2027,21 @@ final class JsModuleAnalyzer
         [$qualifiedName, $cursor] = $this->readQualifiedName($start);
 
         return ['ts-import-equals-reference', $qualifiedName, $cursor];
+    }
+
+    private function isTypeScriptImportEqualsRequireTargetAt(int $index): bool
+    {
+        if (($this->tokens[$index - 1] ?? null)?->text !== '='
+            || ($this->tokens[$index - 2] ?? null)?->kind !== 'identifier'
+        ) {
+            return false;
+        }
+
+        return ($this->tokens[$index - 3] ?? null)?->text === 'import'
+            || (
+                ($this->tokens[$index - 3] ?? null)?->text === 'type'
+                && ($this->tokens[$index - 4] ?? null)?->text === 'import'
+            );
     }
 
     /**
@@ -1723,6 +2383,23 @@ final class JsModuleAnalyzer
         return null;
     }
 
+    private function findLastTopLevelPunctuator(string $punctuator, int $start, int $end): ?int
+    {
+        $depth = 0;
+        for ($i = $end - 1; $i >= $start; $i--) {
+            $text = $this->tokens[$i]->text;
+            if ($text === ')' || $text === '}' || $text === ']') {
+                $depth++;
+            } elseif ($text === '(' || $text === '{' || $text === '[') {
+                $depth--;
+            } elseif ($text === $punctuator && $depth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
     private function findMatchingPunctuator(int $start, string $open, string $close): int
     {
         $depth = 0;
@@ -1745,5 +2422,128 @@ final class JsModuleAnalyzer
     private function stringValue(Token $token): string
     {
         return stripcslashes(substr($token->text, 1, -1));
+    }
+
+    private function sourceWithNoSubstitutionTemplateStrings(string $source): string
+    {
+        $result = '';
+        $length = strlen($source);
+
+        for ($offset = 0; $offset < $length;) {
+            $char = $source[$offset];
+
+            if ($char === '"' || $char === "'") {
+                $end = $this->quotedLiteralEnd($source, $offset, $char);
+                $result .= substr($source, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            if ($char === '/' && ($source[$offset + 1] ?? null) === '/') {
+                $end = $offset + strcspn($source, "\r\n", $offset);
+                $result .= substr($source, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            if ($char === '/' && ($source[$offset + 1] ?? null) === '*') {
+                $close = strpos($source, '*/', $offset + 2);
+                $end = $close === false ? $length : $close + 2;
+                $result .= substr($source, $offset, $end - $offset);
+                $offset = $end;
+                continue;
+            }
+
+            if ($char === '`') {
+                $template = $this->noSubstitutionTemplateAsStringLiteral($source, $offset);
+                if ($template !== null) {
+                    [$text, $end] = $template;
+                    $result .= $text;
+                    $offset = $end;
+                    continue;
+                }
+
+                $end = $this->templateLiteralEnd($source, $offset);
+                if ($end !== null) {
+                    $result .= 'x' . str_repeat(' ', $end - $offset - 1);
+                    $offset = $end;
+                    continue;
+                }
+            }
+
+            $result .= $char;
+            $offset++;
+        }
+
+        return $result;
+    }
+
+    private function quotedLiteralEnd(string $source, int $offset, string $quote): int
+    {
+        $length = strlen($source);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            $char = $source[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($char === $quote) {
+                return $cursor + 1;
+            }
+        }
+
+        return $length;
+    }
+
+    private function templateLiteralEnd(string $source, int $offset): ?int
+    {
+        $length = strlen($source);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            $char = $source[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($char === '`') {
+                return $cursor + 1;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0:string, 1:int}|null
+     */
+    private function noSubstitutionTemplateAsStringLiteral(string $source, int $offset): ?array
+    {
+        $length = strlen($source);
+        $bodyStart = $offset + 1;
+
+        for ($cursor = $bodyStart; $cursor < $length; $cursor++) {
+            $char = $source[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($char === '$' && ($source[$cursor + 1] ?? null) === '{') {
+                return null;
+            }
+            if ($char !== '`') {
+                continue;
+            }
+
+            $body = substr($source, $bodyStart, $cursor - $bodyStart);
+            if (!str_contains($body, '"')) {
+                return ['"' . $body . '"', $cursor + 1];
+            }
+            if (!str_contains($body, "'")) {
+                return ["'" . $body . "'", $cursor + 1];
+            }
+
+            return null;
+        }
+
+        return null;
     }
 }

@@ -2,8 +2,12 @@
 
 declare(strict_types=1);
 
+use PortLibs\Esbuild\GlobImportResolver;
 use PortLibs\Esbuild\JsLexer;
 use PortLibs\Esbuild\JsModuleAnalyzer;
+use PortLibs\Esbuild\ModuleImport;
+use PortLibs\Esbuild\PackageResolver;
+use PortLibs\Esbuild\TsConfigPathResolver;
 use PortLibs\Esbuild\TypeScriptModuleLowerer;
 use PortLibs\Esbuild\TypeScriptNamespaceLowerer;
 
@@ -84,6 +88,69 @@ $namespaceAwaitUsingPreviewTypeScriptSource = (string) file_get_contents(dirname
 $tokens = (new JsLexer())->tokenize($source);
 $analysis = (new JsModuleAnalyzer())->analyze($source);
 $typeScriptAnalysis = (new JsModuleAnalyzer())->analyze($typeScriptSource);
+$templateLiteralAnalysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import(`./preview.js`);
+import metadata = require(`./block.json`);
+const legacyPreview = require(metadata.viewScript ? `./legacy-preview.js` : `./legacy-editor.js`);
+const resolvedWorker = require.resolve(`./preview-worker.js`);
+if (false) {
+  require(`./debug-preview.js`);
+}
+const worker = new URL(`./preview-worker.js`, import.meta.url);
+JS);
+$conditionalDynamicImportAnalysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import(metadata.viewScript ? `./view-preview.js` : `./editor-preview.js`);
+import(metadata.variation ? `./variation-preview.js` : metadata.runtimePath);
+if (false) {
+  import(`./debug-preview.js`);
+}
+JS);
+$globAssetAnalysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+const viewAsset = require(`./blocks/${metadata.name}/view.js`);
+const variationAsset = import('./variations/' + metadata.variation + '.js');
+const styleAsset = require('./styles/' + metadata.style + '.css');
+JS);
+$globFixtureDir = dirname(__DIR__) . '/fixtures/wordpress-glob-assets';
+$globFixtureSource = (string) file_get_contents($globFixtureDir . '/entry.js');
+$globFixtureAnalysis = (new JsModuleAnalyzer())->analyze($globFixtureSource);
+$globFixtureMatches = (new GlobImportResolver())->resolve($globFixtureAnalysis, $globFixtureDir);
+$packageFixtureDir = dirname(__DIR__) . '/fixtures/wordpress-package-assets';
+$packageEntryDir = $packageFixtureDir . '/src';
+$packageEntrySource = (string) file_get_contents($packageEntryDir . '/entry.js');
+$packageEntryAnalysis = (new JsModuleAnalyzer())->analyze($packageEntrySource);
+$packageBrowserResolutions = (new PackageResolver('browser'))->resolve($packageEntryAnalysis, $packageEntryDir);
+$packageNodeResolutions = (new PackageResolver('node'))->resolve($packageEntryAnalysis, $packageEntryDir);
+$packagePreviewImportResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'exports-map-pkg/preview', [], 0), $packageEntryDir);
+$packageBrowserMapDisabledResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'browser-map-pkg/disabled.js', [], 0), $packageEntryDir);
+$containingBrowserMapDir = $packageFixtureDir . '/node_modules/containing-browser-map-pkg';
+$containingBrowserLocalResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node-pkg', [], 0), $containingBrowserMapDir);
+$containingBrowserPackageResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node-pkg-package', [], 0), $containingBrowserMapDir);
+$containingBrowserDisabledResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node-pkg-disabled', [], 0), $containingBrowserMapDir);
+$containingBrowserBuiltinResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'path', [], 0), $containingBrowserMapDir);
+$containingBrowserNodeBuiltinResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $containingBrowserMapDir);
+$containingBrowserBuiltinDisabledResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'crypto', [], 0), $containingBrowserMapDir);
+$nodeBuiltinResolution = (new PackageResolver('node'))->resolveImport(new ModuleImport('named', 'path', [], 0), $containingBrowserMapDir);
+$nodePrefixBuiltinResolution = (new PackageResolver('node'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $containingBrowserMapDir);
+$normalizePackageFixturePath = static function (string $path) use ($packageFixtureDir): string {
+    return str_replace('\\', '/', substr($path, strlen((string) realpath($packageFixtureDir)) + 1));
+};
+$tsconfigFixtureDir = dirname(__DIR__) . '/fixtures/wordpress-tsconfig-assets';
+$tsconfigEntryDir = $tsconfigFixtureDir . '/src';
+$tsconfigEntrySource = (string) file_get_contents($tsconfigEntryDir . '/entry.ts');
+$tsconfigAnalysis = (new JsModuleAnalyzer())->analyze($tsconfigEntrySource);
+$tsconfigResolutions = (new TsConfigPathResolver())->resolve($tsconfigAnalysis, $tsconfigEntryDir);
+$normalizeTsconfigFixturePath = static function (string $path) use ($tsconfigFixtureDir): string {
+    return str_replace('\\', '/', substr($path, strlen((string) realpath($tsconfigFixtureDir)) + 1));
+};
+$deadAssetAnalysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+metadata.debug && require('./debug-preview.js');
+false && require('./dead-debug-preview.js');
+true || import('./dead-preview-chunk.js');
+true ?? require('./dead-nullish-preview.js');
+false ? require('./dead-legacy-preview.js') : require('./live-legacy-preview.js');
+true ? import('./live-preview-chunk.js') : import('./dead-preview-fallback.js');
+false ? 0 : require.resolve('./live-preview-worker.js');
+JS);
 $commonJsLowered = (new TypeScriptModuleLowerer())->lower($commonJsTypeScriptSource);
 $typedCallbackLowered = (new TypeScriptModuleLowerer())->lower($typedCallbackTypeScriptSource);
 $enumConfigLowered = (new TypeScriptModuleLowerer())->lower($enumConfigTypeScriptSource);
@@ -283,3 +350,157 @@ printf("Relative module asset references: %d\n", count(array_filter(
     $analysis->assetReferences,
     static fn ($reference): bool => $reference->isRelative()
 )));
+printf("WordPress no-substitution template literal sources: %s\n", (
+    count($templateLiteralAnalysis->imports) === 5
+    && ($templateLiteralAnalysis->imports[0]->source ?? null) === './preview.js'
+    && ($templateLiteralAnalysis->imports[1]->source ?? null) === './block.json'
+    && ($templateLiteralAnalysis->imports[2]->source ?? null) === './legacy-preview.js'
+    && ($templateLiteralAnalysis->imports[3]->source ?? null) === './legacy-editor.js'
+    && ($templateLiteralAnalysis->imports[4]->source ?? null) === './preview-worker.js'
+    && ($templateLiteralAnalysis->assetReferences[0]->source ?? null) === './preview-worker.js'
+) ? 'yes' : 'no');
+printf("WordPress conditional CommonJS template sources: %s\n", (
+    array_map(static fn ($import): string => $import->source, $templateLiteralAnalysis->imports) === [
+        './preview.js',
+        './block.json',
+        './legacy-preview.js',
+        './legacy-editor.js',
+        './preview-worker.js',
+    ]
+) ? 'yes' : 'no');
+printf("WordPress dead expression asset pruning: %s\n", (
+    array_map(static fn ($import): string => $import->source, $deadAssetAnalysis->imports) === [
+        './debug-preview.js',
+        './live-legacy-preview.js',
+        './live-preview-chunk.js',
+        './live-preview-worker.js',
+    ]
+    && array_map(static fn ($import): string => $import->kind, $deadAssetAnalysis->imports) === [
+        'commonjs-require',
+        'commonjs-require',
+        'dynamic',
+        'commonjs-require-resolve',
+    ]
+) ? 'yes' : 'no');
+printf("WordPress conditional dynamic import sources: %s\n", (
+    array_map(static fn ($import): string => $import->source, $conditionalDynamicImportAnalysis->imports) === [
+        './view-preview.js',
+        './editor-preview.js',
+        './variation-preview.js',
+    ]
+) ? 'yes' : 'no');
+printf("WordPress glob asset sources: %s\n", (
+    array_map(static fn ($import): string => $import->kind, $globAssetAnalysis->imports) === [
+        'commonjs-require-glob',
+        'dynamic-glob',
+        'commonjs-require-glob',
+    ]
+    && array_map(static fn ($import): string => $import->source, $globAssetAnalysis->imports) === [
+        './blocks/**/*/view.js',
+        './variations/**/*.js',
+        './styles/**/*.css',
+    ]
+) ? 'yes' : 'no');
+printf("WordPress glob fixture matches: %s\n", (
+    array_map(static fn ($match): string => $match->key, $globFixtureMatches) === [
+        './blocks/card/view.js',
+        './blocks/gallery/view.js',
+        './blocks/nested/card/view.js',
+        './variations/blue.js',
+        './variations/seasonal/sale.js',
+        './styles/admin.css',
+        './styles/front.css',
+        './styles/nested/print.css',
+    ]
+) ? 'yes' : 'no');
+printf("WordPress package resolver browser fields: %s\n", (
+    array_combine(
+        array_map(static fn ($resolution): string => $resolution->import->source, $packageBrowserResolutions),
+        array_map(static fn ($resolution): string => $normalizePackageFixturePath($resolution->path), $packageBrowserResolutions),
+    ) === [
+        '@wordpress/interactivity' => 'node_modules/@wordpress/interactivity/build-module/index.js',
+        'port-libs-card-runtime/helper' => 'node_modules/port-libs-card-runtime/helper.js',
+        'wordpress-package-assets-fixture' => 'src/entry.js',
+        'wordpress-package-assets-fixture/self-export' => 'src/self-export.js',
+        'exports-map-pkg' => 'node_modules/exports-map-pkg/browser.js',
+        'exports-map-pkg/features/card' => 'node_modules/exports-map-pkg/features/card.js',
+        'browser-map-pkg' => 'node_modules/browser-map-pkg/browser-module.js',
+        'browser-map-pkg/feature' => 'node_modules/browser-map-pkg/feature-browser.js',
+        'containing-browser-map-pkg' => 'node_modules/containing-browser-map-pkg/main.js',
+        '#view' => 'src/internal/view.js',
+        '#conditional' => 'src/internal/browser.js',
+        '#/blocks/card' => 'src/internal/blocks/card.js',
+        '#pkg-runtime' => 'node_modules/exports-map-pkg/features/card.js',
+        'port-libs-card-runtime' => 'node_modules/port-libs-card-runtime/dist/browser.js',
+        'server-only-package' => 'node_modules/server-only-package/esm.js',
+        'bad-main-pkg' => 'node_modules/bad-main-pkg/index.js',
+        'exports-map-pkg/preview' => 'node_modules/exports-map-pkg/preview.cjs',
+        'exports-map-pkg/legacy/admin' => 'node_modules/exports-map-pkg/legacy/admin.js',
+        '#require-preview' => 'src/internal/preview.cjs',
+    ]
+) ? 'yes' : 'no');
+printf("WordPress package resolver node fields: %s\n", (
+    array_combine(
+        array_map(static fn ($resolution): string => $resolution->import->source, $packageNodeResolutions),
+        array_map(static fn ($resolution): string => $normalizePackageFixturePath($resolution->path), $packageNodeResolutions),
+    ) === [
+        '@wordpress/interactivity' => 'node_modules/@wordpress/interactivity/build/index.js',
+        'port-libs-card-runtime/helper' => 'node_modules/port-libs-card-runtime/helper.js',
+        'wordpress-package-assets-fixture' => 'src/entry.js',
+        'wordpress-package-assets-fixture/self-export' => 'src/self-export.js',
+        'exports-map-pkg' => 'node_modules/exports-map-pkg/node.js',
+        'exports-map-pkg/features/card' => 'node_modules/exports-map-pkg/features/card.js',
+        'browser-map-pkg' => 'node_modules/browser-map-pkg/main.js',
+        'browser-map-pkg/feature' => 'node_modules/browser-map-pkg/feature.js',
+        'containing-browser-map-pkg' => 'node_modules/containing-browser-map-pkg/main.js',
+        '#view' => 'src/internal/view.js',
+        '#conditional' => 'src/internal/node.js',
+        '#/blocks/card' => 'src/internal/blocks/card.js',
+        '#pkg-runtime' => 'node_modules/exports-map-pkg/features/card.js',
+        'port-libs-card-runtime' => 'node_modules/port-libs-card-runtime/dist/main.cjs',
+        'server-only-package' => 'node_modules/server-only-package/server.cjs',
+        'bad-main-pkg' => 'node_modules/bad-main-pkg/index.js',
+        'exports-map-pkg/preview' => 'node_modules/exports-map-pkg/preview.cjs',
+        'exports-map-pkg/legacy/admin' => 'node_modules/exports-map-pkg/legacy/admin.js',
+        '#require-preview' => 'src/internal/preview.cjs',
+    ]
+) ? 'yes' : 'no');
+printf("WordPress package exports map resolution: %s\n", (
+    $packagePreviewImportResolution !== null
+    && $normalizePackageFixturePath($packagePreviewImportResolution->path) === 'node_modules/exports-map-pkg/preview.mjs'
+    && $packagePreviewImportResolution->mainField === 'exports'
+) ? 'yes' : 'no');
+printf("WordPress package browser object maps: %s\n", (
+    $packageBrowserMapDisabledResolution === null
+    && in_array('browser', array_map(static fn ($resolution): ?string => $resolution->mainField, $packageBrowserResolutions), true)
+) ? 'yes' : 'no');
+printf("WordPress containing package browser maps: %s\n", (
+    $containingBrowserLocalResolution !== null
+    && $normalizePackageFixturePath($containingBrowserLocalResolution->path) === 'node_modules/containing-browser-map-pkg/node-pkg-browser.js'
+    && $containingBrowserPackageResolution !== null
+    && $normalizePackageFixturePath($containingBrowserPackageResolution->path) === 'node_modules/node-pkg-browser-package/index.js'
+    && $containingBrowserDisabledResolution === null
+) ? 'yes' : 'no');
+printf("WordPress node builtin browser maps: %s\n", (
+    $containingBrowserBuiltinResolution !== null
+    && $normalizePackageFixturePath($containingBrowserBuiltinResolution->path) === 'node_modules/containing-browser-map-pkg/path-browser.js'
+    && $containingBrowserNodeBuiltinResolution !== null
+    && $normalizePackageFixturePath($containingBrowserNodeBuiltinResolution->path) === 'node_modules/containing-browser-map-pkg/path-browser.js'
+    && $containingBrowserBuiltinDisabledResolution === null
+    && $nodeBuiltinResolution === null
+    && $nodePrefixBuiltinResolution === null
+) ? 'yes' : 'no');
+printf("WordPress tsconfig paths aliases: %s\n", (
+    array_combine(
+        array_map(static fn ($resolution): string => $resolution->import->source, $tsconfigResolutions),
+        array_map(static fn ($resolution): string => $normalizeTsconfigFixturePath($resolution->path), $tsconfigResolutions),
+    ) === [
+        '@blocks/card/view' => 'src/blocks/card/view.ts',
+        '@blocks/card/style.css' => 'src/blocks/card/style.css',
+        '@shared/settings' => 'src/shared/settings.ts',
+        'shared-config' => 'src/shared/config.ts',
+        '@theme/card' => 'src/theme/card.ts',
+        'wordpress-runtime' => 'src/vendor/wordpress-runtime/index.ts',
+        '/virtual/card' => 'src/virtual/card.ts',
+    ]
+) ? 'yes' : 'no');

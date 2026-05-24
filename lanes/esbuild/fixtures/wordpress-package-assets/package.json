@@ -1,0 +1,25 @@
+{
+  "name": "wordpress-package-assets-fixture",
+  "main": "./src/entry.js",
+  "imports": {
+    "#view": "./src/internal/view.js",
+    "#conditional": {
+      "browser": "./src/internal/browser.js",
+      "node": "./src/internal/node.js",
+      "default": "./src/internal/default.js"
+    },
+    "#require-preview": {
+      "import": "./src/internal/preview.mjs",
+      "require": "./src/internal/preview.cjs"
+    },
+    "#pkg-runtime": "exports-map-pkg/features/card",
+    "#/blocks/*": "./src/internal/blocks/*.js",
+    "#unsafe": "./../escape.js",
+    "#nested-unsafe": "./node_modules/escape.js",
+    "#missing": "./src/internal/missing.js"
+  },
+  "exports": {
+    ".": "./src/entry.js",
+    "./self-export": "./src/self-export.js"
+  }
+}

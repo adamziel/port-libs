@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Esbuild\GlobImportResolver;
 use PortLibs\Esbuild\JsModuleAnalyzer;
 
 return [
@@ -28,6 +29,277 @@ JS);
         ], $analysis->imports[2]->specifiers);
         $t->same('dynamic', $analysis->imports[3]->kind);
         $t->same('dyn', $analysis->imports[3]->source);
+    },
+    'maps upstream no-substitution template literal sources' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import(`./preview.js`);
+import metadata = require(`./block.json`);
+const worker = new URL(`./preview-worker.js`, import.meta.url);
+JS);
+
+        $t->same(['dynamic', 'ts-import-equals-require'], array_map(static fn ($import): string => $import->kind, $analysis->imports));
+        $t->same(['./preview.js', './block.json'], array_map(static fn ($import): string => $import->source, $analysis->imports));
+        $t->same([['imported' => './block.json', 'local' => 'metadata']], $analysis->imports[1]->specifiers);
+        $t->same(['./preview-worker.js'], array_map(static fn ($reference): string => $reference->source, $analysis->assetReferences));
+        $t->same(['new-url'], array_map(static fn ($reference): string => $reference->context, $analysis->assetReferences));
+        $t->true($analysis->hasImportMeta());
+    },
+    'maps upstream conditional dynamic import records and skips dead branches' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import(enabled ? './preview-a.js' : nested ? `./preview-b.js` : 'preview-package');
+import(enabled ? nested ? './optional-a.js' : `./optional-b.js` : computedPath);
+import(`./${name}.js`);
+if (false) {
+  import('./dead-preview.js');
+}
+if (false) import(`./dead-single.js`);
+JS);
+
+        $t->same([
+            './preview-a.js',
+            './preview-b.js',
+            'preview-package',
+            './optional-a.js',
+            './optional-b.js',
+            './**/*.js',
+        ], array_map(static fn ($import): string => $import->source, $analysis->imports));
+        $t->same([
+            'dynamic',
+            'dynamic',
+            'dynamic',
+            'dynamic',
+            'dynamic',
+            'dynamic-glob',
+        ], array_map(static fn ($import): string => $import->kind, $analysis->imports));
+        $t->same(['preview-package'], array_map(static fn ($import): string => $import->source, $analysis->packageImports()));
+        $t->same([
+            './preview-a.js',
+            './preview-b.js',
+            './optional-a.js',
+            './optional-b.js',
+            './**/*.js',
+        ], array_map(static fn ($import): string => $import->source, $analysis->relativeImports()));
+        $t->true(!$analysis->isConsideredESModule());
+    },
+    'maps upstream commonjs require and require resolve string records' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+const metadata = require('./block.json');
+const preview = require(`./preview.js`);
+const resolved = require.resolve(`./preview-worker.js`);
+const dynamic = require(name);
+const dynamicTemplate = require(`./${name}.js`);
+const tooMany = require('./a', './b');
+const indirect = module.require('./skip.js');
+require(tag`./tagged.js`);
+import(`./${name}.js`);
+import typed = require(`./typed.json`);
+JS);
+
+        $t->same([
+            'commonjs-require',
+            'commonjs-require',
+            'commonjs-require-resolve',
+            'commonjs-require-glob',
+            'dynamic-glob',
+            'ts-import-equals-require',
+        ], array_map(static fn ($import): string => $import->kind, $analysis->imports));
+        $t->same([
+            './block.json',
+            './preview.js',
+            './preview-worker.js',
+            './**/*.js',
+            './**/*.js',
+            './typed.json',
+        ], array_map(static fn ($import): string => $import->source, $analysis->imports));
+        $t->same([
+            './block.json',
+            './preview.js',
+            './preview-worker.js',
+            './**/*.js',
+            './**/*.js',
+            './typed.json',
+        ], array_map(static fn ($import): string => $import->source, $analysis->relativeImports()));
+        $t->true(!$analysis->isConsideredESModule());
+        $t->same([
+            'commonjs-require',
+            'commonjs-require',
+            'commonjs-require-resolve',
+            'commonjs-require-glob',
+            'dynamic-glob',
+            'ts-import-equals-require',
+        ], array_map(static fn ($import): string => $import->kind, $analysis->prunedTypeScriptRuntimeImports()));
+    },
+    'maps upstream conditional commonjs require records and skips dead branches' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+const preview = require(enabled ? './preview-a.js' : nested ? `./preview-b.js` : 'preview-package');
+const optional = require(enabled ? nested ? './optional-a.js' : `./optional-b.js` : computedPath);
+const resolved = require.resolve('./worker.js');
+const dynamicResolved = require.resolve(enabled ? './worker-a.js' : nested ? './worker-b.js' : computedPath);
+if (enabled) {
+  require('./conditional-live.js');
+}
+try {
+  if (enabled) require('./try-live.js');
+} catch {
+}
+if (false) {
+  require('./dead-preview.js');
+  require.resolve('./dead-worker.js');
+}
+if (false) require('./dead-single.js');
+JS);
+
+        $t->same([
+            './preview-a.js',
+            './preview-b.js',
+            'preview-package',
+            './optional-a.js',
+            './optional-b.js',
+            './worker.js',
+            './conditional-live.js',
+            './try-live.js',
+        ], array_map(static fn ($import): string => $import->source, $analysis->imports));
+        $t->same([
+            'commonjs-require',
+            'commonjs-require',
+            'commonjs-require',
+            'commonjs-require',
+            'commonjs-require',
+            'commonjs-require-resolve',
+            'commonjs-require',
+            'commonjs-require',
+        ], array_map(static fn ($import): string => $import->kind, $analysis->imports));
+        $t->same(['preview-package'], array_map(static fn ($import): string => $import->source, $analysis->packageImports()));
+        $t->same([
+            './preview-a.js',
+            './preview-b.js',
+            './optional-a.js',
+            './optional-b.js',
+            './worker.js',
+            './conditional-live.js',
+            './try-live.js',
+        ], array_map(static fn ($import): string => $import->source, $analysis->relativeImports()));
+        $t->true(!$analysis->isConsideredESModule());
+    },
+    'maps upstream dead logical and conditional require import branches' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+true && require('./live-and.js');
+false || require('./live-or.js');
+false && require('./dead-and.js');
+true || require('./dead-or.js');
+true ?? require('./dead-nullish.js');
+false ? require('./dead-if-a.js') : require('./live-if-a.js');
+true ? require('./live-if-b.js') : require('./dead-if-b.js');
+false && import('./dead-dyn-and.js');
+true || import('./dead-dyn-or.js');
+true ?? import('./dead-dyn-nullish.js');
+false ? import('./dead-dyn-a.js') : import('./live-dyn-a.js');
+true ? import('./live-dyn-b.js') : import('./dead-dyn-b.js');
+false ? 0 : require.resolve('./live-worker.js');
+true ? require.resolve('./live-resolved.js') : 0;
+false ? require.resolve('./dead-resolve-a.js') : 0;
+true ? 0 : require.resolve('./dead-resolve-b.js');
+JS);
+
+        $t->same([
+            './live-and.js',
+            './live-or.js',
+            './live-if-a.js',
+            './live-if-b.js',
+            './live-dyn-a.js',
+            './live-dyn-b.js',
+            './live-worker.js',
+            './live-resolved.js',
+        ], array_map(static fn ($import): string => $import->source, $analysis->imports));
+        $t->same([
+            'commonjs-require',
+            'commonjs-require',
+            'commonjs-require',
+            'commonjs-require',
+            'dynamic',
+            'dynamic',
+            'commonjs-require-resolve',
+            'commonjs-require-resolve',
+        ], array_map(static fn ($import): string => $import->kind, $analysis->imports));
+        $t->true(!$analysis->isConsideredESModule());
+    },
+    'maps upstream relative glob require and dynamic import records' => static function (TestRunner $t): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+const ab = Math.random() < 0.5 ? 'a.js' : 'b.js';
+const preview = require('./src/' + ab);
+const feature = require('./src/file-' + ab + '.js');
+const block = require(`./blocks/${metadata.name}.js`);
+const view = import('./chunks/' + metadata.viewScript + '.js');
+const variation = import(`./variations/${metadata.variation}.js`);
+const notRelative = require(prefix + '/skip.js');
+const absolute = import('/abs/' + name + '.js');
+JS);
+
+        $t->same([
+            'commonjs-require-glob',
+            'commonjs-require-glob',
+            'commonjs-require-glob',
+            'dynamic-glob',
+            'dynamic-glob',
+        ], array_map(static fn ($import): string => $import->kind, $analysis->imports));
+        $t->same([
+            './src/**/*',
+            './src/file-*.js',
+            './blocks/**/*.js',
+            './chunks/**/*.js',
+            './variations/**/*.js',
+        ], array_map(static fn ($import): string => $import->source, $analysis->imports));
+        $t->same([], $analysis->packageImports());
+        $t->same([
+            './src/**/*',
+            './src/file-*.js',
+            './blocks/**/*.js',
+            './chunks/**/*.js',
+            './variations/**/*.js',
+        ], array_map(static fn ($import): string => $import->source, $analysis->relativeImports()));
+        $t->true(!$analysis->isConsideredESModule());
+        $t->same([
+            'commonjs-require-glob',
+            'commonjs-require-glob',
+            'commonjs-require-glob',
+            'dynamic-glob',
+            'dynamic-glob',
+        ], array_map(static fn ($import): string => $import->kind, $analysis->prunedTypeScriptRuntimeImports()));
+    },
+    'resolves upstream relative glob records against a wordpress fixture graph' => static function (TestRunner $t): void {
+        $fixtureDir = dirname(__DIR__) . '/fixtures/wordpress-glob-assets';
+        $source = (string) file_get_contents($fixtureDir . '/entry.js');
+        $analysis = (new JsModuleAnalyzer())->analyze($source);
+        $matches = (new GlobImportResolver())->resolve($analysis, $fixtureDir);
+
+        $t->same([
+            './blocks/card/view.js',
+            './blocks/gallery/view.js',
+            './blocks/nested/card/view.js',
+            './variations/blue.js',
+            './variations/seasonal/sale.js',
+            './styles/admin.css',
+            './styles/front.css',
+            './styles/nested/print.css',
+        ], array_map(static fn ($match): string => $match->key, $matches));
+        $t->same([
+            'commonjs-require-glob',
+            'commonjs-require-glob',
+            'commonjs-require-glob',
+            'dynamic-glob',
+            'dynamic-glob',
+            'commonjs-require-glob',
+            'commonjs-require-glob',
+            'commonjs-require-glob',
+        ], array_map(static fn ($match): string => $match->import->kind, $matches));
+        $t->true(str_ends_with($matches[0]->path, '/blocks/card/view.js'));
+        $t->true(str_ends_with($matches[4]->path, '/variations/seasonal/sale.js'));
+        $t->same([], array_values(array_filter(
+            array_map(static fn ($match): string => $match->key, $matches),
+            static fn (string $key): bool => str_ends_with($key, 'editor.js')
+                || str_ends_with($key, '.svg')
+                || $key === './blocks/view.js'
+        )));
     },
     'maps upstream import assertion and attribute clauses' => static function (TestRunner $t): void {
         $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'

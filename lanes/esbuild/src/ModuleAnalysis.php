@@ -92,7 +92,12 @@ final class ModuleAnalysis
         }
 
         foreach ($this->imports as $import) {
-            if ($import->kind !== 'dynamic' && !$import->typeOnly && !str_starts_with($import->kind, 'ts-import-equals-')) {
+            if ($import->kind !== 'dynamic'
+                && $import->kind !== 'dynamic-glob'
+                && !$import->typeOnly
+                && !str_starts_with($import->kind, 'ts-import-equals-')
+                && !str_starts_with($import->kind, 'commonjs-')
+            ) {
                 return true;
             }
         }
