@@ -1,5 +1,73 @@
 # Integration Status
 
+## Integration handoff rejection - rclone - 2026-05-24 19:34 UTC
+
+No rclone lane output was integrated. I selected the fresh handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-rclone.ready`
+(`timestamp=2026-05-24T19:21:53Z`, reason `no-codex-handoff-grace`) after
+confirming the `port-rclone` pane was idle at `bash`
+(`pane_pid=1130162`) with no child process. I held only rclone with
+`.tmux-team/tmp/integration-holds/port-rclone.hold` at
+`2026-05-24T19:30:05Z`.
+
+Two-poll held snapshot:
+
+- `HEAD` stayed stable at `ca5c711190ac`.
+- rclone tracked shortstat stayed
+  `8 files changed, 5822 insertions(+), 103 deletions(-)`.
+- rclone tracked dirty files stayed limited to `UPSTREAM_TEST_MANIFEST.json`,
+  `lane-status.json`, notes, `MemoryProvider.php`,
+  `OneDrivePermissionPlanner.php`,
+  `wordpress-onedrive-permission-write-plan.php`, and
+  `OneDrivePermissionPlannerTest.php`.
+- rclone untracked scope stayed broad at `248` files. It includes the
+  worker-reported WebDAV DELETE files
+  `wordpress-webdav-delete-remove-error-preflight.php`,
+  `VfsWebDavMutationResponse.php`, and
+  `VfsWebDavMutationResponseTest.php`, plus many older VFS/WebDAV/accounting
+  examples, sources, and tests.
+- The exact no-argument root gate had matched non-integration PID
+  `1235372 php tools/run-tests.php` during the initial candidate check, then
+  returned no rows in both held polls. I did not start an integration-owned
+  root harness because no lane batch was accepted.
+- Relevant rclone logs showed the current `port-rclone` handoff report for a
+  WebDAV DELETE partial recursive `RemoveAll` error slice, and a separate
+  scratch clean-PHP rclone/syncthing check passed `79` files, `6198`
+  assertions, `0` failures at `HEAD ca5c711190ac`.
+- `dependency-backlog.json` is valid JSON and still contains the inactive
+  `webdav-protocol-core` candidate row with activation gate
+  `rclone-webdav-provider-next`. No support-library row was activated or
+  counted.
+
+Decision: rejected/deferred, not integrated. The current worker report and
+lane status describe a WebDAV DELETE partial RemoveAll-error slice, but the
+tracked diff is an older OneDrive permission-planner batch. The WebDAV
+source/test/example needed for the advertised slice are only present inside a
+broad 248-file untracked rclone pile. Accepting the tracked subset would commit
+status that does not match the implementation, while accepting all rclone files
+would merge many unreviewed older slices. No dashboard artifacts were
+regenerated because no lane/status batch was accepted.
+
+Exact next rclone worker task: re-emit a reduced, reviewable handoff whose
+dirty files match exactly one advertised slice. If the claim is WebDAV DELETE
+partial recursive `RemoveAll` error handling, include only the minimal
+`VfsWebDavMutationResponse.php` behavior, its focused test, the single
+`wordpress-webdav-delete-remove-error-preflight.php` example, and normalized
+manifest/status/notes for that slice. Leave OneDrive permission-planner and
+older VFS/WebDAV/accounting files for separate batches. Keep the blocker led
+by root aggregate verification, full rclone provider/mount parity gaps, and
+the inactive `webdav-protocol-core` support gate unless a reusable WebDAV
+protocol boundary is explicitly activated with its own denominator and
+evidence.
+
+Current skipped lanes: Difftastic, Dolt, esbuild, Gitoxide, libsqlite,
+LightningCSS, markerPDF, Pandoc, Quadrable, Readability, and Syncthing all
+remain dirty or active outside this selected rclone hold. Dolt remains skipped
+while both implementation/runner ownership and dirty Dolt files are present.
+Next concrete intake target: the next owner-free `.ready` marker whose dirty
+scope exactly matches the worker evidence; rclone should be retried only after
+a reduced single-slice patch is emitted.
+
 ## Integration handoff rejection - markerPDF - 2026-05-24 19:27 UTC
 
 No markerPDF lane output was integrated. I selected the fresh handoff candidate
