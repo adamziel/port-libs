@@ -1,5 +1,77 @@
 # Integration Status
 
+## Integration worker hold - 2026-05-24 15:14 UTC
+
+No worker output was integrated in this pass. No lane files were staged, no
+dashboard artifacts were regenerated, no dependency row was activated, and no
+upstream parity or rich-function claim is accepted from this moving dirty
+snapshot.
+
+Required intake was sampled:
+
+- Read `goal.md`, `progress.md`, `git status --short --branch`, recent
+  `git log --oneline --decorate -30`, current `.tmux-team/logs/port-*.log`
+  tails, dirty lane files shown by Git, active tmux/process state, current
+  lane-status files, and `dependency-backlog.json`.
+- Current `HEAD` sampled as `b03fca974352` on
+  `main...origin/main [ahead 926, behind 68]`.
+- Recent history remains audit/hold dominated:
+  `b03fca97 Refresh independent audit status`,
+  `3e616649 Record integration hold status`,
+  `05a6bd1a Record integration hold status`,
+  `6d3f2dd7 Refresh independent audit status`, and older hold/audit commits.
+- `dependency-backlog.json` is valid JSON in the current object schema, with
+  37 rows: 25 `candidate`, 11 `deferred`, and 1 `blocked`. No row is active.
+
+Current movement/risk:
+
+- The worktree is not owner-free. Active tmux/process samples show all main
+  lane sessions attached or recently restarted, plus auditor, evaluator,
+  dashboard-updater, integrator, capacity, dependency/support scouts, and
+  Dolt runner sessions.
+- Dirty scope spans all priority lanes. The untracked-inclusive status count
+  sampled at `19012`; tracked shortstat sampled
+  `329 files changed, 254089 insertions(+), 32160 deletions(-)`.
+- Tracked dirty lane file counts sampled from Git: Difftastic 10, Dolt 12,
+  esbuild 20, Gitoxide 58, libsqlite 13, LightningCSS 17, markerPDF 89,
+  Pandoc 11, Quadrable 41, rclone 8, Readability 15, and Syncthing 26.
+- Recent worker tails show just-finished or active candidate slices in every
+  sampled lane, including LightningCSS autofill selectors, markerPDF nested
+  PDF `/Contents` references, Dolt JSON query-diff and runner evidence,
+  Syncthing GUI/static handling, rclone WebDAV auth, Gitoxide index
+  diagnostics, esbuild data URL metafile inputs, Difftastic TypeScript token
+  diffs, libsqlite JSON `instr()` folding, Pandoc HTML span-like lowering,
+  Quadrable noTrack duplicate import metadata, and Readability inline-style
+  visibility behavior. These remain lane-local handoffs, not accepted
+  integration batches.
+- Dolt remains skipped despite reauthorization because `port-dolt`,
+  `port-dolt-runner`, and capacity/BATS sessions are active while Dolt
+  metadata/source/test files are dirty. The sampled Dolt runner command
+  `runner-refresh-20260524T150515Z` still had `timeout 60m bats diff.bats
+  diff-stat.bats query-diff.bats schema-changes.bats
+  primary-key-changes.bats` running and had progressed into
+  `query-diff.bats`.
+
+Root, dashboard, and dependency status:
+
+- Exact PHP process sample for `pgrep -af '^php tools/run-tests\.php( |$)'`
+  matched active no-argument root PID `528000` (`php tools/run-tests.php`).
+  This worker did not start `php tools/run-tests.php`, did not wait on
+  `.upstream-cache/run-tests.lock`, and did not bypass the lock.
+- Because the checkout is moving and root/Dolt upstream work is active, no
+  concurrent root anecdote is treated as an accepted integration snapshot.
+- `php tools/generate-dashboard.php` was not run because no lane/status batch
+  was accepted from this snapshot.
+
+Next safe integration point: freeze or wait out all lane, Dolt runner,
+capacity, dashboard, evaluator, auditor, integrator, and status-review loops;
+then take two stable polls of `HEAD`, tracked status, shortstat, exact PHP test
+PIDs, and relevant log mtimes. Accept one coherent owner-free lane batch only
+after focused inspection, focused lane verification, a serialized
+no-argument `php tools/run-tests.php` on that frozen snapshot, full
+`git diff --check`, dashboard regeneration from the accepted commit, and
+honest dependency/support-library gating.
+
 ## Integration worker hold - 2026-05-24 15:09 UTC
 
 No worker output was integrated in this pass. No lane files were staged, no
