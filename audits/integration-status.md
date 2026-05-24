@@ -98343,3 +98343,28 @@ Files staged:
 - lanes/syncthing/src/FolderWatchScanScheduler.php
 - lanes/syncthing/tests/FolderWatchScanSchedulerTest.php
 
+
+## Isolated integration deferred - syncthing - 2026-05-24T23:30:25Z UTC
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T231727Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T231727Z.patch`
+Lane/slice/session: `syncthing` / `watchdog-next-20260524T231727Z` / `port-syncthing`
+
+Decision: deferred; patch no longer applies to current `main` after earlier accepted isolated commits.
+
+Repair command: recreate a clean worktree from current `main`, run `git apply --check "/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T231727Z.patch"`, then rebase only the lane-local source/test/example/status hunks onto the accepted lane files.
+
+Exact result:
+```
+error: patch failed: lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:12
+error: lanes/syncthing/UPSTREAM_TEST_MANIFEST.json: patch does not apply
+error: patch failed: lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php:30
+error: lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php: patch does not apply
+error: patch failed: lanes/syncthing/lane-status.json:2
+error: lanes/syncthing/lane-status.json: patch does not apply
+error: patch failed: lanes/syncthing/notes/wordpress-scenarios.md:1952
+error: lanes/syncthing/notes/wordpress-scenarios.md: patch does not apply
+error: patch failed: lanes/syncthing/src/FolderWatchScanScheduler.php:16
+error: lanes/syncthing/src/FolderWatchScanScheduler.php: patch does not apply
+```
+
