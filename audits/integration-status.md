@@ -1,5 +1,108 @@
 # Integration Status
 
+## Integration handoff rejection - markerPDF - 2026-05-24 21:01 UTC
+
+No markerPDF lane output was integrated in this pass.
+
+Selected handoff: there was no current `.ready` marker for markerPDF, but the
+lane was the only small owner-free candidate during the initial intake. The
+`port-markerpdf` pane was idle at `bash` with no active child process, while
+the other small dirty lanes (`esbuild`, `rclone`, `readability`, `libsqlite`,
+and `quadrable`) still had active Codex or test children. I held only
+markerPDF with `.tmux-team/tmp/integration-holds/port-markerpdf.hold` at
+`2026-05-24T20:53:49Z` for the owner-free searchable-PDF font handoff.
+
+Stability and ownership:
+
+- Initial `HEAD` moved during intake from `c4d280487e42` to `b520d6114305`
+  because an independent audit-status commit landed, so the first poll was not
+  usable as an accepted snapshot.
+- After restarting the stability window, markerPDF stayed stable at
+  `HEAD=b520d6114305`; lane status hash stayed
+  `b3e2866bccc7176da988cfaea63f71c3000663998825d813f5a193964b36d6a4`.
+- markerPDF dirty scope stayed lane-local: 6 tracked modified files with
+  `563 insertions(+), 43 deletions(-)` plus
+  `wordpress-pdf-tounicode-import.php` and
+  `wordpress-pdf-winansi-import.php`.
+- The relevant worker log
+  `.tmux-team/logs/port-markerpdf-watchdog-20260524T204039Z.log` stayed at
+  `mtime=1779656003`, `4446670` bytes, tail hash
+  `49ed12c3843c06360b0eac140b615a335543dcd8658e6b489f6355fd61e5b10e`.
+- The `port-markerpdf` pane stayed idle with no child process.
+- A concurrent no-argument root PID `1838163 php tools/run-tests.php` appeared
+  during polling and was not counted as acceptance evidence. After it cleared,
+  I started one integration-owned no-argument root run through
+  `php tools/run-tests.php`; the output showed no root-lock wait notice.
+
+Focused evidence run by this intake:
+
+- `php -l lanes/markerpdf/src/PdfTextExtractor.php` passed.
+- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php` passed.
+- `php -l lanes/markerpdf/examples/wordpress-pdf-tounicode-import.php`
+  passed.
+- `php -l lanes/markerpdf/examples/wordpress-pdf-winansi-import.php` passed.
+- `php lanes/markerpdf/examples/wordpress-pdf-tounicode-import.php` emitted
+  `WP Searchable Text` with `executes_python_or_models=false` and
+  `executes_external_pdf_tools=false`.
+- `php lanes/markerpdf/examples/wordpress-pdf-winansi-import.php` emitted
+  the JSON-escaped strings `WordPress\u2019s caf\u00e9` and
+  `\u201cMedia\u201d Import`, with no Python/model/external-PDF tools.
+- `jq empty lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json
+  lanes/markerpdf/lane-status.json dependency-backlog.json` passed.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`
+  passed: 1 selected file, 29 assertions, 0 failures.
+- `php tools/run-tests.php lanes/markerpdf/tests` passed: 47 selected files,
+  962 assertions, 0 failures.
+- `git diff --check -- lanes/markerpdf` passed.
+
+Root decision:
+
+- Required integration-owned root command: `php tools/run-tests.php`.
+- Root result: failed with 340 test files, 49106 assertions, 1 failure.
+- Failure: `lanes/difftastic/tests/TokenDifferTest.php`, test
+  `maps upstream simple scss sample through mixin and nested rule alignment`.
+  The assertion expected the SCSS mixin border change at
+  `$css["@mixinbuttons"][0]/{0}[0]`, while the current dirty Difftastic output
+  reported the change under `$css["@mixinbuttons"]["button"][0]`.
+- Because the required no-argument root gate is red, this markerPDF batch was
+  rejected/deferred and not committed. The root failure appears outside the
+  markerPDF lane, but it still blocks acceptance under the current integration
+  rules.
+
+Support-library and status decision:
+
+- The markerPDF status blocker leads with the real acceptance gate:
+  integrator/root acceptance plus full upstream runner parity remain pending.
+- The slice reuses the existing inactive `pdf-text-dictionary-core` candidate
+  boundary for searchable PDF text extraction. It does not activate or count a
+  shared support-library port. Broader searchable-PDF, OCR/layout, and table
+  claims remain gated by `pdf-text-dictionary-core`,
+  `layout-ocr-result-core`, and `table-geometry-core`.
+- `dependency-backlog.json` is valid JSON with 37 items: 0 active rows, 1
+  blocked row, 25 candidate rows, and 11 deferred rows.
+- No dashboard artifacts were regenerated and no progress claim was advanced,
+  because no lane/status change was accepted.
+
+Exact next markerPDF worker task: keep the combined ToUnicode CMap plus
+WinAnsi simple-font handoff reduced to the current markerPDF files, and wait
+for a root-green integration window. Do not broaden into malformed CMaps,
+custom `/Differences`, object streams/xref, OCR/layout, table geometry, image
+rendering, or external PDF/model tooling until this searchable-text slice is
+accepted or explicitly split. If the next slice needs broader searchable PDF
+behavior, reference the existing `pdf-text-dictionary-core` row precisely and
+keep it inactive until an accepted base-lane gate actually activates it.
+
+Current skipped lanes: Difftastic is the immediate root-red blocker; Pandoc now
+has a `.ready` marker waiting; Gitoxide, LightningCSS, libsqlite, Readability,
+Quadrable, Syncthing, rclone, Dolt, Dolt runner, and esbuild remain dirty,
+active, or independently owned outside this markerPDF hold. Dolt remains
+skipped until implementation and runner evidence are coherent and neither
+Dolt session is editing the same metadata/source files. Next concrete intake
+target: fix or reject the Difftastic SCSS root failure first, then reattempt
+the owner-free markerPDF searchable-text handoff if it is still stable;
+otherwise inspect the waiting Pandoc marker only if its dirty scope exactly
+matches its evidence and required support-library rows.
+
 ## Integration handoff rejection - LightningCSS - 2026-05-24 20:50 UTC
 
 No lane output was integrated in this pass.
