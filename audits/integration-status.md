@@ -1,5 +1,68 @@
 # Integration Status
 
+## Integration accepted - esbuild resolver slice - 2026-05-24 22:33 UTC
+
+Accepted one owner-free non-isolate handoff:
+`.tmux-team/tmp/handoff-candidates/port-esbuild.ready`
+(`timestamp=2026-05-24T22:20:44Z`, `session=port-esbuild`,
+`reason=no-codex-handoff-grace`).
+
+Temporary hold:
+`.tmux-team/tmp/integration-holds/port-esbuild.hold`, observed at
+`2026-05-24T22:21:35Z` for esbuild-only intake. The selected pane
+`port-esbuild` was idle at `bash` with no child process.
+
+Two held polls were stable before staging:
+
+- Poll 1: `HEAD=9cc0ffe3f5b7`, no exact no-argument
+  `php tools/run-tests.php` process, esbuild status rows `19`, tracked
+  shortstat `8 files changed, 1401 insertions(+), 35 deletions(-)`,
+  untracked esbuild files `84`, and an empty esbuild lane log tail hash.
+- Poll 2: same `HEAD`, root-process gate, esbuild status rows, tracked
+  shortstat, untracked count, and lane log tail hash.
+
+Integrated commit:
+`6cb369fd Integrate esbuild resolver slice`.
+
+Accepted scope: bounded native esbuild analyzer/resolver behavior for
+no-substitution template literal sources, conditional dynamic imports,
+CommonJS `require`/`require.resolve`, dead branch pruning, relative glob
+patterns and fixture expansion, package/node_modules main-field resolution,
+package `imports`/`exports`, package-local and containing-package `browser`
+object remaps, Node builtin no-file-resolution/browser-map shims, and
+tsconfig `baseUrl`/`paths` with relative `extends` and overridden `baseUrl`.
+
+Support-library decision: `dependency-backlog.json` is valid JSON and already
+contains the deferred `js-package-resolution-core` row with activation gate
+`esbuild-bundler-resolution-next-or-lightningcss-css-package-resolution-next`,
+scope boundary, reuse notes, malformed-fixture expectations, and upstream/spec
+evidence expectations. The accepted esbuild slice references that row for reuse
+but does not activate a shared support port or count dependency-port progress.
+
+Verification run from the held snapshot:
+
+- `jq empty dependency-backlog.json`
+- `jq empty lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/lane-status.json`
+- PHP lint for `PackageResolver.php`, `TsConfigPathResolver.php`,
+  `PackageResolverTest.php`, `TsConfigPathResolverTest.php`, and
+  `wordpress-asset-preflight.php`
+- `php tools/run-tests.php lanes/esbuild/tests`: 6 selected test files,
+  1,783 assertions, 0 failures
+- `php lanes/esbuild/examples/wordpress-asset-preflight.php | rg ...`: all
+  resolver/glob/tsconfig smoke checks reported `yes`
+- Serialized no-argument `php tools/run-tests.php`: 345 test files,
+  50,627 assertions, 0 failures. No wait on the root lock was observed in the
+  root harness output.
+- `git diff --cached --check`: passed before commit
+
+Cleanup: removed the esbuild hold file and matching ready marker after the
+accepted commit. The separate `port-readability.ready` marker remains queued
+for the next intake pass.
+
+Next safe integration target: inspect `port-readability.ready` if the pane
+remains idle and its current diff can be isolated to a coherent reduced
+Readability slice with focused evidence plus root verification.
+
 ## Isolate-only intake skipped - 2026-05-24 22:08 UTC
 
 No lane implementation output was integrated in this pass.
