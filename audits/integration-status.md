@@ -1,5 +1,61 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T00:10:55Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `porting.html`/`porting-summary.json`, start the
+no-argument `php tools/run-tests.php`, wait on
+`.upstream-cache/run-tests.lock`, or treat active worker/focused/upstream
+runner output as one accepted integration snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` moved while this pass was sampling, advancing from `bd8e4a85` to
+  `d66a2680e3ee`; the branch is
+  `main...origin/main [ahead 599, behind 68]`.
+- Dirty scope remains broad and live: latest samples showed `8880`
+  `git status --porcelain -uall` rows, `284` tracked changed files, and
+  `284 files changed, 124660 insertions(+), 12532 deletions(-)`.
+- Dirty lane rows span every priority lane: Difftastic `211`, Dolt `101`,
+  esbuild `26`, Gitoxide `121`, libsqlite `89`, LightningCSS `134`,
+  markerPDF `175`, Pandoc `58`, Quadrable `80`, rclone `102`, Readability
+  `180`, and Syncthing `138`.
+- Current process/session sampling showed `141` tmux sessions and `28`
+  `scripts/run-tmux-agent.sh` processes. Primary lane workers for Gitoxide,
+  LightningCSS, markerPDF, libsqlite, Readability, Pandoc, Quadrable,
+  Syncthing, Difftastic, rclone, Dolt, and esbuild were all active, along with
+  Dolt runner, auditor, integrator, dashboard updater, evaluator, watchdog,
+  and capacity/controller loops.
+- Exact PHP runner sampling returned no active no-argument root harness. Since
+  no lane batch was accepted and active writers remained, no root harness was
+  started and no lock wait occurred.
+- Worker log tails showed live lane work rather than a frozen handoff:
+  Gitoxide config parsing, LightningCSS style visitor dependency handling,
+  markerPDF filetype diagnostics, libsqlite WAL frame-write planning,
+  Readability placeholder cleanup triage, Pandoc doctemplate pipes,
+  Quadrable diff patch replay, Syncthing system version output, Difftastic
+  syntax classifier work, rclone VFS open-file planning, esbuild TSX namespace
+  lowering, plus an active Dolt runner `go install` under `.upstream-cache/dolt`.
+- Dolt remains skipped despite reauthorization. The Dolt implementation lane
+  and Dolt runner are both active, Dolt source/metadata/test files are dirty,
+  and there is no coherent frozen implementation plus runner handoff with
+  passing verification from the same snapshot.
+- `dependency-backlog.json` is valid JSON with `22` gated items and `0`
+  active-labeled items. It remains backlog/status context only; no dependency
+  implementation was accepted.
+- `porting.html` and `porting-summary.json` are dirty from updater activity.
+  They were not regenerated or accepted by this pass because doing so would
+  publish active, unaccepted lane-status edits.
+
+Decision: the tree is still too active for trustworthy lane acceptance. All
+priority lanes were skipped as active or unsafe. The next safe integration
+point is to freeze or let finish active lane/control workers, confirm no root
+or focused runners are active, and verify `HEAD`, tracked status, shortstat,
+runner state, upstream runner state, and relevant log mtimes are unchanged
+across two polls. Then accept exactly one lane-scoped batch with focused
+inspection/tests, one serialized `php tools/run-tests.php`, `git diff --check`,
+and dashboard regeneration from that same accepted snapshot.
+
 ## Integration Hold - 2026-05-24T00:07:33Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
