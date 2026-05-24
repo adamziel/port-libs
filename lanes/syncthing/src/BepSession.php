@@ -31,7 +31,6 @@ final class BepSession
         private readonly int $compressionMode = Device::COMPRESSION_NEVER,
         ?RequestExchange $exchange = null,
         ?BepSessionHandlers $handlers = null,
-        private readonly string $nativeDirectorySeparator = DIRECTORY_SEPARATOR,
     ) {
         if (!in_array($this->compressionMode, [
             Device::COMPRESSION_METADATA,
@@ -39,9 +38,6 @@ final class BepSession
             Device::COMPRESSION_ALWAYS,
         ], true)) {
             throw new \InvalidArgumentException('Unknown Syncthing compression mode');
-        }
-        if ($this->nativeDirectorySeparator === '') {
-            throw new \InvalidArgumentException('Native directory separator must not be empty');
         }
 
         $this->exchange = $exchange ?? new RequestExchange();
@@ -243,8 +239,6 @@ final class BepSession
             return $this->protocolError(BepWire::MESSAGE_TYPE_INDEX, $throwable->getMessage() . ' in ' . $context);
         }
 
-        $index = $index->nativeForModel($this->nativeDirectorySeparator);
-
         return $this->dispatchModelHandler(new BepSessionEvent(
             type: self::EVENT_INDEX,
             messageType: BepWire::MESSAGE_TYPE_INDEX,
@@ -265,8 +259,6 @@ final class BepSession
         } catch (\Throwable $throwable) {
             return $this->protocolError(BepWire::MESSAGE_TYPE_INDEX_UPDATE, $throwable->getMessage() . ' in ' . $context);
         }
-
-        $indexUpdate = $indexUpdate->nativeForModel($this->nativeDirectorySeparator);
 
         return $this->dispatchModelHandler(new BepSessionEvent(
             type: self::EVENT_INDEX_UPDATE,
@@ -292,30 +284,17 @@ final class BepSession
             return $this->protocolError(BepWire::MESSAGE_TYPE_REQUEST, $throwable->getMessage() . ' in ' . $context);
         }
 
-        $nativeRequest = $request->nativeForModel($this->nativeDirectorySeparator);
-        if ($nativeRequest === null) {
-            $response = new Response($request->id, '', Response::CODE_NO_SUCH_FILE);
-
-            return new BepSessionEvent(
-                type: self::EVENT_REQUEST,
-                messageType: BepWire::MESSAGE_TYPE_REQUEST,
-                message: $request,
-                response: $response,
-                outboundFrames: [BepWire::encodeResponseMessage($response, $this->compressionMode)],
-            );
-        }
-
         $response = null;
         $frames = [];
         if ($requestHandler !== null) {
-            $response = $this->responseFromHandler($nativeRequest, $requestHandler);
+            $response = $this->responseFromHandler($request, $requestHandler);
             $frames[] = BepWire::encodeResponseMessage($response, $this->compressionMode);
         }
 
         return new BepSessionEvent(
             type: self::EVENT_REQUEST,
             messageType: BepWire::MESSAGE_TYPE_REQUEST,
-            message: $nativeRequest,
+            message: $request,
             response: $response,
             outboundFrames: $frames,
         );

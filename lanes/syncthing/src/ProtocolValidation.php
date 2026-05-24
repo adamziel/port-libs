@@ -88,19 +88,6 @@ final class ProtocolValidation
         return self::normalizeNfc($name);
     }
 
-    public static function nativeModelName(string $name, string $directorySeparator = DIRECTORY_SEPARATOR): ?string
-    {
-        if ($directorySeparator === '' || $directorySeparator === '/') {
-            return self::normalizeNfc($name);
-        }
-
-        if (str_contains($name, $directorySeparator)) {
-            return null;
-        }
-
-        return str_replace('/', $directorySeparator, self::normalizeNfc($name));
-    }
-
     private static function cleanWireName(string $name): string
     {
         if ($name === '') {

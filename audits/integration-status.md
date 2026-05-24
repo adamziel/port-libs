@@ -62999,3 +62999,42 @@ attempt must include matching metadata only for the accepted scope, focused PHP
 evidence, the fullest relevant upstream/spec evidence that can honestly run,
 valid JSON metadata, and an owner-free two-poll window before integrator root
 verification.
+
+## Latest integration intake - 2026-05-24 22:06 UTC
+
+No lane output was integrated. No handoff markers or hold files were removed,
+no lane files were staged, no commit was made, and
+`php tools/generate-dashboard.php` was not run.
+
+Decision: clean-patch integration pending only.
+
+Evidence reviewed:
+
+- Current handoff candidates are all isolate markers:
+  `.tmux-team/tmp/handoff-candidates/port-isolate-gitoxide-signature-consuming.ready`,
+  `.tmux-team/tmp/handoff-candidates/port-isolate-markerpdf-cmap-codespace.ready`,
+  and `.tmux-team/tmp/handoff-candidates/port-isolate-pandoc-html-br.ready`.
+- Per the isolation ownership rule, these `port-isolate-*` artifacts are owned
+  by the clean-patch integrator because they must be applied, root-tested, and
+  committed from detached clean worktrees. This integration pass did not read,
+  apply, remove, or otherwise process those markers.
+- No non-isolate `.tmux-team/tmp/handoff-candidates/port-*.ready` markers were
+  present, and `.tmux-team/tmp/integration-holds/` had no current hold files.
+- Primary lane panes sampled at intake were at `bash`, but without a
+  non-isolate ready marker this pass had no owner-free lane handoff to hold or
+  intake.
+- `dependency-backlog.json` was valid JSON. No support-library row was
+  activated or counted.
+- The exact no-argument root harness gate `pgrep -af '^php
+  tools/run-tests\.php$'` returned no rows. This worker did not start or wait
+  on `php tools/run-tests.php` because there was no eligible non-isolate
+  integration snapshot.
+
+Skipped active/pending lanes: all isolate handoffs were skipped for
+clean-patch ownership; all dirty regular lane files remain pending their
+respective worker/integrator handoffs and were not accepted by this pass.
+
+Next integration target: wait for the clean-patch integrator to handle the
+three current isolate markers, or take the next non-isolate owner-free
+`port-<lane>.ready` marker that appears with two stable polls of lane files,
+logs, `HEAD`, exact root PID state, and diff shortstat.

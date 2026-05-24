@@ -42,23 +42,4 @@ final class Index
             lastSequence: $this->lastSequence,
         );
     }
-
-    public function nativeForModel(string $directorySeparator = DIRECTORY_SEPARATOR): self
-    {
-        $files = [];
-        foreach ($this->files as $file) {
-            $name = ProtocolValidation::nativeModelName($file->name, $directorySeparator);
-            if ($name === null) {
-                continue;
-            }
-
-            $files[] = $file->withName($name);
-        }
-
-        return new self(
-            folder: $this->folder,
-            files: $files,
-            lastSequence: $this->lastSequence,
-        );
-    }
 }

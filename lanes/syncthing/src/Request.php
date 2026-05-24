@@ -34,23 +34,4 @@ final class Request
             blockNo: $this->blockNo,
         );
     }
-
-    public function nativeForModel(string $directorySeparator = DIRECTORY_SEPARATOR): ?self
-    {
-        $name = ProtocolValidation::nativeModelName($this->name, $directorySeparator);
-        if ($name === null) {
-            return null;
-        }
-
-        return new self(
-            id: $this->id,
-            folder: $this->folder,
-            name: $name,
-            offset: $this->offset,
-            size: $this->size,
-            hashHex: $this->hashHex,
-            fromTemporary: $this->fromTemporary,
-            blockNo: $this->blockNo,
-        );
-    }
 }
