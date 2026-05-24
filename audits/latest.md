@@ -1,75 +1,64 @@
-# Independent Audit - 2026-05-24T21:52Z
+# Independent Audit - 2026-05-24T21:56Z
 
 Scope reviewed: `goal.md`, `progress.md`, `porting.html`,
 `porting-summary.json`, `dependency-backlog.json`, every
-`lanes/*/UPSTREAM_TEST_MANIFEST.json`, every `lanes/*/lane-status.json`,
-recent `audits/integration-status.md`, and recent Git history through
-`c7e35a6c Refresh independent audit status`.
+`lanes/*/UPSTREAM_TEST_MANIFEST.json`, every `lanes/*/lane-status.json`, and
+recent Git history through `c201145c Refresh independent audit status`.
 
 I did not edit lane implementation files, launch agents or tmux sessions, push,
-read secrets, inspect process environments, credential stores, provider
-configs, or auth files. Bridge code, generated fixtures, shell-outs, whole
-applications, external converter wrappers, and hidden process launchers are
-treated as non-progress unless explicitly temporary oracle tooling.
+read secrets, inspect process environments, credential stores, provider configs,
+or auth files. Bridge code, generated fixtures, shell-outs, whole applications,
+external converter wrappers, and hidden process launchers are treated as
+non-progress unless explicitly temporary oracle tooling.
 
 ## Current Snapshot
 
 ```text
-UTC samples: 2026-05-24T21:51:39Z -> 2026-05-24T21:52:02Z
-HEAD: c7e35a6ca6c2
-recent history: c7e35a6c Refresh independent audit status; 2ba8794c Record LightningCSS handoff rejection; 952825c8 Refresh independent audit status; 21045a79 Record handoff rejection intake status; e4442a13 Record integration intake status; a42ca8aa Refresh independent audit status
-default status rows including untracked: 24300 -> 24314
+UTC sample: 2026-05-24T21:55:45Z
+HEAD: c201145ce3f1
+recent history: c201145c Refresh independent audit status; 80e90963 Record markerPDF handoff instability; 3cb7c1f2 Refresh evaluator feedback; c7e35a6c Refresh independent audit status; 2ba8794c Record LightningCSS handoff rejection; 952825c8 Refresh independent audit status
+default status rows including untracked: 24430
 tracked dirty rows: 229
-dirty shortstat moved: 229 files changed, 189616 insertions(+), 23458 deletions(-) -> 229 files changed, 189617 insertions(+), 23458 deletions(-)
+dirty shortstat: 229 files changed, 189884 insertions(+), 23463 deletions(-)
 targeted status: all 12 lane manifests and all 12 lane-status files are dirty
-exact root process gate: first sample matched transient PID 2154787 (`php tools/run-tests.php`); owner `ps` sample found it already exited; final sample returned no rows
-root run by this audit: not started; the checkout failed the stability gate and the required pre-run gate had just observed an active root harness
+exact root process gate: `pgrep -af '^php tools/run-tests\.php$'` returned no rows
+root run by this audit: not started; the checkout is still moving and too dirty for a meaningful audit-owned aggregate run
 JSON validity: `jq empty` passed for all 12 manifests, all 12 lane-status files, `dependency-backlog.json`, and `porting-summary.json`
 dependency backlog: 37 rows, 0 active, 1 blocked, 25 candidate, 11 deferred; every row still has upstreamDenominator null
 ```
 
-Live dirty manifest/status samples, not accepted progress:
+Live dirty manifest/status samples are not accepted progress:
 
 ```text
 lane          manifest mapped/total     status phpPass/phpFail     latest status
-difftastic    1222/1338                 3844/0                     pending Objective-C slice
-dolt          613/613                   470/0                      not committed query-diff slice
-esbuild       233/2567                  233/0                      uncommitted exports-map slice
-gitoxide      1480/2877                 7665/0                     pending identity/discovery stack
-libsqlite     227/1589                  227/0                      pending JSON aggregate slice
-LightningCSS  3028/3548                 4412/0                     uncommitted @page formatter slice
-markerPDF     170/78                    275/0                      pending ToUnicode CMap slice
+difftastic    1233/1349                 3858/0                     pending Objective-C slice
+dolt          613/613                   470/0                      not committed query-diff/expression stack
+esbuild       233/2567                  233/0                      uncommitted package exports resolver slice
+gitoxide      1481/2877                 7678/0                     pending discover/mailmap/actor stack
+libsqlite     232/1589                  232/0                      pending JSON aggregate/table-output slice
+LightningCSS  3028/3548                 4418/0                     uncommitted @page validation slice
+markerPDF     170/78                    275/0                      pending ToUnicode CMap codespace slice
 pandoc        2276/2276                 409/0                      pending HTML reader linebreak slice
-quadrable     55/55                     263/0                      pending hex helper slice
-rclone        516/1601                  516/0                      pending WebDAV lock mutation slice
-Readability   1690/1984                 154/0                      pending CNET cleanup slice
-syncthing     658/658                   9265/0                     pending Windows native-model slice
+quadrable     55/115                    263/0                      pending hex/helper plus broad dirty stack
+rclone        516/1601                  516/0                      pending WebDAV lock-integrated mutation slice
+Readability   1690/1984                 155/0                      uncommitted mixed fixture/cleanup pile
+syncthing     658/658                   9265/0                     pending Windows native-model/BEP slice
 ```
 
 ## Findings
 
-1. **Critical - the checkout is still moving, so there is no stable aggregate acceptance baseline.**
-   - Paths: `tools/run-tests.php`, `progress.md`,
-     `audits/integration-status.md`, `lanes/*/lane-status.json`,
-     `lanes/*/UPSTREAM_TEST_MANIFEST.json`.
+1. **Critical - the repository still has no stable aggregate acceptance baseline.**
+   - Paths: `tools/run-tests.php`, `progress.md`, `audits/latest.md`,
+     `lanes/*/UPSTREAM_TEST_MANIFEST.json`, `lanes/*/lane-status.json`.
    - Goal requirement at risk: periodically run repo-wide tests and commit
      small reviewable slices with passing verification from a stable snapshot.
-   - Evidence: after the prior audit commit `c7e35a6c`, default status rows
-     moved from `24300` to `24314`, and dirty shortstat moved from
-     `229 files changed, 189616 insertions(+), 23458 deletions(-)` to
-     `229 files changed, 189617 insertions(+), 23458 deletions(-)`.
+   - Evidence: since the previous audit, `HEAD` moved from `c7e35a6c` to
+     `c201145c`; untracked-inclusive status grew to `24430`; tracked dirty
+     rows remain `229`; dirty shortstat is now `229 files changed, 189884
+     insertions(+), 23463 deletions(-)`. All 12 lane manifests and all 12
+     lane-status files are still dirty.
 
-2. **Critical - a root harness was already active at the required gate, so this audit correctly did not start a duplicate.**
-   - Paths: `tools/run-tests.php`, `audits/latest.md`.
-   - Goal requirement at risk: repo-wide root verification must be serialized;
-     duplicate no-argument root harnesses make acceptance evidence ambiguous.
-   - Evidence: `pgrep -af '^php tools/run-tests\.php$'` matched
-     `2154787 php tools/run-tests.php` at `2026-05-24T21:51:39Z`. The process
-     exited before `ps -o pid,user,ppid,stat,etime,args -p 2154787` could show
-     owner details, and a final exact gate was clear. Because the tree was
-     still changing, no audit-owned root run was started after it cleared.
-
-3. **Critical - all live lane status files still describe unaccepted worker output.**
+2. **Critical - every live lane status still represents unaccepted worker output.**
    - Paths: `lanes/difftastic/lane-status.json`,
      `lanes/dolt/lane-status.json`, `lanes/esbuild/lane-status.json`,
      `lanes/gitoxide/lane-status.json`, `lanes/libsqlite/lane-status.json`,
@@ -78,72 +67,66 @@ syncthing     658/658                   9265/0                     pending Windo
      `lanes/quadrable/lane-status.json`, `lanes/rclone/lane-status.json`,
      `lanes/readability/lane-status.json`,
      `lanes/syncthing/lane-status.json`.
-   - Goal requirement at risk: dirty worker handoffs must not count as
-     accepted native implementation progress.
-   - Evidence: every sampled lane has dirty manifest/status metadata and a
-     pending, uncommitted, or not-committed current handoff. Recent integration
-     history is rejection/status only: `2ba8794c` rejects/deferred
-     LightningCSS, `21045a79` rejects/deferred LightningCSS, `e4442a13`
-     records no-acceptance intake, `748bc929` rejects markerPDF, and
-     `96cb5683` rejects Syncthing.
+   - Goal requirement at risk: dirty worker handoffs must not count as native
+     implementation progress until supervisor/integrator acceptance and
+     verification occur.
+   - Evidence: each lane status says pending, uncommitted, not committed, or
+     root/integrator acceptance pending. Recent Git history is dominated by
+     audit/evaluator/rejection commits, not accepted implementation commits.
 
-4. **Critical - root-red blockers remain the first acceptance blocker.**
-   - Paths: `audits/integration-status.md`,
-     `lanes/difftastic/src/TokenDiffer.php`,
-     `lanes/difftastic/tests/TokenDifferTest.php`,
-     `lanes/syncthing/tests/BepSessionTest.php`,
-     `lanes/syncthing/*`.
-   - Goal requirement at risk: focused lane-green evidence is not enough when
-     the serialized root harness is red or the root-red fix is mixed into a
-     broad dirty pile.
-   - Evidence: integration status still identifies the Difftastic
-     `TokenDiffer::isDartLanguage()` failure and Syncthing
-     `syncthing_session_outbound_frames()` failure as the concrete blockers to
-     isolate before retrying other handoffs. Current Difftastic and Syncthing
-     dirty scopes remain broad and pending.
+3. **Critical - root harness evidence is still not usable for new acceptance.**
+   - Paths: `tools/run-tests.php`, `audits/integration-status.md`,
+     `progress.md`.
+   - Goal requirement at risk: repo-wide root verification must be serialized
+     and tied to the same frozen snapshot being accepted.
+   - Evidence: the required exact gate is currently clear, but the checkout is
+     not frozen and has changed since the last audit. Prior integration/audit
+     records still identify root-red Difftastic
+     `TokenDiffer::isDartLanguage()` and Syncthing
+     `syncthing_session_outbound_frames()` blockers. Starting a root run now
+     would test a moving, mixed dirty pile rather than an accept/reject batch.
 
-5. **High - `porting.html` and `porting-summary.json` remain stale publication artifacts.**
+4. **High - `porting.html` remains a stale publication source.**
    - Paths: `porting.html`, `porting-summary.json`,
      `lanes/*/UPSTREAM_TEST_MANIFEST.json`, `lanes/*/lane-status.json`.
-   - Goal requirement at risk: the dashboard must show current accepted
+   - Goal requirement at risk: the dashboard must show accepted current
      upstream denominator, mapped tests, PHP pass/fail, phase, audit, blocker,
      and commit.
-   - Evidence: `porting.html` still publishes source snapshot
-     `main 0fa9ecafcd10` generated at `2026-05-24 21:19:36 UTC`.
-     Live dirty manifests now report Difftastic `1222/1338`,
-     LightningCSS `3028/3548`, markerPDF `170/78`, Pandoc `2276/2276`,
-     rclone `516/1601`, and Syncthing `658/658`.
+   - Evidence: `porting.html` still says it is a verified snapshot of source
+     commit `0fa9ecafcd10`, while live dirty manifests now report changed
+     values such as Difftastic `1233/1349`, Gitoxide `1481/2877`, libsqlite
+     `232/1589`, LightningCSS `3028/3548`, markerPDF `170/78`, Pandoc
+     `2276/2276`, Quadrable `55/115`, and Syncthing `658/658`.
 
-6. **High - support-library tracking is visible but still not first-class coverage.**
-   - Paths: `dependency-backlog.json`, `progress.md`, `porting.html`,
-     `lanes/*/UPSTREAM_TEST_MANIFEST.json`, `lanes/*/lane-status.json`.
-   - Goal requirement at risk: support libraries require lane-equivalent
-     granularity: bounded native PHP component, activation gate,
+5. **High - support-library rows are visible but still not first-class port coverage.**
+   - Paths: `dependency-backlog.json`, `progress.md`, `porting.html`.
+   - Goal requirement at risk: support libraries require the same granularity
+     as lanes: bounded native PHP component, activation gate,
      dependency-specific upstream/spec denominator, mapped fixtures, PHP
      pass/fail evidence, malformed/corrupt cases where relevant, and as much
      upstream/spec-suite evidence as can actually run.
    - Evidence: the backlog has `37` rows, `0` active rows, and
-     `upstreamDenominator: null` for every row. No support row has a native PHP
-     pass/fail ledger, malformed/corrupt evidence, or bounded install-attempt
-     ledger, so the rows remain routing notes rather than accepted support
-     ports.
+     `upstreamDenominator: null` for every row. These are routing notes, not
+     accepted support ports. Missing packages are not final blockers until
+     bounded install attempts are recorded, but no row currently records such a
+     dependency-specific runner ledger.
 
-7. **High - Pandoc rich conversion remains overstated by the `2276/2276` mapped claim.**
+6. **High - Pandoc rich-format coverage is still over-credited.**
    - Paths: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`,
      `lanes/pandoc/lane-status.json`, `dependency-backlog.json`,
      `porting.html`.
-   - Goal requirement at risk: Pandoc must provide a conversion kernel with
-     Markdown, HTML, WXR, EPUB/PDF-oriented intermediate forms, and WordPress
-     output backed by meaningful upstream parity and explicit blockers.
-   - Evidence: Pandoc reports `2276/2276` mapped while lane status reports
-     `409` PHP behavior tests and full Haskell runner parity remains
+   - Goal requirement at risk: Pandoc must provide a document conversion kernel
+     with meaningful readers/writers and upstream-backed rich-format support,
+     not just fixture routing.
+   - Evidence: the manifest reports `2276/2276` mapped while lane status
+     reports `409` PHP behavior tests and full Haskell runner parity remains
      unexecuted. DOC, DOCX/OpenXML, PDF input/output handoff, EPUB,
      ODT/OpenDocument, templates, citations, math, tables, package containers,
      XML/HTML, Unicode/charset, JSON/YAML metadata, syntax highlighting, and
-     archive/compression are visible as gated rows or reuse paths, but none is
-     an active support port with a dependency-specific denominator.
+     archive/compression are present as gated backlog rows or reuse paths, but
+     none has an active support port denominator or pass/fail ledger.
 
-8. **High - current rich lane work crosses inactive support boundaries.**
+7. **High - several base lanes are crossing inactive support-library boundaries.**
    - Paths: `dependency-backlog.json`,
      `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`,
      `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`,
@@ -151,101 +134,91 @@ syncthing     658/658                   9265/0                     pending Windo
      `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
      `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`,
      `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`.
-   - Goal requirement at risk: dependency work should not count as reusable
-     progress unless the bounded row is activated, tested, and evidenced.
-   - Evidence: esbuild has package `exports` resolution while
-     `js-package-resolution-core` is deferred; rclone WebDAV lock/mutation
-     work sits ahead of inactive `webdav-protocol-core` and
-     `xml-html5-dom-core`; Dolt and libsqlite JSON work sits ahead of inactive
-     `json-json5-document-core` and `sql-expression-semantics-core`;
-     Syncthing BEP/session wire work sits ahead of inactive
-     `protobuf-wire-core`; Gitoxide protocol/discovery work still sits ahead
-     of inactive `git-wire-protocol-core` and URL support rows.
+   - Goal requirement at risk: rich dependency work should not count as shared
+     reusable progress unless a bounded row is activated, tested, and evidenced.
+   - Evidence: esbuild package exports resolution is ahead of deferred
+     `js-package-resolution-core`; rclone WebDAV lock/mutation work is ahead of
+     inactive `webdav-protocol-core` and `xml-html5-dom-core`; Dolt and
+     libsqlite JSON work is ahead of inactive `json-json5-document-core` and
+     `sql-expression-semantics-core`; Syncthing BEP/session work is ahead of
+     inactive `protobuf-wire-core`; Gitoxide protocol/discovery work remains
+     ahead of inactive `git-wire-protocol-core` and URL support rows.
 
-9. **High - markerPDF still has a weak denominator for its claimed PDF breadth.**
+8. **High - markerPDF still counts broad orchestration and adjacent dependency planning against a weak denominator.**
    - Paths: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`,
-     `lanes/markerpdf/lane-status.json`,
-     `lanes/markerpdf/src/PdfTextExtractor.php`,
-     `dependency-backlog.json`.
+     `lanes/markerpdf/lane-status.json`, `dependency-backlog.json`.
    - Goal requirement at risk: markerPDF must become a native
      PDF-to-structured-content extraction pipeline; external runtime planning,
-     supplied converter/model callbacks, and benchmark scaffolding cannot
-     count as native conversion progress.
-   - Evidence: markerPDF maps `170` focused semantics against only `78`
-     tracked upstream paths and `0` committed Python unit-test files. The
-     current ToUnicode CMap codespacerange slice is pending root/integrator
-     acceptance, and the broader PDF page/layout, OCR/result, table, CMap/font,
-     and benchmark archive areas remain behind inactive support rows.
+     supplied converter/model callbacks, benchmark archive probing, and
+     dependency inspection cannot count as native conversion progress.
+   - Evidence: markerPDF maps `170` semantics against only `78` upstream paths.
+     The current ToUnicode CMap codespace slice is pending acceptance, while
+     broader PDF text dictionaries, page/layout planning, OCR/layout results,
+     table geometry, and archive/package concerns remain inactive support rows.
 
-10. **Medium - manifest/status count units remain non-comparable.**
-    - Paths: `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
-      `lanes/*/lane-status.json`, `porting-summary.json`, `porting.html`.
-    - Goal requirement at risk: progress must track upstream denominator,
-      mapped tests, PHP pass/fail, phase, blocker, and commit in comparable
-      units.
-    - Evidence: markerPDF maps more items than its denominator (`170/78`);
-      Pandoc maps the entire denominator (`2276/2276`) while reporting `409`
-      behavior tests; Syncthing and Gitoxide `phpPass` values are assertion-like
-      (`9265`, `7665`) while Dolt, rclone, readability, and markerPDF use
-      behavior-case counts. Dashboard commit cells still include prose or
-      truncations such as `port-es`, `Port rc`, and `uncommi`.
+9. **Medium - manifest/status count units remain non-comparable.**
+   - Paths: `lanes/*/UPSTREAM_TEST_MANIFEST.json`,
+     `lanes/*/lane-status.json`, `porting-summary.json`, `porting.html`.
+   - Goal requirement at risk: progress percentages must be comparable and
+     tied to upstream denominator, mapped tests, PHP pass/fail, phase, blocker,
+     and commit.
+   - Evidence: markerPDF maps more semantics than its total upstream paths
+     (`170/78`); Pandoc maps the full denominator while reporting only `409`
+     PHP behavior tests; Syncthing and Gitoxide `phpPass` are assertion-like
+     counts (`9265`, `7678`), while markerPDF, rclone, readability, and Dolt
+     use behavior-case counts.
 
-11. **Medium - several handoffs are broad dirty piles instead of reviewable slices.**
-    - Paths: `audits/integration-status.md`, `lanes/lightningcss/*`,
-      `lanes/dolt/*`, `lanes/gitoxide/*`, `lanes/quadrable/*`,
-      `lanes/readability/*`, `lanes/syncthing/*`.
+10. **Medium - Quadrable regressed from a clean denominator story to a mixed unit.**
+    - Paths: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`,
+      `lanes/quadrable/lane-status.json`.
+    - Goal requirement at risk: each lane needs a real upstream denominator and
+      mapped tests in comparable units.
+    - Evidence: the manifest now reports `55/115`, while status describes the
+      upstream runner pass plus a broad dirty stack. The original lane tracked
+      a compact upstream `check.cpp` suite; the new denominator needs an
+      explicit explanation before `55/115` can drive progress estimates.
+
+11. **Medium - broad dirty piles are blocking reviewable-slice acceptance.**
+    - Paths: `lanes/readability/lane-status.json`,
+      `lanes/quadrable/lane-status.json`, `lanes/dolt/lane-status.json`,
+      `lanes/gitoxide/lane-status.json`, `lanes/syncthing/lane-status.json`.
     - Goal requirement at risk: prefer small correct slices over broad shallow
       ports and commit small reviewable slices with passing tests.
-    - Evidence: the latest LightningCSS handoff was rejected because
-      `CssFormatter.php` and `CssFormatterTest.php` were untracked whole-file
-      additions containing prior unaccepted formatter behavior, with `215`
-      untracked LightningCSS files. Dolt was skipped because
-      `port-dolt-runner` was still active and the dirty scope mixed
-      merge-status, REGEXP_REPLACE, JSON_SET, and query-diff evidence. Other
-      lane statuses also describe accumulated stacks rather than isolated
-      accept/reject batches.
+    - Evidence: Readability advertises ten interleaved fixture/cleanup slices;
+      Quadrable lists many unrelated unaccepted proof/transport/store/helper
+      slices; Dolt mixes a long query-diff expression stack; Gitoxide mixes
+      discover, mailmap, and actor handoffs; Syncthing has a very large route,
+      GUI, discovery, BEP, and native-model history in lane metadata.
 
-12. **Medium - Syncthing URL/query support is not routed through the shared URL row.**
+12. **Medium - Syncthing URL/query needs are still not routed through the shared URL row.**
     - Paths: `dependency-backlog.json`,
       `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`,
       `lanes/syncthing/lane-status.json`.
-    - Goal requirement at risk: a missing bounded support row is a blocker once
-      a base lane is ready for or blocked by the next essential rich
+    - Goal requirement at risk: missing bounded support rows become blockers
+      once the base lane is ready for or blocked by the next essential rich
       capability.
-    - Evidence: Syncthing status continues to include discovery and route work
-      with URL/query construction needs, but `url-percent-encoding-core` lists
-      `rclone`, `gitoxide`, `esbuild`, `lightningcss`, and `readability` only.
-      Either add Syncthing as a gated consumer with spec/vector expectations,
-      or keep the URL evidence explicitly lane-local and non-reusable.
+    - Evidence: Syncthing status includes discovery lookup URL construction and
+      query encoding, but `url-percent-encoding-core` lists `rclone`,
+      `gitoxide`, `esbuild`, `lightningcss`, and `readability` only. Either add
+      Syncthing as a gated consumer with spec/vector expectations, or keep that
+      URL evidence explicitly lane-local and non-reusable.
 
-13. **Medium - missing-package blockers are still not support-row evidence.**
-    - Paths: `dependency-backlog.json`,
-      `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`,
-      `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`,
-      `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`,
-      `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`.
-    - Goal requirement at risk: missing packages are not final blockers until
-      bounded `sudo -n` installs were attempted or ruled out.
-    - Evidence: Pandoc, markerPDF, Difftastic, and Gitoxide all have broad
-      runner blockers, but no support row records an actual
-      dependency-specific suite attempt or bounded install-attempt ledger.
+## Root Harness Decision
 
-## Required Next Intervention
+The exact no-argument root gate was clear at the final sample, but this audit
+did not run `php tools/run-tests.php`. The tree is not stable enough: `HEAD`
+has moved again, all lane manifests/status files are dirty, and every lane
+status describes unaccepted output. A root run now would not satisfy the goal's
+acceptance requirement because it would not be tied to a frozen, reviewable
+snapshot.
 
-Freeze writers, status publishers, dashboard regeneration, and duplicate
-focused/root loops until two consecutive polls show unchanged `HEAD`, tracked
-status, default status, shortstat, and exact root gate. Treat `9784b10c` as
-accepted libsqlite-only evidence, `5e46840f` as accepted markerPDF ASCIIHex-only
-evidence, `96cb5683` as a Syncthing rejection, `748bc929` as a markerPDF
-rejection, `e4442a13` as no-acceptance intake status, `21045a79` and
-`2ba8794c` as LightningCSS rejection/defer records, and this audit as
-documentation-only.
+## Next Intervention
 
-The next concrete intervention remains to isolate and accept or reject exactly
-one owner-free reduced root-red fix: Difftastic
-`TokenDiffer::isDartLanguage()` or Syncthing
-`syncthing_session_outbound_frames()`. After that, run one serialized
-no-argument `php tools/run-tests.php` only from the frozen snapshot with an
-empty exact process gate, normalize manifest/status count units, keep support
-rows inactive unless a real accepted gate or blocker opens, regenerate
-coordination artifacts from the accepted commit, then commit or reject.
+Freeze writers/status publishers/dashboard regeneration/test-loop starters for
+two stable polls; select exactly one owner-free reduced batch, preferably the
+Difftastic root-red `TokenDiffer::isDartLanguage()` fix or the Syncthing
+`syncthing_session_outbound_frames()` fix if still reproducible; run focused
+verification; run one serialized no-argument root harness from that same frozen
+snapshot; normalize manifest/status count units; then regenerate
+`porting.html` and commit or reject the batch. Do not activate support-library
+rows until an accepted base-lane gate or concrete blocker requires them.
