@@ -1,5 +1,76 @@
 # Integration Status
 
+## Integration acceptance - libsqlite - 2026-05-24 21:18 UTC
+
+Integrated libsqlite lane output in commit `9784b10c` (`Port libsqlite JSON
+scalar functions`).
+
+Selected handoff: no `.ready` marker was present, but `port-libsqlite` was the
+smallest owner-free candidate after `port-esbuild` was skipped for active
+child PID `1878516` (`node /usr/local/bin/codex ...`). I held only libsqlite
+with `.tmux-team/tmp/integration-holds/port-libsqlite.hold` at
+`2026-05-24T21:09:14Z`.
+
+Stability and ownership:
+
+- The selected lane stayed stable at `HEAD=995e2e354bfa` after an earlier
+  unrelated status commit moved HEAD during the initial intake window.
+- Final two root-gate samples had no exact no-argument root PID. An earlier
+  sample saw external root PID `1911697 php tools/run-tests.php`; that result
+  was not counted.
+- Libsqlite dirty scope stayed stable: 27 lane status rows, tracked shortstat
+  `9 files changed, 2090 insertions(+), 33 deletions(-)`, plus lane-local
+  untracked JSON source/example files.
+- Latest libsqlite log stayed
+  `.tmux-team/logs/port-libsqlite-watchdog-20260524T205910Z.log` with hash
+  `eeb1e410592f1204996debdb6bd47d7efbdad4c85e8fd656bce8271fd6f9056b`.
+- The `port-libsqlite` pane had no child process during the held polls.
+
+Accepted scope:
+
+- Native lane-local SQLite JSON scalar/path stack: JSON path validation,
+  JSON operator RHS `json_quote` forms, JSONB validity flags, `json_valid`
+  text/JSON5/BLOB flags, `json_error_position`, `json_type` /
+  `json_array_length`, `json_quote`, `json_array` / `json_object`, `json(X)`
+  canonicalization, and `json_pretty(JSON[,INDENT])`.
+- WordPress wp_options preflight examples for those JSON behaviors.
+- Manifest/status/notes evidence for the accepted libsqlite JSON stack.
+
+Verification run by this intake:
+
+- `php -l` over `lanes/libsqlite/**/*.php`: passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json
+  lanes/libsqlite/lane-status.json dependency-backlog.json`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`:
+  passed and emitted 1652 bytes.
+- `php tools/run-tests.php lanes/libsqlite/tests`: passed, 1 selected test
+  file, 1812 assertions, 0 failures.
+- `git diff --check`: passed before commit.
+- Required root command `php tools/run-tests.php`: started with no root-lock
+  wait and passed, 341 test files, 49317 assertions, 0 failures.
+
+Root/status caveat: the selected libsqlite lane stayed stable, but the global
+dirty aggregate moved while other lanes continued running (`223 files changed,
+187480 insertions(+), 23468 deletions(-)` before root; `223 files changed,
+187507 insertions(+), 23465 deletions(-)` after root). This root result is
+accepted only as evidence for the held libsqlite batch, not as upstream parity
+or acceptance for any other dirty lane.
+
+Support-library decision: no shared dependency-port progress was activated.
+The accepted base-lane JSON work references the existing inactive
+`json-json5-document-core` candidate row; `sql-expression-semantics-core` and
+`charset-encoding-core` remain inactive for future bounded gates.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, Pandoc, rclone,
+Readability, Dolt, Dolt runner, and esbuild had active Codex children during
+sampling. Quadrable had an active `scripts/run-tmux-agent.sh` child. Syncthing
+was owner-free but too broad for this pass. Difftastic remained dirty and
+outside the selected scope.
+
+Next concrete intake target: inspect the next owner-free small lane after the
+libsqlite hold is removed; markerPDF remains a good candidate only if its
+searchable-PDF scope is still stable and no Difftastic/root blocker reappears.
+
 ## Integration handoff rejection - Quadrable - 2026-05-24 21:04 UTC
 
 No Quadrable lane output was integrated in this pass.
