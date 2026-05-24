@@ -1,5 +1,72 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T11:19:31Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate local `porting.html` or `porting-summary.json`, push,
+or start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files shown by Git, live tmux/process state, and dashboard/backlog
+  artifacts.
+- Current `HEAD` stayed at `535e559ce8e9` on
+  `main...origin/main [ahead 839, behind 68]`; recent local history remains
+  dominated by audit refreshes and integration-hold commits.
+- The checkout was still moving: tracked dirty rows stayed at `330`, but
+  untracked-inclusive rows moved `17103 -> 17105`, and shortstat moved from
+  `330 files changed, 223837 insertions(+), 28862 deletions(-)` to
+  `330 files changed, 223971 insertions(+), 28884 deletions(-)`. Recent worker
+  log mtimes continued updating through the sample window.
+- Exact process samples found no active `php tools/run-tests.php` and no active
+  `php tools/generate-dashboard.php`. I did not start the serialized
+  no-argument root harness, so there was no lock wait or accepted root result
+  for this checkout.
+- `jq empty` passed for `dependency-backlog.json`, `porting-summary.json`, all
+  12 root lane manifests, and all 12 lane-status files.
+- `dependency-backlog.json` is valid JSON but no longer consistent with
+  `progress.md`: the backlog now reports 36 rows
+  (`blocked:1,candidate:24,deferred:11`), while `progress.md` still records the
+  latest accepted support-library count as 34 rows. I therefore did not include
+  this backlog state in local dashboard/status integration.
+- Local generated dashboard artifacts remain stale and unaccepted:
+  `porting-summary.json` reports `generated=2026-05-23 23:43:54 UTC`,
+  `sourceCommit=79768df0c427aa9c96e6d97c5137c2d79ae9ce6e`, and
+  `dependencyBacklog.count=22`.
+- The dashboard updater log shows a separate temp-clone dashboard run passed
+  `204 test files, 23682 assertions, 0 failures`, committed generated artifacts
+  at `264bcc22`, and pushed to GitHub. I did not count that as an accepted
+  integration snapshot for this checkout because it ran outside this local
+  moving tree, did not establish a lock-wait/result pair for this pass, and its
+  source snapshot was not the current local dirty snapshot.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild. Dolt remains skipped despite reauthorization because Dolt source,
+metadata, runner sessions, and recent Dolt logs are still active.
+
+Waiting: freeze active lane writers plus dashboard/status publishers; reconcile
+`dependency-backlog.json` with `progress.md`; confirm no focused/root PHP
+harnesses, dashboard generator, Dolt BATS, Go, Rust, Node, or SQLite upstream
+runners are active; then require two stable polls of `HEAD`, tracked rows,
+untracked-inclusive rows, shortstat, exact process gates, dependency/dashboard
+counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active lane source edits, moving
+untracked state, stale local dashboard artifacts, an inconsistent dependency
+backlog, worker-log-only focused evidence, no accepted serialized root harness
+result for this checkout, unaccepted support-library activation gates, and
+blocker fields that still need acceptance-gate review.
+
+Next safe integration target: after a hard freeze, isolate one owner-free lane
+batch with coherent evidence, run focused lane verification, run
+`git diff --check`, run one serialized no-argument `php tools/run-tests.php`
+from the same frozen snapshot with lock-wait status recorded, and regenerate
+dashboard artifacts only after accepting the lane/status batch.
+
 ## Integration Hold - 2026-05-24T11:15:00Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
