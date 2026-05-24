@@ -394,7 +394,7 @@ final class ArticleExtractor
         }
 
         $tag = strtolower($element->tagName);
-        $html = trim($dom->saveHTML($element) ?: '');
+        $html = $this->cleanWordPressElementHtml($element);
         if ($html === '') {
             return;
         }
@@ -426,6 +426,30 @@ final class ArticleExtractor
         } else {
             $blocks[] = '<!-- wp:paragraph -->' . "\n" . $html . "\n" . '<!-- /wp:paragraph -->';
         }
+    }
+
+    private function cleanWordPressElementHtml(\DOMElement $element): string
+    {
+        $clone = $element->cloneNode(true);
+        if (!$clone instanceof \DOMElement) {
+            return '';
+        }
+
+        $removeAnnotationIds = static function (\DOMElement $node) use (&$removeAnnotationIds): void {
+            $node->removeAttribute('data-textannotation-id');
+            foreach ($node->childNodes as $child) {
+                if ($child instanceof \DOMElement) {
+                    $removeAnnotationIds($child);
+                }
+            }
+        };
+        $removeAnnotationIds($clone);
+
+        $doc = new \DOMDocument('1.0', 'UTF-8');
+        $imported = $doc->importNode($clone, true);
+        $doc->appendChild($imported);
+
+        return trim($doc->saveHTML($imported) ?: '');
     }
 
     private function codeBlockHtml(\DOMElement $element): string

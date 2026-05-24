@@ -27,3 +27,4 @@ echo 'Kinja chrome retained: ' . (
         : 'no'
 ) . "\n";
 echo 'Lists wrapped as paragraphs: ' . (str_contains($blocks, "<!-- wp:paragraph -->\n<ul>") ? 'yes' : 'no') . "\n";
+echo 'Source annotation ids retained in blocks: ' . (str_contains($blocks, 'data-textannotation-id=') ? 'yes' : 'no') . "\n";

@@ -98584,3 +98584,25 @@ Support-library/dependency closure: no support-library activation. This is a lan
 Live-service exclusions: no live OneDrive/provider tests were run.
 
 Files staged: `lanes/rclone/src/OneDrivePermissionPlanner.php`, `lanes/rclone/tests/OneDrivePermissionPlannerTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated readability Kinja annotation cleanup rework - 2026-05-24 23:47 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-readability-rework-20260524T233751Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-rework-20260524T233751Z.patch`.
+
+Lane/slice/session: `readability` / `rework-kinja-annotation-block-cleanup` / `port-rework-readability`. Patch sha256 verified as `a5003c563551d686f27edb07dadf27069cb1c5ef399bd1104f2b2ede93d318fa`. The patch applied cleanly to detached clean worktree `/tmp/port-clean-integrator-readability-rework-kinja-20260524T234533Z` from old head `8ae15a3118513add0f16d8e532ab7d230dfbe5ff`.
+
+Focused verification in the clean worktree:
+- `php -l lanes/readability/src/ArticleExtractor.php`: pass.
+- `php -l lanes/readability/tests/ArticleExtractorTest.php`: pass.
+- `php -l lanes/readability/examples/wordpress-lifehacker-kinja-list-import.php`: pass.
+- `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php`: pass, 1 selected test file, 1833 assertions, 0 failures.
+- `php lanes/readability/examples/wordpress-lifehacker-kinja-list-import.php`: pass; output included `Source annotation ids retained in blocks: no`.
+- `git diff --check`: pass.
+
+Root verification: pre-root exact no-argument process gate `pgrep -af '^php tools/run-tests\.php$'` was empty, then `php tools/run-tests.php` ran in the same clean worktree and passed: 208 test files, 24252 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. This is a lane-local DOM cleanup/WordPress serialization refinement using existing Readability extraction code.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged: `lanes/readability/src/ArticleExtractor.php`, `lanes/readability/tests/ArticleExtractorTest.php`, `lanes/readability/examples/wordpress-lifehacker-kinja-list-import.php`, and `audits/integration-status.md`.

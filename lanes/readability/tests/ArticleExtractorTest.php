@@ -490,6 +490,8 @@ return [
         $t->same(37, substr_count($blocks, '<!-- wp:paragraph -->'), 'Lifehacker paragraphs and image paragraphs should remain paragraph blocks');
         $t->same(8, substr_count($blocks, '<!-- wp:heading'), 'Lifehacker section headings should remain reviewable');
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<ul>"), 'retained text lists should not be paragraph-wrapped');
+        $t->same(true, str_contains($article->contentHtml, 'data-textannotation-id='), 'article HTML keeps upstream Kinja annotations for fixture parity');
+        $t->same(false, str_contains($blocks, 'data-textannotation-id='), 'WordPress list blocks should not keep source-only Kinja annotation ids');
         foreach (['Show more comments', 'Related blogs', 'Ads by Google', 'Follow Lifehacker', 'js_post_item'] as $fragment) {
             $t->same(false, str_contains($article->text, $fragment), 'Kinja comment/navigation/ad chrome should not enter article text: ' . $fragment);
             $t->same(false, str_contains($blocks, $fragment), 'Kinja comment/navigation/ad chrome should not enter WordPress blocks: ' . $fragment);
