@@ -18,6 +18,33 @@ $pdfWithStreams = static function (array $streams): string {
     return $pdf . "%%EOF";
 };
 
+$ascii85Encode = static function (string $bytes): string {
+    $encoded = '<~';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length; $offset += 4) {
+        $chunk = substr($bytes, $offset, 4);
+        $chunkLength = strlen($chunk);
+        if ($chunkLength < 4) {
+            $chunk = str_pad($chunk, 4, "\0");
+        }
+
+        $value = unpack('N', $chunk)[1];
+        if ($value === 0 && $chunkLength === 4) {
+            $encoded .= 'z';
+            continue;
+        }
+
+        $chars = '';
+        for ($index = 0; $index < 5; $index++) {
+            $chars = chr(($value % 85) + 33) . $chars;
+            $value = intdiv($value, 85);
+        }
+        $encoded .= substr($chars, 0, $chunkLength + 1);
+    }
+
+    return $encoded . '~>';
+};
+
 return [
     'extracts literal and array text operators from content streams' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT /F1 12 Tf 72 720 Td (Hello \\(WP\\)) Tj [(Data) 120 ( Liberation)] TJ ET";
@@ -42,6 +69,25 @@ return [
         $extractor = new PdfTextExtractor();
         $t->same('ASCII Hex Import', $extractor->extractPlainText($pdf));
         $t->same('Stacked Filter Import', $extractor->extractPlainText($stackedPdf));
+    },
+    'extracts ASCII85 stream filters before WordPress paragraph rendering' => static function (TestRunner $t) use ($ascii85Encode): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (ASCII85 Import) Tj T* (Clean Blocks) Tj ET';
+        $encoded = chunk_split($ascii85Encode($content), 22, "\n");
+        $pdf = "%PDF-1.4\n1 0 obj\n<< /Filter /ASCII85Decode /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n%%EOF";
+
+        $compressed = gzcompress('BT /F1 12 Tf 72 720 Td (A85 Flate Import) Tj ET');
+        $stacked = $ascii85Encode($compressed);
+        $stackedPdf = "%PDF-1.4\n1 0 obj\n<< /Filter [ /A85 /FlateDecode ] /Length " . strlen($stacked) . " >>\nstream\n{$stacked}\nendstream\nendobj\n%%EOF";
+
+        $zeroContent = "BT /F1 12 Tf 72 720 Td (Zero\0\0\0\0Group) Tj ET";
+        $zeroEncoded = str_replace('!!!!', 'z', $ascii85Encode($zeroContent));
+        $zeroPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /A85 /Length " . strlen($zeroEncoded) . " >>\nstream\n{$zeroEncoded}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same("ASCII85 Import\nClean Blocks", $extractor->extractPlainText($pdf));
+        $t->same('A85 Flate Import', $extractor->extractPlainText($stackedPdf));
+        $t->same("Zero\0\0\0\0Group", $extractor->extractPlainText($zeroPdf));
+        $t->same('', $extractor->extractPlainText("%PDF-1.4\n1 0 obj\n<< /Filter /A85 >>\nstream\n!~>\nendstream\nendobj\n%%EOF"));
     },
     'resolves indirect stream filters and benign DecodeParms for WordPress extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Indirect Filter Import) Tj T* (DecodeParms Predictor One) Tj ET';

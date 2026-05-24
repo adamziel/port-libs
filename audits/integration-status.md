@@ -98670,3 +98670,14 @@ Root verification: PASS php tools/run-tests.php (208 test files, 24293 assertion
 Support-library/dependency closure: lane-local only; no shared support-library or server dependency row activated.
 Live-service exclusions: no live-service, SQL server/client, provider, or credentialed tests run; no secrets read or printed.
 Files staged: lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/examples/wordpress-json-extract-option-preflight.php lanes/libsqlite/lane-status.json lanes/libsqlite/notes/upstream-runner.md lanes/libsqlite/notes/wordpress-scenarios.md lanes/libsqlite/src/SQLiteJsonCanonical.php lanes/libsqlite/src/SQLiteJsonExtract.php lanes/libsqlite/src/SQLiteJsonInspection.php lanes/libsqlite/tests/SQLiteHeaderTest.php  audits/integration-status.md
+
+## Clean-patch integration - markerPDF - 20260524T235644Z
+
+Accepted marker: .tmux-team/tmp/handoff-candidates/port-markerpdf-rebase-20260524T234505Z-ascii85.ready
+Patch: /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-rebase-20260524T234505Z-ascii85.patch
+Lane/slice/session: markerpdf / watchdog-next-20260524T233749Z / rebase-marker
+Focused verification: PASS php -l changed PHP files; PASS php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php (1 test files, 36 assertions, 0 failures); PASS wordpress-pdf-ascii85-filter example; PASS manifest/status JSON parse; PASS git diff --check.
+Root verification: PASS php tools/run-tests.php (208 test files, 24297 assertions, 0 failures).
+Support-library/dependency closure: lane-local ASCII85 stream-filter handling only; no shared PDF/DOC/archive/XML/charset/compression support row activated.
+Live-service exclusions: no live-service/provider/credentialed tests run; no secrets read or printed.
+Files staged: lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json lanes/markerpdf/examples/wordpress-pdf-ascii85-filter-import.php lanes/markerpdf/lane-status.json lanes/markerpdf/notes/upstream-test-inventory.md lanes/markerpdf/notes/wordpress-scenarios.md lanes/markerpdf/src/PdfTextExtractor.php lanes/markerpdf/tests/PdfTextExtractorTest.php  audits/integration-status.md
