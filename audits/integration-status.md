@@ -1,5 +1,77 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T02:17:22Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `progress.md`, `porting.html`, or `porting-summary.json`,
+start a no-argument `php tools/run-tests.php`, wait on
+`.upstream-cache/run-tests.lock`, or reuse focused/root runner output from
+other sessions as an accepted integration snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` stayed at `f3ddd25e7b73` during two short samples on
+  `main...origin/main [ahead 650, behind 68]`, but active writers were still
+  visible and worker-log mtimes changed between samples.
+- Dirty scope is not lane-reviewable: `git status --porcelain=v1
+  --untracked-files=no` reports `299` tracked dirty rows,
+  `git status --porcelain=v1` reports `11297` total rows, and
+  `git diff --shortstat` reports `299 files changed, 145656 insertions(+),
+  16965 deletions(-)`.
+- Tracked dirty files span every priority lane plus `.tmux-team`, scripts,
+  `audits/latest.md`, `progress.md`, `porting.html`, and
+  `porting-summary.json`. Current tracked dirty-path counts are markerPDF
+  `82`, Gitoxide `54`, Quadrable `38`, esbuild `20`, Syncthing `19`,
+  LightningCSS `14`, Dolt `12`, Readability `11`, Difftastic `10`, Pandoc `9`,
+  libsqlite `9`, rclone `8`, `.tmux-team` `6`, scripts `3`, and one each for
+  `audits`, `progress.md`, `porting.html`, and `porting-summary.json`.
+- Recent `port-*.log` tails show ongoing or freshly written handoffs, not a
+  frozen integration candidate: Dolt has a date-part query-diff implementation
+  handoff while `port-dolt` and `port-dolt-runner` are both visible;
+  Syncthing is mid-edit for `/rest/system/connections`; rclone carries
+  lane-local ZIP/WebDAV/VFS serve helpers that must not advance shared
+  support-library progress without an activated support-library gate; and
+  dashboard, capacity, auditor, evaluator, integrator, and lane watchdog logs
+  are still updating.
+- Exact runner gates returned no rows for
+  `pgrep -af '^php tools/run-tests\.php( |$)'` in both samples. No root run was
+  started because there was no isolated accepted lane batch to test, so there
+  was no `.upstream-cache/run-tests.lock` wait to record.
+- A post-write validation gate then found focused Syncthing PID `2844819`
+  (`php tools/run-tests.php lanes/syncthing/tests`) and no-argument root PID
+  `2845298` (`php tools/run-tests.php`). This worker did not start, wait on,
+  or accept either run; any result from that root process is a concurrent
+  moving-tree anecdote unless rerun from a later accepted snapshot.
+- `dependency-backlog.json` parsed as valid JSON and contains `23` gated
+  support-library items, matching `progress.md`. The dirty
+  `porting-summary.json` remains stale for publication: it still points at
+  `79768df0c427...` and reports dependency backlog count `22`.
+- No dependency row was activated, no support-library implementation was
+  accepted, and no rich-format claim was advanced.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild. Each has dirty lane files and/or active lane, reseed, runner, or
+watchdog sessions.
+
+Waiting: a writer/runner/status freeze long enough to produce one stable
+candidate snapshot. Dolt remains skipped despite reauthorization until the
+implementation and runner sessions have a coherent, idle handoff without
+overlapping active edits.
+
+Risky: accepting any lane now would mix implementation edits, active runner
+handoffs, stale dashboard artifacts, untracked audit/output files, and evidence
+from different moments in the moving tree.
+
+Next safe integration point: freeze or wait out lane/reseed/runner/status
+writers, confirm no exact root or focused PHP runners are active, require Dolt
+implementation and runner sessions to be idle or finished, then poll `HEAD`,
+tracked status count, shortstat, runner state, and relevant log mtimes twice
+without movement. After that, select one lane-scoped batch, rerun focused
+inspection/tests, run one serialized no-argument `php tools/run-tests.php`
+from the same snapshot, run `git diff --check`, regenerate dashboard artifacts
+only for accepted lane/status changes, and commit a small reviewable batch.
+
 ## Integration Hold - 2026-05-24T02:14:18Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
