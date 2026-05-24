@@ -63673,3 +63673,13 @@ Files staged:
 - `lanes/syncthing/src/FolderScanRouteRegistry.php`
 - `lanes/syncthing/tests/FolderScanRouteRegistryTest.php`
 - `audits/integration-status.md`
+
+## Integration audit correction - isolated queue root counts - 2026-05-24 23:50 UTC
+
+This correction fixes the exact no-argument root harness summaries for the isolated acceptances above. The source commits remain unchanged; this entry corrects only the audit evidence text after comparing against the actual command output printed by each clean-worktree `php tools/run-tests.php` run.
+
+Correct root summaries:
+- `port-iso-libsqlite-minmax-rhs-20260524T224329Z.ready`: `php tools/run-tests.php` passed with 207 test files, 24049 assertions, 0 failures.
+- `port-iso-markerpdf-literal-escape-20260524T224329Z.ready`: first retryable acceptance attempt passed root with 207 test files, 24035 assertions, 0 failures but was not published because `main` moved; the accepted retry passed root with 207 test files, 24052 assertions, 0 failures.
+- `port-iso-pandoc-noscript-20260524T224329Z.ready`: `php tools/run-tests.php` passed with 207 test files, 24053 assertions, 0 failures.
+- `port-iso-syncthing-route-registry-20260524T224329Z.ready`: `php tools/run-tests.php` passed with 208 test files, 24072 assertions, 0 failures after waiting for exact root PID `2504032` to clear.
