@@ -1,5 +1,79 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T08:56:48Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, run `php tools/generate-dashboard.php`, update `porting.html` or
+`porting-summary.json`, push, or start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files from Git, live tmux/process state, and
+  `dependency-backlog.json`.
+- `HEAD` moved while sampling: the latest clean-root background evidence was
+  for committed `b661c3565aa89`, then the local branch advanced to
+  `cb766b73bd19 Refresh independent audit status`. Current branch state is
+  `main...origin/main [ahead 788, behind 68]`.
+- The checkout remains a broad active aggregate: tracked dirty status has
+  `324` rows, untracked-inclusive status has `16287` rows, and
+  `git diff --shortstat` reports `324 files changed, 203953 insertions(+),
+  27782 deletions(-)`.
+- Dirty tracked files span all priority lanes: markerPDF `88`, Gitoxide `58`,
+  Quadrable `39`, Syncthing `26`, esbuild `20`, Readability `15`,
+  LightningCSS `14`, libsqlite `13`, Dolt `12`, Pandoc `10`, Difftastic `10`,
+  and rclone `8`, plus `.tmux-team` prompts, scripts, `porting.html`, and
+  `porting-summary.json`.
+- Live sampling found `79` tmux sessions and `68` `port-*.log` files modified
+  in the last ten minutes. Core lane sessions are active for Gitoxide,
+  LightningCSS, markerPDF, libsqlite, Readability, Pandoc, Quadrable,
+  Syncthing, Difftastic, rclone, Dolt, and esbuild, with dashboard/evaluator/
+  capacity/auditor/integrator loops also present.
+- The exact `php tools/run-tests.php` gate briefly matched no-argument root PID
+  `130966` owned by `claude` during sampling and was clear at the final sample.
+  I did not start a duplicate root run. The latest clean scratch root evidence
+  I found passed only for committed `b661c3565aa89` (`204` files, `23682`
+  assertions, `0` failures), so it is not acceptance evidence for current
+  `HEAD` or the current dirty tree.
+- Dolt is still active and skipped: the lane session, runner session, capacity
+  Dolt prompts, and the Bats shard launched at `2026-05-24T08:35:50Z` are still
+  running against 14 integration files including `diff.bats`,
+  `query-diff.bats`, `schema-changes.bats`, and `keyless-foreign-keys.bats`.
+- `jq empty dependency-backlog.json porting-summary.json
+  lanes/*/lane-status.json lanes/*/UPSTREAM_TEST_MANIFEST.json` passed.
+  `dependency-backlog.json` is valid JSON with `29` items, while
+  `porting-summary.json` still publishes `22` dependency rows from source
+  snapshot `79768df0c427`. I did not include backlog/dashboard publication in
+  this pass because the public status artifacts are stale relative to the
+  committed backlog.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild. I also skipped support/dependency status publication because the
+dashboard summary is stale and would need regeneration only after an accepted
+lane/status batch.
+
+Waiting: a hard writer/runner/status/dashboard freeze, the active Dolt Bats
+process to finish, no active root/focused PHP runners, no dashboard generator,
+and two stable polls of `HEAD`, tracked row count, untracked-inclusive row
+count, shortstat, runner state, dashboard state, dependency backlog count,
+capacity queue state, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, stale dashboard
+artifacts, support-library backlog/dashboard mismatch, active Dolt runner
+evidence, and root/focused test anecdotes from different snapshots.
+
+Next safe integration target: after the freeze, retry only the esbuild
+TypeScript/template-preflight batch if `port-esbuild` and its preflight session
+are inactive and `lanes/esbuild/**` is stable. If esbuild cannot be isolated,
+fall back to Quadrable after its proof/store handoff is quiet. For any accepted
+batch, run focused lane verification, `git diff --check`, one serialized
+no-argument `php tools/run-tests.php` from the same frozen snapshot with
+lock-wait status recorded, then regenerate dashboard artifacts only after
+accepting the lane/status batch.
+
 ## Integration Hold - 2026-05-24T08:53:21Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
