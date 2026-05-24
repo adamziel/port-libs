@@ -24,6 +24,11 @@ Current state:
   pass. I did not start another root run and did not treat this active dirty
   root as an accepted integration snapshot, because no lane batch was accepted
   from a frozen tree and the aggregate diff moved while it was running.
+- Post-status sample: that dirty root feeder later completed at `17:57:11Z`
+  with exit `0`, `383` files, `63166` assertions, and `0` failures, and a
+  later exact `pgrep -af '^php tools/run-tests\.php$'` sample returned no rows.
+  It remains non-acceptance evidence for this pass because the worktree had
+  already moved and no lane batch was accepted before it ran.
 - A separate clean scratch root feeder for committed `HEAD` `d0cee5da9378`
   reported `php tools/run-tests.php` passed with `204` files, `23682`
   assertions, and `0` failures. That is clean-head evidence only, not
