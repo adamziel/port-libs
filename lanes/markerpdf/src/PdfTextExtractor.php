@@ -15,8 +15,9 @@ final class PdfTextExtractor
     public function extractTextRuns(string $pdfBytes): array
     {
         $runs = [];
+        $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
         foreach ($this->streams($pdfBytes) as $stream) {
-            foreach ($this->textRunsFromContentStream($stream) as $run) {
+            foreach ($this->textRunsFromContentStream($stream, $fontToUnicodeMaps) as $run) {
                 if ($run !== '') {
                     $runs[] = $run;
                 }
@@ -67,8 +68,9 @@ final class PdfTextExtractor
     public function extractTextLines(string $pdfBytes): array
     {
         $lines = [];
+        $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
         foreach ($this->streams($pdfBytes) as $stream) {
-            foreach ($this->textLinesFromContentStream($stream) as $line) {
+            foreach ($this->textLinesFromContentStream($stream, $fontToUnicodeMaps) as $line) {
                 if ($line !== '') {
                     $lines[] = $line;
                 }
@@ -84,8 +86,9 @@ final class PdfTextExtractor
     private function extractPageTexts(string $pdfBytes): array
     {
         $pages = [];
+        $fontToUnicodeMaps = $this->fontToUnicodeMaps($pdfBytes);
         foreach ($this->streams($pdfBytes) as $stream) {
-            $pages[] = implode("\n", $this->textLinesFromContentStream($stream));
+            $pages[] = implode("\n", $this->textLinesFromContentStream($stream, $fontToUnicodeMaps));
         }
 
         return $pages;
@@ -183,18 +186,261 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return list<string>
+     * @return array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}>
      */
-    private function textRunsFromContentStream(string $stream): array
+    private function fontToUnicodeMaps(string $pdfBytes): array
+    {
+        $objects = $this->pdfObjects($pdfBytes);
+        $fontObjectMaps = [];
+
+        foreach ($objects as $objectNumber => $body) {
+            if (!str_contains($body, '/Type /Font') && !str_contains($body, '/Type/Font')) {
+                continue;
+            }
+            if (!preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
+                continue;
+            }
+
+            $cmapObjectNumber = (int) $match[1];
+            if (!isset($objects[$cmapObjectNumber])) {
+                continue;
+            }
+
+            $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber]);
+            if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
+                $fontObjectMaps[$objectNumber] = $cmap;
+            }
+        }
+
+        if ($fontObjectMaps === []) {
+            return [];
+        }
+
+        $resourceMaps = [];
+        if (preg_match_all('/\/Font\s*<<(.*?)>>/s', $pdfBytes, $fontMatches)) {
+            foreach ($fontMatches[1] as $fontResourceDictionary) {
+                if (!preg_match_all('/\/([A-Za-z0-9_.-]+)\s+(\d+)\s+\d+\s+R\b/', $fontResourceDictionary, $resourceMatches, PREG_SET_ORDER)) {
+                    continue;
+                }
+
+                foreach ($resourceMatches as $resourceMatch) {
+                    $fontObjectNumber = (int) $resourceMatch[2];
+                    if (isset($fontObjectMaps[$fontObjectNumber])) {
+                        $resourceMaps[$resourceMatch[1]] = $fontObjectMaps[$fontObjectNumber];
+                    }
+                }
+            }
+        }
+
+        if ($resourceMaps !== []) {
+            return $resourceMaps;
+        }
+
+        if (count($fontObjectMaps) === 1) {
+            $onlyMap = reset($fontObjectMaps);
+            return is_array($onlyMap) ? ['' => $onlyMap] : [];
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function pdfObjects(string $pdfBytes): array
+    {
+        $objects = [];
+        if (!preg_match_all('/(\d+)\s+\d+\s+obj\b(.*?)\bendobj/s', $pdfBytes, $matches, PREG_SET_ORDER)) {
+            return $objects;
+        }
+
+        foreach ($matches as $match) {
+            $objects[(int) $match[1]] = $match[2];
+        }
+
+        return $objects;
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     */
+    private function toUnicodeMapFromObject(string $objectBody): ?array
+    {
+        if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
+            return null;
+        }
+
+        $decoded = $this->decodeStream($match[1], $match[2]);
+        if ($decoded === null) {
+            return null;
+        }
+
+        return $this->parseToUnicodeCMap($decoded);
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}
+     */
+    private function parseToUnicodeCMap(string $cmap): array
+    {
+        $map = [];
+
+        if (preg_match_all('/beginbfchar(.*?)endbfchar/s', $cmap, $charBlocks)) {
+            foreach ($charBlocks[1] as $block) {
+                if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
+                    continue;
+                }
+
+                foreach ($entries as $entry) {
+                    $source = $this->normalizeHexKey($entry[1]);
+                    if ($source !== '') {
+                        $map[$source] = $this->decodeCMapUnicodeHex($entry[2]);
+                    }
+                }
+            }
+        }
+
+        if (preg_match_all('/beginbfrange(.*?)endbfrange/s', $cmap, $rangeBlocks)) {
+            foreach ($rangeBlocks[1] as $block) {
+                $this->parseToUnicodeRanges($block, $map);
+            }
+        }
+
+        return [
+            'map' => $map,
+            'codeSpaceRanges' => $this->parseCMapCodeSpaceRanges($cmap),
+        ];
+    }
+
+    /**
+     * @param array<string, string> $map
+     */
+    private function parseToUnicodeRanges(string $block, array &$map): void
+    {
+        if (preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $ranges, PREG_SET_ORDER)) {
+            foreach ($ranges as $range) {
+                $start = $this->normalizeHexKey($range[1]);
+                $end = $this->normalizeHexKey($range[2]);
+                $target = $this->normalizeHexKey($range[3]);
+                if ($start === '' || $end === '' || $target === '') {
+                    continue;
+                }
+
+                $source = hexdec($start);
+                $last = hexdec($end);
+                $targetCode = hexdec($target);
+                $sourceWidth = strlen($start);
+                $targetWidth = strlen($target);
+                $count = 0;
+                while ($source <= $last && $count < 512) {
+                    $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+                    $targetHex = str_pad(strtolower(dechex($targetCode + $count)), $targetWidth, '0', STR_PAD_LEFT);
+                    $map[$sourceKey] = $this->decodeCMapUnicodeHex($targetHex);
+                    $source++;
+                    $count++;
+                }
+            }
+        }
+    }
+
+    /**
+     * @return list<array{start: int, end: int, width: int}>
+     */
+    private function parseCMapCodeSpaceRanges(string $cmap): array
+    {
+        $ranges = [];
+        if (!preg_match_all('/begincodespacerange(.*?)endcodespacerange/s', $cmap, $blocks)) {
+            return [];
+        }
+
+        foreach ($blocks[1] as $block) {
+            if (!preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $entries, PREG_SET_ORDER)) {
+                continue;
+            }
+
+            foreach ($entries as $entry) {
+                $start = $this->normalizeHexKey($entry[1]);
+                $end = $this->normalizeHexKey($entry[2]);
+                if ($start === '' || $end === '' || strlen($start) !== strlen($end) || strlen($start) > 8) {
+                    continue;
+                }
+
+                $startValue = hexdec($start);
+                $endValue = hexdec($end);
+                if ($startValue > $endValue) {
+                    continue;
+                }
+
+                $ranges[$start . ':' . $end] = [
+                    'start' => $startValue,
+                    'end' => $endValue,
+                    'width' => strlen($start),
+                ];
+            }
+        }
+
+        $ranges = array_values($ranges);
+        usort($ranges, static function (array $left, array $right): int {
+            return $right['width'] <=> $left['width'] ?: $left['start'] <=> $right['start'];
+        });
+
+        return $ranges;
+    }
+
+    private function normalizeHexKey(string $hex): string
+    {
+        $normalized = preg_replace('/\s+/', '', strtolower($hex));
+        if ($normalized === null || $normalized === '' || preg_match('/^[\da-f]+$/', $normalized) !== 1) {
+            return '';
+        }
+        if (strlen($normalized) % 2 === 1) {
+            $normalized = '0' . $normalized;
+        }
+
+        return $normalized;
+    }
+
+    private function decodeCMapUnicodeHex(string $hex): string
+    {
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (strlen($normalized) % 4 === 0) {
+            $bytes = hex2bin($normalized);
+            if ($bytes !== false) {
+                $decoded = iconv('UTF-16BE', 'UTF-8//IGNORE', $bytes);
+                if ($decoded !== false) {
+                    return $decoded;
+                }
+            }
+        }
+
+        return $this->decodeHexString($normalized);
+    }
+
+    /**
+     * @return list<string>
+     * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
+     */
+    private function textRunsFromContentStream(string $stream, array $fontToUnicodeMaps): array
     {
         $runs = [];
         $operands = [];
+        $currentFontResource = null;
         foreach ($this->contentTokens($stream) as $token) {
             if ($this->isTextShowingOperator($token)) {
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
-                    $runs[] = $this->decodeTextOperand($operand);
+                    $runs[] = $this->decodeTextOperand($operand, $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource));
                 }
+                $operands = [];
+                continue;
+            }
+
+            if ($token === 'Tf') {
+                $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
                 $operands = [];
                 continue;
             }
@@ -212,12 +458,14 @@ final class PdfTextExtractor
 
     /**
      * @return list<string>
+     * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
      */
-    private function textLinesFromContentStream(string $stream): array
+    private function textLinesFromContentStream(string $stream, array $fontToUnicodeMaps): array
     {
         $lines = [];
         $operands = [];
         $currentLine = '';
+        $currentFontResource = null;
         $currentFontSize = null;
         $currentTextLeading = null;
         $currentTextX = null;
@@ -246,11 +494,13 @@ final class PdfTextExtractor
 
                 $operand = $this->textShowingOperand($token, $operands);
                 if ($operand !== null) {
-                    $decoded = $this->decodeTextOperand($operand);
+                    $toUnicodeMap = $this->currentToUnicodeMap($fontToUnicodeMaps, $currentFontResource);
+                    $decoded = $this->decodeTextOperand($operand, $toUnicodeMap);
                     $this->appendPositionedText($currentLine, $decoded, $pendingPositionWordGap);
                     $currentTextEndX = $this->advanceTextEndXForOperand(
                         $currentTextEndX ?? $currentTextX,
                         $operand,
+                        $toUnicodeMap,
                         $currentFontSize,
                         $characterSpacing,
                         $wordSpacing,
@@ -264,6 +514,7 @@ final class PdfTextExtractor
             if ($token === 'q') {
                 $textStateStack[] = [
                     'fontSize' => $currentFontSize,
+                    'fontResource' => $currentFontResource,
                     'textLeading' => $currentTextLeading,
                     'characterSpacing' => $characterSpacing,
                     'wordSpacing' => $wordSpacing,
@@ -277,6 +528,7 @@ final class PdfTextExtractor
                 $state = array_pop($textStateStack);
                 if (is_array($state)) {
                     $currentFontSize = $state['fontSize'];
+                    $currentFontResource = $state['fontResource'];
                     $currentTextLeading = $state['textLeading'];
                     $characterSpacing = $state['characterSpacing'];
                     $wordSpacing = $state['wordSpacing'];
@@ -287,6 +539,7 @@ final class PdfTextExtractor
             }
 
             if ($token === 'Tf') {
+                $currentFontResource = $this->fontResourceOperand($operands) ?? $currentFontResource;
                 $currentFontSize = $this->fontSizeOperand($operands) ?? $currentFontSize;
                 $operands = [];
                 continue;
@@ -553,6 +806,36 @@ final class PdfTextExtractor
     private function isOperator(string $token): bool
     {
         return preg_match('/^[A-Za-z*"\']+$/', $token) === 1;
+    }
+
+    /**
+     * @param list<string> $operands
+     */
+    private function fontResourceOperand(array $operands): ?string
+    {
+        if (count($operands) < 2) {
+            return null;
+        }
+
+        $operand = $operands[count($operands) - 2];
+        if (!str_starts_with($operand, '/')) {
+            return null;
+        }
+
+        return substr($operand, 1);
+    }
+
+    /**
+     * @param array<string, array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}> $fontToUnicodeMaps
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     */
+    private function currentToUnicodeMap(array $fontToUnicodeMaps, ?string $fontResource): ?array
+    {
+        if ($fontResource !== null && isset($fontToUnicodeMaps[$fontResource])) {
+            return $fontToUnicodeMaps[$fontResource];
+        }
+
+        return $fontToUnicodeMaps[''] ?? null;
     }
 
     /**
@@ -837,6 +1120,7 @@ final class PdfTextExtractor
     private function advanceTextEndXForOperand(
         ?float $currentTextEndX,
         string $operand,
+        ?array $toUnicodeMap,
         ?float $fontSize,
         float $characterSpacing,
         float $wordSpacing,
@@ -850,7 +1134,7 @@ final class PdfTextExtractor
         if (!str_starts_with($operand, '[')) {
             return $this->advanceTextEndX(
                 $currentTextEndX,
-                $this->decodeTextOperand($operand),
+                $this->decodeTextOperand($operand, $toUnicodeMap),
                 $fontSize,
                 $characterSpacing,
                 $wordSpacing,
@@ -863,7 +1147,7 @@ final class PdfTextExtractor
             if ($element['type'] === 'text') {
                 $endX = $this->advanceTextEndX(
                     $endX,
-                    $this->decodeTextOperand($element['value']),
+                    $this->decodeTextOperand($element['value'], $toUnicodeMap),
                     $fontSize,
                     $characterSpacing,
                     $wordSpacing,
@@ -965,14 +1249,17 @@ final class PdfTextExtractor
         return (float) $operand;
     }
 
-    private function decodeTextOperand(string $operand): string
+    /**
+     * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null $toUnicodeMap
+     */
+    private function decodeTextOperand(string $operand, ?array $toUnicodeMap = null): string
     {
         $operand = trim($operand);
         if (str_starts_with($operand, '[')) {
             $text = '';
             if (preg_match_all('/\((?:\\\\.|[^\\\\()])*\)|<[\da-fA-F\s]+>/', $operand, $parts)) {
                 foreach ($parts[0] as $part) {
-                    $text .= $this->decodeTextOperand($part);
+                    $text .= $this->decodeTextOperand($part, $toUnicodeMap);
                 }
             }
             return $text;
@@ -985,10 +1272,114 @@ final class PdfTextExtractor
             if (strlen($hex) % 2 === 1) {
                 $hex .= '0';
             }
+            if ($toUnicodeMap !== null) {
+                return $this->decodeHexStringWithToUnicodeMap($hex, $toUnicodeMap);
+            }
             return $this->decodeHexString($hex);
         }
 
-        return $this->decodeLiteralString(substr($operand, 1, -1));
+        $decoded = $this->decodeLiteralString(substr($operand, 1, -1));
+        if ($toUnicodeMap !== null) {
+            return $this->decodeHexStringWithToUnicodeMap(bin2hex($decoded), $toUnicodeMap);
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>} $toUnicodeMap
+     */
+    private function decodeHexStringWithToUnicodeMap(string $hex, array $toUnicodeMap): string
+    {
+        $normalized = $this->normalizeHexKey($hex);
+        if ($normalized === '') {
+            return '';
+        }
+
+        $mappings = $toUnicodeMap['map'] ?? [];
+        $keyLengths = array_values(array_unique(array_map('strlen', array_keys($mappings))));
+        rsort($keyLengths, SORT_NUMERIC);
+        if ($keyLengths === []) {
+            return $this->decodeHexString($normalized);
+        }
+
+        $text = '';
+        $offset = 0;
+        $length = strlen($normalized);
+        while ($offset < $length) {
+            $matched = false;
+            foreach ($keyLengths as $keyLength) {
+                if ($keyLength <= 0 || $offset + $keyLength > $length) {
+                    continue;
+                }
+
+                $key = substr($normalized, $offset, $keyLength);
+                if (array_key_exists($key, $mappings)) {
+                    $text .= $mappings[$key];
+                    $offset += $keyLength;
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if ($matched) {
+                continue;
+            }
+
+            $fallbackLength = $this->fallbackToUnicodeSourceLength(
+                $keyLengths,
+                $length - $offset,
+                $toUnicodeMap['codeSpaceRanges'] ?? [],
+                $normalized,
+                $offset
+            );
+            $text .= $this->decodeUnmappedToUnicodeSource(substr($normalized, $offset, $fallbackLength));
+            $offset += $fallbackLength;
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<int> $keyLengths
+     * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
+     */
+    private function fallbackToUnicodeSourceLength(
+        array $keyLengths,
+        int $remainingHexLength,
+        array $codeSpaceRanges,
+        string $normalized,
+        int $offset
+    ): int {
+        foreach ($codeSpaceRanges as $range) {
+            $width = $range['width'];
+            if ($width <= 0 || $width > $remainingHexLength) {
+                continue;
+            }
+
+            $source = hexdec(substr($normalized, $offset, $width));
+            if ($source >= $range['start'] && $source <= $range['end']) {
+                return $width;
+            }
+        }
+
+        $usableLengths = array_values(array_filter(
+            $keyLengths,
+            static fn (int $keyLength): bool => $keyLength > 0 && $keyLength <= $remainingHexLength
+        ));
+        sort($usableLengths, SORT_NUMERIC);
+
+        return $usableLengths[0] ?? min(2, max(1, $remainingHexLength));
+    }
+
+    private function decodeUnmappedToUnicodeSource(string $hex): string
+    {
+        if ($hex === '') {
+            return '';
+        }
+
+        $decoded = $this->decodeCMapUnicodeHex($hex);
+        return preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $decoded) ?? $decoded;
     }
 
     private function decodeHexString(string $hex): string

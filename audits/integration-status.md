@@ -63146,3 +63146,35 @@ Files staged:
 Support-library decision: no support-library row activated; paged-media/PDF, source-map, package-resolution, and browser-target support rows remain inactive.
 
 Exclusions: excluded unrelated dirty-main LightningCSS formatter/minifier/prefixer/source-map/package-resolution/browser-target examples, metadata/status prose, and any live-service/provider behavior.
+
+## Accepted isolated integration - markerPDF CMap codespace - 2026-05-24 22:17 UTC
+
+Slice: `markerpdf-cmap-codespace`.
+
+Base commit: `c65d5e26e68df48c133edefbfb67865106a15dfc`.
+
+Patch path: `.tmux-team/tmp/isolate-markerpdf-cmap-codespace-20260524T220041Z.patch`.
+
+Focused checks repeated by clean-patch integrator:
+
+- `git apply --check` against detached clean worktree based at the base commit.
+- `php -l lanes/markerpdf/src/PdfTextExtractor.php`
+- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`
+- `php -l lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-import.php`
+- `php lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-import.php`
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`
+- `php tools/run-tests.php lanes/markerpdf/tests`
+
+Root result: clean-worktree `php tools/run-tests.php` passed with `205 test files, 23913 assertions, 0 failures`; `git diff --check` passed.
+
+Files staged:
+
+- `audits/isolate-markerpdf-cmap-codespace-20260524T220041Z.md`
+- `audits/integration-status.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+- `lanes/markerpdf/tests/PdfTextExtractorTest.php`
+- `lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-import.php`
+
+Support-library decision: no support-library row activated; `pdf-text-dictionary-core` remains inactive and this CMap behavior remains lane-local.
+
+Exclusions: excluded unrelated dirty-main markerPDF stream filters, WinAnsi and Differences decoding, manifest/status/notes count expansions, OCR/model/table/layout/runtime behavior, and live-service/provider behavior.

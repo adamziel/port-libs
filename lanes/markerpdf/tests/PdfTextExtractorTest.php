@@ -43,6 +43,33 @@ return [
         $t->same('ASCII Hex Import', $extractor->extractPlainText($pdf));
         $t->same('Stacked Filter Import', $extractor->extractPlainText($stackedPdf));
     },
+    'uses ToUnicode CMap codespacerange widths for variable-length WordPress text' => static function (TestRunner $t): void {
+        $content = 'BT /Fcid 12 Tf 72 720 Td <8141208142> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "2 begincodespacerange\n"
+            . "<20> <20>\n"
+            . "<8000> <FFFF>\n"
+            . "endcodespacerange\n"
+            . "2 beginbfchar\n"
+            . "<8141> <0057006F0072006400500072006500730073>\n"
+            . "<8142> <0042006C006F0063006B0073>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /VariableSubset /Encoding /Identity-H /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('WordPress Blocks', $extractor->extractPlainText($pdf));
+        $t->same(['WordPress Blocks'], $extractor->extractTextRuns($pdf));
+    },
     'groups adjacent text operators on the same PDF text line' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Heading) Tj T* (First ) Tj (paragraph) Tj 0 -16 Td (Second line) Tj ET';
         $lines = (new PdfTextExtractor())->extractTextLines($pdfWithContent($content));
