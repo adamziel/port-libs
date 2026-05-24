@@ -1,5 +1,76 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T10:52:18Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate `porting.html` or `porting-summary.json`, push, or
+start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files shown by Git, live tmux/process state, dependency/dashboard
+  status artifacts, and the existing integration status history.
+- `HEAD` moved during this pass from `f62f205385e7` to `07ad9be61b09`, so I
+  did not treat any earlier checks or worker anecdotes as one accepted frozen
+  integration snapshot. The branch was sampled at
+  `main...origin/main [ahead 830, behind 68]`.
+- The checkout remained active and moving. Sampled shortstat moved from
+  `328 files changed, 219936 insertions(+), 29107 deletions(-)` to
+  `328 files changed, 219949 insertions(+), 29107 deletions(-)`, and the
+  untracked-inclusive status count moved from `16950` to `16952`.
+- Dirty tracked lane files still span all 12 priority lanes. Sampled tracked
+  diff counts by lane were: Difftastic 10, Dolt 12, esbuild 20, Gitoxide 58,
+  libsqlite 13, LightningCSS 14, markerPDF 89, Pandoc 11, Quadrable 40,
+  rclone 8, Readability 15, and Syncthing 26. Untracked lane rows were also
+  present across all lanes.
+- Recent worker tails showed active or candidate work in Dolt, Syncthing,
+  Difftastic, Gitoxide, markerPDF, LightningCSS, esbuild, rclone, Pandoc, the
+  dashboard updater, and support-library review. I did not accept any of this
+  because the same lane scopes remain live in tmux and the aggregate checkout
+  moved while sampling.
+- An external no-argument `php tools/run-tests.php` was active at
+  `2026-05-24T10:50:34Z` and then dashboard-updater telemetry reported a
+  temp-clone root pass of `204 test files, 23682 assertions, 0 failures` plus
+  `git diff --check` passing in that temp clone. The dashboard updater then
+  refetched and found the source branch had moved from `2e436fba801b` to
+  `f62f205385e7`. I did not count that as accepted evidence for this dirty
+  worktree snapshot.
+- Later exact process sampling found active Dolt BATS work:
+  `timeout 60m bats sql-merge.bats` under `SQL_ENGINE=local`. That keeps Dolt
+  explicitly skipped despite reauthorization.
+- `jq empty` passed for `dependency-backlog.json`, `porting-summary.json`, all
+  12 root lane manifests, and all 12 lane-status files. The dependency backlog
+  is valid JSON with 34 items (`candidate:23`, `deferred:11`) and matches the
+  current `progress.md` 10:42 UTC backlog note. Local generated
+  `porting-summary.json` remains stale at source snapshot
+  `79768df0c427aa9c96e6d97c5137c2d79ae9ce6e` with
+  `dependencyBacklog.count=22`; I did not regenerate it because no lane/status
+  batch was accepted.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze active writers plus status/dashboard publishers; confirm no
+focused/root PHP harnesses, dashboard generator, Dolt BATS, Go, Rust, Node, or
+SQLite upstream runners are active; then require two stable polls of `HEAD`,
+tracked rows, untracked-inclusive rows, shortstat, exact process gates,
+dependency/dashboard counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active lane source edits, moving
+untracked state, stale local dashboard artifacts, live Dolt runner activity,
+worker-log-only focused evidence, and blocker fields that still need
+acceptance-gate review.
+
+Next safe integration target: after a hard freeze, isolate one owner-free lane
+batch with coherent evidence, run focused lane verification, run
+`git diff --check`, run one serialized no-argument `php tools/run-tests.php`
+from the same frozen snapshot with lock-wait status recorded, and regenerate
+dashboard artifacts only after accepting the lane/status batch.
+
 ## Integration Hold - 2026-05-24T10:48:46Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
