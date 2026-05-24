@@ -1,5 +1,83 @@
 # Integration Status
 
+## Integration handoff rejection - markerPDF - 2026-05-24 19:27 UTC
+
+No markerPDF lane output was integrated. I selected the fresh handoff candidate
+`.tmux-team/tmp/handoff-candidates/port-markerpdf.ready`
+(`timestamp=2026-05-24T19:18:46Z`) after confirming the `port-markerpdf`
+pane was at `bash` with no child process. I held only markerPDF with
+`.tmux-team/tmp/integration-holds/port-markerpdf.hold` at
+`2026-05-24T19:20:30Z`; the ready marker disappeared after the hold, and the
+pane restarted once but returned to idle `bash` with no child process.
+
+Two-poll held snapshot:
+
+- The markerPDF dirty scope stayed stable: 6 tracked files changed with
+  `503 insertions(+), 17 deletions(-)`, plus 2 untracked examples
+  (`wordpress-pdf-text-state-spacing-import.php` and
+  `wordpress-pdf-graphics-state-import.php`).
+- The selected worker log and hold marker timestamps stayed stable during the
+  second held poll: log mtime `1779650463`, hold mtime `1779650451`.
+- Initial held `HEAD` was stable at `49b5a5114238`, but moved to
+  `e0a17d6a7db5` before root verification due to an independent audit/status
+  commit. During the integration-owned root run, `HEAD` moved again to
+  `4af74d410c0d`. I did not treat either moving-tree root state as an accepted
+  snapshot.
+- The exact no-argument root gate was initially clear, then occupied by
+  capacity-owned root processes (`scripts/run-php-dirty-root.sh` and
+  `scripts/run-php-clean-head-root.sh`). I then launched the required
+  no-argument `php tools/run-tests.php`; it did not print the lock-wait
+  message, so no lock wait was recorded for that integration-owned run.
+- `dependency-backlog.json` is valid JSON. The relevant support rows already
+  exist and remain inactive: `pdf-text-dictionary-core`,
+  `layout-ocr-result-core`, and `table-geometry-core`. No support-library
+  progress was activated or counted.
+
+Focused evidence reviewed:
+
+- Worker-reported scope was the reduced PDF text-position/text-state spacing
+  and `q`/`Q` graphics-state slice in `PdfTextExtractor.php`,
+  `PdfTextExtractorTest.php`, two WordPress examples, and lane-local
+  manifest/status/notes.
+- Reviewed support tracking is granular enough for the current claim: the
+  lane status leads with root aggregate verification, full upstream runner
+  parity, and the inactive PDF text/OCR-layout/table-geometry support gates.
+- Integration verification passed: `jq empty` for the markerPDF
+  manifest/status and `dependency-backlog.json`; `php -l` for the touched
+  markerPDF source, test, and both examples; both examples emitted the expected
+  WordPress paragraph output without Python/model/external PDF tools; focused
+  `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`
+  passed `1` file, `16` assertions, `0` failures; focused
+  `php tools/run-tests.php lanes/markerpdf/tests` passed `47` files, `949`
+  assertions, `0` failures.
+- Required root verification failed: integration-owned
+  `php tools/run-tests.php` completed with `378` test files, `58733`
+  assertions, and `1` failure.
+
+Decision: rejected/deferred, not integrated. The markerPDF lane patch is
+coherent and focused, but acceptance is blocked by the failed root harness and
+the moving `HEAD` during root verification. No dashboard artifacts were
+regenerated because no lane/status batch was accepted.
+
+Exact next markerPDF worker task: do not add the next `TJ` positioning slice
+on top of this handoff. Keep the current reduced handoff intact and re-offer it
+only after the supervisor/integrator has a stable root window or after the root
+failure is triaged as unrelated. If the worker must refresh the handoff, keep
+the dirty scope to the same eight markerPDF files and keep the blocker led by
+root aggregate verification, full upstream runner parity, and the inactive
+`pdf-text-dictionary-core`, `layout-ocr-result-core`, and
+`table-geometry-core` gates.
+
+Current skipped lanes: Difftastic, Dolt, esbuild, Gitoxide, libsqlite,
+LightningCSS, Pandoc, Quadrable, and Syncthing have active child Codex
+processes in their lane panes. Dolt remains skipped while implementation is
+active even though `port-dolt-runner` is currently idle. rclone and Readability
+were not selected because the current safe handoff marker was markerPDF and
+their dirty scopes remain accumulated from earlier unaccepted batches. Next
+concrete intake target: retry markerPDF only after a clean no-argument root
+window is available, otherwise take the next `.ready` marker whose lane pane is
+idle and whose dirty file scope exactly matches its evidence.
+
 ## Integration handoff rejection - Quadrable - 2026-05-24 19:17 UTC
 
 No Quadrable lane output was integrated. I selected the current handoff
