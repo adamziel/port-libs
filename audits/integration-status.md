@@ -1,5 +1,81 @@
 # Integration Status
 
+## Integration handoff rejection - LightningCSS - 2026-05-24 18:51 UTC
+
+No LightningCSS lane output was integrated. A current handoff marker appeared at
+`.tmux-team/tmp/handoff-candidates/port-lightningcss.ready`
+(`timestamp=2026-05-24T18:48:54Z`, reason `no-codex-handoff-grace`). I held
+only that lane with `.tmux-team/tmp/integration-holds/port-lightningcss.hold`
+at `2026-05-24T18:50:00Z`. The `port-lightningcss` pane was idle at `bash`
+(`pane_pid=867316`) with no child process.
+
+Two-poll snapshot:
+
+- `HEAD` stayed stable at `086477060014`
+  (`Record repeated Readability handoff rejection`).
+- Exact no-argument root gate matched active PID
+  `934477 php tools/run-tests.php` in both polls; owner sample showed
+  `934477 claude ... php tools/run-tests.php` with elapsed time moving from
+  about `00:35` to `01:14`. I did not start a second root harness, did not
+  bypass `.upstream-cache/run-tests.lock`, and did not treat this moving-tree
+  root run as accepted integration evidence.
+- LightningCSS tracked shortstat stayed
+  `17 files changed, 45824 insertions(+), 9910 deletions(-)`.
+- LightningCSS dirty scope stayed `198` status rows including untracked files;
+  status hash stayed
+  `c7662374eeba5489c1ea43997b1dd762296cc7f558f8ac717326bcb656292bc7`, and
+  lane file-mtime hash stayed
+  `bb5ff34ac7500de7a5376d086987d85005d075ad5fe6fa6e3257b70a494b22a6`.
+- Ready marker, hold marker, and current watchdog log timestamps stayed stable:
+  ready mtime `1779648534`, hold mtime `1779648581`, log mtime `1779648482`.
+- `jq empty` passed for `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/lightningcss/lane-status.json`, `dependency-backlog.json`, and
+  `porting-summary.json`.
+
+Focused evidence reviewed:
+
+- Worker handoff reported a bounded border-radius minifier slice in
+  `CssMinifier.php`, `CssMinifierTest.php`, and
+  `wordpress-border-radius-minifier.php`, with manifest/status/notes updates
+  to `2,980 / 3,548` mapped checks and `4,305` passing PHP assertions.
+- Worker evidence recorded `php -l` on changed PHP files, the WordPress
+  border-radius example passing,
+  `php tools/run-tests.php lanes/lightningcss/tests/CssMinifierTest.php`
+  passing `1` file and `3,302` assertions, and
+  `php tools/run-tests.php lanes/lightningcss/tests` passing `28` files and
+  `4,305` assertions.
+- The lane blocker field leads with the real gate: aggregate root verification
+  and supervisor/integrator acceptance remain pending. The slice does not
+  activate a support-library row.
+
+Decision: rejected/deferred, not integrated. The latest border-radius handoff
+is focused and evidenced, but the dirty LightningCSS lane is accumulated far
+beyond that claim. The tracked diff also touches `DeclarationBlock.php`,
+`MediaQueryParser.php`, `NestingTransformer.php`, `TransitionPrefixer.php`,
+their tests, older examples, and broad manifest/status/notes text. Untracked
+files include many examples, fixtures, visitor transformers, selector/CSS
+Modules helpers, SVG helpers, and test files unrelated to border-radius. Taking
+this as one commit would conflate older unaccepted LightningCSS work under the
+latest focused evidence.
+
+Exact next LightningCSS worker task: re-emit only the border-radius minifier
+slice as a reduced patch containing the minimal `CssMinifier.php` change,
+focused `CssMinifierTest.php` assertions, the single
+`wordpress-border-radius-minifier.php` example, and normalized
+manifest/status/notes. Leave advanced-color fallbacks, visitors, CSS Modules,
+rule merging, selector compatibility, media queries, SVG helpers, and unrelated
+examples/tests for separate reviewable batches. Keep the blocker led by root
+aggregate verification and do not claim upstream/root parity until the
+serialized no-argument root harness passes on an accepted snapshot.
+
+Current skipped lanes: Dolt remains skipped because both implementation and
+runner sessions are live while Dolt files are dirty. Other dirty lanes are
+active or broadly accumulated. No dashboard artifacts were regenerated because
+no lane/status batch was accepted.
+
+Next concrete intake target: Gitoxide if it re-emits an owner-free `.ready`
+marker; otherwise markerPDF under the same two-poll gate.
+
 ## Integration handoff rejection - Readability repeat - 2026-05-24 18:46 UTC
 
 No Readability lane output was integrated. A new marker appeared at
