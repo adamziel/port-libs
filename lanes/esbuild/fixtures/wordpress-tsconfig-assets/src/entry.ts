@@ -5,5 +5,7 @@ import sharedConfig from 'shared-config';
 import themeCard from '@theme/card';
 import runtime from 'wordpress-runtime';
 import virtualCard from '/virtual/card';
+import blockRuntime from '@wordpress/block-runtime';
+import packageThemeCard from '@wordpress/package-theme/card';
 
-export { view, style, settings, sharedConfig, themeCard, runtime, virtualCard };
+export { view, style, settings, sharedConfig, themeCard, runtime, virtualCard, blockRuntime, packageThemeCard };

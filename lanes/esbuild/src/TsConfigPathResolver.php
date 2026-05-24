@@ -139,7 +139,7 @@ final class TsConfigPathResolver
         $compilerOptions = $json['compilerOptions'] ?? null;
         if (is_array($compilerOptions) && !array_is_list($compilerOptions)) {
             $existing = $config['json']['compilerOptions'] ?? [];
-            $config['json']['compilerOptions'] = is_array($existing) ? array_replace($existing, $compilerOptions) : $compilerOptions;
+            $config['json']['compilerOptions'] = is_array($existing) ? $this->mergeCompilerOptions($existing, $compilerOptions) : $compilerOptions;
 
             if (array_key_exists('baseUrl', $compilerOptions)) {
                 $config['baseUrlDir'] = $dir;
@@ -167,6 +167,11 @@ final class TsConfigPathResolver
             $candidate = str_replace('/', DIRECTORY_SEPARATOR, $value);
             if (!$this->isAbsolutePath($candidate)) {
                 if (!str_starts_with($candidate, '.') && !str_starts_with($candidate, DIRECTORY_SEPARATOR)) {
+                    $packagePath = $this->resolvePackageExtendsPath($value, $configDir);
+                    if ($packagePath !== null) {
+                        $paths[] = $packagePath;
+                    }
+
                     continue;
                 }
                 $candidate = $configDir . DIRECTORY_SEPARATOR . $candidate;
@@ -176,6 +181,21 @@ final class TsConfigPathResolver
         }
 
         return $paths;
+    }
+
+    private function resolvePackageExtendsPath(string $specifier, string $configDir): ?string
+    {
+        if (str_starts_with($specifier, '#')) {
+            return null;
+        }
+
+        $resolution = (new PackageResolver('node', extensions: ['.json']))
+            ->resolveImport(new ModuleImport('tsconfig-extends', $specifier, [], 0), $configDir);
+        if ($resolution === null || !str_ends_with($resolution->path, '.json')) {
+            return null;
+        }
+
+        return $resolution->path;
     }
 
     /**
@@ -188,10 +208,32 @@ final class TsConfigPathResolver
         $targetOptions = $target['compilerOptions'] ?? [];
         $sourceOptions = $source['compilerOptions'] ?? [];
         if (is_array($sourceOptions) && !array_is_list($sourceOptions)) {
-            $target['compilerOptions'] = is_array($targetOptions) ? array_replace($targetOptions, $sourceOptions) : $sourceOptions;
+            $target['compilerOptions'] = is_array($targetOptions) ? $this->mergeCompilerOptions($targetOptions, $sourceOptions) : $sourceOptions;
         }
 
         return $target;
+    }
+
+    /**
+     * @param array<string, mixed> $target
+     * @param array<string, mixed> $source
+     * @return array<string, mixed>
+     */
+    private function mergeCompilerOptions(array $target, array $source): array
+    {
+        $merged = array_replace($target, $source);
+        $targetPaths = $target['paths'] ?? null;
+        $sourcePaths = $source['paths'] ?? null;
+        if (
+            is_array($targetPaths)
+            && !array_is_list($targetPaths)
+            && is_array($sourcePaths)
+            && !array_is_list($sourcePaths)
+        ) {
+            $merged['paths'] = array_replace($targetPaths, $sourcePaths);
+        }
+
+        return $merged;
     }
 
     /**

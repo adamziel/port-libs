@@ -502,5 +502,7 @@ printf("WordPress tsconfig paths aliases: %s\n", (
         '@theme/card' => 'src/theme/card.ts',
         'wordpress-runtime' => 'src/vendor/wordpress-runtime/index.ts',
         '/virtual/card' => 'src/virtual/card.ts',
+        '@wordpress/block-runtime' => 'src/package-shared/block-runtime.ts',
+        '@wordpress/package-theme/card' => 'src/package-theme/card.ts',
     ]
 ) ? 'yes' : 'no');
