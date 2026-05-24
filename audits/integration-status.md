@@ -1,5 +1,60 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T00:14:20Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+files, regenerate `porting.html`/`porting-summary.json`, start the
+no-argument root harness, wait on `.upstream-cache/run-tests.lock`, or treat
+active worker/focused/clean-clone runner output as one accepted integration
+snapshot.
+
+Snapshot reviewed:
+
+- `HEAD` was `f3108e404b1a` on
+  `main...origin/main [ahead 600, behind 68]`.
+- Dirty scope is still broad and live: latest samples showed `9057`
+  `git status --porcelain -uall` rows, `284` tracked changed files, and
+  `284 files changed, 125113 insertions(+), 12555 deletions(-)`.
+- Dirty lane rows span every priority lane: Difftastic `211`, Dolt `101`,
+  esbuild `26`, Gitoxide `121`, libsqlite `90`, LightningCSS `134`,
+  markerPDF `175`, Pandoc `58`, Quadrable `80`, rclone `102`, Readability
+  `181`, and Syncthing `138`.
+- Current process/session sampling showed `30` `scripts/run-tmux-agent.sh`
+  processes and active focused PHP runners for Syncthing and Pandoc after the
+  sampled clean-head root run finished. The primary lane sessions and
+  control loops remain active.
+- A separate clean-head scratch-clone root runner completed
+  `php tools/run-tests.php` at `2026-05-24T00:13:48Z` with exit `0`,
+  `204` files, `23682` assertions, and `0` failures. This is evidence for
+  committed `HEAD` only, not an accepted dirty-tree integration snapshot.
+- Recent finished handoff tails were mixed: Difftastic focused tests exited
+  `1` with `2` failures; Pandoc focused tests exited `0` with `2646`
+  assertions; markerPDF shards exited `0` with `16` files/`530` assertions
+  and `7` files/`425` assertions; Dolt part01 exited `0` with `16` files and
+  `744` assertions; Gitoxide part01 stopped because active focused PHP
+  runners were already above the cap; esbuild had started without a completed
+  result in the inspected tail.
+- Dolt remains skipped despite reauthorization. The Dolt implementation lane,
+  Dolt runner, Dolt source/metadata/test files, and clean Gitoxide/Dolt shard
+  state did not form a frozen implementation-plus-runner handoff from the same
+  passing snapshot.
+- `dependency-backlog.json` is valid JSON with schema keys
+  `schemaVersion`, `updated`, `policy`, and `items`; it contains `22` gated
+  candidate/deferred items and remains consistent with the `progress.md`
+  dependency backlog section. No dependency implementation was accepted.
+- `porting.html` and `porting-summary.json` are dirty from updater activity.
+  They were not regenerated or accepted by this pass because doing so would
+  publish active, unaccepted lane-status edits.
+
+Decision: the tree is still too active for trustworthy lane acceptance. All
+priority lanes were skipped as active or unsafe. The next safe integration
+point is to freeze or let finish active lane/control workers, confirm no root
+or focused runners are active, and verify `HEAD`, tracked status, shortstat,
+runner state, upstream runner state, and relevant log mtimes are unchanged
+across two polls. Then accept exactly one lane-scoped batch with focused
+inspection/tests, one serialized `php tools/run-tests.php`, `git diff --check`,
+and dashboard regeneration from that same accepted snapshot.
+
 ## Integration Hold - 2026-05-24T00:10:55Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
