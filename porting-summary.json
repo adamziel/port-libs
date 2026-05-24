@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 11:33:37 UTC",
-    "sourceCommit": "1edf5b74c37e9c4ffe94375dd35f2862e509515e",
-    "sourceCommitShort": "1edf5b74c37e",
-    "sourceBranch": "dashboard-publish-20260524T113326Z",
-    "dashboardCommit": "5a2630c500f1491af7a6467b01d9bd0b234e72d8",
-    "dashboardCommitShort": "5a2630c500f1",
+    "generated": "2026-05-24 11:40:25 UTC",
+    "sourceCommit": "3d0c27a78b67ef5d6b5ba7f46d615a091d317505",
+    "sourceCommitShort": "3d0c27a78b67",
+    "sourceBranch": "dashboard-publish-20260524T114011Z",
+    "dashboardCommit": "96459203dd25fa07873a22bb0ba98c9637f5b196",
+    "dashboardCommitShort": "96459203dd25",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
@@ -213,17 +213,17 @@
         }
     ],
     "dependencyBacklog": {
-        "updated": "2026-05-24 10:51:38 UTC",
+        "updated": "2026-05-24 11:14:00 UTC",
         "policy": "Gate optional dependency ports behind base-tool blockers; a row becomes active only when a base lane is green enough for the next rich-function slice or is blocked on that component. Port bounded conversion/runtime cores, not whole applications; reuse shared ports across lanes; require honest upstream/full-suite evidence with mapped fixtures, PHP pass/fail counts, malformed/corrupt cases where relevant, and explicit non-goals; use bounded sudo -n installs for missing build/test packages before recording tooling as a final blocker.",
-        "count": 34,
+        "count": 36,
         "countsByPriority": {
             "critical": 4,
-            "high": 24,
+            "high": 26,
             "medium": 6
         },
         "countsByStatus": {
             "blocked": 1,
-            "candidate": 22,
+            "candidate": 24,
             "deferred": 11
         },
         "topGates": [
@@ -244,11 +244,11 @@
                 "count": 1
             },
             {
-                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next",
+                "gate": "gitoxide-protocol-v2-pktline-next-or-gitoxide-receive-pack-wire-next-or-gitoxide-upload-pack-wire-next",
                 "count": 1
             },
             {
-                "gate": "markerpdf-ocr-layout-result-next-or-markerpdf-scanned-pdf-handoff-next",
+                "gate": "libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next",
                 "count": 1
             }
         ],
@@ -297,6 +297,24 @@
                 "gate": "pandoc-docx-openxml-next",
                 "status": "candidate",
                 "testExpectation": "Require Pandoc DOCX reader/writer fixtures plus OpenXML/OPC package specifications, PHP pass/fail evidence for semantic AST parit..."
+            },
+            {
+                "id": "git-wire-protocol-core",
+                "name": "Git wire protocol packet core",
+                "neededBy": "gitoxide",
+                "priority": "high",
+                "gate": "gitoxide-protocol-v2-pktline-next-or-gitoxide-receive-pack-wire-next-or-gitoxide-upload-pack-wire-next",
+                "status": "candidate",
+                "testExpectation": "Require Git pack-protocol/protocol-v2 specs plus gix-packetline/gix-protocol/Gitoxide transport/fetch fixture denominators, with..."
+            },
+            {
+                "id": "quadrable-proof-transport-codec-core",
+                "name": "Quadrable proof and sync transport codec core",
+                "neededBy": "quadrable",
+                "priority": "high",
+                "gate": "quadrable-proof-transport-codec-next-or-quadrable-sync-codec-next",
+                "status": "candidate",
+                "testExpectation": "Require Quadrable proof/sync transport source and fixture denominators with PHP pass/fail evidence for proof encode/decode, proof..."
             },
             {
                 "id": "legacy-doc-cfb-core",
@@ -463,11 +481,11 @@
             {
                 "id": "tree-sitter-grammar-subset",
                 "name": "Tree-sitter grammar/query compatibility subset",
-                "neededBy": "difftastic, esbuild, lightningcss",
+                "neededBy": "difftastic",
                 "priority": "high",
                 "gate": "difftastic-concrete-grammar-structural-next",
                 "status": "candidate",
-                "testExpectation": "Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, PHP pass/fail eviden..."
+                "testExpectation": "Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, exact grammar crate/..."
             },
             {
                 "id": "sequence-diff-merge-core",

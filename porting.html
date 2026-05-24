@@ -31,11 +31,11 @@
     <div class="summary">
       <span>Average progress: <strong>84.8%</strong></span>
       <span>Lanes: <strong>12</strong></span>
-      <span>Generated: <strong>2026-05-24 11:33:37 UTC</strong></span>
-      <span>Snapshot: <strong>dashboard-publish-20260524T113326Z 1edf5b74c37e</strong></span>
+      <span>Generated: <strong>2026-05-24 11:40:25 UTC</strong></span>
+      <span>Snapshot: <strong>dashboard-publish-20260524T114011Z 3d0c27a78b67</strong></span>
     </div>
   </header>
-  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit 1edf5b74c37e; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
+  <p class="note">Rows are intentionally compact for low-context review. This page is a verified snapshot of source commit 3d0c27a78b67; active workers may have newer unpublished lane changes. Full lane detail remains in the linked status and manifest files; agent-friendly compact JSON is available at <a href="porting-summary.json">porting-summary.json</a>.</p>
   <div class="table-wrap">
   <table>
     <thead>
@@ -72,10 +72,10 @@
     <h2>Auxiliary Dependency Backlog</h2>
     <p class="note">Optional dependency ports stay gated behind base-tool progress. Counts and rows come from <a href="dependency-backlog.json">dependency-backlog.json</a>; candidate rows are not active work unless their status says active.</p>
     <div class="summary">
-      <span>Items: <strong>34</strong></span>
-      <span>Priority: <strong>critical: 4 | high: 24 | medium: 6</strong></span>
-      <span>Status: <strong>blocked: 1 | candidate: 22 | deferred: 11</strong></span>
-      <span>Top Gates: <strong>difftastic-concrete-grammar-structural-next: 1 | difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next: 1 | dolt-query-diff-sql-next-or-libsqlite-sql-execution-next: 1 | esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next: 1 | libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next: 1 | markerpdf-ocr-layout-result-next-or-markerpdf-scanned-pdf-handoff-next: 1</strong></span>
+      <span>Items: <strong>36</strong></span>
+      <span>Priority: <strong>critical: 4 | high: 26 | medium: 6</strong></span>
+      <span>Status: <strong>blocked: 1 | candidate: 24 | deferred: 11</strong></span>
+      <span>Top Gates: <strong>difftastic-concrete-grammar-structural-next: 1 | difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next: 1 | dolt-query-diff-sql-next-or-libsqlite-sql-execution-next: 1 | esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next: 1 | gitoxide-protocol-v2-pktline-next-or-gitoxide-receive-pack-wire-next-or-gitoxide-upload-pack-wire-next: 1 | libsqlite-json-next-or-esbuild-json-loader-next-or-readability-jsonld-next-or-rclone-json-metadata-next-or-syncthing-json-config-next-or-dolt-json-scalar-next-or-pandoc-metadata-json-next: 1</strong></span>
     </div>
     <div class="table-wrap">
     <table>
@@ -95,6 +95,8 @@
 <tr><th scope="row">webdav-protocol-core<br>WebDAV protocol and property core</th><td>rclone</td><td>high</td><td>rclone-webdav-provider-next</td><td>candidate</td><td>Require a WebDAV/x/net-specific upstream/spec denominator with mapped rclone and x/net WebDAV fixtures, PHP pass/fail evidence, l...</td></tr>
 <tr><th scope="row">url-percent-encoding-core<br>URL percent-encoding core</th><td>rclone, gitoxide, esbuild, lightningcss, readability</td><td>high</td><td>rclone-webdav-filename-destination-next-or-gitoxide-url-parse-next-or-esbuild-new-url-asset-next-or-lightningcss-css-url-token-next-or-readability-relative-uri-cleanup-next</td><td>candidate</td><td>Require a dependency-specific vector manifest with PHP pass/fail counts for percent-escape round trips, path-segment preservation...</td></tr>
 <tr><th scope="row">docx-openxml-core<br>DOCX/OpenXML document core</th><td>pandoc</td><td>high</td><td>pandoc-docx-openxml-next</td><td>candidate</td><td>Require Pandoc DOCX reader/writer fixtures plus OpenXML/OPC package specifications, PHP pass/fail evidence for semantic AST parit...</td></tr>
+<tr><th scope="row">git-wire-protocol-core<br>Git wire protocol packet core</th><td>gitoxide</td><td>high</td><td>gitoxide-protocol-v2-pktline-next-or-gitoxide-receive-pack-wire-next-or-gitoxide-upload-pack-wire-next</td><td>candidate</td><td>Require Git pack-protocol/protocol-v2 specs plus gix-packetline/gix-protocol/Gitoxide transport/fetch fixture denominators, with...</td></tr>
+<tr><th scope="row">quadrable-proof-transport-codec-core<br>Quadrable proof and sync transport codec core</th><td>quadrable</td><td>high</td><td>quadrable-proof-transport-codec-next-or-quadrable-sync-codec-next</td><td>candidate</td><td>Require Quadrable proof/sync transport source and fixture denominators with PHP pass/fail evidence for proof encode/decode, proof...</td></tr>
 <tr><th scope="row">legacy-doc-cfb-core<br>Legacy DOC/Compound File Binary extraction core</th><td>pandoc</td><td>high</td><td>pandoc-legacy-doc-cfb-next</td><td>candidate</td><td>Require Microsoft MS-CFB/MS-DOC specifications plus mapped Pandoc or generated legacy .doc fixtures, PHP pass/fail evidence for C...</td></tr>
 <tr><th scope="row">epub3-package-core<br>EPUB package and spine core</th><td>pandoc, readability, rclone</td><td>high</td><td>pandoc-epub-package-next-or-readability-epub-export-next</td><td>candidate</td><td>Require W3C EPUB 3 specifications plus mapped Pandoc EPUB fixtures and any Readability article-package export fixtures, PHP pass/...</td></tr>
 <tr><th scope="row">odf-open-document-core<br>OpenDocument text package core</th><td>pandoc</td><td>high</td><td>pandoc-odt-open-document-next</td><td>deferred</td><td>Require OASIS OpenDocument specifications plus mapped Pandoc ODT fixtures, PHP pass/fail evidence for semantic AST parity over te...</td></tr>
@@ -113,7 +115,7 @@
 <tr><th scope="row">source-map-v3-core<br>Source Map v3 parser and writer core</th><td>esbuild, lightningcss, difftastic</td><td>high</td><td>esbuild-rich-output-next-or-lightningcss-source-map-next-or-difftastic-source-map-review-next</td><td>candidate</td><td>Require a Source Map v3/upstream denominator with mapped esbuild, LightningCSS, and Difftastic review-span fixtures, PHP pass/fai...</td></tr>
 <tr><th scope="row">browser-compat-target-data-core<br>Browser compatibility and target-data core</th><td>lightningcss, esbuild</td><td>high</td><td>lightningcss-prefixer-targets-next-or-esbuild-target-lowering-next</td><td>deferred</td><td>Require a target-data-specific upstream/spec denominator with mapped LightningCSS target/prefixer and esbuild target-lowering fix...</td></tr>
 <tr><th scope="row">js-package-resolution-core<br>JavaScript package metadata and module-resolution core</th><td>esbuild, lightningcss</td><td>high</td><td>esbuild-bundler-resolution-next-or-lightningcss-css-package-resolution-next</td><td>deferred</td><td>Require a package-resolution-specific upstream/spec denominator with mapped esbuild resolver/tsconfig/package tests and Lightning...</td></tr>
-<tr><th scope="row">tree-sitter-grammar-subset<br>Tree-sitter grammar/query compatibility subset</th><td>difftastic, esbuild, lightningcss</td><td>high</td><td>difftastic-concrete-grammar-structural-next</td><td>candidate</td><td>Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, PHP pass/fail eviden...</td></tr>
+<tr><th scope="row">tree-sitter-grammar-subset<br>Tree-sitter grammar/query compatibility subset</th><td>difftastic</td><td>high</td><td>difftastic-concrete-grammar-structural-next</td><td>candidate</td><td>Require a tree-sitter/grammar-specific upstream denominator with per-language mapped sample/golden fixtures, exact grammar crate/...</td></tr>
 <tr><th scope="row">sequence-diff-merge-core<br>Sequence diff and merge core</th><td>difftastic, gitoxide, dolt, quadrable</td><td>high</td><td>difftastic-diff-algorithm-next-or-gitoxide-content-merge-diff-next-or-dolt-row-diff-render-next-or-quadrable-diff-patch-next</td><td>candidate</td><td>Require separate upstream-family denominators for Difftastic display/diff fixtures and exact parser config evidence, Gitoxide gix...</td></tr>
 <tr><th scope="row">protobuf-wire-core<br>Protocol Buffers wire-format core</th><td>syncthing</td><td>high</td><td>syncthing-protocol-next</td><td>candidate</td><td>Require a Protocol Buffers/BEP wire-format denominator with mapped Syncthing wire fixtures, PHP pass/fail evidence, malformed/cor...</td></tr>
 <tr><th scope="row">qr-code-matrix-core<br>QR code matrix and image contract core</th><td>syncthing</td><td>medium</td><td>syncthing-qr-route-next</td><td>blocked</td><td>Require a QR-specific upstream/spec denominator from ISO/IEC 18004 or a bounded public vector set plus mapped Syncthing /qr route...</td></tr>
