@@ -1373,3 +1373,21 @@ Required root verification on 2026-05-23 after the Markdown writer image
 emission slice: the duplicate-root gate returned clear, so
 `php tools/run-tests.php` was run once. It passed 223 test files, 25,545
 assertions, and 0 failures.
+
+`src/Text/Pandoc/Writers/Markdown/Inline.hs` was inspected again for the
+bounded `Code` attribute emission branch. The PHP Markdown writer now maps one
+focused check from that boundary: inline code spans append Pandoc-style
+attribute tuples for id, classes, and key/value metadata, while literal
+backticks inside the code text remain escaped.
+
+Focused local verification on 2026-05-24 after the Markdown writer code
+attribute slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php` emitted an
+attributed inline reviewer code token; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,276
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed. The
+focused file now contains 208 behavior tests.
+
+Root verification was not run for the 2026-05-24 code attribute slice because
+the assigned work was an isolated micro-slice.

@@ -63610,3 +63610,34 @@ Files staged:
 - `lanes/markerpdf/src/PdfTextExtractor.php`
 - `lanes/markerpdf/tests/PdfTextExtractorTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - Pandoc isolated inline code attributes - 2026-05-24 23:34 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-iso-pandoc-noscript-20260524T224329Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-iso-pandoc-noscript-20260524T224329Z.patch` (`sha256 d22df052c95112c7e06701065970d05fe1d918643f854beba324aa1ffd96226d`, verified).
+Lane/slice/session: `pandoc` / marker label `pandoc-noscript-reduced`, actual patch `pandoc-markdown-inline-code-attributes-reduced` / `port-iso-pandoc-noscript`.
+
+Focused verification in clean worktree:
+- `php -l lanes/pandoc/src/MarkdownWriter.php` passed.
+- `php -l lanes/pandoc/tests/MarkdownReaderTest.php` passed.
+- `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php` passed.
+- `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php` passed.
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed: 1 file, 2276 assertions, 0 failures.
+- `jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/lane-status.json` passed.
+- `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree: 226 test files, 25740 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The slice reuses the existing Pandoc Markdown attribute tuple renderer for inline code nodes.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- `lanes/pandoc/lane-status.json`
+- `lanes/pandoc/notes/upstream-inventory.md`
+- `lanes/pandoc/notes/wordpress-scenarios.md`
+- `lanes/pandoc/src/MarkdownWriter.php`
+- `lanes/pandoc/tests/MarkdownReaderTest.php`
+- `audits/integration-status.md`

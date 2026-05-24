@@ -69,6 +69,16 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer code token: ']),
+        new AstNode('code', [
+            'text' => 'wp_enqueue_script',
+            'id' => 'enqueue',
+            'classes' => ['php', 'wp-import'],
+            'attributes' => ['data-source' => 'batch-42'],
+        ]),
+        new AstNode('text', ['text' => '.']),
+    ]),
+    new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
 ]);

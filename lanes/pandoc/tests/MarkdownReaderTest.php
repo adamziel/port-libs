@@ -2647,6 +2647,34 @@ MD;
             'Reviewer media: ![Visible caption](/uploads/review.jpg "Review \\"image\\""){#review-image .wp-import alt="Editorial alt" data-source="batch-42"}.',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer inline code attributes' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Reviewer token: '),
+                new AstNode('code', [
+                    'text' => 'wp_enqueue_script',
+                    'id' => 'enqueue',
+                    'classes' => ['php', 'wp-import'],
+                    'attributes' => [
+                        'data-source' => 'batch-42',
+                        'title' => 'Import source',
+                    ],
+                ]),
+                $text(' and literal '),
+                new AstNode('code', [
+                    'text' => 'a`b',
+                    'classes' => ['sample'],
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        $t->same(
+            'Reviewer token: `wp_enqueue_script`{#enqueue .php .wp-import data-source="batch-42" title="Import source"} and literal `a\\`b`{.sample}.',
+            (new MarkdownWriter())->write($document)
+        );
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

@@ -817,6 +817,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   image with a definition carrying title, id, class, `alt`, and
   `data-source` metadata, while URI-looking alt text is guarded from becoming
   invalid `!<uri>` autolink syntax.
+- Native Markdown reviewer handoff exports now emit Pandoc-style inline code
+  attributes. Source-review tokens such as `wp_enqueue_script` can carry
+  stable ids, classes, and `data-source` metadata in Markdown packets without
+  falling back to raw inline HTML.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -827,5 +831,4 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 ## Next Task
 
 Map another bounded Markdown writer inline branch from
-`Text.Pandoc.Writers.Markdown.Inline`, such as Code attribute emission or
-Span/bracketed-span output.
+`Text.Pandoc.Writers.Markdown.Inline`, such as Span/bracketed-span output.

@@ -315,7 +315,7 @@ final class MarkdownWriter
             'text' => $this->escapeText((string) $node->attr('text', '')),
             'softbreak' => "\n",
             'linebreak' => "\\\n",
-            'code' => '`' . str_replace('`', '\\`', (string) $node->attr('text', '')) . '`',
+            'code' => $this->renderCode($node),
             'emph' => $this->delimitInlineContent('*', '*', $this->renderInlines($node->children)),
             'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
             'link' => $this->renderLink($node, $following),
@@ -397,6 +397,11 @@ final class MarkdownWriter
         ];
 
         return '[^' . $number . ']';
+    }
+
+    private function renderCode(AstNode $node): string
+    {
+        return '`' . str_replace('`', '\\`', (string) $node->attr('text', '')) . '`' . $this->renderLinkAttributes($node);
     }
 
     /**
