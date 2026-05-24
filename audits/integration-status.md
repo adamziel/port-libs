@@ -1,5 +1,67 @@
 # Integration Status
 
+## Integration Hold - 2026-05-24T10:48:46Z
+
+No lane implementation output was integrated by this pass. I did not stage lane
+source files, regenerate `porting.html` or `porting-summary.json`, push, or
+start a no-argument root harness.
+
+Snapshot reviewed:
+
+- Read first as requested: `goal.md`, `progress.md`,
+  `git status --short --branch`, recent `git log --oneline --decorate -30`,
+  current `.tmux-team/logs/port-*.log` tails for recently active workers,
+  dirty lane files shown by Git, live tmux/process state, and the existing
+  integration status history.
+- Current `HEAD` was `2e436fba801b` on
+  `main...origin/main [ahead 827, behind 68]`.
+- The checkout remained active and moving. During this pass the tracked
+  shortstat moved from `330 files changed, 219818 insertions(+), 29160
+  deletions(-)` to `330 files changed, 219907 insertions(+), 29174
+  deletions(-)`. The latest untracked-inclusive status count was `16949`
+  rows, with `330` tracked dirty rows and `16619` untracked rows.
+- Dirty tracked files still span every priority lane plus prompt templates,
+  `audits/latest.md`, `dependency-backlog.json`, dashboard artifacts,
+  `progress.md`, runner scripts, and scratch/status output.
+- Recent worker tails showed a coherent-looking Dolt QUOTE implementation
+  handoff with focused PHP and focused upstream evidence, and a separate Dolt
+  runner shard passing `show.bats`, `sql-show.bats`, `multiple-tables.bats`,
+  and `rename-tables.bats` under `SQL_ENGINE=local`. I did not integrate Dolt
+  because `port-dolt`, `port-dolt-runner`, and multiple Dolt capacity sessions
+  remain active while Dolt source, metadata, fixtures, examples, and tests are
+  dirty.
+- Other recent tails showed candidate or active work in rclone, markerPDF,
+  esbuild, Gitoxide, Difftastic, dashboard publishing, and the auditor. These
+  are useful handoff clues, but they are not an accepted frozen snapshot while
+  the same lane scopes remain active and the aggregate checkout is moving.
+- Exact process sampling found no active `php tools/run-tests.php` row and no
+  active dashboard generator row. I did not start the serialized no-argument
+  root harness, so there was no `.upstream-cache/run-tests.lock` wait to record
+  and no accepted root result.
+- Local generated `porting-summary.json` and `porting.html` remain stale
+  relative to the current dependency backlog and dirty lane/status state. I did
+  not regenerate them because no lane/status batch was accepted.
+
+Skipped active lanes: Gitoxide, LightningCSS, markerPDF, libsqlite,
+Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt, and
+esbuild.
+
+Waiting: freeze active writers plus status/dashboard publishers; confirm no
+focused/root PHP harnesses, dashboard generator, Dolt BATS, Go, Rust, Node, or
+SQLite upstream runners are active; then require two stable polls of `HEAD`,
+tracked rows, untracked-inclusive rows, shortstat, exact process gates,
+dependency/dashboard counts, and relevant log mtimes.
+
+Risky: accepting any lane now would mix active source edits, moving untracked
+state, stale dashboard artifacts, worker-log-only focused evidence, and
+blocker fields that still need acceptance-gate review.
+
+Next safe integration target: after a hard freeze, isolate one owner-free lane
+batch with coherent evidence, run focused lane verification, run
+`git diff --check`, run one serialized no-argument `php tools/run-tests.php`
+from the same frozen snapshot with lock-wait status recorded, and regenerate
+dashboard artifacts only after accepting the lane/status batch.
+
 ## Integration Hold - 2026-05-24T10:45:40Z
 
 No lane implementation output was integrated by this pass. I did not stage lane
