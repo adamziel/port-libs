@@ -48602,6 +48602,74 @@ coherent owner-free lane batch with focused inspection, focused lane tests, the
 serialized no-argument `php tools/run-tests.php`, `git diff --check`, and
 dashboard regeneration from that same accepted snapshot.
 
+## Integration worker hold - 2026-05-24 08:15 UTC
+
+No worker output was integrated in this pass. No lane files were staged, no
+lane/status batch was accepted, and `php tools/generate-dashboard.php` was
+not run. This section records hold status only.
+
+Current samples:
+
+- `HEAD`: `650a455bd115` on `main`; branch status
+  `main...origin/main [ahead 772, behind 68]`.
+- First tracked dirty sample: `322` rows from
+  `git status --porcelain=v1 -uno`.
+- First untracked-inclusive sample:
+  `15919` rows from `git status --porcelain=v1 --untracked-files=normal`.
+- First `git diff --shortstat`: `322 files changed, 200207 insertions(+),
+  29427 deletions(-)`.
+- Second sample at `2026-05-24T08:15:04Z`: `HEAD` still
+  `650a455bd115`, tracked dirty count still `322`, but
+  untracked-inclusive rows moved to `15922` and `git diff --shortstat` moved
+  to `322 files changed, 200332 insertions(+), 29315 deletions(-)`.
+- `jq empty lanes/*/UPSTREAM_TEST_MANIFEST.json lanes/*/lane-status.json
+  porting-summary.json dependency-backlog.json` exited `0`.
+- `dependency-backlog.json` has `24` items. `progress.md` still describes
+  the latest accepted backlog count as `23`, and `porting-summary.json` still
+  publishes snapshot `79768df0c427` with `22` dependency-backlog items, so the
+  backlog/dashboard/progress surface is inconsistent and was not accepted.
+
+Active-lane risk:
+
+- `tmux list-sessions` still reported `75` sessions. Active lane or control
+  sessions included Gitoxide, LightningCSS, markerPDF, libsqlite,
+  Readability, Pandoc, Quadrable, Syncthing, Difftastic, rclone, Dolt,
+  Dolt runner, auditor, evaluator, dashboard updater, capacity controller,
+  support-library direction, root observer, and integrator.
+- Current log tails showed lane-local handoffs or in-progress edits for
+  rclone WebDAV cleanup-not-found, Quadrable proof long-jump, Pandoc
+  Markdown abbreviations, Readability class-only visibility, Syncthing config
+  commit/pending-folder work, markerPDF page-contents text extraction,
+  Difftastic PHP single-statement control fixtures, Gitoxide date parsing,
+  LightningCSS clip-path prefixing, esbuild optional-chain tagged templates,
+  libsqlite JSON5 escaped keys, and Dolt query-diff/runner work.
+- Dolt remains skipped despite reauthorization because both `port-dolt` and
+  `port-dolt-runner` were active while dirty Dolt source, metadata, fixtures,
+  examples, notes, and tests were present. A bounded Dolt BATS runner was
+  still active during review.
+
+Root and hygiene:
+
+- This worker did not start `php tools/run-tests.php` and did not wait on
+  `.upstream-cache/run-tests.lock`.
+- The second exact root gate reported active no-argument root PID `3770064`
+  (`php tools/run-tests.php`) plus focused LightningCSS and markerPDF PHP
+  shards. No duplicate root run was started, and concurrent moving-tree root
+  output is not accepted as an integration snapshot.
+- Full-tree `git diff --check` exited `0` before staging this hold-status
+  section.
+- `php tools/generate-dashboard.php` was not run because no lane/status batch
+  was accepted.
+
+Next safe integration point: freeze or wait out active lane, Dolt runner,
+capacity, dashboard, evaluator, auditor, integrator, root-observer,
+support-library, and focused/root PHP loops; then confirm `HEAD`, tracked
+status, untracked-inclusive status, diff shortstat, exact PHP test PIDs, and
+relevant log mtimes are unchanged across two polls. After that, accept one
+coherent owner-free lane batch with focused inspection, focused lane tests,
+the serialized no-argument `php tools/run-tests.php`, `git diff --check`, and
+dashboard regeneration from that same accepted snapshot.
+
 ## Integration worker hold - 2026-05-23 23:58 UTC
 
 No worker output was integrated in this pass. No lane files were staged, no
