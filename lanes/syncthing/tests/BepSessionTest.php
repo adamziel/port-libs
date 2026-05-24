@@ -189,6 +189,86 @@ return [
         ], $seen);
         $t->true(!$session->isClosed());
     },
+    'maps upstream windows native model inbound path conversion and filtering' => static function (TestRunner $t): void {
+        $session = new BepSession(nativeDirectorySeparator: '\\');
+        $session->receiveFrame(BepWire::encodeClusterConfigMessage(new ClusterConfig()));
+
+        $valid = syncthing_session_callback_file_info('wp-content/uploads/2026/wire-hero.jpg', 501);
+        $invalid = syncthing_session_callback_file_info('wp-content\\uploads\\2026\\bad-wire.jpg', 502);
+        $index = $session->receiveFrame(
+            BepWire::encodeIndexMessage(new Index('wordpress-media', [$valid, $invalid], lastSequence: 502)),
+            new BepSessionHandlers(indexHandler: static fn (Index $inbound): array => array_map(
+                static fn (FileInfo $file): string => $file->name,
+                $inbound->files,
+            )),
+        );
+
+        $t->same(BepSession::EVENT_INDEX, $index->type);
+        $t->same(['wp-content\\uploads\\2026\\wire-hero.jpg'], $index->handlerResult);
+        $t->same($index->handlerResult, array_map(
+            static fn (FileInfo $file): string => $file->name,
+            $index->message->files,
+        ));
+
+        $update = $session->receiveFrame(
+            BepWire::encodeIndexUpdateMessage(new IndexUpdate(
+                'wordpress-media',
+                [$valid->withSequence(505), $invalid->withSequence(506)],
+                lastSequence: 506,
+                prevSequence: 503,
+            )),
+            new BepSessionHandlers(indexUpdateHandler: static fn (IndexUpdate $inbound): array => [
+                'names' => array_map(static fn (FileInfo $file): string => $file->name, $inbound->files),
+                'prev' => $inbound->prevSequence,
+                'last' => $inbound->lastSequence,
+            ]),
+        );
+        $t->same(BepSession::EVENT_INDEX_UPDATE, $update->type);
+        $t->same([
+            'names' => ['wp-content\\uploads\\2026\\wire-hero.jpg'],
+            'prev' => 503,
+            'last' => 506,
+        ], $update->handlerResult);
+
+        $requestName = null;
+        $served = $session->receiveFrame(
+            BepWire::encodeRequestMessage(new Request(
+                id: 31,
+                folder: 'wordpress-media',
+                name: 'wp-content/uploads/2026/wire-hero.jpg',
+                size: 7,
+            )),
+            static function (Request $request) use (&$requestName): string {
+                $requestName = $request->name;
+
+                return 'content';
+            },
+        );
+        $t->same(BepSession::EVENT_REQUEST, $served->type);
+        $t->same('wp-content\\uploads\\2026\\wire-hero.jpg', $requestName);
+        $t->same('wp-content\\uploads\\2026\\wire-hero.jpg', $served->message->name);
+        $t->same(Response::CODE_NO_ERROR, BepWire::decodeResponseMessage($served->outboundFrames[0])->code);
+
+        $called = false;
+        $invalidRequest = $session->receiveFrame(
+            BepWire::encodeRequestMessage(new Request(
+                id: 32,
+                folder: 'wordpress-media',
+                name: 'wp-content\\uploads\\2026\\bad-request.jpg',
+                size: 7,
+            )),
+            static function () use (&$called): string {
+                $called = true;
+
+                return 'should not run';
+            },
+        );
+        $t->same(BepSession::EVENT_REQUEST, $invalidRequest->type);
+        $t->same(false, $called);
+        $t->same(Response::CODE_NO_SUCH_FILE, $invalidRequest->response?->code);
+        $t->same(Response::CODE_NO_SUCH_FILE, BepWire::decodeResponseMessage($invalidRequest->outboundFrames[0])->code);
+        $t->true(!$session->isClosed());
+    },
     'closes session when a provided model callback fails' => static function (TestRunner $t): void {
         $session = new BepSession();
         $session->receiveFrame(BepWire::encodeClusterConfigMessage(new ClusterConfig()));

@@ -1,5 +1,58 @@
 # Integration Status
 
+## Accepted isolated integration - Syncthing BEP native path - 2026-05-24 22:03 UTC
+
+Slice: `syncthing-bep-path`.
+
+Base commit: `45aa82fbaadfbe28ed0a6670370611faae4f788f`.
+
+Patch path:
+`.tmux-team/tmp/isolate-syncthing-bep-path-20260524T215758Z.patch`.
+
+Isolation audit copied into this commit:
+`audits/isolate-syncthing-bep-path-20260524T215758Z.md`.
+
+Focused checks repeated by integrator from the clean worktree:
+
+- `jq empty lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json`
+- `php -l lanes/syncthing/src/BepSession.php`
+- `php -l lanes/syncthing/src/ProtocolValidation.php`
+- `php -l lanes/syncthing/src/Index.php`
+- `php -l lanes/syncthing/src/IndexUpdate.php`
+- `php -l lanes/syncthing/src/Request.php`
+- `php -l lanes/syncthing/tests/BepSessionTest.php`
+- `php -l lanes/syncthing/examples/wordpress-bep-session.php`
+- `php tools/run-tests.php lanes/syncthing/tests/BepSessionTest.php`
+- `php lanes/syncthing/examples/wordpress-bep-session.php | jq empty`
+- `git diff --check -- lanes/syncthing`
+
+Root result: `php tools/run-tests.php` passed from the same clean worktree with
+`204 test files, 23907 assertions, 0 failures`.
+
+Files staged for source behavior:
+
+- `lanes/syncthing/src/BepSession.php`
+- `lanes/syncthing/src/ProtocolValidation.php`
+- `lanes/syncthing/src/Index.php`
+- `lanes/syncthing/src/IndexUpdate.php`
+- `lanes/syncthing/src/Request.php`
+- `lanes/syncthing/tests/BepSessionTest.php`
+- `lanes/syncthing/examples/wordpress-bep-session.php`
+
+Evidence files staged:
+
+- `audits/isolate-syncthing-bep-path-20260524T215758Z.md`
+- `audits/integration-status.md`
+
+Support-library decision: no support-library row activated. This is lane-local
+BEP protocol path conversion/filtering behavior and does not require a shared
+support package.
+
+Exclusions: no dirty-main Syncthing folder scan/watch, folder completion,
+folder database, request exchange, REST/config/debug/system/discovery/GUI,
+manifest/status, notes, dashboard, or support-library backlog changes were
+accepted.
+
 ## Integration handoff rejection - Gitoxide - 2026-05-24 22:01 UTC
 
 No Gitoxide lane output was integrated in this pass.
