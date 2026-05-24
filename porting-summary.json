@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-24 13:03:28 UTC",
-    "sourceCommit": "fa6f1d51e89abae8999e919b5cf48ae242721abd",
-    "sourceCommitShort": "fa6f1d51e89a",
-    "sourceBranch": "dashboard-publish-20260524T130256Z",
-    "dashboardCommit": "73715a2924a65160b020bd866f99eed10f43517b",
-    "dashboardCommitShort": "73715a2924a6",
+    "generated": "2026-05-24 13:10:52 UTC",
+    "sourceCommit": "861e457076283a198a2bdb5221710d6bdd58cde7",
+    "sourceCommitShort": "861e45707628",
+    "sourceBranch": "dashboard-publish-20260524T131034Z",
+    "dashboardCommit": "7b402f57888f6c9aed8651a71fcf742ff348bdae",
+    "dashboardCommitShort": "7b402f57888f",
     "averageProgressPercent": "84.8",
     "lanes": [
         {
