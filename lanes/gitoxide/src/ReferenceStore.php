@@ -19,6 +19,7 @@ final class ReferenceStore
     private readonly LooseReferenceStore $loose;
     private ?PackedReferences $packed;
     private readonly ?string $namespacePrefix;
+    private ?array $packedRefsSnapshot;
 
     public function __construct(
         private readonly string $gitDirectory,
@@ -28,6 +29,7 @@ final class ReferenceStore
         $this->loose = new LooseReferenceStore($gitDirectory);
         $this->packed = $packed;
         $this->namespacePrefix = $namespace === null ? null : ReferenceName::expandNamespace($namespace);
+        $this->packedRefsSnapshot = $this->packedRefsFileSnapshot();
     }
 
     public static function at(string $gitDirectory, string $algorithm = 'sha1', ?string $namespace = null): self
@@ -431,6 +433,8 @@ final class ReferenceStore
 
     public function tryFind(string $name, string $algorithm = 'sha1'): ?ResolvedReference
     {
+        $this->refreshPackedReferencesIfChanged($algorithm);
+
         foreach (self::lookupCandidates($name) as [$candidate, $allowPacked]) {
             $lookupName = $this->namespacePrefix === null ? $candidate : $this->namespacePrefix . $candidate;
             $loose = $this->loose->tryRead($lookupName, $algorithm);
@@ -472,6 +476,8 @@ final class ReferenceStore
      */
     public function prefixed(string $prefix, string $algorithm = 'sha1'): array
     {
+        $this->refreshPackedReferencesIfChanged($algorithm);
+
         $lookupPrefix = $this->namespacePrefix === null ? $prefix : $this->namespacePrefix . $prefix;
         ReferenceName::assertValidPartial(rtrim($lookupPrefix, '/'));
 
@@ -780,6 +786,8 @@ final class ReferenceStore
 
     private function tryFindPhysical(string $physicalName, string $algorithm): ?ResolvedReference
     {
+        $this->refreshPackedReferencesIfChanged($algorithm);
+
         $loose = $this->loose->tryRead($physicalName, $algorithm);
         if ($loose !== null) {
             return ResolvedReference::fromLoose($loose);
@@ -944,9 +952,7 @@ final class ReferenceStore
         }
 
         $byName = [];
-        if ($this->packed === null && is_file($this->packedRefsPath())) {
-            $this->packed = PackedReferences::open($this->packedRefsPath(), $algorithm);
-        }
+        $this->refreshPackedReferencesIfChanged($algorithm);
 
         foreach ($this->packed?->all() ?? [] as $reference) {
             $byName[$reference->name] = $reference;
@@ -978,6 +984,7 @@ final class ReferenceStore
                 }
 
                 $this->packed = null;
+                $this->packedRefsSnapshot = $this->packedRefsFileSnapshot();
                 $committed = true;
                 return;
             }
@@ -1004,6 +1011,7 @@ final class ReferenceStore
             }
 
             $this->packed = PackedReferences::fromBytes($contents, $algorithm);
+            $this->packedRefsSnapshot = $this->packedRefsFileSnapshot();
             $committed = true;
         } finally {
             if (is_resource($lock)) {
@@ -1091,17 +1099,14 @@ final class ReferenceStore
 
     private function packedHasPhysical(string $physicalName, string $algorithm): bool
     {
-        return $this->packed?->tryFind($physicalName) !== null
-            || ($this->packed === null
-                && is_file($this->packedRefsPath())
-                && PackedReferences::open($this->packedRefsPath(), $algorithm)->tryFind($physicalName) !== null);
+        $this->refreshPackedReferencesIfChanged($algorithm);
+
+        return $this->packed?->tryFind($physicalName) !== null;
     }
 
     private function packedTargetEquals(string $physicalName, ReferenceTarget $target, string $algorithm): bool
     {
-        if ($this->packed === null && is_file($this->packedRefsPath())) {
-            $this->packed = PackedReferences::open($this->packedRefsPath(), $algorithm);
-        }
+        $this->refreshPackedReferencesIfChanged($algorithm);
 
         $packed = $this->packed?->tryFind($physicalName);
 
@@ -1116,6 +1121,35 @@ final class ReferenceStore
     private function packedRefsLockPath(): string
     {
         return $this->packedRefsPath() . '.lock';
+    }
+
+    private function refreshPackedReferencesIfChanged(string $algorithm): void
+    {
+        $snapshot = $this->packedRefsFileSnapshot();
+        if ($snapshot === $this->packedRefsSnapshot) {
+            return;
+        }
+
+        $this->packed = $snapshot === null ? null : PackedReferences::open($this->packedRefsPath(), $algorithm);
+        $this->packedRefsSnapshot = $snapshot;
+    }
+
+    /**
+     * @return ?array{mtime:int,size:int,hash:string}
+     */
+    private function packedRefsFileSnapshot(): ?array
+    {
+        $path = $this->packedRefsPath();
+        clearstatcache(true, $path);
+        if (!is_file($path)) {
+            return null;
+        }
+
+        return [
+            'mtime' => (int) filemtime($path),
+            'size' => (int) filesize($path),
+            'hash' => (string) hash_file('sha1', $path),
+        ];
     }
 
     private function referencePath(string $physicalName): string

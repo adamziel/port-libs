@@ -71,6 +71,16 @@ $release = $store->update(
 
 $packed = PackedReferences::open($dir . '/packed-refs');
 
+$externalRefreshDir = sys_get_temp_dir() . '/port-libs-wp-packed-ref-refresh-' . bin2hex(random_bytes(4));
+mkdir($externalRefreshDir, 0777, true);
+file_put_contents($externalRefreshDir . '/packed-refs', $fixture['oldProductionCommit'] . ' ' . $fixture['productionRef'] . "\n");
+$refreshStore = ReferenceStore::at($externalRefreshDir);
+$beforeExternalRefresh = $refreshStore->find($fixture['productionRef'])->targetObjectId();
+file_put_contents($externalRefreshDir . '/packed-refs', $fixture['newProductionCommit'] . ' ' . $fixture['productionRef'] . "\n");
+$afterExternalRefresh = $refreshStore->find($fixture['productionRef'])->targetObjectId();
+unlink($externalRefreshDir . '/packed-refs');
+$afterExternalRemoval = $refreshStore->tryFind($fixture['productionRef']) === null;
+
 $lockedDir = sys_get_temp_dir() . '/port-libs-wp-packed-ref-lock-' . bin2hex(random_bytes(4));
 mkdir($lockedDir, 0777, true);
 file_put_contents($lockedDir . '/packed-refs', $fixture['packedRefs']);
@@ -105,6 +115,9 @@ return [
     'packedProductionCommit' => $packed->find($fixture['productionRef'])->targetObjectId(),
     'packedReleaseTagObject' => $packed->find($fixture['releaseRef'])->targetObjectId(),
     'packedReleasePeeledCommit' => $packed->find($fixture['releaseRef'])->objectId(),
+    'externalPackedBeforeRefresh' => $beforeExternalRefresh,
+    'externalPackedAfterRefresh' => $afterExternalRefresh,
+    'externalPackedAfterRemovalMissing' => $afterExternalRemoval,
     'looseProductionExists' => is_file($dir . '/' . $fixture['productionRef']),
     'looseReleaseTagExists' => is_file($dir . '/' . $fixture['releaseRef']),
     'reviewRefStillExists' => $store->tryFind($fixture['reviewRef']) !== null,

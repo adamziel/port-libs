@@ -146,6 +146,8 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 `examples/wordpress-packed-reference-transaction.php` starts from compacted `packed-refs`, promotes a packed production branch, prunes a reviewed plugin branch, removes the loose production source ref in explicit packed-update mode, rewrites the sorted packed-ref file, and records a deployment reflog line. This models shared-hosting or Playground deployment tools that need pack-refs/update-ref-style branch publication and audit trails without invoking `git update-ref`, `git pack-refs`, or shell commands.
 
+The same example now keeps a long-lived path-backed reference store open while another process replaces and removes `packed-refs`. The store refreshes its parsed packed-ref buffer before subsequent lookups, so a WordPress deployment worker does not keep publishing decisions from stale compacted refs after another deploy process rewrites the packed ref file.
+
 ## WordPress Tree Merge Example
 
 `examples/wordpress-tree-merge.php` merges flat root-tree changes where one side updates `wp-content` and the other adds `.wp-env.json`, then reports a structured `theme.json` modify/modify conflict. This models the first PHP-native merge decision layer for WordPress deployment snapshots before recursive tree traversal and blob conflict-marker merges are added.
@@ -204,4 +206,4 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 ## Next Task
 
-Broaden protocol/transport runner evidence with a controlled focused crate probe, map packed-ref mmap/buffer invalidation races in a bounded reference-store slice, or map another focused `gix-merge` tree fixture.
+Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

@@ -98540,3 +98540,24 @@ Files staged:
 - lanes/esbuild/src/PackageResolver.php
 - lanes/esbuild/tests/PackageResolverTest.php
 - audits/integration-status.md
+
+## Integration accepted - isolated gitoxide packed ref refresh - 2026-05-24 23:43 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260524T233442Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260524T233442Z.patch`.
+
+Lane/slice/session: `gitoxide` / `watchdog-next-20260524T233442Z` / `port-gitoxide`. Patch sha256 verified as `b0ecb47d213501cf5c15575261a31c621b1b08a3b8cc168c09eed1a97439f2af`. The patch applied cleanly to detached clean worktree `/tmp/port-clean-integrator-gitoxide-watchdog-next-20260524T233442Z-20260524T234302Z` from old head `438ea2b87b7febc54096a75e99b7d3d653522476`.
+
+Focused verification in the clean worktree:
+- `php -l lanes/gitoxide/src/ReferenceStore.php`: pass.
+- `php -l lanes/gitoxide/tests/ReferenceStoreTest.php`: pass.
+- `php -l lanes/gitoxide/examples/wordpress-reference-transaction.php`: pass.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReferenceStoreTest.php`: pass, 1 selected test file, 330 assertions, 0 failures.
+- `git diff --check`: pass.
+
+Root verification: pre-root exact no-argument process gate `pgrep -af '^php tools/run-tests\.php$'` was empty, then `php tools/run-tests.php` ran in the same clean worktree and passed: 208 test files, 24247 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. This slice reuses the existing Gitoxide lane native packed-reference and filesystem/stat/hash handling; it does not introduce a shared dependency component.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-packed-reference-transaction.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/notes/wordpress-scenarios.md`, `lanes/gitoxide/src/ReferenceStore.php`, `lanes/gitoxide/tests/ReferenceStoreTest.php`, and `audits/integration-status.md`.

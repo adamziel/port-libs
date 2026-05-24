@@ -321,6 +321,25 @@ return [
         $t->same($old, PackedReferences::open($dir . '/packed-refs')->find('refs/heads/main')->targetObjectId());
         $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
     },
+    'reference store refreshes packed ref buffers after external file changes' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-refresh-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs', "{$old} refs/heads/main\n");
+        $store = ReferenceStore::at($dir);
+
+        $t->same($old, $store->find('refs/heads/main')->targetObjectId());
+
+        file_put_contents($dir . '/packed-refs', "{$new} refs/heads/main\n{$other} refs/heads/review\n");
+        $t->same($new, $store->find('refs/heads/main')->targetObjectId());
+        $t->same($other, $store->find('refs/heads/review')->targetObjectId());
+        $t->same(['refs/heads/main', 'refs/heads/review'], array_map(static fn ($reference): string => $reference->name, $store->prefixed('refs/heads/')));
+
+        unlink($dir . '/packed-refs');
+        $t->same(null, $store->tryFind('refs/heads/main'));
+
+        file_put_contents($dir . '/packed-refs', "{$other} refs/heads/main\n");
+        $t->same($other, $store->find('refs/heads/main')->targetObjectId());
+    },
     'reference store packed update mode rewrites packed refs and can prune loose source' => static function (TestRunner $t) use ($old, $new, $other): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-update-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -1059,6 +1078,9 @@ return [
         $t->same($summary['releasePeeledCommit'], $summary['packedReleasePeeledCommit']);
         $t->same($fixture['expectedPackedNames'], $summary['packedNames']);
         $t->same($fixture['newProductionCommit'], $summary['packedProductionCommit']);
+        $t->same($fixture['oldProductionCommit'], $summary['externalPackedBeforeRefresh']);
+        $t->same($fixture['newProductionCommit'], $summary['externalPackedAfterRefresh']);
+        $t->same(true, $summary['externalPackedAfterRemovalMissing']);
         $t->same(false, $summary['looseProductionExists']);
         $t->same(false, $summary['looseReleaseTagExists']);
         $t->same(false, $summary['reviewRefStillExists']);
