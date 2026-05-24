@@ -81,10 +81,10 @@ Current skipped lanes: Dolt remains skipped because both `port-dolt` and
 coherent implementation-plus-runner handoff. Other dirty lanes remain active or
 broadly accumulated; no non-Pandoc marker was held in this pass.
 
-Next concrete intake target: the next current `.ready` marker after releasing
-the Pandoc hold. If no marker is present, sample the newest owner-free lane
-handoff created by the watchdog and apply the same two-poll gate before
-accepting or rejecting it.
+Next concrete intake target: Gitoxide if it re-emits a `.ready` marker and the
+pane remains owner-free, because it was the newest queued owner-free marker
+before this Pandoc intake. If Gitoxide is active or still broad, fall back to
+markerPDF under the same two-poll gate.
 
 ## Integration handoff rejection - Difftastic - 2026-05-24 18:31 UTC
 
