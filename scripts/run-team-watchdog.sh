@@ -65,6 +65,28 @@ integrator_intake_active() {
   session_has_codex port-integrator
 }
 
+isolated_ready_count() {
+  local ready count=0
+  for ready in "$HANDOFF_DIR"/port-*.ready; do
+    [[ -f "$ready" ]] || continue
+    if grep -q '^patch=' "$ready" && grep -q '^metadata=' "$ready"; then
+      count=$((count + 1))
+    fi
+  done
+  printf '%s\n' "$count"
+}
+
+nonisolated_ready_count() {
+  local ready count=0
+  for ready in "$HANDOFF_DIR"/port-*.ready; do
+    [[ -f "$ready" ]] || continue
+    if ! grep -q '^patch=' "$ready" || ! grep -q '^metadata=' "$ready"; then
+      count=$((count + 1))
+    fi
+  done
+  printf '%s\n' "$count"
+}
+
 integration_hold_active() {
   local session="$1"
   local hold_file="$HOLD_DIR/${session}.hold"
@@ -98,12 +120,7 @@ handoff_grace_active() {
       printf '%s removed stale shared-checkout handoff marker for %s in isolated-worker mode: %s\n' \
         "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$session" "$marker"
     fi
-    candidate_count="$(
-      for ready in "$HANDOFF_DIR"/port-*.ready; do
-        [[ -f "$ready" ]] || continue
-        grep -q '^patch=' "$ready" && grep -q '^metadata=' "$ready" && printf '.\n'
-      done | wc -l | tr -d ' '
-    )"
+    candidate_count="$(isolated_ready_count)"
     if (( candidate_count >= HANDOFF_MAX_CANDIDATES )); then
       printf 'timestamp=%s\nsession=%s\nreason=isolated-handoff-queue-full\ncandidate_count=%s\ncandidate_limit=%s\n' \
         "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$session" "$candidate_count" "$HANDOFF_MAX_CANDIDATES" > "$BACKPRESSURE_DIR/${session}.hold"
@@ -328,6 +345,9 @@ ensure_integrator_session() {
   if main_writer_freeze_active; then
     return
   fi
+  if is_truthy "$WATCHDOG_USE_ISOLATED_LANE_WORKERS" && [[ "$(nonisolated_ready_count)" == "0" ]]; then
+    return
+  fi
   local prompt="$ROOT/.tmux-team/prompts/integrator.md"
   if [[ ! -f "$prompt" ]]; then
     return
@@ -338,6 +358,26 @@ ensure_integrator_session() {
   fi
   if ! session_has_codex port-integrator; then
     start_worker port-integrator "$prompt"
+  fi
+}
+
+ensure_clean_integrator_session() {
+  if main_writer_freeze_active; then
+    return
+  fi
+  if [[ "$(isolated_ready_count)" == "0" ]]; then
+    return
+  fi
+  local prompt="$ROOT/.tmux-team/tmp/port-clean-integrator-iso-metadata-20260524T225446Z.md"
+  if [[ ! -f "$prompt" ]]; then
+    return
+  fi
+  if ! tmux has-session -t port-clean-integrator 2>/dev/null; then
+    tmux new-session -d -s port-clean-integrator "cd '$ROOT' && exec bash"
+    printf '%s recreated port-clean-integrator\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  fi
+  if ! session_has_codex port-clean-integrator; then
+    start_worker port-clean-integrator "$prompt"
   fi
 }
 
@@ -441,6 +481,7 @@ while true; do
   ensure_prompt_session port-dolt-runner "$ROOT/.tmux-team/prompts/dolt-runner.md"
   ensure_auditor_session
   ensure_integrator_session
+  ensure_clean_integrator_session
   ensure_evaluator_session
   ensure_dashboard_updater_session
   ensure_capacity_controller_session
