@@ -22,7 +22,7 @@ type Block struct {
 
 func register(blocks []Block) error {
     for _, block := range blocks {
-        if block.Dynamic == false {
+        if block.Dynamic == false || block.Name == "" {
             return nil
         }
     }

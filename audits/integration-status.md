@@ -103006,3 +103006,25 @@ The following newest markers remain deferred because bounded three-way apply lef
 - `port-rclone-20260525T050722Z.ready`: `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T050722Z.patch` conflicts in `lanes/rclone/UPSTREAM_TEST_MANIFEST.json` and `lanes/rclone/lane-status.json`.
 
 Focused/root verification was not run for the conflicted markers because they were not in buildable states. Support-library/dependency closure: no support-library row was activated. Live-service exclusions: no live-service/provider tests were run.
+
+## Clean-patch integration - Difftastic Go highlight display - 20260525T052703Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T050255Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T050255Z.patch`.
+Lane/slice/session: `difftastic` / `watchdog-next-20260525T050255Z` / `port-difftastic`.
+Patch sha256 verified: `045e703286339c94a919169b6abb96e47ed02a3770ea61d8510784c59da43a6d`.
+
+Apply notes: source, test, example, and upstream-inventory hunks applied with `git apply --3way`; manifest/status/scenario files had only coordination drift and were resolved by keeping current accepted coordination state.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-difftastic-watchdog-next-20260525T050255Z-20260525T052604Z`:
+- `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`: passed.
+- `php -l lanes/difftastic/tests/TokenDifferTest.php`: passed.
+- `php -l lanes/difftastic/examples/wordpress-go-build-helper-highlight-display.php`: passed.
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`: passed.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the clean worktree with zero failures.
+
+Support-library/dependency closure: no new support-library activation; this remains a lane-local syntax highlight classifier/display slice. Live service tests were not applicable and no secrets were read.
+
+Files staged: `lanes/difftastic/examples/wordpress-go-build-helper-highlight-display.php`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, `audits/integration-status.md`.

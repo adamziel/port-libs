@@ -160,6 +160,10 @@ final class SyntaxHighlightClassifier
             return false;
         }
 
+        if ($this->isGoLanguage($language) && $text === ':') {
+            return true;
+        }
+
         return in_array($text, [
             '!', '!=', '!==', '%', '&', '&&', '*', '+', '-', '/', '::', '->',
             '<', '<=', '=', '==', '===', '=>', '>', '>=', '??', '?:', '^', '|',
@@ -172,6 +176,8 @@ final class SyntaxHighlightClassifier
         return in_array($language, [
             'hack',
             'hh',
+            'go',
+            'golang',
             'javascript',
             'js',
             'json',

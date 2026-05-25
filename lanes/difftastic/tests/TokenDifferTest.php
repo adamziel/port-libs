@@ -3558,6 +3558,9 @@ return [
         foreach (['type', 'struct', 'func', 'for', 'range', 'if', 'return', 'nil', 'false'] as $keyword) {
             $t->contains("{$keyword}:keyword", $encoded);
         }
+        foreach ([':', '=', '||', '=='] as $operator) {
+            $t->contains("{$operator}:keyword", $encoded);
+        }
         foreach (['string', 'bool', 'error'] as $type) {
             $t->contains("{$type}:type", $encoded);
         }
@@ -3970,7 +3973,7 @@ return [
         $line = 'func register(blocks []Block) error { for _, block := range blocks { if block.Enabled == false { return nil } } }';
         $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'go']);
 
-        foreach (['func', 'error', 'for', 'range', 'if', 'false', 'return', 'nil'] as $highlighted) {
+        foreach (['func', 'error', 'for', ':=', 'range', 'if', '==', 'false', 'return', 'nil'] as $highlighted) {
             $start = strpos($line, $highlighted);
             $t->true($start !== false, "Fixture should contain {$highlighted}.");
             $t->true(in_array(['start' => $start, 'end' => $start + strlen($highlighted), 'style' => '1'], $spans, true), "{$highlighted} should follow upstream keyword/type display styling.");
@@ -4608,6 +4611,9 @@ return [
         $t->same('wp-content/plugins/acme-card/tools/register-blocks.go', $decoded['path']);
         foreach (['type', 'struct', 'func', 'for', 'range', 'if', 'return', 'nil', 'false'] as $keyword) {
             $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach ([':', '=', '||', '=='] as $operator) {
+            $t->contains("{$operator}:keyword", $encoded);
         }
         foreach (['string', 'bool', 'error'] as $type) {
             $t->contains("{$type}:type", $encoded);
