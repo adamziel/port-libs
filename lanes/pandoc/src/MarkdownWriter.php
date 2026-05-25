@@ -249,15 +249,14 @@ final class MarkdownWriter
 
     private function orderedListMarker(AstNode $node, int $number): string
     {
-        $number = max(1, $number);
         $style = (string) $node->attr('style', 'decimal');
         $delimiter = (string) $node->attr('delimiter', 'period');
         $label = match ($style) {
-            'lower_alpha' => $this->alphaListLabel($number, false),
-            'upper_alpha' => $this->alphaListLabel($number, true),
-            'lower_roman' => strtolower($this->romanNumeral($number)),
-            'upper_roman' => $this->romanNumeral($number),
-            default => (string) $number,
+            'lower_alpha' => $this->alphaListLabel(max(1, $number), false),
+            'upper_alpha' => $this->alphaListLabel(max(1, $number), true),
+            'lower_roman' => strtolower($this->romanNumeral(max(1, $number))),
+            'upper_roman' => $this->romanNumeral(max(1, $number)),
+            default => (string) max(0, $number),
         };
 
         $marker = match ($delimiter) {

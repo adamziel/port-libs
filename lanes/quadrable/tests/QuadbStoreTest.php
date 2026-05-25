@@ -1719,6 +1719,11 @@ return [
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofStdinCommandOutput($dir, "+2147483648suffix\n", integerKeys: true));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
                 'stderr' => "quadb error: int range exceeded\n",
             ], QuadbStore::exportProofCommandOutput($dir, ['-1'], integerKeys: true));
             $t->same([

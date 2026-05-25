@@ -325,6 +325,14 @@ $document = new AstNode('document', $document->attrs, [
             new AstNode('text', ['text' => 'Reviewer alpha queue aa marker after overflow']),
         ]),
     ]),
+    new AstNode('ordered_list', ['start' => 0, 'style' => 'decimal'], [
+        new AstNode('list_item', [], [
+            new AstNode('text', ['text' => 'Zero-indexed import preflight before publish steps']),
+        ]),
+        new AstNode('list_item', [], [
+            new AstNode('text', ['text' => 'First publish step after preflight']),
+        ]),
+    ]),
     new AstNode('raw_block', [
         'format' => 'markdown',
         'text' => '> Raw reviewer block: keep this migration note with the handoff.',

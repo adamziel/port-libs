@@ -223,6 +223,11 @@ try {
         ['+2147483648suffix'],
         integerKeys: true
     );
+    $stdinPlusOverflowIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "+2147483648suffix\n",
+        integerKeys: true
+    );
     $minSignedIntegerProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['-2147483648'],
@@ -293,6 +298,8 @@ try {
         'negativeIntegerProofDirect' => $negativeIntegerProofCommand,
         'plusOverflowIntegerProofFailsStoi' => $plusOverflowIntegerProofCommand['exitCode'] === 1
             && $plusOverflowIntegerProofCommand['stderr'] === "quadb error: stoi\n",
+        'stdinPlusOverflowIntegerProofFailsStoi' => $stdinPlusOverflowIntegerProofCommand['exitCode'] === 1
+            && $stdinPlusOverflowIntegerProofCommand['stderr'] === "quadb error: stoi\n",
         'minSignedIntegerProofFailsRange' => $minSignedIntegerProofCommand['exitCode'] === 1
             && $minSignedIntegerProofCommand['stderr'] === "quadb error: int range exceeded\n",
         'negativeUnderflowIntegerProofFailsStoi' => $negativeUnderflowIntegerProofCommand['exitCode'] === 1

@@ -2317,6 +2317,26 @@ MD;
             'AA) upper AA marker' . "\n" . 'AB) upper AB marker',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer decimal ordered list zero start marker' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('ordered_list', ['start' => 0, 'style' => 'decimal', 'delimiter' => 'period'], [
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'zero indexed review step'])]),
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'first published step'])]),
+            ]),
+            new AstNode('ordered_list', ['start' => -2, 'style' => 'decimal', 'delimiter' => 'one_paren'], [
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'clamped imported negative marker'])]),
+            ]),
+            new AstNode('ordered_list', ['start' => 0, 'style' => 'lower_roman', 'delimiter' => 'period'], [
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'roman still starts at one'])]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            "0.  zero indexed review step\n1.  first published step",
+            '0)  clamped imported negative marker',
+            'i.  roman still starts at one',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer bullet list marker option' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('bullet_list', [], [
