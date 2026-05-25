@@ -98806,3 +98806,62 @@ The following ready markers were inspected in clean detached worktrees during th
 - `.tmux-team/tmp/handoff-candidates/port-quadrable-rebase-20260524T234505Z-7f8ef9fc.ready`: superseded. `git apply --reverse --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-rebase-20260524T234505Z-7f8ef9fc.patch` succeeded against current `main`, so the patch content was already present. No root verification slot was spent on this superseded marker.
 
 Older same-lane markers remain queued unless directly superseded by an accepted/rebased marker. No live-service provider tests were run and no support-library activation was accepted for these deferrals.
+
+## Clean-patch integration deferrals - 2026-05-25T00:10:00Z
+
+Second isolated queue pass from clean detached worktree
+`/tmp/port-clean-integrator-scan-20260525T000623Z` at accepted `main`
+`7b931c6554ddf91459eee1e1a026760517388545`. Patch hashes matched for every
+current ready marker before apply checks. No source was accepted, no root
+verification slot was consumed, no live-service provider tests were run, and no
+support-library activation was accepted.
+
+- `.tmux-team/tmp/handoff-candidates/port-difftastic-20260524T233443Z.ready`:
+  deferred in favor of the newer Difftastic rework marker. Exact command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260524T233443Z.patch`.
+  Result: conflicts in `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php`,
+  `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/wordpress-scenarios.md`,
+  `lanes/difftastic/src/SyntaxHighlightClassifier.php`, and
+  `lanes/difftastic/tests/TokenDifferTest.php`. Repair: rebase only the Python
+  builtin annotation classifier/test/example hunk onto current Difftastic state,
+  or drop this older marker if the newer rework marker is accepted.
+- `.tmux-team/tmp/handoff-candidates/port-pandoc-20260524T233033Z.ready`:
+  deferred. Exact command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260524T233033Z.patch`.
+  Result: conflicts in `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`,
+  `lanes/pandoc/lane-status.json`, `lanes/pandoc/notes/upstream-inventory.md`,
+  `lanes/pandoc/notes/wordpress-scenarios.md`, `lanes/pandoc/src/MarkdownWriter.php`,
+  and `lanes/pandoc/tests/MarkdownReaderTest.php`. Repair: re-emit the
+  Markdown writer/reader slice against current accepted Pandoc state with only
+  coherent source/test/example/status hunks.
+- `.tmux-team/tmp/handoff-candidates/port-quadrable-20260524T233034Z.ready`:
+  deferred. Exact command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260524T233034Z.patch`.
+  Result: source/test/example hunks applied, but conflicts remained in
+  `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/quadrable/lane-status.json`. Repair: rebase the Quadb import integer
+  guard metadata/status counters onto current accepted Quadrable state and rerun
+  focused `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-readability-20260524T233033Z.ready`:
+  deferred. Exact command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260524T233033Z.patch`.
+  Result: patch carried whitespace errors and conflicts in
+  `lanes/readability/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/readability/lane-status.json`, and
+  `lanes/readability/notes/upstream-inventory.md`; fixture/example/test hunks
+  applied but were not accepted without coherent metadata. Repair: re-emit the
+  Lifehacker Working fixture slice with whitespace-clean fixture inclusion and
+  rebased manifest/status lines, then run focused ArticleExtractor coverage.
+- `.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T233443Z.ready`:
+  deferred because newer Syncthing watcher cleanup slices are already accepted
+  on `main`. Exact command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T233443Z.patch`.
+  Result: conflicts in `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`,
+  `lanes/syncthing/lane-status.json`, `lanes/syncthing/notes/wordpress-scenarios.md`,
+  `lanes/syncthing/src/FolderWatchScanScheduler.php`, and
+  `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`. Repair: drop this
+  older marker if superseded by accepted commits `66c8615c` and descendants, or
+  re-emit only any still-missing watcher stop semantics against current source.
