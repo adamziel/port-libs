@@ -13,18 +13,33 @@ index root pages and option rows without the SQLite extension. Arithmetic and
 broader SQL expressions remain unsupported so this does not over-credit full
 SQLite expression evaluation.
 
-## `json_extract()` Option-Value Preflight Scenario
+## `json_extract()`/`jsonb_extract()` Option-Value Preflight Scenario
 
 Native JSON extraction now follows a bounded SQLite `json_extract(X,P...)`
 SQL-result typing slice for strict JSON text, SQLite JSON5 text, cast text
 BLOBs, JSONB blobs, SQL NULL option values, missing paths, scalar paths,
-object/array paths, and multi-path JSON array output. The example
+object/array paths, multi-path JSON array output, and the result-type boundary
+where `jsonb_extract()` returns JSONB blobs for object/array or multi-path
+results while preserving SQL scalar result typing for scalar paths. The example
 `examples/wordpress-json-extract-option-preflight.php` checks local
 `wp_options.option_value`-shaped copied plugin settings and reports extracted
 enabled flags as SQLite-style `1`/`0`, text titles as SQL text, object paths as
-canonical JSON text, missing paths as NULL, and multi-path summaries as JSON
-arrays. This gives WordPress import and repair tooling a local-only way to
-read copied plugin settings without requiring the SQLite extension.
+canonical JSON text, missing paths as NULL, multi-path summaries as JSON
+arrays, and decoded JSONB summaries with their hex bytes. This gives WordPress
+import and repair tooling a local-only way to read copied plugin settings
+without requiring the SQLite extension.
+
+Status delta 2026-05-25 isolated micro-slice: added `json_extract()` and
+`jsonb_extract()` SQL function-name dispatch, focused tests, and updated the
+WordPress smoke to call the dispatch helper and report JSONB result blobs.
+Focused verification is recorded in `lane-status.json` after local checks.
+Blocker: no hydrated upstream cache exists in this isolated worktree, so no
+fresh SQLite testfixture run was performed; this slice reuses prior
+`json101.test`, `json102.test`, and `jsonb.test` extract evidence. Next task:
+integrator acceptance, then one additional bounded libsqlite behavior slice
+with its own evidence. Dependency closure: no new support component is needed;
+the slice reuses existing lane-local JSON extraction, JSON path, inspection,
+JSONB, and BLOB support and counts no shared support-library progress.
 
 ## `json_extract()` Subtype Diagnostics Scenario
 

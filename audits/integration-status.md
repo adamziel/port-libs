@@ -1,4 +1,49 @@
 
+## Integration accepted - libsqlite json_extract dispatch - 2026-05-25 07:16 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T070738Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T070738Z.patch`.
+
+Lane/slice/session: `libsqlite` /
+`watchdog-next-20260525T070738Z` / `port-libsqlite`.
+Patch SHA-256 verified:
+`d8a53e7ae34def0d8f00ad372edd363c6f3fed99e6ed9773d06433889be2e50f`.
+Clean base: `a0c93abe0c508af85ca28d5fea545debccc5ac1f`.
+
+Focused verification repeated in clean worktree
+`/tmp/port-clean-integrator-libsqlite-watchdog-next-20260525T071153Z`:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonExtract.php` - passed, no syntax errors.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` - passed, no syntax errors.
+- `php -l lanes/libsqlite/examples/wordpress-json-extract-option-preflight.php` - passed, no syntax errors.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` - passed: `1 test files, 1992 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-extract-option-preflight.php` - passed and emitted JSON preflight output for strict JSON, JSON5, JSONB, missing paths, and SQL NULL option values.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` - passed.
+- `git diff --check` - passed.
+
+Root verification:
+
+- Pre-root gate satisfied: `/` available KiB was above `86000000`, load was below `25`, and `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- `php tools/run-tests.php` - passed: `213 test files, 25762 assertions, 0 failures`.
+
+Support-library/dependency closure decision: no support-library activation.
+The patch reuses existing lane-local SQLite JSON, path inspection, JSONB, and
+BLOB value support and does not claim shared dependency progress.
+
+Live-service exclusions: none; no live provider tests were run.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-extract-option-preflight.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonExtract.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
+
 ## Integration deferred - isolated Gitoxide stream watchdog patch - 2026-05-25 07:10 UTC
 
 Deferred marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T063334Z.ready`

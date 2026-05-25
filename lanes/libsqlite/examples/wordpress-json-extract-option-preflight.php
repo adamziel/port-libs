@@ -27,16 +27,19 @@ $inputs = [
 
 $checks = [];
 foreach ($inputs as $name => $value) {
+    $jsonbSummary = SQLiteJsonExtract::extractSqlFunction('jsonb_extract', $value, '$.plugin.title', '$.plugin.priority', '$.plugin.missing');
     $checks[] = [
         'name' => $name,
-        'enabled' => SQLiteJsonExtract::extract($value, '$.plugin.enabled'),
-        'title' => SQLiteJsonExtract::extract($value, '$.plugin.title'),
-        'lastRule' => SQLiteJsonExtract::extract($value, '$.plugin.rules[#-1]'),
-        'summaryJson' => SQLiteJsonExtract::extract($value, '$.plugin.title', '$.plugin.priority', '$.plugin.missing'),
+        'enabled' => SQLiteJsonExtract::extractSqlFunction('json_extract', $value, '$.plugin.enabled'),
+        'title' => SQLiteJsonExtract::extractSqlFunction('json_extract', $value, '$.plugin.title'),
+        'lastRule' => SQLiteJsonExtract::extractSqlFunction('json_extract', $value, '$.plugin.rules[#-1]'),
+        'summaryJson' => SQLiteJsonExtract::extractSqlFunction('json_extract', $value, '$.plugin.title', '$.plugin.priority', '$.plugin.missing'),
+        'jsonbSummaryHex' => $jsonbSummary instanceof SQLiteBlobValue ? bin2hex($jsonbSummary->bytes) : null,
+        'jsonbSummaryDecoded' => $jsonbSummary instanceof SQLiteBlobValue ? SQLiteJsonB::decode($jsonbSummary->bytes) : null,
     ];
 }
 
 echo json_encode([
     'checks' => $checks,
-    'wordpressUse' => 'Local-only wp_options option_value extraction that mirrors SQLite json_extract() SQL-result typing for copied strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value extraction that mirrors SQLite json_extract()/jsonb_extract() SQL-dispatch result typing for copied strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

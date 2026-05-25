@@ -13,8 +13,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
         "total": 1589,
-        "mapped": 239,
-        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 JSON quote SQL-dispatch slice reuses prior focused upstream json_quote evidence over json101.test, json102.test, and subtype1.test because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_quote() function-name dispatch for SQL NULL, integers, reals, booleans, ordinary text, JSON subtype fragments, JSONB BLOBs, raw BLOB rejection, malformed JSONB rejection, and invalid function-name rejection.",
+        "mapped": 240,
+        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 JSON extract SQL-dispatch slice reuses prior focused upstream json_extract/jsonb_extract evidence over json101.test, json102.test, and jsonb.test because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_extract()/jsonb_extract() function-name dispatch for SQL NULL input, scalar result typing, missing paths, object/array extraction, multi-path array output, JSONB result blobs for array/object or multi-path jsonb_extract(), malformed input rejection, and invalid function-name rejection.",
         "inventory": {
             "allRepositoryFiles": 2208,
             "hydratedTestInventoryFiles": 2131,
@@ -226,6 +226,7 @@
             "focusedJsonInspectionTclCommandLines": 564,
             "focusedJsonInspectionSmokeExpressions": 22,
             "focusedJsonInspectionSqlDispatchScripts": 1,
+            "focusedJsonExtractSqlDispatchScripts": 1,
             "focusedJsonQuoteSqlValueFiles": 4,
             "focusedJsonQuoteSqlValueInspectedLines": 7873,
             "focusedJsonQuoteSqlValueRunnerSelectedScripts": 3,
