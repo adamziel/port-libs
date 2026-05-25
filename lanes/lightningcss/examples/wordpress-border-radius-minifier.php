@@ -19,6 +19,7 @@ $css = <<<'CSS'
 }
 
 .wp-block-cover.is-style-rounded-corners {
+  border-radius: 999px;
   border-top-left-radius: 16px 8px;
   border-top-right-radius: 24px 12px;
   border-bottom-right-radius: 16px 8px;

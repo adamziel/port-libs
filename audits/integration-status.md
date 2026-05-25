@@ -100846,3 +100846,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php lanes/libsqlite/lane-status.json lanes/libsqlite/notes/upstream-runner.md lanes/libsqlite/notes/wordpress-scenarios.md lanes/libsqlite/src/SQLiteJsonAggregate.php lanes/libsqlite/tests/SQLiteHeaderTest.php `
 
+
+## Clean-patch integration accepted - lightningcss - 2026-05-25 02:49 UTC
+
+Ready marker: `port-lightningcss-20260525T023733Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T023733Z.patch`
+Lane/slice/session: `lightningcss` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `56deaa8ccb567c2209f471d5eaba5d9b07bd60a6`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/lightningcss/tests`: exit 0; PASS wordpress frame mask-border with custom slice gets lab supports fallback without node  9 test files, 1079 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24814 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json lanes/lightningcss/examples/wordpress-border-radius-minifier.php lanes/lightningcss/lane-status.json lanes/lightningcss/notes/upstream-inventory.md lanes/lightningcss/notes/wordpress-scenarios.md lanes/lightningcss/src/CssMinifier.php lanes/lightningcss/tests/CssMinifierTest.php `
+

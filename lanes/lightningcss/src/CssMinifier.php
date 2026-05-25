@@ -6851,6 +6851,9 @@ final class CssMinifier
         foreach ($included as $index) {
             $entries[$index]['drop'] = true;
         }
+        if ($lastShorthand !== null && $lastShorthand < $replaceAt) {
+            $entries[$lastShorthand]['drop'] = true;
+        }
 
         $entries[$replaceAt]['drop'] = false;
         $entries[$replaceAt]['property'] = $shorthand;
