@@ -101057,3 +101057,15 @@ Live-service exclusions: no live-service provider tests run.
 Files staged: `audits/integration-status.md` only.
 
 Repair command: rebase the esbuild slice onto current `refs/heads/main`, resolving only `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/fixtures/wordpress-package-assets/src/block.json lanes/esbuild/fixtures/wordpress-package-assets/src/loader-entry.js lanes/esbuild/lane-status.json lanes/esbuild/notes/wordpress-scenarios.md lanes/esbuild/src/BundlerGraphBuilder.php lanes/esbuild/tests/BundlerGraphBuilderTest.php `, then rerun `php tools/run-tests.php lanes/esbuild/tests`, `git diff --check`, and `php tools/run-tests.php` from the clean rebased snapshot.
+
+## Clean-patch rejection - difftastic - 2026-05-25 02:58 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T024241Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T024241Z.patch`
+Decision: rejected/deferred after focused verification.
+Focused commands: `php -l <changed PHP files>` exit 1; `php tools/run-tests.php lanes/difftastic/tests` exit 255 (Focused test run: 1 selected test files (root lock skipped) PHP Parse error:  syntax error, unexpected token "<<", expecting "]" in /tmp/port-clean-integrator-difftastic-safe-20260525T025836Z/lanes/difftastic/tests/TokenDifferTest.php on line 3394 ); `git diff --check` exit 2.
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `audits/integration-status.md` only.
+Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
