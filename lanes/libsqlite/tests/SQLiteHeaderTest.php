@@ -16,6 +16,7 @@ use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexColumn;
 use PortLibs\LibSqlite\SQLiteIndexInteriorPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
+use PortLibs\LibSqlite\SQLiteJsonAggregate;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonConstructor;
@@ -2931,6 +2932,30 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject(true, 1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject(new SQLiteBlobValue(SQLiteJsonB::encode('a')), 1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject('a', new SQLiteBlobValue("\xab\xcd")));
+    },
+    'aggregates sqlite json arrays and objects from ordered sql rows' => static function (TestRunner $t): void {
+        $jsonRules = new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]');
+        $jsonbSummary = new SQLiteBlobValue(SQLiteJsonB::encode(['count' => 2, 'autoload' => true]));
+
+        $t->same(
+            '["siteurl",null,1,0,[{"name":"seo"},{"name":"cache"}],{"count":2,"autoload":true}]',
+            SQLiteJsonAggregate::jsonGroupArray(['siteurl', null, true, false, $jsonRules, $jsonbSummary]),
+        );
+        $t->same(
+            '{"siteurl":"https://example.test","autoloaded":1,"rules":[{"name":"seo"},{"name":"cache"}],"summary":{"count":2,"autoload":true}}',
+            SQLiteJsonAggregate::jsonGroupObject([
+                ['siteurl', 'https://example.test'],
+                ['autoloaded', true],
+                ['rules', $jsonRules],
+                ['summary', $jsonbSummary],
+            ]),
+        );
+        $t->same('[]', SQLiteJsonAggregate::jsonGroupArray([]));
+        $t->same('{}', SQLiteJsonAggregate::jsonGroupObject([]));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArray([new SQLiteBlobValue("\xab\xcd")]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([[null, 5]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([['a']]));
     },
     'canonicalizes sqlite json text json5 blob and null option values' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode(['a' => 35, 'b' => [1, 2]]);

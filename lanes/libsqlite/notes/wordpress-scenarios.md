@@ -1346,3 +1346,7 @@ can absorb the merge without requiring a full SQL engine.
 Broaden non-root composite-index parent redistribution when adjacent
 interior-parent merge does not fit, then broaden cell-level FAST secure-delete,
 journaling, and WAL behavior beyond page-image preflight.
+
+## Current-Base Rebase-Prep: `json_group_array()`/`json_group_object()` Option Summary Scenario
+
+Native JSON aggregation now includes a bounded SQLite `json_group_array(X)`/`json_group_object(NAME,VALUE)` row boundary for ordered input rows, SQL NULLs, booleans, JSON subtype fragments, JSONB BLOB values, empty groups, text labels, and malformed raw BLOB rejection. The example `examples/wordpress-json-aggregate-option-summary.php` checks copied `wp_options` rows and produces local-only aggregate JSON summaries that can be reviewed before import without requiring the SQLite extension.

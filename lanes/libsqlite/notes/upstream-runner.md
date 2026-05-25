@@ -4976,3 +4976,11 @@ Remaining boundaries: full SQL expression evaluation, broader JSONB BLOB
 ambiguity edge cases, aggregate JSON functions, table-valued
 `json_each`/`json_tree`, WAL, rollback/savepoint, and b-tree delete/rebalance
 remain future slices.
+
+## Current-Base Rebase-Prep: `json_group_array()`/`json_group_object()` Row Aggregation
+
+The current-head rebase-prep marker carries the original isolated JSON aggregate row-boundary slice on top of current `main`. It reuses prior focused upstream JSON evidence (`json101.test`, `json102.test`, and `jsonb01.test`) because this detached rebase-prep worktree has no hydrated upstream cache.
+
+The native PHP slice adds `SQLiteJsonAggregate::jsonGroupArray()` and `SQLiteJsonAggregate::jsonGroupObject()` for ordered aggregate rows, SQL NULLs, booleans as SQLite JSON `1`/`0`, JSON subtype passthrough, JSONB BLOB passthrough, empty groups, malformed raw BLOB rejection, text labels, and aggregate row-shape errors. It intentionally does not claim SQL planner features such as `DISTINCT`, `FILTER`, or aggregate `ORDER BY`.
+
+Dependency closure: no new support component is needed. This slice reuses existing bounded lane-local JSON constructor, JSON subtype, JSONB, and BLOB wrapper components; it counts no shared support-library progress.

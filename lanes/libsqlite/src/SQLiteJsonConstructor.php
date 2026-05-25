@@ -30,7 +30,7 @@ final class SQLiteJsonConstructor
         return '{' . implode(',', $members) . '}';
     }
 
-    private static function jsonObjectLabel(mixed $label): string
+    public static function jsonObjectLabel(mixed $label): string
     {
         if ($label instanceof SQLiteJsonSubtypeValue) {
             return SQLiteJsonQuote::jsonQuote($label->json);
@@ -42,7 +42,7 @@ final class SQLiteJsonConstructor
         return SQLiteJsonQuote::jsonQuote($label);
     }
 
-    private static function jsonValue(mixed $value): string
+    public static function jsonValue(mixed $value): string
     {
         if (
             $value === null
