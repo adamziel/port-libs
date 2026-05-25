@@ -56,6 +56,19 @@ try {
 } catch (InvalidArgumentException) {
     $mixedHashGuard = true;
 }
+$signatureLineGuard = false;
+try {
+    (new Commit(
+        '0123456789abcdef0123456789abcdef01234567',
+        [],
+        "WordPress Importer <importer@example.test> 1710000000 -0230\nencoding UTF-16",
+        'WordPress Deploy Bot <deploy@example.test> 1710003600 +0000',
+        "Injected deploy signature\n",
+        [],
+    ))->storageBytes();
+} catch (InvalidArgumentException) {
+    $signatureLineGuard = true;
+}
 
 return [
     'tree' => $commit->tree,
@@ -119,6 +132,7 @@ return [
     'misorderedHeaderRejected' => $misorderedHeaderRejected,
     'writerObjectIdGuard' => $writerObjectIdGuard,
     'mixedHashGuard' => $mixedHashGuard,
+    'signatureLineGuard' => $signatureLineGuard,
     'oddTimestampAuthorTime' => $oddTimestampAuthor->time(),
     'oddTimestampCommitterTime' => $oddTimestampCommitter->time(),
     'oddTimestampCommitterRawTime' => $oddTimestampCommitter->time,

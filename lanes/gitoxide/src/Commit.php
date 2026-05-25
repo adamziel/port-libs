@@ -255,8 +255,8 @@ final class Commit
             $out .= "parent {$parent}\n";
         }
 
-        CommitSignature::parse($this->author);
-        CommitSignature::parse($this->committer);
+        self::validateWritableSignature($this->author, 'author');
+        self::validateWritableSignature($this->committer, 'committer');
         $out .= "author {$this->author}\n"
             . "committer {$this->committer}\n";
 
@@ -499,6 +499,19 @@ final class Commit
     {
         if (preg_match('/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/', $id) !== 1) {
             throw new \InvalidArgumentException("Commit {$field} must be a lowercase sha1 or sha256 hex object id");
+        }
+    }
+
+    private static function validateWritableSignature(string $signature, string $field): void
+    {
+        if (str_contains($signature, "\n") || str_contains($signature, "\r")) {
+            throw new \InvalidArgumentException("Commit {$field} signature cannot contain line break bytes");
+        }
+
+        $parsed = CommitSignature::parseConsuming($signature);
+        $parsed['signature']->storageBytes();
+        if ($parsed['rest'] !== '') {
+            throw new \InvalidArgumentException("Commit {$field} signature has unconsumed bytes after the timestamp");
         }
     }
 
