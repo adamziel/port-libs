@@ -99403,3 +99403,13 @@ Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T
   - `lanes/esbuild/notes/wordpress-scenarios.md`
   - `lanes/esbuild/src/TsConfigPathResolver.php`
   - `lanes/esbuild/tests/TsConfigPathResolverTest.php`
+
+## Clean integration repair - esbuild legacy tsconfig fixture - 2026-05-25T00:59:40Z UTC
+
+Repair for accepted marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T004721Z.ready`: the package-extends fallback fixture files were untracked in the clean worktree and missed by the commit while accepted tests referenced them.
+- Files included: `lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/wp-tsconfig-legacy-fallback/package.json`, `lanes/esbuild/fixtures/wordpress-tsconfig-assets/node_modules/wp-tsconfig-legacy-fallback/configs/blocks.json`, `lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/legacy-fallback/card.ts`.
+- Focused command: `php tools/run-tests.php lanes/esbuild/tests/TsConfigPathResolverTest.php`: PASS.
+- Root command: `php tools/run-tests.php`: PASS.
+- `git diff --check`: PASS.
+- Support-library/dependency closure: no new support-library activation.
+- Live-service exclusions: none; no live-service provider tests run.
