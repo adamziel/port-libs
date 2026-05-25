@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Esbuild\BundlerGraphBuilder;
 use PortLibs\Esbuild\GlobImportResolver;
 use PortLibs\Esbuild\JsLexer;
 use PortLibs\Esbuild\JsModuleAnalyzer;
@@ -141,6 +142,8 @@ import("node:crypto");
 import cardRuntime from "port-libs-card-runtime";
 JS);
 $nodeImportRecords = (new PackageResolver('node'))->importRecords($nodeImportRecordAnalysis, $packageEntryDir);
+$browserBundlerGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/entry.js');
+$nodeBundlerGraph = (new BundlerGraphBuilder(new PackageResolver('node')))->build($packageEntryDir . '/node-entry.js');
 $unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $normalizePackageFixturePath = static function (string $path) use ($packageFixtureDir): string {
@@ -549,6 +552,17 @@ printf("WordPress node builtin import-record propagation: %s\n", (
         'node:crypto' => 'node-builtin',
         'port-libs-card-runtime' => 'main',
     ]
+) ? 'yes' : 'no');
+printf("WordPress browser bundler graph assembly: %s\n", (
+    isset($browserBundlerGraph->modules[(string) realpath($packageEntryDir . '/entry.js')])
+    && isset($browserBundlerGraph->modules[(string) realpath($packageFixtureDir . '/node_modules/@wordpress/interactivity/build-module/index.js')])
+    && isset($browserBundlerGraph->modules[(string) realpath($packageEntryDir . '/internal/view.js')])
+    && $browserBundlerGraph->externalEdges === []
+    && array_map(static fn ($edge): string => $edge->source, $browserBundlerGraph->missingEdges) === ['node-pkg-disabled']
+) ? 'yes' : 'no');
+printf("WordPress node bundler graph externals: %s\n", (
+    array_map(static fn ($edge): string => $edge->source, $nodeBundlerGraph->externalEdges) === ['path', 'node:crypto']
+    && isset($nodeBundlerGraph->modules[(string) realpath($packageEntryDir . '/local-preview.js')])
 ) ? 'yes' : 'no');
 printf("WordPress tsconfig paths aliases: %s\n", (
     array_combine(

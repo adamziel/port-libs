@@ -100116,3 +100116,32 @@ Focused verification in clean worktree `/tmp/port-clean-integrator-difftastic-20
 Root verification: no exact no-argument root harness was active before launch; `php tools/run-tests.php` PASS (209 test files, 24625 assertions, 0 failures).
 
 Support-library/dependency closure: no new support component activated; this reuses bounded lane-local tokenizer, `SyntaxHighlightClassifier`, and `JsonDiffRenderer` paths. No shared parser, tree-sitter runtime, generated query engine, or native support library was activated. Live-service exclusions: no provider, credentialed, network, Cargo/upstream Rust runner, or live-service tests were run. Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/examples/wordpress-php-this-highlight-display.php`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/notes/wordpress-scenarios.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated esbuild bundler graph slice - 2026-05-25 02:10 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T020010Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T020010Z.patch`.
+Lane/slice/session: `esbuild` / `rearmer-20260525T020009Z` / `port-esbuild`.
+Patch sha256 verified: `5384b9cb54f92b80724f08160b44fa6154b58d79833cc9584615e31c8ce7faba`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-esbuild-rearmer-20260525T020010Z`:
+
+- `php -l lanes/esbuild/src/BundlerGraphBuilder.php` passed.
+- `php -l lanes/esbuild/src/BundlerGraph.php` passed.
+- `php -l lanes/esbuild/src/BundlerModule.php` passed.
+- `php -l lanes/esbuild/src/BundlerEdge.php` passed.
+- `php -l lanes/esbuild/tests/BundlerGraphBuilderTest.php` passed.
+- `php -l lanes/esbuild/examples/wordpress-asset-preflight.php` passed.
+- `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php` passed: 1 test file, 21 assertions, 0 failures.
+- `php tools/run-tests.php lanes/esbuild/tests` passed: 7 test files, 1865 assertions, 0 failures.
+- `php lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'WordPress browser bundler graph assembly|WordPress node bundler graph externals'` passed and matched both smoke lines.
+- `php -r 'json_decode(file_get_contents("lanes/esbuild/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/esbuild/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'` passed.
+- `git diff --check` passed.
+
+Root verification: exact no-argument root gate was clear before starting; `php tools/run-tests.php` passed in the same clean worktree with 210 test files, 24669 assertions, 0 failures.
+
+Support-library/dependency-closure decision: no new support-library activation. The slice adds lane-local bounded graph value objects and traversal using existing Esbuild lane analyzer/resolver code. Existing `js-package-resolution-core` remains deferred and inactive.
+
+Live-service exclusions: none needed; no live provider or network service tests were run.
+
+Files staged: `lanes/esbuild/src/BundlerGraphBuilder.php`, `lanes/esbuild/src/BundlerGraph.php`, `lanes/esbuild/src/BundlerModule.php`, `lanes/esbuild/src/BundlerEdge.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `lanes/esbuild/fixtures/wordpress-package-assets/src/node-entry.js`, `lanes/esbuild/fixtures/wordpress-package-assets/src/local-preview.js`, `lanes/esbuild/fixtures/wordpress-package-assets/src/missing-entry.js`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/upstream-inventory.md`, `lanes/esbuild/notes/wordpress-scenarios.md`, and `audits/integration-status.md`.
