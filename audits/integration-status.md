@@ -103612,3 +103612,181 @@ Files staged:
 - `lanes/libsqlite/notes/wordpress-scenarios.md`
 - `lanes/libsqlite/src/SQLiteJsonConstructor.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+
+## Clean-patch integration defers - current isolated queue - 20260525T060558Z
+
+After accepting the Dolt, esbuild, Gitoxide, and libsqlite clean-applying micro-slices, I re-read the live top-level ready queue and probed the newest valid marker per remaining lane from `refs/heads/main=5a3303313125dd74b1e30fb89d512d0b6848a136`. No root verification slots were spent on these stale/conflicting markers. Each marker below failed the exact check command shown and should be re-emitted from current `main` or reduced to the lane files named by the failed hunks.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T055535Z.ready`
+  - Lane/slice/session: `difftastic` / `watchdog-next-20260525T055535Z` / `port-difftastic`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T055535Z.patch`; sha256: matched 1822a110cf85add880446dd422442d38e189a6ce7655c442cb42d9008b151c4f
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T055535Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/difftastic/UPSTREAM_TEST_MANIFEST.json:7`
+    - `error: lanes/difftastic/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/difftastic/lane-status.json:2`
+    - `error: lanes/difftastic/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/difftastic/notes/upstream-inventory.md:629`
+    - `error: lanes/difftastic/notes/upstream-inventory.md: patch does not apply`
+    - `error: patch failed: lanes/difftastic/notes/wordpress-scenarios.md:404`
+    - `error: lanes/difftastic/notes/wordpress-scenarios.md: patch does not apply`
+    - `error: patch failed: lanes/difftastic/tests/TokenDifferTest.php:4704`
+    - `error: lanes/difftastic/tests/TokenDifferTest.php: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T055535Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T050516Z.ready`
+  - Lane/slice/session: `dolt` / `watchdog-next-20260525T050516Z` / `port-dolt`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T050516Z.patch`; sha256: matched ed3b721f526dd6328db141ba0e37788221b13fad0dfc80ecf46014e2e0bf50c7
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T050516Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/dolt/UPSTREAM_TEST_MANIFEST.json:11`
+    - `error: lanes/dolt/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/dolt/examples/wordpress-merge-status-review.php:79`
+    - `error: lanes/dolt/examples/wordpress-merge-status-review.php: patch does not apply`
+    - `error: patch failed: lanes/dolt/fixtures/wp-merge-review.php:502`
+    - `error: lanes/dolt/fixtures/wp-merge-review.php: patch does not apply`
+    - `error: patch failed: lanes/dolt/lane-status.json:2`
+    - `error: lanes/dolt/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/dolt/notes/wordpress-scenarios.md:124`
+    - `error: lanes/dolt/notes/wordpress-scenarios.md: patch does not apply`
+    - `error: patch failed: lanes/dolt/tests/MergeStatusTableTest.php:127`
+    - `error: lanes/dolt/tests/MergeStatusTableTest.php: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T050516Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T055845Z.ready`
+  - Lane/slice/session: `esbuild` / `watchdog-next-20260525T055845Z` / `port-esbuild`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T055845Z.patch`; sha256: matched 7936a30cab9385220c44276e064939533e257982ca5fec41a0d44a46e0476867
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T055845Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:12`
+    - `error: lanes/esbuild/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/esbuild/examples/wordpress-asset-preflight.php:153`
+    - `error: lanes/esbuild/examples/wordpress-asset-preflight.php: patch does not apply`
+    - `error: patch failed: lanes/esbuild/lane-status.json:2`
+    - `error: lanes/esbuild/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/esbuild/notes/wordpress-scenarios.md:162`
+    - `error: lanes/esbuild/notes/wordpress-scenarios.md: patch does not apply`
+    - `error: patch failed: lanes/esbuild/tests/BundlerGraphBuilderTest.php:141`
+    - `error: lanes/esbuild/tests/BundlerGraphBuilderTest.php: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T055845Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T050720Z.ready`
+  - Lane/slice/session: `gitoxide` / `watchdog-next-20260525T050720Z` / `port-gitoxide`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T050720Z.patch`; sha256: matched 680e0649e9f9f64bc59d7d9eefc37008c4af30486b960254d449b51b5cec94fa
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T050720Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json:12`
+    - `error: lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php:176`
+    - `error: lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php: patch does not apply`
+    - `error: patch failed: lanes/gitoxide/lane-status.json:2`
+    - `error: lanes/gitoxide/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/gitoxide/notes/upstream-inventory.md:765`
+    - `error: lanes/gitoxide/notes/upstream-inventory.md: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T050720Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T052922Z.ready`
+  - Lane/slice/session: `libsqlite` / `watchdog-next-20260525T052922Z` / `port-libsqlite`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T052922Z.patch`; sha256: matched 18eab0e9d27012f9e0b35e7479958ad9508b14c9756c2e72a59f505f759a9e0d
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T052922Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json:13`
+    - `error: lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/libsqlite/lane-status.json:2`
+    - `error: lanes/libsqlite/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/libsqlite/notes/upstream-runner.md:5085`
+    - `error: lanes/libsqlite/notes/upstream-runner.md: patch does not apply`
+    - `error: patch failed: lanes/libsqlite/notes/wordpress-scenarios.md:1403`
+    - `error: lanes/libsqlite/notes/wordpress-scenarios.md: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T052922Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.ready`
+  - Lane/slice/session: `lightningcss` / `watchdog-next-20260525T051029Z` / `port-lightningcss`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.patch`; sha256: matched 5fa147e0e8acc2e9ecf02c98eb3a699e8af85dd9ec8dcc76a2df476728cee62a
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json:12`
+    - `error: lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/lightningcss/examples/wordpress-custom-media-transformer.php:11`
+    - `error: lanes/lightningcss/examples/wordpress-custom-media-transformer.php: patch does not apply`
+    - `error: patch failed: lanes/lightningcss/lane-status.json:2`
+    - `error: lanes/lightningcss/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/lightningcss/notes/upstream-inventory.md:133`
+    - `error: lanes/lightningcss/notes/upstream-inventory.md: patch does not apply`
+    - `error: patch failed: lanes/lightningcss/notes/wordpress-scenarios.md:62`
+    - `error: lanes/lightningcss/notes/wordpress-scenarios.md: patch does not apply`
+    - `error: patch failed: lanes/lightningcss/src/CustomMediaTransformer.php:34`
+    - `error: lanes/lightningcss/src/CustomMediaTransformer.php: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T050515Z.ready`
+  - Lane/slice/session: `markerpdf` / `watchdog-next-20260525T050515Z` / `port-markerpdf`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T050515Z.patch`; sha256: matched c10f427e873ae9286a9056d926153deffc1058ce3bf6e382f1ddc7b5c4d429f5
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T050515Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json:13`
+    - `error: lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/markerpdf/lane-status.json:2`
+    - `error: lanes/markerpdf/lane-status.json: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T050515Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T050927Z.ready`
+  - Lane/slice/session: `pandoc` / `watchdog-next-20260525T050927Z` / `port-pandoc`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T050927Z.patch`; sha256: matched d5c3db964b83adef5741c536529d35628bcb2bb28c8bfc11f8bdf257fa5c1aaa
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T050927Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/pandoc/UPSTREAM_TEST_MANIFEST.json:12`
+    - `error: lanes/pandoc/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/pandoc/lane-status.json:2`
+    - `error: lanes/pandoc/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/pandoc/tests/MarkdownReaderTest.php:2875`
+    - `error: lanes/pandoc/tests/MarkdownReaderTest.php: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T050927Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T054606Z.ready`
+  - Lane/slice/session: `quadrable` / `watchdog-next-20260525T054606Z` / `port-quadrable`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T054606Z.patch`; sha256: matched 59cfe5f9c4e626d8ec32e163054ba5d7b153e404d80fcf0924a8d1d73f247b9b
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T054606Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/quadrable/UPSTREAM_TEST_MANIFEST.json:27`
+    - `error: lanes/quadrable/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/quadrable/lane-status.json:2`
+    - `error: lanes/quadrable/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/quadrable/notes/wordpress-scenarios.md:29`
+    - `error: lanes/quadrable/notes/wordpress-scenarios.md: patch does not apply`
+    - `error: patch failed: lanes/quadrable/tests/SyncTest.php:524`
+    - `error: lanes/quadrable/tests/SyncTest.php: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T054606Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.ready`
+  - Lane/slice/session: `rclone` / `watchdog-next-20260525T054700Z` / `port-rclone`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.patch`; sha256: matched 30917c7c994b8ecaa9c0b1525df47058c18f32493796799dad465c0bc85cf3fa
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/rclone/UPSTREAM_TEST_MANIFEST.json:822`
+    - `error: lanes/rclone/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/rclone/lane-status.json:2`
+    - `error: lanes/rclone/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/rclone/notes/upstream-inventory.md:677`
+    - `error: lanes/rclone/notes/upstream-inventory.md: patch does not apply`
+    - `error: patch failed: lanes/rclone/notes/wordpress-scenarios.md:244`
+    - `error: lanes/rclone/notes/wordpress-scenarios.md: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
+- Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.ready`
+  - Lane/slice/session: `syncthing` / `watchdog-next-20260525T051951Z` / `port-syncthing`
+  - Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.patch`; sha256: matched 50cdce314d7ff6c39b94a549b998c74cea41a5e608797fa4b6c8df15b86c608d
+  - Failing command: `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.patch'` from clean `5a3303313125dd74b1e30fb89d512d0b6848a136`.
+  - Probe result:
+    - `error: patch failed: lanes/syncthing/UPSTREAM_TEST_MANIFEST.json:12`
+    - `error: lanes/syncthing/UPSTREAM_TEST_MANIFEST.json: patch does not apply`
+    - `error: patch failed: lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php:55`
+    - `error: lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php: patch does not apply`
+    - `error: patch failed: lanes/syncthing/lane-status.json:2`
+    - `error: lanes/syncthing/lane-status.json: patch does not apply`
+    - `error: patch failed: lanes/syncthing/notes/wordpress-scenarios.md:2367`
+    - `error: lanes/syncthing/notes/wordpress-scenarios.md: patch does not apply`
+    - `error: patch failed: lanes/syncthing/src/FolderWatchScanScheduler.php:199`
+    - `error: lanes/syncthing/src/FolderWatchScanScheduler.php: patch does not apply`
+  - Repair command: rebase/re-emit the isolated patch from current main, then rerun `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.patch'`, focused lane tests, `git diff --check`, and `php tools\/run-tests.php` in a clean worktree.
+
