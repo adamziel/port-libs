@@ -109144,3 +109144,40 @@ Files staged:
 - `lanes/quadrable/notes/upstream-inventory.md`
 - `lanes/quadrable/tests/QuadbStoreTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - Rclone OneDrive cleanup no-versions rework - 20260525T084717Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T084119Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T084119Z.patch`.
+Lane/slice/session: `rclone` / `priority-keeper-rework-20260525T084118Z` / `port-rclone-rework`.
+Old head: `97e2ddcedb982d9dd7c412282cab4aa862fb0ddd`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-rclone-priority-keeper-rework-20260525T084118Z-20260525T084717Z`:
+
+- `sha256sum -c`: passed for patch sha256 `ae9d12d27a17153bc019af9768f7d4cb21ab76df871432a9773eff08a74a2d01`.
+- `git apply --check "/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T084119Z.patch"`: passed; patch applied without three-way conflict.
+- `php -l lanes/quadrable/src/QuadbStore.php`: passed.
+- `php -l lanes/quadrable/tests/QuadbStoreTest.php`: passed.
+- `php -l lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`: passed.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`: passed, 1 file, 964 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`: passed; smoke output written to `/tmp/quadrable-example-20260525T084717Z.json` and included numeric-prefix and negative-key direct proof fields.
+- JSON validation for `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json` and `lanes/quadrable/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification:
+
+- Pre-root gate checked: root filesystem available KiB >= 86000000, load < 25, and no exact `php tools/run-tests.php` process.
+- `php tools/run-tests.php`: passed in the clean worktree with zero failures.
+
+Support-library/dependency closure: no new support component activated; this slice reuses existing bounded native OneDrive cleanup/version-cleaner models.
+
+Live-service exclusions: live rclone provider integration, OAuth-backed OneDrive behavior, Graph calls, token stores, provider remotes, process environments, cloud config, FUSE/mount packages, Docker-backed serve coverage, and fstest remote-provider suites were not run or inspected.
+
+Files staged:
+
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/upstream-inventory.md`
+- `lanes/quadrable/tests/QuadbStoreTest.php`
+- `audits/integration-status.md`
