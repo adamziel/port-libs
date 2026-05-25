@@ -1,5 +1,34 @@
 # Integration Status
 
+## Integration accepted - Quadrable plain import/export separator slice - 2026-05-25 02:39 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T021557Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T021557Z.patch`.
+Lane/slice/session: `quadrable` / `supervisor-rearm-20260525T021557Z` / `port-quadrable`.
+
+Patch sha256 verified: `8e379b928647d61f2d5577330357b74936a27d7955f75a3612e18b0116fc14b2`.
+Clean worktree: `/tmp/port-clean-integrator-quadrable-supervisor-rearm-20260525T021557Z`.
+Base accepted HEAD: `714c8ff7`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/quadrable/tests/QuadbStoreTest.php`: no syntax errors.
+- `php -l lanes/quadrable/examples/wordpress-quadb-import-export.php`: no syntax errors.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`: 1 test file, 911 assertions, 0 failures.
+- `php tools/run-tests.php lanes/quadrable/tests`: 10 test files, 3100 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-quadb-import-export.php >/tmp/quadrable-example.out && wc -c /tmp/quadrable-example.out`: exited 0; output size 540 bytes.
+- JSON validation for `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json` and `lanes/quadrable/lane-status.json`: exited 0.
+- `git diff --check -- lanes/quadrable`: exited 0.
+
+Root verification:
+
+- Pre-root `pgrep -af '^php tools/run-tests\.php$'`: no active no-argument root harness.
+- `php tools/run-tests.php`: 211 test files, 24733 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The slice reuses the existing bounded `QuadbStore` command wrapper, separator parser, and file-backed store components. No live-service provider tests were run.
+
+Files staged: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/examples/wordpress-quadb-import-export.php`, `lanes/quadrable/lane-status.json`, `lanes/quadrable/notes/upstream-inventory.md`, `lanes/quadrable/notes/wordpress-scenarios.md`, `lanes/quadrable/tests/QuadbStoreTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - LightningCSS logical border-radius reset slice - 2026-05-25 02:35 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T021730Z.ready`.

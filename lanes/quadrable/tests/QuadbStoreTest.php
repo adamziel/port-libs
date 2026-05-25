@@ -464,6 +464,35 @@ return [
             quadrableQuadbRemoveDir($storeDir);
         }
     },
+    'native quadb store maps plain import and export empty separator command output' => static function (TestRunner $t): void {
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: separator must be non-empty\n",
+            ], QuadbStore::importCommandOutput($storeDir, "wp_options:siteurl=https://example.test\n", ''));
+
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: separator must be non-empty\n",
+            ], QuadbStore::exportCommandOutput($storeDir, ''));
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::exportCommandOutput($storeDir, '='));
+        } finally {
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
     'native quadb store maps proof command output for invalid format and hex input' => static function (TestRunner $t): void {
         $missingDir = quadrableQuadbTempDir();
         $sourceDir = quadrableQuadbTempDir();
