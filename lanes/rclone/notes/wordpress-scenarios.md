@@ -236,6 +236,8 @@ The `../examples/wordpress-onedrive-put-create-object.php` scenario maps OneDriv
 
 The `../examples/wordpress-onedrive-token-renewer-preflight.php` scenario maps OneDrive token-renewer rearming for WordPress media upload preflights. It records idle expiry suppression, active-upload root metadata refresh, post-upload idle suppression, explicit rearmed-state reporting after handled active expiry, handled-expiry rearm accounting, shutdown disarm/suppression, and `secretInputsRead=false` without OAuth token stores, process environments, provider remotes, or live credentials.
 
+The `../examples/wordpress-onedrive-no-versions-cleanup.php` scenario maps OneDrive no-versions cleanup for WXR export publication. It preserves the current Graph version, deletes older WXR versions in listed order, records dry-run destructive skip decisions without deleting, stops on the first Graph delete error, and keeps the whole preflight free of OAuth token stores, process environments, provider remotes, and live credentials.
+
 ## Next Task
 
-Map OneDrive `ChangeNotify` polling runner lifecycle, empty page/token handling, and callback cancellation/error propagation.
+Map another bounded OneDrive provider lifecycle cluster that remains credential-free, such as no-versions cleanup wiring through provider `CleanUp` or a narrow shutdown/feature cleanup behavior.

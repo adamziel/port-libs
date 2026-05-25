@@ -1,5 +1,52 @@
 # Integration Status
 
+## Integration accepted - isolated rclone OneDrive no-versions cleanup - 2026-05-25 03:22 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T031514Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T031514Z.patch`.
+
+Lane/slice/session: `rclone` / `supervisor-rearm-20260525T031514Z` /
+`port-rclone`. Patch sha256 verified:
+`9b18242a6e9d60c40d3b4abbabbb0c0350a9d9acb8eaa9018d0cd6784798c5e7`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-rclone-031514-20260525T032219Z`:
+
+- `php -l lanes/rclone/src/OneDriveVersionCleaner.php` - passed.
+- `php -l lanes/rclone/tests/OneDriveVersionCleanerTest.php` - passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-no-versions-cleanup.php` - passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveVersionCleanerTest.php` - passed, `1 test files, 30 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/rclone/tests` - passed, `33 test files, 3879 assertions, 0 failures`.
+- `php lanes/rclone/examples/wordpress-onedrive-no-versions-cleanup.php` - passed.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json` - passed.
+- `git diff --check` - passed.
+
+Root verification: exact no-argument root gate
+`pgrep -af '^php tools/run-tests\.php$'` was empty before the run.
+`php tools/run-tests.php` passed in the clean worktree with
+`212 test files, 24966 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support component is activated.
+This is a bounded native PHP OneDrive lifecycle helper using supplied in-memory
+Graph-like callbacks; it does not read provider credentials, OAuth/token
+stores, process environments, live provider remotes, or secret values.
+
+Live-service exclusions: no live OneDrive, Graph, OAuth, or provider tests were
+run.
+
+Files staged:
+
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/examples/wordpress-onedrive-no-versions-cleanup.php`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/upstream-inventory.md`
+- `lanes/rclone/notes/wordpress-scenarios.md`
+- `lanes/rclone/src/OneDriveVersionCleaner.php`
+- `lanes/rclone/tests/OneDriveVersionCleanerTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - isolated libsqlite JSON array insert SQL dispatch - 2026-05-25 03:22 UTC
 
 Accepted ready marker:
