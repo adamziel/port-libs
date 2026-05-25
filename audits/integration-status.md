@@ -1,4 +1,30 @@
 
+## Clean-patch accepted - LightningCSS custom media comment parentheses - 2026-05-25 22:34 UTC
+
+Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T173840Z.ready`.
+
+Decision evidence:
+- Current clean base: `f24089b6f9d6c4d70e2e662d59bce68ff0a18bd4`.
+- Patch sha256 matched marker: `01e840e9eb03cc094a4e4b95fbba813a6fb3dc02500ed5532f04357f1b6a37dd`.
+- The marker contained required `lane=lightningcss`, `patch=...`, and `metadata=...` fields and had no stale rework marker.
+- Earlier sampled queued `libsqlite`, `rclone`, and `gitoxide` markers were stale against current `HEAD` and were not accepted in this pass.
+
+Focused verification from detached clean worktree:
+- `php -l lanes/lightningcss/src/CustomMediaTransformer.php` passed.
+- `php -l lanes/lightningcss/tests/CustomMediaTransformerTest.php` passed.
+- `php -l lanes/lightningcss/examples/wordpress-custom-media-transformer.php` passed.
+- `php tools/run-tests.php lanes/lightningcss/tests/CustomMediaTransformerTest.php` passed: `1 test files, 35 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/lightningcss/tests` passed: `9 test files, 1085 assertions, 0 failures`.
+- `php lanes/lightningcss/examples/wordpress-custom-media-transformer.php` passed and emitted the expected layered import/media output with stale comment parentheses ignored.
+- JSON validation passed for `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json` and `lanes/lightningcss/lane-status.json`.
+- `git diff --check` passed.
+
+Serialized root verification:
+- Runtime gate before root: `/` above `86000000` KiB available, load below `25`, and no exact no-argument root harness was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed from the exact clean candidate snapshot: `214 test files, 26387 assertions, 0 failures`.
+
+Accepted slice: updates native LightningCSS custom-media delimiter matching so CSS comments in `@media` preludes and `@import` media tails are inert even when they contain stale alias-looking tokens and unmatched-looking `)` characters. No support-library row was activated.
+
 ## Clean-patch accepted - esbuild static output import elision - 2026-05-25 22:30 UTC
 
 Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T173942Z.ready`.
