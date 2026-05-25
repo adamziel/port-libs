@@ -103585,3 +103585,30 @@ Files staged:
 - `lanes/gitoxide/notes/upstream-inventory.md`
 - `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`
 - `lanes/gitoxide/tests/ReceivePackTransportTest.php`
+
+## Clean-patch integration accepted - libsqlite - 20260525T060418Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T055534Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T055534Z.patch`
+Lane/slice/session: `libsqlite` / `watchdog-next-20260525T055533Z` / `port-libsqlite`
+Base old_head: `1df793dda05c8101f36c39457741dcc9a88e0b09`
+
+Focused verification:
+- `sha256sum /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T055534Z.patch`: matched `870d7c4e0f15752ef67a5903cc171c88a7fecdc2b80f4ee341d5e3a0105cec57`.
+- `php -l` on 3 changed PHP file(s): passed.
+- `php tools/run-tests.php lanes/libsqlite/tests`: passed; PASS database reader rejects missing pages during btree traversal PASS standalone table leaf cells require an overflow reader for overflow payloads PASS sqlite record parser rejects reserved serial types  1 test files, 1961 assertions, 0 failures 
+- `git diff --check`: passed.
+
+Root verification:
+- Pre-root exact gate `pgrep -af '^php tools/run-tests\.php$'`: clear after 0s wait.
+- `php tools/run-tests.php`: passed; PASS wordpress option store expires snapshots and deletes stale options before reuse PASS folder scan service resumes through a wordpress option checkpoint store PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  212 test files, 25473 assertions, 0 failures 
+
+Support-library/dependency closure: no new support-library activation accepted for this isolated lane-local micro-slice; existing gated dependency backlog remains inactive unless the lane status already records a bounded future gate.
+Live-service exclusions: no live-service provider tests were run.
+Files staged:
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonConstructor.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`

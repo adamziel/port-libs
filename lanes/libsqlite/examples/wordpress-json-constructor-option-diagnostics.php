@@ -21,7 +21,8 @@ $jsonbMigrationQueue = new SQLiteBlobValue(SQLiteJsonB::encode([
 ]));
 
 $checks = [
-    'option_import_report' => SQLiteJsonConstructor::jsonObject(
+    'option_import_report' => SQLiteJsonConstructor::jsonObjectSqlFunction(
+        'json_object',
         'option_name',
         'plugin_settings',
         'accepted',
@@ -31,8 +32,11 @@ $checks = [
         'warnings',
         new SQLiteJsonSubtypeValue(SQLiteJsonConstructor::jsonArray('json5-normalized', 'jsonb-preserved')),
     ),
-    'migration_queue' => SQLiteJsonConstructor::jsonArray('queue', $jsonbMigrationQueue, null),
+    'migration_queue' => SQLiteJsonConstructor::jsonArraySqlFunction('json_array', 'queue', $jsonbMigrationQueue, null),
 ];
+$checks['jsonb_dispatch_queue'] = SQLiteJsonB::decode(
+    SQLiteJsonConstructor::jsonArraySqlFunction('jsonb_array', 'queue', $jsonbMigrationQueue)->bytes,
+);
 
 try {
     SQLiteJsonConstructor::jsonArray('raw-media-blob', new SQLiteBlobValue("\xab\xcd"));
@@ -44,5 +48,5 @@ try {
 echo json_encode([
     'checks' => $checks,
     'rawBlobStatus' => $rawBlobStatus,
-    'wordpressUse' => 'Local-only wp_options migration diagnostics that mirror SQLite json_array() and json_object() SQL-value construction, JSON subtype passthrough, JSONB BLOB passthrough, and raw BLOB rejection before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options migration diagnostics that mirror SQLite json_array(), json_object(), jsonb_array(), and jsonb_object() SQL function-name dispatch, JSON subtype passthrough, JSONB BLOB passthrough, and raw BLOB rejection before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

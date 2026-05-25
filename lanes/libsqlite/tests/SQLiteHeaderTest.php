@@ -2939,6 +2939,30 @@ return [
         );
         $t->same('{"\"a\"":1}', SQLiteJsonConstructor::jsonObject(new SQLiteJsonSubtypeValue('"a"'), 1));
     },
+    'dispatches sqlite json and jsonb constructor sql function names' => static function (TestRunner $t): void {
+        $jsonSubtype = new SQLiteJsonSubtypeValue('{"mode":"seo"}');
+        $jsonbArray = new SQLiteBlobValue(SQLiteJsonB::encode(['cache', 'media']));
+
+        $t->same(
+            '[1,{"mode":"seo"},["cache","media"],null]',
+            SQLiteJsonConstructor::jsonArraySqlFunction('json_array', 1, $jsonSubtype, $jsonbArray, null),
+        );
+        $jsonbConstructedArray = SQLiteJsonConstructor::jsonArraySqlFunction('jsonb_array', 'queue', $jsonbArray);
+        $t->true($jsonbConstructedArray instanceof SQLiteBlobValue);
+        $t->same(['queue', ['cache', 'media']], SQLiteJsonB::decode($jsonbConstructedArray->bytes));
+
+        $t->same(
+            '{"option_name":"plugin_settings","payload":{"mode":"seo"}}',
+            SQLiteJsonConstructor::jsonObjectSqlFunction('json_object', 'option_name', 'plugin_settings', 'payload', $jsonSubtype),
+        );
+        $jsonbConstructedObject = SQLiteJsonConstructor::jsonObjectSqlFunction('jsonb_object', 'queue', $jsonbArray, 'enabled', true);
+        $t->true($jsonbConstructedObject instanceof SQLiteBlobValue);
+        $t->same(['queue' => ['cache', 'media'], 'enabled' => 1], SQLiteJsonB::decode($jsonbConstructedObject->bytes));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonArraySqlFunction('json_insert', 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObjectSqlFunction('json_array', 'a', 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObjectSqlFunction('jsonb_object', 'a'));
+    },
     'rejects sqlite json object argument and blob label errors' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject('a', 1, 'b'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject(null, 5));

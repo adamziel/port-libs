@@ -1413,3 +1413,25 @@ copied `wp_options` option values using the same function-name dispatch SQL
 callers expect, including JSON5 text, malformed copied text, cast text BLOBs,
 JSONB blobs, superficial-only JSONB blobs, and SQL NULL input without
 requiring the SQLite extension.
+
+## JSON Constructor Dispatch Scenario
+
+Native JSON constructors now include a bounded SQLite SQL function dispatch
+boundary for `json_array()`, `json_object()`, `jsonb_array()`, and
+`jsonb_object()`. The updated
+`examples/wordpress-json-constructor-option-diagnostics.php` script can
+preflight copied `wp_options` migration diagnostics with text JSON or decoded
+JSONB review output, preserving SQLite's distinction between ordinary SQL
+values, JSON subtype fragments, JSONB BLOB fragments, raw BLOB rejection, odd
+`json_object()` arity, and invalid constructor function names.
+
+Status delta 2026-05-25 isolated micro-slice: added constructor SQL-dispatch
+helpers, focused tests, and the WordPress smoke update. Focused verification is
+recorded in `lane-status.json` after local checks. Blocker: no hydrated
+upstream cache exists in this isolated worktree, so no fresh SQLite testfixture
+run was performed; this slice reuses prior `json101.test` and `subtype1.test`
+constructor evidence. Next task: integrator acceptance, then one additional
+bounded libsqlite behavior slice with its own evidence. Dependency closure: no
+new support component is needed; the slice reuses existing lane-local JSON
+constructor, JSON subtype, JSONB, and BLOB support and counts no shared
+support-library progress.
