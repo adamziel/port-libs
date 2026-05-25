@@ -275,4 +275,71 @@ return [
             'their_schema' => 'CREATE TABLE `wp_bad` (`id` int)',
         ]]));
     },
+    'schema conflict rows render index and check collision descriptions' => static function (TestRunner $t): void {
+        $table = new PreviewMergeConflictsTable();
+
+        $rows = $table->schemaConflictRows([
+            [
+                'table' => 'wp_postmeta',
+                'base_schema' => 'CREATE TABLE `wp_postmeta` (`meta_id` bigint PRIMARY KEY, `post_id` bigint, `meta_key` varchar(255))',
+                'our_schema' => 'CREATE TABLE `wp_postmeta` (`meta_id` bigint PRIMARY KEY, `post_id` bigint, `meta_key` varchar(255), INDEX `idx_post_meta_key` (`post_id`,`meta_key`))',
+                'their_schema' => 'CREATE TABLE `wp_postmeta` (`meta_id` bigint PRIMARY KEY, `post_id` bigint, `meta_key` varchar(255), INDEX `idx_meta_review` (`post_id`,`meta_key`))',
+                'indexConflicts' => [
+                    [
+                        'kind' => 'duplicateIndexColumnSet',
+                        'ours' => ['name' => 'idx_post_meta_key'],
+                        'theirs' => ['name' => 'idx_meta_review'],
+                    ],
+                ],
+            ],
+            [
+                'table' => 'wp_import_queue',
+                'base_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY, `status` varchar(20), `review_state` varchar(20), `legacy_flag` varchar(20))',
+                'our_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY, `status` varchar(20), `review_state` varchar(20), CHECK (`status` in (\'queued\',\'ready\')), CHECK (`review_state` <> \'\'), CHECK (`legacy_flag` <> \'\'))',
+                'their_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY, `status` varchar(20), `review_state` varchar(20), CHECK (`status` <> \'failed\'), CHECK (`review_state` in (\'open\',\'done\')))',
+                'checkConflicts' => [
+                    [
+                        'kind' => 'columnCheckCollision',
+                        'ours' => ['name' => 'chk_status_allowed'],
+                        'theirs' => ['name' => 'chk_status_not_failed'],
+                    ],
+                    [
+                        'kind' => 'invalidCheckCollision',
+                        'ours' => ['name' => 'chk_legacy_flag'],
+                        'theirs' => [],
+                    ],
+                    [
+                        'kind' => 'deletedCheckCollision',
+                        'ours' => ['name' => 'chk_review_state_present'],
+                        'theirs' => [],
+                    ],
+                    [
+                        'kind' => 'deleted_check_collision',
+                        'ours' => [],
+                        'theirs' => ['name' => 'chk_review_state_values'],
+                    ],
+                ],
+            ],
+        ]);
+
+        $t->same([
+            [
+                'table_name' => 'wp_postmeta',
+                'base_schema' => 'CREATE TABLE `wp_postmeta` (`meta_id` bigint PRIMARY KEY, `post_id` bigint, `meta_key` varchar(255))',
+                'our_schema' => 'CREATE TABLE `wp_postmeta` (`meta_id` bigint PRIMARY KEY, `post_id` bigint, `meta_key` varchar(255), INDEX `idx_post_meta_key` (`post_id`,`meta_key`))',
+                'their_schema' => 'CREATE TABLE `wp_postmeta` (`meta_id` bigint PRIMARY KEY, `post_id` bigint, `meta_key` varchar(255), INDEX `idx_meta_review` (`post_id`,`meta_key`))',
+                'description' => "multiple indexes covering the same column set cannot be merged: 'idx_post_meta_key' and 'idx_meta_review'",
+            ],
+            [
+                'table_name' => 'wp_import_queue',
+                'base_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY, `status` varchar(20), `review_state` varchar(20), `legacy_flag` varchar(20))',
+                'our_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY, `status` varchar(20), `review_state` varchar(20), CHECK (`status` in (\'queued\',\'ready\')), CHECK (`review_state` <> \'\'), CHECK (`legacy_flag` <> \'\'))',
+                'their_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY, `status` varchar(20), `review_state` varchar(20), CHECK (`status` <> \'failed\'), CHECK (`review_state` in (\'open\',\'done\')))',
+                'description' => "our check 'chk_status_allowed' and their check 'chk_status_not_failed' both reference the same column(s)\n"
+                    . "check 'chk_legacy_flag' references a column that will be deleted after merge\n"
+                    . "check 'chk_review_state_present' was deleted in theirs but modified in ours\n"
+                    . "check 'chk_review_state_values' was deleted in ours but modified in theirs",
+            ],
+        ], $rows);
+    },
 ];

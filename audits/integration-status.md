@@ -100762,3 +100762,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json lanes/difftastic/notes/upstream-inventory.md lanes/difftastic/notes/wordpress-scenarios.md lanes/difftastic/src/SyntaxHighlightClassifier.php lanes/difftastic/tests/TokenDifferTest.php `
 
+
+## Clean-patch integration accepted - dolt - 2026-05-25 02:47 UTC
+
+Ready marker: `port-dolt-20260525T023317Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T023317Z.patch`
+Lane/slice/session: `dolt` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `56dbbcfbb704a77de35b0c49b005f7f3d35cb235`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/dolt/tests`: exit 0; PASS wordpress plugin schema drift fixture projects through latest diff schema  20 test files, 1103 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24790 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json lanes/dolt/fixtures/wp-merge-review.php lanes/dolt/lane-status.json lanes/dolt/notes/wordpress-scenarios.md lanes/dolt/src/PreviewMergeConflictsTable.php lanes/dolt/tests/PreviewMergeConflictsTableTest.php `
+

@@ -367,7 +367,7 @@ final class PreviewMergeConflictsTable
             throw new \InvalidArgumentException('Dolt column schema conflict sides must be arrays.');
         }
 
-        if ($kind === 'name_collision') {
+        if ($kind === 'name_collision' || $kind === 'nameCollision') {
             $name = $this->requiredString($ours + $theirs, ['name'], 'column conflict name');
             $ourType = $ours['type'] ?? '';
             $theirType = $theirs['type'] ?? '';
@@ -377,7 +377,7 @@ final class PreviewMergeConflictsTable
 
             return "incompatible column types for column '{$name}': {$ourType} and {$theirType}";
         }
-        if ($kind === 'tag_collision') {
+        if ($kind === 'tag_collision' || $kind === 'tagCollision') {
             $ourName = $this->requiredString($ours, ['name'], 'our column conflict name');
             $theirName = $this->requiredString($theirs, ['name'], 'their column conflict name');
 
@@ -393,6 +393,9 @@ final class PreviewMergeConflictsTable
     private function indexConflictDescription(array $conflict): string
     {
         $kind = $conflict['kind'] ?? '';
+        if ($kind === 'duplicateIndexColumnSet') {
+            $kind = 'duplicate_index_column_set';
+        }
         if ($kind !== 'duplicate_index_column_set') {
             throw new \InvalidArgumentException("Unsupported Dolt index schema conflict kind: {$kind}");
         }
@@ -422,26 +425,26 @@ final class PreviewMergeConflictsTable
             throw new \InvalidArgumentException('Dolt check schema conflict sides must be arrays.');
         }
 
-        if ($kind === 'name_collision') {
+        if ($kind === 'name_collision' || $kind === 'nameCollision') {
             return sprintf(
                 "two checks with the name '%s' but different definitions",
                 $this->requiredString($ours + $theirs, ['name'], 'check conflict name'),
             );
         }
-        if ($kind === 'column_check_collision') {
+        if ($kind === 'column_check_collision' || $kind === 'columnCheckCollision') {
             return sprintf(
                 "our check '%s' and their check '%s' both reference the same column(s)",
                 $this->requiredString($ours, ['name'], 'our check conflict name'),
                 $this->requiredString($theirs, ['name'], 'their check conflict name'),
             );
         }
-        if ($kind === 'invalid_check_collision') {
+        if ($kind === 'invalid_check_collision' || $kind === 'invalidCheckCollision') {
             return sprintf(
                 "check '%s' references a column that will be deleted after merge",
                 $this->requiredString($ours + $theirs, ['name'], 'check conflict name'),
             );
         }
-        if ($kind === 'deleted_check_collision') {
+        if ($kind === 'deleted_check_collision' || $kind === 'deletedCheckCollision') {
             if ($theirs === []) {
                 return sprintf(
                     "check '%s' was deleted in theirs but modified in ours",

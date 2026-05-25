@@ -139,6 +139,86 @@ return [
                 ],
             ],
         ],
+        [
+            'table' => 'wp_postmeta',
+            'base_schema' => "CREATE TABLE `wp_postmeta` (\n"
+                . "  `meta_id` bigint NOT NULL,\n"
+                . "  `post_id` bigint,\n"
+                . "  `meta_key` varchar(255),\n"
+                . "  PRIMARY KEY (`meta_id`)\n"
+                . ")",
+            'our_schema' => "CREATE TABLE `wp_postmeta` (\n"
+                . "  `meta_id` bigint NOT NULL,\n"
+                . "  `post_id` bigint,\n"
+                . "  `meta_key` varchar(255),\n"
+                . "  KEY `idx_post_meta_key` (`post_id`,`meta_key`),\n"
+                . "  PRIMARY KEY (`meta_id`)\n"
+                . ")",
+            'their_schema' => "CREATE TABLE `wp_postmeta` (\n"
+                . "  `meta_id` bigint NOT NULL,\n"
+                . "  `post_id` bigint,\n"
+                . "  `meta_key` varchar(255),\n"
+                . "  KEY `idx_meta_review` (`post_id`,`meta_key`),\n"
+                . "  PRIMARY KEY (`meta_id`)\n"
+                . ")",
+            'index_conflicts' => [
+                [
+                    'kind' => 'duplicate_index_column_set',
+                    'ours' => ['name' => 'idx_post_meta_key'],
+                    'theirs' => ['name' => 'idx_meta_review'],
+                ],
+            ],
+        ],
+        [
+            'table' => 'wp_import_queue',
+            'base_schema' => "CREATE TABLE `wp_import_queue` (\n"
+                . "  `id` bigint NOT NULL,\n"
+                . "  `status` varchar(20),\n"
+                . "  `review_state` varchar(20),\n"
+                . "  `legacy_flag` varchar(20),\n"
+                . "  PRIMARY KEY (`id`)\n"
+                . ")",
+            'our_schema' => "CREATE TABLE `wp_import_queue` (\n"
+                . "  `id` bigint NOT NULL,\n"
+                . "  `status` varchar(20),\n"
+                . "  `review_state` varchar(20),\n"
+                . "  `legacy_flag` varchar(20),\n"
+                . "  CONSTRAINT `chk_status_allowed` CHECK (`status` in ('queued','ready')),\n"
+                . "  CONSTRAINT `chk_review_state_present` CHECK (`review_state` <> ''),\n"
+                . "  CONSTRAINT `chk_legacy_flag` CHECK (`legacy_flag` <> ''),\n"
+                . "  PRIMARY KEY (`id`)\n"
+                . ")",
+            'their_schema' => "CREATE TABLE `wp_import_queue` (\n"
+                . "  `id` bigint NOT NULL,\n"
+                . "  `status` varchar(20),\n"
+                . "  `review_state` varchar(20),\n"
+                . "  CONSTRAINT `chk_status_not_failed` CHECK (`status` <> 'failed'),\n"
+                . "  CONSTRAINT `chk_review_state_values` CHECK (`review_state` in ('open','done')),\n"
+                . "  PRIMARY KEY (`id`)\n"
+                . ")",
+            'check_conflicts' => [
+                [
+                    'kind' => 'column_check_collision',
+                    'ours' => ['name' => 'chk_status_allowed'],
+                    'theirs' => ['name' => 'chk_status_not_failed'],
+                ],
+                [
+                    'kind' => 'invalid_check_collision',
+                    'ours' => ['name' => 'chk_legacy_flag'],
+                    'theirs' => [],
+                ],
+                [
+                    'kind' => 'deleted_check_collision',
+                    'ours' => ['name' => 'chk_review_state_present'],
+                    'theirs' => [],
+                ],
+                [
+                    'kind' => 'deleted_check_collision',
+                    'ours' => [],
+                    'theirs' => ['name' => 'chk_review_state_values'],
+                ],
+            ],
+        ],
     ],
     'previewMergeBaseRows' => [
         ['ID' => 42, 'post_title' => 'Imported draft', 'post_status' => 'draft'],
@@ -315,6 +395,62 @@ return [
                 . ")",
             'description' => "different column definitions for our column autoload and their column autoload\n"
                 . "two checks with the name 'wp_options_chk_autoload' but different definitions",
+        ],
+        [
+            'table_name' => 'wp_postmeta',
+            'base_schema' => "CREATE TABLE `wp_postmeta` (\n"
+                . "  `meta_id` bigint NOT NULL,\n"
+                . "  `post_id` bigint,\n"
+                . "  `meta_key` varchar(255),\n"
+                . "  PRIMARY KEY (`meta_id`)\n"
+                . ")",
+            'our_schema' => "CREATE TABLE `wp_postmeta` (\n"
+                . "  `meta_id` bigint NOT NULL,\n"
+                . "  `post_id` bigint,\n"
+                . "  `meta_key` varchar(255),\n"
+                . "  KEY `idx_post_meta_key` (`post_id`,`meta_key`),\n"
+                . "  PRIMARY KEY (`meta_id`)\n"
+                . ")",
+            'their_schema' => "CREATE TABLE `wp_postmeta` (\n"
+                . "  `meta_id` bigint NOT NULL,\n"
+                . "  `post_id` bigint,\n"
+                . "  `meta_key` varchar(255),\n"
+                . "  KEY `idx_meta_review` (`post_id`,`meta_key`),\n"
+                . "  PRIMARY KEY (`meta_id`)\n"
+                . ")",
+            'description' => "multiple indexes covering the same column set cannot be merged: 'idx_post_meta_key' and 'idx_meta_review'",
+        ],
+        [
+            'table_name' => 'wp_import_queue',
+            'base_schema' => "CREATE TABLE `wp_import_queue` (\n"
+                . "  `id` bigint NOT NULL,\n"
+                . "  `status` varchar(20),\n"
+                . "  `review_state` varchar(20),\n"
+                . "  `legacy_flag` varchar(20),\n"
+                . "  PRIMARY KEY (`id`)\n"
+                . ")",
+            'our_schema' => "CREATE TABLE `wp_import_queue` (\n"
+                . "  `id` bigint NOT NULL,\n"
+                . "  `status` varchar(20),\n"
+                . "  `review_state` varchar(20),\n"
+                . "  `legacy_flag` varchar(20),\n"
+                . "  CONSTRAINT `chk_status_allowed` CHECK (`status` in ('queued','ready')),\n"
+                . "  CONSTRAINT `chk_review_state_present` CHECK (`review_state` <> ''),\n"
+                . "  CONSTRAINT `chk_legacy_flag` CHECK (`legacy_flag` <> ''),\n"
+                . "  PRIMARY KEY (`id`)\n"
+                . ")",
+            'their_schema' => "CREATE TABLE `wp_import_queue` (\n"
+                . "  `id` bigint NOT NULL,\n"
+                . "  `status` varchar(20),\n"
+                . "  `review_state` varchar(20),\n"
+                . "  CONSTRAINT `chk_status_not_failed` CHECK (`status` <> 'failed'),\n"
+                . "  CONSTRAINT `chk_review_state_values` CHECK (`review_state` in ('open','done')),\n"
+                . "  PRIMARY KEY (`id`)\n"
+                . ")",
+            'description' => "our check 'chk_status_allowed' and their check 'chk_status_not_failed' both reference the same column(s)\n"
+                . "check 'chk_legacy_flag' references a column that will be deleted after merge\n"
+                . "check 'chk_review_state_present' was deleted in theirs but modified in ours\n"
+                . "check 'chk_review_state_values' was deleted in ours but modified in theirs",
         ],
     ],
     'expectedStatusGuidance' => "You have unmerged tables.\n"

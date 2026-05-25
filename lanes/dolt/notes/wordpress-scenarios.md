@@ -44,7 +44,7 @@ Versioned content/data migrations and inspectable database change sets.
 - Native `dolt_ignore` conflict reporting for ambiguous true/false scratch-table patterns, with upstream-shaped pattern details.
 - Native `dolt_status` and `dolt_status_ignored` row projection for staged/unstaged table changes, table renames, merge/conflict states, and ignored unstaged new tables.
 - Native `dolt_merge_status` and `dolt_conflicts` row projection for active merge metadata, unmerged table lists, and table/root-object conflict counts.
-- Native `dolt_preview_merge_conflicts_summary` and `dolt_preview_merge_conflicts` row projection for preflight merge review, including data/schema conflict counts, keyed row conflict previews, keyless duplicate/cardinality preview rows with `dolt_row_hash`, schema-conflict error boundaries, and native `dolt_schema_conflicts`-style schema description rows before an import merge mutates the working set.
+- Native `dolt_preview_merge_conflicts_summary` and `dolt_preview_merge_conflicts` row projection for preflight merge review, including data/schema conflict counts, keyed row conflict previews, keyless duplicate/cardinality preview rows with `dolt_row_hash`, schema-conflict error boundaries, and native `dolt_schema_conflicts`-style schema description rows for column, duplicate-index, check, and modify/delete conflicts before an import merge mutates the working set.
 - Native `dolt merge` transcript rendering for up-to-date, no-commit, squash/no-commit, successful stat output, failure artifact preludes, and abort-state cleanup.
 - Native `dolt_history_dolt_schemas` and `dolt_diff_dolt_schemas` row projection for versioned schema objects such as views, triggers, and events.
 - Native `dolt_history_dolt_procedures` and `dolt_diff_dolt_procedures` row projection for versioned stored procedures.
@@ -144,7 +144,7 @@ Versioned content/data migrations and inspectable database change sets.
 
 ## Next Task
 
-Next best slice: extend schema-conflict description parity to duplicate-index-column-set and deleted/invalid/check-column collision examples.
+Next best slice: map schema-conflict resolution/clearing rows or root-object conflict details as one focused merge-preview behavior, with a WordPress smoke path.
 
 ## Watchdog Next 2026-05-24
 
@@ -157,5 +157,12 @@ Next best slice: extend schema-conflict description parity to duplicate-index-co
 
 - Status delta: added native `dolt_schema_conflicts`-style description rows to the preview merge-conflict cluster, covering upstream row shape, column tag-collision descriptions, check name-collision descriptions, `<deleted>` schema sides, and modify/delete descriptions.
 - Focused evidence: `php tools/run-tests.php lanes/dolt/tests/PreviewMergeConflictsTableTest.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 2 files, 141 assertions, and 0 failures; syntax checks passed for the changed source, tests, fixture, and example; `wordpress-merge-status-review.php` smoke returned one `previewSchemaConflictDescriptionRows` row with the expected WordPress `wp_options` description text.
+- Blocker: no Dolt PHP blocker in this micro-slice; full upstream Go/BATS parity remains out of scope for the isolated worker boundary.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge-preview projection surface and static schema description formatting, with no shell-outs and no activation of a shared dependency.
+
+## Supervisor Rearm 2026-05-25 02:33 UTC
+
+- Status delta: extended native `dolt_schema_conflicts`-style description rows for duplicate index column-set conflicts plus check column, invalid-column, and deleted/modified collisions; accepted camelCase conflict-kind aliases at the PHP boundary while preserving upstream-shaped output strings.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/PreviewMergeConflictsTableTest.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 2 files, 142 assertions, and 0 failures; syntax checks passed for changed PHP files; `wordpress-merge-status-review.php` smoke returned three schema-conflict description rows for `wp_options`, `wp_postmeta`, and `wp_import_queue`.
 - Blocker: no Dolt PHP blocker in this micro-slice; full upstream Go/BATS parity remains out of scope for the isolated worker boundary.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge-preview projection surface and static schema description formatting, with no shell-outs and no activation of a shared dependency.
