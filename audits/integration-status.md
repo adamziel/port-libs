@@ -100678,3 +100678,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T023734Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch rejection - rclone - 2026-05-25 02:45 UTC
+
+Ready marker: `port-rclone-20260525T024110Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T024110Z.patch`
+Lane/slice/session: `rclone` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `8f1f71e2cd097e47e4055db7a537c7974781d71a`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-rclone-20260525T024533Z/lanes/rclone/tests/OneDriveTokenRenewerTest.php 
+- `php tools/run-tests.php lanes/rclone/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-rclone-20260525T024533Z/lanes/rclone/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T024110Z.patch`, then fix the failing focused command above without broadening the slice.
+
