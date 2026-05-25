@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 13:21:02 UTC",
-    "sourceCommit": "641e461db5f891513d13c9c43ec0c185b5749620",
-    "sourceCommitShort": "641e461db5f8",
+    "generated": "2026-05-25 13:29:06 UTC",
+    "sourceCommit": "8e103be31c1a36cd2e7f5523f5347b143920a92b",
+    "sourceCommitShort": "8e103be31c1a",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "bfc19262c6b629eb83f2a16db07b0cfd3c5945e5",
-    "dashboardCommitShort": "bfc19262c6b6",
+    "dashboardCommit": "29ecdae15c56995d122f26eaf81e55cfb68fc8d8",
+    "dashboardCommitShort": "29ecdae15c56",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -132,15 +132,15 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "644",
-            "coverage": "644 / 2276",
-            "php": "230 pass / 0 fail",
+            "mapped": "645",
+            "coverage": "645 / 2276",
+            "php": "231 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory plus native Markdown/HTML reader and M...",
-            "audit": "updated 2026-05-25: priority-keeper-20260...",
+            "audit": "updated 2026-05-25: finisher-20260525T131...",
             "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, under...",
-            "nextTarget": "Map another bounded Markdown writer branch after heading attributes, such as additional w...",
-            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 230 test...",
+            "nextTarget": "Map another bounded Markdown writer branch after Roman list overflow, such as additional...",
+            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 231 test...",
             "commit": "pending"
         },
         {
