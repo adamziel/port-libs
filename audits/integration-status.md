@@ -1,4 +1,40 @@
 
+## Clean-patch integration - Gitoxide - 2026-05-25 05:22 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T051537Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T051537Z.patch`.
+
+Lane/slice/session: `gitoxide` / `watchdog-next-20260525T051537Z` / `port-gitoxide`.
+Base before clean worktree: `41055cf394a46517a4c7f796a411042fa112da0e`.
+Patch SHA-256 verified: `9a5cb5c8df45d326fe2136f94cfd3aef4e0697e16fbadbae4575a8499cd4a53d`.
+Apply mode: clean `git apply --check`, then `git apply` in detached clean worktree `/tmp/port-clean-integrator-gitoxide-watchdog-next-20260525T051537Z-20260525T052032Z`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php` - passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` - passed.
+- `php -l lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php` - passed.
+- `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php` - passed.
+- `php -r 'foreach (["lanes/gitoxide/lane-status.json", "lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json"] as $f) { json_decode(file_get_contents($f), true, 512, JSON_THROW_ON_ERROR); } echo "json ok\n";'` - passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` - passed, `1 test files, 261 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` - passed, exit 0.
+- `git diff --check` - passed.
+
+Root verification: exact pre-root gate was clear, then `php tools/run-tests.php` passed in the clean worktree with `212 test files, 25332 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The patch is bounded to existing Gitoxide lane-local smart HTTP receive-pack URL normalization, redirect handling, native PHP percent decoding, and control-byte validation. No live-service/provider/network tests were run.
+
+Files staged:
+
+- `audits/integration-status.md`
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`
+- `lanes/gitoxide/tests/ReceivePackTransportTest.php`
+
 ## Clean-patch integration - Syncthing - 2026-05-25 05:22 UTC
 
 Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T050516Z.ready`.

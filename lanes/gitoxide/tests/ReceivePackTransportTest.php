@@ -489,6 +489,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://bad%20host.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://bad%2fhost.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://bad%5chost.example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://example.test/wp%0acontent.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://example.test/repo.git?service=%0dgit-receive-pack'));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, ['bad:param']));
 
         $badType = new SmartHttpReceivePackTransport(
@@ -747,6 +749,27 @@ return [
             ]
         );
         $t->throws(RuntimeException::class, static fn () => $downgrade->readAdvertisement());
+
+        $encodedControlPathRedirect = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 302,
+                'headers' => ['Location' => 'https://git.example.test/wp%0acontent.git/info/refs?service=git-receive-pack'],
+                'body' => '',
+            ]
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $encodedControlPathRedirect->readAdvertisement());
+
+        $encodedControlQueryRedirect = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 302,
+                'headers' => ['Location' => 'https://git.example.test/wp-content.git/info/refs?service=%0dgit-receive-pack'],
+                'body' => '',
+            ]
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $encodedControlQueryRedirect->readAdvertisement());
+
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['followRedirects' => 'sometimes']));
     },
     'smart http receive-pack applies proxy options and credential helpers' => static function (TestRunner $t) use ($packet, $flush): void {

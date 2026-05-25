@@ -294,6 +294,12 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $host = self::validateAuthorityHost($parts['host'], 'smart HTTP receive-pack URL host');
+        if (isset($parts['path'])) {
+            self::validateDecodedUrlComponent((string) $parts['path'], 'smart HTTP receive-pack URL path');
+        }
+        if (isset($parts['query'])) {
+            self::validateDecodedUrlComponent((string) $parts['query'], 'smart HTTP receive-pack URL query');
+        }
         $authority = self::authority($host, isset($parts['port']) ? (int) $parts['port'] : null);
         $url = $scheme . '://' . $authority . ($parts['path'] ?? '');
         if (isset($parts['query'])) {
@@ -337,6 +343,13 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $decoded;
+    }
+
+    private static function validateDecodedUrlComponent(string $value, string $label): void
+    {
+        if (self::containsControlByte(rawurldecode($value))) {
+            throw new \InvalidArgumentException("{$label} must not contain decoded control bytes");
+        }
     }
 
     private static function isRedirectStatus(int $status): bool
@@ -431,6 +444,12 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
         if (isset($parts['fragment'])) {
             throw new \RuntimeException('smart HTTP receive-pack redirect URL must not contain a fragment');
+        }
+        if (isset($parts['path'])) {
+            self::validateDecodedUrlComponent($parts['path'], 'smart HTTP receive-pack redirect URL path');
+        }
+        if (isset($parts['query'])) {
+            self::validateDecodedUrlComponent($parts['query'], 'smart HTTP receive-pack redirect URL query');
         }
 
         $normalized = $parts['scheme'] . '://' . self::authority($parts['host'], $parts['port']) . ($parts['path'] ?? '');
