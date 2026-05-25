@@ -128,6 +128,91 @@ final class OneDriveDeltaCursor
     }
 
     /**
+     * Deterministic model of ChangeNotify's polling loop.
+     *
+     * Upstream consumes interval updates until the channel closes, treats a
+     * zero interval as paused polling, and logs runner failures without
+     * stopping the listener. The PHP callback may return false or a Throwable
+     * to model a caller-side cancellation boundary for tests.
+     *
+     * @param array<string, mixed> $startPage
+     * @param array<string, array<string, mixed>|string> $pagesByToken
+     * @param list<int|null> $pollIntervals
+     * @param callable(string, string): (bool|\Throwable|null) $notify
+     * @return array{startToken: string, finalToken: string, requests: list<array{method: string, rootUrl: string, path: string, parameters: array{token: list<string>}}>, notified: list<array{path: string, type: string}>, log: list<string>, stopped: bool}
+     */
+    public static function runChangeNotify(
+        array $startPage,
+        array $pagesByToken,
+        array $pollIntervals,
+        string $root,
+        string $driveId,
+        callable $notify,
+    ): array {
+        $token = self::startPageToken($startPage);
+        $summary = [
+            'startToken' => $token,
+            'finalToken' => $token,
+            'requests' => [],
+            'notified' => [],
+            'log' => [],
+            'stopped' => false,
+        ];
+
+        if ($token === '') {
+            $summary['log'][] = 'Could not get first deltaLink';
+            $summary['stopped'] = true;
+
+            return $summary;
+        }
+
+        foreach ($pollIntervals as $interval) {
+            if ($interval === null) {
+                $summary['stopped'] = true;
+                break;
+            }
+
+            if ($interval === 0) {
+                $summary['log'][] = 'polling paused';
+                continue;
+            }
+
+            $summary['requests'][] = self::buildDriveDeltaRequest($driveId, $token);
+            $page = $pagesByToken[$token] ?? 'missing delta page for token: ' . $token;
+            if (is_string($page)) {
+                $summary['log'][] = 'Change notify listener failure: ' . $page;
+                $token = '';
+                $summary['finalToken'] = $token;
+                continue;
+            }
+
+            $delta = self::notifications($page, $root);
+            $token = $delta['nextToken'];
+            $summary['finalToken'] = $token;
+            foreach ($delta['errors'] as $error) {
+                $summary['log'][] = 'Could not get item full path: ' . $error;
+            }
+
+            foreach ($delta['changes'] as $change) {
+                $result = $notify($change['path'], $change['type']);
+                $summary['notified'][] = $change;
+                if ($result instanceof \Throwable) {
+                    $summary['log'][] = 'Change notify callback failure: ' . $result->getMessage();
+                    $summary['stopped'] = true;
+                    break 2;
+                }
+                if ($result === false) {
+                    $summary['log'][] = 'Change notify callback cancelled';
+                    $summary['stopped'] = true;
+                    break 2;
+                }
+            }
+        }
+
+        return $summary;
+    }
+
+    /**
      * @param array<string, mixed> $item
      */
     private static function itemFullPath(array $item): string

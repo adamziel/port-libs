@@ -99174,3 +99174,20 @@ Files staged:
 - `lanes/quadrable/notes/wordpress-scenarios.md`
 - `lanes/quadrable/src/QuadbStore.php`
 - `lanes/quadrable/tests/QuadbStoreTest.php`
+
+## Clean-patch integration - rclone - 20260525T003709Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T002424Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T002424Z.patch`
+Lane/slice/session: `rclone` / `supervisor-next-20260525T002424Z` / `port-rclone`
+Patch sha256: `905a7c58b38db6f278d7020992579aa2c84908ab186d68b0647b85d590b2c25a` (verified)
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/rclone/tests/OneDriveDeltaCursorTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-rclone-supervisor-next-20260525T002424Z-20260525T003709Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/upstream-inventory.md`
+- `lanes/rclone/src/OneDriveDeltaCursor.php`
+- `lanes/rclone/tests/OneDriveDeltaCursorTest.php`
