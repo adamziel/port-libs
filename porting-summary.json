@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 23:51:29 UTC",
-    "sourceCommit": "10c0939a9973920af82c004f895358c426c3d0fc",
-    "sourceCommitShort": "10c0939a9973",
+    "generated": "2026-05-25 23:55:53 UTC",
+    "sourceCommit": "e0583cb10f69b6614a57e9ce673d8195e2c19c1e",
+    "sourceCommitShort": "e0583cb10f69",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "9c43bf9bd528699c1be85945678f6eb347bddfde",
-    "dashboardCommitShort": "9c43bf9bd528",
+    "dashboardCommit": "26262047055e478cfb6ba44af3800ae2dcca113b",
+    "dashboardCommitShort": "26262047055e",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -115,16 +115,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "176",
-            "coverage": "176 / 78",
-            "php": "291 pass / 0 fail",
+            "mapped": "177",
+            "coverage": "177 / 78",
+            "php": "293 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory + inspected CI benchmark archive + loc...",
             "audit": "isolated lane worker 2026-05-25: reduced...",
-            "currentWork": "Reduced simple-font Encoding Differences handoff. PdfTextExtractor now maps single-byte f...",
+            "currentWork": "Reduced simple-font WinAnsiEncoding handoff. PdfTextExtractor now maps high-bit WinAnsiEn...",
             "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely a small remaining PDF conte...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "accepte"
+            "commit": "pending"
         },
         {
             "library": "pandoc",
