@@ -102048,3 +102048,20 @@ Files staged:
 - `lanes/pandoc/notes/wordpress-scenarios.md`
 - `lanes/pandoc/src/MarkdownWriter.php`
 - `lanes/pandoc/tests/MarkdownReaderTest.php`
+
+## Integration accepted - isolated readability - 2026-05-25T04:15:36Z
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T032256Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T032256Z.patch`
+Lane/slice/session: `readability` / `rearmer-20260525T032255Z` / `port-readability`
+Patch sha256: `8b4281d1f384d6260661890f933e90ff75bcbf45fdecd28cc005d922ed2e31a0` (matched marker).
+Focused verification: `php -l lanes/readability/tests/ArticleExtractorTest.php && php -l lanes/readability/examples/wordpress-social-buttons-fixture-cleanup.php && jq empty lanes/readability/UPSTREAM_TEST_MANIFEST.json lanes/readability/lane-status.json && php tools/run-tests.php lanes/readability/tests && php lanes/readability/examples/wordpress-social-buttons-fixture-cleanup.php` plus worker log evidence in `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-readability-20260525T032256Z.log`; all passed in clean worktree.
+Root verification: `php tools/run-tests.php` passed in `/tmp/port-clean-integrator-readability-20260525T032256Z-1484547`.
+Support-library/dependency closure: no new support component activated; accepted as lane-local micro-slice per worker metadata.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/readability/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/readability/lane-status.json`
+- `lanes/readability/notes/upstream-inventory.md`
+- `lanes/readability/notes/wordpress-scenarios.md`
+- `lanes/readability/tests/ArticleExtractorTest.php`

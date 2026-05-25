@@ -309,6 +309,7 @@ The current parse-options slice maps upstream Readability API option boundaries:
 - The focused Tumblr single-post test covers WordPress imports from older Tumblr exports where source theme sidebars and official/community link lists are larger than the post chrome: the release-note post body wins, bare string JSON-LD author values do not become bylines, and block output keeps only the post title plus release-note paragraph.
 - The focused Medical News Today byline test covers publisher imports where source layout classes contain `site_header` above the article: article-scoped bylines still become post metadata, while source byline and ad/history chrome stay out of paragraph blocks.
 - The focused Independent articleBody test covers Drupal-era publisher exports where the article body is misidentified as sharing chrome by id: articleBody evidence wins, Video.js hidden controls and in-article gallery promos are pruned, and Taboola recommendations do not enter block output.
+- The focused Mozilla social-buttons test covers WordPress-style share widget imports where source sharing controls are adjacent to real article copy: five expected editorial paragraphs become paragraph blocks while Facebook/Twitter/mail share UI stays out of article HTML and block output.
 
 ## Next Task
 

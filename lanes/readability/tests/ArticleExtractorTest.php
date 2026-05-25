@@ -555,6 +555,31 @@ return [
             $t->same(false, str_contains($blocks, $fragment), 'block output should not contain source executable/social fragment: ' . $fragment);
         }
     },
+    'maps Mozilla social-buttons fixture by removing share widget chrome' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/social-buttons';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(5, count($attributeValues($article->contentHtml, '//p')));
+        $t->same(5, substr_count($blocks, '<!-- wp:paragraph -->'));
+        foreach (['share-buttons', 'Share on Facebook', 'Share on Twitter', 'mailto:', 'social-buttons'] as $fragment) {
+            $t->same(false, str_contains($article->contentHtml, $fragment), 'share widget chrome should not enter article HTML: ' . $fragment);
+            $t->same(false, str_contains($blocks, $fragment), 'share widget chrome should not enter WordPress blocks: ' . $fragment);
+        }
+    },
     'removes hidden WordPress export duplicates while preserving fallback images' => static function (TestRunner $t): void {
         $html = '<html><head><meta property="og:title" content="Hidden Export Cleanup"></head><body><article>'
             . '<h1>Hidden Export Cleanup</h1>'

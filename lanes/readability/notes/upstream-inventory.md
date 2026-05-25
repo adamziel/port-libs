@@ -245,6 +245,15 @@ This fixture is now copied under `lanes/readability/fixtures/mozilla/002/` and m
 - Next task: map `lifehacker-working` or another remaining Kinja/comment-heavy fixture once the upstream cache is present in the isolated worktree, or deliberately expand nested media-wrapper HTML-block serialization with updated long-fixture expectations.
 - Dependency closure: no new support component is needed; this slice reuses the lane's existing DOM extraction, expected-fixture comparison, and WordPress block serialization components.
 
+## 2026-05-25 Isolated Slice: Mozilla Social Buttons Fixture
+
+- Behavior cluster: copied Mozilla `social-buttons` fixture coverage for share-widget cleanup.
+- Status delta: added a focused native fixture test asserting upstream metadata, readerable classification, exact normalized expected-content text, five retained article paragraphs, and no share-button widget chrome in article HTML or WordPress blocks. Added `examples/wordpress-social-buttons-fixture-cleanup.php` to smoke a WordPress import path with five paragraph blocks and no retained share widget chrome.
+- Focused evidence: `php -l lanes/readability/tests/ArticleExtractorTest.php` passed; `php -l lanes/readability/examples/wordpress-social-buttons-fixture-cleanup.php` passed; `php tools/run-tests.php lanes/readability/tests` passed 1 selected test file / 1875 assertions / 0 failures; `php lanes/readability/examples/wordpress-social-buttons-fixture-cleanup.php` printed title `Share buttons removal test`, paragraph blocks: 5, share widget chrome retained: no; `git diff --check -- lanes/readability` passed.
+- Blocker: no focused readability blocker. The isolated worktree does not contain `.upstream-cache/readability`, so no new upstream oracle command was run for this slice.
+- Next task: map `lifehacker-working` or another remaining Kinja/comment-heavy fixture once the upstream cache is present in the isolated worktree, or map another already-copied small cleanup fixture such as `remove-extra-paragraphs` with exact expected-content parity.
+- Dependency closure: no new support component is needed; this slice reuses the lane's existing DOM extraction, Mozilla fixture comparison helpers, share-widget cleanup, and WordPress block serialization components.
+
 The Atlas Obscura `article-author-tag` slice also has targeted upstream runner evidence:
 
 ```text
