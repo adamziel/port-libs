@@ -1,5 +1,39 @@
 # Integration Status
 
+## Clean-patch accepted - MarkerPDF WinAnsi punctuation decoding - 2026-05-25 23:56 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-markerpdf-20260525T234302Z.ready`.
+
+Published commit: this integration commit
+(`Integrate MarkerPDF WinAnsi punctuation decoding`). The accepted patch was
+verified from a detached clean worktree at source `10c0939a` and is scoped to
+`lanes/markerpdf/**` plus this integration-status entry. Patch sha256 matched
+the ready marker:
+`8827269cf0b6a0f803f59f29e13723fec2eb3efeb2c77a621e88a3114e7846f8`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/markerpdf/src/PdfTextExtractor.php` passed.
+- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php` passed.
+- `php -l lanes/markerpdf/examples/wordpress-pdf-winansi-import.php` passed.
+- `php lanes/markerpdf/examples/wordpress-pdf-winansi-import.php` passed and emitted the expected Gutenberg paragraph with WinAnsi punctuation.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed: `1 test files, 63 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/markerpdf/tests` passed: `47 test files, 996 assertions, 0 failures`.
+- MarkerPDF manifest/status JSON validation passed.
+- `git diff --check -- lanes/markerpdf` passed.
+
+Root verification:
+- The first serialized root attempt found another exact no-argument root harness active and exited without running a duplicate.
+- After waiting outside the lock, the root/resource gates were open under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` with `df_free=99810372` KiB and `load1=2.12`.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot: `214 test files, 26623 assertions, 0 failures`.
+
+Cleanup will remove the accepted marker, patch, metadata, referenced worker log,
+inactive source worktree, and temporary verification worktree after the commit
+is safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted MarkerPDF commit.
+
 ## Clean-patch accepted - libsqlite JSON aggregate state - 2026-05-25 23:49 UTC
 
 Accepted one isolated marker:

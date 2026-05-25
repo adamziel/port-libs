@@ -524,6 +524,8 @@ final class PdfTextExtractor
                 }
             } elseif (preg_match('/\/Differences\s*\[(.*?)\]/s', $body, $match)) {
                 $cmap = $this->encodingDifferencesMap($match[1]);
+            } elseif (preg_match('/\/Encoding\s+\/([^\s\[\]()<>{}\/%]+)/', $body, $match)) {
+                $cmap = $this->namedEncodingMap($this->decodePdfName($match[1]));
             }
 
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
@@ -595,6 +597,57 @@ final class PdfTextExtractor
                 ['start' => 0, 'end' => 255, 'width' => 2],
             ],
         ];
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     */
+    private function namedEncodingMap(string $encodingName): ?array
+    {
+        if ($encodingName !== 'WinAnsiEncoding') {
+            return null;
+        }
+
+        return [
+            'map' => [
+                '80' => $this->unicodeCodepoint(0x20ac),
+                '82' => $this->unicodeCodepoint(0x201a),
+                '83' => $this->unicodeCodepoint(0x0192),
+                '84' => $this->unicodeCodepoint(0x201e),
+                '85' => $this->unicodeCodepoint(0x2026),
+                '86' => $this->unicodeCodepoint(0x2020),
+                '87' => $this->unicodeCodepoint(0x2021),
+                '88' => $this->unicodeCodepoint(0x02c6),
+                '89' => $this->unicodeCodepoint(0x2030),
+                '8a' => $this->unicodeCodepoint(0x0160),
+                '8b' => $this->unicodeCodepoint(0x2039),
+                '8c' => $this->unicodeCodepoint(0x0152),
+                '8e' => $this->unicodeCodepoint(0x017d),
+                '91' => $this->unicodeCodepoint(0x2018),
+                '92' => $this->unicodeCodepoint(0x2019),
+                '93' => $this->unicodeCodepoint(0x201c),
+                '94' => $this->unicodeCodepoint(0x201d),
+                '95' => $this->unicodeCodepoint(0x2022),
+                '96' => $this->unicodeCodepoint(0x2013),
+                '97' => $this->unicodeCodepoint(0x2014),
+                '98' => $this->unicodeCodepoint(0x02dc),
+                '99' => $this->unicodeCodepoint(0x2122),
+                '9a' => $this->unicodeCodepoint(0x0161),
+                '9b' => $this->unicodeCodepoint(0x203a),
+                '9c' => $this->unicodeCodepoint(0x0153),
+                '9e' => $this->unicodeCodepoint(0x017e),
+                '9f' => $this->unicodeCodepoint(0x0178),
+            ],
+            'codeSpaceRanges' => [
+                ['start' => 0, 'end' => 255, 'width' => 2],
+            ],
+        ];
+    }
+
+    private function unicodeCodepoint(int $codepoint): string
+    {
+        $decoded = iconv('UTF-32BE', 'UTF-8//IGNORE', pack('N', $codepoint));
+        return $decoded === false ? '' : $decoded;
     }
 
     private function glyphNameToUnicode(string $glyphName): string

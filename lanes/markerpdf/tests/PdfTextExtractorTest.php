@@ -303,6 +303,18 @@ return [
         $t->same('WP Import Blocks', $extractor->extractPlainText($pdf));
         $t->same(['WP Import Blocks'], $extractor->extractTextRuns($pdf));
     },
+    'decodes simple font WinAnsiEncoding punctuation before WordPress paragraph rendering' => static function (TestRunner $t): void {
+        $content = 'BT /Fwin 12 Tf 72 720 Td <9344617461204C696265726174696F6E94209620575092> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fwin 2 0 R >> >> /Contents 3 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /WinAnsiSubset /Encoding /WinAnsiEncoding >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+        $expected = "\u{201c}Data Liberation\u{201d} \u{2013} WP\u{2019}";
+
+        $t->same($expected, $extractor->extractPlainText($pdf));
+        $t->same([$expected], $extractor->extractTextRuns($pdf));
+    },
     'uses ToUnicode bfrange arrays for WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <202122> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"
