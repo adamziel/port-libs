@@ -100657,3 +100657,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T023734Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch rejection - quadrable - 2026-05-25 02:45 UTC
+
+Ready marker: `port-quadrable-20260525T023734Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T023734Z.patch`
+Lane/slice/session: `quadrable` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `4334d76429b901168fd7762d207d56eb987dce5a`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-quadrable-20260525T024532Z/lanes/quadrable/tests/QuadbStoreTest.php 
+- `php tools/run-tests.php lanes/quadrable/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-quadrable-20260525T024532Z/lanes/quadrable/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T023734Z.patch`, then fix the failing focused command above without broadening the slice.
+
