@@ -1,3 +1,39 @@
+## Clean-patch accepted - Syncthing pending watcher status route - 2026-05-25 23:08 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-syncthing-20260525T230404Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`f7cc9304ae3987a8b24cb5d701cb452d09c87cb41a2ad714f4103ddac91dc0a5`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`8214ff67` (`Integrate rclone cleanup evidence closure`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/syncthing/src/FolderScanRouteRegistry.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` passed.
+- `jq empty lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json` passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed:
+  `1 test files, 61 assertions, 0 failures`.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php | rg -n 'pendingWatchStatus|delayedWatchScanRevision|cleanupAcknowledged'` found the expected pending watcher status, delayed scan revision, and cleanup acknowledgement output.
+- `git diff --check -- lanes/syncthing` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=105663996` KiB and `load1=3.32`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26508 assertions, 0 failures`.
+
+Cleanup:
+- Removed the accepted ready marker, patch, metadata file, referenced worker
+  log, isolated-worker prompt, inactive source worktree, and pruned stale
+  worktree records after the commit was safely on `main`.
+- Remaining top-level ready-marker count after accepted artifact cleanup:
+  `3346`.
+
+Dashboard publication should run next after the accepted commit lands.
+
 
 ## Clean-patch accepted - esbuild bundled re-export clauses - 2026-05-25 23:06 UTC
 
