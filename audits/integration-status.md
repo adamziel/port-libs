@@ -1,5 +1,26 @@
 # Integration Status
 
+## Integration accepted - Gitoxide git-daemon host delimiter preflight - 2026-05-25 02:06 UTC
+
+Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T015716Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T015716Z.patch`.
+
+- Lane/slice/session: `gitoxide` / `supervisor-rearm-20260525T015715Z` / `port-gitoxide`.
+- Patch SHA-256: `253c324c8900c70e5e756b3f850fe75a524b9ee9dad6b33b16bb7846bc33df87`; verified with `sha256sum`.
+- Apply path: clean detached worktree from `cedf3ff1387c30cd3ec331ceda18e743d0699116`; `git apply --check` passed, then the patch applied without three-way repair.
+- Focused verification:
+  - `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed.
+  - `php -l lanes/gitoxide/src/GitDaemonReceivePackTransport.php` passed.
+  - `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+  - `php -l lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php` passed.
+  - `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php` passed.
+  - `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed: 1 test file, 231 assertions, 0 failures.
+  - `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php >/tmp/gitoxide-example-integrator.txt` passed.
+- Root verification: exact no-argument gate `pgrep -af '^php tools/run-tests\.php$'` was clear, then `php tools/run-tests.php` passed: 209 test files, 24648 assertions, 0 failures.
+- `git diff --check` passed.
+- Support-library/dependency closure: no support-library activation. This stays within the existing receive-pack transport, pkt-line construction, URL decoding, and native PHP string validation.
+- Live-service exclusions: no live git-daemon, provider, credentialed, network, Cargo, or Node/npm tests were run.
+- Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/notes/wordpress-scenarios.md`, `lanes/gitoxide/src/GitDaemonReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - Syncthing paused watcher error rearm - 2026-05-25 02:04 UTC
 
 Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T015753Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T015753Z.patch`.

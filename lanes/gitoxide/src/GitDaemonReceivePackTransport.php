@@ -173,6 +173,9 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
         if ($host === '' || self::containsControlByte($host)) {
             throw new \InvalidArgumentException('git-daemon receive-pack host must be non-empty and must not contain control bytes');
         }
+        if (preg_match('/[\s\/\\\\]/', $host) === 1) {
+            throw new \InvalidArgumentException('git-daemon receive-pack host must not contain whitespace, slash, or backslash delimiters');
+        }
     }
 
     private static function validatePort(?int $port): void
