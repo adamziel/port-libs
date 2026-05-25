@@ -1,3 +1,30 @@
+# Integration Status
+
+## Clean-patch accepted - Readability script/style block cleanup - 2026-05-25 23:55 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-readability-20260525T234103Z.ready`.
+
+Published commit: this integration commit (`Integrate Readability script style block cleanup`).
+The accepted patch was verified from a detached clean worktree at source
+`bc2efa42` and patch sha256 matched the ready marker:
+`de76d374f2c71b5fc792454a4523a6cd99778b80204a5e93a7edcccd37e7dbae`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/readability/tests/ArticleExtractorTest.php` passed.
+- `php -l lanes/readability/examples/wordpress-script-style-tag-cleanup.php` passed.
+- Readability manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php` passed: `1 test files, 1927 assertions, 0 failures`.
+- `php lanes/readability/examples/wordpress-script-style-tag-cleanup.php` passed and reported `Script/style tags imported: no` for both copied fixtures.
+- `git diff --check -- lanes/readability` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported `df_free=100736788` KiB and `load1=3.97`; no exact no-argument root harness was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot: `214 test files, 26610 assertions, 0 failures`.
+
+Cleanup will remove the accepted marker, patch, metadata, referenced worker log, inactive source worktree, and temporary verification worktree after the commit is safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts can reflect the accepted Readability commit.
 ## Clean-patch accepted - rclone cleanup command stoppedAt diagnostics - 2026-05-25 23:42 UTC
 
 Accepted one isolated marker:
