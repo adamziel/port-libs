@@ -11,14 +11,32 @@ final class SQLiteJsonInspection
         string|SQLiteBlobValue|null $value,
         ?string $path = '$',
     ): string|int|null {
-        if ($function === 'json_type') {
+        if (strcasecmp($function, 'json_type') === 0) {
             return self::jsonType($value, $path);
         }
-        if ($function === 'json_array_length') {
+        if (strcasecmp($function, 'json_array_length') === 0) {
             return self::jsonArrayLength($value, $path);
         }
 
         throw new \InvalidArgumentException('SQLite JSON inspection function must be json_type or json_array_length');
+    }
+
+    /**
+     * @param list<string|SQLiteBlobValue|null> $arguments
+     */
+    public static function inspectionSqlFunctionArguments(string $function, array $arguments): string|int|null
+    {
+        $count = count($arguments);
+        if ($count < 1 || $count > 2) {
+            throw new \InvalidArgumentException('SQLite json_type() and json_array_length() expect one or two arguments');
+        }
+
+        $path = array_key_exists(1, $arguments) ? $arguments[1] : '$';
+        if ($path !== null && !is_string($path)) {
+            throw new \InvalidArgumentException('SQLite JSON inspection path argument must be text or NULL');
+        }
+
+        return self::inspectionSqlFunction($function, $arguments[0], $path);
     }
 
     public static function jsonType(string|SQLiteBlobValue|null $value, ?string $path = '$'): ?string

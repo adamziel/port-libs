@@ -225,6 +225,19 @@ $document = new AstNode('document', $document->attrs, [
             ]),
         ]),
     ]),
+    new AstNode('bullet_list', [], [
+        new AstNode('list_item', [], [
+            new AstNode('text', ['text' => 'Review imported block structure']),
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [
+                    new AstNode('text', ['text' => 'Nested source task uses the selected bullet marker']),
+                ]),
+            ]),
+        ]),
+        new AstNode('list_item', ['taskChecked' => true], [
+            new AstNode('text', ['text' => 'Confirm plus-marker reviewer queue']),
+        ]),
+    ]),
     new AstNode('table', [
         'caption' => 'Migration review queue',
         'shortCaption' => 'Review queue',
@@ -331,6 +344,7 @@ $document = new AstNode('document', $document->attrs, [
 ]);
 
 echo (new MarkdownWriter([
+    'bulletListMarker' => 'plus',
     'referenceLinks' => true,
     'referenceLocation' => 'end_of_block',
     'setextHeadings' => true,

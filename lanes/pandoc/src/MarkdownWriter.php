@@ -26,7 +26,7 @@ final class MarkdownWriter
     private int $lastReferenceIndex = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -239,7 +239,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : '- ';
+            $marker = $ordered ? $this->orderedListMarker($node, $start + $index) : $this->bulletListMarker();
             array_push($lines, ...$this->renderListItem($item, $marker, $indent));
             $index++;
         }
@@ -271,6 +271,15 @@ final class MarkdownWriter
         }
 
         return $marker . ' ';
+    }
+
+    private function bulletListMarker(): string
+    {
+        return match ((string) ($this->options['bulletListMarker'] ?? 'dash')) {
+            'plus' => '+ ',
+            'star' => '* ',
+            default => '- ',
+        };
     }
 
     private function alphaListLabel(int $number, bool $upper): string

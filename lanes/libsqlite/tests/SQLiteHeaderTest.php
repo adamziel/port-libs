@@ -3291,20 +3291,31 @@ return [
         ]));
 
         $t->same('object', SQLiteJsonInspection::inspectionSqlFunction('json_type', $jsonb));
+        $t->same('object', SQLiteJsonInspection::inspectionSqlFunction('JSON_TYPE', $jsonb));
         $t->same('array', SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin.modes'));
         $t->same('true', SQLiteJsonInspection::inspectionSqlFunction('json_type', $jsonb, '$.plugin.enabled'));
         $t->same('null', SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin.empty'));
         $t->same(null, SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin.missing'));
 
         $t->same(2, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', $jsonb, '$.plugin.modes'));
+        $t->same(2, SQLiteJsonInspection::inspectionSqlFunction('JSON_ARRAY_LENGTH', $jsonb, '$.plugin.modes'));
         $t->same(0, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', $settings, '$.title'));
         $t->same(null, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', $settings, '$.plugin.missing'));
         $t->same(null, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', null, '$.plugin.modes'));
         $t->same(null, SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, null));
 
+        $t->same('object', SQLiteJsonInspection::inspectionSqlFunctionArguments('JSON_TYPE', [$settings, '$.plugin']));
+        $t->same('object', SQLiteJsonInspection::inspectionSqlFunctionArguments('json_type', [$jsonb]));
+        $t->same(2, SQLiteJsonInspection::inspectionSqlFunctionArguments('JSON_ARRAY_LENGTH', [$settings, '$.plugin.modes']));
+        $t->same(null, SQLiteJsonInspection::inspectionSqlFunctionArguments('json_array_length', [null, '$.plugin.modes']));
+        $t->same(null, SQLiteJsonInspection::inspectionSqlFunctionArguments('json_type', [$settings, null]));
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_valid', $settings));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_array_length', '{"plugin":,}', '$.plugin'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunctionArguments('json_type', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunctionArguments('json_type', [$settings, '$.plugin', '$.title']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunctionArguments('json_type', [$settings, 7]));
     },
     'iterates sqlite json_each table rows for text json5 and jsonb inputs' => static function (TestRunner $t): void {
         $settings = '{"plugin":{"enabled":true,"title":"Cache","rules":[{"name":"seo"},{"name":"cache"}],"empty":null},"priority":7}';

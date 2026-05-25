@@ -2,6 +2,26 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## `json_type()`/`json_array_length()` Option-Value Inspection Dispatch Scenario
+
+Native JSON inspection now includes bounded SQL-style argument-vector dispatch
+for `json_type()` and `json_array_length()` with case-insensitive function
+lookup. The example `examples/wordpress-json-inspection-preflight.php`
+exercises copied `wp_options.option_value` inputs through direct inspection,
+direct SQL dispatch, and uppercase argument-vector SQL dispatch for strict
+JSON text, SQLite JSON5 text, cast text BLOBs, JSONB blobs, and SQL NULL
+option values. This gives WordPress import and repair tooling a local-only
+preflight that mirrors SQLite's SQL entry points without requiring the SQLite
+extension.
+
+Status delta 2026-05-25 isolated refill: added
+`inspectionSqlFunctionArguments()`, switched direct inspection function-name
+validation to case-insensitive lookup, added focused arity/path-type
+rejection tests, and updated the existing WordPress smoke to report uppercase
+argument-vector dispatch. Dependency closure: no new support component is
+needed; the slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB,
+and SQL NULL support.
+
 ## `json_pretty()` SQL-Dispatch Option-Value Review Scenario
 
 Native JSON pretty-printing now includes a bounded SQL function-name dispatch

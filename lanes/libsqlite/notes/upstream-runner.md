@@ -1,5 +1,38 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: `json_type()`/`json_array_length()` Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQL-dispatch boundary for SQLite
+JSON inspection helpers. Native `SQLiteJsonInspection` now validates
+`json_type` and `json_array_length` with SQLite-style case-insensitive
+function lookup across direct calls and one-or-two argument-vector dispatch,
+keeps the accepted scalar result typing, propagates SQL NULL input and NULL
+path results, and rejects invalid arity, invalid function names, and non-text
+path arguments without expanding into planner or virtual-table behavior.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON inspection evidence for the same
+upstream behavior cluster:
+
+```sh
+json101.test json102.test json501.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence is recorded in `lane-status.json` after local focused
+verification.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON path, JSON5, JSONB inspection, BLOB wrapper, and SQL
+NULL handling components; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json_pretty()` SQL Function Dispatch
 
 Date: 2026-05-25

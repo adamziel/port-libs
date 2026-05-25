@@ -2317,6 +2317,27 @@ MD;
             'AA) upper AA marker' . "\n" . 'AB) upper AB marker',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer bullet list marker option' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [
+                    new AstNode('text', ['text' => 'review queue item']),
+                    new AstNode('bullet_list', [], [
+                        new AstNode('list_item', [], [
+                            new AstNode('text', ['text' => 'nested review task']),
+                        ]),
+                    ]),
+                ]),
+                new AstNode('list_item', ['taskChecked' => true], [
+                    new AstNode('text', ['text' => 'checked import task']),
+                ]),
+            ]),
+        ]);
+
+        $t->same("- review queue item\n  - nested review task\n- [x] checked import task", (new MarkdownWriter())->write($document));
+        $t->same("+ review queue item\n  + nested review task\n+ [x] checked import task", (new MarkdownWriter(['bulletListMarker' => 'plus']))->write($document));
+        $t->same("* review queue item\n  * nested review task\n* [x] checked import task", (new MarkdownWriter(['bulletListMarker' => 'star']))->write($document));
+    },
     'maps upstream markdown writer note and reference placement' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [
