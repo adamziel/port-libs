@@ -2496,3 +2496,42 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: expose an explicit
 recent-cleanup acknowledgement/clear path for REST clients after they consume
 bounded cleanup payloads.
+
+## 2026-05-25 Watcher Recent Cleanup Acknowledgement
+
+This isolated micro-slice closes the REST consumption loop for bounded watcher
+cleanup payloads. `FolderWatchScanScheduler` now exposes
+`acknowledgeRecentCleanup()` for one folder and `acknowledgeRecentCleanups()`
+for all retained folders, both pruning expired payloads before clearing
+acknowledged rows.
+
+The WordPress watcher smoke reports a removed media folder cleanup payload,
+acknowledges it, and then shows an empty follow-up cleanup status collection so
+a polling REST client does not keep re-displaying the same consumed cleanup
+event.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate remains
+wiring watcher cleanup status and acknowledgement into a WordPress/local REST
+status surface; the evidence plan is the focused watcher tests plus the local
+WordPress example smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 225 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported `recentCleanupAcknowledged: true` followed by
+  `recentCleanupAfterAcknowledgement: []`.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: expose recent cleanup
+acknowledgement through the bounded WordPress route/status registry so REST
+clients can poll and consume watcher cleanup outcomes in one payload.

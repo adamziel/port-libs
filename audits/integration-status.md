@@ -108350,3 +108350,52 @@ Root gate: before focused/root checks, / available KiB was >= 86000000, first lo
 
 Dependency closure: no new support component; reuses bounded SyncFuzzer, tracked-node-store persistence, and WordPress watchdog example components.
 Live-service exclusions: none; no live-service provider tests were run.
+## Integration accepted - Syncthing watcher recent-cleanup acknowledgement - 2026-05-25 07:26 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T072620Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T072620Z.patch`.
+
+Lane/slice/session: `syncthing` /
+`supervisor-rearm-20260525T072619Z` / `port-syncthing`.
+Base accepted head recorded by marker:
+`9b3b0e2ce0a77b24e002703d2a44cb013b73bc94`; clean integration base:
+`b23ba744c8f657d8eaf862e84e3aef30504dba80`.
+
+Patch hash verification: `sha256sum` matched
+`ace94521d8e78a83f12a8f8977804b0136a0136f0319e65c21861ed7cd4eabc7`.
+Apply mode: direct `git apply --check` and `git apply`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-syncthing-supervisor-rearm-20260525T072619Z-20260525T072620Z`:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php`: passed, no syntax errors.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: passed, no syntax errors.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`: passed, no syntax errors.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: passed, 1 test file, 225 assertions, 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php | rg 'recentCleanupAcknowledged|recentCleanupAfterAcknowledgement' -A 2`: passed and reported `recentCleanupAcknowledged: true` followed by `recentCleanupAfterAcknowledgement: []`.
+- `jq empty lanes/syncthing/lane-status.json lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`: passed.
+- `git diff --check`: passed.
+
+Root verification:
+
+- `php tools/run-tests.php`: passed, 213 test files, 25807 assertions, 0 failures.
+
+Support-library/dependency-closure decision: no new support-library activation.
+The slice reuses the existing bounded PHP watcher scheduler, event aggregator,
+folder scan scheduler, scan service, and checkpoint store. The next dependency
+gate remains lane-local WordPress route/status wiring for watcher cleanup
+status and acknowledgement.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+
+- `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+- `lanes/syncthing/lane-status.json`
+- `lanes/syncthing/notes/wordpress-scenarios.md`
+- `lanes/syncthing/src/FolderWatchScanScheduler.php`
+- `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+- `audits/integration-status.md`

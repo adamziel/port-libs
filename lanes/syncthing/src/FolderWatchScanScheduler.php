@@ -347,6 +347,33 @@ final class FolderWatchScanScheduler
         return $statuses;
     }
 
+    public function acknowledgeRecentCleanup(string $folderId, ?int $now = null): bool
+    {
+        self::assertFolderId($folderId);
+        if ($now !== null) {
+            $this->pruneRecentCleanups(self::clock($now));
+        }
+        if (!isset($this->recentCleanups[$folderId])) {
+            return false;
+        }
+
+        unset($this->recentCleanups[$folderId]);
+
+        return true;
+    }
+
+    public function acknowledgeRecentCleanups(?int $now = null): int
+    {
+        if ($now !== null) {
+            $this->pruneRecentCleanups(self::clock($now));
+        }
+
+        $count = count($this->recentCleanups);
+        $this->recentCleanups = [];
+
+        return $count;
+    }
+
     /**
      * @param null|callable(FolderScanProgress): void $progressLogger
      * @param null|callable(string, \Throwable, string): void $errorLogger

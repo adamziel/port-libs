@@ -102,6 +102,8 @@ try {
     $removedDuringDispatchStatus = $watchScheduler->watchStatus('wordpress-media-removed-during-dispatch', 1130);
     $recentCleanupAfterRemovedDispatch = $watchScheduler->recentCleanupStatuses();
     $recentCleanupRetained = $watchScheduler->recentCleanupStatuses(1130);
+    $recentCleanupAcknowledged = $watchScheduler->acknowledgeRecentCleanup('wordpress-media-removed-during-dispatch', 1130);
+    $recentCleanupAfterAcknowledgement = $watchScheduler->recentCleanupStatuses(1130);
     $recentCleanupExpired = $watchScheduler->recentCleanupStatuses(1151);
 
     echo json_encode([
@@ -142,6 +144,8 @@ try {
         'removedDuringDispatchStatus' => $removedDuringDispatchStatus,
         'recentCleanupAfterRemovedDispatch' => $recentCleanupAfterRemovedDispatch,
         'recentCleanupRetained' => $recentCleanupRetained,
+        'recentCleanupAcknowledged' => $recentCleanupAcknowledged,
+        'recentCleanupAfterAcknowledgement' => $recentCleanupAfterAcknowledgement,
         'recentCleanupExpired' => $recentCleanupExpired,
         'checkpointRevision' => $service->checkpoint(1021)?->revision,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

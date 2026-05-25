@@ -722,6 +722,58 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler acknowledges one consumed recent cleanup payload' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $scheduler = new FolderScanScheduler();
+            $watch = new FolderWatchScanScheduler($scheduler, notifyDelaySeconds: 10, notifyTimeoutSeconds: 30);
+
+            foreach (['media-a', 'media-b'] as $offset => $folderId) {
+                $scheduler->addFolder($folderId, new FolderScanService($folderId, new FileInfoScanner($root), new FolderScanCheckpointStore()));
+                $watch->recordEvent($folderId, 'wp-content/uploads/2026/05/hero.jpg', now: 9900 + $offset);
+                $scheduler->removeFolder($folderId);
+                $watch->cleanupWatchingFolder($folderId, discardPendingEvents: true, now: 9901 + $offset);
+            }
+
+            $t->same(['media-a', 'media-b'], array_keys($watch->recentCleanupStatuses(9902)));
+            $t->same(true, $watch->acknowledgeRecentCleanup('media-a', 9902));
+            $t->same(false, $watch->acknowledgeRecentCleanup('media-a', 9902));
+            $t->same(['media-b'], array_keys($watch->recentCleanupStatuses(9902)));
+            $t->same(false, $watch->acknowledgeRecentCleanup('missing-media', 9902));
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
+    'watch scan scheduler acknowledges all retained recent cleanup payloads after pruning expired rows' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $scheduler = new FolderScanScheduler();
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                recentCleanupTtlSeconds: 5,
+            );
+
+            foreach (['media-a', 'media-b'] as $offset => $folderId) {
+                $scheduler->addFolder($folderId, new FolderScanService($folderId, new FileInfoScanner($root), new FolderScanCheckpointStore()));
+                $watch->recordEvent($folderId, 'wp-content/uploads/2026/05/hero.jpg', now: 10000 + $offset);
+                $scheduler->removeFolder($folderId);
+                $watch->cleanupWatchingFolder($folderId, discardPendingEvents: true, now: 10001 + $offset);
+            }
+
+            $t->same(['media-a', 'media-b'], array_keys($watch->recentCleanupStatuses(10002)));
+            $t->same(1, $watch->acknowledgeRecentCleanups(10007));
+            $t->same([], $watch->recentCleanupStatuses(10007));
+            $t->same(0, $watch->acknowledgeRecentCleanups(10007));
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string
