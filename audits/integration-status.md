@@ -1,4 +1,62 @@
 
+## Clean-patch intake deferred - libsqlite root gate closed - 2026-05-25 17:49 UTC
+
+No libsqlite source output was integrated in this pass.
+
+Processed marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-finisher-20260525T173947Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-finisher-20260525T173947Z.patch`.
+
+Lane/slice/session: `libsqlite` / `priority-refill-20260525T173947Z` /
+`port-libsqlite-finisher`. Patch sha256 verified as
+`b51fcb7c43d4829d279e2d0b8ddcba55a7e0b1bfc9e6cfe34d4c126de7aa1e68`.
+
+Clean application result: plain `git apply --check` and `git apply` both
+succeeded in detached clean worktree
+`/tmp/port-clean-integrator-libsqlite-priority-refill-20260525T173947Z` from
+current main `2271267e7d274b029b3b12282509ea1be47f2af6`. The patch is
+lane-local to `lanes/libsqlite/**` and adds JSON mutation SQL
+argument-vector dispatch plus focused status/manifest/example updates.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonMutation.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-jsonb-mutate-option-field.php`:
+  passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`:
+  passed.
+- `php lanes/libsqlite/examples/wordpress-jsonb-mutate-option-field.php
+  '{"plugin":{"enabled":false,"rules":["seo"]}}' jsonb_set '$.plugin.enabled'
+  true '$.plugin.settings' 'json:{"source":"native"}'`: passed and reported
+  uppercase `JSONB_SET` argument-vector dispatch.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed,
+  `1 test files, 2217 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Root verification: not run. The pre-root resource/process gate was rechecked
+outside `.tmux-team/tmp/clean-integrator-run.lock`: `/` had `108925892` KiB
+available and no exact no-argument root harness was active, but load average
+first field was `51.61`, above the required `<25`. After the required 60
+second sleep outside the lock, `/` had `108923176` KiB available and no exact
+no-argument root harness was active, but load average first field was still
+`66.05`. Because the gate stayed closed, no root slot was spent and no source
+commit was accepted.
+
+Support-library/dependency closure decision: no new support component would be
+needed for this slice; it reuses lane-local JSON path mutation, JSON subtype,
+JSONB, BLOB, and SQL NULL support. Live-service provider tests were not
+applicable and no secret-bearing inputs were read.
+
+Repair/retry command when the root gate opens:
+
+- `git worktree add --detach /tmp/port-clean-integrator-libsqlite-priority-refill-20260525T173947Z refs/heads/main`
+- `git -C /tmp/port-clean-integrator-libsqlite-priority-refill-20260525T173947Z apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-finisher-20260525T173947Z.patch`
+- `git -C /tmp/port-clean-integrator-libsqlite-priority-refill-20260525T173947Z apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-finisher-20260525T173947Z.patch`
+- repeat the focused commands above, then `php tools/run-tests.php` under
+  `.tmux-team/tmp/clean-integrator-run.lock`.
+
 ## Clean-patch integrated - rclone closure-refill - 2026-05-25 17:45 UTC
 
 Accepted marker:
