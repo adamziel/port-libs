@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 13:04:20 UTC",
-    "sourceCommit": "64626c9fd6b2879f20ebca15706d01e113145d20",
-    "sourceCommitShort": "64626c9fd6b2",
+    "generated": "2026-05-25 13:11:24 UTC",
+    "sourceCommit": "4e56f0933aa75c92aaba71372795fdea7ff4c524",
+    "sourceCommitShort": "4e56f0933aa7",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "d7242771a34be814edf4cbd79abc787d95636425",
-    "dashboardCommitShort": "d7242771a34b",
+    "dashboardCommit": "c0d875d6349b345cd57d8bff0e3fc5c6c5ef7dd3",
+    "dashboardCommitShort": "c0d875d6349b",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -87,8 +87,8 @@
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
             "audit": "isolated rework micro-slice 2026-05-25: p...",
-            "currentWork": "Latest isolated rework rebases the json_pretty SQL-dispatch behavior on top of the accept...",
-            "nextTarget": "Integrator should accept or reject the JSON pretty SQL-dispatch subtype default-indent re...",
+            "currentWork": "Latest isolated rework adds bounded SQLite json_tree() recursive table-valued row product...",
+            "nextTarget": "Integrator should accept or reject the json_tree recursive table-valued row slice, then m...",
             "blocker": "Full SQLite all/release runner parity remains pending; this isolated work...",
             "commit": "isolate"
         },
