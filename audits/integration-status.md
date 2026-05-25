@@ -1,4 +1,55 @@
 
+## Integration accepted - libsqlite json_pretty subtype dispatch - 2026-05-25 08:36 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T082437Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T082437Z.patch`.
+
+Lane/slice/session: `libsqlite` /
+`priority-keeper-rework-20260525T082437Z` / `port-libsqlite-rework`.
+Patch SHA-256 verified:
+`79b18d65dd7e8c9a057d3a0bd2290e95b55ba09c22eaea729fd31728efd34dfc`.
+Clean base: `b8edfe6ada1501e6b2ee162ed5f30890fb69bc14`.
+
+Apply/rebase note: `git apply --check` failed only because the prior accepted
+libsqlite evidence-refresh commit had changed `lanes/libsqlite/lane-status.json`.
+`git apply --3way` applied the lane files and left one conflict in that status
+file. The conflict was resolved by preserving the earlier 08:22Z focused
+evidence sentence and the newer JSON subtype/malformed-input current-work
+wording; no source behavior was rewritten beyond the submitted slice.
+
+Focused verification repeated in clean worktree
+`/tmp/port-clean-integrator-libsqlite-priority-keeper-rework-20260525T082437Z`:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonPretty.php` - passed, no syntax errors.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` - passed, no syntax errors.
+- `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` - passed, no syntax errors.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` - passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` - passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` - passed: `1 test files, 2033 assertions, 0 failures`.
+- `git diff --check` - passed.
+
+Root verification:
+
+- Pre-root gate satisfied: `/` available KiB was above `86000000`, load was below `25`, and `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- `php tools/run-tests.php` - passed: `214 test files, 25918 assertions, 0 failures`.
+
+Support-library/dependency closure decision: no support-library activation.
+The patch extends lane-local JSON pretty SQL-dispatch coverage for JSON subtype
+input and malformed-input propagation, reusing existing libsqlite JSON support.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - libsqlite json_pretty evidence refresh - 2026-05-25 08:29 UTC
 
 Accepted isolated ready marker:

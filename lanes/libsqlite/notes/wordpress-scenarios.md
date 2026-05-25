@@ -15,12 +15,13 @@ repair tooling a local-only review path that mirrors SQLite's SQL entry point
 without requiring the SQLite extension.
 
 Status delta 2026-05-25 isolated rework: added `jsonPrettySqlFunction()`,
-kept invalid-name rejection, accepted uppercase SQL spelling, and updated the
-existing WordPress smoke to call the SQL-dispatch helper. This preserves
+kept invalid-name rejection, accepted uppercase SQL spelling, added subtype
+input and malformed-input dispatch smoke coverage, and updated the existing
+WordPress smoke to call the SQL-dispatch helper. This preserves
 accepted json_extract/jsonb_extract subtype dispatch and json_each
 table-valued row evidence while making the deferred json_pretty patch
 additive. Dependency closure: no new support component is needed; the slice
-reuses existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and
+reuses existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, subtype, and
 pretty formatter support and counts no shared support-library progress.
 
 ## `json_each()` Option-Value Expansion Scenario

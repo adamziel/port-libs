@@ -9,8 +9,8 @@ on top of the accepted `json_extract`/`jsonb_extract` subtype dispatch and
 `json_each` table-valued row slices. Native `SQLiteJsonPretty` now validates
 the SQL function name `json_pretty` with SQLite-style case-insensitive
 function lookup, dispatches default and caller-supplied indentation through
-the accepted formatter, preserves SQL NULL propagation, and rejects invalid
-function names without changing the accepted
+the accepted formatter, accepts JSON subtype input, preserves SQL NULL and
+malformed input propagation, and rejects invalid function names without changing the accepted
 `json_pretty(JSON[,INDENT])` formatting boundary.
 
 Focused upstream runner:
