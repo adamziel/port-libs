@@ -36,8 +36,8 @@ $requester = static function (string $method, string $url, array $headers, ?stri
 
     if (count($requests) === 2) {
         return [
-            'status' => 307,
-            'headers' => ['Location' => 'https://git.example.test/redirected.git/git-receive-pack'],
+            'status' => 308,
+            'headers' => ['Location' => '/redirected.git/git-receive-pack'],
             'body' => '',
         ];
     }

@@ -108652,3 +108652,17 @@ Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/exam
   - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n "Reviewer spacing packet|hard boundary follows|next reviewer line"` passed.
   - `git diff --check` passed.
 - Root verification: `php tools/run-tests.php` passed under resource gate.
+
+### 2026-05-25 gitoxide priority rework accepted
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T075234Z.ready`
+- Patch SHA256: `0aa4ab39ac4353239e851198e218c9b8dd48e4b123a20b4d67a2741abbf10811`
+- Base accepted HEAD before attempt: `7327effee784f93566ce770a1b2b39eb02427ccd`
+- Focused verification in detached worktree `.tmux-team/tmp/clean-integrator-gitoxide-20260525T0800Z`:
+  - `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+  - `php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php` passed.
+  - `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed.
+  - `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+  - `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` passed.
+  - `git diff --check` passed.
+- Root verification: `php tools/run-tests.php` passed under resource gate.

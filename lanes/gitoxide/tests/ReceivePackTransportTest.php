@@ -776,6 +776,59 @@ return [
         $t->same('POST', $postRedirectRequests[2]['method']);
         $t->same($postRedirectRequest->requestBytes(), $postRedirectRequests[2]['body']);
 
+        $relativePermanentRedirectRequests = [];
+        $relativePermanentRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$relativePermanentRedirectRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $relativePermanentRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    if (count($relativePermanentRedirectRequests) === 2) {
+                        return [
+                            'status' => 308,
+                            'headers' => ['Location' => '/redirected.git/git-receive-pack'],
+                            'body' => '',
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                7.0,
+                ['User-Agent' => 'port-libs-test/redirect-relative'],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $relativePermanentRedirectSession = $relativePermanentRedirectClient->handshake();
+        $relativePermanentRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $relativePermanentRedirectRequest = $relativePermanentRedirectSession->buildRequest([$blob]);
+
+        $relativePermanentRedirectResponse = $relativePermanentRedirectClient->send($relativePermanentRedirectRequest);
+
+        $t->same(true, $relativePermanentRedirectResponse->isSuccessful());
+        $t->same(3, count($relativePermanentRedirectRequests));
+        $t->same('https://git.example.test/redirected.git/git-receive-pack', $relativePermanentRedirectRequests[2]['url']);
+        $t->same('POST', $relativePermanentRedirectRequests[2]['method']);
+        $t->same($relativePermanentRedirectRequest->requestBytes(), $relativePermanentRedirectRequests[2]['body']);
+
         $rewritingPostRedirectRequests = [];
         $rewritingPostRedirectClient = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
