@@ -99089,3 +99089,16 @@ Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T
 - Support-library/dependency closure: no support-library activation; this is lane-local URL/argument validation.
 - Live-service exclusions: none.
 - Files staged: `lanes/gitoxide/**` and `audits/integration-status.md`.
+
+## Integration accepted - isolated lightningcss scope rule minifier slice - 2026-05-25 01:08 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T002350Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T002350Z.patch`.
+
+- Lane/slice/session: `lightningcss` / `supervisor-next-20260525T002348Z` / `port-lightningcss`.
+- Patch sha256: `e17ec23dc8c5973653a2b889d40968584e6f71d2758bda45f2eaf5421731a94a` verified with `sha256sum`.
+- Focused verification in clean worktree: PHP syntax checks for changed PHP files passed; `php tools/run-tests.php lanes/lightningcss/tests` passed with `9 test files, 1055 assertions, 0 failures`; `php lanes/lightningcss/examples/wordpress-scope-rule-minifier.php` passed; JSON validation passed.
+- Root verification in clean worktree: `php tools/run-tests.php` passed with `208 test files, 24381 assertions, 0 failures`.
+- Whitespace verification: `git diff --check` passed.
+- Support-library/dependency closure: no support-library activation; this reuses the lane-local CSS minifier scanner.
+- Live-service exclusions: none.
+- Files staged: `lanes/lightningcss/**` and `audits/integration-status.md`.

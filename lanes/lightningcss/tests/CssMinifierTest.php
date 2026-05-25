@@ -481,6 +481,26 @@ return [
             static fn () => $minifier->minify('.foo { color: red } @namespace "http://example.com/foo";')
         );
     },
+    'css minifier maps upstream scope rule prelude spacing' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@scope(.card){.title{color:#ff0}}',
+            $minifier->minify('@scope (.card) { .title { color: yellow; } }')
+        );
+        $t->same(
+            '@scope(.card) to (.footer){.title{color:#ff0}}',
+            $minifier->minify('@scope (.card) to (.footer) { .title { color: yellow; } }')
+        );
+        $t->same(
+            '@scope(.card) to (.footer){.title{color:#ff0}}',
+            $minifier->minify('@scope (.card) TO(.footer) { .title { color: yellow; } }')
+        );
+        $t->same(
+            '@scope(.card,.panel) to (.footer,.aside){.title{color:#ff0}}',
+            $minifier->minify('@scope (.card, .panel) to (.footer, .aside) { .title { color: yellow; } }')
+        );
+    },
     'css minifier maps upstream starting-style rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -2111,6 +2131,24 @@ CSS;
 
         $t->same(
             '@page chapter:left{margin:.5in;@bottom-left{content:"Chapter";margin:10pt}}@page toc,index{margin:.5cm}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress scoped block styles minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@scope (.wp-block-group.is-style-card) to (.wp-block-buttons) {
+  .wp-block-heading {
+    color: yellow;
+  }
+
+  .wp-block-image img {
+    border-color: blue;
+  }
+}
+CSS;
+
+        $t->same(
+            '@scope(.wp-block-group.is-style-card) to (.wp-block-buttons){.wp-block-heading{color:#ff0}.wp-block-image img{border-color:#00f}}',
             (new CssMinifier())->minify($css)
         );
     },

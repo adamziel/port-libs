@@ -407,7 +407,7 @@ final class CssMinifier
             }
 
             $prelude = substr($css, $scope, $open - $scope);
-            $prelude = preg_replace('/\bto\(/', 'to (', $prelude) ?? $prelude;
+            $prelude = preg_replace('/\bto\s*\(/i', 'to (', $prelude) ?? $prelude;
             $output .= $prelude . '{';
             $cursor = $open + 1;
         }
