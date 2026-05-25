@@ -148,6 +148,22 @@ final class FolderScanRouteRegistry
             ]);
         }
 
+        $registry->register('GET', '/syncthing/db/routes', static function (array $payload) use ($registry): FolderScanApiResponse {
+            $page = $registry->routePage($payload);
+
+            return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
+                'ok' => true,
+                'status' => 'ok',
+                'routes' => $page['routes'],
+                'page' => $page['page'],
+            ]);
+        }, [
+            'upstreamRoute' => 'WordPress REST route catalog for bounded scan/watch API discovery',
+            'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/routes'),
+            'queued' => false,
+            'routeCatalog' => true,
+        ]);
+
         return $registry;
     }
 
@@ -220,6 +236,46 @@ final class FolderScanRouteRegistry
 
         usort($routes, static fn (array $a, array $b): int => [$a['path'], $a['method']] <=> [$b['path'], $b['method']]);
         return $routes;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{routes:list<array{method:string, path:string, wordpressRoute:string, metadata:array<string, mixed>}>, page:array{offset:int, limit:int, total:int, returned:int, nextOffset:null|int}}
+     */
+    public function routePage(array $payload = []): array
+    {
+        $routes = $this->routes();
+        $method = isset($payload['method']) && trim((string) $payload['method']) !== ''
+            ? $this->normalizeMethod((string) $payload['method'])
+            : null;
+        $pathPrefix = isset($payload['pathPrefix']) && trim((string) $payload['pathPrefix']) !== ''
+            ? $this->normalizePath((string) $payload['pathPrefix'])
+            : null;
+
+        if ($method !== null || $pathPrefix !== null) {
+            $routes = array_values(array_filter(
+                $routes,
+                static fn (array $route): bool => ($method === null || $route['method'] === $method)
+                    && ($pathPrefix === null || $route['path'] === $pathPrefix || str_starts_with($route['path'], rtrim($pathPrefix, '/') . '/')),
+            ));
+        }
+
+        $total = count($routes);
+        $offset = self::boundedInt($payload['offset'] ?? 0, min: 0, max: $total);
+        $limit = self::boundedInt($payload['limit'] ?? 50, min: 1, max: 100);
+        $pageRoutes = array_slice($routes, $offset, $limit);
+        $nextOffset = $offset + count($pageRoutes);
+
+        return [
+            'routes' => $pageRoutes,
+            'page' => [
+                'offset' => $offset,
+                'limit' => $limit,
+                'total' => $total,
+                'returned' => count($pageRoutes),
+                'nextOffset' => $nextOffset < $total ? $nextOffset : null,
+            ],
+        ];
     }
 
     public function wordpressRoute(string $path): string
@@ -313,5 +369,11 @@ final class FolderScanRouteRegistry
     private static function oneFolderMap(string $folder, ?array $status): array
     {
         return $status === null ? [] : [$folder => $status];
+    }
+
+    private static function boundedInt(mixed $value, int $min, int $max): int
+    {
+        $int = is_numeric($value) ? (int) $value : $min;
+        return max($min, min($max, $int));
     }
 }

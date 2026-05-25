@@ -1,5 +1,38 @@
 # Integration Status
 
+## Clean-patch accepted - Syncthing route catalog discovery - 2026-05-26 00:03 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-syncthing-20260525T235148Z.ready`.
+
+Published commit: this integration commit
+(`Integrate Syncthing route catalog discovery`). The accepted patch was verified
+from a detached clean worktree at source `e0583cb1` and is scoped to
+`lanes/syncthing/**` plus this integration-status entry. Patch sha256 matched
+the ready marker:
+`88f1ff642730e5d9182d845ddf0d99281dfec0a711ef3a788449f9c1c64f2b85`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/syncthing/src/FolderScanRouteRegistry.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed: `1 test files, 81 assertions, 0 failures`.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` emitted valid JSON.
+- Syncthing manifest/status JSON validation passed.
+- `git diff --check -- lanes/syncthing` passed.
+
+Root verification:
+- An initial pre-root gate found another exact no-argument root harness active, so no duplicate root run was started.
+- After waiting outside the lock, the root/resource gates were open under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` with `df_free=99405020` KiB and `load1=2.57`.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot: `214 test files, 26635 assertions, 0 failures`.
+
+Cleanup will remove the accepted marker, patch, metadata, referenced worker
+log, inactive source worktree, and temporary verification worktree after the
+commit is safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted Syncthing commit.
+
 ## Clean-patch accepted - MarkerPDF WinAnsi punctuation decoding - 2026-05-25 23:56 UTC
 
 Accepted one isolated marker:

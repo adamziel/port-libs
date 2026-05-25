@@ -66,9 +66,14 @@ try {
     $cleanupAcknowledged = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/watch/cleanups/ack', [
         'folder' => 'wordpress-media',
     ], now: 1035);
+    $watchRouteCatalog = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/routes', [
+        'pathPrefix' => '/syncthing/db/watch',
+        'limit' => 3,
+    ], now: 1035);
 
     echo json_encode([
         'registeredRoutes' => $registry->routes(),
+        'watchRouteCatalog' => $watchRouteCatalog->toArray(),
         'accepted' => $accepted->toArray(),
         'completed' => $completed?->toArray(),
         'pendingWatchStatus' => $pendingWatchStatus->toArray(),

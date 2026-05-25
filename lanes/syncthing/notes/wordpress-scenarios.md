@@ -28,6 +28,13 @@ aggregate all-folder response when the filter is omitted. Dependency closure:
 no new support component is needed; this reuses the existing bounded watcher
 scheduler and route-registry components.
 
+The route-registry route-catalog slice adds `GET /syncthing/db/routes` for
+WordPress REST clients that need to discover the local scan/watch API surface
+without pulling a large all-routes list. Clients can filter by HTTP method and
+path prefix, then page through route metadata with bounded `offset`/`limit`
+arguments and `nextOffset` bookkeeping. Dependency closure: no new support
+component is needed; this reuses the existing bounded route-registry component.
+
 ## Current Native Slice
 
 Native scanner-style content blocks now match Syncthing's `lib/scanner/blocks_test.go`

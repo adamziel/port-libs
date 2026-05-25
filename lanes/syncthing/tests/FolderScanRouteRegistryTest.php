@@ -31,8 +31,9 @@ return [
             $t->same('ok', $response->body['status']);
             $t->same(['wp-content/uploads/2026/05'], $response->body['request']['folders']['wordpress-media']);
             $t->same(1, $response->body['result']['folders']['wordpress-media']['revision']);
-            $t->same('/wp-json/local-first/v1/syncthing/db/scan', $registry->routes()[0]['wordpressRoute']);
-            $t->same('/rest/db/scan', $registry->routes()[0]['metadata']['upstreamRoute']);
+            $scanRoute = syncthing_folder_scan_route_by_path($registry->routes(), '/syncthing/db/scan', 'POST');
+            $t->same('/wp-json/local-first/v1/syncthing/db/scan', $scanRoute['wordpressRoute']);
+            $t->same('/rest/db/scan', $scanRoute['metadata']['upstreamRoute']);
         } finally {
             syncthing_folder_scan_route_rm($root);
         }
@@ -141,8 +142,9 @@ return [
             $t->same(false, $status->body['watchers']['wordpress-media']['due'] ?? null);
             $t->same([], $scanBeforeDelay->snapshots());
             $t->same(1, $scanAfterDelay->snapshot('wordpress-media')?->revision);
-            $t->same('/wp-json/local-first/v1/syncthing/db/watch/status', $routes[5]['wordpressRoute']);
-            $t->same(true, $routes[5]['metadata']['watcherPendingStatus'] ?? null);
+            $statusRoute = syncthing_folder_scan_route_by_path($routes, '/syncthing/db/watch/status', 'GET');
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/status', $statusRoute['wordpressRoute']);
+            $t->same(true, $statusRoute['metadata']['watcherPendingStatus'] ?? null);
         } finally {
             syncthing_folder_scan_route_rm($root);
         }
@@ -193,6 +195,40 @@ return [
             syncthing_folder_scan_route_rm($root);
         }
     },
+    'route registry exposes paged route catalog for WordPress REST discovery' => static function (TestRunner $t): void {
+        $scheduler = new FolderScanScheduler();
+        $coordinator = new FolderScanApiCoordinator($scheduler);
+        $queue = new FolderScanApiRequestQueue($coordinator);
+        $watchScheduler = new FolderWatchScanScheduler($scheduler);
+        $registry = FolderScanRouteRegistry::forScanApi($coordinator, $queue, $watchScheduler, namespace: 'local-first/v1');
+
+        $firstPage = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/routes', [
+            'pathPrefix' => '/syncthing/db/watch',
+            'method' => 'GET',
+            'offset' => 1,
+            'limit' => 2,
+        ], now: 3700);
+        $oversizedPage = $registry->dispatch('GET', '/syncthing/db/routes', [
+            'pathPrefix' => '/syncthing/db/watch',
+            'limit' => 1000,
+        ], now: 3700);
+        $missingPage = $registry->dispatch('GET', '/syncthing/db/routes', [
+            'pathPrefix' => '/syncthing/db/missing',
+        ], now: 3700);
+
+        $t->same(FolderScanApiCoordinator::HTTP_OK, $firstPage->statusCode);
+        $t->same('ok', $firstPage->body['status']);
+        $t->same(3, $firstPage->body['page']['total']);
+        $t->same(2, $firstPage->body['page']['returned']);
+        $t->same(null, $firstPage->body['page']['nextOffset']);
+        $t->same('/syncthing/db/watch/restarts', $firstPage->body['routes'][0]['path'] ?? null);
+        $t->same('/syncthing/db/watch/status', $firstPage->body['routes'][1]['path'] ?? null);
+        $t->same('GET', $firstPage->body['routes'][0]['method'] ?? null);
+        $t->same(100, $oversizedPage->body['page']['limit']);
+        $t->same(5, $oversizedPage->body['page']['total']);
+        $t->same([], $missingPage->body['routes']);
+        $t->same(0, $missingPage->body['page']['total']);
+    },
     'route registry acknowledges all watcher cleanup payloads after retention pruning' => static function (TestRunner $t): void {
         $root = syncthing_folder_scan_route_root();
         try {
@@ -220,8 +256,10 @@ return [
             $t->same([], $ack->body['cleanups']);
             $t->same('missing', $missing->body['status']);
             $t->same(0, $missing->body['acknowledged']);
-            $t->same('/wp-json/local-first/v1/syncthing/db/watch/cleanups', $routes[1]['wordpressRoute']);
-            $t->same('/wp-json/local-first/v1/syncthing/db/watch/cleanups/ack', $routes[2]['wordpressRoute']);
+            $cleanupRoute = syncthing_folder_scan_route_by_path($routes, '/syncthing/db/watch/cleanups', 'GET');
+            $cleanupAckRoute = syncthing_folder_scan_route_by_path($routes, '/syncthing/db/watch/cleanups/ack', 'POST');
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/cleanups', $cleanupRoute['wordpressRoute']);
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/cleanups/ack', $cleanupAckRoute['wordpressRoute']);
         } finally {
             syncthing_folder_scan_route_rm($root);
         }
@@ -267,8 +305,10 @@ return [
             $t->same(['wp-content/uploads/2026/05/hero.jpg'], $afterComplete['pendingPaths'] ?? []);
             $t->same(4010, $afterComplete['nextScanAt'] ?? null);
             $t->same(1, $scanAfterDelay->snapshot('wordpress-media')?->revision);
-            $t->same('/wp-json/local-first/v1/syncthing/db/watch/restarts', $routes[3]['wordpressRoute']);
-            $t->same('/wp-json/local-first/v1/syncthing/db/watch/restarts/complete', $routes[4]['wordpressRoute']);
+            $restartRoute = syncthing_folder_scan_route_by_path($routes, '/syncthing/db/watch/restarts', 'GET');
+            $restartCompleteRoute = syncthing_folder_scan_route_by_path($routes, '/syncthing/db/watch/restarts/complete', 'POST');
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/restarts', $restartRoute['wordpressRoute']);
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/restarts/complete', $restartCompleteRoute['wordpressRoute']);
         } finally {
             syncthing_folder_scan_route_rm($root);
         }
@@ -295,6 +335,21 @@ function syncthing_folder_scan_route_write(string $root, string $name, string $b
     if (file_put_contents($path, $bytes) === false) {
         throw new RuntimeException('Failed to write folder scan route test file');
     }
+}
+
+/**
+ * @param list<array{method:string, path:string, wordpressRoute:string, metadata:array<string, mixed>}> $routes
+ * @return array{method:string, path:string, wordpressRoute:string, metadata:array<string, mixed>}
+ */
+function syncthing_folder_scan_route_by_path(array $routes, string $path, string $method): array
+{
+    foreach ($routes as $route) {
+        if ($route['path'] === $path && $route['method'] === $method) {
+            return $route;
+        }
+    }
+
+    throw new RuntimeException('Missing route ' . $method . ' ' . $path);
 }
 
 function syncthing_folder_scan_route_rm(string $path): void
