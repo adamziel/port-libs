@@ -1,5 +1,35 @@
 # Integration Status
 
+## Clean-patch supersession - LightningCSS - 2026-05-25 UTC
+
+Superseded marker:
+`.tmux-team/tmp/handoff-candidates/port-lightningcss-current-rebase-20260525T013638Z-e5e6b2a6.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-lightningcss-current-rebase-20260525T013638Z-e5e6b2a6.patch`.
+Lane/slice/session: `lightningcss` /
+`current-rebase-20260525T013638Z-e5e6b2a6` /
+`current-rebase-prep-style-bundle`.
+
+Patch SHA-256 verification passed:
+`e5e6b2a670d273039368e43c1f254ff87be0def405ba6318617dd002756dc08c`.
+Clean worktree base was `4e04d8aba29aaf88a83712808cd916a1fef8a3c9`.
+`git apply --check` produced no source changes because the LightningCSS
+border-radius minifier slice is already present in `refs/heads/main`.
+
+Focused verification was not rerun for this superseded marker because no source
+was staged; the current-rebase metadata records focused pass evidence for
+`php -l` on the touched LightningCSS files, `php tools/run-tests.php
+lanes/lightningcss/tests/CssMinifierTest.php`, `php tools/run-tests.php
+lanes/lightningcss/tests`, the WordPress example smoke, `jq empty` on lane
+metadata, and `git diff --check -- lanes/lightningcss`. Root verification was
+not run because no source acceptance occurred.
+
+Support-library/dependency-closure decision: no support-library activation; the
+slice is lane-local `CssMinifier` border-radius declaration composition.
+Live-service exclusions: no live-service, provider, credentialed, network,
+Node/npm, Rust/Cargo, or secret-bearing tests were involved. Files staged for
+this audit-only commit: `audits/integration-status.md`.
+
 ## Clean-patch supersession - Difftastic - 2026-05-25 UTC
 
 Superseded marker:
