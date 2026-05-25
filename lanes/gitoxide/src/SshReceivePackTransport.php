@@ -207,8 +207,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
         if ($user !== null && ($user === '' || self::hasControlBytes($user))) {
             throw new \InvalidArgumentException('SSH receive-pack user must be non-empty and must not contain control bytes');
         }
-        if ($user !== null && preg_match('/[\s\/\\\\]/', $user) === 1) {
-            throw new \InvalidArgumentException('SSH receive-pack user must not contain whitespace, slash, or backslash delimiters');
+        if ($user !== null && preg_match('/[\s\/\\\\@:]/', $user) === 1) {
+            throw new \InvalidArgumentException('SSH receive-pack user must not contain whitespace, slash, backslash, at-sign, or colon delimiters');
         }
         if ($user !== null && str_starts_with($user, '-')) {
             throw new \InvalidArgumentException('SSH receive-pack user is ambiguous as an SSH command argument');

@@ -41,4 +41,5 @@ return [
     'unsafeSshTargetRejected' => $fixture['unsafeSshTargetRejected'],
     'unsafeSshHostDelimiterRejected' => $fixture['unsafeSshHostDelimiterRejected'],
     'unsafeSshUserDelimiterRejected' => $fixture['unsafeSshUserDelimiterRejected'],
+    'unsafeSshEncodedUserDelimiterRejected' => $fixture['unsafeSshEncodedUserDelimiterRejected'],
 ];

@@ -329,5 +329,14 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, surface receive-pack advertisement ERR packets before ref parsing, preflight SSH targets including bracketed IPv6 URLs before handing streams to a caller-approved SSH adapter, reject decoded SSH host/user delimiters, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, without control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
+    'unsafeSshEncodedUserDelimiterRejected' => (static function (): bool {
+        try {
+            SshReceivePackTransport::parseRepositoryUrl('ssh://deploy%40tenant@git.example.test/wp-content.git');
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, surface receive-pack advertisement ERR packets before ref parsing, preflight SSH targets including bracketed IPv6 URLs before handing streams to a caller-approved SSH adapter, reject decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, without control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
 ];

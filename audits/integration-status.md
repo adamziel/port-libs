@@ -1,3 +1,42 @@
+## Clean-patch accepted - Gitoxide SSH encoded username delimiters - 2026-05-25 23:35 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-gitoxide-20260525T232816Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`94a40fad65e66f945d19e7d44bf2d3b1c8bcca3287b6712f993ae7ae08026710`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`62b286e5` (`Integrate Readability empty paragraph fixture parity`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/gitoxide/src/SshReceivePackTransport.php` passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+- `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php` passed.
+- `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`
+  passed: `1 test files, 361 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` passed.
+- `git diff --check -- lanes/gitoxide` passed.
+
+Root verification:
+- Pre-root gate under `.tmux-team/tmp/clean-integrator-run.lock` reported
+  `df_free=101998568` KiB, `load1=3.35`, and no exact no-argument root
+  harness process.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26569 assertions, 0 failures`.
+
+Decision: accepted. The slice rejects decoded `@` and `:` delimiters in
+`ssh://` receive-pack usernames before the caller-provided SSH connector sees
+host/user/port/command arguments, and updates Gitoxide manifest/status/notes
+evidence. No support-library row was activated.
+
+Cleanup after publish: remove the accepted ready marker, patch, metadata,
+referenced worker log, inactive source worktree, and temporary verification
+worktree after the commit is safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted Gitoxide commit.
+
 ## Clean-patch accepted - Readability empty paragraph fixture parity - 2026-05-25 23:39 UTC
 
 Accepted one isolated marker:

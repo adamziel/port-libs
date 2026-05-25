@@ -177,9 +177,9 @@ Focused annotated tag raw-target/ref-iterator inventory inspected on 2026-05-22:
 Focused SSH receive-pack delimiter preflight inspected on 2026-05-25:
 
 - Reused the existing static `gix-transport` SSH invocation and `gix-url` parse inventory for receive-pack target validation. No live SSH/provider runner was executed.
-- This slice maps the bounded argument-safety edge where decoded SSH host/user components must not contain whitespace, slash, or backslash delimiters before the caller-provided connector receives host/user/port/command arguments.
+- This slice maps the bounded argument-safety edge where decoded SSH host/user components must not contain whitespace, slash, or backslash delimiters before the caller-provided connector receives host/user/port/command arguments. The 2026-05-25 continuous-dev follow-up also rejects decoded `@` and `:` username delimiters in `ssh://` URLs so encoded tenant/user separators cannot reach caller-provided SSH adapters.
 - The PHP slice tightens `SshReceivePackTransport::parseRepositoryUrl()` for both `ssh://` and scp-like targets while preserving quoted repository paths with spaces in `receivePackCommand()`.
-- WordPress receive-pack fixture/example coverage now records rejection for decoded SSH host/user delimiters before a deployment tool hands target data to an SSH adapter.
+- WordPress receive-pack fixture/example coverage now records rejection for decoded SSH host/user delimiters, including encoded username `@`/`:` separators, before a deployment tool hands target data to an SSH adapter.
 - Dependency closure: no new support component is needed. The existing caller-injected SSH connector boundary is reused; broader SSH authentication/channel integration remains a future bounded support gate with live-provider tests excluded from this isolated lane slice.
 
 Focused annotated tag owned-writer inventory and runner evidence added on 2026-05-22:
@@ -972,4 +972,13 @@ Continuous dev rework for smart HTTP receive-pack caller cookies across POST red
 - The WordPress follow-redirects fixture/example now records caller-cookie preservation alongside redirect cookie expiration, Max-Age precedence, default-Path scoping, explicit Domain/Path/Secure omission, same-name scoped retention, same-scope replacement, path-specific ordering, and generated pack replay.
 - Dependency closure for this caller-cookie redirect slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling, native cookie parsing/header composition, packet/request builders, URL validation, and native PHP header validation; no shared support-library row or activation gate is proposed.
 - Focused Gitoxide PHP verification for `continuous-dev-20260525T225824Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 358 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0.
+- Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Continuous dev slice for SSH receive-pack encoded username delimiters inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` SSH invocation and `gix-url` SSH parsing inventory plus the native caller-injected `SshReceivePackTransport` stream boundary. No live SSH process, credential store, provider connection, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice now rejects decoded `@` and `:` delimiters in `ssh://` usernames before the caller-provided connector receives host/user/port/command arguments. This closes the gap with scp-like URL parsing, which already structurally rejects those username delimiters, and keeps encoded WordPress tenant/user separators out of caller-approved SSH adapters.
+- The WordPress receive-pack transport fixture/example now records encoded SSH username delimiter rejection alongside decoded host/user whitespace, slash, backslash, and ambiguous target preflights.
+- Dependency closure for this SSH argument-safety slice: no new support component is needed. The slice reuses the existing bounded SSH receive-pack URL parser, command quoting, and caller-injected stream adapter boundary; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification for `continuous-dev-20260525T232816Z` is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 361 assertions, and 0 failures. Syntax checks passed for changed lane PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0.
 - Root PHP verification was not run for this isolated micro-slice; root harness status is `not run - isolated micro-slice`.

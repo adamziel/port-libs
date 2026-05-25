@@ -2085,6 +2085,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad user@example.test:repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad/user@example.test:repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad%20user@example.test:repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy%40tenant@git.example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy%3Atenant@git.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('example.test: -upload-pack=/tmp/helper'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::receivePackCommand("repo\0.git"));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::receivePackCommand(' -upload-pack=/tmp/helper'));
@@ -2156,6 +2158,7 @@ return [
         $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
+        $t->same(true, $fixture['unsafeSshEncodedUserDelimiterRejected']);
     },
     'wordpress fixture stores smart http proxy credentials without leaking origin headers' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-proxy-credentials.php';
