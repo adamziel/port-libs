@@ -98752,3 +98752,23 @@ Files staged:
 - `lanes/quadrable/notes/wordpress-scenarios.md`
 - `lanes/quadrable/src/QuadbStore.php`
 - `lanes/quadrable/tests/QuadbStoreTest.php`
+
+## Clean-patch integration - readability - 2026-05-25T00:03:43Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-readability-rebase-20260524T234505Z-editorial.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-rebase-20260524T234505Z-editorial.patch`
+Lane/slice/session: `readability` / `watchdog-next-20260524T233749Z` / `n/a`
+Patch SHA-256: `f6e1889101532e3c421649f8f53bb6c8aba802e4851c4fd429ab505df0b5556d` verified.
+Apply mode: `check` against old head `d59ae99c23e0b205de1ed2a937e313a3700ccdae`.
+Focused commands: `php -l` on changed PHP files; `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php`; changed PHP examples; JSON validation for changed lane status/manifests. Result: pass.
+Root command: `php tools/run-tests.php`. Result: pass.
+Support-library/dependency closure: lane-local only; no support-library activation accepted.
+Live-service exclusions: no live-service provider or credentialed tests run.
+Files staged:
+- `lanes/readability/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/readability/examples/wordpress-editorial-list-import.php`
+- `lanes/readability/lane-status.json`
+- `lanes/readability/notes/upstream-inventory.md`
+- `lanes/readability/notes/wordpress-scenarios.md`
+- `lanes/readability/src/ArticleExtractor.php`
+- `lanes/readability/tests/ArticleExtractorTest.php`

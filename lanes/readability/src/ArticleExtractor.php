@@ -469,6 +469,7 @@ final class ArticleExtractor
     {
         return $this->isMediaOnlyList($element)
             || $this->isKinjaAnnotatedTextList($element)
+            || $this->isMarkedWordPressEditorialList($element)
             || $this->isCompactOrderedEditorialList($element);
     }
 
@@ -514,9 +515,28 @@ final class ArticleExtractor
         return $items > 0;
     }
 
+    private function isMarkedWordPressEditorialList(\DOMElement $element): bool
+    {
+        if (!in_array(strtolower($element->tagName), ['ul', 'ol'], true)
+            || trim($element->getAttribute('data-wp-block-list')) === '') {
+            return false;
+        }
+
+        return $this->isSimpleEditorialList($element, 12);
+    }
+
     private function isCompactOrderedEditorialList(\DOMElement $element): bool
     {
         if (strtolower($element->tagName) !== 'ol') {
+            return false;
+        }
+
+        return $this->isSimpleEditorialList($element, 1);
+    }
+
+    private function isSimpleEditorialList(\DOMElement $element, int $maxItems): bool
+    {
+        if (!in_array(strtolower($element->tagName), ['ul', 'ol'], true)) {
             return false;
         }
 
@@ -545,7 +565,7 @@ final class ArticleExtractor
             $items++;
         }
 
-        return $items === 1;
+        return $items > 0 && $items <= $maxItems;
     }
 
     private function hasInteractiveListChrome(\DOMElement $element): bool

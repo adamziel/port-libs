@@ -261,6 +261,27 @@ return [
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<ol>"), 'compact ordered editorial lists should not be paragraph-wrapped');
         $t->contains('<li><p>Keep one retained ordered item as a list block.</p></li>', $blocks);
     },
+    'serializes explicitly marked unordered editorial list imports as WordPress list blocks' => static function (TestRunner $t): void {
+        $html = '<html><head><title>Migration Checklist</title></head><body><article>'
+            . '<h1>Migration Checklist</h1>'
+            . '<p>' . str_repeat('A migration note can keep article prose before a compact unordered checklist. ', 3) . '</p>'
+            . '<ul data-wp-block-list="1">'
+            . '<li><p>Keep the source permalink for reviewer traceability.</p></li>'
+            . '<li><p>Keep the media sideload note near the imported copy.</p></li>'
+            . '</ul>'
+            . '<p>' . str_repeat('A final paragraph after the list should remain separate for clean WordPress block output. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($html);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:list -->'));
+        $t->same(2, substr_count($blocks, '<!-- wp:paragraph -->'));
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<ul"), 'marked unordered editorial lists should not be paragraph-wrapped');
+        $t->contains('<li><p>Keep the source permalink for reviewer traceability.</p></li>', $blocks);
+        $t->contains('<li><p>Keep the media sideload note near the imported copy.</p></li>', $blocks);
+    },
     'maps Mozilla remove-aria-hidden fixture during extraction cleanup' => static function (TestRunner $t) use ($attributeValues, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/remove-aria-hidden';
         $source = (string) file_get_contents($fixture . '/source.html');
