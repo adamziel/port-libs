@@ -104609,3 +104609,15 @@ Support-library/dependency closure: no support-library activation; bounded lane-
 Live-service exclusions: no live-service/provider tests run.
 Files staged:
 - `audits/integration-status.md`
+
+## Integration accepted - libsqlite watchdog-next-20260525T064408Z - 2026-05-25 06:56 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T064408Z.ready`; patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T064408Z.patch`.
+Lane/slice/session: `libsqlite` / `watchdog-next-20260525T064408Z` / `port-libsqlite`.
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed (1 test files, 1978 assertions, 0 failures).
+Root verification: `php tools/run-tests.php` passed (213 test files, 25739 assertions, 0 failures).
+Diff check: `git diff --check` passed.
+Support-library/dependency closure: no support-library activation; bounded lane-local slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
