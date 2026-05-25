@@ -23,7 +23,8 @@ $proofBytes = $tree->exportProof([$first['input'], $second['input']])->encode();
 echo json_encode([
     'scenario' => 'deterministic quadb mineHash prefix fixtures for WordPress proof-depth stress',
     'prefix' => $prefix,
-    'commandOutput' => QuadbStore::mineHashText($prefix, 1, 200),
+    'commandOutput' => QuadbStore::mineHashCommandOutput($prefix, 1, 200),
+    'invalidPrefixCommandOutput' => QuadbStore::mineHashCommandOutput('10x', 1, 200),
     'candidates' => [$first, $second],
     'allCandidatesMatchPrefix' => Key::hashMatchesBitPrefix($first['input'], $prefix)
         && Key::hashMatchesBitPrefix($second['input'], $prefix),

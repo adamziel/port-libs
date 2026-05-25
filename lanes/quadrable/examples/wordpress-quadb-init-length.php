@@ -30,14 +30,14 @@ $cleanup = static function (string $dir): void {
 try {
     $firstInit = QuadbStore::initCommandOutput($dir);
     $repo = QuadbStore::open($dir);
-    $lengthBeforeImport = $repo->lengthText();
+    $lengthBeforeImport = QuadbStore::lengthCommandOutput($dir);
 
     $repo->importLines(
         "wp_options:siteurl|https://example.test\n"
         . "wp_posts:1|Published post\n",
         '|'
     );
-    $lengthAfterImport = $repo->lengthText();
+    $lengthAfterImport = QuadbStore::lengthCommandOutput($dir);
     $secondInit = QuadbStore::initCommandOutput($dir);
 
     echo json_encode([

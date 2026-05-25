@@ -156,6 +156,56 @@ return [
             quadrableQuadbRemoveDir($storeDir);
         }
     },
+    'native quadb store maps mineHash and length command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $mined = QuadbStore::mineHashCommandOutput('101010', 1, 200);
+            $t->same(0, $mined['exitCode']);
+            $t->same('', $mined['stderr']);
+            $t->same(QuadbStore::mineHashText('101010', 1, 200), $mined['stdout']);
+            $t->true(str_starts_with($mined['stdout'], '146 -> '));
+
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: bit prefix must contain only 0 and 1\n",
+            ], QuadbStore::mineHashCommandOutput('10x'));
+
+            $missingLength = QuadbStore::lengthCommandOutput($missingDir);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingLength);
+            $t->true(!is_dir($missingDir), 'missing length command should not create the database directory');
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::lengthCommandOutput($storeDir));
+
+            QuadbStore::open($storeDir)->importLines(
+                "wp_options:siteurl|https://example.test\n"
+                . "wp_posts:1|Published post\n",
+                '|'
+            );
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::lengthCommandOutput($storeDir));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
     'native quadb store maps import int command output and stoi-style input' => static function (TestRunner $t): void {
         $missingDir = quadrableQuadbTempDir();
         $storeDir = quadrableQuadbTempDir();

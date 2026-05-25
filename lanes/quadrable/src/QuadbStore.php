@@ -283,6 +283,31 @@ USAGE;
     }
 
     /**
+     * Native stdout/stderr/exit-code shape for `quadb mineHash <prefix>`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function mineHashCommandOutput(
+        string $prefix,
+        int $start = 1,
+        int $maxAttempts = 1000000
+    ): array {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::mineHashText($prefix, $start, $maxAttempts),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
      * Opens a store with the startup behavior used by non-init `quadb`
      * commands. Upstream auto-creates the LMDB payload when the directory
      * already exists, but fails before opening LMDB when the directory itself
@@ -314,6 +339,28 @@ USAGE;
             return [
                 'exitCode' => 0,
                 'stdout' => self::openForCommand($directory, $trackKeys)->rootText(),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb length`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function lengthCommandOutput(string $directory, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->lengthText(),
                 'stderr' => '',
             ];
         } catch (\Throwable $throwable) {
