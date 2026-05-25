@@ -5085,6 +5085,54 @@ Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON5, JSONB, canonical JSON, JSON subtype, and BLOB
 wrapper components; it counts no shared support-library progress.
 
+## Focused Native Mapping: `json_quote()` SQL Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQLite SQL function dispatch
+boundary for `json_quote()`. Native
+`SQLiteJsonQuote::jsonQuoteSqlFunction()` validates the function name and
+delegates to the existing lane-local SQL-value JSON renderer, preserving SQL
+NULL as JSON `null` text, integer/real/boolean rendering, ordinary text
+quoting, JSON subtype pass-through, JSONB BLOB decoding, raw BLOB rejection,
+malformed JSONB rejection, and invalid function-name rejection.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused `json_quote()` and subtype evidence
+for the same upstream behavior cluster:
+
+```sh
+json101.test json102.test subtype1.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonQuote.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php
+php lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported SQL-dispatch
+`json_quote()` fields for SQL NULL, numeric values, copied text,
+control-character text, JSONB blobs, and raw BLOB rejection, focused PHP
+passed 1 selected test file, 1978 assertions, and 0 failures, and
+`git diff --check -- lanes/libsqlite` passed. This worker did not start the
+root aggregate harness because root verification was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON quote, JSON subtype, JSONB, and BLOB wrapper
+components; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json()`/`jsonb()` Canonical SQL Dispatch
 
 Date: 2026-05-25

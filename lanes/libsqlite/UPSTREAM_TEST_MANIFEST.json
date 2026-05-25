@@ -13,8 +13,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
         "total": 1589,
-        "mapped": 238,
-        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 JSON canonical SQL-dispatch slice reuses prior focused upstream canonicalization evidence over json101.test, json501.test, json107.test, and jsonb01.test because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json() and jsonb() function-name dispatch with canonical text versus JSONB result typing, SQL NULL propagation, JSON5 normalization, text-BLOB fallback, JSONB BLOB passthrough, malformed JSON rejection, raw BLOB rejection, and invalid function-name rejection.",
+        "mapped": 239,
+        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 JSON quote SQL-dispatch slice reuses prior focused upstream json_quote evidence over json101.test, json102.test, and subtype1.test because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_quote() function-name dispatch for SQL NULL, integers, reals, booleans, ordinary text, JSON subtype fragments, JSONB BLOBs, raw BLOB rejection, malformed JSONB rejection, and invalid function-name rejection.",
         "inventory": {
             "allRepositoryFiles": 2208,
             "hydratedTestInventoryFiles": 2131,
@@ -233,6 +233,7 @@
             "focusedJsonQuoteSqlValueStaticSourceTestReferences": 89,
             "focusedJsonQuoteSqlValueTclCommandLines": 497,
             "focusedJsonQuoteSqlValueSmokeExpressions": 15,
+            "focusedJsonQuoteSqlDispatchScripts": 1,
             "focusedJsonConstructorFiles": 3,
             "focusedJsonConstructorInspectedLines": 7030,
             "focusedJsonConstructorRunnerSelectedScripts": 2,

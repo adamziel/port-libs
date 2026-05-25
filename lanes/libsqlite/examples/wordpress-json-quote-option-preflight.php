@@ -29,7 +29,7 @@ $inputs = [
 $checks = [];
 foreach ($inputs as $name => $value) {
     try {
-        $quoted = SQLiteJsonQuote::jsonQuote($value);
+        $quoted = SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', $value);
         $status = 'quoted';
     } catch (InvalidArgumentException $exception) {
         $quoted = null;
@@ -46,5 +46,5 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'checks' => $checks,
-    'wordpressUse' => 'Local-only wp_options option_value preflight that mirrors SQLite json_quote() for SQL NULL, numeric, text, control-character text, JSONB BLOBs, and raw BLOB rejection before copied settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value preflight that mirrors SQLite json_quote() SQL dispatch for SQL NULL, numeric, text, control-character text, JSONB BLOBs, and raw BLOB rejection before copied settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

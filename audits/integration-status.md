@@ -1,4 +1,43 @@
 
+## Clean-patch integration accepted - libsqlite json_quote dispatch - 2026-05-25
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T063335Z.ready`;
+patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T063335Z.patch`.
+Lane/slice/session: `libsqlite` / `watchdog-next-20260525T063335Z` /
+`port-libsqlite`.
+
+Patch SHA-256 verified:
+`1c5519cee35ecb44c93b080d669d8652f80a88c1e9f7e4230f29386207ab3bec`.
+`git apply --check` and `git apply` were clean in detached worktree
+`/tmp/port-clean-integrator-libsqlite-json-quote-20260525T063335Z-2424695`.
+
+Focused verification: `php -l lanes/libsqlite/src/SQLiteJsonQuote.php`,
+`php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`php -l lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php`
+all passed; `php lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php`
+passed; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+passed with `1 test files, 1978 assertions, 0 failures`; JSON validation for
+`lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+`lanes/libsqlite/lane-status.json` passed; `git diff --check` passed.
+
+Root verification: exact no-argument root gate was empty before launch, then
+`php tools/run-tests.php` passed in the same clean worktree with
+`213 test files, 25648 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. This is a
+bounded lane-local SQLite JSON quote SQL-dispatch slice reusing existing JSON
+quote, JSON subtype, JSONB, and BLOB support. Live-service exclusions: none.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php`,
+`lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/src/SQLiteJsonQuote.php`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.
+
 ## Clean-patch integration accepted - Quadrable trial digest - 2026-05-25
 
 Ready marker:

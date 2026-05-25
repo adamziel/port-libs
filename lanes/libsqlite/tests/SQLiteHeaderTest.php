@@ -2900,9 +2900,15 @@ return [
         $t->same('9.0e+999', SQLiteJsonQuote::jsonQuote(INF));
         $t->same('-9.0e+999', SQLiteJsonQuote::jsonQuote(-INF));
         $t->same('null', SQLiteJsonQuote::jsonQuote(NAN));
+        $t->same('null', SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', null));
+        $t->same('12345', SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', 12345));
+        $t->same('"copied settings"', SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', 'copied settings'));
+        $t->same('{"a":1}', SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', new SQLiteJsonSubtypeValue('{"a":1}')));
+        $t->same('{"plugin":{"enabled":true,"count":2}}', SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', new SQLiteBlobValue($jsonb)));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuote(new SQLiteBlobValue('01234')));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuote(new SQLiteBlobValue("\x8b\xff" . str_repeat("\0", 7))));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuoteSqlFunction('json_valid', 'copied settings'));
     },
     'constructs sqlite json arrays from sql values for option diagnostics' => static function (TestRunner $t): void {
         $jsonObject = new SQLiteJsonSubtypeValue('{"abc":2.5,"def":null,"ghi":"hello"}');

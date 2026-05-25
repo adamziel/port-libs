@@ -6,6 +6,15 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonQuote
 {
+    public static function jsonQuoteSqlFunction(string $function, string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value): string
+    {
+        if ($function !== 'json_quote') {
+            throw new \InvalidArgumentException('SQLite JSON quote function must be json_quote');
+        }
+
+        return self::jsonQuote($value);
+    }
+
     public static function jsonQuote(string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value): string
     {
         if ($value === null) {

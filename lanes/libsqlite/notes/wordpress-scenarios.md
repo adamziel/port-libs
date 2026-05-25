@@ -140,6 +140,18 @@ values into JSON diagnostics, preserve JSONB option blobs as JSON text, and
 reject raw BLOBs before plugin settings are trusted without requiring the
 SQLite extension.
 
+Status delta 2026-05-25 isolated micro-slice: added `json_quote()` SQL
+function-name dispatch, focused tests, and updated the WordPress smoke to call
+the dispatch helper. Focused verification is recorded in `lane-status.json`
+after local checks. Blocker: no hydrated upstream cache exists in this
+isolated worktree, so no fresh SQLite testfixture run was performed; this
+slice reuses prior `json101.test`, `json102.test`, and `subtype1.test`
+`json_quote()` evidence. Next task: integrator acceptance, then one additional
+bounded libsqlite behavior slice with its own evidence. Dependency closure: no
+new support component is needed; the slice reuses existing lane-local JSON
+quote, JSON subtype, JSONB, and BLOB support and counts no shared
+support-library progress.
+
 ## JSON Type And Array-Length Option-Value Inspection Scenario
 
 Native JSON inspection now follows SQLite's `json_type(X[,P])` and
