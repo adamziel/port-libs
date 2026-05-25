@@ -402,6 +402,11 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $table->statusRow(true, '', 'abc123', 'refs/heads/main'));
         $t->throws(InvalidArgumentException::class, static fn () => $table->statusRow(true, 'feature', 'abc123', 'refs/heads/main', ['']));
         $t->throws(InvalidArgumentException::class, static fn () => $table->conflictRows([['name' => 'test1', 'numConflicts' => -1]]));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->rootObjectConflictRows([[
+            'object_type' => 'view',
+            'name' => '',
+            'base_definition' => 'CREATE VIEW broken AS SELECT 1',
+        ]]));
     },
     'wordpress merge status fixture surfaces unresolved migration tables' => static function (TestRunner $t): void {
         $fixture = require __DIR__ . '/../fixtures/wp-merge-review.php';
@@ -421,6 +426,9 @@ return [
             $fixture['conflictTables'],
             $fixture['schemaConflictRows'],
             $fixture['rootObjectConflicts'],
+        );
+        $rootObjectConflictRows = $table->rootObjectConflictRows(
+            $fixture['rootObjectConflictDetails'],
         );
         $previewConflictSummaryRows = $previewConflicts->summaryRows(
             $fixture['previewDataConflictTables'],
@@ -490,6 +498,7 @@ return [
 
         $t->same($fixture['expectedMergeStatusRow'], $mergeStatus);
         $t->same($fixture['expectedConflictRows'], $conflictRows);
+        $t->same($fixture['expectedRootObjectConflictRows'], $rootObjectConflictRows);
         $t->same($fixture['expectedPreviewConflictSummaryRows'], $previewConflictSummaryRows);
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $previewConflictRowsWithoutIds);
         $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $previewSchemaConflictDescriptionRows);
@@ -517,6 +526,7 @@ return [
         $t->same($fixture['expectedMergeConstraintError'], $mergeConstraintError);
         $t->same($fixture['expectedPreviewConflictSummaryRows'], $example['previewConflictSummaryRows']);
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $examplePreviewConflictRowsWithoutIds);
+        $t->same($fixture['expectedRootObjectConflictRows'], $example['rootObjectConflictRows']);
         $t->same([], $example['previewSchemaConflictRows']);
         $t->same($fixture['expectedPreviewSchemaConflictError'], $example['previewSchemaConflictError']);
         $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $example['previewSchemaConflictDescriptionRows']);
@@ -549,6 +559,8 @@ return [
         $t->same(22, strlen((string) $example['previewConflictRows'][0]['dolt_conflict_id']));
         $t->contains('Constraint violations:', $example['mergeConstraintError']);
         $t->contains('wp_import_audit', $mergeStatus['unmerged_tables']);
+        $t->contains('wp_import_preview_view', $example['rootObjectConflictRows'][0]['name']);
+        $t->same('<deleted>', $example['rootObjectConflictRows'][1]['our_definition']);
         $t->contains('fix conflicts and constraint violations', $example['statusGuidance']);
         $t->contains('Automatic merge failed; 4 table(s) are unmerged.', $example['mergeFailureSummary']);
         $t->contains('CONSTRAINT VIOLATION (content): Merge created constraint violation in wp_postmeta', $example['mergeArtifactPrelude']);

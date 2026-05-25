@@ -119,6 +119,40 @@ final class MergeStatusTable
     }
 
     /**
+     * Project root-object conflict detail rows for schema objects such as
+     * views, triggers, events, and stored procedures.
+     *
+     * @param list<array<string,mixed>> $conflicts
+     * @return list<array{object_type:string, name:string, base_definition:string, our_definition:string, their_definition:string, description:string}>
+     */
+    public function rootObjectConflictRows(array $conflicts): array
+    {
+        $rows = [];
+        foreach ($conflicts as $conflict) {
+            $type = $this->rootObjectString($conflict['object_type'] ?? $conflict['type'] ?? null, 'root object type');
+            $name = $this->rootObjectString($conflict['name'] ?? $conflict['object_name'] ?? null, 'root object name');
+            $description = $conflict['description'] ?? null;
+            if ($description === null) {
+                $description = "root object {$type}:{$name} conflicts between branches";
+            }
+            if (!is_string($description) || $description === '') {
+                throw new \InvalidArgumentException("Dolt root object conflict {$type}:{$name} must include a non-empty description.");
+            }
+
+            $rows[] = [
+                'object_type' => $type,
+                'name' => $name,
+                'base_definition' => $this->rootObjectDefinition($conflict['base_definition'] ?? $conflict['baseDefinition'] ?? null),
+                'our_definition' => $this->rootObjectDefinition($conflict['our_definition'] ?? $conflict['ourDefinition'] ?? null),
+                'their_definition' => $this->rootObjectDefinition($conflict['their_definition'] ?? $conflict['theirDefinition'] ?? null),
+                'description' => $description,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * Render the artifact prelude printed by upstream `dolt merge` before its
      * final failure summary.
      *
@@ -634,6 +668,27 @@ final class MergeStatusTable
         }
 
         return ['name' => $name, 'numConflicts' => $count];
+    }
+
+    private function rootObjectString(mixed $value, string $field): string
+    {
+        if (!is_string($value) || $value === '') {
+            throw new \InvalidArgumentException("Dolt {$field} must be a non-empty string.");
+        }
+
+        return $value;
+    }
+
+    private function rootObjectDefinition(mixed $value): string
+    {
+        if ($value === null) {
+            return '<deleted>';
+        }
+        if (!is_string($value) || $value === '') {
+            throw new \InvalidArgumentException('Dolt root object conflict definitions must be non-empty strings or null.');
+        }
+
+        return $value;
     }
 
     private function unmergedTablesHeader(bool $hasConflicts, bool $hasConstraintViolations): string

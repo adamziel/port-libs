@@ -95,6 +95,23 @@ return [
     'rootObjectConflicts' => [
         ['name' => 'wp_import_preview_view', 'numConflicts' => 1],
     ],
+    'rootObjectConflictDetails' => [
+        [
+            'object_type' => 'view',
+            'name' => 'wp_import_preview_view',
+            'base_definition' => "CREATE VIEW wp_import_preview_view AS SELECT ID, post_title FROM wp_posts",
+            'our_definition' => "CREATE VIEW wp_import_preview_view AS SELECT ID, post_title, post_status FROM wp_posts WHERE post_status <> 'trash'",
+            'their_definition' => "CREATE VIEW wp_import_preview_view AS SELECT ID, post_title, import_batch FROM wp_posts JOIN wp_import_audit USING (ID)",
+            'description' => 'root object view:wp_import_preview_view conflicts between branches',
+        ],
+        [
+            'object_type' => 'procedure',
+            'name' => 'wp_prepare_import_batch',
+            'base_definition' => "CREATE PROCEDURE wp_prepare_import_batch() SELECT 'base'",
+            'our_definition' => null,
+            'their_definition' => "CREATE PROCEDURE wp_prepare_import_batch() SELECT 'their import queue'",
+        ],
+    ],
     'previewDataConflictTables' => [
         ['table' => 'wp_posts', 'num_data_conflicts' => 2],
     ],
@@ -334,6 +351,24 @@ return [
         ['table' => 'wp_posts', 'num_conflicts' => 2],
         ['table' => 'wp_options', 'num_conflicts' => 0],
         ['table' => 'wp_import_preview_view', 'num_conflicts' => 1],
+    ],
+    'expectedRootObjectConflictRows' => [
+        [
+            'object_type' => 'view',
+            'name' => 'wp_import_preview_view',
+            'base_definition' => "CREATE VIEW wp_import_preview_view AS SELECT ID, post_title FROM wp_posts",
+            'our_definition' => "CREATE VIEW wp_import_preview_view AS SELECT ID, post_title, post_status FROM wp_posts WHERE post_status <> 'trash'",
+            'their_definition' => "CREATE VIEW wp_import_preview_view AS SELECT ID, post_title, import_batch FROM wp_posts JOIN wp_import_audit USING (ID)",
+            'description' => 'root object view:wp_import_preview_view conflicts between branches',
+        ],
+        [
+            'object_type' => 'procedure',
+            'name' => 'wp_prepare_import_batch',
+            'base_definition' => "CREATE PROCEDURE wp_prepare_import_batch() SELECT 'base'",
+            'our_definition' => '<deleted>',
+            'their_definition' => "CREATE PROCEDURE wp_prepare_import_batch() SELECT 'their import queue'",
+            'description' => 'root object procedure:wp_prepare_import_batch conflicts between branches',
+        ],
     ],
     'expectedPreviewConflictSummaryRows' => [
         ['table' => 'wp_posts', 'num_data_conflicts' => 2, 'num_schema_conflicts' => 0],

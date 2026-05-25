@@ -44,6 +44,9 @@ return [
         $fixture['schemaConflictRows'],
         $fixture['rootObjectConflicts'],
     ),
+    'rootObjectConflictRows' => $mergeStatus->rootObjectConflictRows(
+        $fixture['rootObjectConflictDetails'],
+    ),
     'previewConflictSummaryRows' => $previewConflicts->summaryRows(
         $fixture['previewDataConflictTables'],
         $fixture['previewSchemaConflictTables'],

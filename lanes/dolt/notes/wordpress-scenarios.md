@@ -166,3 +166,10 @@ Next best slice: map schema-conflict resolution/clearing rows or root-object con
 - Focused evidence: `php tools/run-tests.php lanes/dolt/tests/PreviewMergeConflictsTableTest.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 2 files, 142 assertions, and 0 failures; syntax checks passed for changed PHP files; `wordpress-merge-status-review.php` smoke returned three schema-conflict description rows for `wp_options`, `wp_postmeta`, and `wp_import_queue`.
 - Blocker: no Dolt PHP blocker in this micro-slice; full upstream Go/BATS parity remains out of scope for the isolated worker boundary.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge-preview projection surface and static schema description formatting, with no shell-outs and no activation of a shared dependency.
+
+## Supervisor Rearm 2026-05-25 02:50 UTC
+
+- Status delta: added native root-object conflict detail rows for schema objects such as WordPress migration views and stored procedures, complementing the existing `dolt_conflicts` root-object count rows with base/our/their definitions, `<deleted>` sides, and description text.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 128 assertions, and 0 failures; syntax checks passed for the changed source, test, fixture, and example; `wordpress-merge-status-review.php` smoke returned two root object rows, including `wp_import_preview_view` and a `<deleted>` procedure side.
+- Blocker: no Dolt PHP blocker in this micro-slice; full upstream Go/BATS parity remains out of scope for the isolated worker boundary.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status projection surface and supplied schema-object definitions, with no shell-outs and no activation of a shared dependency.
