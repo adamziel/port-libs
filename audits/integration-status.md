@@ -1,5 +1,55 @@
 # Integration Status
 
+## Integration accepted - Readability class-weight rearm slice - 2026-05-25 03:25 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-readability-20260525T031651Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-readability-20260525T031651Z.patch`.
+
+Lane/slice/session: `readability` / `rearmer-20260525T031651Z` /
+`port-readability`. Patch sha256 verified as
+`b6a8c291d5f4c8590440dca460e77319d5648540ec0992be71e04605566cf52e`.
+
+Apply result: direct `git apply --check` failed due stale
+`lanes/readability/lane-status.json`; bounded `git apply --3way` merged all
+source, test, example, manifest, and notes hunks cleanly and left only the lane
+status JSON in conflict. I resolved that status merge by preserving the current
+accepted social-buttons status text and adding the class-weight rearm status,
+audit, and current-work text from the isolated patch.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-readability-rearmer-20260525T031651Z`:
+
+- `php -l lanes/readability/src/ArticleExtractor.php`: passed.
+- `php -l lanes/readability/tests/ArticleExtractorTest.php`: passed.
+- `php -l lanes/readability/examples/wordpress-class-weight-rearm-import.php`: passed.
+- `jq empty lanes/readability/UPSTREAM_TEST_MANIFEST.json lanes/readability/lane-status.json`: passed.
+- `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php`: passed, 1 test file, 1881 assertions, 0 failures.
+- `php lanes/readability/examples/wordpress-class-weight-rearm-import.php`: passed; reported title `Class Weight Rearm Import`, recovered body `yes`, teaser retained `no`, and paragraph blocks `2`.
+- `git diff --check`: passed.
+
+Root verification: exact no-argument root gate
+`pgrep -af '^php tools/run-tests\.php$'` was clear before root verification.
+`php tools/run-tests.php` passed in the same clean worktree: 212 test files,
+25085 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The patch
+reuses existing bounded DOM scoring, extraction retry orchestration, and
+WordPress block serialization. No live-service provider tests were run and no
+secret values were read.
+
+Files staged:
+
+- `lanes/readability/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/readability/examples/wordpress-class-weight-rearm-import.php`
+- `lanes/readability/lane-status.json`
+- `lanes/readability/notes/upstream-inventory.md`
+- `lanes/readability/notes/wordpress-scenarios.md`
+- `lanes/readability/src/ArticleExtractor.php`
+- `lanes/readability/tests/ArticleExtractorTest.php`
+- `audits/integration-status.md`
+
 ## Integration deferred - isolated Esbuild bounded metafile marker - 2026-05-25 04:00 UTC
 
 Ready marker:

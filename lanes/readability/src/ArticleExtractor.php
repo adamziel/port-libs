@@ -121,6 +121,7 @@ final class ArticleExtractor
         ?string $allowedVideoPattern,
         int $maxElemsToParse,
         bool $stripUnlikelyCandidates,
+        bool $weightClasses = true,
     ): Article
     {
         $dom = $this->loadHtmlDocument($html);
@@ -163,7 +164,7 @@ final class ArticleExtractor
         }
 
         $title = $this->title($xpath, $dom, $metaValues, $jsonLdMetadata);
-        $best = $this->bestContentNode($xpath) ?? $dom->documentElement;
+        $best = $this->bestContentNode($xpath, $weightClasses) ?? $dom->documentElement;
         if ($best instanceof \DOMElement) {
             $best = $this->promotePublisherArticleRoot($best);
             $best = $this->promoteMozillaHacksContentRoot($best);
@@ -232,7 +233,8 @@ final class ArticleExtractor
      *     allowedVideoRegex?: ?string,
      *     allowedVideoPattern?: ?string,
      *     maxElemsToParse?: int,
-     *     charThreshold?: int
+     *     charThreshold?: int,
+     *     weightClasses?: bool
      * } $options
      */
     public function extractWithOptions(string $html, array $options = []): ?Article
@@ -251,6 +253,7 @@ final class ArticleExtractor
             $options['allowedVideoPattern'] ?? $options['allowedVideoRegex'] ?? null,
             (int) ($options['maxElemsToParse'] ?? 0),
             $charThreshold,
+            (bool) ($options['weightClasses'] ?? true),
         );
     }
 
@@ -266,10 +269,19 @@ final class ArticleExtractor
         ?string $allowedVideoPattern,
         int $maxElemsToParse,
         int $charThreshold,
+        bool $weightClasses,
     ): ?Article
     {
         $attempts = [];
-        foreach ([true, false] as $stripUnlikelyCandidates) {
+        $parseAttempts = [
+            [true, $weightClasses],
+            [false, $weightClasses],
+        ];
+        if ($weightClasses) {
+            $parseAttempts[] = [false, false];
+        }
+
+        foreach ($parseAttempts as [$stripUnlikelyCandidates, $attemptWeightClasses]) {
             $article = $this->extractArticle(
                 $html,
                 $url,
@@ -279,6 +291,7 @@ final class ArticleExtractor
                 $allowedVideoPattern,
                 $maxElemsToParse,
                 $stripUnlikelyCandidates,
+                $attemptWeightClasses,
             );
             $attempts[] = $article;
 
@@ -4724,7 +4737,7 @@ final class ArticleExtractor
         return trim(preg_replace('/\s+/', ' ', $text) ?? '');
     }
 
-    private function bestContentNode(\DOMXPath $xpath): ?\DOMNode
+    private function bestContentNode(\DOMXPath $xpath, bool $weightClasses = true): ?\DOMNode
     {
         $best = null;
         $bestScore = PHP_INT_MIN;
@@ -4737,7 +4750,10 @@ final class ArticleExtractor
             }
 
             $paragraphs = $xpath->query('.//p', $node)?->length ?? 0;
-            $score = strlen($text) + (substr_count($text, ',') * 20) + ($paragraphs * 80) + $this->semanticContentWeight($node) + $this->contentClassWeight($node);
+            $score = strlen($text) + (substr_count($text, ',') * 20) + ($paragraphs * 80) + $this->semanticContentWeight($node);
+            if ($weightClasses) {
+                $score += $this->contentClassWeight($node);
+            }
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $best = $node;

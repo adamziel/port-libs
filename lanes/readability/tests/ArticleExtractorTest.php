@@ -2843,6 +2843,31 @@ return [
 
         $t->same(null, $article, 'empty extraction attempts should not produce a blank WordPress post candidate');
     },
+    'retries threshold extraction without class weighting before returning a short candidate' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Class Weight Rearm Import</title></head><body>'
+            . '<div class="storytext"><p>Short teaser copy.</p></div>'
+            . '<article class="comment"><h1>Class Weight Rearm Import</h1>'
+            . '<p>' . str_repeat('The legacy theme labels the real migrated article as comments even though it contains the complete editorial body. ', 7) . '</p>'
+            . '<p>' . str_repeat('A threshold rearm should disable class weighting after stricter attempts and recover the longer article for WordPress review. ', 7) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $strict = $extractor->extract($source);
+        $article = $extractor->extractWithOptions($source, ['charThreshold' => 5000]);
+
+        if (!$strict instanceof \PortLibs\Readability\Article || !$article instanceof \PortLibs\Readability\Article) {
+            throw new RuntimeException('Expected threshold retry attempts to return article candidates');
+        }
+
+        $t->same('Short teaser copy.', $strict->text, 'the first weighted pass demonstrates the short candidate boundary');
+        $t->contains('complete editorial body', $article->text);
+        $t->contains('recover the longer article', $article->text);
+        $t->same(false, str_contains($article->text, 'Short teaser copy'), 'the relaxed class-weight retry should not keep the teaser wrapper');
+
+        $blocks = $extractor->toWordPressBlocks($article);
+        $t->contains('<!-- wp:paragraph -->', $blocks);
+        $t->same(false, str_contains($blocks, 'Short teaser copy'), 'WordPress block output should use the recovered article body');
+    },
     'maps Mozilla lazy-image noscript replacement semantics' => static function (TestRunner $t): void {
         $source = '<html lang="en"><head>'
             . '<meta property="og:title" content="Node.js and CPU profiling on production (in real-time without downtime)">'
