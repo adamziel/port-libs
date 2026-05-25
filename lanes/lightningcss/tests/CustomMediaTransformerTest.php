@@ -114,6 +114,24 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer ignores references inside media and import comments' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --wide (min-width: 782px);
+
+@import url(./blocks/cards.css) /* (--missing-import) */ screen and (--wide);
+
+@media /* (--missing-media) */ (--wide) {
+  .wp-block-group {
+    color: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            '@import "./blocks/cards.css" screen and (width>=782px);@media (width>=782px){.wp-block-group{color:#ff0}}',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer maps upstream negated range aliases' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --not-width not (min-width: 300px);

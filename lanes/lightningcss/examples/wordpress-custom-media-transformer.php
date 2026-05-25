@@ -12,9 +12,9 @@ $css = <<<'CSS'
 @custom-media --wp-motion (prefers-reduced-motion: no-preference);
 @custom-media --wp-wide (min-width: 782px);
 
-@import url(./blocks/query-card.css) /* wp block layer */ layer(theme.blocks) supports((display: grid)) screen and (--wp-wide);
+@import url(./blocks/query-card.css) /* wp block layer, old alias: (--wp-tablet) */ layer(theme.blocks) supports((display: grid)) screen and (--wp-wide);
 
-@media (--wp-mobile) and (--wp-motion) {
+@media /* old alias: (--wp-legacy-mobile) */ (--wp-mobile) and (--wp-motion) {
   .wp-block-cover.is-style-animated {
     animation-duration: 100ms;
     color: yellow;

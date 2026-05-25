@@ -1,4 +1,45 @@
 
+## Clean-patch integration accepted - LightningCSS custom media comments - 2026-05-25
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T063335Z.ready`;
+patch:
+`.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T063335Z.patch`.
+Lane/slice/session: `lightningcss` / `watchdog-next-20260525T063335Z` /
+`port-lightningcss`.
+
+Patch SHA-256 verified:
+`7be9ac4f4491edbbaebed617442ebf2ea8f069cecd6cdfe75e8c4155b00133e0`.
+`git apply --check` and `git apply` were clean in detached worktree
+`/tmp/port-clean-integrator-lightningcss-comments-20260525T063335Z-2431874`.
+
+Focused verification: syntax checks passed for
+`lanes/lightningcss/src/CustomMediaTransformer.php`,
+`lanes/lightningcss/tests/CustomMediaTransformerTest.php`, and
+`lanes/lightningcss/examples/wordpress-custom-media-transformer.php`;
+`php tools/run-tests.php lanes/lightningcss/tests/CustomMediaTransformerTest.php`
+passed with `1 test files, 34 assertions, 0 failures`;
+`php tools/run-tests.php lanes/lightningcss/tests` passed with
+`9 test files, 1084 assertions, 0 failures`; the WordPress custom-media
+example smoke passed; JSON validation for the lane manifest/status passed; and
+`git diff --check` passed.
+
+Root verification: exact no-argument root gate was empty before launch, then
+`php tools/run-tests.php` passed in the same clean worktree with
+`213 test files, 25649 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. This is a
+lane-local custom media scanner/comment handling slice using the existing
+`CustomMediaTransformer`. Live-service exclusions: none.
+
+Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/lightningcss/examples/wordpress-custom-media-transformer.php`,
+`lanes/lightningcss/lane-status.json`,
+`lanes/lightningcss/notes/wordpress-scenarios.md`,
+`lanes/lightningcss/src/CustomMediaTransformer.php`,
+`lanes/lightningcss/tests/CustomMediaTransformerTest.php`, and
+`audits/integration-status.md`.
+
 ## Clean-patch integration accepted - libsqlite json_quote dispatch - 2026-05-25
 
 Ready marker:

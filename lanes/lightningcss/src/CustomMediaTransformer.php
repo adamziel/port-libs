@@ -367,6 +367,15 @@ final class CustomMediaTransformer
                 continue;
             }
 
+            if ($char === '/' && ($query[$i + 1] ?? '') === '*') {
+                $end = strpos($query, '*/', $i + 2);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('Media query contains an unbalanced comment');
+                }
+                $i = $end + 1;
+                continue;
+            }
+
             if ($char !== '(') {
                 continue;
             }
@@ -463,6 +472,16 @@ final class CustomMediaTransformer
             if ($char === '"' || $char === "'") {
                 $quote = $char;
                 $output .= $char;
+                continue;
+            }
+
+            if ($char === '/' && ($query[$i + 1] ?? '') === '*') {
+                $end = strpos($query, '*/', $i + 2);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('Media query contains an unbalanced comment');
+                }
+                $output .= substr($query, $i, $end - $i + 2);
+                $i = $end + 1;
                 continue;
             }
 
