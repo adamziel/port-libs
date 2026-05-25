@@ -2,6 +2,26 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## `json_insert()`/`json_set()`/`json_replace()` Option Mutation Dispatch Scenario
+
+Native JSON option mutation now includes bounded SQL-style argument-vector
+dispatch for `json_insert()`, `jsonb_insert()`, `json_set()`, `jsonb_set()`,
+`json_replace()`, and `jsonb_replace()` with case-insensitive function lookup.
+The example `examples/wordpress-jsonb-mutate-option-field.php` now exercises
+copied `wp_options.option_value` JSON through uppercase argument-vector
+dispatch while preserving text versus JSONB result typing, JSON subtype
+fragments, JSONB replacement values, and SQL NULL propagation. This gives
+WordPress import and repair tooling a local-only mutation preflight that
+mirrors SQLite's SQL entry points without requiring the SQLite extension.
+
+Status delta 2026-05-25 isolated refill: added
+`mutateSqlFunctionArguments()`, switched direct mutation function-name
+validation to case-insensitive lookup, added focused arity/input/path invalid
+argument tests, and updated the existing WordPress smoke to report uppercase
+argument-vector dispatch. Dependency closure: no new support component is
+needed; the slice reuses existing lane-local JSON path mutation, JSON subtype,
+JSONB, BLOB, and SQL NULL support.
+
 ## JSON Aggregate Option Summary Dispatch Scenario
 
 Native JSON aggregate summaries now include bounded SQL-style argument-vector

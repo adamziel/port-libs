@@ -80,13 +80,20 @@ $function = match ($operation) {
     'replace' => 'jsonb_replace',
     default => $operation,
 };
-$result = SQLiteJsonMutation::mutateSqlFunction($function, new SQLiteBlobValue($jsonb), $path, $value, ...$extraPairs);
+$dispatchFunction = strtoupper($function);
+$result = SQLiteJsonMutation::mutateSqlFunctionArguments($dispatchFunction, [
+    new SQLiteBlobValue($jsonb),
+    $path,
+    $value,
+    ...$extraPairs,
+]);
 $mutated = $result instanceof SQLiteBlobValue ? $result->bytes : SQLiteJsonB::encode($decodeJsonInput((string) $result));
 
 echo json_encode([
     'inputKind' => $inputKind,
     'operation' => $operation,
-    'sqlFunction' => $function,
+    'sqlFunction' => $dispatchFunction,
+    'dispatch' => 'argument-vector',
     'resultKind' => $result instanceof SQLiteBlobValue ? 'sqlite-jsonb' : 'text-json',
     'decodedBefore' => $decoded,
     'decodedAfter' => SQLiteJsonB::decode($mutated),

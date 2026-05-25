@@ -3869,8 +3869,53 @@ return [
         );
         $t->same('{"plugin":{"enabled":false,"rules":["seo"],"nested":{"old":null}},"keep":1}', $textReplace);
 
+        $vectorSet = SQLiteJsonMutation::mutateSqlFunctionArguments('JSON_SET', [
+            $jsonbInput,
+            '$.plugin.enabled',
+            true,
+            '$.plugin.settings',
+            $jsonFragment,
+        ]);
+        $t->same(
+            '{"plugin":{"enabled":true,"rules":["seo"],"nested":{"old":1},"settings":{"source":"native","strict":true}},"keep":1}',
+            $vectorSet,
+        );
+
+        $vectorInsert = SQLiteJsonMutation::mutateSqlFunctionArguments('JSONB_INSERT', [
+            $json,
+            '$.plugin.rules[#]',
+            $jsonbFragment,
+            '$.plugin.newFlag',
+            1,
+        ]);
+        $t->true($vectorInsert instanceof SQLiteBlobValue);
+        $t->same(
+            [
+                'plugin' => [
+                    'enabled' => false,
+                    'rules' => ['seo', ['name' => 'cache']],
+                    'nested' => ['old' => 1],
+                    'newFlag' => 1,
+                ],
+                'keep' => 1,
+            ],
+            SQLiteJsonB::decode($vectorInsert->bytes),
+        );
+
+        $vectorReplace = SQLiteJsonMutation::mutateSqlFunctionArguments('JSON_REPLACE', [
+            $json,
+            '$.plugin.nested.old',
+            null,
+        ]);
+        $t->same('{"plugin":{"enabled":false,"rules":["seo"],"nested":{"old":null}},"keep":1}', $vectorReplace);
         $t->same(null, SQLiteJsonMutation::mutateSqlFunction('jsonb_set', null, '$.plugin.enabled', true));
+        $t->same(null, SQLiteJsonMutation::mutateSqlFunctionArguments('JSONB_SET', [null, '$.plugin.enabled', true]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_remove', $json, '$.plugin', true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_remove', [$json, '$.plugin', true]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [$json, '$.plugin']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [$json, '$.plugin', true, '$.x']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [$json, 1, true]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunctionArguments('json_set', [1, '$.plugin', true]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', $json, '$.plugin', true, '$.x'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', $json, '$.plugin.raw', new SQLiteBlobValue("not-jsonb")));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', '{"plugin":,}', '$.plugin.enabled', true));

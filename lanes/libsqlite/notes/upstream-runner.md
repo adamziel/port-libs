@@ -1,5 +1,41 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: JSON Mutation Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQL-dispatch boundary for SQLite
+JSON mutation helpers. Native `SQLiteJsonMutation` now validates
+`json_insert`, `jsonb_insert`, `json_set`, `jsonb_set`, `json_replace`, and
+`jsonb_replace` with SQLite-style case-insensitive function lookup across
+direct mutation dispatch and SQL-style argument-vector dispatch. The slice
+preserves text-result versus JSONB-result typing, JSON subtype and JSONB input
+value handling, SQL NULL input propagation, invalid name rejection, path/value
+arity rejection, non-text path rejection, and non-text/non-BLOB JSON input
+rejection without expanding into planner or expression evaluation.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON mutation evidence for the same
+upstream behavior cluster:
+
+```sh
+json101.test json102.test jsonb01.test subtype1.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence is recorded in `lane-status.json` after local focused
+verification.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON path mutation engine, JSON subtype handling, JSONB
+encoder/decoder, BLOB wrapper, and SQL NULL handling components; it counts no
+shared support-library progress.
+
 ## Focused Native Mapping: JSON Aggregate Argument-Vector Dispatch
 
 Date: 2026-05-25

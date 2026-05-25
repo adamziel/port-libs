@@ -20,12 +20,7 @@ final class SQLiteJsonMutation
             throw new \InvalidArgumentException('SQLite JSON mutation requires path/value pairs');
         }
 
-        $operation = match ($function) {
-            'json_insert', 'jsonb_insert' => 'insert',
-            'json_set', 'jsonb_set' => 'set',
-            'json_replace', 'jsonb_replace' => 'replace',
-            default => throw new \InvalidArgumentException('SQLite JSON mutation function must be json_insert, jsonb_insert, json_set, jsonb_set, json_replace, or jsonb_replace'),
-        };
+        $operation = self::operationForFunction($function);
 
         $normalizedPairs = [];
         for ($offset = 0; $offset < count($pathValuePairs); $offset += 2) {
@@ -45,11 +40,43 @@ final class SQLiteJsonMutation
             'replace' => SQLiteJsonB::replace($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
         };
 
-        if (str_starts_with($function, 'jsonb_')) {
+        if (str_starts_with(strtolower($function), 'jsonb_')) {
             return new SQLiteBlobValue($mutated);
         }
 
         return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($mutated));
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    public static function mutateSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue|null
+    {
+        if (count($arguments) < 3 || count($arguments) % 2 !== 1) {
+            throw new \InvalidArgumentException('SQLite JSON mutation functions expect JSON plus path/value pairs');
+        }
+
+        $value = array_shift($arguments);
+        if ($value !== null && !$value instanceof SQLiteBlobValue && !is_string($value)) {
+            throw new \InvalidArgumentException('SQLite JSON mutation input must be text, BLOB, or NULL');
+        }
+
+        $path = array_shift($arguments);
+        if (!is_string($path)) {
+            throw new \InvalidArgumentException('SQLite JSON mutation path must be a string');
+        }
+
+        return self::mutateSqlFunction($function, $value, $path, array_shift($arguments), ...$arguments);
+    }
+
+    private static function operationForFunction(string $function): string
+    {
+        return match (strtolower($function)) {
+            'json_insert', 'jsonb_insert' => 'insert',
+            'json_set', 'jsonb_set' => 'set',
+            'json_replace', 'jsonb_replace' => 'replace',
+            default => throw new \InvalidArgumentException('SQLite JSON mutation function must be json_insert, jsonb_insert, json_set, jsonb_set, json_replace, or jsonb_replace'),
+        };
     }
 
     private static function jsonbBytes(string|SQLiteBlobValue $value): string
