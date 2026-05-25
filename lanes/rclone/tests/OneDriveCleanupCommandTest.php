@@ -204,6 +204,38 @@ return [
         $t->same(0, $emptyWhileDisabled['versionRequests']);
         $t->same(false, $emptyWhileDisabled['providerCalled']);
     },
+    'onedrive cleanup command accepts one remote before disabled and feature-gated paths' => static function (TestRunner $t): void {
+        $disabled = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'remoteArgs' => ['onedrive:exports'],
+            'noVersions' => false,
+            'featureAvailable' => false,
+            'walkError' => 'would not be reached',
+        ]);
+        $enabledFeatureMasked = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'remoteArgs' => ['onedrive:exports'],
+            'featureAvailable' => false,
+            'walkError' => 'would not be reached',
+        ]);
+
+        $t->same(null, $disabled['error']);
+        $t->same(0, $disabled['walkedObjects']);
+        $t->same(0, $disabled['versionRequests']);
+        $t->same(false, $disabled['providerCalled']);
+        $t->same('cleanup unsupported', $enabledFeatureMasked['error']);
+        $t->same(0, $enabledFeatureMasked['walkedObjects']);
+        $t->same(0, $enabledFeatureMasked['versionRequests']);
+        $t->same(false, $enabledFeatureMasked['providerCalled']);
+    },
     'onedrive cleanup command disabled no versions path does not require cleanup feature' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([
             [
@@ -399,6 +431,10 @@ return [
         $t->same(false, $example['extraRemoteArgDisabledProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['emptyRemoteArgDisabledError']);
         $t->same(false, $example['emptyRemoteArgDisabledProviderCalled']);
+        $t->same(null, $example['validRemoteArgDisabledError']);
+        $t->same(false, $example['validRemoteArgDisabledProviderCalled']);
+        $t->same('cleanup unsupported', $example['validRemoteArgFeatureMaskedError']);
+        $t->same(false, $example['validRemoteArgFeatureMaskedProviderCalled']);
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsError']);
         $t->same(false, $example['rcMissingFsProviderCalled']);
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsDisabledError']);

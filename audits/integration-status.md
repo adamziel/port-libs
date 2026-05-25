@@ -1,3 +1,42 @@
+## Clean-patch accepted - rclone cleanup command valid remote - 2026-05-25 23:35 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-rclone-20260525T232216Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`150e94d0ea6ac0aa92bd09b5135ccb40fd538044f40affff7c5c2eeb2522e22f`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`e1d22b9e` (`Integrate Syncthing watcher route folder filters`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/rclone/src/OneDriveCleanupCommand.php` passed.
+- `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`
+  passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php`
+  passed: `1 test files, 145 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/rclone/tests` passed:
+  `35 test files, 4102 assertions, 0 failures`.
+- `php lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`
+  passed.
+- rclone manifest/status JSON validation passed.
+- `git diff --check -- lanes/rclone` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=102644260` KiB and `load1=3.55`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26552 assertions, 0 failures`.
+
+Cleanup:
+- Pending until the commit is safely on `main`: remove the accepted ready
+  marker, patch, metadata file, referenced worker log, inactive source
+  worktree, and temporary verification worktree.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted rclone commit.
+
 ## Clean-patch accepted - Syncthing watcher route folder filters - 2026-05-25 23:28 UTC
 
 Accepted one isolated marker:
