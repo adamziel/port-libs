@@ -1,4 +1,45 @@
 
+## Integration accepted - libsqlite json_pretty evidence refresh - 2026-05-25 08:29 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T082221Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T082221Z.patch`.
+
+Lane/slice/session: `libsqlite` /
+`priority-keeper-rework-20260525T082221Z` / `port-libsqlite-rework`.
+Patch SHA-256 verified:
+`dcca184c0ed134312fa3092c9086ddeff0eac30d90fde9aa3cb3763740eba077`.
+Clean base: `e1c9dc8786d9a9e573b797656bcb810a8d0d21d8`.
+
+Focused verification repeated in clean worktree
+`/tmp/port-clean-integrator-libsqlite-priority-keeper-rework-20260525T082221Z`:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonPretty.php` - passed, no syntax errors.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` - passed, no syntax errors.
+- `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` - passed, no syntax errors.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` - passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` - passed and emitted bounded WordPress wp_options JSON review output.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` - passed: `1 test files, 2031 assertions, 0 failures`.
+- `git diff --check` - passed.
+
+Root verification:
+
+- Pre-root gate satisfied: `/` available KiB was above `86000000`, load was below `25`, and `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- `php tools/run-tests.php` - passed: `214 test files, 25916 assertions, 0 failures`.
+
+Support-library/dependency closure decision: no support-library activation.
+The patch only refreshes lane-local `json_pretty()` SQL-dispatch evidence over
+accepted libsqlite JSON behavior and does not count shared support-library
+progress.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+
+- `lanes/libsqlite/lane-status.json`
+- `audits/integration-status.md`
+
 ## Integration accepted - esbuild node external import accounting - 2026-05-25 07:18 UTC
 
 Accepted isolated ready marker:
