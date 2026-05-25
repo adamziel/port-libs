@@ -1,5 +1,41 @@
 # Integration Status
 
+## Integration deferred - Difftastic fast-forward race after retry - 2026-05-25 00:34 UTC
+
+Deferred isolated ready marker
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T001519Z.ready`
+with patch
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T001519Z.patch`.
+
+Lane/slice/session: `difftastic` /
+`watchdog-next-20260525T001519Z` / `port-difftastic`. Patch sha256 was
+verified as
+`0b3950d9e80d372e7c5c1bad347a9150d00158e2016ef12afbd41c0b15b5aaba`.
+
+The marker was verified twice in clean worktrees. First attempt from
+`1cc1dee187f1` passed syntax checks, JSON/example smoke, focused
+`php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`, `git
+diff --check`, and `php tools/run-tests.php` with 208 test files, 24,355
+assertions, and 0 failures, but `main` moved before `update-ref`. The required
+single retry from `985035e222c0` also applied cleanly and passed the same
+focused checks plus `php tools/run-tests.php` with 208 test files, 24,354
+assertions, and 0 failures, but `main` moved again to `904481d38235` before
+the atomic update.
+
+Decision: deferred after the allowed retry, not accepted. No source files from
+this marker were committed to `main`, no support-library row was activated, and
+no live-service tests were run. The marker, patch, and metadata remain in place
+for the next clean-patch pass.
+
+Next exact repair command:
+`git apply --check .tmux-team/tmp/handoff-candidates/port-difftastic-20260525T001519Z.patch`
+from current `main`, then rerun `php -l` on the changed Difftastic PHP files,
+`jq empty lanes/difftastic/UPSTREAM_TEST_MANIFEST.json
+lanes/difftastic/lane-status.json`, the example JSON smoke,
+`php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`, `git
+diff --check`, and the serialized no-argument `php tools/run-tests.php` before
+another atomic update attempt.
+
 ## Integration deferred - Pandoc duplicate quoted inline marker - 2026-05-25 00:25 UTC
 
 Deferred isolated ready marker
