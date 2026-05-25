@@ -100951,3 +100951,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php lanes/rclone/lane-status.json lanes/rclone/notes/upstream-inventory.md lanes/rclone/notes/wordpress-scenarios.md lanes/rclone/src/OneDriveTokenRenewer.php lanes/rclone/tests/OneDriveTokenRenewerTest.php `
 
+
+## Clean-patch integration accepted - readability - 2026-05-25 02:53 UTC
+
+Ready marker: `port-readability-20260525T023734Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T023734Z.patch`
+Lane/slice/session: `readability` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `07ba94d7d46739c0516b4dea518e50ad8529b809`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/readability/tests`: exit 0; PASS normalizes legacy WordPress font tags before block output  1 test files, 1855 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24832 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/readability/UPSTREAM_TEST_MANIFEST.json lanes/readability/lane-status.json lanes/readability/notes/upstream-inventory.md lanes/readability/notes/wordpress-scenarios.md lanes/readability/tests/ArticleExtractorTest.php `
+

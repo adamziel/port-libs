@@ -236,6 +236,15 @@ npm test -- --grep 002
 
 This fixture is now copied under `lanes/readability/fixtures/mozilla/002/` and mapped by native PHP tests for metadata/readerable parity, `div#content-main` oracle-root preservation, `article role="article"` retention, 17 syntax-highlighted `<pre>` examples, absolute-origin URL canonicalization, and exclusion of Mozilla Hacks navigation, comments, author sidebar, and legal footer chrome.
 
+## 2026-05-25 Isolated Slice: Mozilla Developer Edition Expected Text
+
+- Behavior cluster: copied Mozilla `mozilla-2` fixture coverage for the Firefox Developer Edition product page.
+- Status delta: the existing marker-only native test now asserts exact normalized expected-content text parity against `fixtures/mozilla/mozilla-2/expected.html`; the WordPress smoke `examples/wordpress-mozilla-developer-edition-import.php` records retained feature copy, 4 paragraph blocks, 2 heading blocks, and no head-comment chrome.
+- Focused evidence: `php -l lanes/readability/tests/ArticleExtractorTest.php` passed; `php -l lanes/readability/examples/wordpress-mozilla-developer-edition-import.php` passed; `php tools/run-tests.php lanes/readability/tests` passed 1 selected test file / 1855 assertions / 0 failures; `php lanes/readability/examples/wordpress-mozilla-developer-edition-import.php` printed feature copy retained: yes and head comment chrome retained: no; `git diff --check -- lanes/readability` passed.
+- Blocker: no focused readability blocker. The isolated worktree does not contain `.upstream-cache/readability`, so no new upstream oracle command was run for this slice.
+- Next task: map `lifehacker-working` or another remaining Kinja/comment-heavy fixture once the upstream cache is present in the isolated worktree, or deliberately expand nested media-wrapper HTML-block serialization with updated long-fixture expectations.
+- Dependency closure: no new support component is needed; this slice reuses the lane's existing DOM extraction, expected-fixture comparison, and WordPress block serialization components.
+
 The Atlas Obscura `article-author-tag` slice also has targeted upstream runner evidence:
 
 ```text
