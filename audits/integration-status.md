@@ -1,5 +1,53 @@
 # Integration Status
 
+## Integration deferred - isolated Dolt merge status root-object conflict marker - 2026-05-25 03:58 UTC
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-dolt-20260525T031408Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-dolt-20260525T031408Z.patch`.
+Lane/slice/session: `dolt` / `supervisor-rearm-20260525T031408Z` /
+`port-dolt`.
+
+Patch SHA-256 verified:
+`484f4fbac59d06b754e481f9480538d0acb1ea04a03b8be9f3d81c947ee603bf`.
+
+Exact failing commands from clean accepted head
+`19fc4bf44e8c74283ba370451535f783ebac616a`:
+
+```text
+git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T031408Z.patch
+git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T031408Z.patch
+```
+
+Direct apply failed. Bounded three-way left conflicts in every touched lane
+file, including behavior files:
+
+```text
+lanes/dolt/UPSTREAM_TEST_MANIFEST.json
+lanes/dolt/examples/wordpress-merge-status-review.php
+lanes/dolt/fixtures/wp-merge-review.php
+lanes/dolt/lane-status.json
+lanes/dolt/notes/wordpress-scenarios.md
+lanes/dolt/src/MergeStatusTable.php
+lanes/dolt/tests/MergeStatusTableTest.php
+```
+
+Decision: deferred for lane rework, not integrated. Because source, fixture,
+example, and test files all conflict, this is beyond a bounded stale-status
+merge. Focused/root verification was not run. Repair command for the lane:
+rebase the slice onto `19fc4bf44e8c74283ba370451535f783ebac616a` and re-emit a
+fresh isolated patch for only the merge-status root-object conflict behavior,
+then verify with:
+
+```text
+php -l lanes/dolt/src/MergeStatusTable.php
+php -l lanes/dolt/tests/MergeStatusTableTest.php
+php -l lanes/dolt/examples/wordpress-merge-status-review.php
+php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php
+git diff --check -- lanes/dolt
+```
+
 ## Integration accepted - isolated Difftastic HTML doctype highlight - 2026-05-25 03:55 UTC
 
 Ready marker:
