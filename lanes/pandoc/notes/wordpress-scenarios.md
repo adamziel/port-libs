@@ -870,6 +870,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   Review packets can wrap grouped WordPress migration notes in `::::`
   containers with ids, classes, and `data-source` attributes, preserving nested
   quotes and paragraph boundaries for Pandoc-compatible review tooling.
+- Native Markdown reviewer handoff exports now degrade table spans into
+  rectangular Pandoc pipe-table rows. WordPress-sourced tables with `colspan`
+  or `rowspan` metadata keep the visible cell content in the first covered
+  column and emit empty placeholder cells for covered columns/rows, so reviewer
+  packets remain valid Markdown while preserving the audit trail that the
+  source table used structural spans.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -879,14 +885,13 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded Markdown writer branch after line block emission, such as
-multi-block table-cell fallback, table span degradation
-policy, or additional raw block format variants with native upstream fixture
-parity if not already covered on the Markdown writer path.
+Map another bounded Markdown writer branch after table span degradation, such
+as multi-block table-cell fallback or additional raw block format variants with
+native upstream fixture parity.
 
 ## Dependency Closure
 
 No new support component is needed for this slice. The existing bounded
-Markdown block renderer and inline renderer are reused for line-block emission,
-with local NBSP indentation normalization; evidence is the focused lane test
-plus the WordPress reviewer handoff example smoke.
+Markdown table AST, block renderer, inline renderer, pipe-table
+width/alignment logic, and caption renderer are reused for span degradation;
+evidence is the focused lane test.

@@ -843,3 +843,12 @@ Focused receive-pack advertisement ERR packet reporting inspected on 2026-05-25:
 - Dependency closure for the advertisement ERR packet slice: no new support component is needed. The slice reuses existing bounded receive-pack stream transport and advertisement pkt-line parsing; no shared support-library row or activation gate is proposed.
 - Focused Gitoxide PHP verification after the advertisement ERR slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 281 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
 - Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused commit writer object-id guard inspected on 2026-05-25:
+
+- Reused the existing static `gix-object` commit write/storage inventory and native `Commit::storageBytes()` writer path. No full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice rejects malformed tree and parent object IDs while serializing commits, before object wrapping or oid calculation. Writable commits now require lowercase sha1 or sha256 hex IDs, matching the normalized IDs emitted by the parser and preventing invalid WordPress deployment commits from being stored as native Git objects.
+- The WordPress commit-signature fixture/example now records a malformed deployment tree rejection alongside the existing import actor, signature, trailer, mergetag, and storage/object hash evidence.
+- Dependency closure for the commit writer object-id guard slice: no new support component is needed. The slice reuses existing bounded commit writer/parser behavior and native PHP regex validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the object-id guard slice is green: `php tools/run-tests.php lanes/gitoxide/tests/CommitTest.php` reported 1 test file, 207 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-commit-signature.php` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.

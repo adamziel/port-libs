@@ -3080,6 +3080,63 @@ MD;
             ': Migration **review** packet',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer table span degradation to rectangular pipe rows' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'captionInlines' => [
+                    new AstNode('text', ['text' => 'Grid span review']),
+                ],
+                'alignments' => ['left', 'center', 'right'],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', ['colspan' => 2], [
+                            new AstNode('text', ['text' => 'Review scope']),
+                        ]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'Status']),
+                        ]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['rowspan' => 2], [
+                            new AstNode('text', ['text' => 'Media audit']),
+                        ]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'posts | pages']),
+                        ]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'ready']),
+                        ]),
+                    ]),
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'attachments']),
+                        ]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'blocked']),
+                        ]),
+                    ]),
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['colspan' => 3], [
+                            new AstNode('text', ['text' => 'Reviewer note across all columns']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '| Review scope                     |                |  Status |',
+            '|:-------------------------------|:------------:|------:|',
+            '| Media audit                      | posts \\| pages |   ready |',
+            '|                                  |  attachments   | blocked |',
+            '| Reviewer note across all columns |                |         |',
+            '',
+            ': Grid span review',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

@@ -1542,7 +1542,8 @@ return [
         try {
             $repo = QuadbStore::init($dir);
             $repo->importIntegerLines(
-                "1,wp_options:siteurl=https://example.test\n"
+                "0,wp_options:blog_public=1\n"
+                . "1,wp_options:siteurl=https://example.test\n"
                 . "2,wp_options:home=https://example.test\n"
                 . "4,wp_posts:1=Published post\n"
             );
@@ -1603,6 +1604,10 @@ return [
             $t->same(0, $spacedPlusProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([2, 4]), $spacedPlusProof['stdout']);
             $t->same('', $spacedPlusProof['stderr']);
+            $signedZeroProof = QuadbStore::exportProofCommandOutput($dir, ['-0suffix', '+0'], integerKeys: true);
+            $t->same(0, $signedZeroProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([0]), $signedZeroProof['stdout']);
+            $t->same('', $signedZeroProof['stderr']);
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',

@@ -60,6 +60,13 @@ $disabledNoVersionsType = OneDriveCleanupCommand::run([
 ], [
     'noVersions' => false,
 ]);
+$enabledTypeError = OneDriveCleanupCommand::run([
+    [
+        'remote' => 'exports',
+        'type' => 'directory',
+        'versions' => ['current', 'old-review'],
+    ],
+]);
 
 return [
     'source' => 'onedrive-cleanup-command-preflight',
@@ -73,5 +80,7 @@ return [
     'disabledNoVersionsError' => $disabledNoVersions['error'],
     'disabledNoVersionsProviderCalled' => $disabledNoVersions['providerCalled'],
     'disabledNoVersionsTypeError' => $disabledNoVersionsType['error'],
+    'enabledTypeError' => $enabledTypeError['error'],
+    'enabledTypeErrorProviderCalled' => $enabledTypeError['providerCalled'],
     'secretInputsRead' => false,
 ];

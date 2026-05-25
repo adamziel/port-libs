@@ -237,6 +237,8 @@ return [
         $t->same(null, $example['disabledNoVersionsError']);
         $t->same(false, $example['disabledNoVersionsProviderCalled']);
         $t->same(null, $example['disabledNoVersionsTypeError']);
+        $t->same('internal error: not a onedrive object', $example['enabledTypeError']);
+        $t->same(false, $example['enabledTypeErrorProviderCalled']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];

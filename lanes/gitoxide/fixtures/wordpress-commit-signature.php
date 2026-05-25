@@ -66,6 +66,7 @@ return [
     'expectedOddTimestampCommitterTime' => ['seconds' => 1288373970, 'offset' => 0],
     'expectedOddTimestampCommitterRawTime' => '1288373970 --700',
     'expectedSummary' => 'Import WordPress export',
+    'expectedWriterObjectIdGuard' => true,
     'expectedBodyWithoutTrailers' => 'Source: wp-content/uploads/export.wxr',
     'expectedSignedOffBy' => ['WordPress Importer <importer@example.test>'],
     'expectedCoAuthors' => ['Content Reviewer <reviewer@example.test>'],

@@ -364,18 +364,21 @@ final class MarkdownWriter
             $headRows[] = new AstNode('table_row', ['header' => true], array_fill(0, $columnCount, new AstNode('table_cell')));
         }
 
-        $renderedRows = array_map(fn (AstNode $row): array => $this->renderTableRowCells($row, $columnCount), [...$headRows, ...$bodyRows]);
+        $expandedRows = $this->expandTableRows([...$headRows, ...$bodyRows], $columnCount);
+        $expandedHeadRows = array_slice($expandedRows, 0, count($headRows));
+        $expandedBodyRows = array_slice($expandedRows, count($headRows));
+        $renderedRows = [...$expandedHeadRows, ...$expandedBodyRows];
         $widths = $this->tableColumnWidths($renderedRows, $node->attr('widths', []), $columnCount);
         $alignments = $this->tableAlignments($node, $columnCount);
         $prefix = str_repeat(' ', $indent);
         $lines = [];
 
-        foreach ($headRows as $row) {
-            $lines[] = $prefix . $this->renderPipeTableRow($this->renderTableRowCells($row, $columnCount), $widths, $alignments);
+        foreach ($expandedHeadRows as $row) {
+            $lines[] = $prefix . $this->renderPipeTableRow($row, $widths, $alignments);
         }
         $lines[] = $prefix . $this->renderPipeTableDelimiter($widths, $alignments);
-        foreach ($bodyRows as $row) {
-            $lines[] = $prefix . $this->renderPipeTableRow($this->renderTableRowCells($row, $columnCount), $widths, $alignments);
+        foreach ($expandedBodyRows as $row) {
+            $lines[] = $prefix . $this->renderPipeTableRow($row, $widths, $alignments);
         }
 
         $caption = $this->renderTableCaption($node);
@@ -408,24 +411,68 @@ final class MarkdownWriter
     {
         $count = 0;
         foreach ([...$headRows, ...$bodyRows] as $row) {
-            $count = max($count, count($row->children));
+            $rowColumns = 0;
+            foreach ($row->children as $cell) {
+                $rowColumns += max(1, (int) $cell->attr('colspan', 1));
+            }
+            $count = max($count, $rowColumns);
         }
 
         return $count;
     }
 
     /**
-     * @return list<string>
+     * @param list<AstNode> $rows
+     * @return list<list<string>>
      */
-    private function renderTableRowCells(AstNode $row, int $columnCount): array
+    private function expandTableRows(array $rows, int $columnCount): array
     {
-        $cells = [];
-        for ($index = 0; $index < $columnCount; $index++) {
-            $cell = $row->children[$index] ?? new AstNode('table_cell');
-            $cells[] = $this->renderTableCell($cell);
+        $expandedRows = [];
+        $rowspans = array_fill(0, $columnCount, 0);
+
+        foreach ($rows as $row) {
+            $cells = [];
+            $column = 0;
+
+            foreach ($row->children as $cell) {
+                while ($column < $columnCount && $rowspans[$column] > 0) {
+                    $cells[] = '';
+                    $rowspans[$column]--;
+                    $column++;
+                }
+
+                if ($column >= $columnCount) {
+                    break;
+                }
+
+                $colspan = max(1, min($columnCount - $column, (int) $cell->attr('colspan', 1)));
+                $rowspan = max(1, (int) $cell->attr('rowspan', 1));
+                $cells[] = $this->renderTableCell($cell);
+                if ($rowspan > 1) {
+                    $rowspans[$column] = max($rowspans[$column], $rowspan - 1);
+                }
+                $column++;
+
+                for ($covered = 1; $covered < $colspan && $column < $columnCount; $covered++, $column++) {
+                    $cells[] = '';
+                    if ($rowspan > 1) {
+                        $rowspans[$column] = max($rowspans[$column], $rowspan - 1);
+                    }
+                }
+            }
+
+            while ($column < $columnCount) {
+                if ($rowspans[$column] > 0) {
+                    $rowspans[$column]--;
+                }
+                $cells[] = '';
+                $column++;
+            }
+
+            $expandedRows[] = $cells;
         }
 
-        return $cells;
+        return $expandedRows;
     }
 
     private function renderTableCell(AstNode $cell): string

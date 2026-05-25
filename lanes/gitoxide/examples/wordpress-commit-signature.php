@@ -30,6 +30,19 @@ try {
 } catch (InvalidArgumentException) {
     $misorderedHeaderRejected = true;
 }
+$writerObjectIdGuard = false;
+try {
+    (new Commit(
+        '0123456789abcdef0123456789abcdef0123456g',
+        [],
+        'WordPress Importer <importer@example.test> 1710000000 -0230',
+        'WordPress Deploy Bot <deploy@example.test> 1710003600 +0000',
+        "Invalid deploy tree\n",
+        [],
+    ))->storageBytes();
+} catch (InvalidArgumentException) {
+    $writerObjectIdGuard = true;
+}
 
 return [
     'tree' => $commit->tree,
@@ -91,6 +104,7 @@ return [
     'lateStandardHeaderParentExtra' => $lateStandardHeaderCommit->extraHeader('parent'),
     'lateStandardHeaderEncodingExtra' => $lateStandardHeaderCommit->extraHeader('encoding'),
     'misorderedHeaderRejected' => $misorderedHeaderRejected,
+    'writerObjectIdGuard' => $writerObjectIdGuard,
     'oddTimestampAuthorTime' => $oddTimestampAuthor->time(),
     'oddTimestampCommitterTime' => $oddTimestampCommitter->time(),
     'oddTimestampCommitterRawTime' => $oddTimestampCommitter->time,

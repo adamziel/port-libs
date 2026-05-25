@@ -62,7 +62,8 @@ try {
 
     $integer = QuadbStore::init($integerDir);
     $integer->importIntegerLines(
-        "2,wp_options:home=https://example.test\n"
+        "0,wp_options:blog_public=1\n"
+        . "2,wp_options:home=https://example.test\n"
         . "4,wp_posts:1=Published post\n"
     );
     $integerProofCommand = QuadbStore::exportProofStdinCommandOutput(
@@ -108,6 +109,11 @@ try {
         ['  +2suffix', ' +4'],
         integerKeys: true
     );
+    $signedZeroProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['-0suffix', '+0'],
+        integerKeys: true
+    );
     $badIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
         $integerDir,
         "2\nnot-an-int\n",
@@ -142,6 +148,8 @@ try {
         'numericPrefixIntegerBinaryProofBytes' => strlen($numericPrefixProofCommand['stdout']),
         'spacedPlusIntegerExportProofExitCode' => $spacedPlusProofCommand['exitCode'],
         'spacedPlusIntegerProofMatchesNumericPrefix' => $spacedPlusProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
+        'signedZeroIntegerExportProofExitCode' => $signedZeroProofCommand['exitCode'],
+        'signedZeroIntegerBinaryProofBytes' => strlen($signedZeroProofCommand['stdout']),
         'badIntegerProofStdin' => $badIntegerProofCommand,
         'negativeIntegerProofDirect' => $negativeIntegerProofCommand,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

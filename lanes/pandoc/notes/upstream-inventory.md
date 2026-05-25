@@ -1714,3 +1714,27 @@ It reuses the existing Markdown inline renderer, blockquote renderer, delimiter
 helpers, block writer newline handling, and WordPress Markdown review handoff
 example; no DOCX/OpenXML, PDF, EPUB/ODT, CFB, citation, Unicode/charset,
 metadata, archive, or compression component is activated.
+
+The priority-refill-20260525T095043Z pass maps a bounded Markdown writer table
+span degradation branch after the accepted pipe-table coverage. Pandoc Markdown
+pipe tables cannot represent `rowspan` or `colspan` structurally, so the native
+writer now expands spanned cells into rectangular pipe-table rows: the source
+cell content stays in the first covered column, covered colspan columns become
+empty cells, and rows covered by rowspan metadata receive empty placeholder
+cells before later row content. Existing pipe escaping, alignment padding, and
+caption rendering are reused.
+
+Focused local verification on 2026-05-25 after
+priority-refill-20260525T095043Z: `php -l` passed for
+`MarkdownWriter.php` and `MarkdownReaderTest.php`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,293
+assertions, and 0 failures; `git diff --check -- lanes/pandoc` passed.
+
+Root verification was not run for priority-refill-20260525T095043Z because the
+assigned work is an isolated micro-slice.
+
+Dependency closure: no new support component is needed for this table span
+degradation slice. It reuses the existing lane-local table AST, Markdown inline
+renderer, pipe-table width/alignment logic, caption renderer, and table-cell
+escaping; no DOCX/OpenXML, PDF, EPUB/ODT, CFB, citation, Unicode/charset,
+metadata, archive, or compression component is activated.

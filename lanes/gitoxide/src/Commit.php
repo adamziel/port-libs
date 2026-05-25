@@ -244,8 +244,10 @@ final class Commit
 
     public function storageBytes(): string
     {
+        self::validateWritableObjectId($this->tree, 'tree');
         $out = "tree {$this->tree}\n";
         foreach ($this->parents as $parent) {
+            self::validateWritableObjectId($parent, 'parent');
             $out .= "parent {$parent}\n";
         }
 
@@ -486,6 +488,13 @@ final class Commit
     {
         if (preg_match('/^[0-9a-fA-F]{' . $hashLength . '}$/', $id) !== 1) {
             throw new \InvalidArgumentException("Commit {$field} must be a {$hashLength}-character {$algorithm} hex object id");
+        }
+    }
+
+    private static function validateWritableObjectId(string $id, string $field): void
+    {
+        if (preg_match('/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/', $id) !== 1) {
+            throw new \InvalidArgumentException("Commit {$field} must be a lowercase sha1 or sha256 hex object id");
         }
     }
 
