@@ -4704,6 +4704,33 @@ return [
         $t->contains('register_blocks:normal', $encoded);
         $t->contains('ipairs:normal', $encoded);
     },
+    'wordpress bash deploy display follows upstream keyword operator boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-bash-deploy-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/bin/deploy.sh', $decoded['path']);
+        foreach (['export', 'if', 'then', 'else', 'fi', '--path=wp', '--activate'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['&&'] as $operator) {
+            $t->contains("{$operator}:keyword", $encoded);
+        }
+        $t->contains('wp:normal', $encoded);
+        $t->contains('plugin:normal', $encoded);
+        $t->contains('WP_ENV:normal', $encoded);
+    },
     'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
         ob_start();
         require dirname(__DIR__) . '/examples/wordpress-python-decorator-highlight-display.php';

@@ -103375,3 +103375,17 @@ Live-service exclusions: no live-service provider tests were run; Poetry/Python/
 Bounded rebase note: three-way application conflicted in markerPDF source plus stale manifest/status/notes counters. The source conflict was trivial drift around the existing `decodePdfStringBytes()` helper and was resolved by preserving the current helper with the patch's lower-case BOM prefix. Stale metadata conflicts were resolved in favor of current accepted head to avoid rewriting lane counters from an older marker.
 
 Files staged: `lanes/markerpdf/examples/wordpress-pdf-utf16-literal-import.php`, `lanes/markerpdf/src/PdfTextExtractor.php`, `lanes/markerpdf/tests/PdfTextExtractorTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated difftastic Bash highlight patch - 2026-05-25 05:55 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T054306Z.ready` with patch `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T054306Z.patch`.
+
+Lane/slice/session: `difftastic` / `watchdog-next-20260525T054306Z` / `port-difftastic`. Patch sha256 verified as `a302a9efe8c9ea876fc49fdfaf832703f34fbbdf49e9f7cb0d05b60a892e81c2`.
+
+Focused verification in clean worktree: `php -l` for `SyntaxHighlightClassifier.php`, `TokenDiffer.php`, `TokenDifferTest.php`, and `wordpress-bash-deploy-highlight-display.php` passed; JSON decode for `lane-status.json` and `UPSTREAM_TEST_MANIFEST.json` passed; `php lanes/difftastic/examples/wordpress-bash-deploy-highlight-display.php | php -r ...` passed with path `wp-content/plugins/acme-card/bin/deploy.sh`; `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed with `1 test files, 1708 assertions, 0 failures`; `git diff --check` passed.
+
+Root verification: pre-root exact gate `pgrep -af '^php tools/run-tests\.php$'` was clear in the clean worktree window; `php tools/run-tests.php` passed with `212 test files, 25445 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The patch stays inside the lane-local tokenizer/classifier/render path; no shell parser, tree-sitter runtime, generated query engine, or external binary is introduced. Live-service exclusions: none needed.
+
+Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/examples/wordpress-bash-deploy-highlight-display.php`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/notes/wordpress-scenarios.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/src/TokenDiffer.php`, `lanes/difftastic/tests/TokenDifferTest.php`, and `audits/integration-status.md`.

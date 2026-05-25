@@ -404,6 +404,10 @@ The WordPress SQL schema display example covers plugin install/upgrade SQL under
 
 Dependency closure: no new support component is needed for the SQL keyword/operator/type highlight slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a native SQL parser support component would only be proposed behind an accepted gate for broader SQL structural diffing beyond display-capture parity.
 
+The WordPress Bash deploy display example covers plugin deploy/WP-CLI helper scripts under `wp-content/plugins/acme-card/bin/deploy.sh`. Native JSON display highlights shell control-flow words such as `export`, `if`, `then`, `else`, and `fi`, highlights `&&` and option flags such as `--path=wp` and `--activate`, and leaves `wp`, subcommands, and `WP_ENV` normal because upstream Bash command/function/property captures are not promoted into difftastic's display highlight enum.
+
+Dependency closure: no new support component is needed for the Bash keyword/operator/flag highlight slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a native shell parser support component would only be proposed behind an accepted gate for broader Bash structural diffing beyond display-capture parity.
+
 ## Next Task
 
-Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, C/C++ preprocessor/type captures, SQL keyword/operator/type captures, Emacs Lisp special forms/constants, and the already mapped Python/Ruby clusters, while keeping unsupported function, field/property, and boolean captures normal unless the upstream display enum promotes them.
+Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, C/C++ preprocessor/type captures, SQL keyword/operator/type captures, Bash keyword/operator/flag captures, Emacs Lisp special forms/constants, and the already mapped Python/Ruby clusters, while keeping unsupported function, field/property, and boolean captures normal unless the upstream display enum promotes them.

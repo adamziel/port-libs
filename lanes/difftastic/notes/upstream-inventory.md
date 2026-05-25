@@ -629,3 +629,21 @@ git diff --check -- lanes/difftastic
 The focused test result for this slice is 1 selected test file, 1684 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
 
 Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing tree-highlights promotion evidence route; no shared parser, SQL parser, tree-sitter runtime, generated query engine, or native support library is activated.
+
+For this Bash keyword/operator/flag highlight slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`. The mapped upstream boundary is difftastic's `Bash` `TreeSitterConfig`, which loads `tree_sitter_bash::HIGHLIGHT_QUERY`; that query marks shell control words such as `export`, `if`, `then`, `else`, and `fi` as `@keyword`, operators such as `&&` as `@operator`, and flag-like command arguments beginning with `-` as `@constant`. Difftastic's `tree_highlights` promotes those captures into keyword-style spans, but it does not promote Bash command names, variables/properties, or function captures into the display enum. The WordPress example applies this to `wp-content/plugins/acme-card/bin/deploy.sh`, a plugin deploy/WP-CLI helper review path.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/src/TokenDiffer.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-bash-deploy-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-bash-deploy-highlight-display.php | php -r '$json = stream_get_contents(STDIN); json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo "example-json-ok\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test result for this slice is 1 selected test file, 1708 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing tree-highlights promotion evidence route; no shared shell parser, tree-sitter runtime, generated query engine, or native support library is activated.

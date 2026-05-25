@@ -33,13 +33,15 @@ final class TokenDiffer
     {
         $lineCommentPattern = match (true) {
             $this->isLispLanguage($options) => ';[^\r\n]*|\/\/[^\r\n]*',
-            $this->isPythonLanguage($options) => '\#[^\r\n]*',
+            $this->isPythonLanguage($options),
+            $this->isBashLanguage($options) => '\#[^\r\n]*',
             $this->isRubyLanguage($options) => '\#[^\r\n]*',
             default => '\/\/[^\r\n]*',
         };
         $stringPattern = $this->stringPattern($options);
+        $bashFlagPattern = $this->isBashLanguage($options) ? '--?[A-Za-z0-9][A-Za-z0-9_-]*(?:=[^\s;]+)?|' : '';
         preg_match_all(
-            '/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|' . $lineCommentPattern . '|[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|' . $stringPattern . '|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||[{}()[\].,;:+*\/<>=!-]|\S/u',
+            '/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|' . $lineCommentPattern . '|' . $bashFlagPattern . '[A-Za-z_][A-Za-z0-9_]*|\d+(?:\.\d+)?|' . $stringPattern . '|===|!==|==|!=|<=|>=|=>|->|::|&&|\|\||>>|[{}()[\].,;:+*\/<>=!|$-]|\S/u',
             $source,
             $matches,
             PREG_OFFSET_CAPTURE,
@@ -1319,7 +1321,7 @@ final class TokenDiffer
             str_starts_with($text, '/*'),
             str_starts_with($text, '//'),
             str_starts_with($text, '<!--'),
-            str_starts_with($text, '#') && ($this->isPythonLanguage($options) || $this->isRubyLanguage($options)),
+            str_starts_with($text, '#') && ($this->isPythonLanguage($options) || $this->isRubyLanguage($options) || $this->isBashLanguage($options)),
             str_starts_with($text, ';') && $this->isLispLanguage($options) => 'comment',
             preg_match('/^[A-Za-z_]/', $text) === 1 => 'identifier',
             preg_match('/^\d/', $text) === 1 => 'number',
@@ -5225,6 +5227,14 @@ final class TokenDiffer
     private function isRustLanguage(array $options): bool
     {
         return in_array(strtolower((string) ($options['language'] ?? '')), ['rs', 'rust'], true);
+    }
+
+    /**
+     * @param array{language?: string} $options
+     */
+    private function isBashLanguage(array $options): bool
+    {
+        return in_array(strtolower((string) ($options['language'] ?? '')), ['bash', 'sh', 'shell'], true);
     }
 
     /**

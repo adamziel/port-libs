@@ -45,6 +45,9 @@ final class SyntaxHighlightClassifier
         if ($token->kind === 'punctuation' && $this->isKeywordishOperator($language, $token->text)) {
             return 'keyword';
         }
+        if ($this->isBashLanguage($language) && $this->isBashFlagArgument($token->text)) {
+            return 'keyword';
+        }
         if (
             $this->isPythonLanguage($language)
             && $token->kind === 'string'
@@ -176,6 +179,7 @@ final class SyntaxHighlightClassifier
         return in_array($language, [
             'hack',
             'hh',
+            'bash',
             'go',
             'golang',
             'javascript',
@@ -194,7 +198,14 @@ final class SyntaxHighlightClassifier
             'typescript',
             'yaml',
             'yml',
+            'sh',
+            'shell',
         ], true);
+    }
+
+    private function isBashLanguage(string $language): bool
+    {
+        return in_array($language, ['bash', 'sh', 'shell'], true);
     }
 
     private function isMarkupLanguage(string $language): bool
@@ -299,6 +310,12 @@ final class SyntaxHighlightClassifier
     private function isYamlBuiltinScalar(string $text): bool
     {
         return in_array(strtolower($text), ['false', 'null', 'true'], true);
+    }
+
+    private function isBashFlagArgument(string $text): bool
+    {
+        return preg_match('/^-[A-Za-z0-9][A-Za-z0-9_-]*$/', $text) === 1
+            || preg_match('/^--[A-Za-z0-9][A-Za-z0-9_-]*(?:=.*)?$/', $text) === 1;
     }
 
     private function isCPreprocessorDirective(string $source, int $start): bool
@@ -675,6 +692,11 @@ final class SyntaxHighlightClassifier
     private function languageKeywords(string $language): array
     {
         return match ($language) {
+            'bash', 'sh', 'shell' => [
+                'case', 'do', 'done', 'elif', 'else', 'esac', 'export', 'fi',
+                'for', 'function', 'if', 'in', 'select', 'then', 'unset',
+                'until', 'while',
+            ],
             'c', 'cc', 'cpp', 'c++', 'h', 'hpp', 'objc', 'objective-c' => [
                 'auto', 'break', 'case', 'catch', 'class', 'const', 'constexpr',
                 'continue', 'default', 'delete', 'do', 'else', 'enum', 'extern',
