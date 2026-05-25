@@ -102715,3 +102715,26 @@ Files staged:
 - `lanes/libsqlite/notes/wordpress-scenarios.md`
 - `lanes/libsqlite/src/SQLiteJsonValidity.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+
+## Integration accepted - isolated lightningcss watchdog-next-20260525T045347Z - 2026-05-25T05:11:00Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T045347Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T045347Z.patch`
+Lane/slice/session: `lightningcss` / `watchdog-next-20260525T045347Z` / `port-lightningcss`
+Patch sha256: `75312bc478d94ffe8722a07943a66a8f732e7f48ce2657ab6f7d60c0027ba6f8` verified. Applied with bounded three-way rebase from `e049a03eb296166c3ee9722faa07b161d69b2e26`.
+Focused commands:
+- `php tools/run-tests.php lanes/lightningcss/tests/CustomMediaTransformerTest.php => exit 0; 1 test files, 32 assertions, 0 failures`
+- `php tools/run-tests.php lanes/lightningcss/tests => exit 0; 9 test files, 1082 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25259 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/lightningcss/examples/wordpress-custom-media-transformer.php`
+- `lanes/lightningcss/lane-status.json`
+- `lanes/lightningcss/notes/upstream-inventory.md`
+- `lanes/lightningcss/notes/wordpress-scenarios.md`
+- `lanes/lightningcss/src/CustomMediaTransformer.php`
+- `lanes/lightningcss/tests/CustomMediaTransformerTest.php`

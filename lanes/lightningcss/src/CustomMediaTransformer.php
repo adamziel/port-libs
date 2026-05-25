@@ -34,7 +34,7 @@ final class CustomMediaTransformer
             $this->offsetMap = [['start' => 0, 'end' => strlen($css), 'sourceStart' => 0]];
         }
 
-        return $this->replaceMediaRules($css);
+        return $this->replaceMediaRules($this->replaceImportStatements($css));
     }
 
     /**
@@ -128,6 +128,140 @@ final class CustomMediaTransformer
         }
 
         return $output . substr($css, $cursor);
+    }
+
+    private function replaceImportStatements(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (($position = $this->findAtKeyword($css, '@import', $cursor)) !== null) {
+            $end = $this->findNextTopLevel($css, ';', $position + strlen('@import'));
+            if ($end === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $statement = substr($css, $position, $end - $position);
+            $replacement = $this->replaceImportStatementMediaTail($statement, $position);
+            $output .= substr($css, $cursor, $position - $cursor) . $replacement;
+            $cursor = $end;
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    private function replaceImportStatementMediaTail(string $statement, int $position): string
+    {
+        $rest = substr($statement, strlen('@import'));
+        $mediaOffset = $this->importMediaTailOffset($rest);
+        if ($mediaOffset === null) {
+            return $statement;
+        }
+
+        $prefix = substr($rest, 0, $mediaOffset);
+        $media = trim(substr($rest, $mediaOffset));
+        if ($media === '' || $this->collectCustomMediaReferences($media) === []) {
+            return $statement;
+        }
+
+        $previousMediaLocation = $this->currentMediaLocation;
+        $this->currentMediaLocation = $this->sourceLocation($this->sourceOffsetForCurrentCss($position));
+        $resolved = $this->resolveMediaQueryList($media, []);
+        $this->currentMediaLocation = $previousMediaLocation;
+
+        return '@import' . $prefix . $resolved;
+    }
+
+    private function importMediaTailOffset(string $rest): ?int
+    {
+        $offset = $this->skipWhitespace($rest, 0);
+        if ($this->startsFunction($rest, $offset, 'url')) {
+            $offset = $this->findMatchingDelimiter($rest, $offset + strlen('url'), '(', ')') + 1;
+        } elseif (($rest[$offset] ?? '') === '"' || ($rest[$offset] ?? '') === "'") {
+            $offset = $this->readQuotedTokenEnd($rest, $offset);
+        } else {
+            return null;
+        }
+
+        while (true) {
+            $offset = $this->skipWhitespace($rest, $offset);
+            if ($this->startsFunction($rest, $offset, 'supports') || $this->startsFunction($rest, $offset, 'layer')) {
+                $open = $offset + strlen($this->readIdentifier($rest, $offset));
+                $offset = $this->findMatchingDelimiter($rest, $open, '(', ')') + 1;
+                continue;
+            }
+
+            if (strncasecmp(substr($rest, $offset, strlen('layer')), 'layer', strlen('layer')) === 0) {
+                $next = $rest[$offset + strlen('layer')] ?? '';
+                if ($next === '' || !$this->isIdentifierChar($next)) {
+                    $offset += strlen('layer');
+                    continue;
+                }
+            }
+
+            break;
+        }
+
+        return $offset;
+    }
+
+    private function skipWhitespace(string $value, int $offset): int
+    {
+        while (isset($value[$offset]) && ctype_space($value[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function startsFunction(string $value, int $offset, string $name): bool
+    {
+        $length = strlen($name);
+        if (strncasecmp(substr($value, $offset, $length), $name, $length) !== 0) {
+            return false;
+        }
+
+        $previous = $value[$offset - 1] ?? '';
+        $next = $value[$offset + $length] ?? '';
+
+        return ($previous === '' || !$this->isIdentifierChar($previous)) && $next === '(';
+    }
+
+    private function readQuotedTokenEnd(string $value, int $offset): int
+    {
+        $quote = $value[$offset];
+        $length = strlen($value);
+        for ($i = $offset + 1; $i < $length; $i++) {
+            if ($value[$i] === '\\') {
+                $i++;
+                continue;
+            }
+            if ($value[$i] === $quote) {
+                return $i + 1;
+            }
+        }
+
+        throw new \InvalidArgumentException('Import rule contains an unbalanced string');
+    }
+
+    private function readIdentifier(string $value, int $offset): string
+    {
+        $identifier = '';
+        $length = strlen($value);
+        for ($i = $offset; $i < $length; $i++) {
+            if (!$this->isIdentifierChar($value[$i])) {
+                break;
+            }
+            $identifier .= $value[$i];
+        }
+
+        return $identifier;
+    }
+
+    private function isIdentifierChar(string $char): bool
+    {
+        return preg_match('/[-_a-zA-Z0-9]/', $char) === 1;
     }
 
     /**

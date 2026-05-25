@@ -10,6 +10,9 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $css = <<<'CSS'
 @custom-media --wp-mobile (max-width: 599px);
 @custom-media --wp-motion (prefers-reduced-motion: no-preference);
+@custom-media --wp-wide (min-width: 782px);
+
+@import url(./blocks/query-card.css) supports((display: grid)) screen and (--wp-wide);
 
 @media (--wp-mobile) and (--wp-motion) {
   .wp-block-cover.is-style-animated {

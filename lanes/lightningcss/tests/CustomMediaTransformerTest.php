@@ -80,6 +80,26 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer resolves import media query tails' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --wide (min-width: 782px);
+@custom-media --coarse (pointer: coarse), (hover: none);
+
+@import url(./blocks/query.css) supports((display: grid)) screen and (--wide);
+@import "./blocks/touch.css" (--coarse);
+
+@media (--wide) {
+  .wp-block-query {
+    color: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            '@import "./blocks/query.css" supports(display:grid) screen and (width>=782px);@import "./blocks/touch.css" ((pointer:coarse) or (hover:none));@media (width>=782px){.wp-block-query{color:#ff0}}',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer maps upstream negated range aliases' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --not-width not (min-width: 300px);
