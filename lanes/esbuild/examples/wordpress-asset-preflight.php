@@ -157,6 +157,8 @@ $loaderBundlerOutput = (new BundlerOutput())->build($loaderBundlerGraph, $packag
 $loaderOutputMetafile = (new BundlerMetafile())->summarize($loaderBundlerGraph, $packageFixtureDir, $loaderBundlerOutput);
 $staticImportOutputGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/output-static-entry.js');
 $staticImportOutput = (new BundlerOutput())->build($staticImportOutputGraph, $packageFixtureDir, 'build/output-static.js');
+$reExportOutputGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/output-reexport-entry.js');
+$reExportOutput = (new BundlerOutput())->build($reExportOutputGraph, $packageFixtureDir, 'build/output-reexport.js');
 $nodeBundlerOutput = (new BundlerOutput())->build($nodeBundlerGraph, $packageFixtureDir, 'node-block-view.js');
 $nodeOutputMetafile = (new BundlerMetafile())->summarize($nodeBundlerGraph, $packageFixtureDir, $nodeBundlerOutput);
 $unsupportedLoaderOutput = (new BundlerOutput())->build($unsupportedLoaderGraph, $packageFixtureDir, 'block-view.js');
@@ -627,6 +629,14 @@ printf("WordPress static output import elision: %s\n", (
     && !str_contains($staticImportOutput['output']['contents'], "import { preview } from './local-preview.js';")
     && str_contains($staticImportOutput['output']['contents'], "import '../src/block.css';")
     && str_contains($staticImportOutput['output']['contents'], "import metadata from '../src/block.json' with { type: 'json' };")
+) ? 'yes' : 'no');
+printf("WordPress bundled re-export clauses: %s\n", (
+    ($reExportOutput['inputs']['src/output-reexport-entry.js']['exportsRewritten'] ?? null) === 2
+    && str_contains($reExportOutput['output']['contents'], "export { preview };")
+    && str_contains($reExportOutput['output']['contents'], "export { runtime as helperRuntime };")
+    && !str_contains($reExportOutput['output']['contents'], "export { preview } from './local-preview.js';")
+    && !str_contains($reExportOutput['output']['contents'], "export { runtime as helperRuntime } from 'port-libs-card-runtime/helper';")
+    && str_contains($reExportOutput['output']['contents'], "import '../src/block.css';")
 ) ? 'yes' : 'no');
 printf("WordPress node output external imports: %s\n", (
     ($nodeBundlerOutput['inputs']['src/node-entry.js']['importsExternal'] ?? null) === 2

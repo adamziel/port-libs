@@ -7,7 +7,7 @@ namespace PortLibs\Esbuild;
 final class BundlerOutput
 {
     /**
-     * @return array{entry: string, output: array{path: string, bytes: int, contents: string}, inputs: array<string, array{bytes: int, outputBytes: int, importsRemoved: int, importsRewritten: int, importsExternal: int, rewrites: list<array{from: string, to: string, kind: string}>, externalImports: list<array{path: string, kind: string}>}}, diagnostics: array{external: list<array{path: string, kind: string}>, missing: list<array{path: string, kind: string}>, unsupported: list<array{path: string, kind: string, resolved: string}>}}
+     * @return array{entry: string, output: array{path: string, bytes: int, contents: string}, inputs: array<string, array{bytes: int, outputBytes: int, importsRemoved: int, importsRewritten: int, exportsRewritten: int, importsExternal: int, rewrites: list<array{from: string, to: string, kind: string}>, externalImports: list<array{path: string, kind: string}>}}, diagnostics: array{external: list<array{path: string, kind: string}>, missing: list<array{path: string, kind: string}>, unsupported: list<array{path: string, kind: string, resolved: string}>}}
      */
     public function build(BundlerGraph $graph, ?string $root = null, string $outputPath = 'out.js'): array
     {
@@ -22,6 +22,7 @@ final class BundlerOutput
 
             $source = (string) file_get_contents($module->path);
             [$rewrittenSource, $importsRemoved] = $this->removeBundledStaticImports($source, $module, $graph);
+            [$rewrittenSource, $exportsRewritten] = $this->rewriteBundledReExports($rewrittenSource, $module, $graph);
             [$rewrittenSource, $rewrites] = $this->rewriteRetainedStaticImports($rewrittenSource, $module, $root, $outputPath);
             $externalImports = $this->externalImports($module);
             $relativePath = $this->relativePath($module->path, $root);
@@ -32,6 +33,7 @@ final class BundlerOutput
                 'outputBytes' => strlen($chunk),
                 'importsRemoved' => $importsRemoved,
                 'importsRewritten' => count($rewrites),
+                'exportsRewritten' => $exportsRewritten,
                 'importsExternal' => count($externalImports),
                 'rewrites' => $rewrites,
                 'externalImports' => $externalImports,
@@ -110,6 +112,49 @@ final class BundlerOutput
         }
 
         return [$source, count($ranges)];
+    }
+
+    /**
+     * @return array{0:string, 1:int}
+     */
+    private function rewriteBundledReExports(string $source, BundlerModule $module, BundlerGraph $graph): array
+    {
+        $replacements = [];
+        $edgeOffset = count($module->analysis->runtimeImports());
+
+        $sourceExportIndex = 0;
+        foreach ($module->analysis->exports as $export) {
+            if ($export->typeOnly || $export->source === null) {
+                continue;
+            }
+
+            $edge = $module->edges[$edgeOffset + $sourceExportIndex] ?? null;
+            $sourceExportIndex++;
+            if ($edge === null
+                || $export->kind !== 're-export-named'
+                || $edge->path === null
+                || !isset($graph->modules[$edge->path])
+                || !$this->isJavaScriptModule($edge->path)
+            ) {
+                continue;
+            }
+
+            $range = $this->reExportSourceRange($source, $export->offset, $export->source);
+            if ($range !== null) {
+                $replacements[] = $range;
+            }
+        }
+
+        if ($replacements === []) {
+            return [$source, 0];
+        }
+
+        usort($replacements, static fn (array $a, array $b): int => $b[0] <=> $a[0]);
+        foreach ($replacements as [$start, $end]) {
+            $source = substr_replace($source, '', $start, $end - $start);
+        }
+
+        return [$source, count($replacements)];
     }
 
     /**
@@ -228,6 +273,26 @@ final class BundlerOutput
         return [$matchStart, $matchStart + strlen($matchText) - 2];
     }
 
+    /**
+     * @return array{0:int, 1:int}|null
+     */
+    private function reExportSourceRange(string $source, int $offset, string $exportSource): ?array
+    {
+        $statement = $this->statementRange($source, $offset);
+        if ($statement === null) {
+            return null;
+        }
+
+        [$start, $end] = $statement;
+        $fragment = substr($source, $start, $end - $start);
+        $quoted = preg_quote($exportSource, '/');
+        if (preg_match('/\s+from\s+(["\'])' . $quoted . '\1/', $fragment, $match, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        return [$start + $match[0][1], $start + $match[0][1] + strlen($match[0][0])];
+    }
+
     private function isStaticImportKind(string $kind): bool
     {
         return in_array($kind, [
@@ -245,7 +310,7 @@ final class BundlerOutput
      */
     private function statementRange(string $source, int $offset): ?array
     {
-        if (substr($source, $offset, 6) !== 'import') {
+        if (substr($source, $offset, 6) !== 'import' && substr($source, $offset, 6) !== 'export') {
             return null;
         }
 

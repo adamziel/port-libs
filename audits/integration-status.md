@@ -1,4 +1,41 @@
 
+## Clean-patch accepted - esbuild bundled re-export clauses - 2026-05-25 23:06 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-esbuild-20260525T224833Z.ready`.
+
+Published commit: this commit (`Integrate esbuild bundled re-export clauses`).
+The accepted patch was verified from a detached clean worktree at source
+`9c85db26` and then published to `refs/heads/main` under
+`.tmux-team/tmp/clean-integrator-run.lock`. Patch sha256 matched the ready
+marker: `fa4d6d7c01271c5ad6fdc23fa6c36fad7f9482bf8aed1d57eac6d40bed498944`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l` passed for `BundlerGraphBuilder.php`, `BundlerOutput.php`,
+  `BundlerGraphBuilderTest.php`, and `wordpress-asset-preflight.php`.
+- `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php`
+  passed: `1 test files, 118 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/esbuild/tests` passed:
+  `7 test files, 1962 assertions, 0 failures`.
+- Esbuild manifest/status JSON validation passed.
+- WordPress asset preflight smoke output reported the expected bundled
+  re-export clause line.
+- `git diff --check -- lanes/esbuild` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=106577724` KiB and `load1=3.65`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26497 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker artifacts and the temporary verification worktree were
+  scheduled for removal after the commit was safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted esbuild commit.
+
 ## Clean-patch accepted - Syncthing watcher restart routes - 2026-05-25 23:00 UTC
 
 Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-dev-syncthing-20260525T225209Z.ready`.

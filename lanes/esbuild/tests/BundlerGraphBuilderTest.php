@@ -226,4 +226,20 @@ return [
             ['from' => './block.json', 'to' => '../src/block.json', 'kind' => 'default'],
         ], $output['inputs']['src/output-static-entry.js']['rewrites']);
     },
+    'rewrites named re-export clauses for already bundled JavaScript modules' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $graph = (new BundlerGraphBuilder())->build($fixtureRoot . '/src/output-reexport-entry.js');
+        $output = (new BundlerOutput())->build($graph, $fixtureRoot, 'build/output-reexport.js');
+
+        $t->same(true, str_contains($output['output']['contents'], "// src/output-reexport-entry.js\n"));
+        $t->same(true, str_contains($output['output']['contents'], "// src/local-preview.js\n"));
+        $t->same(true, str_contains($output['output']['contents'], "// node_modules/port-libs-card-runtime/helper.js\n"));
+        $t->same(true, str_contains($output['output']['contents'], "export { preview };"));
+        $t->same(true, str_contains($output['output']['contents'], "export { runtime as helperRuntime };"));
+        $t->same(false, str_contains($output['output']['contents'], "export { preview } from './local-preview.js';"));
+        $t->same(false, str_contains($output['output']['contents'], "export { runtime as helperRuntime } from 'port-libs-card-runtime/helper';"));
+        $t->same(true, str_contains($output['output']['contents'], "import '../src/block.css';"));
+        $t->same(2, $output['inputs']['src/output-reexport-entry.js']['exportsRewritten']);
+        $t->same(1, $output['inputs']['src/output-reexport-entry.js']['importsRewritten']);
+        $t->same(0, $output['inputs']['src/output-reexport-entry.js']['importsRemoved']);
+    },
 ];

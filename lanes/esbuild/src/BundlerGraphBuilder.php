@@ -43,7 +43,31 @@ final class BundlerGraphBuilder
                     continue;
                 }
 
-                $edge = $this->edgeForImport($import, dirname($path));
+                $edge = $this->edgeForSource($import->kind, $import->source, dirname($path));
+                $edges[] = $edge;
+                if ($edge->external) {
+                    $externalEdges[] = $edge;
+                    continue;
+                }
+                if ($edge->missing || $edge->path === null) {
+                    $missingEdges[] = $edge;
+                    continue;
+                }
+                if ($edge->loader === null) {
+                    $unsupportedEdges[] = $edge;
+                    continue;
+                }
+                if (!isset($modules[$edge->path]) && $this->canAnalyze($edge->path)) {
+                    $queue[] = $edge->path;
+                }
+            }
+
+            foreach ($analysis->exports as $export) {
+                if ($export->typeOnly || $export->source === null) {
+                    continue;
+                }
+
+                $edge = $this->edgeForSource($export->kind, $export->source, dirname($path));
                 $edges[] = $edge;
                 if ($edge->external) {
                     $externalEdges[] = $edge;
@@ -68,28 +92,35 @@ final class BundlerGraphBuilder
         return new BundlerGraph($entry, $modules, $externalEdges, $missingEdges, $unsupportedEdges);
     }
 
-    private function edgeForImport(ModuleImport $import, string $sourceDir): BundlerEdge
+    private function edgeForSource(string $kind, string $source, string $sourceDir): BundlerEdge
     {
-        if ($import->isRelative()) {
-            $resolved = $this->resolveRelative($import->source, $sourceDir);
+        if ($this->isRelativeSource($source)) {
+            $resolved = $this->resolveRelative($source, $sourceDir);
 
-            return new BundlerEdge($import->kind, $import->source, $resolved, false, $resolved === null, null, $this->loaderForPath($resolved));
+            return new BundlerEdge($kind, $source, $resolved, false, $resolved === null, null, $this->loaderForPath($resolved));
         }
 
-        $resolution = $this->packageResolver->resolveImport($import, $sourceDir);
+        $resolution = $this->packageResolver->resolveImport(new ModuleImport($kind, $source, [], 0), $sourceDir);
         if ($resolution === null) {
-            return new BundlerEdge($import->kind, $import->source, null, false, true);
+            return new BundlerEdge($kind, $source, null, false, true);
         }
 
         return new BundlerEdge(
-            $import->kind,
-            $import->source,
+            $kind,
+            $source,
             $resolution->path === '' ? null : $resolution->path,
             $resolution->external,
             false,
             $resolution->mainField,
             $this->loaderForPath($resolution->path),
         );
+    }
+
+    private function isRelativeSource(string $source): bool
+    {
+        return str_starts_with($source, './')
+            || str_starts_with($source, '../')
+            || str_starts_with($source, '/');
     }
 
     private function resolveRelative(string $source, string $sourceDir): ?string
