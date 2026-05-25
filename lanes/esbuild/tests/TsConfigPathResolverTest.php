@@ -31,12 +31,13 @@ return [
             '@package-shared/card' => 'src/package-shared/card.ts',
             '@preset-block/card/view' => 'src/blocks/card/view.ts',
             'wp-element' => 'src/vendor/wp-element/index.ts',
+            'blocks/card/view' => 'src/blocks/card/view.ts',
         ], array_combine(
             array_map(static fn ($resolution): string => $resolution->import->source, $resolutions),
             array_map(static fn ($resolution): string => $normalizeFixturePath($resolution->path), $resolutions),
         ));
-        $t->same(['@blocks/*', '@blocks/*', '@shared/*', 'shared-config', '@theme/*', 'wordpress-runtime', '/virtual/*', '@wordpress/block-runtime', '@wordpress/package-theme/*', '@package-shared/*', '@preset-block/*', 'wp-element'], array_map(static fn ($resolution): string => $resolution->matchedPattern, $resolutions));
-        $t->same(['./blocks/*', './blocks/*', './shared/*', './shared/config', './theme/*', './vendor/wordpress-runtime', './virtual/*', './package-shared/block-runtime', './package-theme/*', './package-shared/*', './blocks/*', './vendor/wp-element'], array_map(static fn ($resolution): string => $resolution->targetPattern, $resolutions));
+        $t->same(['@blocks/*', '@blocks/*', '@shared/*', 'shared-config', '@theme/*', 'wordpress-runtime', '/virtual/*', '@wordpress/block-runtime', '@wordpress/package-theme/*', '@package-shared/*', '@preset-block/*', 'wp-element', '<baseUrl>'], array_map(static fn ($resolution): string => $resolution->matchedPattern, $resolutions));
+        $t->same(['./blocks/*', './blocks/*', './shared/*', './shared/config', './theme/*', './vendor/wordpress-runtime', './virtual/*', './package-shared/block-runtime', './package-theme/*', './package-shared/*', './blocks/*', './vendor/wp-element', 'blocks/card/view'], array_map(static fn ($resolution): string => $resolution->targetPattern, $resolutions));
         $t->same(['tsconfig.json'], array_values(array_unique(array_map(static fn ($resolution): string => basename($resolution->tsconfigPath), $resolutions))));
         $t->same('src', basename($resolutions[0]->baseUrl));
     },
@@ -61,6 +62,7 @@ return [
         $t->same('src/package-shared/block-runtime.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', '@wordpress/block-runtime', [], 0), $entryDir)?->path ?? ''));
         $t->same('src/package-shared/card.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', '@package-shared/card', [], 0), $entryDir)?->path ?? ''));
         $t->same('src/blocks/card/view.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', '@preset-block/card/view', [], 0), $entryDir)?->path ?? ''));
+        $t->same('src/blocks/card/view.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', 'blocks/card/view', [], 0), $entryDir)?->path ?? ''));
         $t->same('src/vendor/wp-element/index.ts', $normalizeFixturePath($resolver->resolveImport(new ModuleImport('named', 'wp-element', [], 0), $entryDir)?->path ?? ''));
         $t->same(null, $resolver->resolveImport(new ModuleImport('named', './relative.js', [], 0), $entryDir));
         $t->same(null, $resolver->resolveImport(new ModuleImport('named', '@missing/card', [], 0), $entryDir));
@@ -80,5 +82,17 @@ return [
         $t->same('wp-element', $packageRoot?->matchedPattern);
         $t->same('src/blocks/card/view.ts', $normalizeFixturePath($packageSubpath?->path ?? ''));
         $t->same('@preset-block/*', $packageSubpath?->matchedPattern);
+    },
+    'maps baseUrl-only bare imports after paths miss' => static function (TestRunner $t) use ($entryDir, $normalizeFixturePath): void {
+        $resolver = new TsConfigPathResolver();
+
+        $baseUrlOnly = $resolver->resolveImport(new ModuleImport('named', 'blocks/card/view', [], 0), $entryDir);
+
+        $t->same('src/blocks/card/view.ts', $normalizeFixturePath($baseUrlOnly?->path ?? ''));
+        $t->same('<baseUrl>', $baseUrlOnly?->matchedPattern);
+        $t->same('blocks/card/view', $baseUrlOnly?->targetPattern);
+        $t->same('src', basename($baseUrlOnly?->baseUrl ?? ''));
+        $t->same(null, $resolver->resolveImport(new ModuleImport('named', '../blocks/card/view', [], 0), $entryDir));
+        $t->same(null, $resolver->resolveImport(new ModuleImport('named', 'missing/base-url-view', [], 0), $entryDir));
     },
 ];

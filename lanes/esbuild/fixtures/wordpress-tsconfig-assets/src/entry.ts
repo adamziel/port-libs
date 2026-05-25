@@ -10,5 +10,6 @@ import packageThemeCard from '@wordpress/package-theme/card';
 import packageSharedCard from '@package-shared/card';
 import presetBlockView from '@preset-block/card/view';
 import wpElement from 'wp-element';
+import baseUrlOnlyView from 'blocks/card/view';
 
-export { view, style, settings, sharedConfig, themeCard, runtime, virtualCard, blockRuntime, packageThemeCard, packageSharedCard, presetBlockView, wpElement };
+export { view, style, settings, sharedConfig, themeCard, runtime, virtualCard, blockRuntime, packageThemeCard, packageSharedCard, presetBlockView, wpElement, baseUrlOnlyView };

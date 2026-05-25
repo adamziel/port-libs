@@ -99063,3 +99063,16 @@ Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-2026052
 - Support-library/dependency closure: no support-library activation; this reuses the lane-local tokenizer/highlighter and existing tree-sitter-python query evidence.
 - Live-service exclusions: none; no live provider tests were run.
 - Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/notes/wordpress-scenarios.md`, `lanes/difftastic/src/AnsiSyntaxHighlighter.php`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated esbuild tsconfig baseUrl fallback slice - 2026-05-25 00:58 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T001826Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T001826Z.patch`.
+
+- Lane/slice/session: `esbuild` / `watchdog-next-20260525T001826Z` / `port-esbuild`.
+- Patch sha256: `dda5e9acd17a374f6f2f7d29a642a6ea600913b05df3deb71dad7e60bd3ec2bb` verified with `sha256sum`.
+- Focused verification in clean worktree: PHP syntax checks for `TsConfigPathResolver.php`, `TsConfigPathResolverTest.php`, and `wordpress-asset-preflight.php` passed; `php tools/run-tests.php lanes/esbuild/tests/TsConfigPathResolverTest.php` passed with `1 test files, 34 assertions, 0 failures`; `php tools/run-tests.php lanes/esbuild/tests` passed with `6 test files, 1825 assertions, 0 failures`; the WordPress preflight example matched `WordPress tsconfig paths aliases`; JSON validation passed.
+- Root verification in clean worktree: `php tools/run-tests.php` passed with `208 test files, 24364 assertions, 0 failures`.
+- Whitespace verification: `git diff --check` passed.
+- Support-library/dependency closure: no support-library activation; shared `js-package-resolution-core` remains inactive.
+- Live-service exclusions: none.
+- Files staged: `lanes/esbuild/**` and `audits/integration-status.md`.

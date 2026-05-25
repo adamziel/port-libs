@@ -46,36 +46,42 @@ final class TsConfigPathResolver
             return null;
         }
 
+        $baseUrl = $this->baseUrl($config['json'], $config['baseUrlDir'], $config['pathsDir']);
         $paths = $config['json']['compilerOptions']['paths'] ?? null;
-        if (!is_array($paths) || array_is_list($paths)) {
-            return null;
+        if (is_array($paths) && !array_is_list($paths)) {
+            foreach ($this->sortedPathKeys($paths) as $pattern) {
+                $matched = $this->matchPattern($pattern, $import->source);
+                if ($matched === null) {
+                    continue;
+                }
+
+                $targets = $paths[$pattern];
+                if (!is_array($targets)) {
+                    continue;
+                }
+
+                foreach ($targets as $target) {
+                    if (!is_string($target) || $target === '' || !$this->isAllowedTarget($target)) {
+                        continue;
+                    }
+
+                    $candidate = $this->targetPath($target, $matched, $baseUrl);
+                    $tried = [];
+                    $resolved = $this->resolvePath($candidate, $tried);
+                    if ($resolved === null || !$this->isPathInsideDir($resolved, $config['dir'])) {
+                        continue;
+                    }
+
+                    return new TsConfigPathResolution($import, $resolved, $config['path'], $baseUrl, $pattern, $target, $tried);
+                }
+            }
         }
 
-        $baseUrl = $this->baseUrl($config['json'], $config['baseUrlDir'], $config['pathsDir']);
-        foreach ($this->sortedPathKeys($paths) as $pattern) {
-            $matched = $this->matchPattern($pattern, $import->source);
-            if ($matched === null) {
-                continue;
-            }
-
-            $targets = $paths[$pattern];
-            if (!is_array($targets)) {
-                continue;
-            }
-
-            foreach ($targets as $target) {
-                if (!is_string($target) || $target === '' || !$this->isAllowedTarget($target)) {
-                    continue;
-                }
-
-                $candidate = $this->targetPath($target, $matched, $baseUrl);
-                $tried = [];
-                $resolved = $this->resolvePath($candidate, $tried);
-                if ($resolved === null || !$this->isPathInsideDir($resolved, $config['dir'])) {
-                    continue;
-                }
-
-                return new TsConfigPathResolution($import, $resolved, $config['path'], $baseUrl, $pattern, $target, $tried);
+        if (array_key_exists('baseUrl', $config['json']['compilerOptions'] ?? [])) {
+            $tried = [];
+            $resolved = $this->resolvePath($this->targetPath($import->source, [], $baseUrl), $tried);
+            if ($resolved !== null && $this->isPathInsideDir($resolved, $config['dir'])) {
+                return new TsConfigPathResolution($import, $resolved, $config['path'], $baseUrl, '<baseUrl>', $import->source, $tried);
             }
         }
 
