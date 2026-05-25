@@ -5085,6 +5085,55 @@ Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON5, JSONB, canonical JSON, JSON subtype, and BLOB
 wrapper components; it counts no shared support-library progress.
 
+## Focused Native Mapping: `json_type()`/`json_array_length()` SQL Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQLite SQL function dispatch
+boundary for `json_type(X[,P])` and `json_array_length(X[,P])`. Native
+`SQLiteJsonInspection::inspectionSqlFunction()` reuses the existing
+lane-local text/JSON5/cast-text-BLOB/JSONB inspection engine and returns
+SQLite scalar results: JSON type names, integer array lengths, `0` for
+non-array located values, and SQL NULL for NULL inputs, NULL paths, or missing
+paths. The slice also rejects invalid function names, malformed paths, and
+malformed input JSON/JSON5/JSONB.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON inspection and JSONB evidence
+for the same upstream behavior cluster:
+
+```sh
+json101.test json102.test json501.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonInspection.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-inspection-preflight.php
+php lanes/libsqlite/examples/wordpress-json-inspection-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported SQL-dispatch
+`json_type()` and `json_array_length()` fields for strict JSON, JSON5,
+cast-text BLOB, JSONB, and SQL NULL inputs, focused PHP passed 1 selected
+test file, 1936 assertions, and 0 failures, and
+`git diff --check -- lanes/libsqlite` passed. This worker did not start the
+root aggregate harness because root verification was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON5, JSONB, cast-text BLOB, path parsing, and canonical
+inspection components; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json_array_insert()`/`jsonb_array_insert()` SQL Dispatch
 
 Date: 2026-05-25

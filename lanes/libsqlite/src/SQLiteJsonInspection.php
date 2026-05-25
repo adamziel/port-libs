@@ -6,6 +6,21 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonInspection
 {
+    public static function inspectionSqlFunction(
+        string $function,
+        string|SQLiteBlobValue|null $value,
+        ?string $path = '$',
+    ): string|int|null {
+        if ($function === 'json_type') {
+            return self::jsonType($value, $path);
+        }
+        if ($function === 'json_array_length') {
+            return self::jsonArrayLength($value, $path);
+        }
+
+        throw new \InvalidArgumentException('SQLite JSON inspection function must be json_type or json_array_length');
+    }
+
     public static function jsonType(string|SQLiteBlobValue|null $value, ?string $path = '$'): ?string
     {
         if ($value === null || $path === null) {

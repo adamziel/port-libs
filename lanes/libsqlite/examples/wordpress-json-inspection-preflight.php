@@ -32,10 +32,12 @@ foreach ($inputs as $name => $value) {
         'modesType' => SQLiteJsonInspection::jsonType($value, '$.plugin.modes'),
         'modesLength' => SQLiteJsonInspection::jsonArrayLength($value, '$.plugin.modes'),
         'missingLength' => SQLiteJsonInspection::jsonArrayLength($value, '$.plugin.missing'),
+        'sqlDispatchPluginType' => SQLiteJsonInspection::inspectionSqlFunction('json_type', $value, '$.plugin'),
+        'sqlDispatchModesLength' => SQLiteJsonInspection::inspectionSqlFunction('json_array_length', $value, '$.plugin.modes'),
     ];
 }
 
 echo json_encode([
     'checks' => $checks,
-    'wordpressUse' => 'Local-only wp_options option_value inspection that mirrors SQLite json_type() and json_array_length() for strict JSON, JSON5 text, cast text BLOBs, JSONB blobs, and SQL NULL before plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value inspection that mirrors SQLite json_type() and json_array_length() SQL-dispatch semantics for strict JSON, JSON5 text, cast text BLOBs, JSONB blobs, and SQL NULL before plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

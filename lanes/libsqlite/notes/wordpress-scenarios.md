@@ -1383,3 +1383,13 @@ JSON results or JSONB blob results, preserving SQLite's array-index,
 reverse-index append, missing-array creation, non-array no-op, and JSON
 subtype/JSONB embedded-fragment boundaries without requiring the SQLite
 extension.
+
+## `json_type()`/`json_array_length()` Inspection Dispatch Scenario
+
+Native JSON inspection now includes a bounded SQLite SQL function dispatch
+boundary for `json_type(X[,P])` and `json_array_length(X[,P])`. The updated
+`examples/wordpress-json-inspection-preflight.php` script can preflight copied
+`wp_options` JSON option values using the same function-name dispatch that SQL
+callers expect, including strict JSON, JSON5, cast text BLOBs, JSONB blobs,
+SQL NULL, missing paths, non-array scalar length `0`, and JSON type-name
+results without requiring the SQLite extension.

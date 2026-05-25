@@ -3147,6 +3147,33 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::jsonType($settings, '$.a[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::jsonArrayLength('{enabled:true,,}', '$'));
     },
+    'dispatches sqlite json inspection sql functions with scalar result typing' => static function (TestRunner $t): void {
+        $settings = '{"plugin":{"modes":["dark","light"],"enabled":true,"empty":null},"title":"Cache"}';
+        $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'modes' => ['dark', 'light'],
+                'enabled' => true,
+                'empty' => null,
+            ],
+            'title' => 'Cache',
+        ]));
+
+        $t->same('object', SQLiteJsonInspection::inspectionSqlFunction('json_type', $jsonb));
+        $t->same('array', SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin.modes'));
+        $t->same('true', SQLiteJsonInspection::inspectionSqlFunction('json_type', $jsonb, '$.plugin.enabled'));
+        $t->same('null', SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin.empty'));
+        $t->same(null, SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin.missing'));
+
+        $t->same(2, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', $jsonb, '$.plugin.modes'));
+        $t->same(0, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', $settings, '$.title'));
+        $t->same(null, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', $settings, '$.plugin.missing'));
+        $t->same(null, SQLiteJsonInspection::inspectionSqlFunction('json_array_length', null, '$.plugin.modes'));
+        $t->same(null, SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, null));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_valid', $settings));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_array_length', '{"plugin":,}', '$.plugin'));
+    },
     'extracts sqlite json values with SQL result typing for text json5 and jsonb' => static function (TestRunner $t): void {
         $json = '{"plugin":{"enabled":true,"title":"Cache","priority":7,"ratio":1.5,"rules":[{"name":"seo"},{"name":"cache"}],"empty":null}}';
         $json5 = "{plugin:{enabled:false,title:'Cache',priority:+7,ratio:.5,rules:[{name:'seo'},],},}";

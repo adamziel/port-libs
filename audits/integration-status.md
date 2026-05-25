@@ -1,5 +1,49 @@
 # Integration Status
 
+## Integration accepted - isolated libsqlite JSON inspection dispatch slice - 2026-05-25 03:35 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T032124Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T032124Z.patch`.
+
+Lane/slice/session: `libsqlite` / `rearmer-20260525T032124Z` /
+`port-libsqlite`. Patch sha256 verified:
+`9772ef650cf6f7aca9d0a44ca41839d57e1419caa731c508922f205c55c68e3e`.
+The patch applied cleanly to accepted head `343a4d5d44c363ff4b3ead335dfbdf4f4370e338`
+in clean worktree `/tmp/port-clean-integrator-libsqlite-rearmer-20260525T032124Z`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonInspection.php`: passed, no syntax errors.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, no syntax errors.
+- `php -l lanes/libsqlite/examples/wordpress-json-inspection-preflight.php`: passed, no syntax errors.
+- `php lanes/libsqlite/examples/wordpress-json-inspection-preflight.php`: passed; smoke output covered SQL-dispatch `json_type()` and `json_array_length()` fields for strict JSON, JSON5, cast-text BLOB, JSONB, and SQL NULL inputs.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, 1 test file, 1936 assertions, 0 failures.
+- `php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'`: passed.
+- `git diff --check`: passed.
+
+Root verification: exact no-argument root gate was empty before starting.
+`php tools/run-tests.php` ran in the clean worktree and passed: 212 test files,
+25037 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. This slice
+reuses existing lane-local JSON5, JSONB, cast-text BLOB, path parsing, and JSON
+inspection components. It does not claim shared support-library progress.
+
+Live-service exclusions: no live-service provider tests were run or required.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-inspection-preflight.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonInspection.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - isolated Syncthing watcher acknowledgement slice - 2026-05-25 03:31 UTC
 
 Accepted isolated ready marker:
