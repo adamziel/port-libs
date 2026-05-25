@@ -82,7 +82,9 @@ final class SyntaxHighlightClassifier
             }
         }
 
-        if ($this->isPhpLikeLanguage($language) && $this->isPhpBuiltinVariable($source, $token)) {
+        if ($this->isPhpLikeLanguage($language)
+            && ($this->isPhpBuiltinVariable($source, $token) || $this->isPhpMagicConstant($token->text))
+        ) {
             return 'keyword';
         }
 
@@ -252,6 +254,14 @@ final class SyntaxHighlightClassifier
         }
 
         return $token->start > 0 && ($source[$token->start - 1] ?? '') === '$';
+    }
+
+    private function isPhpMagicConstant(string $text): bool
+    {
+        return in_array($text, [
+            '__CLASS__', '__DIR__', '__FILE__', '__FUNCTION__', '__LINE__',
+            '__METHOD__', '__NAMESPACE__', '__TRAIT__',
+        ], true);
     }
 
     private function isPythonBuiltinFunctionCall(string $source, Token $token): bool
@@ -549,9 +559,10 @@ final class SyntaxHighlightClassifier
             'php', 'hack', 'hh' => [
                 'case', 'catch', 'class', 'declare', 'default', 'else', 'extends',
                 'false', 'finally', 'for', 'foreach', 'function', 'if', 'implements',
-                'interface', 'match', 'namespace', 'new', 'null', 'private',
-                'protected', 'public', 'return', 'static', 'switch', 'throw',
-                'trait', 'true', 'try', 'use', 'while', 'yield',
+                'include', 'include_once', 'interface', 'match', 'namespace', 'new',
+                'null', 'private', 'protected', 'public', 'require', 'require_once',
+                'return', 'static', 'switch', 'throw', 'trait', 'true', 'try', 'use',
+                'while', 'yield',
             ],
             'python', 'py' => [
                 'and', 'as', 'assert', 'async', 'await', 'break', 'class',

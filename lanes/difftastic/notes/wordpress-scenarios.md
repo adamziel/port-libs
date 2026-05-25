@@ -366,11 +366,14 @@ php lanes/difftastic/examples/wordpress-env-resource-limits-command.php
 php lanes/difftastic/examples/wordpress-tsx-tag-highlight-display.php
 php lanes/difftastic/examples/wordpress-block-controller-highlight-display.php
 php lanes/difftastic/examples/wordpress-block-registry-highlight-display.php
+php lanes/difftastic/examples/wordpress-php-magic-constant-highlight-display.php
 php lanes/difftastic/examples/wordpress-python-decorator-highlight-display.php
 php lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php
 php lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php
 php lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php
 ```
+
+The WordPress PHP magic-constant display example now covers plugin bootstrap include-path review in `wp-content/plugins/acme-card/acme-card.php`. Native JSON display highlights `require_once`, `__DIR__`, and `__FILE__` as keyword-style upstream keyword/constant captures while keeping WordPress helper calls such as `plugin_dir_path(...)` and project class identifiers normal, so review UIs can distinguish PHP runtime constants from ordinary plugin APIs.
 
 The WordPress Ruby migration helper now also exercises method-level Ruby block delimiter paths. The added `self.count` method in `wp-content/plugins/acme-migrator/tools/import_posts.rb` is emitted as a focused `def...end` insertion while the existing `records.each do ... end` body stays nested under its method path, making importer utility diffs reviewable without replacing the whole class.
 
@@ -382,8 +385,8 @@ The same WordPress Python multiline annotation example now covers qualified `typ
 
 The same WordPress Python multiline annotation example now covers quoted custom type names inside nested annotation regions. `list["Payload"]` and `typing.Optional["Payload"]` are promoted as type spans, while runtime strings such as `label = "Payload"` remain string-highlighted so migration scripts can use forward references without over-styling ordinary values.
 
-Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for additional qualified alias providers beyond the bounded `typing` / `typing_extensions` surface and deeper syntax-list-level annotation parsing.
+Dependency closure: no new support component is needed for the PHP magic-constant slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a separate native PHP parser support component would only be justified behind an accepted gate for broader PHP AST or syntax-list parity beyond keyword/constant display captures.
 
 ## Next Task
 
-Expand Python syntax highlighting with the next upstream-query-backed boundary outside the current annotation cluster, while keeping runtime strings and ordinary expressions unpromoted.
+Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, and the already mapped Python/Ruby clusters, while keeping unsupported function and property captures normal unless the upstream display enum promotes them.

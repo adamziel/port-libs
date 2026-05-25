@@ -100173,3 +100173,30 @@ Support-library/dependency-closure decision: no new support-library activation. 
 Live-service exclusions: no live SSH, Git daemon, provider, or network service tests were run.
 
 Files staged: `lanes/gitoxide/src/SshReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated difftastic PHP magic constant slice - 2026-05-25 02:30 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T020055Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T020055Z.patch`.
+Lane/slice/session: `difftastic` / `rearmer-20260525T020055Z` / `port-difftastic`.
+Patch sha256 verified: `cc112780f17b981f34b482141d174d521625bfb306d821bfe0733e5c562e3c10`.
+
+Rebase note: `git apply --check` failed against newer accepted Difftastic PHP `$this` highlighting and stale manifest/status counters. `git apply --3way` conflicted in the classifier and test region where both slices add PHP highlight predicates. Resolution preserved both the existing PHP `$this` builtin-variable behavior and the submitted PHP magic-constant behavior, kept current accepted manifest/status JSON, and accepted the slice's example and notes updates.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-difftastic-rearmer-20260525T020055Z`:
+
+- `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php` passed.
+- `php -l lanes/difftastic/tests/TokenDifferTest.php` passed.
+- `php -l lanes/difftastic/examples/wordpress-php-magic-constant-highlight-display.php` passed.
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed: 1 test file, 1443 assertions, 0 failures.
+- `php lanes/difftastic/examples/wordpress-php-magic-constant-highlight-display.php` passed.
+- `php -r 'json_decode(file_get_contents("lanes/difftastic/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/difftastic/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'` passed.
+- `git diff --check` passed.
+
+Root verification: a pre-existing no-argument root harness was observed as PID `3622208`; it cleared before the full wait expired. Then `php tools/run-tests.php` passed in the same clean worktree with 210 test files, 24689 assertions, 0 failures.
+
+Support-library/dependency-closure decision: no new support-library activation. The slice reuses lane-local token classification, ANSI highlighting, and JSON diff rendering.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged: `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, `lanes/difftastic/examples/wordpress-php-magic-constant-highlight-display.php`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/notes/wordpress-scenarios.md`, and `audits/integration-status.md`.

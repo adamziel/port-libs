@@ -3364,6 +3364,33 @@ return [
         $t->contains('wp:normal', $encoded);
         $t->contains('require:normal', $encoded);
     },
+    'json display renderer maps upstream php magic constants as keyword highlights' => static function (TestRunner $t): void {
+        $before = "<?php\nrequire_once plugin_dir_path(__FILE__) . 'includes/legacy.php';\n";
+        $after = "<?php\nrequire_once __DIR__ . '/includes/render.php';\nrequire_once plugin_dir_path(__FILE__) . 'includes/blocks.php';\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/php_magic_constants.php',
+            'PHP',
+            ['language' => 'php'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('PHP', $decoded['language']);
+        $t->contains('__DIR__:keyword', $encoded);
+        $t->contains('__FILE__:keyword', $encoded);
+        $t->contains('plugin_dir_path:normal', $encoded);
+        $t->contains('require_once:keyword', $encoded);
+    },
     'json display renderer maps upstream tag captures as type highlights' => static function (TestRunner $t): void {
         $before = "export const Edit = () => null;\n";
         $after = "export const Edit = () => <PanelBody title=\"Modern\" />;\n";
@@ -3699,6 +3726,20 @@ return [
         $requireStart = strpos($line, 'require');
         $t->true($requireStart !== false, 'Fixture should contain require.');
         $t->true(!in_array(['start' => $requireStart, 'end' => $requireStart + strlen('require'), 'style' => '1'], $spans, true), 'Function-builtin captures should remain normal because upstream only promotes function.macro, not function.builtin.');
+    },
+    'ansi highlighter maps upstream php magic constants' => static function (TestRunner $t): void {
+        $line = "require_once __DIR__ . '/includes/render.php'; plugin_dir_path(__FILE__);";
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'php']);
+
+        foreach (['require_once', '__DIR__', '__FILE__'] as $keyword) {
+            $start = strpos($line, $keyword);
+            $t->true($start !== false, "Fixture should contain {$keyword}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($keyword), 'style' => '1'], $spans, true), "{$keyword} should follow upstream keyword/constant capture handling.");
+        }
+
+        $functionStart = strpos($line, 'plugin_dir_path');
+        $t->true($functionStart !== false, 'Fixture should contain plugin_dir_path.');
+        $t->true(!in_array(['start' => $functionStart, 'end' => $functionStart + strlen('plugin_dir_path'), 'style' => '1'], $spans, true), 'Ordinary PHP function identifiers should remain normal.');
     },
     'ansi highlighter maps upstream rust label captures as type highlights' => static function (TestRunner $t): void {
         $line = "fn render<'block>(title: &'block str) -> &'block str { title }";
@@ -4181,6 +4222,28 @@ return [
         $t->contains('this:keyword', $encoded);
         $t->contains('render_block:normal', $encoded);
         $t->contains('normalize_attributes:normal', $encoded);
+    },
+    'wordpress php magic constant display follows upstream constant boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-php-magic-constant-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/acme-card.php', $decoded['path']);
+        $t->contains('__DIR__:keyword', $encoded);
+        $t->contains('__FILE__:keyword', $encoded);
+        $t->contains('plugin_dir_path:normal', $encoded);
+        $t->contains('Acme_Card:normal', $encoded);
     },
     'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
         ob_start();
