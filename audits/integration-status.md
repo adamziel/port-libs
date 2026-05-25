@@ -1,5 +1,41 @@
 # Integration Status
 
+## Integration deferred - newest non-rework isolated markers need lane rebase - 2026-05-25 04:52 UTC
+
+No source was accepted from the current non-rework ready marker set in this
+pass. I sampled the newest processable marker per lane from
+`.tmux-team/tmp/handoff-candidates/*.ready` after clearing repaired markers.
+All patch SHA-256 values matched their ready metadata, but direct application
+failed against current `refs/heads/main` and bounded `git apply --3way` left
+non-trivial conflicts in lane source/tests plus manifest/status files.
+
+Clean scan worktree:
+`/tmp/port-clean-integrator-apply-scan-20260525T044903Z` from
+`refs/heads/main` at `c90a173e0ba36d7d74ad1db69f5760ebd94c3576`.
+
+Exact repair command for each marker: rebase the listed patch onto current
+`refs/heads/main` in a clean lane worktree, preserve only the focused slice,
+rerun the worker focused checks, then re-emit a repaired ready marker with a
+fresh patch and metadata. The integrator failing commands were:
+
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T030009Z.patch`; `git apply --3way ...` left conflicts in `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, and `lanes/difftastic/tests/TokenDifferTest.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T031408Z.patch`; `git apply --3way ...` left conflicts in `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`, `lanes/dolt/examples/wordpress-merge-status-review.php`, `lanes/dolt/fixtures/wp-merge-review.php`, `lanes/dolt/lane-status.json`, `lanes/dolt/notes/wordpress-scenarios.md`, `lanes/dolt/src/MergeStatusTable.php`, and `lanes/dolt/tests/MergeStatusTableTest.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T031737Z.patch`; `git apply --3way ...` left conflicts in `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/BundlerMetafile.php`, and `lanes/esbuild/tests/BundlerGraphBuilderTest.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T031337Z.patch`; `git apply --3way ...` left conflicts in `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, and `lanes/gitoxide/tests/ReceivePackTransportTest.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T031605Z.patch`; `git apply --3way ...` left conflicts in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, and `lanes/libsqlite/tests/SQLiteHeaderTest.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T031605Z.patch`; `git apply --3way ...` left conflicts in `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-border-radius-minifier.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, and `lanes/lightningcss/src/TransitionPrefixer.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T031337Z.patch`; `git apply --3way ...` left conflicts in `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`, `lanes/markerpdf/lane-status.json`, `lanes/markerpdf/notes/upstream-test-inventory.md`, and `lanes/markerpdf/tests/PdfTextExtractorTest.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T031901Z.patch`; `git apply --3way ...` left conflicts in `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/src/MarkdownWriter.php`, and `lanes/pandoc/tests/MarkdownReaderTest.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T030642Z.patch`; `git apply --3way ...` left conflicts in `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/examples/wordpress-quadb-int-read-write-guard.php`, `lanes/quadrable/lane-status.json`, `lanes/quadrable/notes/upstream-inventory.md`, and `lanes/quadrable/notes/wordpress-scenarios.md`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T030915Z.patch`; `git apply --3way ...` left conflicts in `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples/wordpress-onedrive-no-versions-cleanup.php`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, and `lanes/rclone/notes/wordpress-scenarios.md`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T030830Z.patch`; `git apply --3way ...` left conflicts in `lanes/readability/UPSTREAM_TEST_MANIFEST.json`, `lanes/readability/lane-status.json`, `lanes/readability/notes/upstream-inventory.md`, `lanes/readability/notes/wordpress-scenarios.md`, and `lanes/readability/tests/ArticleExtractorTest.php`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031431Z.patch`; `git apply --3way ...` left conflicts in `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`, and `lanes/syncthing/lane-status.json`.
+
+These are deferred, not rejected for behavior. No focused or root verification
+was run for these deferred source patches because there was no conflict-free
+source snapshot to verify. No support-library activation and no live-service
+tests. Files staged for this record: `audits/integration-status.md` only.
+
 ## Integration superseded - empty repaired rework markers - 2026-05-25 04:50 UTC
 
 Processed four isolated repaired ready markers whose exported patches are
