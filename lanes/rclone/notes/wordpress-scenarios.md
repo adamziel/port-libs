@@ -244,6 +244,8 @@ The `../examples/wordpress-onedrive-token-renewer-preflight.php` scenario maps O
 
 The `../examples/wordpress-onedrive-no-versions-cleanup.php` scenario maps OneDrive no-versions cleanup for WXR export publication. It preserves the current Graph version, deletes older WXR versions in listed order, records dry-run destructive skip decisions without deleting, stops on the first Graph delete error, and keeps the whole preflight free of OAuth token stores, process environments, provider remotes, and live credentials.
 
+The `../examples/wordpress-onedrive-provider-shutdown-preflight.php` scenario maps OneDrive provider shutdown lifecycle behavior for WXR upload preflights. It starts change notification state, marks an active upload, shuts the provider down by stopping change notification state and disarming token renewal, proves later refresh and change-notify starts are suppressed, keeps repeated shutdown idempotent, preserves the accepted Stop-underflow watchdog suppression as idle, and keeps the preflight free of OAuth token stores, process environments, provider remotes, and live credentials.
+
 ## Next Task
 
-Map another bounded OneDrive provider lifecycle cluster that remains credential-free, such as provider shutdown/feature cleanup or command wiring around already-native lifecycle helpers.
+Map another bounded OneDrive provider lifecycle cluster that remains credential-free, such as `CleanUp`/no-versions command wiring or another provider feature-mask shutdown boundary.

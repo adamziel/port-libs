@@ -103816,3 +103816,60 @@ Older top-level ready markers remain queued but were not root-verified in this p
 Support-library/dependency closure decision: no support-library activation was accepted. The deferred markers all claim lane-local reuse or no live-service dependency; rclone live provider tests remain excluded.
 
 Files staged in this audit-only commit: `audits/integration-status.md` only.
+## Isolated clean-patch acceptance - rclone provider shutdown - 2026-05-25 06:15 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T060815Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T060815Z.patch`.
+
+Lane/slice/session: `rclone` /
+`provider-shutdown-repair-20260525T060815Z` /
+`port-rclone-handoff-repair`.
+
+Patch hash: verified
+`c80932a3478e8b37f7b5a0fe000807c30786a80870dee933b0a55f877f9485c6`
+with `sha256sum`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-rclone-provider-shutdown-20260525T061052Z`:
+
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveProviderLifecycleTest.php`
+  - result: 1 test files, 22 assertions, 0 failures.
+- `php -l lanes/rclone/src/OneDriveProviderLifecycle.php`
+  - result: no syntax errors detected.
+- `php -l lanes/rclone/tests/OneDriveProviderLifecycleTest.php`
+  - result: no syntax errors detected.
+- `php -l lanes/rclone/examples/wordpress-onedrive-provider-shutdown-preflight.php`
+  - result: no syntax errors detected.
+- `php tools/run-tests.php lanes/rclone/tests`
+  - result: 34 test files, 3939 assertions, 0 failures.
+- `git diff --check`
+  - result: passed with no output.
+
+Root verification:
+
+- Pre-root exact no-argument harness gate:
+  `pgrep -af '^php tools/run-tests\.php$'`
+  - result: no active process.
+- `php tools/run-tests.php`
+  - result: 213 test files, 25495 assertions, 0 failures.
+
+Support-library/dependency-closure decision: no shared support-library row was
+activated. The accepted code is lane-local rclone OneDrive lifecycle behavior
+and records no new dependency-progress claim.
+
+Live-service exclusions: no live OneDrive, OAuth, Graph, provider remote,
+mount/FUSE, Docker-backed serve/docker, or fstest/test_all provider-remotes
+were run.
+
+Files staged:
+
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/examples/wordpress-onedrive-provider-shutdown-preflight.php`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/upstream-inventory.md`
+- `lanes/rclone/notes/wordpress-scenarios.md`
+- `lanes/rclone/src/OneDriveProviderLifecycle.php`
+- `lanes/rclone/tests/OneDriveProviderLifecycleTest.php`
+- `audits/integration-status.md`
