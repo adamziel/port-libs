@@ -102761,3 +102761,24 @@ Files staged:
 - `lanes/markerpdf/src/PdfTextExtractor.php`
 - `lanes/markerpdf/tests/PdfTextExtractorTest.php`
 - `lanes/markerpdf/examples/wordpress-pdf-literal-utf16-import.php`
+
+## Integration accepted - isolated pandoc watchdog-next-20260525T045741Z - 2026-05-25T05:12:16Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T045741Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T045741Z.patch`
+Lane/slice/session: `pandoc` / `watchdog-next-20260525T045741Z` / `port-pandoc`
+Patch sha256: `c8ebc1b81af5b8d26a5522d21260286b40a34f57b99852919fb42282a084ab6c` verified. Applied with bounded three-way rebase from `3c4005e5d35fb69b1e4680ba77d67a183d829e0a`.
+Focused commands:
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php => exit 0; 1 test files, 2286 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25262 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- `lanes/pandoc/lane-status.json`
+- `lanes/pandoc/notes/upstream-inventory.md`
+- `lanes/pandoc/src/MarkdownWriter.php`
+- `lanes/pandoc/tests/MarkdownReaderTest.php`

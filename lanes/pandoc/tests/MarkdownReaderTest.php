@@ -2875,6 +2875,55 @@ MD;
             '    plain legacy snippet',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer pipe table alignment widths and captions' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'caption' => 'Migration **review** packet',
+                'captionInlines' => [
+                    new AstNode('text', ['text' => 'Migration ']),
+                    new AstNode('strong', [], [new AstNode('text', ['text' => 'review'])]),
+                    new AstNode('text', ['text' => ' packet']),
+                ],
+                'alignments' => ['right', 'left', 'center'],
+                'widths' => [0.15, 0.25, 0.35],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                        new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
+                        new AstNode('table_cell', ['text' => 'Review note'], [new AstNode('text', ['text' => 'Review note'])]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                        new AstNode('table_cell', ['text' => 'ready'], [new AstNode('text', ['text' => 'ready'])]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'source | audit']),
+                        ]),
+                    ]),
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                        new AstNode('table_cell', ['text' => 'needs-review'], [new AstNode('text', ['text' => 'needs-review'])]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'line one']),
+                            new AstNode('softbreak'),
+                            new AstNode('text', ['text' => 'line two']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '|  Posts | Status       |      Review note       |',
+            '|-----:|:-----------|:--------------------:|',
+            '|     42 | ready        |    source \\| audit     |',
+            '|      7 | needs-review | line one<br />line two |',
+            '',
+            ': Migration **review** packet',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

@@ -1514,3 +1514,31 @@ Dependency closure: no new support component is needed for this slice. The
 existing Markdown block writer and attribute renderer handle fenced Div
 emission locally; richer container-format conversion should stay behind
 existing inactive Pandoc document-format support gates.
+
+`src/Text/Pandoc/Writers/Markdown.hs` was inspected for the bounded pipe table
+writer branch after the fenced code block attribute slice. The PHP Markdown
+writer now maps one focused check from that boundary: table AST nodes render as
+Pandoc pipe tables with right/left/center delimiter markers, width-influenced
+padding, escaped pipe characters in cells, softbreaks flattened as table-safe
+line breaks, and parsed caption inline content.
+
+Focused local verification on 2026-05-25 after the Markdown writer pipe table
+alignment/width/caption slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Migration \\*\\*review\\*\\* queue|source \\\\\\\\| audit|:-----------|:--------------------:"`
+emitted the reviewer queue pipe table with right/left/center delimiter markers
+and an escaped source pipe; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,286
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed. The
+focused file now contains 216 behavior tests.
+
+Root verification was not run for the 2026-05-25 pipe table
+alignment/width/caption slice because the assigned work was an isolated
+micro-slice.
+
+Dependency closure: no new support component is needed for this slice. The
+existing table AST shape, inline renderer, and local width/alignment formatter
+handle pipe table Markdown emission locally; richer package, spreadsheet, or
+table-layout conversion should stay behind existing inactive Pandoc
+document-format support gates.

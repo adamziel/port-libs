@@ -165,6 +165,40 @@ $document = new AstNode('document', $document->attrs, [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'caption' => 'Migration review queue',
+        'captionInlines' => [
+            new AstNode('text', ['text' => 'Migration ']),
+            new AstNode('strong', [], [new AstNode('text', ['text' => 'review'])]),
+            new AstNode('text', ['text' => ' queue']),
+        ],
+        'alignments' => ['right', 'left', 'center'],
+        'widths' => [0.15, 0.25, 0.35],
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', ['header' => true], [
+                new AstNode('table_cell', ['text' => 'Posts'], [new AstNode('text', ['text' => 'Posts'])]),
+                new AstNode('table_cell', ['text' => 'Status'], [new AstNode('text', ['text' => 'Status'])]),
+                new AstNode('table_cell', ['text' => 'Reviewer note'], [new AstNode('text', ['text' => 'Reviewer note'])]),
+            ]),
+        ]),
+        new AstNode('table_body', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => '42'], [new AstNode('text', ['text' => '42'])]),
+                new AstNode('table_cell', ['text' => 'ready'], [new AstNode('text', ['text' => 'ready'])]),
+                new AstNode('table_cell', [], [new AstNode('text', ['text' => 'source | audit'])]),
+            ]),
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
+                new AstNode('table_cell', ['text' => 'needs-review'], [new AstNode('text', ['text' => 'needs-review'])]),
+                new AstNode('table_cell', [], [
+                    new AstNode('text', ['text' => 'line one']),
+                    new AstNode('softbreak'),
+                    new AstNode('text', ['text' => 'line two']),
+                ]),
+            ]),
+        ]),
+    ]),
     new AstNode('raw_block', [
         'format' => 'markdown',
         'text' => '> Raw reviewer block: keep this migration note with the handoff.',

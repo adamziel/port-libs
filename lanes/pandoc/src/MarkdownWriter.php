@@ -84,6 +84,7 @@ final class MarkdownWriter
             'blockquote' => $this->renderBlockQuote($node, $indent),
             'div' => $this->renderDivBlock($node, $indent),
             'code_block' => $this->renderCodeBlock($node, $indent),
+            'table' => $this->renderTable($node, $indent),
             'horizontal_rule' => [str_repeat(' ', $indent) . '* * *'],
             'raw_tex', 'raw_markdown', 'raw_block' => $this->renderRawBlock($node, $indent),
             'raw_html' => array_map(
@@ -260,6 +261,238 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderTable(AstNode $node, int $indent): array
+    {
+        $headRows = [];
+        $bodyRows = [];
+        foreach ($node->children as $child) {
+            if ($child->type === 'table_head') {
+                foreach ($child->children as $row) {
+                    if ($row->type === 'table_row') {
+                        $headRows[] = $row;
+                    }
+                }
+                continue;
+            }
+
+            if ($child->type === 'table_body') {
+                $headRows = array_merge($headRows, $this->tableBodyHeadRows($child));
+                foreach ($child->children as $row) {
+                    if ($row->type === 'table_row') {
+                        $bodyRows[] = $row;
+                    }
+                }
+                continue;
+            }
+
+            if ($child->type === 'table_foot') {
+                foreach ($child->children as $row) {
+                    if ($row->type === 'table_row') {
+                        $bodyRows[] = $row;
+                    }
+                }
+            }
+        }
+
+        if ($headRows === [] && $bodyRows === []) {
+            return [];
+        }
+
+        $columnCount = $this->tableColumnCount($headRows, $bodyRows);
+        if ($columnCount === 0) {
+            return [];
+        }
+
+        if ($headRows === []) {
+            $headRows[] = new AstNode('table_row', ['header' => true], array_fill(0, $columnCount, new AstNode('table_cell')));
+        }
+
+        $renderedRows = array_map(fn (AstNode $row): array => $this->renderTableRowCells($row, $columnCount), [...$headRows, ...$bodyRows]);
+        $widths = $this->tableColumnWidths($renderedRows, $node->attr('widths', []), $columnCount);
+        $alignments = $this->tableAlignments($node, $columnCount);
+        $prefix = str_repeat(' ', $indent);
+        $lines = [];
+
+        foreach ($headRows as $row) {
+            $lines[] = $prefix . $this->renderPipeTableRow($this->renderTableRowCells($row, $columnCount), $widths, $alignments);
+        }
+        $lines[] = $prefix . $this->renderPipeTableDelimiter($widths, $alignments);
+        foreach ($bodyRows as $row) {
+            $lines[] = $prefix . $this->renderPipeTableRow($this->renderTableRowCells($row, $columnCount), $widths, $alignments);
+        }
+
+        $caption = $this->renderTableCaption($node);
+        if ($caption !== '') {
+            $lines[] = '';
+            $lines[] = $prefix . ': ' . $caption;
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableBodyHeadRows(AstNode $body): array
+    {
+        $rows = $body->attr('headRows', []);
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        return array_values(array_filter($rows, static fn (mixed $row): bool => $row instanceof AstNode && $row->type === 'table_row'));
+    }
+
+    /**
+     * @param list<AstNode> $headRows
+     * @param list<AstNode> $bodyRows
+     */
+    private function tableColumnCount(array $headRows, array $bodyRows): int
+    {
+        $count = 0;
+        foreach ([...$headRows, ...$bodyRows] as $row) {
+            $count = max($count, count($row->children));
+        }
+
+        return $count;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderTableRowCells(AstNode $row, int $columnCount): array
+    {
+        $cells = [];
+        for ($index = 0; $index < $columnCount; $index++) {
+            $cell = $row->children[$index] ?? new AstNode('table_cell');
+            $cells[] = $this->renderTableCell($cell);
+        }
+
+        return $cells;
+    }
+
+    private function renderTableCell(AstNode $cell): string
+    {
+        if ($cell->children === []) {
+            return $this->escapeText((string) $cell->attr('text', ''));
+        }
+
+        $hasOnlyInlines = true;
+        foreach ($cell->children as $child) {
+            if (!$this->isInlineNode($child)) {
+                $hasOnlyInlines = false;
+                break;
+            }
+        }
+
+        $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
+
+        return str_replace(["\r\n", "\r", "\n"], [' ', ' ', '<br />'], trim($markdown));
+    }
+
+    /**
+     * @param list<list<string>> $rows
+     * @param mixed $relativeWidths
+     * @return list<int>
+     */
+    private function tableColumnWidths(array $rows, mixed $relativeWidths, int $columnCount): array
+    {
+        $widths = array_fill(0, $columnCount, 3);
+        foreach ($rows as $row) {
+            foreach ($row as $index => $cell) {
+                $widths[$index] = max($widths[$index], strlen($cell));
+            }
+        }
+
+        if (is_array($relativeWidths)) {
+            foreach (array_values($relativeWidths) as $index => $width) {
+                if ($index < $columnCount && is_numeric($width) && (float) $width > 0.0) {
+                    $widths[$index] = max($widths[$index], (int) ceil((float) $width * 40));
+                }
+            }
+        }
+
+        return $widths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableAlignments(AstNode $node, int $columnCount): array
+    {
+        $alignments = $node->attr('alignments', []);
+        if (!is_array($alignments)) {
+            $alignments = [];
+        }
+
+        $normalized = [];
+        for ($index = 0; $index < $columnCount; $index++) {
+            $alignment = (string) ($alignments[$index] ?? 'default');
+            $normalized[] = in_array($alignment, ['left', 'right', 'center'], true) ? $alignment : 'default';
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<string> $cells
+     * @param list<int> $widths
+     * @param list<string> $alignments
+     */
+    private function renderPipeTableRow(array $cells, array $widths, array $alignments): string
+    {
+        $parts = [];
+        foreach ($cells as $index => $cell) {
+            $parts[] = ' ' . $this->padTableCell($cell, $widths[$index], $alignments[$index]) . ' ';
+        }
+
+        return '|' . implode('|', $parts) . '|';
+    }
+
+    private function padTableCell(string $cell, int $width, string $alignment): string
+    {
+        $padding = max(0, $width - strlen($cell));
+
+        return match ($alignment) {
+            'right' => str_repeat(' ', $padding) . $cell,
+            'center' => str_repeat(' ', intdiv($padding, 2)) . $cell . str_repeat(' ', $padding - intdiv($padding, 2)),
+            default => $cell . str_repeat(' ', $padding),
+        };
+    }
+
+    /**
+     * @param list<int> $widths
+     * @param list<string> $alignments
+     */
+    private function renderPipeTableDelimiter(array $widths, array $alignments): string
+    {
+        $parts = [];
+        foreach ($widths as $index => $width) {
+            $dashCount = max(3, $width);
+            $parts[] = match ($alignments[$index]) {
+                'left' => ':' . str_repeat('-', $dashCount - 1),
+                'right' => str_repeat('-', $dashCount - 1) . ':',
+                'center' => ':' . str_repeat('-', max(1, $dashCount - 2)) . ':',
+                default => str_repeat('-', $dashCount),
+            };
+        }
+
+        return '|' . implode('|', $parts) . '|';
+    }
+
+    private function renderTableCaption(AstNode $node): string
+    {
+        $captionInlines = $node->attr('captionInlines', []);
+        if (is_array($captionInlines) && $captionInlines !== []) {
+            return $this->renderInlines($captionInlines);
+        }
+
+        return $this->escapeText((string) $node->attr('caption', ''));
     }
 
     /**
