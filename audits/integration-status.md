@@ -104585,3 +104585,15 @@ Files staged:
 - `lanes/markerpdf/src/PdfTextExtractor.php`
 - `lanes/markerpdf/tests/PdfTextExtractorTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - esbuild watchdog-next-20260525T064409Z - 2026-05-25 06:54 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T064409Z.ready`; patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T064409Z.patch`.
+Lane/slice/session: `esbuild` / `watchdog-next-20260525T064409Z` / `port-esbuild`.
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php` passed; `php tools/run-tests.php lanes/esbuild/tests` passed.
+Root verification: `php tools/run-tests.php` passed with zero failures.
+Diff check: `git diff --check` passed.
+Support-library/dependency closure: no support-library activation; lane-local bundler metafile/output accounting only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
