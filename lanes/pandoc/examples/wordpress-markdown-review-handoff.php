@@ -27,6 +27,14 @@ MARKDOWN;
 $document = (new MarkdownReader())->read($markdown);
 $document = new AstNode('document', $document->attrs, [
     ...$document->children,
+    new AstNode('heading', [
+        'level' => 2,
+        'id' => 'review-packet',
+        'classes' => ['wp-import', 'needs-review'],
+        'attributes' => ['data-source' => 'batch-42'],
+    ], [
+        new AstNode('text', ['text' => 'Review Packet']),
+    ]),
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => 'Reviewer packet links: ']),
         new AstNode('link', [

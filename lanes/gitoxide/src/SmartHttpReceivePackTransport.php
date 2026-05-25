@@ -1038,6 +1038,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     private static function expiresCookie(string $attributes): bool
     {
+        $expiresAt = null;
         foreach (explode(';', $attributes) as $attribute) {
             $attribute = trim($attribute);
             if ($attribute === '') {
@@ -1050,15 +1051,18 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             if ($name === 'max-age' && preg_match('/^-?\d+$/', $value) === 1 && (int) $value <= 0) {
                 return true;
             }
+            if ($name === 'max-age' && preg_match('/^-?\d+$/', $value) === 1) {
+                return false;
+            }
             if ($name === 'expires') {
                 $timestamp = strtotime($value);
-                if ($timestamp !== false && $timestamp <= time()) {
-                    return true;
+                if ($timestamp !== false) {
+                    $expiresAt = $timestamp;
                 }
             }
         }
 
-        return false;
+        return $expiresAt !== null && $expiresAt <= time();
     }
 
     /**

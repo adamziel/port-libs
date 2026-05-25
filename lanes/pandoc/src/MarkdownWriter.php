@@ -104,6 +104,10 @@ final class MarkdownWriter
     {
         $level = max(1, min(6, (int) $node->attr('level', 1)));
         $text = $this->renderInlines($node->children);
+        $attrs = $this->renderLinkAttributes($node);
+        if ($attrs !== '') {
+            $text .= ' ' . $attrs;
+        }
         $prefix = str_repeat(' ', $indent);
 
         if ($indent === 0 && (bool) ($this->options['setextHeadings'] ?? false) && ($level === 1 || $level === 2)) {

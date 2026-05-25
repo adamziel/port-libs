@@ -2207,6 +2207,46 @@ MD;
             '\end{itemize}',
         ]), (new LatexWriter())->write($latexTaskList));
     },
+    'maps upstream markdown writer heading attributes' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $document = new AstNode('document', [], [
+            new AstNode('heading', [
+                'level' => 1,
+                'id' => 'import-review',
+                'classes' => ['wp-import', 'needs-review'],
+                'attributes' => ['data-source' => 'batch-42'],
+            ], [$text('Import Review')]),
+            new AstNode('heading', [
+                'level' => 2,
+                'id' => 'review-packet',
+                'classes' => ['handoff'],
+                'attributes' => ['title' => 'Migration "review" packet'],
+            ], [
+                $text('Reviewer '),
+                new AstNode('emph', [], [$text('Packet')]),
+            ]),
+            new AstNode('heading', [
+                'level' => 3,
+                'id' => 'follow-up',
+                'classes' => ['qa'],
+            ], [$text('Follow-up')]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            '# Import Review {#import-review .wp-import .needs-review data-source="batch-42"}',
+            '## Reviewer *Packet* {#review-packet .handoff title="Migration \\"review\\" packet"}',
+            '### Follow-up {#follow-up .qa}',
+        ]), (new MarkdownWriter())->write($document));
+
+        $t->same(
+            'Import Review {#import-review .wp-import .needs-review data-source="batch-42"}'
+                . "\n" . '=============================================================================='
+                . "\n\n" . 'Reviewer *Packet* {#review-packet .handoff title="Migration \\"review\\" packet"}'
+                . "\n" . '-------------------------------------------------------------------------------'
+                . "\n\n" . '### Follow-up {#follow-up .qa}',
+            (new MarkdownWriter(['setextHeadings' => true]))->write($document)
+        );
+    },
     'maps upstream markdown writer fancy ordered list markers' => static function (TestRunner $t): void {
         $writer = new MarkdownWriter();
         $reader = new MarkdownReader();

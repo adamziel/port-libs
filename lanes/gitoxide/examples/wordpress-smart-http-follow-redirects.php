@@ -11,6 +11,7 @@ return [
     'requestUrls' => $fixture['requestUrls'],
     'redirectCookieHeader' => $fixture['redirectCookieHeader'],
     'expiredRedirectCookieOmitted' => $fixture['expiredRedirectCookieOmitted'],
+    'maxAgeRedirectCookieRetained' => $fixture['maxAgeRedirectCookieRetained'],
     'postBodyPreserved' => $fixture['postBodyPreserved'],
     'rewritingPostRedirectRejected' => $fixture['rewritingPostRedirectRejected'],
     'rewritingRequestMethods' => $fixture['rewritingRequestMethods'],

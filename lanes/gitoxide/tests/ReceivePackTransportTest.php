@@ -784,6 +784,64 @@ return [
         $t->same('post_redirect_gate=opened', $postRedirectRequests[2]['headers']['Cookie']);
         $t->same($postRedirectRequest->requestBytes(), $postRedirectRequests[2]['body']);
 
+        $maxAgePrecedenceRequests = [];
+        $maxAgePrecedenceClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$maxAgePrecedenceRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $maxAgePrecedenceRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    if (count($maxAgePrecedenceRequests) === 2) {
+                        return [
+                            'status' => 307,
+                            'headers' => [
+                                'Location' => 'https://git.example.test/redirected.git/git-receive-pack',
+                                'Set-Cookie' => [
+                                    'legacy_gate=opened; Max-Age=60; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure',
+                                    'expired_gate=closed; Max-Age=0; Expires=Wed, 31 Dec 2099 23:59:59 GMT; Path=/; Secure',
+                                ],
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                7.0,
+                [],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $maxAgePrecedenceSession = $maxAgePrecedenceClient->handshake();
+        $maxAgePrecedenceSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $maxAgePrecedenceRequest = $maxAgePrecedenceSession->buildRequest([$blob]);
+
+        $maxAgePrecedenceResponse = $maxAgePrecedenceClient->send($maxAgePrecedenceRequest);
+
+        $t->same(true, $maxAgePrecedenceResponse->isSuccessful());
+        $t->same('legacy_gate=opened', $maxAgePrecedenceRequests[2]['headers']['Cookie']);
+        $t->same(false, str_contains($maxAgePrecedenceRequests[2]['headers']['Cookie'], 'expired_gate='));
+        $t->same($maxAgePrecedenceRequest->requestBytes(), $maxAgePrecedenceRequests[2]['body']);
+
         $relativePermanentRedirectRequests = [];
         $relativePermanentRedirectClient = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
@@ -965,8 +1023,9 @@ return [
             'https://git.example.test/redirected.git/git-receive-pack',
         ], $redirectExample['requestUrls']);
         $t->same(true, $redirectFixture['postBodyPreserved']);
-        $t->same('deploy_gate=opened', $redirectExample['redirectCookieHeader']);
+        $t->contains('deploy_gate=opened', $redirectExample['redirectCookieHeader']);
         $t->same(true, $redirectExample['expiredRedirectCookieOmitted']);
+        $t->same(true, $redirectExample['maxAgeRedirectCookieRetained']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);
