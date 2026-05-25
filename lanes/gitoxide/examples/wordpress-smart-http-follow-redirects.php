@@ -10,6 +10,7 @@ return [
     'requestMethods' => $fixture['requestMethods'],
     'requestUrls' => $fixture['requestUrls'],
     'redirectCookieHeader' => $fixture['redirectCookieHeader'],
+    'expiredRedirectCookieOmitted' => $fixture['expiredRedirectCookieOmitted'],
     'postBodyPreserved' => $fixture['postBodyPreserved'],
     'rewritingPostRedirectRejected' => $fixture['rewritingPostRedirectRejected'],
     'rewritingRequestMethods' => $fixture['rewritingRequestMethods'],

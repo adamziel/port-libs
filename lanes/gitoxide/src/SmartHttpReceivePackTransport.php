@@ -1021,13 +1021,44 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     private function rememberCookie(string $setCookie): void
     {
-        [$pair] = explode(';', $setCookie, 2);
+        [$pair, $attributes] = array_pad(explode(';', $setCookie, 2), 2, '');
         [$name, $value] = array_pad(explode('=', trim($pair), 2), 2, null);
         if ($value === null || !self::isCookieName($name) || !self::isCookieValue($value)) {
             return;
         }
 
+        if (self::expiresCookie($attributes)) {
+            unset($this->cookies[$name]);
+
+            return;
+        }
+
         $this->cookies[$name] = $value;
+    }
+
+    private static function expiresCookie(string $attributes): bool
+    {
+        foreach (explode(';', $attributes) as $attribute) {
+            $attribute = trim($attribute);
+            if ($attribute === '') {
+                continue;
+            }
+
+            [$name, $value] = array_pad(explode('=', $attribute, 2), 2, '');
+            $name = strtolower(trim($name));
+            $value = trim($value);
+            if ($name === 'max-age' && preg_match('/^-?\d+$/', $value) === 1 && (int) $value <= 0) {
+                return true;
+            }
+            if ($name === 'expires') {
+                $timestamp = strtotime($value);
+                if ($timestamp !== false && $timestamp <= time()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

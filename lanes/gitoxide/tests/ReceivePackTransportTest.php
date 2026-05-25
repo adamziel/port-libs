@@ -966,6 +966,7 @@ return [
         ], $redirectExample['requestUrls']);
         $t->same(true, $redirectFixture['postBodyPreserved']);
         $t->same('deploy_gate=opened', $redirectExample['redirectCookieHeader']);
+        $t->same(true, $redirectExample['expiredRedirectCookieOmitted']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);

@@ -39,7 +39,11 @@ $requester = static function (string $method, string $url, array $headers, ?stri
             'status' => 308,
             'headers' => [
                 'Location' => '/redirected.git/git-receive-pack',
-                'Set-Cookie' => 'deploy_gate=opened; Path=/; Secure',
+                'Set-Cookie' => [
+                    'stale_gate=closed; Path=/; Secure',
+                    'stale_gate=; Max-Age=0; Path=/; Secure',
+                    'deploy_gate=opened; Path=/; Secure',
+                ],
             ],
             'body' => '',
         ];
@@ -380,6 +384,7 @@ return [
     'requestMethods' => array_map(static fn (array $request): string => $request['method'], $requests),
     'requestUrls' => array_map(static fn (array $request): string => $request['url'], $requests),
     'redirectCookieHeader' => $requests[2]['headers']['Cookie'] ?? null,
+    'expiredRedirectCookieOmitted' => !str_contains($requests[2]['headers']['Cookie'] ?? '', 'stale_gate='),
     'postBodyPreserved' => ($requests[2]['body'] ?? null) === $request->requestBytes(),
     'rewritingPostRedirectRejected' => $rewritingRedirectRejected,
     'rewritingRequestMethods' => array_map(static fn (array $request): string => $request['method'], $rewritingRequests),
@@ -396,5 +401,5 @@ return [
     'missingLocationPostRedirectRejected' => $missingLocationRedirectRejected,
     'missingLocationRequestMethods' => array_map(static fn (array $request): string => $request['method'], $missingLocationRequests),
     'responseSuccessful' => $response->isSuccessful(),
-    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body and redirect-issued session cookie, and rejects rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
+    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body and redirect-issued session cookie, honoring redirect-issued cookie expiration, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
 ];

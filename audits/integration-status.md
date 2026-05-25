@@ -109595,3 +109595,16 @@ Files staged:
 `lanes/dolt/notes/wordpress-scenarios.md`,
 `lanes/dolt/tests/MergeStatusTableTest.php`, and
 `audits/integration-status.md`.
+## Integration accepted - gitoxide receive-pack redirect cookie expiration - 2026-05-25 12:18 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T120349Z.ready`
+with patch `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T120349Z.patch`.
+
+- Lane/slice/session: `gitoxide` / `priority-refill-20260525T120348Z` / `port-gitoxide-rework`.
+- Patch sha256 verified: `b2acb8c070a73b11e4eba33d7e6aa02b2cad09285d305afa48726bd93004a594`.
+- Clean base: `5e5f4b8a8cee8f293edce2fe5babf78962017851`.
+- Focused checks in `/tmp/port-clean-integrator-gitoxide-priority-refill-20260525T120349Z`: `php -l` for `SmartHttpReceivePackTransport.php`, `ReceivePackTransportTest.php`, the fixture, and the example all passed; `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed; `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed with 1 test file, 323 assertions, 0 failures; `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0; `git diff --check` passed.
+- Root check: `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and passed with 214 test files, 26120 assertions, 0 failures.
+- Support-library/dependency closure: no new support-library activation. The patch reuses lane-local smart HTTP receive-pack redirect handling, cookie parsing/header composition, packet/request builders, URL validation, and native status/header validation.
+- Live-service exclusions: no live Git remote, credential helper, SSH, or provider service was contacted; the WordPress follow-redirects smoke uses local deterministic fixtures.
+- Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, and `audits/integration-status.md`.
