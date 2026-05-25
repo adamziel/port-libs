@@ -101103,3 +101103,15 @@ Root command and exact result: `php tools/run-tests.php` exit 0 (PASS wordpress 
 Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/examples/wordpress-jsonb-mutate-option-field.php lanes/libsqlite/lane-status.json lanes/libsqlite/notes/upstream-runner.md lanes/libsqlite/notes/wordpress-scenarios.md lanes/libsqlite/tests/SQLiteHeaderTest.php `
+
+## Clean-patch rejection - lightningcss - 2026-05-25 03:00 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T024714Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T024714Z.patch`
+Decision: rejected/deferred after focused verification.
+Focused commands: `php -l <changed PHP files>` exit 0; `php tools/run-tests.php lanes/lightningcss/tests` exit 1 (PASS wordpress cover background gradients get advanced color fallback layers without node PASS wordpress theme color tokens get guarded p3 and lab fallbacks without node PASS wordpress frame mask-border with custom slice gets lab supports fallback without node  9 test files, 1075 assertions, 1 failures ); `git diff --check` exit 2.
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `audits/integration-status.md` only.
+Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
