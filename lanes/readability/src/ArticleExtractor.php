@@ -394,7 +394,7 @@ final class ArticleExtractor
         }
 
         $tag = strtolower($element->tagName);
-        $html = $this->cleanWordPressElementHtml($element);
+        $html = $this->cleanWordPressElementHtml($element, $tag === 'blockquote' ? 'wp-block-quote' : null);
         if ($html === '') {
             return;
         }
@@ -417,6 +417,8 @@ final class ArticleExtractor
             $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
         } elseif ($tag === 'figure' && $this->isImageFigure($element)) {
             $blocks[] = '<!-- wp:image -->' . "\n" . $html . "\n" . '<!-- /wp:image -->';
+        } elseif ($tag === 'blockquote') {
+            $blocks[] = '<!-- wp:quote -->' . "\n" . $html . "\n" . '<!-- /wp:quote -->';
         } elseif (($tag === 'ul' || $tag === 'ol')
             && $this->isWordPressListBlock($element)) {
             $metadata = $tag === 'ol' ? ' {"ordered":true}' : '';
@@ -428,11 +430,19 @@ final class ArticleExtractor
         }
     }
 
-    private function cleanWordPressElementHtml(\DOMElement $element): string
+    private function cleanWordPressElementHtml(\DOMElement $element, ?string $rootClass = null): string
     {
         $clone = $element->cloneNode(true);
         if (!$clone instanceof \DOMElement) {
             return '';
+        }
+
+        if ($rootClass !== null) {
+            $classes = preg_split('/\s+/', trim($clone->getAttribute('class'))) ?: [];
+            if (!in_array($rootClass, $classes, true)) {
+                $classes[] = $rootClass;
+            }
+            $clone->setAttribute('class', trim(implode(' ', array_filter($classes))));
         }
 
         $removeAnnotationIds = static function (\DOMElement $node) use (&$removeAnnotationIds): void {

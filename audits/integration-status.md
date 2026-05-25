@@ -99205,3 +99205,20 @@ Live-service exclusions: no live-service provider tests run.
 Files staged:
 - `lanes/rclone/examples/wordpress-onedrive-change-notify-media-watch.php`
 - `audits/integration-status.md`
+
+## Clean-patch integration - readability - 20260525T004124Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-readability-20260525T002706Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T002706Z.patch`
+Lane/slice/session: `readability` / `supervisor-next-20260525T002706Z` / `port-readability`
+Patch sha256: `47fdfc6a264570a6c54910ba89e2622fb3f73117fadba68cc31123f9daadd5f7` (verified)
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-readability-supervisor-next-20260525T002706Z-20260525T004124Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/readability/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/readability/lane-status.json`
+- `lanes/readability/notes/wordpress-scenarios.md`
+- `lanes/readability/src/ArticleExtractor.php`
+- `lanes/readability/tests/ArticleExtractorTest.php`

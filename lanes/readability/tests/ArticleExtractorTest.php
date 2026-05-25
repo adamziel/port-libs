@@ -181,6 +181,21 @@ return [
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('<!-- wp:paragraph -->', $blocks);
     },
+    'serializes retained upstream blockquotes as WordPress quote blocks' => static function (TestRunner $t): void {
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract(
+            '<article><h1>Quote Import</h1>'
+            . '<p>' . str_repeat('The migration keeps editorial setup copy before a retained source quote. ', 3) . '</p>'
+            . '<blockquote><p>Reader-mode quote text should remain distinct from ordinary imported paragraphs.</p></blockquote>'
+            . '<p>' . str_repeat('The migration keeps follow-up copy after the retained quote as normal paragraph content. ', 3) . '</p>'
+            . '</article>',
+        );
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:quote -->'), 'retained blockquotes should become core quote blocks');
+        $t->contains('<blockquote class="wp-block-quote"><p>Reader-mode quote text should remain distinct from ordinary imported paragraphs.</p></blockquote>', $blocks);
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<blockquote"), 'retained blockquotes should not be paragraph-wrapped in WordPress output');
+    },
     'matches upstream readerable default scoring thresholds' => static function (TestRunner $t): void {
         $extractor = new ArticleExtractor();
         $document = static fn (string $body): string => '<html><body>' . $body . '</body></html>';
@@ -508,7 +523,8 @@ return [
         $t->same(8, count($attributeValues($article->contentHtml, '//h3')));
         $t->same(16, count($attributeValues($article->contentHtml, '//li')));
         $t->same(4, substr_count($blocks, '<!-- wp:list -->'), 'retained Kinja editorial lists should become WordPress list blocks');
-        $t->same(37, substr_count($blocks, '<!-- wp:paragraph -->'), 'Lifehacker paragraphs and image paragraphs should remain paragraph blocks');
+        $t->same(36, substr_count($blocks, '<!-- wp:paragraph -->'), 'Lifehacker paragraphs and image paragraphs should remain paragraph blocks');
+        $t->same(1, substr_count($blocks, '<!-- wp:quote -->'), 'retained Lifehacker quotes should become WordPress quote blocks');
         $t->same(8, substr_count($blocks, '<!-- wp:heading'), 'Lifehacker section headings should remain reviewable');
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<ul>"), 'retained text lists should not be paragraph-wrapped');
         $t->same(true, str_contains($article->contentHtml, 'data-textannotation-id='), 'article HTML keeps upstream Kinja annotations for fixture parity');
@@ -1222,7 +1238,8 @@ return [
         );
         $t->same(count($attributeValues($expected, '//p')), count($attributeValues($article->contentHtml, '//p')));
         $t->same([], $attributeValues($article->contentHtml, '//img/@src'));
-        $t->same(33, substr_count($blocks, '<!-- wp:paragraph -->'), 'ACLU Drupal body paragraphs should serialize without panel/sidebar chrome');
+        $t->same(32, substr_count($blocks, '<!-- wp:paragraph -->'), 'ACLU Drupal body paragraphs should serialize without panel/sidebar chrome');
+        $t->same(1, substr_count($blocks, '<!-- wp:quote -->'), 'retained ACLU quotes should become WordPress quote blocks');
         $t->same(7, substr_count($blocks, '<!-- wp:heading'), 'ACLU section headings should remain reviewable as heading blocks');
         $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'ACLU channel hero and theme images should not become article image blocks');
         foreach (['ACLU Conference', 'Tags', 'Facebook Twitter Reddit', 'View comments', 'Read the Terms of Use', 'WEB18-Facebook-1160x768.jpg', 'Donate'] as $fragment) {
@@ -2116,7 +2133,8 @@ return [
         $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
         $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
         $t->same(count($attributeValues($expected, '//hr')), count($attributeValues($article->contentHtml, '//hr')));
-        $t->same(30, substr_count($blocks, '<!-- wp:paragraph -->'), 'Atlas Obscura article paragraphs should serialize without source header chrome');
+        $t->same(29, substr_count($blocks, '<!-- wp:paragraph -->'), 'Atlas Obscura article paragraphs should serialize without source header chrome');
+        $t->same(1, substr_count($blocks, '<!-- wp:quote -->'), 'retained Atlas Obscura quotes should become WordPress quote blocks');
         $t->same(2, substr_count($blocks, '<!-- wp:separator -->'), 'Atlas Obscura editorial hr separators should become WordPress separator blocks');
         $t->same(6, count($attributeValues($article->contentHtml, '//img/@src')), 'Atlas Obscura image payloads should remain available for media import review');
         foreach (['ArticleHeader__byline', 'July 10, 2015', 'Atlas Obscura Trips'] as $fragment) {
@@ -2294,7 +2312,8 @@ return [
         $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
         $t->same($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'));
         $t->same($attributeValues($expected, '//a[@href]/@href'), $attributeValues($article->contentHtml, '//a[@href]/@href'));
-        $t->same(74, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia long-form article copy, lists, and references should remain paragraph-reviewable');
+        $t->same(73, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia long-form article copy, lists, and references should remain paragraph-reviewable');
+        $t->same(1, substr_count($blocks, '<!-- wp:quote -->'), 'retained Wikipedia quotes should become WordPress quote blocks');
         $t->same(37, substr_count($blocks, '<!-- wp:heading'), 'Wikipedia article and table-of-contents headings should remain reviewable as heading blocks');
         $t->same(2, substr_count($blocks, '<!-- wp:table -->'), 'Wikipedia infobox and release table should become WordPress table blocks');
         $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'Wikipedia table-contained images should stay inside table review output instead of separate image blocks');
