@@ -776,6 +776,46 @@ return [
         $t->same('POST', $postRedirectRequests[2]['method']);
         $t->same($postRedirectRequest->requestBytes(), $postRedirectRequests[2]['body']);
 
+        $rewritingPostRedirectRequests = [];
+        $rewritingPostRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$rewritingPostRedirectRequests, $packet, $flush, $advertisement): array {
+                    $rewritingPostRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 302,
+                        'headers' => ['Location' => 'https://git.example.test/redirected.git/git-receive-pack'],
+                        'body' => '',
+                    ];
+                },
+                [],
+                7.0,
+                [],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $rewritingPostRedirectSession = $rewritingPostRedirectClient->handshake();
+        $rewritingPostRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $rewritingPostRedirectRequest = $rewritingPostRedirectSession->buildRequest([$blob]);
+
+        $t->throws(RuntimeException::class, static fn () => $rewritingPostRedirectClient->send($rewritingPostRedirectRequest));
+        $t->same(['GET', 'POST'], array_column($rewritingPostRedirectRequests, 'method'));
+        $t->same($rewritingPostRedirectRequest->requestBytes(), $rewritingPostRedirectRequests[1]['body']);
+
         $redirectFixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-follow-redirects.php';
         $redirectExample = require dirname(__DIR__) . '/examples/wordpress-smart-http-follow-redirects.php';
         $t->same(['GET', 'POST', 'POST'], $redirectExample['requestMethods']);
@@ -785,6 +825,8 @@ return [
             'https://git.example.test/redirected.git/git-receive-pack',
         ], $redirectExample['requestUrls']);
         $t->same(true, $redirectFixture['postBodyPreserved']);
+        $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
+        $t->same(['GET', 'POST'], $redirectExample['rewritingRequestMethods']);
         $t->same(true, $redirectExample['responseSuccessful']);
 
         $crossHost = new SmartHttpReceivePackTransport(

@@ -65,10 +65,56 @@ $session->createOrUpdate('refs/heads/main', $blob->oid());
 $request = $session->buildRequest([$blob]);
 $response = $client->send($request);
 
+$rewritingRequests = [];
+$rewritingRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$rewritingRequests, $packet, $flush, $advertisement): array {
+    $rewritingRequests[] = [
+        'method' => $method,
+        'url' => $url,
+        'headers' => $headers,
+        'body' => $body,
+    ];
+
+    if ($method === 'GET') {
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+        ];
+    }
+
+    return [
+        'status' => 302,
+        'headers' => ['Location' => 'https://git.example.test/redirected.git/git-receive-pack'],
+        'body' => '',
+    ];
+};
+
+$rewritingRedirectRejected = false;
+$rewritingClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        $rewritingRequester,
+        ['version=1'],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-redirects/1'],
+        ['followRedirects' => true],
+    ),
+    'port-libs/wordpress',
+);
+$rewritingSession = $rewritingClient->handshake();
+$rewritingSession->createOrUpdate('refs/heads/main', $blob->oid());
+try {
+    $rewritingClient->send($rewritingSession->buildRequest([$blob]));
+} catch (RuntimeException) {
+    $rewritingRedirectRejected = true;
+}
+
 return [
     'requestMethods' => array_map(static fn (array $request): string => $request['method'], $requests),
     'requestUrls' => array_map(static fn (array $request): string => $request['url'], $requests),
     'postBodyPreserved' => ($requests[2]['body'] ?? null) === $request->requestBytes(),
+    'rewritingPostRedirectRejected' => $rewritingRedirectRejected,
+    'rewritingRequestMethods' => array_map(static fn (array $request): string => $request['method'], $rewritingRequests),
     'responseSuccessful' => $response->isSuccessful(),
-    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body.',
+    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body, and rejects rewriting POST redirects before replaying a generated pack.',
 ];

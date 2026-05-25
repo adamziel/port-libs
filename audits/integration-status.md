@@ -108550,3 +108550,29 @@ Root verification:
 Support-library/dependency closure: no new support component activated; the slice reuses the existing Markdown inline renderer and block writer newline handling.
 Live-service exclusions: none; no live-service provider tests were run.
 Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/notes/upstream-inventory.md`, `lanes/pandoc/notes/wordpress-scenarios.md`, `lanes/pandoc/src/MarkdownWriter.php`, `lanes/pandoc/tests/MarkdownReaderTest.php`, `audits/integration-status.md`.
+
+## Integration accepted - gitoxide smart HTTP POST redirect rework - 20260525T074506Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T073248Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T073248Z.patch`.
+Metadata: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T073248Z.md`.
+Worker log: `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-gitoxide-rework-20260525T073248Z.log`.
+Lane/slice/session: `gitoxide` / `priority-rework-20260525T073247Z` / `port-gitoxide-rework`.
+Old head: `5a2a4fe7a297eb4df17235ba02653ee1a7f80c1f`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-gitoxide-priority-rework-20260525T073247Z-20260525T074340Z`:
+- `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php`: passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed.
+- `php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`: passed.
+- `php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: passed.
+- JSON validation for manifest/status: passed.
+- `git diff --check`: passed.
+
+Root verification:
+- `php tools/run-tests.php`: passed from the same clean worktree.
+
+Support-library/dependency closure: no new support component activated; the slice reuses existing smart HTTP receive-pack redirect handling and native status validation.
+Live-service exclusions: no live network/provider tests were run.
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, `audits/integration-status.md`.

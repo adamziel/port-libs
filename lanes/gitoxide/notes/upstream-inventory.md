@@ -663,6 +663,15 @@ Focused git-daemon receive-pack path-safety inventory inspected on 2026-05-25:
 - Focused Gitoxide PHP verification after the git-daemon path-safety slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 210 assertions, and 0 failures. The updated WordPress receive-pack transport example exits 0 and demonstrates safe git-daemon service-request payload construction.
 - Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
 
+Focused smart HTTP receive-pack POST redirect preservation inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP redirect safety mapping and prior receive-pack redirect fixture coverage. No live provider, network, or full cargo workspace runner was executed for this isolated rework micro-slice.
+- The PHP slice preserves the accepted stream receive-pack watchdog timeout evidence and adds a POST redirect guard: receive-pack POST redirects are followed only when the status preserves the method and generated pack request body (`307` or `308`). Rewriting redirects such as `301`, `302`, and `303` are rejected before a generated WordPress pack body is replayed to the redirected endpoint.
+- The WordPress smart HTTP follow-redirects fixture records both a safe `307` POST replay and a rejected `302` POST redirect, so deployment tools can distinguish route-preserving maintenance redirects from method-rewriting redirects.
+- Dependency closure for the smart HTTP POST redirect preservation slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling and native status validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the POST redirect preservation rework slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 284 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
 Focused smart HTTP receive-pack URL credential safety inventory inspected on 2026-05-25:
 
 - Reused the existing static `gix-transport` smart HTTP credential/header boundary mapping. No live HTTP/provider runner was executed for this isolated micro-slice.

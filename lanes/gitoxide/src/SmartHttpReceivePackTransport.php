@@ -242,6 +242,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             if ($redirectsRemaining <= 0) {
                 throw new \RuntimeException("smart HTTP receive-pack {$method} request returned an unexpected redirect status {$response['status']}");
             }
+            if ($method === 'POST' && !in_array($response['status'], [307, 308], true)) {
+                throw new \RuntimeException("smart HTTP receive-pack POST redirect status {$response['status']} would not preserve the generated pack request");
+            }
 
             $location = self::headerValue($response['headers'], 'location');
             if ($location === null || $location === '') {

@@ -10,5 +10,7 @@ return [
     'requestMethods' => $fixture['requestMethods'],
     'requestUrls' => $fixture['requestUrls'],
     'postBodyPreserved' => $fixture['postBodyPreserved'],
+    'rewritingPostRedirectRejected' => $fixture['rewritingPostRedirectRejected'],
+    'rewritingRequestMethods' => $fixture['rewritingRequestMethods'],
     'responseSuccessful' => $fixture['responseSuccessful'],
 ];
