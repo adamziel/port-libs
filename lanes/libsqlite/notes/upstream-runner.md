@@ -1,5 +1,39 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: `json_patch()`/`jsonb_patch()` Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice rebases the bounded SQLite JSON merge-patch
+SQL-dispatch behavior on the current accepted libsqlite JSON stack. Native
+`SQLiteJsonPatch` now validates `json_patch` and `jsonb_patch` with
+SQLite-style case-insensitive function lookup across direct calls and
+two-argument vector dispatch, preserves text-result versus JSONB-result
+typing, propagates SQL NULL, and rejects invalid arity or invalid function
+names without expanding into planner or expression evaluation.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON patch evidence for the same
+upstream behavior cluster:
+
+```sh
+json101.test json102.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence is recorded in `lane-status.json` after local focused
+verification.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON canonicalizer, JSON5 parser, JSONB patch engine,
+BLOB wrapper, and SQL NULL handling components; it counts no shared
+support-library progress.
+
 ## Focused Native Mapping: `json_quote()` Argument-Vector Dispatch
 
 Date: 2026-05-25

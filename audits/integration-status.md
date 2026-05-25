@@ -1,4 +1,52 @@
 
+## Integration accepted - libsqlite JSON patch argument-vector dispatch - 2026-05-25 16:34 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T162347Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T162347Z.patch`.
+
+Lane/slice/session: `libsqlite` / `priority-refill-20260525T162346Z` /
+`port-libsqlite-rework`. Patch sha256 verified as
+`f59103cb659b5d7e4bf69508376f8647af1efc2ec33578d5cba7247751478fdc`.
+
+Apply result: plain `git apply --check` and `git apply` both succeeded in clean
+worktree `/tmp/port-clean-integrator-libsqlite-priority-refill-20260525T162347Z`
+from old main `14512e94d31a08ea9a1a5b6f80833fd510cc7ace`. The patch is
+lane-local to `lanes/libsqlite/**` and adds bounded `json_patch()` /
+`jsonb_patch()` SQL argument-vector dispatch plus case-insensitive patch
+function lookup.
+
+Focused verification: `php -l lanes/libsqlite/src/SQLiteJsonPatch.php`,
+`php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`php -l lanes/libsqlite/examples/wordpress-json-patch-sql-dispatch-preflight.php`
+all passed. `php lanes/libsqlite/examples/wordpress-json-patch-sql-dispatch-preflight.php`
+passed and reported uppercase `JSON_PATCH` argument-vector dispatch for local
+WordPress option-value merge-patch preflight. `php tools/run-tests.php
+lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 2190
+assertions, 0 failures`. `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json
+lanes/libsqlite/lane-status.json` passed. `git diff --check` passed.
+
+Root verification: after checking the resource gate and confirming
+`pgrep -af '^php tools/run-tests\.php$'` was empty, `php tools/run-tests.php`
+ran under `.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and
+passed with `214 test files, 26290 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The slice
+reuses existing lane-local JSON canonicalization, JSON5 parsing, JSONB patch
+handling, BLOB wrapper, and SQL NULL behavior.
+
+Live-service exclusions: none applicable; the slice is local SQLite JSON patch
+dispatch behavior only.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/examples/wordpress-json-patch-sql-dispatch-preflight.php`,
+`lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/src/SQLiteJsonPatch.php`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - libsqlite JSON canonical argument-vector dispatch - 2026-05-25 16:13 UTC
 
 Accepted isolated ready marker:

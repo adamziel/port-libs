@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteJsonPatch;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$function = $argv[1] ?? 'json_patch';
+$function = $argv[1] ?? 'JSON_PATCH';
 $targetInput = $argv[2] ?? '{"plugin":{"enabled":false,"legacyToken":"secret","rules":["seo","cache"],"nested":{"old":1,"keep":2}},"keep":1}';
 $patchInput = $argv[3] ?? '{"plugin":{"enabled":true,"legacyToken":null,"rules":["cache"],"nested":{"old":null,"new":3}}}';
 
@@ -28,14 +28,15 @@ $decodeInput = static function (string $input): array {
 [$target, $targetKind] = $decodeInput($targetInput);
 [$patch, $patchKind] = $decodeInput($patchInput);
 
-$result = SQLiteJsonPatch::patchSqlFunction($function, $target, $patch);
+$result = SQLiteJsonPatch::patchSqlFunctionArguments($function, [$target, $patch]);
 
 echo json_encode([
     'function' => $function,
+    'argumentVector' => true,
     'targetKind' => $targetKind,
     'patchKind' => $patchKind,
     'resultType' => $result instanceof SQLiteBlobValue ? 'sqlite-jsonb-blob' : 'json-text-or-sql-null',
     'jsonAfter' => $result instanceof SQLiteBlobValue ? SQLiteJsonB::decode($result->bytes) : $result,
     'jsonbHexAfter' => $result instanceof SQLiteBlobValue ? bin2hex($result->bytes) : null,
-    'wordpressUse' => 'Local-only wp_options merge-patch preflight that preserves SQLite json_patch() text results versus jsonb_patch() JSONB blob results before import.',
+    'wordpressUse' => 'Local-only wp_options merge-patch preflight that preserves SQLite json_patch() text results versus jsonb_patch() JSONB blob results through uppercase SQL argument-vector dispatch before import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

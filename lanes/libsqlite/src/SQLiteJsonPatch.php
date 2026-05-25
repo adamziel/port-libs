@@ -6,15 +6,27 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonPatch
 {
+    /**
+     * @param list<string|SQLiteBlobValue|null> $arguments
+     */
+    public static function patchSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue|null
+    {
+        if (count($arguments) !== 2) {
+            throw new \InvalidArgumentException('SQLite json_patch() expects exactly two arguments');
+        }
+
+        return self::patchSqlFunction($function, $arguments[0], $arguments[1]);
+    }
+
     public static function patchSqlFunction(
         string $function,
         string|SQLiteBlobValue|null $target,
         string|SQLiteBlobValue|null $patch,
     ): string|SQLiteBlobValue|null {
-        if ($function === 'json_patch') {
+        if (strcasecmp($function, 'json_patch') === 0) {
             return self::patch($target, $patch);
         }
-        if ($function !== 'jsonb_patch') {
+        if (strcasecmp($function, 'jsonb_patch') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON patch function must be json_patch or jsonb_patch');
         }
         if ($target === null || $patch === null) {

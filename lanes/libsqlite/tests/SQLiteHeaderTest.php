@@ -3758,14 +3758,18 @@ return [
             SQLiteJsonPatch::patch($jsonbTarget, $json5Patch),
         );
 
-        $textResult = SQLiteJsonPatch::patchSqlFunction('json_patch', $jsonbTarget, $patch);
+        $textResult = SQLiteJsonPatch::patchSqlFunction('JSON_PATCH', $jsonbTarget, $patch);
         $t->same('{"plugin":{"enabled":true,"rules":["cache"],"nested":{"keep":2,"new":3}},"keep":1}', $textResult);
 
-        $blobResult = SQLiteJsonPatch::patchSqlFunction('jsonb_patch', $json, $json5Patch);
+        $blobResult = SQLiteJsonPatch::patchSqlFunctionArguments('JSONB_PATCH', [$json, $json5Patch]);
         $t->true($blobResult instanceof SQLiteBlobValue);
         $t->same(
             ['plugin' => ['enabled' => true, 'rules' => ['cache'], 'nested' => ['keep' => 2, 'new' => 3]], 'keep' => 1],
             SQLiteJsonB::decode($blobResult->bytes),
+        );
+        $t->same(
+            '{"plugin":{"enabled":true,"rules":["cache"],"nested":{"keep":2,"new":3}},"keep":1}',
+            SQLiteJsonPatch::patchSqlFunctionArguments('json_patch', [$jsonbTarget, $patch]),
         );
 
         $t->same('["replacement"]', SQLiteJsonPatch::patch('{"plugin":1}', '["replacement"]'));
@@ -3774,6 +3778,8 @@ return [
         $t->same(null, SQLiteJsonPatch::patch($json, null));
         $t->same(null, SQLiteJsonPatch::patchSqlFunction('jsonb_patch', null, $patch));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPatch::patchSqlFunction('json_remove', $json, $patch));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPatch::patchSqlFunctionArguments('json_patch', [$json]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPatch::patchSqlFunctionArguments('json_patch', [$json, $patch, '{}']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPatch::patch('{"plugin":,}', $patch));
     },
     'dispatches sqlite json insert set and replace sql functions with text or jsonb result typing' => static function (TestRunner $t): void {

@@ -2,6 +2,26 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## `json_patch()`/`jsonb_patch()` Option-Value Merge Dispatch Scenario
+
+Native JSON merge-patch now includes bounded SQL-style argument-vector
+dispatch for `json_patch()` and `jsonb_patch()` with case-insensitive function
+lookup. The example
+`examples/wordpress-json-patch-sql-dispatch-preflight.php` exercises copied
+`wp_options.option_value` inputs through uppercase argument-vector SQL
+dispatch for JSON text, SQLite JSON5 patch text, copied JSONB blobs, cast text
+BLOB handling, JSONB result typing, and SQL NULL propagation. This gives
+WordPress import and repair tooling a local-only merge-patch preflight that
+mirrors SQLite's SQL entry point without requiring the SQLite extension.
+
+Status delta 2026-05-25 isolated refill: added
+`patchSqlFunctionArguments()`, switched direct patch function-name validation
+to case-insensitive lookup, added focused arity and invalid-name rejection
+tests, and updated the existing WordPress smoke to report uppercase
+argument-vector dispatch. Dependency closure: no new support component is
+needed; the slice reuses existing lane-local JSON canonicalization, JSON5,
+JSONB patch, BLOB, and SQL NULL support.
+
 ## `json_quote()` Option-Value SQL Dispatch Scenario
 
 Native JSON SQL-value quoting now includes bounded SQL-style argument-vector

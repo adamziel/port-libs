@@ -13,8 +13,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
         "total": 1589,
-            "mapped": 267,
-            "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 canonical dispatch refill reuses prior focused upstream JSON canonicalization evidence because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json/jsonb case-insensitive SQL function dispatch and one-argument SQL-style argument-vector validation while preserving accepted JSON constructor, json_quote, json_valid, json_type/json_array_length, json_error_position, json_each/json_tree dispatch, hidden json/root columns, json_tree recursive rows, json_pretty, json_extract/jsonb_extract, and json_each evidence.",
+            "mapped": 268,
+            "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 patch dispatch refill reuses prior focused upstream JSON merge-patch evidence because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_patch/jsonb_patch case-insensitive SQL function dispatch and two-argument SQL-style argument-vector validation while preserving accepted JSON canonical, constructor, json_quote, json_valid, json_type/json_array_length, json_error_position, json_each/json_tree dispatch, hidden json/root columns, json_tree recursive rows, json_pretty, json_extract/jsonb_extract, and json_each evidence.",
         "inventory": {
             "allRepositoryFiles": 2208,
             "hydratedTestInventoryFiles": 2131,
@@ -107,6 +107,7 @@
             "focusedJsonbRemoveScripts": 2,
             "focusedJsonbMutationScripts": 4,
             "focusedJsonPatchScripts": 3,
+            "focusedJsonPatchArgumentVectorDispatchScripts": 1,
             "focusedBtreeFreeblockCorruptionScripts": 2,
             "focusedCustomCollationExpressionScripts": 4,
             "focusedCustomCollationEqualityPrefixScripts": 3,
