@@ -99259,3 +99259,23 @@ Files staged:
 - `lanes/difftastic/notes/wordpress-scenarios.md`
 - `lanes/difftastic/src/SyntaxHighlightClassifier.php`
 - `lanes/difftastic/tests/TokenDifferTest.php`
+
+## Clean-patch integration - esbuild - 20260525T004433Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T003524Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T003524Z.patch`
+Lane/slice/session: `esbuild` / `supervisor-next-20260525T003524Z` / `port-esbuild`
+Patch sha256: `d9ca8f25eadd3f62df0736eda21d7df29c0c57f2cb008e46a934c5446559ed05` (verified)
+Apply mode: `plain`.
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/esbuild/tests/PackageResolverTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-esbuild-supervisor-next-20260525T003524Z-20260525T004433Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/esbuild/examples/wordpress-asset-preflight.php`
+- `lanes/esbuild/lane-status.json`
+- `lanes/esbuild/notes/upstream-inventory.md`
+- `lanes/esbuild/notes/wordpress-scenarios.md`
+- `lanes/esbuild/src/PackageResolver.php`
+- `lanes/esbuild/tests/PackageResolverTest.php`

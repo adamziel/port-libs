@@ -132,6 +132,8 @@ $containingBrowserBuiltinDisabledResolution = (new PackageResolver('browser'))->
 $nodeBuiltinResolution = (new PackageResolver('node'))->resolveImport(new ModuleImport('named', 'path', [], 0), $containingBrowserMapDir);
 $nodePrefixBuiltinResolution = (new PackageResolver('node'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $containingBrowserMapDir);
 $nodeFsPromisesBuiltinResolution = (new PackageResolver('node'))->resolveImport(new ModuleImport('commonjs-require', 'fs/promises', [], 0), $packageEntryDir);
+$unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
+$unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $normalizePackageFixturePath = static function (string $path) use ($packageFixtureDir): string {
     return str_replace('\\', '/', substr($path, strlen((string) realpath($packageFixtureDir)) + 1));
 };
@@ -506,6 +508,8 @@ printf("WordPress node builtin external records: %s\n", (
     && $nodeFsPromisesBuiltinResolution->external
     && $nodeFsPromisesBuiltinResolution->packageName === 'fs'
     && $nodeFsPromisesBuiltinResolution->subpath === './promises'
+    && $unshimmedBrowserNodePrefixResolution === null
+    && $unshimmedNeutralNodePrefixResolution === null
 ) ? 'yes' : 'no');
 printf("WordPress tsconfig paths aliases: %s\n", (
     array_combine(

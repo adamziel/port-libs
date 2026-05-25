@@ -73,6 +73,10 @@ final class PackageResolver
             return new PackageResolution($import, $packageName, $subpath, $resolved, $browserMapped['scopeDir'], $browserMapped['packageJsonPath'], 'browser', $tried);
         }
 
+        if (str_starts_with($import->source, 'node:') && $this->platform !== 'node') {
+            return null;
+        }
+
         if ($this->platform === 'node' && $this->isNodeBuiltin($import->source)) {
             return new PackageResolution($import, $packageName, $subpath, '', '', null, 'node-builtin', [], true);
         }

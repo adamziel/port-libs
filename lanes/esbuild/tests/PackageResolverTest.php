@@ -210,6 +210,15 @@ return [
         $t->same('node_modules/node-pkg/index.js', $normalizeFixturePath($node->resolveImport(new ModuleImport('named', 'node-pkg', [], 0), $packageSourceDir)?->path ?? ''));
         $t->same('node_modules/node-pkg-package/index.js', $normalizeFixturePath($node->resolveImport(new ModuleImport('named', 'node-pkg-package', [], 0), $packageSourceDir)?->path ?? ''));
     },
+    'does not resolve unshimmed node prefix builtins through browser node_modules packages' => static function (TestRunner $t) use ($entryDir): void {
+        $browser = new PackageResolver('browser');
+        $neutral = new PackageResolver('neutral');
+        $node = new PackageResolver('node');
+
+        $t->same(null, $browser->resolveImport(new ModuleImport('named', 'node:path', [], 0), $entryDir));
+        $t->same(null, $neutral->resolveImport(new ModuleImport('named', 'node:path', [], 0), $entryDir));
+        $t->same(true, $node->resolveImport(new ModuleImport('named', 'node:path', [], 0), $entryDir)?->external);
+    },
     'records node builtins as external on node platform without probing node_modules' => static function (TestRunner $t) use ($entryDir): void {
         $node = new PackageResolver('node');
         $browser = new PackageResolver('browser');
@@ -231,7 +240,9 @@ return [
         $t->same('path', $nodePath?->packageName);
         $t->same('.', $nodePath?->subpath);
         $t->same(null, $browser->resolveImport(new ModuleImport('named', 'fs/promises', [], 0), $entryDir));
+        $t->same(null, $browser->resolveImport(new ModuleImport('named', 'node:fs', [], 0), $entryDir));
         $t->same(false, $neutral->resolveImport(new ModuleImport('named', 'path', [], 0), $entryDir)?->external);
+        $t->same(null, $neutral->resolveImport(new ModuleImport('named', 'node:fs', [], 0), $entryDir));
     },
     'maps upstream package imports local targets conditions patterns and package remaps' => static function (TestRunner $t) use ($entryDir, $normalizeFixturePath): void {
         $browser = new PackageResolver('browser');
