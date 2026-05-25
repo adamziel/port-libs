@@ -1,5 +1,25 @@
 # Integration Status
 
+## Integration accepted - Syncthing paused watcher error rearm - 2026-05-25 02:04 UTC
+
+Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T015753Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T015753Z.patch`.
+
+- Lane/slice/session: `syncthing` / `rearmer-20260525T015752Z` / `port-syncthing`.
+- Patch SHA-256: `f54a7398fb4c2eeaf9c1cfc4fff70c2c38380aca6f83583ecfd329b139d47827`; verified with `sha256sum`.
+- Apply path: clean detached worktree from `b4622ee4b06f3282b6ec1bbe50e6e20b009fba10`; `git apply --check` passed, then the patch applied without three-way repair.
+- Focused verification:
+  - `jq empty lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json` passed.
+  - `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+  - `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+  - `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` passed.
+  - `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed: 1 test file, 107 assertions, 0 failures.
+  - `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` passed and emitted the paused watcher restart/recovery smoke payload.
+- Root verification: exact no-argument gate `pgrep -af '^php tools/run-tests\.php$'` was clear, then `php tools/run-tests.php` passed: 209 test files, 24643 assertions, 0 failures.
+- `git diff --check` passed.
+- Support-library/dependency closure: no support-library activation. This stays within the existing Syncthing watcher scheduler, scan scheduler, scan service, and checkpoint store.
+- Live-service exclusions: no live-service provider tests were run.
+- Files staged: `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`, `lanes/syncthing/lane-status.json`, `lanes/syncthing/notes/wordpress-scenarios.md`, `lanes/syncthing/src/FolderWatchScanScheduler.php`, `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`, and `audits/integration-status.md`.
+
 ## Integration superseded - isolated Difftastic browser globals highlight slice - 2026-05-25 01:56 UTC
 
 Superseded ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-current-rebase-20260525T013421Z-3fdbe6a1.ready` with patch `.tmux-team/tmp/handoff-candidates/port-difftastic-current-rebase-20260525T013421Z-3fdbe6a1.patch`.

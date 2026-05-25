@@ -103,7 +103,7 @@ final class FolderWatchScanScheduler
             $message = 'watcher error';
         }
 
-        if (!$this->folderAcceptsWatchEvents($folderId)) {
+        if (!$this->folderExists($folderId)) {
             return new FolderScanSchedulerResult();
         }
 
@@ -120,7 +120,7 @@ final class FolderWatchScanScheduler
             'scanOnWatchError' => $scanOnWatchError,
         ];
 
-        if (!$scanOnWatchError) {
+        if (!$scanOnWatchError || !$this->folderAcceptsWatchEvents($folderId)) {
             return new FolderScanSchedulerResult();
         }
 
@@ -365,8 +365,14 @@ final class FolderWatchScanScheduler
     {
         self::assertFolderId($folderId);
 
-        return in_array($folderId, $this->scheduler->folderIds(), true)
-            && !$this->scheduler->isPaused($folderId);
+        return $this->folderExists($folderId) && !$this->scheduler->isPaused($folderId);
+    }
+
+    private function folderExists(string $folderId): bool
+    {
+        self::assertFolderId($folderId);
+
+        return in_array($folderId, $this->scheduler->folderIds(), true);
     }
 
     private function restartDelaySeconds(int $attempt): int

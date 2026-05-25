@@ -2182,3 +2182,47 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: repeated watcher errors while a
 folder is paused should keep the latest restart reason and backoff attempt
 without accepting new filesystem events until resume.
+
+## 2026-05-25 Repeated Paused Watcher Errors
+
+This isolated micro-slice maps the repeated-error side of the upstream
+filesystem watcher restart boundary from `lib/model/folder.go`: watcher errors
+can arrive while a folder is paused, the latest restart reason and backoff
+attempt remain visible in status, but paused folders still do not accept new
+filesystem events, dispatch fallback scans, expose due restarts, or complete
+restart attempts until the folder resumes.
+
+Native PHP now lets `FolderWatchScanScheduler::recordWatcherError()` update
+restart state for registered paused folders while preserving the stricter
+event and scan gates. Unknown or removed folders remain ignored. The
+WordPress watcher smoke now reports `pausedIgnoredEvent: null`, the latest
+paused restart reason/backoff in `pausedStatusAfterCleanup`, empty
+`pausedRestartDue`, and resumed due/completed restart status once the backoff
+expires after resume.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate is wiring
+`recordWatcherError()` from a WordPress/local watcher adapter when a paused
+folder's native watch source reports repeated closure/overflow errors; the
+evidence plan is the focused watcher tests plus the local WordPress example
+smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 107 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported paused event rejection, latest paused restart
+  reason/backoff, empty paused due restarts, and resumed restart completion.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: watcher restart completion
+should leave already-queued filesystem events pending for normal delayed scan
+dispatch rather than forcing or discarding them.
