@@ -2,6 +2,25 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Aggregate Step/Final Option Summary Scenario
+
+Native JSON aggregate summaries now include a bounded step/final state helper
+for ordered `json_group_array()` and `json_group_object()` rows. The example
+`examples/wordpress-json-aggregate-option-summary.php` now streams copied
+`wp_options.option_value` rows into `SQLiteJsonAggregateState`, finalizes text
+and JSONB aggregate results through uppercase SQL function names, and reports
+the step counts beside the accepted direct aggregate output. This gives
+WordPress import and repair tooling a local-only path that mirrors SQLite's
+aggregate lifecycle without requiring the SQLite extension.
+
+Status delta 2026-05-25 isolated refill: added
+`SQLiteJsonAggregateState`, focused step/final tests for text and JSONB array
+and object results, invalid-name propagation, empty aggregate finalization,
+and updated the existing WordPress smoke to stream copied options through the
+new state object. Dependency closure: no new support component is needed; the
+slice reuses existing lane-local JSON aggregate dispatch, JSON subtype, JSONB,
+BLOB, constructor value coercion, and SQL NULL support.
+
 ## `json_remove()`/`jsonb_remove()` Argument-Vector Cleanup Scenario
 
 Native JSON removal now includes bounded SQL-style argument-vector dispatch for

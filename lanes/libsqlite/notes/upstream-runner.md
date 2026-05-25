@@ -1,5 +1,40 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: JSON Aggregate Step/Final State
+
+Date: 2026-05-25
+
+This isolated micro-slice adds a bounded native aggregate state for SQLite
+JSON aggregate behavior. `SQLiteJsonAggregateState` models ordered aggregate
+step rows for `json_group_array()` and `json_group_object()`, then finalizes
+through the accepted text/JSONB SQL-dispatch helpers for `json_group_array`,
+`jsonb_group_array`, `json_group_object`, and `jsonb_group_object`. The slice
+preserves accepted JSON subtype, JSONB BLOB, SQL NULL, empty aggregate,
+case-insensitive function-name, and invalid-name behavior without expanding
+into SQL planner or aggregate execution scheduling.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON aggregate evidence for the same
+upstream behavior cluster:
+
+```sh
+json101.test json102.test jsonb01.test subtype1.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence is recorded in `lane-status.json` after local focused
+verification.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON aggregate dispatch, JSON constructor value coercion,
+JSON subtype handling, JSONB encoder/decoder, BLOB wrapper, and SQL NULL
+handling components; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json_remove()`/`jsonb_remove()` Argument-Vector Dispatch
 
 Date: 2026-05-25

@@ -1,5 +1,39 @@
 # Integration Status
 
+## Clean-patch accepted - libsqlite JSON aggregate state - 2026-05-25 23:49 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-20260525T234257Z.ready`.
+
+Published commit: this integration commit (`Integrate libsqlite JSON aggregate state`).
+Candidate patch sha256 matched the ready marker:
+`16b46ace337cea2b1a0e9b14bfd85e0ec9f1a37acaa31c7d911632a2e88b4b44`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`7fc9a055` (`Integrate Readability script style block cleanup`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- Libsqlite manifest/status JSON validation passed.
+- `php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php` passed and reported `aggregateStepRows` with `arrayRows=5` and `objectRows=5`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2237 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported `df_free=100274396` KiB and `load1=2.83`; no exact no-argument root harness was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot: `214 test files, 26621 assertions, 0 failures`.
+
+Deferred during candidate selection, not rejected:
+- `.tmux-team/tmp/handoff-candidates/port-dev-syncthing-20260525T233817Z.ready` applied cleanly to current `HEAD` but focused `FolderScanRouteRegistryTest.php` failed in the detached candidate snapshot with six failures from constructor/API drift (`Unknown named parameter $recentCleanupTtlSeconds`, `$watchScheduler`, and `$watchRestartInitialDelaySeconds`).
+
+Cleanup will remove the accepted marker, patch, metadata, referenced worker
+log, inactive source worktree, and temporary verification worktree after the
+commit is safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted libsqlite commit.
+
 ## Clean-patch accepted - Readability script/style block cleanup - 2026-05-25 23:55 UTC
 
 Accepted one isolated marker:

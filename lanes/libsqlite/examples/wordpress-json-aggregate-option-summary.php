@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonAggregate;
+use PortLibs\LibSqlite\SQLiteJsonAggregateState;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 
@@ -19,20 +20,25 @@ $copiedOptions = [
 
 $optionValues = [];
 $autoloadSummary = [];
+$state = new SQLiteJsonAggregateState();
 foreach ($copiedOptions as [$name, $value, $autoload]) {
     $optionValues[] = $value;
     $autoloadSummary[] = [$name, $autoload === 'yes'];
+    $state->stepArray($value);
+    $state->stepObject($name, $autoload === 'yes');
 }
 
 echo json_encode([
     'optionValueArray' => SQLiteJsonAggregate::jsonGroupArray($optionValues),
+    'optionValueArrayFromSteps' => $state->finalizeArray('JSON_GROUP_ARRAY'),
     'optionValueJsonbDecoded' => SQLiteJsonB::decode(
-        SQLiteJsonAggregate::jsonGroupArraySqlFunctionArguments('JSONB_GROUP_ARRAY', $optionValues)->bytes,
+        $state->finalizeArray('JSONB_GROUP_ARRAY')->bytes,
     ),
     'autoloadMap' => SQLiteJsonAggregate::jsonGroupObject($autoloadSummary),
-    'autoloadMapDispatch' => SQLiteJsonAggregate::jsonGroupObjectSqlFunctionArguments('JSON_GROUP_OBJECT', $autoloadSummary),
+    'autoloadMapDispatch' => $state->finalizeObject('JSON_GROUP_OBJECT'),
     'autoloadMapJsonbHex' => bin2hex(
-        SQLiteJsonAggregate::jsonGroupObjectSqlFunctionArguments('JSONB_GROUP_OBJECT', $autoloadSummary)->bytes,
+        $state->finalizeObject('JSONB_GROUP_OBJECT')->bytes,
     ),
-    'wordpressUse' => 'Local-only wp_options import summary that mirrors SQLite json_group_array()/json_group_object() text results and uppercase argument-vector JSONB/result dispatch for copied option values, JSON subtype fragments, JSONB blobs, booleans, and NULLs without requiring the SQLite extension.',
+    'aggregateStepRows' => $state->summary(),
+    'wordpressUse' => 'Local-only wp_options import summary that mirrors SQLite json_group_array()/json_group_object() step/final results and uppercase JSONB/result dispatch for copied option values, JSON subtype fragments, JSONB blobs, booleans, and NULLs without requiring the SQLite extension.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

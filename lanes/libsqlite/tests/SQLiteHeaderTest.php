@@ -17,6 +17,7 @@ use PortLibs\LibSqlite\SQLiteIndexColumn;
 use PortLibs\LibSqlite\SQLiteIndexInteriorPage;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
 use PortLibs\LibSqlite\SQLiteJsonAggregate;
+use PortLibs\LibSqlite\SQLiteJsonAggregateState;
 use PortLibs\LibSqlite\SQLiteJsonArrayInsert;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
@@ -3101,6 +3102,43 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObjectSqlFunctionArguments('jsonb_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObjectSqlFunctionArguments('json_group_object', [['missing-value']]));
+    },
+    'finalizes sqlite json aggregate state after ordered step rows' => static function (TestRunner $t): void {
+        $state = new SQLiteJsonAggregateState();
+        $state->stepArray('siteurl');
+        $state->stepArray(null);
+        $state->stepArray(new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'));
+        $state->stepArray(new SQLiteBlobValue(SQLiteJsonB::encode(['count' => 2, 'autoload' => true])));
+        $state->stepObject('siteurl', 'https://example.test');
+        $state->stepObject('rules', new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'));
+        $state->stepObject('summary', new SQLiteBlobValue(SQLiteJsonB::encode(['count' => 2, 'autoload' => true])));
+
+        $t->same(['arrayRows' => 4, 'objectRows' => 3], $state->summary());
+        $t->same(
+            '["siteurl",null,[{"name":"seo"},{"name":"cache"}],{"count":2,"autoload":true}]',
+            $state->finalizeArray(),
+        );
+        $t->same(
+            '{"siteurl":"https://example.test","rules":[{"name":"seo"},{"name":"cache"}],"summary":{"count":2,"autoload":true}}',
+            $state->finalizeObject('JSON_GROUP_OBJECT'),
+        );
+
+        $jsonbArray = $state->finalizeArray('JSONB_GROUP_ARRAY');
+        $jsonbObject = $state->finalizeObject('jsonb_group_object');
+        $t->true($jsonbArray instanceof SQLiteBlobValue);
+        $t->true($jsonbObject instanceof SQLiteBlobValue);
+        $t->same(['siteurl', null, [['name' => 'seo'], ['name' => 'cache']], ['count' => 2, 'autoload' => true]], SQLiteJsonB::decode($jsonbArray->bytes));
+        $t->same([
+            'siteurl' => 'https://example.test',
+            'rules' => [['name' => 'seo'], ['name' => 'cache']],
+            'summary' => ['count' => 2, 'autoload' => true],
+        ], SQLiteJsonB::decode($jsonbObject->bytes));
+
+        $empty = new SQLiteJsonAggregateState();
+        $t->same('[]', $empty->finalizeArray());
+        $t->same('{}', $empty->finalizeObject());
+        $t->throws(InvalidArgumentException::class, static fn () => $state->finalizeArray('json_group'));
+        $t->throws(InvalidArgumentException::class, static fn () => $state->finalizeObject('jsonb_group'));
     },
     'canonicalizes sqlite json text json5 blob and null option values' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode(['a' => 35, 'b' => [1, 2]]);
