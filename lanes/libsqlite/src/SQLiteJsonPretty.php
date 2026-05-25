@@ -37,6 +37,30 @@ final class SQLiteJsonPretty
         return self::jsonPretty($value, $indent);
     }
 
+    /**
+     * @param list<string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null> $arguments
+     */
+    public static function jsonPrettySqlFunctionArguments(string $function, array $arguments): ?string
+    {
+        $argumentCount = count($arguments);
+        if ($argumentCount < 1 || $argumentCount > 2) {
+            throw new \InvalidArgumentException('SQLite json_pretty() expects one or two arguments');
+        }
+
+        $indent = null;
+        if ($argumentCount === 2) {
+            $indentArgument = $arguments[1];
+            $indent = match (true) {
+                $indentArgument === null => null,
+                $indentArgument instanceof SQLiteBlobValue => $indentArgument->bytes,
+                $indentArgument instanceof SQLiteJsonSubtypeValue => $indentArgument->json,
+                default => $indentArgument,
+            };
+        }
+
+        return self::jsonPrettySqlFunction($function, $arguments[0], $indent);
+    }
+
     private function format(): string
     {
         $pretty = $this->formatValue(0);

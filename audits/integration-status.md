@@ -109181,3 +109181,42 @@ Files staged:
 - `lanes/quadrable/notes/upstream-inventory.md`
 - `lanes/quadrable/tests/QuadbStoreTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - libsqlite json_pretty argument dispatch rework - 20260525T084854Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T084118Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T084118Z.patch`.
+Lane/slice/session: `libsqlite` / `priority-keeper-rework-20260525T084118Z` / `port-libsqlite-rework`.
+Old head: `a766e5d9fa1160210c9d050fde958ebb256de523`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-libsqlite-priority-keeper-rework-20260525T084118Z-20260525T084854Z`:
+
+- `sha256sum -c`: passed for patch sha256 `cee6b270d2a8436b4e27e7045a33ce8e1051797cbfefc0a82de2b5bfddca7719`.
+- `git apply --check "/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T084118Z.patch"`: attempted; if it failed from accepted-head drift, bounded `git apply --3way` applied cleanly without conflicts.
+- `php -l lanes/libsqlite/src/SQLiteJsonPretty.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed; smoke output written to `/tmp/libsqlite-json-pretty-example-20260525T084854Z.json`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, 1 file, 2040 assertions, 0 failures.
+- JSON validation for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification:
+
+- Pre-root gate checked: root filesystem available KiB >= 86000000, load < 25, and no exact `php tools/run-tests.php` process.
+- `php tools/run-tests.php`: passed in the clean worktree with zero failures.
+
+Support-library/dependency closure: no new support component activated; this slice reuses existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, subtype, and pretty-format support.
+
+Live-service exclusions: none; no live provider tests were run. Fresh upstream SQLite testfixture was not run because this isolated handoff records reuse of prior focused json106/json108 evidence and the clean worktree does not hydrate a new upstream cache.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonPretty.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`

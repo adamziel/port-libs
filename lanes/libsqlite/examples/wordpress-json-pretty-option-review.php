@@ -27,9 +27,14 @@ $report = [];
 foreach ($optionValues as $optionName => $optionValue) {
     $indent = $optionName === 'custom_indent_settings' ? "\t" : null;
     try {
+        $arguments = [$optionValue];
+        if ($indent !== null) {
+            $arguments[] = $indent;
+        }
+
         $report[$optionName] = [
             'status' => 'pretty',
-            'json' => SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', $optionValue, $indent),
+            'json' => SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', $arguments),
         ];
     } catch (InvalidArgumentException $exception) {
         $report[$optionName] = [
