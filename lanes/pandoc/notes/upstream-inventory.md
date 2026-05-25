@@ -1481,3 +1481,27 @@ Dependency closure: no new support component is needed for this slice. The
 existing Markdown writer block renderer now handles raw block format gating
 locally; richer format-aware raw block conversion should stay behind existing
 inactive Pandoc document-format support gates.
+
+`src/Text/Pandoc/Writers/Markdown.hs` was inspected for the bounded fenced Div
+writer branch after the raw block slice. The PHP Markdown writer now maps one
+focused check from that boundary: Div blocks render as Pandoc fenced Div
+containers with id/class/key-value attributes, nested block content, and a
+colon fence length that grows past literal colon runs in the rendered body.
+
+Focused local verification on 2026-05-25 after the Markdown writer fenced Div
+emission slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"migration-review-packet|Nested reviewer quote"` emitted the fenced reviewer
+packet wrapper and nested quote; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,284
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed. The
+focused file now contains 214 behavior tests.
+
+Root verification was not run for the 2026-05-25 fenced Div emission slice
+because the assigned work was an isolated micro-slice.
+
+Dependency closure: no new support component is needed for this slice. The
+existing Markdown block writer and attribute renderer handle fenced Div
+emission locally; richer container-format conversion should stay behind
+existing inactive Pandoc document-format support gates.

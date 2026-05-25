@@ -82,6 +82,7 @@ final class MarkdownWriter
             'bullet_list' => $this->renderList($node, false, $indent),
             'ordered_list' => $this->renderList($node, true, $indent),
             'blockquote' => $this->renderBlockQuote($node, $indent),
+            'div' => $this->renderDivBlock($node, $indent),
             'code_block' => $this->renderCodeBlock($node, $indent),
             'horizontal_rule' => [str_repeat(' ', $indent) . '* * *'],
             'raw_tex', 'raw_markdown', 'raw_block' => $this->renderRawBlock($node, $indent),
@@ -292,6 +293,30 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderDivBlock(AstNode $node, int $indent): array
+    {
+        $attrs = $this->renderLinkAttributes($node);
+        $prefix = str_repeat(' ', $indent);
+        $body = $this->renderBlockCollection($node->children);
+        $fenceLength = max(3, $this->longestColonRun($body) + 1);
+        $fence = str_repeat(':', $fenceLength);
+        $opening = rtrim($prefix . $fence . ($attrs === '' ? '' : ' ' . $attrs));
+        $closing = $prefix . $fence;
+
+        if ($body === '') {
+            return [$opening, $closing];
+        }
+
+        return [
+            $opening,
+            ...array_map(static fn (string $line): string => $prefix . $line, explode("\n", $body)),
+            $closing,
+        ];
     }
 
     /**
@@ -719,6 +744,15 @@ final class MarkdownWriter
         }
 
         return $escaped;
+    }
+
+    private function longestColonRun(string $text): int
+    {
+        if (preg_match_all('/:+/', $text, $matches) !== 1) {
+            return 0;
+        }
+
+        return max(array_map('strlen', $matches[0]));
     }
 
     private function startsWithAtxHeadingMarker(string $text): bool

@@ -145,6 +145,20 @@ $document = new AstNode('document', $document->attrs, [
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
+    new AstNode('div', [
+        'id' => 'migration-review-packet',
+        'classes' => ['wp-import', 'needs-review'],
+        'attributes' => ['data-source' => 'batch-42'],
+    ], [
+        new AstNode('paragraph', [], [
+            new AstNode('text', ['text' => 'Reviewer packet wrapper: keep this source group together.']),
+        ]),
+        new AstNode('blockquote', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Nested reviewer quote remains inside the fenced div.']),
+            ]),
+        ]),
+    ]),
     new AstNode('raw_block', [
         'format' => 'markdown',
         'text' => '> Raw reviewer block: keep this migration note with the handoff.',

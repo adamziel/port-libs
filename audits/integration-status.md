@@ -100888,3 +100888,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json lanes/markerpdf/lane-status.json lanes/markerpdf/notes/upstream-test-inventory.md lanes/markerpdf/notes/wordpress-scenarios.md lanes/markerpdf/src/PdfTextExtractor.php lanes/markerpdf/tests/PdfTextExtractorTest.php `
 
+
+## Clean-patch integration accepted - pandoc - 2026-05-25 02:50 UTC
+
+Ready marker: `port-pandoc-20260525T023734Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T023734Z.patch`
+Lane/slice/session: `pandoc` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `182c279d00ad34c3c40f3de65f8c70064ec074b3`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/pandoc/tests`: exit 0; PASS escapes wordpress block inline html while preserving marks  1 test files, 2284 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24819 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/examples/wordpress-markdown-review-handoff.php lanes/pandoc/lane-status.json lanes/pandoc/notes/upstream-inventory.md lanes/pandoc/notes/wordpress-scenarios.md lanes/pandoc/src/MarkdownWriter.php lanes/pandoc/tests/MarkdownReaderTest.php `
+

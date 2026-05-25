@@ -835,6 +835,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   inlines. The reviewer handoff example writes a quoted source excerpt with a
   nested `wp_insert_post` code token and WordPress edit link, preserving the
   editorial quote boundary without using raw inline HTML.
+- Native Markdown reviewer handoff exports now emit Pandoc fenced Div blocks.
+  Review packets can wrap grouped WordPress migration notes in `::::`
+  containers with ids, classes, and `data-source` attributes, preserving nested
+  quotes and paragraph boundaries for Pandoc-compatible review tooling.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -844,13 +848,13 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded Markdown writer inline branch from
-`Text.Pandoc.Writers.Markdown.Inline`, such as raw inline format-specific
-escaping or math/raw TeX writer output if not already covered on the Markdown
-writer path.
+Map another bounded Markdown writer block branch after fenced Div output, such
+as fenced code block attributes or additional raw block format variants if not
+already covered on the Markdown writer path.
 
 ## Dependency Closure
 
 No new support component is needed for this slice. The existing bounded
-Markdown inline writer is reused for quoted inline emission; evidence is the
-focused lane test plus the WordPress reviewer handoff example smoke.
+Markdown block writer and attribute renderer are reused for fenced Div
+emission; evidence is the focused lane test plus the WordPress reviewer
+handoff example smoke.

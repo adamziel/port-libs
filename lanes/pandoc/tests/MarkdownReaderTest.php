@@ -2815,6 +2815,40 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer fenced div block emission' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('div', [
+                'id' => 'review-packet',
+                'classes' => ['wp-import', 'needs-review'],
+                'attributes' => ['data-source' => 'batch-42'],
+            ], [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Reviewer block with literal ::: marker.']),
+                ]),
+                new AstNode('blockquote', [], [
+                    new AstNode('paragraph', [], [
+                        new AstNode('text', ['text' => 'Keep nested quote with packet.']),
+                    ]),
+                ]),
+            ]),
+            new AstNode('div', [], []),
+        ]);
+
+        $markdown = (new MarkdownWriter())->write($document);
+
+        $t->same(implode("\n", [
+            ':::: {#review-packet .wp-import .needs-review data-source="batch-42"}',
+            'Reviewer block with literal \::: marker.',
+            '',
+            '> Keep nested quote with packet.',
+            '::::',
+            '',
+            ':::',
+            ':::',
+        ]), $markdown);
+        $t->contains('{#review-packet .wp-import .needs-review data-source="batch-42"}', $markdown);
+        $t->contains('> Keep nested quote with packet.', $markdown);
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
