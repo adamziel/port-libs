@@ -17,9 +17,11 @@ return [
     'sshCommand' => $fixture['sshCommand'],
     'gitDaemonServiceRequestPayload' => substr($fixture['gitDaemonServiceRequest'], 4),
     'gitDaemonUrlServiceRequestPayload' => substr($fixture['gitDaemonUrlServiceRequest'], 4),
+    'gitDaemonEncodedUrlServiceRequestPayload' => substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4),
     'gitDaemonIpv6ServiceRequestPayload' => substr($fixture['gitDaemonIpv6ServiceRequest'], 4),
     'unsafeGitDaemonPathRejected' => $fixture['unsafeGitDaemonPathRejected'],
     'unsafeGitDaemonControlByteRejected' => $fixture['unsafeGitDaemonControlByteRejected'],
     'unsafeGitDaemonUrlRejected' => $fixture['unsafeGitDaemonUrlRejected'],
+    'unsafeGitDaemonEncodedControlByteRejected' => $fixture['unsafeGitDaemonEncodedControlByteRejected'],
     'unsafeSshTargetRejected' => $fixture['unsafeSshTargetRejected'],
 ];

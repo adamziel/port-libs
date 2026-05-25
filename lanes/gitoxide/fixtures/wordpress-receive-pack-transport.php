@@ -74,6 +74,7 @@ return [
     'sshCommand' => SshReceivePackTransport::receivePackCommand('wp-content.git'),
     'gitDaemonServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', 9418, ['version=2']),
     'gitDaemonUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git.example.test:9418/wp-content.git', ['version=2']),
+    'gitDaemonEncodedUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git%2Dmirror.example.test/wp%2Dcontent.git', ['version=2']),
     'gitDaemonIpv6ServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', '2001:db8::42', null, ['version=2']),
     'unsafeGitDaemonPathRejected' => (static function (): bool {
         try {
@@ -102,6 +103,15 @@ return [
 
         return false;
     })(),
+    'unsafeGitDaemonEncodedControlByteRejected' => (static function (): bool {
+        try {
+            GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git.example.test/wp%0acontent.git');
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
     'unsafeSshTargetRejected' => (static function (): bool {
         try {
             SshReceivePackTransport::parseRepositoryUrl('git.example.test: -upload-pack=/tmp/helper');
@@ -111,5 +121,5 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, preflight SSH targets before handing streams to a caller-approved SSH adapter, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths without control bytes while preserving bracketed IPv6 virtual-host targets.',
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, preflight SSH targets before handing streams to a caller-approved SSH adapter, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, without control bytes, while preserving bracketed IPv6 virtual-host targets.',
 ];

@@ -142,10 +142,20 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
         $port = isset($parts['port']) ? (int) $parts['port'] : null;
 
         return [
-            'host' => $parts['host'],
-            'path' => $parts['path'],
+            'host' => self::decodeUrlComponent($parts['host'], 'host'),
+            'path' => self::decodeUrlComponent($parts['path'], 'repository path'),
             'port' => $port,
         ];
+    }
+
+    private static function decodeUrlComponent(string $value, string $label): string
+    {
+        $decoded = rawurldecode($value);
+        if ($decoded === '' || self::containsControlByte($decoded)) {
+            throw new \InvalidArgumentException("git-daemon receive-pack {$label} must be non-empty and must not contain control bytes");
+        }
+
+        return $decoded;
     }
 
     private static function validateRepositoryPath(string $repositoryPath): void

@@ -337,6 +337,9 @@ return [
         $urlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test:9440/repo.git', ['version=2']);
         $t->same("git-receive-pack /repo.git\0host=example.test:9440\0\0version=2\0", substr($urlPacket, 4));
 
+        $encodedUrlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git%2Dmirror.example.test/wp%2Dcontent.git', ['version=2']);
+        $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($encodedUrlPacket, 4));
+
         $ipv6UrlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://[2001:db8::1]/repo.git');
         $t->same("git-receive-pack /repo.git\0host=[2001:db8::1]\0", substr($ipv6UrlPacket, 4));
 
@@ -346,6 +349,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://user@example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/repo.git?service=git-upload-pack'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/%0arepo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://bad%0ahost.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', ''));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('repo.git', 'example.test'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes("/bad\0repo", 'example.test'));
@@ -1255,6 +1260,8 @@ return [
         $t->contains($fixture['newCommit'], $commands[0]);
         $t->same(['ci.skip'], $options);
         $t->contains('PACK', $packBytes);
+        $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4));
+        $t->same(true, $fixture['unsafeGitDaemonEncodedControlByteRejected']);
     },
     'wordpress fixture stores smart http proxy credentials without leaking origin headers' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-proxy-credentials.php';
