@@ -296,6 +296,16 @@ return [
             'fs' => 'onedrive:',
             'remoteArgs' => [],
         ]);
+        $disabledWithCommandArgs = OneDriveCleanupCommand::runRemoteControl([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'fs' => 'onedrive:',
+            'noVersions' => false,
+            'remoteArgs' => ['unexpected', 'command', 'args'],
+        ]);
         $unsupported = OneDriveCleanupCommand::runRemoteControl([], [
             'fs' => 'local:',
             'featureAvailable' => false,
@@ -310,6 +320,9 @@ return [
         $t->same(['exports/site.wxr#old-review'], $cleanup['deletedVersions']);
         $t->same(null, $cleanup['error']);
         $t->same(true, $cleanup['providerCalled']);
+        $t->same(null, $disabledWithCommandArgs['error']);
+        $t->same(0, $disabledWithCommandArgs['walkedObjects']);
+        $t->same(false, $disabledWithCommandArgs['providerCalled']);
         $t->same('cleanup unsupported', $unsupported['error']);
         $t->same(false, $unsupported['providerCalled']);
     },
@@ -340,6 +353,8 @@ return [
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsDisabledError']);
         $t->same(false, $example['rcMissingFsDisabledProviderCalled']);
         $t->same(['exports/site.wxr#old-review'], $example['rcDeletedVersions']);
+        $t->same(null, $example['rcDisabledCommandArgsError']);
+        $t->same(false, $example['rcDisabledCommandArgsProviderCalled']);
         $t->same('cleanup unsupported', $example['rcUnsupportedError']);
         $t->same(false, $example['rcUnsupportedProviderCalled']);
         $t->same(false, $example['secretInputsRead']);

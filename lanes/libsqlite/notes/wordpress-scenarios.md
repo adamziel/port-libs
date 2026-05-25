@@ -2,6 +2,29 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Aggregate Option Summary Dispatch Scenario
+
+Native JSON aggregate summaries now include bounded SQL-style argument-vector
+dispatch for `json_group_array()`, `jsonb_group_array()`,
+`json_group_object()`, and `jsonb_group_object()` with case-insensitive
+function lookup. The example
+`examples/wordpress-json-aggregate-option-summary.php` exercises copied
+`wp_options.option_value` rows through uppercase argument-vector dispatch for
+text and JSONB aggregate result typing, JSON subtype fragments, JSONB blobs,
+booleans, and SQL NULL option values. This gives WordPress import and repair
+tooling a local-only option summary path that mirrors SQLite's SQL entry
+points without requiring the SQLite extension.
+
+Status delta 2026-05-25 isolated refill: added
+`jsonGroupArraySqlFunctionArguments()` and
+`jsonGroupObjectSqlFunctionArguments()`, switched direct aggregate
+function-name validation to case-insensitive lookup, added focused invalid
+name and malformed object row rejection tests, and updated the existing
+WordPress smoke to report uppercase argument-vector dispatch. Dependency
+closure: no new support component is needed; the slice reuses existing
+lane-local JSON constructor value coercion, JSON subtype, JSONB, BLOB, and
+SQL NULL support.
+
 ## `json_patch()`/`jsonb_patch()` Option-Value Merge Dispatch Scenario
 
 Native JSON merge-patch now includes bounded SQL-style argument-vector

@@ -27,11 +27,12 @@ foreach ($copiedOptions as [$name, $value, $autoload]) {
 echo json_encode([
     'optionValueArray' => SQLiteJsonAggregate::jsonGroupArray($optionValues),
     'optionValueJsonbDecoded' => SQLiteJsonB::decode(
-        SQLiteJsonAggregate::jsonGroupArraySqlFunction('jsonb_group_array', $optionValues)->bytes,
+        SQLiteJsonAggregate::jsonGroupArraySqlFunctionArguments('JSONB_GROUP_ARRAY', $optionValues)->bytes,
     ),
     'autoloadMap' => SQLiteJsonAggregate::jsonGroupObject($autoloadSummary),
+    'autoloadMapDispatch' => SQLiteJsonAggregate::jsonGroupObjectSqlFunctionArguments('JSON_GROUP_OBJECT', $autoloadSummary),
     'autoloadMapJsonbHex' => bin2hex(
-        SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group_object', $autoloadSummary)->bytes,
+        SQLiteJsonAggregate::jsonGroupObjectSqlFunctionArguments('JSONB_GROUP_OBJECT', $autoloadSummary)->bytes,
     ),
-    'wordpressUse' => 'Local-only wp_options import summary that mirrors SQLite json_group_array()/json_group_object() text results and jsonb_group_array()/jsonb_group_object() JSONB result dispatch for copied option values, JSON subtype fragments, JSONB blobs, booleans, and NULLs without requiring the SQLite extension.',
+    'wordpressUse' => 'Local-only wp_options import summary that mirrors SQLite json_group_array()/json_group_object() text results and uppercase argument-vector JSONB/result dispatch for copied option values, JSON subtype fragments, JSONB blobs, booleans, and NULLs without requiring the SQLite extension.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

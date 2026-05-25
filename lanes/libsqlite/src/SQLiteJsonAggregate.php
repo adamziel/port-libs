@@ -12,14 +12,22 @@ final class SQLiteJsonAggregate
     public static function jsonGroupArraySqlFunction(string $function, iterable $values): string|SQLiteBlobValue
     {
         $json = self::jsonGroupArray($values);
-        if ($function === 'json_group_array') {
+        if (strcasecmp($function, 'json_group_array') === 0) {
             return $json;
         }
-        if ($function !== 'jsonb_group_array') {
+        if (strcasecmp($function, 'jsonb_group_array') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_array or jsonb_group_array');
         }
 
         return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    public static function jsonGroupArraySqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue
+    {
+        return self::jsonGroupArraySqlFunction($function, $arguments);
     }
 
     /**
@@ -28,14 +36,22 @@ final class SQLiteJsonAggregate
     public static function jsonGroupObjectSqlFunction(string $function, iterable $pairs): string|SQLiteBlobValue
     {
         $json = self::jsonGroupObject($pairs);
-        if ($function === 'json_group_object') {
+        if (strcasecmp($function, 'json_group_object') === 0) {
             return $json;
         }
-        if ($function !== 'jsonb_group_object') {
+        if (strcasecmp($function, 'jsonb_group_object') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_object or jsonb_group_object');
         }
 
         return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
+     * @param list<array{0:mixed,1:mixed}> $arguments
+     */
+    public static function jsonGroupObjectSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue
+    {
+        return self::jsonGroupObjectSqlFunction($function, $arguments);
     }
 
     /**
