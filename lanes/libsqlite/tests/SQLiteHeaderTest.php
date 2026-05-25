@@ -3354,9 +3354,34 @@ return [
                 SQLiteJsonExtract::extractJsonArgument($json, '$.plugin.title', '$.plugin.enabled'),
             ),
         );
+        $t->same(
+            '[{"name":"cache"}]',
+            SQLiteJsonConstructor::jsonArray(SQLiteJsonExtract::extractJsonArgumentSqlFunction('json_extract', $json, '$.plugin.rules[#-1]')),
+        );
+        $jsonbRule = SQLiteJsonExtract::extractJsonArgumentSqlFunction('jsonb_extract', $jsonb, '$.plugin.rules[#-1]');
+        $t->true($jsonbRule instanceof SQLiteBlobValue);
+        $t->same([['name' => 'cache']], [
+            SQLiteJsonB::decode($jsonbRule instanceof SQLiteBlobValue ? $jsonbRule->bytes : ''),
+        ]);
+        $jsonbSummary = SQLiteJsonExtract::extractJsonArgumentSqlFunction('jsonb_extract', $json, '$.plugin.title', '$.plugin.enabled', '$.plugin.missing');
+        $t->true($jsonbSummary instanceof SQLiteBlobValue);
+        $t->same(
+            '[["Cache",true,null]]',
+            SQLiteJsonConstructor::jsonArray($jsonbSummary),
+        );
+        $t->same(
+            '["Cache",1,null]',
+            SQLiteJsonConstructor::jsonArray(
+                SQLiteJsonExtract::extractJsonArgumentSqlFunction('jsonb_extract', $json, '$.plugin.title'),
+                SQLiteJsonExtract::extractJsonArgumentSqlFunction('jsonb_extract', $json, '$.plugin.enabled'),
+                SQLiteJsonExtract::extractJsonArgumentSqlFunction('jsonb_extract', $json, '$.plugin.missing'),
+            ),
+        );
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extractJsonArgument($json));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extractJsonArgument($json, '$.plugin[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extractJsonArgumentSqlFunction('json_type', $json, '$.plugin'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extractJsonArgumentSqlFunction('jsonb_extract', $json));
     },
     'removes sqlite json text paths with canonical text result typing' => static function (TestRunner $t): void {
         $json = '{"plugin":{"enabled":true,"legacyToken":"secret","rules":[{"name":"seo"},{"name":"cache"}],"empty":null},"keep":1}';

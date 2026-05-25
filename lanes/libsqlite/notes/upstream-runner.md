@@ -5085,6 +5085,56 @@ Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON5, JSONB, canonical JSON, JSON subtype, and BLOB
 wrapper components; it counts no shared support-library progress.
 
+## Focused Native Mapping: `json_extract()`/`jsonb_extract()` JSON-Argument Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQLite JSON-constructor argument
+dispatch boundary for `json_extract()` and `jsonb_extract()`. Native
+`SQLiteJsonExtract::extractJsonArgumentSqlFunction()` validates the function
+name and reuses the existing lane-local extraction, subtype, JSONB, and
+constructor paths. `json_extract()` object/array and multi-path results are
+returned as JSON subtype text for constructor embedding; `jsonb_extract()`
+object/array and multi-path results are returned as SQLite JSONB blobs.
+Scalar paths, missing paths, and SQL NULL keep SQLite SQL argument typing.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON extraction, subtype, and JSONB
+evidence for the same upstream behavior cluster:
+
+```sh
+json101.test json102.test subtype1.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonExtract.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-extract-subtype-option-diagnostics.php
+php lanes/libsqlite/examples/wordpress-json-extract-subtype-option-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported constructor
+diagnostics for `json_extract()` JSON subtype arguments and `jsonb_extract()`
+JSONB blob arguments, focused PHP passed 1 selected test file, 2000
+assertions, and 0 failures, and `git diff --check -- lanes/libsqlite` passed.
+This worker did not start the root aggregate harness because root verification
+was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON extraction, JSON path, inspection, JSONB, BLOB,
+subtype, and constructor components; it counts no shared support-library
+progress.
+
 ## Focused Native Mapping: `json_quote()` SQL Dispatch
 
 Date: 2026-05-25

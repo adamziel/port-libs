@@ -54,6 +54,22 @@ rather than double-quoted text. This gives WordPress migration and repair
 tooling local-only constructor diagnostics before copied plugin settings are
 imported, without requiring the SQLite extension.
 
+Status delta 2026-05-25 isolated micro-slice: added
+`extractJsonArgumentSqlFunction()` for `json_extract()`/`jsonb_extract()`
+function-name dispatch at the JSON-constructor argument boundary, focused
+tests, and a WordPress smoke. `json_extract()` object/array and multi-path
+arguments preserve SQLite JSON subtype text; `jsonb_extract()` object/array
+and multi-path arguments preserve SQLite JSONB blobs; scalar, missing, and
+SQL NULL arguments keep SQL typing. Focused verification is recorded in
+`lane-status.json`. Blocker: no hydrated upstream cache exists in this
+isolated worktree, so no fresh SQLite testfixture run was performed; this
+slice reuses prior `json101.test`, `json102.test`, `subtype1.test`, and
+`jsonb01.test` evidence. Next task: integrator acceptance, then one
+additional bounded libsqlite behavior slice with its own evidence. Dependency
+closure: no new support component is needed; the slice reuses existing
+lane-local JSON extraction, JSON path, inspection, JSONB, BLOB, subtype, and
+constructor support and counts no shared support-library progress.
+
 ## `json_remove()` Option-Value Cleanup Scenario
 
 Native JSON removal now follows a bounded SQLite `json_remove(X,P...)`
