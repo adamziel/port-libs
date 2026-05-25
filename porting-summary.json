@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 12:32:29 UTC",
-    "sourceCommit": "46dddf6230a0378d771a230f364028420291d35f",
-    "sourceCommitShort": "46dddf6230a0",
+    "generated": "2026-05-25 12:37:59 UTC",
+    "sourceCommit": "888ca10fd920c524eef5f5fbb396a7bca680e69e",
+    "sourceCommitShort": "888ca10fd920",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "fa95adff75d27cac0193c27c7ecb6f8452eaa8cb",
-    "dashboardCommitShort": "fa95adff75d2",
+    "dashboardCommit": "735a2b565ce39adad729cb2c84aafd90f3a5a6bb",
+    "dashboardCommitShort": "735a2b565ce3",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -154,7 +154,7 @@
             "php": "137 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream runner pass plus native BLAKE2s/key/sparse-tre...",
-            "audit": "updated 2026-05-25T11:59Z isolated rework...",
+            "audit": "updated 2026-05-25T12:30Z isolated rework...",
             "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStor...",
             "nextTarget": "If accepted, continue reducing any remaining command-surface parity gaps only where upstr...",
             "blocker": "No current quadrable-specific upstream runner or focused PHP blocker.",
