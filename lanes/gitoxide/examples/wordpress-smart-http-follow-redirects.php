@@ -16,5 +16,7 @@ return [
     'permanentRequestMethods' => $fixture['permanentRequestMethods'],
     'seeOtherPostRedirectRejected' => $fixture['seeOtherPostRedirectRejected'],
     'seeOtherRequestMethods' => $fixture['seeOtherRequestMethods'],
+    'wrongEndpointPostRedirectRejected' => $fixture['wrongEndpointPostRedirectRejected'],
+    'wrongEndpointRequestMethods' => $fixture['wrongEndpointRequestMethods'],
     'responseSuccessful' => $fixture['responseSuccessful'],
 ];

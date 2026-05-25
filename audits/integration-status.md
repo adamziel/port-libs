@@ -109308,3 +109308,43 @@ Root verification: `php tools/run-tests.php` ran in the same clean worktree and 
 Support-library/dependency closure: no new support-library activation; the patch only rebases accepted Gitoxide smart HTTP receive-pack redirect accounting/status evidence.
 Live-service exclusions: no live service/provider tests; no full cargo workspace run.
 Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `audits/integration-status.md`.
+
+## Integration accepted - gitoxide wrong-endpoint receive-pack redirect guard - 2026-05-25 09:32 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T092306Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T092306Z.patch`.
+Lane/slice/session: `gitoxide` / `priority-keeper-rework-20260525T092306Z` / `port-gitoxide-rework`.
+Old head: `af50c6220c0dcefdbd0165f646de68078434fcaa`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-gitoxide-priority-keeper-rework-20260525T092306Z-20260525T093035Z`:
+
+- `sha256sum`: passed for patch sha256 `17585853b0cd1073adf61aa5734ba7d9179b4a83fb45094c4ce685891d84d220`.
+- `git apply --check "/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T092306Z.patch"`: failed from stale status/notes drift only; bounded `git apply --3way` applied behavior, fixture, example, manifest, and test hunks cleanly and left conflicts in `lanes/gitoxide/lane-status.json` and `lanes/gitoxide/notes/upstream-inventory.md`.
+- Conflict resolution: accepted the newer worker wording for the same slice, preserving the existing accepted stream watchdog timeout and advertisement ERR packet evidence while adding wrong-endpoint `307` POST redirect rejection text.
+- `php -r` JSON validation for `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` and `lanes/gitoxide/lane-status.json`: passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed.
+- `php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`: passed.
+- `php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed, 1 test file, 305 assertions, 0 failures.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: passed.
+- `git diff --check`: passed.
+
+Root verification:
+
+- Pre-focused and pre-root gates checked: root filesystem available KiB >= 86000000, load < 25, and no exact `php tools/run-tests.php` process.
+- `php tools/run-tests.php`: passed in the same clean worktree, 214 test files, 25990 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component activated; this slice reuses existing bounded smart HTTP receive-pack redirect handling and native status/path validation.
+
+Live-service exclusions: no live service/provider tests were run. Full Gitoxide cargo workspace runner was not run.
+
+Files staged:
+
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`
+- `lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `lanes/gitoxide/notes/wordpress-scenarios.md`
+- `lanes/gitoxide/tests/ReceivePackTransportTest.php`
+- `audits/integration-status.md`

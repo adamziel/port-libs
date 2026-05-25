@@ -112,7 +112,7 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 `examples/wordpress-smart-http-cleartext-credentials.php` documents the URL-credential guard for WordPress deployment tools: `http://deploy:token@...` is rejected before discovery I/O, so an HTTP-to-HTTPS redirect cannot leak Basic credentials from the first cleartext request.
 
-`examples/wordpress-smart-http-follow-redirects.php` documents an opted-in `followRedirects=true` receive-pack flow: discovery succeeds at the original repository URL, the POST receives safe same-host 307/308 redirects, and the PHP transport resends the same generated request body to the redirected receive-pack endpoint. It also records rejected 301, 302, and 303 POST redirects before replaying the generated pack body. This models WordPress deployment hosts that front Git repositories with same-origin routing or maintenance redirects without allowing cross-host credential, method-rewrite, or pack-body leaks.
+`examples/wordpress-smart-http-follow-redirects.php` documents an opted-in `followRedirects=true` receive-pack flow: discovery succeeds at the original repository URL, the POST receives safe same-host 307/308 redirects, and the PHP transport resends the same generated request body to the redirected receive-pack endpoint. It also records rejected 301, 302, 303, and wrong-endpoint 307 POST redirects before replaying the generated pack body. This models WordPress deployment hosts that front Git repositories with same-origin routing or maintenance redirects without allowing cross-host credential, method-rewrite, endpoint-switch, or pack-body leaks.
 
 ## WordPress Smart HTTP SOCKS/TLS Example
 

@@ -197,6 +197,50 @@ try {
     $seeOtherRedirectRejected = true;
 }
 
+$wrongEndpointRequests = [];
+$wrongEndpointRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$wrongEndpointRequests, $packet, $flush, $advertisement): array {
+    $wrongEndpointRequests[] = [
+        'method' => $method,
+        'url' => $url,
+        'headers' => $headers,
+        'body' => $body,
+    ];
+
+    if ($method === 'GET') {
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+        ];
+    }
+
+    return [
+        'status' => 307,
+        'headers' => ['Location' => 'https://git.example.test/redirected.git/git-upload-pack'],
+        'body' => '',
+    ];
+};
+
+$wrongEndpointRedirectRejected = false;
+$wrongEndpointClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        $wrongEndpointRequester,
+        ['version=1'],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-redirects/1'],
+        ['followRedirects' => true],
+    ),
+    'port-libs/wordpress',
+);
+$wrongEndpointSession = $wrongEndpointClient->handshake();
+$wrongEndpointSession->createOrUpdate('refs/heads/main', $blob->oid());
+try {
+    $wrongEndpointClient->send($wrongEndpointSession->buildRequest([$blob]));
+} catch (RuntimeException) {
+    $wrongEndpointRedirectRejected = true;
+}
+
 return [
     'requestMethods' => array_map(static fn (array $request): string => $request['method'], $requests),
     'requestUrls' => array_map(static fn (array $request): string => $request['url'], $requests),
@@ -207,6 +251,8 @@ return [
     'permanentRequestMethods' => array_map(static fn (array $request): string => $request['method'], $permanentRequests),
     'seeOtherPostRedirectRejected' => $seeOtherRedirectRejected,
     'seeOtherRequestMethods' => array_map(static fn (array $request): string => $request['method'], $seeOtherRequests),
+    'wrongEndpointPostRedirectRejected' => $wrongEndpointRedirectRejected,
+    'wrongEndpointRequestMethods' => array_map(static fn (array $request): string => $request['method'], $wrongEndpointRequests),
     'responseSuccessful' => $response->isSuccessful(),
-    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body, and rejects rewriting 301/302/303 POST redirects before replaying a generated pack.',
+    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body, and rejects rewriting 301/302/303 or wrong-endpoint POST redirects before replaying a generated pack.',
 ];
