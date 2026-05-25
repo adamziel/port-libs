@@ -251,6 +251,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
                 throw new \RuntimeException("smart HTTP receive-pack {$method} redirect missing Location header");
             }
 
+            $this->rememberCookies($response['headers']);
+            $cookieHeader = self::cookieHeader($this->cookies, self::headerValue($headers, 'cookie'));
+            if ($cookieHeader !== null) {
+                self::setHeader($headers, 'Cookie', $cookieHeader);
+            }
             $redirectUrl = self::resolveRedirectUrl($location, $effectiveUrl);
             $this->effectiveRepositoryUrl = self::redirectedBaseUrl($redirectUrl, $this->repositoryUrl, $url);
             $redirectsRemaining--;

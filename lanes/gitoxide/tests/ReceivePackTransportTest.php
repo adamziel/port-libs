@@ -657,7 +657,10 @@ return [
             if (count($requests) === 1) {
                 return [
                     'status' => 301,
-                    'headers' => ['Location' => 'https://git.example.test/redirected.git/info/refs?service=git-receive-pack'],
+                    'headers' => [
+                        'Location' => 'https://git.example.test/redirected.git/info/refs?service=git-receive-pack',
+                        'Set-Cookie' => 'redirect_gate=opened; Path=/; Secure',
+                    ],
                     'body' => '',
                 ];
             }
@@ -704,7 +707,8 @@ return [
         $t->same(null, $requests[0]['headers']['Authorization'] ?? null);
         $t->same(null, $requests[1]['headers']['Authorization'] ?? null);
         $t->same(null, $requests[2]['headers']['Authorization'] ?? null);
-        $t->same('redirected_session=ok', $requests[2]['headers']['Cookie']);
+        $t->same('redirect_gate=opened', $requests[1]['headers']['Cookie']);
+        $t->same('redirect_gate=opened; redirected_session=ok', $requests[2]['headers']['Cookie']);
         $t->same('version=1', $requests[2]['headers']['Git-Protocol']);
         $t->same($request->requestBytes(), $requests[2]['body']);
 
@@ -745,7 +749,10 @@ return [
                     if (count($postRedirectRequests) === 2) {
                         return [
                             'status' => 307,
-                            'headers' => ['Location' => 'https://git.example.test/redirected.git/git-receive-pack'],
+                            'headers' => [
+                                'Location' => 'https://git.example.test/redirected.git/git-receive-pack',
+                                'Set-Cookie' => 'post_redirect_gate=opened; Path=/; Secure',
+                            ],
                             'body' => '',
                         ];
                     }
@@ -774,6 +781,7 @@ return [
         $t->same('https://git.example.test/wp-content.git/git-receive-pack', $postRedirectRequests[1]['url']);
         $t->same('https://git.example.test/redirected.git/git-receive-pack', $postRedirectRequests[2]['url']);
         $t->same('POST', $postRedirectRequests[2]['method']);
+        $t->same('post_redirect_gate=opened', $postRedirectRequests[2]['headers']['Cookie']);
         $t->same($postRedirectRequest->requestBytes(), $postRedirectRequests[2]['body']);
 
         $relativePermanentRedirectRequests = [];
@@ -957,6 +965,7 @@ return [
             'https://git.example.test/redirected.git/git-receive-pack',
         ], $redirectExample['requestUrls']);
         $t->same(true, $redirectFixture['postBodyPreserved']);
+        $t->same('deploy_gate=opened', $redirectExample['redirectCookieHeader']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);

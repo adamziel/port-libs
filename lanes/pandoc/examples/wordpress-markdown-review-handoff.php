@@ -288,6 +288,10 @@ $document = new AstNode('document', $document->attrs, [
         'text' => '> Raw reviewer block: keep this migration note with the handoff.',
     ]),
     new AstNode('raw_block', [
+        'format' => 'markdown_strict',
+        'text' => '> Strict Markdown reviewer block: preserve source-only handoff.',
+    ]),
+    new AstNode('raw_block', [
         'format' => 'html',
         'text' => '<aside>internal reviewer note omitted from Markdown handoff</aside>',
     ]),

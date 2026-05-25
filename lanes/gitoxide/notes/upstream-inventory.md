@@ -681,6 +681,15 @@ Focused smart HTTP receive-pack POST redirect preservation inspected on 2026-05-
 - Priority keeper rework `priority-keeper-rework-20260525T094007Z` rebases the same smart HTTP receive-pack redirect behavior on accepted HEAD `1186fae48606c2cb3e68face7906541bd05d5be0`, preserving the accepted stream watchdog timeout, advertisement ERR packet reporting, 301/302/303 rewrite rejection, and wrong-endpoint 307 evidence while adding credential-bearing `307` POST redirect rejection before any generated WordPress pack body is replayed.
 - Priority finisher rework `priority-finisher-20260525T101218Z` rebases the same smart HTTP receive-pack redirect behavior on accepted HEAD `a301ac7cf7bb351327f549f663cf3f7d65d6f8b1`, preserving accepted commit-writer, stream watchdog, advertisement ERR, and prior POST redirect evidence while adding missing-Location `307` POST redirect rejection before any generated WordPress pack body can be replayed.
 
+Focused smart HTTP receive-pack redirect cookie carryover inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP redirect safety mapping and prior receive-pack redirect fixture coverage. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice now remembers `Set-Cookie` headers on followed redirect responses and applies the updated `Cookie` header to the redirected GET or method-preserving POST retry. This covers WordPress deployment gates that issue a short-lived session cookie during a route-preserving redirect before accepting the generated receive-pack body.
+- The WordPress smart HTTP follow-redirects fixture records redirect-issued cookie carryover for a safe relative `308` POST redirect while preserving the generated pack body and all prior rejection checks for rewriting, wrong-endpoint, credential-bearing, fragment-bearing, and missing-Location POST redirects.
+- Dependency closure for the redirect cookie carryover slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling and native cookie parsing/header composition; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the redirect cookie carryover slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 322 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
 Focused smart HTTP receive-pack URL credential safety inventory inspected on 2026-05-25:
 
 - Reused the existing static `gix-transport` smart HTTP credential/header boundary mapping. No live HTTP/provider runner was executed for this isolated micro-slice.

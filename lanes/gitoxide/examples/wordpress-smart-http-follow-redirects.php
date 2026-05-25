@@ -9,6 +9,7 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-smart-http-follow-redirects
 return [
     'requestMethods' => $fixture['requestMethods'],
     'requestUrls' => $fixture['requestUrls'],
+    'redirectCookieHeader' => $fixture['redirectCookieHeader'],
     'postBodyPreserved' => $fixture['postBodyPreserved'],
     'rewritingPostRedirectRejected' => $fixture['rewritingPostRedirectRejected'],
     'rewritingRequestMethods' => $fixture['rewritingRequestMethods'],

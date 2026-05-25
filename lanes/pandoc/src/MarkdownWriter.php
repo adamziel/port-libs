@@ -939,7 +939,7 @@ final class MarkdownWriter
     private function renderRawBlock(AstNode $node, int $indent): array
     {
         $format = strtolower((string) $node->attr('format', ''));
-        if ($node->type === 'raw_markdown' || in_array($format, ['markdown', 'pandoc', 'commonmark', 'gfm'], true)) {
+        if ($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) {
             $text = (string) $node->attr('text', $node->attr('markdown', ''));
         } elseif ($node->type === 'raw_tex' || in_array($format, ['tex', 'latex', 'context'], true)) {
             $text = (string) $node->attr('text', $node->attr('tex', ''));
@@ -956,7 +956,7 @@ final class MarkdownWriter
     private function renderRawInline(AstNode $node): string
     {
         $format = strtolower((string) $node->attr('format', ''));
-        if ($node->type === 'raw_markdown' || in_array($format, ['markdown', 'pandoc', 'commonmark', 'gfm'], true)) {
+        if ($node->type === 'raw_markdown' || $this->isMarkdownRawFormat($format)) {
             return (string) $node->attr('text', $node->attr('markdown', ''));
         }
 
@@ -965,6 +965,20 @@ final class MarkdownWriter
         }
 
         return '';
+    }
+
+    private function isMarkdownRawFormat(string $format): bool
+    {
+        return in_array($format, [
+            'markdown',
+            'markdown_strict',
+            'markdown_phpextra',
+            'markdown_mmd',
+            'pandoc',
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+        ], true);
     }
 
     /**
