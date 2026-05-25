@@ -961,10 +961,12 @@ return [
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);
         $t->same(true, $redirectFixture['wrongEndpointPostRedirectRejected']);
+        $t->same(true, $redirectFixture['credentialPostRedirectRejected']);
         $t->same(['GET', 'POST'], $redirectExample['rewritingRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['permanentRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['seeOtherRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['wrongEndpointRequestMethods']);
+        $t->same(['GET', 'POST'], $redirectExample['credentialRequestMethods']);
         $t->same(true, $redirectExample['responseSuccessful']);
 
         $crossHost = new SmartHttpReceivePackTransport(
@@ -1058,6 +1060,46 @@ return [
         $t->throws(RuntimeException::class, static fn () => $wrongEndpointPostRedirectClient->send($wrongEndpointPostRedirectRequest));
         $t->same(['GET', 'POST'], array_column($wrongEndpointPostRedirectRequests, 'method'));
         $t->same($wrongEndpointPostRedirectRequest->requestBytes(), $wrongEndpointPostRedirectRequests[1]['body']);
+
+        $credentialPostRedirectRequests = [];
+        $credentialPostRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$credentialPostRedirectRequests, $packet, $flush, $advertisement): array {
+                    $credentialPostRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 307,
+                        'headers' => ['Location' => 'https://redirect-user:redirect-pass@git.example.test/redirected.git/git-receive-pack'],
+                        'body' => '',
+                    ];
+                },
+                [],
+                7.0,
+                [],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $credentialPostRedirectSession = $credentialPostRedirectClient->handshake();
+        $credentialPostRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $credentialPostRedirectRequest = $credentialPostRedirectSession->buildRequest([$blob]);
+
+        $t->throws(RuntimeException::class, static fn () => $credentialPostRedirectClient->send($credentialPostRedirectRequest));
+        $t->same(['GET', 'POST'], array_column($credentialPostRedirectRequests, 'method'));
+        $t->same($credentialPostRedirectRequest->requestBytes(), $credentialPostRedirectRequests[1]['body']);
     },
     'smart http receive-pack applies proxy options and credential helpers' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';

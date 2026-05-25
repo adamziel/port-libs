@@ -241,6 +241,50 @@ try {
     $wrongEndpointRedirectRejected = true;
 }
 
+$credentialRedirectRequests = [];
+$credentialRedirectRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$credentialRedirectRequests, $packet, $flush, $advertisement): array {
+    $credentialRedirectRequests[] = [
+        'method' => $method,
+        'url' => $url,
+        'headers' => $headers,
+        'body' => $body,
+    ];
+
+    if ($method === 'GET') {
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+        ];
+    }
+
+    return [
+        'status' => 307,
+        'headers' => ['Location' => 'https://redirect-user:redirect-pass@git.example.test/redirected.git/git-receive-pack'],
+        'body' => '',
+    ];
+};
+
+$credentialRedirectRejected = false;
+$credentialClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        $credentialRedirectRequester,
+        ['version=1'],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-redirects/1'],
+        ['followRedirects' => true],
+    ),
+    'port-libs/wordpress',
+);
+$credentialSession = $credentialClient->handshake();
+$credentialSession->createOrUpdate('refs/heads/main', $blob->oid());
+try {
+    $credentialClient->send($credentialSession->buildRequest([$blob]));
+} catch (RuntimeException) {
+    $credentialRedirectRejected = true;
+}
+
 return [
     'requestMethods' => array_map(static fn (array $request): string => $request['method'], $requests),
     'requestUrls' => array_map(static fn (array $request): string => $request['url'], $requests),
@@ -253,6 +297,8 @@ return [
     'seeOtherRequestMethods' => array_map(static fn (array $request): string => $request['method'], $seeOtherRequests),
     'wrongEndpointPostRedirectRejected' => $wrongEndpointRedirectRejected,
     'wrongEndpointRequestMethods' => array_map(static fn (array $request): string => $request['method'], $wrongEndpointRequests),
+    'credentialPostRedirectRejected' => $credentialRedirectRejected,
+    'credentialRequestMethods' => array_map(static fn (array $request): string => $request['method'], $credentialRedirectRequests),
     'responseSuccessful' => $response->isSuccessful(),
-    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body, and rejects rewriting 301/302/303 or wrong-endpoint POST redirects before replaying a generated pack.',
+    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body, and rejects rewriting 301/302/303, wrong-endpoint, or credential-bearing POST redirects before replaying a generated pack.',
 ];

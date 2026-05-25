@@ -18,5 +18,7 @@ return [
     'seeOtherRequestMethods' => $fixture['seeOtherRequestMethods'],
     'wrongEndpointPostRedirectRejected' => $fixture['wrongEndpointPostRedirectRejected'],
     'wrongEndpointRequestMethods' => $fixture['wrongEndpointRequestMethods'],
+    'credentialPostRedirectRejected' => $fixture['credentialPostRedirectRejected'],
+    'credentialRequestMethods' => $fixture['credentialRequestMethods'],
     'responseSuccessful' => $fixture['responseSuccessful'],
 ];
