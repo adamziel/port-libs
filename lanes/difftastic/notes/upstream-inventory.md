@@ -647,3 +647,20 @@ git diff --check -- lanes/difftastic
 The focused test result for this slice is 1 selected test file, 1708 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
 
 Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing tree-highlights promotion evidence route; no shared shell parser, tree-sitter runtime, generated query engine, or native support library is activated.
+
+For this Swift keyword/operator/type highlight slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`. The mapped upstream boundary is difftastic's `tree_highlights` promotion of keyword, operator, and type captures into display spans: Swift keywords such as `struct`, `let`, `func`, `for`, `in`, `if`, `return`, `false`, and `true` are keyword-highlighted, punctuation/operators such as `:`, `->`, and `==` use keyword-style spans, and builtin types such as `String` and `Bool` use type spans. Ordinary function names, parameters, struct identifiers, and properties remain normal because unsupported function/field/property captures are not promoted into the display enum. The WordPress example applies this to `wp-content/plugins/acme-card/tools/BlockBridge.swift`, a plugin bridge-helper review path.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-swift-bridge-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-swift-bridge-highlight-display.php | php -r '$json = stream_get_contents(STDIN); json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo "example-json-ok\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test result for this slice is 1 selected test file, 1773 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing tree-highlights promotion evidence route; no shared Swift parser, tree-sitter runtime, generated query engine, or native support library is activated.

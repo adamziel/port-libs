@@ -163,7 +163,7 @@ final class SyntaxHighlightClassifier
             return false;
         }
 
-        if ($this->isGoLanguage($language) && $text === ':') {
+        if (($this->isGoLanguage($language) || $language === 'swift') && $text === ':') {
             return true;
         }
 
@@ -193,6 +193,7 @@ final class SyntaxHighlightClassifier
             'ruby',
             'rust',
             'sql',
+            'swift',
             'ts',
             'tsx',
             'typescript',
@@ -767,6 +768,16 @@ final class SyntaxHighlightClassifier
                 'transaction', 'union', 'unique', 'update', 'using', 'values',
                 'view', 'when', 'where', 'with',
             ],
+            'swift' => [
+                'as', 'associatedtype', 'break', 'case', 'catch', 'class',
+                'continue', 'default', 'defer', 'deinit', 'do', 'else', 'enum',
+                'extension', 'fallthrough', 'false', 'for', 'func', 'guard',
+                'if', 'import', 'in', 'init', 'inout', 'is', 'let', 'nil',
+                'operator', 'private', 'protocol', 'public', 'return',
+                'self', 'static', 'struct', 'subscript', 'super', 'switch',
+                'throw', 'throws', 'true', 'try', 'typealias', 'var', 'where',
+                'while',
+            ],
             'yaml', 'yml' => ['false', 'null', 'true'],
             default => [],
         };
@@ -812,6 +823,11 @@ final class SyntaxHighlightClassifier
                 'null', 'numeric', 'real', 'serial', 'smallint', 'string', 'text',
                 'time', 'timestamp', 'tinyint', 'uuid', 'varchar', 'varying',
                 'xml',
+            ],
+            'swift' => [
+                'any', 'bool', 'character', 'double', 'float', 'int', 'int8',
+                'int16', 'int32', 'int64', 'never', 'string', 'uint', 'uint8',
+                'uint16', 'uint32', 'uint64', 'void',
             ],
             default => [],
         };

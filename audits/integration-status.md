@@ -103873,3 +103873,65 @@ Files staged:
 - `lanes/rclone/src/OneDriveProviderLifecycle.php`
 - `lanes/rclone/tests/OneDriveProviderLifecycleTest.php`
 - `audits/integration-status.md`
+## Isolated clean-patch acceptance - difftastic Swift highlight - 2026-05-25 06:17 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T060505Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T060505Z.patch`.
+
+Lane/slice/session: `difftastic` / `watchdog-next-20260525T060505Z` /
+`port-difftastic`.
+
+Patch hash: verified
+`42533165654d5a89c6a39bc8ecb0e8637015a5717e57398942f8616d5735702a`
+with `sha256sum`.
+
+Apply path: direct `git apply --check` failed due to accepted coordination-file
+drift; bounded `git apply --3way` applied cleanly with no conflicts and no
+behavioral edits beyond the submitted slice.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-difftastic-swift-20260525T061323Z`:
+
+- `jq empty lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json`
+  - result: passed.
+- `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`
+  - result: no syntax errors detected.
+- `php -l lanes/difftastic/tests/TokenDifferTest.php`
+  - result: no syntax errors detected.
+- `php -l lanes/difftastic/examples/wordpress-swift-bridge-highlight-display.php`
+  - result: no syntax errors detected.
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`
+  - result: 1 test files, 1773 assertions, 0 failures.
+- `php lanes/difftastic/examples/wordpress-swift-bridge-highlight-display.php | php -r 'json_decode(stream_get_contents(STDIN), true, 512, JSON_THROW_ON_ERROR); echo "example-json-ok\n";'`
+  - result: `example-json-ok`.
+- `git diff --check`
+  - result: passed with no output.
+
+Root verification:
+
+- Pre-root exact no-argument harness gate:
+  `pgrep -af '^php tools/run-tests\.php$'`
+  - result: no active process.
+- `php tools/run-tests.php`
+  - result: 213 test files, 25560 assertions, 0 failures.
+
+Support-library/dependency-closure decision: no shared support-library row was
+activated. This is lane-local Swift display-capture parity in the existing
+difftastic tokenizer/classifier and renderer path; broader Swift structural
+parsing remains a future lane gate, not a support-library activation.
+
+Live-service exclusions: none applicable; no live-service provider tests were
+run.
+
+Files staged:
+
+- `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/difftastic/examples/wordpress-swift-bridge-highlight-display.php`
+- `lanes/difftastic/lane-status.json`
+- `lanes/difftastic/notes/upstream-inventory.md`
+- `lanes/difftastic/notes/wordpress-scenarios.md`
+- `lanes/difftastic/src/SyntaxHighlightClassifier.php`
+- `lanes/difftastic/tests/TokenDifferTest.php`
+- `audits/integration-status.md`

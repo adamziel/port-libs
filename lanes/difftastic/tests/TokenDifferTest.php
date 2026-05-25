@@ -3645,6 +3645,51 @@ return [
             $t->contains("{$normal}:normal", $encoded);
         }
     },
+    'json display renderer maps upstream swift keyword operator and type captures' => static function (TestRunner $t): void {
+        $before = "import Foundation\n\nfunc main() {}\n";
+        $after = "import Foundation\n\n"
+            . "struct Block {\n"
+            . "    let title: String\n"
+            . "    let enabled: Bool\n"
+            . "}\n\n"
+            . "func register(_ blocks: [Block]) -> Bool {\n"
+            . "    for block in blocks {\n"
+            . "        if block.enabled == false { return false }\n"
+            . "    }\n"
+            . "    return true\n"
+            . "}\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/swift_highlight.swift',
+            'Swift',
+            ['language' => 'swift'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Swift', $decoded['language']);
+        foreach (['struct', 'let', 'func', 'for', 'in', 'if', 'return', 'false', 'true'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach ([':', '->', '=='] as $operator) {
+            $t->contains("{$operator}:keyword", $encoded);
+        }
+        foreach (['String', 'Bool'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        foreach (['register', 'blocks', 'block', 'enabled', 'title'] as $normal) {
+            $t->contains("{$normal}:normal", $encoded);
+        }
+    },
     'json display renderer maps upstream python constructor decorators as type highlights' => static function (TestRunner $t): void {
         $before = "def migrate_post(post):\n    return post\n";
         $after = "@CacheWarmup\n"
@@ -4056,6 +4101,22 @@ return [
         }
 
         foreach (['register_blocks', 'blocks', 'block', 'dynamic', 'ipairs'] as $normal) {
+            $start = strpos($line, $normal);
+            $t->true($start !== false, "Fixture should contain {$normal}.");
+            $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream capture.");
+        }
+    },
+    'ansi highlighter maps upstream swift keyword operator and type captures' => static function (TestRunner $t): void {
+        $line = 'func register(_ blocks: [Block]) -> Bool { for block in blocks { if block.enabled == false { return false } } }';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'swift']);
+
+        foreach (['func', ':', '->', 'Bool', 'for', 'in', 'if', '==', 'false', 'return'] as $highlighted) {
+            $start = strpos($line, $highlighted);
+            $t->true($start !== false, "Fixture should contain {$highlighted}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($highlighted), 'style' => '1'], $spans, true), "{$highlighted} should follow upstream Swift keyword/type/operator styling.");
+        }
+
+        foreach (['register', 'blocks', 'Block', 'enabled'] as $normal) {
             $start = strpos($line, $normal);
             $t->true($start !== false, "Fixture should contain {$normal}.");
             $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream capture.");
@@ -4703,6 +4764,35 @@ return [
         }
         $t->contains('register_blocks:normal', $encoded);
         $t->contains('ipairs:normal', $encoded);
+    },
+    'wordpress swift bridge display follows upstream keyword type boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-swift-bridge-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/tools/BlockBridge.swift', $decoded['path']);
+        foreach (['struct', 'let', 'func', 'for', 'in', 'if', 'return', 'false', 'true'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach ([':', '->', '=='] as $operator) {
+            $t->contains("{$operator}:keyword", $encoded);
+        }
+        foreach (['String', 'Bool'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        $t->contains('register:normal', $encoded);
+        $t->contains('isDynamic:normal', $encoded);
     },
     'wordpress bash deploy display follows upstream keyword operator boundary' => static function (TestRunner $t): void {
         ob_start();
