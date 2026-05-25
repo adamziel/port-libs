@@ -122,6 +122,54 @@ Files staged:
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 # Integration Status
 
+## Clean-patch queue defer note - 20260525T062752Z
+
+Accepted source integrations in this pass are recorded below through
+`09873f79`. No dashboard artifacts were regenerated and no support-library row
+was activated.
+
+Deferred/conflicted markers with exact repair commands:
+
+- `port-difftastic-20260525T055535Z.ready`: current newest Difftastic marker
+  fails `git apply --check .tmux-team/tmp/handoff-candidates/port-difftastic-20260525T055535Z.patch`
+  against current `main`; `git apply --3way` leaves conflicts in
+  `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/lane-status.json`,
+  `lanes/difftastic/notes/upstream-inventory.md`,
+  `lanes/difftastic/notes/wordpress-scenarios.md`,
+  `lanes/difftastic/src/SyntaxHighlightClassifier.php`, and
+  `lanes/difftastic/tests/TokenDifferTest.php`. Lane repair command:
+  `git apply --3way .tmux-team/tmp/handoff-candidates/port-difftastic-20260525T055535Z.patch`,
+  then re-emit a patch rebased on current `main` with only the Swift highlight
+  classifier/test/example/status deltas and rerun the focused TokenDiffer checks.
+- `port-rclone-20260525T050722Z.ready`: current newest Rclone marker fails
+  `git apply --check .tmux-team/tmp/handoff-candidates/port-rclone-20260525T050722Z.patch`
+  against current `main` in `lanes/rclone/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/rclone/lane-status.json`. Lane repair command:
+  `git apply --3way .tmux-team/tmp/handoff-candidates/port-rclone-20260525T050722Z.patch`,
+  resolve only stale manifest/status drift, then rerun the exact focused test
+  named in the worker log before re-marking ready.
+- Older accepted-lane markers now fail apply after newer clean commits and
+  should be treated as stale/superseded unless a lane re-emits them on current
+  `main`: `port-syncthing-20260525T045639Z.ready`,
+  `port-syncthing-20260525T045947Z.ready`,
+  `port-syncthing-20260525T051538Z.ready`,
+  `port-syncthing-20260525T051951Z.ready`,
+  `port-esbuild-20260525T045743Z.ready`,
+  `port-esbuild-20260525T052717Z.ready`,
+  `port-esbuild-20260525T055845Z.ready`,
+  `port-dolt-20260525T045845Z.ready`, `port-dolt-20260525T050516Z.ready`,
+  `port-libsqlite-20260525T045947Z.ready`,
+  `port-libsqlite-20260525T050515Z.ready`, and
+  `port-libsqlite-20260525T052922Z.ready`.
+
+Clean-applying newest markers left for the next clean-patch pass, not rejected:
+`port-gitoxide-20260525T060503Z.ready`,
+`port-lightningcss-20260525T060503Z.ready`,
+`port-markerpdf-20260525T060503Z.ready`, and
+`port-pandoc-20260525T060504Z.ready`. Each still needs its own clean worktree,
+focused rerun, `git diff --check`, and no-argument `php tools/run-tests.php`
+before acceptance.
+
 ## Clean-patch integration - libsqlite - 20260525T062607Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T060503Z.ready`
