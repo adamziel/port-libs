@@ -1,3 +1,43 @@
+## Clean-patch accepted - Dolt constraint-only allow-commit review - 2026-05-25 23:19 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-dolt-20260525T230900Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`9c1c9fb5cdcd22912091a339f9cc37975ede82f65f969be6430ec0972647d5be`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`09f1f56d` (`Integrate Gitoxide smart HTTP redirect cookies`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/dolt/src/MergeStatusTable.php` passed.
+- `php -l lanes/dolt/tests/MergeStatusTableTest.php` passed.
+- `php -l lanes/dolt/examples/wordpress-merge-status-review.php` passed.
+- Dolt manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed:
+  `1 test files, 216 assertions, 0 failures`.
+- `php -r 'require "lanes/dolt/examples/wordpress-merge-status-review.php"; ...'`
+  confirmed the constraint-only allow-commit state remains committed,
+  non-merging, and exposes `wp_postmeta` plus `wp_import_audit`.
+- `git diff --check -- lanes/dolt` passed.
+
+Root verification:
+- An initial lock attempt did not run root because an external exact
+  no-argument root harness was active as PID `1555020`; the lock was released
+  and the gate was retried after that process cleared.
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=104597792` KiB and `load1=2.24`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26529 assertions, 0 failures`.
+
+Cleanup:
+- Pending until the commit is safely on `main`: remove the accepted ready
+  marker, patch, metadata file, referenced worker log, inactive source
+  worktree, and temporary verification worktree.
+
+Dashboard publication should run next after cleanup so `porting.html` and
+summary artifacts can reflect the accepted Dolt commit.
+
 ## Clean-patch accepted - Gitoxide smart HTTP redirect cookies - 2026-05-25 23:11 UTC
 
 Accepted one isolated marker:

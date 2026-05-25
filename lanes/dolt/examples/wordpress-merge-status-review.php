@@ -191,6 +191,11 @@ return [
         [],
         $fixture['constraintOnlyQueryableOptions'],
     ),
+    'constraintOnlyAllowedCommitState' => $mergeStatus->mergeAllowedCommitState(
+        [],
+        [],
+        $fixture['constraintOnlyViolationTables'],
+    ),
     'mergeConstraintError' => $constraintViolations->unresolvedMergeError($fixture['constraintViolationsByTable']),
     'mergeConstraintSummary' => $constraintViolations->mergeViolationSummaryText($fixture['constraintViolationsByTable']),
 ];

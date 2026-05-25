@@ -780,6 +780,23 @@ return [
             . "Constraint violations for the working set may be viewed using the 'dolt_constraint_violations' system table.\n"
             . "They may be queried and removed per-table using the 'dolt_constraint_violations_TABLENAME' system table.",
     ],
+    'expectedConstraintOnlyAllowedCommitState' => [
+        'error' => null,
+        'committed' => true,
+        'merge_status' => [
+            'is_merging' => false,
+            'source' => null,
+            'source_commit' => null,
+            'target' => null,
+            'unmerged_tables' => null,
+        ],
+        'conflict_rows' => [],
+        'constraint_violation_tables' => ['wp_postmeta', 'wp_import_audit'],
+        'post_commit_review_summary' => "Automatic merge failed; 2 table(s) are unmerged.\n"
+            . "Fix constraint violations and then commit the result.\n"
+            . "Constraint violations for the working set may be viewed using the 'dolt_constraint_violations' system table.\n"
+            . "They may be queried and removed per-table using the 'dolt_constraint_violations_TABLENAME' system table.",
+    ],
     'expectedMergeConstraintError' => ConstraintViolationsTable::UNRESOLVED_CONSTRAINT_VIOLATIONS_ERROR
         . ConstraintViolationsTable::CONSTRAINT_VIOLATIONS_LIST_PREFIX
         . "\nType: Foreign Key Constraint Violation\n"

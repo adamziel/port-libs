@@ -226,3 +226,11 @@ Next best slice: map the next bounded SQL merge visibility edge, preferably comm
 - Blocker: no Dolt PHP blocker in this micro-slice; full upstream Go/BATS parity remains out of scope for the isolated worker boundary.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/procedure projection surface and static upstream transaction/constraint guidance, with no shell-outs and no activation of a shared dependency.
 - Next task: map the next bounded SQL merge visibility edge, preferably commit/rollback cleanup after constraint-only violations, and keep it to one focused behavior with WordPress smoke evidence.
+
+## Continuous Dev 2026-05-25 23:09 UTC
+
+- Status delta: added native constraint-only SQL merge allow-commit visibility for `@@dolt_allow_commit_conflicts = 1`: constraint-only WordPress migration artifacts commit without transaction rollback/error, active merge status clears, `dolt_conflicts` rows remain empty, and `wp_postmeta` / `wp_import_audit` constraint artifact tables remain available for post-commit review.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 216 assertions, and 0 failures; syntax checks passed for changed PHP files; `wordpress-merge-status-review.php` smoke returned `committed=true`, inactive merge status, no conflict rows, and retained `wp_postmeta` / `wp_import_audit` constraint table names.
+- Blocker: no Dolt PHP blocker in this micro-slice; full upstream Go/BATS parity remains out of scope for the isolated worker boundary.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/constraint projection surface and static upstream transaction guidance, with no shell-outs and no activation of a shared dependency.
+- Next task: map post-commit cleanup/deletion semantics for constraint-only violation rows, keeping the slice bounded to visible status/conflict/constraint rows and WordPress migration review output.

@@ -633,6 +633,47 @@ final class MergeStatusTable
     }
 
     /**
+     * Project SQL-visible state after @@dolt_allow_commit_conflicts lets a
+     * transaction commit unresolved merge artifacts instead of rolling back.
+     *
+     * @param list<string|array{name:string, numConflicts?:int}> $dataConflictTables
+     * @param list<string|array{name:string, numConflicts?:int}> $schemaConflictTables
+     * @param list<string> $constraintViolationTables
+     * @param list<string|array{name:string, numConflicts?:int}> $rootObjectConflicts
+     * @return array{error:null, committed:bool, merge_status:array{is_merging:bool, source:string|null, source_commit:string|null, target:string|null, unmerged_tables:string|null}, conflict_rows:list<array{table:string,num_conflicts:int}>, constraint_violation_tables:list<non-empty-string>, post_commit_review_summary:string|null}
+     */
+    public function mergeAllowedCommitState(
+        array $dataConflictTables = [],
+        array $schemaConflictTables = [],
+        array $constraintViolationTables = [],
+        array $rootObjectConflicts = [],
+    ): array {
+        $artifactState = $this->resolveMergeArtifacts(
+            $dataConflictTables,
+            $schemaConflictTables,
+            $constraintViolationTables,
+            $rootObjectConflicts,
+        );
+        $hasArtifacts = $artifactState['conflict_rows'] !== [] || $artifactState['remaining_constraint_violations'] !== [];
+
+        return [
+            'error' => null,
+            'committed' => $hasArtifacts,
+            'merge_status' => $this->statusRow(false),
+            'conflict_rows' => $artifactState['conflict_rows'],
+            'constraint_violation_tables' => $artifactState['remaining_constraint_violations'],
+            'post_commit_review_summary' => $hasArtifacts
+                ? $this->mergeFailureSummary(
+                    $this->conflictRowsToItems($artifactState['remaining_data_conflicts']),
+                    $this->conflictRowsToItems($artifactState['remaining_schema_conflicts']),
+                    $artifactState['remaining_constraint_violations'],
+                    $this->conflictRowsToItems($artifactState['remaining_root_object_conflicts']),
+                )
+                : null,
+        ];
+    }
+
+    /**
      * Project upstream's pre-merge incompatible flag validation.
      *
      * @param array{squash?:bool, noFf?:bool, ffOnly?:bool, commit?:bool, noCommit?:bool} $options

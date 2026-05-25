@@ -676,6 +676,29 @@ return [
         $t->contains('fix constraint violations', $queryable['status_guidance']);
         $t->contains('dolt_constraint_violations', $queryable['merge_failure_summary']);
     },
+    'sql merge allow commit keeps artifacts reviewable after constraint-only commit' => static function (TestRunner $t): void {
+        $table = new MergeStatusTable();
+
+        $state = $table->mergeAllowedCommitState([], [], ['wp_postmeta', 'wp_import_audit']);
+        $t->same(null, $state['error']);
+        $t->same(true, $state['committed']);
+        $t->same(false, $state['merge_status']['is_merging']);
+        $t->same([], $state['conflict_rows']);
+        $t->same(['wp_postmeta', 'wp_import_audit'], $state['constraint_violation_tables']);
+        $t->contains('Automatic merge failed; 2 table(s) are unmerged.', $state['post_commit_review_summary']);
+        $t->contains('dolt_constraint_violations', $state['post_commit_review_summary']);
+
+        $withDataConflict = $table->mergeAllowedCommitState([['name' => 'wp_posts', 'numConflicts' => 2]], [], ['wp_postmeta']);
+        $t->same([
+            ['table' => 'wp_posts', 'num_conflicts' => 2],
+        ], $withDataConflict['conflict_rows']);
+        $t->same(['wp_postmeta'], $withDataConflict['constraint_violation_tables']);
+        $t->contains("Use 'dolt conflicts'", $withDataConflict['post_commit_review_summary']);
+
+        $clean = $table->mergeAllowedCommitState();
+        $t->same(false, $clean['committed']);
+        $t->same(null, $clean['post_commit_review_summary']);
+    },
     'dolt merge status validates active merge fields and conflict counts' => static function (TestRunner $t): void {
         $table = new MergeStatusTable();
 
@@ -817,6 +840,11 @@ return [
             [],
             $fixture['constraintOnlyQueryableOptions'],
         );
+        $constraintOnlyAllowedCommitState = $table->mergeAllowedCommitState(
+            [],
+            [],
+            $fixture['constraintOnlyViolationTables'],
+        );
         $mergeConstraintError = (new ConstraintViolationsTable())->unresolvedMergeError($fixture['constraintViolationsByTable']);
         $example = (static fn (): array => require __DIR__ . '/../examples/wordpress-merge-status-review.php')();
         $examplePreviewConflictRowsWithoutIds = array_map(static function (array $row): array {
@@ -859,6 +887,7 @@ return [
         $t->same($fixture['expectedSqlQueryableConflictState'], $sqlQueryableConflictState);
         $t->same($fixture['expectedConstraintOnlyRollbackState'], $constraintOnlyRollbackState);
         $t->same($fixture['expectedConstraintOnlyQueryableState'], $constraintOnlyQueryableState);
+        $t->same($fixture['expectedConstraintOnlyAllowedCommitState'], $constraintOnlyAllowedCommitState);
         $t->same($fixture['expectedMergeConstraintError'], $mergeConstraintError);
         $t->same($fixture['expectedPreviewConflictSummaryRows'], $example['previewConflictSummaryRows']);
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $examplePreviewConflictRowsWithoutIds);
@@ -899,6 +928,7 @@ return [
         $t->same($fixture['expectedSqlQueryableConflictState'], $example['sqlQueryableConflictState']);
         $t->same($fixture['expectedConstraintOnlyRollbackState'], $example['constraintOnlyRollbackState']);
         $t->same($fixture['expectedConstraintOnlyQueryableState'], $example['constraintOnlyQueryableState']);
+        $t->same($fixture['expectedConstraintOnlyAllowedCommitState'], $example['constraintOnlyAllowedCommitState']);
         $t->contains('wp_postmeta', $mergeStatus['unmerged_tables']);
         $t->same(22, strlen((string) $example['previewConflictRows'][0]['dolt_conflict_id']));
         $t->contains('Constraint violations:', $example['mergeConstraintError']);
@@ -922,6 +952,8 @@ return [
         $t->contains('wp_options', $example['sqlQueryableConflictState']['merge_status']['unmerged_tables']);
         $t->same([], $example['constraintOnlyQueryableState']['conflict_rows']);
         $t->contains('dolt_constraint_violations', $example['constraintOnlyQueryableState']['merge_failure_summary']);
+        $t->same(false, $example['constraintOnlyAllowedCommitState']['merge_status']['is_merging']);
+        $t->same(['wp_postmeta', 'wp_import_audit'], $example['constraintOnlyAllowedCommitState']['constraint_violation_tables']);
         $t->true(!in_array('wp_postmeta', array_column($conflictRows, 'table'), true));
     },
 ];
