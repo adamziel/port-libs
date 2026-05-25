@@ -580,6 +580,29 @@ Files staged:
 - `lanes/syncthing/notes/wordpress-scenarios.md`
 - `lanes/syncthing/src/FolderWatchScanScheduler.php`
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+## Integration deferred - quadrable direct integer proof rework - 2026-05-25 08:35 UTC
+
+No quadrable source was accepted from `.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T080306Z.ready` in this pass.
+
+Marker fields were processable: lane `quadrable`, slice `priority-rework-20260525T080340Z`, session `port-quadrable-rework`, patch `.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T080306Z.patch`, metadata `.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T080306Z.md`, and log `.tmux-team/logs/isolated-lane-workers/port-quadrable-rework-20260525T080306Z.log`. Patch sha256 matched `4761c0649b3d3d82ba33308d1e07f622d1a815760c1b5038d2ca4951785bf31c`.
+
+Clean acceptance attempt from `9d1ad84035f093169932c1e9b60137eacfa201ca` passed focused checks and root verification, but `main` moved to `48912aa98580a6780820f885f32a273c9c6e5c4a` before the atomic update. The required single retry from `48912aa98580a6780820f885f32a273c9c6e5c4a` also passed focused checks and root verification, but `main` moved again to `19e76904418b24d54c707be484e5605659bb5e00` before the atomic update. Per the clean-patch procedure, the patch is deferred after the one retry rather than forcing the branch ref.
+
+Focused checks that passed in clean retry worktree `/tmp/port-clean-integrator-quadrable-priority-rework-20260525T080306Z-retry`:
+
+- `php -l lanes/quadrable/tests/QuadbStoreTest.php` passed with no syntax errors.
+- `php -l lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php` passed with no syntax errors.
+- Quadrable JSON status/manifest parse check passed and printed `json ok`.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passed: 1 test file, 959 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php` passed and emitted `integerDirectMatchesStdinProof: true`.
+- `git diff --check` passed.
+
+Root gate before retry root run was open: `/` available `121143504` KiB, load `5.65`, and no exact `php tools/run-tests.php` process. Retry root verification passed with `php tools/run-tests.php`: 214 test files, 25,917 assertions, 0 failures.
+
+Repair command for the next pass: from a fresh clean worktree at the then-current `refs/heads/main`, run `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T080306Z.patch`; if the same status conflicts appear, preserve the current accepted quadrable status text and add only this marker's direct `quadb exportProof --int` evidence in `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/lane-status.json`, and `lanes/quadrable/notes/upstream-inventory.md`, then rerun the focused commands, `git diff --check`, and one no-argument root harness.
+
+Support-library/dependency-closure decision: no new support component should be activated for this marker; it reuses existing proof transport, CLI integer parser, `QuadbStore` command wrappers, and the WordPress proof-stdin/binary example. Live-service exclusions: none needed; no live provider tests were run.
+
 # Integration Status
 
 ## Clean-patch queue defer note - 20260525T062752Z
