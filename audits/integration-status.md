@@ -99712,7 +99712,7 @@ Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/
 Ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T011459Z.ready`.
 Patch: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T011459Z.patch`.
 Lane/slice/session: `gitoxide` / `supervisor-next-20260525T011458Z` / `port-gitoxide`.
-Focused verification in clean worktree: `php -l` on changed PHP files passed; `jq empty lanes/gitoxide/lane-status.json lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` passed; `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed with 1 test file, 222 assertions, 0 failures; `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0; `git diff --check` passed.
+Focused verification in clean worktree: `php -l` on changed PHP files passed; `jq empty lanes/gitoxide/lane-status.json lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` passed; `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed with 1 test file, 221 assertions, 0 failures; `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0; `git diff --check` passed.
 Root verification: `php tools/run-tests.php` passed with 208 test files, 24521 assertions, 0 failures in the same clean worktree.
 Support-library/dependency closure: no new support-library activation; this reuses lane-local receive-pack transport URL parsing, pkt-line construction, and native string validation.
 Live-service exclusions: none; no live-service provider tests were run.
