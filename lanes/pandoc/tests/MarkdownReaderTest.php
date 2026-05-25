@@ -3137,6 +3137,52 @@ MD;
             ': Grid span review',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer multi block table cell fallback safely inside pipe rows' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'alignments' => ['left', 'left'],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Source'])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Nested review'])]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'legacy import'])]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('paragraph', [], [
+                                new AstNode('text', ['text' => 'Reviewer note']),
+                            ]),
+                            new AstNode('table', [
+                                'alignments' => ['left', 'right'],
+                            ], [
+                                new AstNode('table_head', [], [
+                                    new AstNode('table_row', ['header' => true], [
+                                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Field'])]),
+                                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Count'])]),
+                                    ]),
+                                ]),
+                                new AstNode('table_body', [], [
+                                    new AstNode('table_row', [], [
+                                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'posts | pages'])]),
+                                        new AstNode('table_cell', [], [new AstNode('text', ['text' => '42'])]),
+                                    ]),
+                                ]),
+                            ]),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '| Source        | Nested review                                                                                                            |',
+            '|:------------|:-----------------------------------------------------------------------------------------------------------------------|',
+            '| legacy import | Reviewer note<br /><br />\\| Field          \\| Count \\|<br />\\|:-------------\\|----:\\|<br />\\| posts \\| pages \\|    42 \\| |',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

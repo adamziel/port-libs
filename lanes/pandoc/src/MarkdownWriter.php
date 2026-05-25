@@ -490,10 +490,18 @@ final class MarkdownWriter
         }
 
         $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
+        if (!$hasOnlyInlines) {
+            $markdown = $this->escapeTableCellPipes($markdown);
+        }
         $markdown = str_replace("\\\r\n", "<br />", $markdown);
         $markdown = str_replace("\\\n", "<br />", $markdown);
 
         return str_replace(["\r\n", "\r", "\n"], [' ', ' ', '<br />'], trim($markdown));
+    }
+
+    private function escapeTableCellPipes(string $markdown): string
+    {
+        return preg_replace('/(?<!\\\\)\|/', '\\\\|', $markdown) ?? $markdown;
     }
 
     /**

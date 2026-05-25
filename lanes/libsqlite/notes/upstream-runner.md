@@ -13,6 +13,7 @@ default and caller-supplied indentation through the accepted formatter,
 handles one-or-two argument vectors for SQL-style arity validation, accepts
 scalar SQL argument-vector values including integers, floats, and booleans,
 accepts the same scalar SQL values through the direct SQL-dispatch helper,
+preserves whole REAL spelling such as `3.0` through both SQL-dispatch paths,
 accepts JSON subtype input, preserves SQL NULL and malformed input propagation,
 and rejects invalid function names through both direct and argument-vector dispatch without changing the accepted
 `json_pretty(JSON[,INDENT])` formatting boundary.
@@ -41,6 +42,12 @@ Priority-keeper refresh 2026-05-25T09:58Z adds the missing direct-dispatch
 `true` scalar assertion so the native evidence covers both boolean SQL scalar
 values through direct and argument-vector dispatch. Focused PHP verification
 passed with 1 selected file, 2054 assertions, and 0 failures.
+Priority-finisher refresh 2026-05-25T10:13Z adds the missing whole-REAL
+`3.0` scalar coercion case through direct and argument-vector SQL dispatch so
+the rework preserves SQLite-style REAL text instead of PHP's collapsed float
+cast. Focused PHP verification passed with 1 selected file, 2056 assertions,
+and 0 failures; the WordPress smoke reported `scalar_whole_real_settings` as
+JSON string `3.0`.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty

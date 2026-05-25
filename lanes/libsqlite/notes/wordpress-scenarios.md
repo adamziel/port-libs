@@ -10,8 +10,8 @@ The example
 `examples/wordpress-json-pretty-option-review.php` exercises the dispatch
 path for copied `wp_options.option_value` inputs, including strict JSON text,
 SQLite JSON5 text, cast text BLOBs, JSONB blobs, SQL NULL option values,
-scalar SQL option values including booleans and floats, malformed settings,
-and custom indentation. This gives WordPress migration and
+scalar SQL option values including booleans, fractional floats, and whole REAL
+values, malformed settings, and custom indentation. This gives WordPress migration and
 repair tooling a local-only review path that mirrors SQLite's SQL entry point
 without requiring the SQLite extension.
 
@@ -33,6 +33,9 @@ adds focused malformed JSON propagation coverage through the argument-vector
 SQL-dispatch path, preserving the already accepted manifest/status evidence.
 Priority-keeper refresh 2026-05-25T09:58Z adds the missing direct-dispatch
 `true` scalar assertion without changing the WordPress smoke surface.
+Priority-finisher refresh 2026-05-25T10:13Z preserves whole REAL scalar output
+such as `3.0` through direct and argument-vector SQL dispatch and adds that
+case to the WordPress smoke surface.
 
 ## `json_each()` Option-Value Expansion Scenario
 

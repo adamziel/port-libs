@@ -1546,6 +1546,7 @@ return [
                 . "1,wp_options:siteurl=https://example.test\n"
                 . "2,wp_options:home=https://example.test\n"
                 . "4,wp_posts:1=Published post\n"
+                . "2147483647,wp_posts:max=Boundary post\n"
             );
 
             $root = $repo->tree()->rootHash();
@@ -1604,6 +1605,14 @@ return [
             $t->same(0, $spacedPlusProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([2, 4]), $spacedPlusProof['stdout']);
             $t->same('', $spacedPlusProof['stderr']);
+            $maxIntegerProof = QuadbStore::exportProofCommandOutput(
+                $dir,
+                ['0002147483647suffix', '+0000000002'],
+                integerKeys: true
+            );
+            $t->same(0, $maxIntegerProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([2147483647, 2]), $maxIntegerProof['stdout']);
+            $t->same('', $maxIntegerProof['stderr']);
             $signedZeroProof = QuadbStore::exportProofCommandOutput($dir, ['-0suffix', '+0'], integerKeys: true);
             $t->same(0, $signedZeroProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([0]), $signedZeroProof['stdout']);

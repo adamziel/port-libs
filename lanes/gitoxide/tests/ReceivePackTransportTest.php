@@ -962,11 +962,13 @@ return [
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);
         $t->same(true, $redirectFixture['wrongEndpointPostRedirectRejected']);
         $t->same(true, $redirectFixture['credentialPostRedirectRejected']);
+        $t->same(true, $redirectFixture['missingLocationPostRedirectRejected']);
         $t->same(['GET', 'POST'], $redirectExample['rewritingRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['permanentRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['seeOtherRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['wrongEndpointRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['credentialRequestMethods']);
+        $t->same(['GET', 'POST'], $redirectExample['missingLocationRequestMethods']);
         $t->same(true, $redirectExample['responseSuccessful']);
 
         $crossHost = new SmartHttpReceivePackTransport(
@@ -1100,6 +1102,46 @@ return [
         $t->throws(RuntimeException::class, static fn () => $credentialPostRedirectClient->send($credentialPostRedirectRequest));
         $t->same(['GET', 'POST'], array_column($credentialPostRedirectRequests, 'method'));
         $t->same($credentialPostRedirectRequest->requestBytes(), $credentialPostRedirectRequests[1]['body']);
+
+        $missingLocationPostRedirectRequests = [];
+        $missingLocationPostRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$missingLocationPostRedirectRequests, $packet, $flush, $advertisement): array {
+                    $missingLocationPostRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 307,
+                        'headers' => [],
+                        'body' => '',
+                    ];
+                },
+                [],
+                7.0,
+                [],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $missingLocationPostRedirectSession = $missingLocationPostRedirectClient->handshake();
+        $missingLocationPostRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $missingLocationPostRedirectRequest = $missingLocationPostRedirectSession->buildRequest([$blob]);
+
+        $t->throws(RuntimeException::class, static fn () => $missingLocationPostRedirectClient->send($missingLocationPostRedirectRequest));
+        $t->same(['GET', 'POST'], array_column($missingLocationPostRedirectRequests, 'method'));
+        $t->same($missingLocationPostRedirectRequest->requestBytes(), $missingLocationPostRedirectRequests[1]['body']);
     },
     'smart http receive-pack applies proxy options and credential helpers' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';

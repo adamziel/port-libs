@@ -65,6 +65,7 @@ try {
         "0,wp_options:blog_public=1\n"
         . "2,wp_options:home=https://example.test\n"
         . "4,wp_posts:1=Published post\n"
+        . "2147483647,wp_posts:max=Boundary post\n"
     );
     $integerProofCommand = QuadbStore::exportProofStdinCommandOutput(
         $integerDir,
@@ -107,6 +108,11 @@ try {
     $spacedPlusProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['  +2suffix', ' +4'],
+        integerKeys: true
+    );
+    $maxIntegerProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['0002147483647suffix', '+0000000002'],
         integerKeys: true
     );
     $signedZeroProofCommand = QuadbStore::exportProofCommandOutput(
@@ -159,6 +165,8 @@ try {
         'numericPrefixIntegerBinaryProofBytes' => strlen($numericPrefixProofCommand['stdout']),
         'spacedPlusIntegerExportProofExitCode' => $spacedPlusProofCommand['exitCode'],
         'spacedPlusIntegerProofMatchesNumericPrefix' => $spacedPlusProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
+        'maxIntegerExportProofExitCode' => $maxIntegerProofCommand['exitCode'],
+        'maxIntegerBinaryProofBytes' => strlen($maxIntegerProofCommand['stdout']),
         'signedZeroIntegerExportProofExitCode' => $signedZeroProofCommand['exitCode'],
         'signedZeroIntegerBinaryProofBytes' => strlen($signedZeroProofCommand['stdout']),
         'emptyIntegerExportProofExitCode' => $emptyIntegerProofCommand['exitCode'],

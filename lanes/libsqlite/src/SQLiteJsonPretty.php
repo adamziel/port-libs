@@ -84,6 +84,14 @@ final class SQLiteJsonPretty
         if (is_bool($value)) {
             return $value ? '1' : '0';
         }
+        if (is_float($value)) {
+            $encoded = json_encode($value, JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
+            if (!is_string($encoded)) {
+                throw new \InvalidArgumentException('SQLite JSON pretty SQL scalar could not be encoded');
+            }
+
+            return $encoded;
+        }
 
         return (string) $value;
     }
