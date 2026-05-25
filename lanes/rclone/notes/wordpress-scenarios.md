@@ -234,7 +234,7 @@ The `../examples/wordpress-onedrive-update-upload-selection.php` scenario maps O
 
 The `../examples/wordpress-onedrive-put-create-object.php` scenario maps OneDrive `Fs.Put`/`createObject` setup for WXR migration preflights. It creates a zero-byte WXR marker through a known parent ID and temporary no-metadata object, sends a large reviewer-permission WXR export through the multipart path, reports missing parent lookup failure before upload, and annotates a OneNote `nameAlreadyExists` conflict with the upstream overwrite hint, all without OAuth or live provider credentials.
 
-The `../examples/wordpress-onedrive-token-renewer-preflight.php` scenario maps OneDrive token-renewer rearming for WordPress media upload preflights. It records idle expiry suppression, active-upload root metadata refresh, post-upload idle suppression, handled-expiry rearm accounting, shutdown disarm/suppression, and `secretInputsRead=false` without OAuth token stores, process environments, provider remotes, or live credentials.
+The `../examples/wordpress-onedrive-token-renewer-preflight.php` scenario maps OneDrive token-renewer rearming for WordPress media upload preflights. It records idle expiry suppression, active-upload root metadata refresh, post-upload idle suppression, explicit rearmed-state reporting after handled active expiry, handled-expiry rearm accounting, shutdown disarm/suppression, and `secretInputsRead=false` without OAuth token stores, process environments, provider remotes, or live credentials.
 
 ## Next Task
 

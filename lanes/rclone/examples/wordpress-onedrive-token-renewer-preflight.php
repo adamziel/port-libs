@@ -17,6 +17,7 @@ $renewer = new OneDriveTokenRenewer(
 $idleExpiry = $renewer->expire();
 $renewer->startUpload();
 $activeExpiry = $renewer->expire();
+$wasArmedAfterActiveExpiry = $renewer->isArmedForNextExpiry();
 $renewer->stopUpload();
 $postUploadExpiry = $renewer->expire();
 $renewer->shutdown();
@@ -33,6 +34,7 @@ return [
     'activeUploadsAfterStop' => $renewer->activeUploads(),
     'expirySignals' => $renewer->expirySignals(),
     'armedForNextExpiry' => $renewer->isArmedForNextExpiry(),
+    'wasArmedAfterActiveExpiry' => $wasArmedAfterActiveExpiry,
     'events' => $renewer->events(),
     'secretInputsRead' => false,
 ];

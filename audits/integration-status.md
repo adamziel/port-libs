@@ -100930,3 +100930,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php lanes/quadrable/lane-status.json lanes/quadrable/notes/upstream-inventory.md lanes/quadrable/notes/wordpress-scenarios.md lanes/quadrable/src/QuadbStore.php lanes/quadrable/tests/QuadbStoreTest.php `
 
+
+## Clean-patch integration accepted - rclone - 2026-05-25 02:52 UTC
+
+Ready marker: `port-rclone-20260525T024110Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T024110Z.patch`
+Lane/slice/session: `rclone` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `589f480105a829a7881e993af6cc0be90a37b48e`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/rclone/tests`: exit 0; PASS track renames wordpress uploads while archiving unmatched stale artifacts  32 test files, 3846 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24831 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php lanes/rclone/lane-status.json lanes/rclone/notes/upstream-inventory.md lanes/rclone/notes/wordpress-scenarios.md lanes/rclone/src/OneDriveTokenRenewer.php lanes/rclone/tests/OneDriveTokenRenewerTest.php `
+

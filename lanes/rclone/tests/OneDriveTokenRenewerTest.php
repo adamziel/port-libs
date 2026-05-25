@@ -61,6 +61,7 @@ return [
         $t->same(true, $result['refreshed']);
         $t->same('root metadata unavailable', $result['error']);
         $t->same(1, $result['activeUploads']);
+        $t->same(true, $renewer->isArmedForNextExpiry());
         $t->same([
             'upload-started',
             'expiry-refresh-started',
@@ -137,6 +138,7 @@ return [
         $t->same(0, $example['activeUploadsAfterStop']);
         $t->same(3, $example['expirySignals']);
         $t->same(false, $example['armedForNextExpiry']);
+        $t->same(true, $example['wasArmedAfterActiveExpiry']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];
