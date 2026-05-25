@@ -268,6 +268,8 @@ return [
         $t->same(false, $example['enabledTypeErrorProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['missingRemoteArgError']);
         $t->same(false, $example['missingRemoteArgProviderCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $example['extraRemoteArgError']);
+        $t->same(false, $example['extraRemoteArgProviderCalled']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];

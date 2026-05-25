@@ -285,6 +285,50 @@ try {
     $credentialRedirectRejected = true;
 }
 
+$fragmentRedirectRequests = [];
+$fragmentRedirectRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$fragmentRedirectRequests, $packet, $flush, $advertisement): array {
+    $fragmentRedirectRequests[] = [
+        'method' => $method,
+        'url' => $url,
+        'headers' => $headers,
+        'body' => $body,
+    ];
+
+    if ($method === 'GET') {
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+        ];
+    }
+
+    return [
+        'status' => 307,
+        'headers' => ['Location' => 'https://git.example.test/redirected.git/git-receive-pack#pack'],
+        'body' => '',
+    ];
+};
+
+$fragmentRedirectRejected = false;
+$fragmentClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        $fragmentRedirectRequester,
+        ['version=1'],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-redirects/1'],
+        ['followRedirects' => true],
+    ),
+    'port-libs/wordpress',
+);
+$fragmentSession = $fragmentClient->handshake();
+$fragmentSession->createOrUpdate('refs/heads/main', $blob->oid());
+try {
+    $fragmentClient->send($fragmentSession->buildRequest([$blob]));
+} catch (RuntimeException) {
+    $fragmentRedirectRejected = true;
+}
+
 $missingLocationRequests = [];
 $missingLocationRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$missingLocationRequests, $packet, $flush, $advertisement): array {
     $missingLocationRequests[] = [
@@ -343,6 +387,8 @@ return [
     'wrongEndpointRequestMethods' => array_map(static fn (array $request): string => $request['method'], $wrongEndpointRequests),
     'credentialPostRedirectRejected' => $credentialRedirectRejected,
     'credentialRequestMethods' => array_map(static fn (array $request): string => $request['method'], $credentialRedirectRequests),
+    'fragmentPostRedirectRejected' => $fragmentRedirectRejected,
+    'fragmentRequestMethods' => array_map(static fn (array $request): string => $request['method'], $fragmentRedirectRequests),
     'missingLocationPostRedirectRejected' => $missingLocationRedirectRejected,
     'missingLocationRequestMethods' => array_map(static fn (array $request): string => $request['method'], $missingLocationRequests),
     'responseSuccessful' => $response->isSuccessful(),

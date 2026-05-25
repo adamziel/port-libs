@@ -48,6 +48,9 @@ the rework preserves SQLite-style REAL text instead of PHP's collapsed float
 cast. Focused PHP verification passed with 1 selected file, 2056 assertions,
 and 0 failures; the WordPress smoke reported `scalar_whole_real_settings` as
 JSON string `3.0`.
+Clean-integrator rebase 2026-05-25T10:17Z also retains the signed-integer and
+fractional-float scalar assertions from the priority-keeper handoff through
+both SQL-dispatch entry points, plus matching WordPress smoke values.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty

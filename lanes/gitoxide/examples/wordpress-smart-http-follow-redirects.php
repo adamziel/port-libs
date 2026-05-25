@@ -20,6 +20,8 @@ return [
     'wrongEndpointRequestMethods' => $fixture['wrongEndpointRequestMethods'],
     'credentialPostRedirectRejected' => $fixture['credentialPostRedirectRejected'],
     'credentialRequestMethods' => $fixture['credentialRequestMethods'],
+    'fragmentPostRedirectRejected' => $fixture['fragmentPostRedirectRejected'],
+    'fragmentRequestMethods' => $fixture['fragmentRequestMethods'],
     'missingLocationPostRedirectRejected' => $fixture['missingLocationPostRedirectRejected'],
     'missingLocationRequestMethods' => $fixture['missingLocationRequestMethods'],
     'responseSuccessful' => $fixture['responseSuccessful'],

@@ -72,6 +72,11 @@ $missingRemoteArg = OneDriveCleanupCommand::run($objects, [
     'featureAvailable' => false,
     'walkError' => 'would not be reached',
 ]);
+$extraRemoteArg = OneDriveCleanupCommand::run($objects, [
+    'remoteArgs' => ['onedrive:', 'backup:'],
+    'featureAvailable' => false,
+    'walkError' => 'would not be reached',
+]);
 
 return [
     'source' => 'onedrive-cleanup-command-preflight',
@@ -89,5 +94,7 @@ return [
     'enabledTypeErrorProviderCalled' => $enabledTypeError['providerCalled'],
     'missingRemoteArgError' => $missingRemoteArg['error'],
     'missingRemoteArgProviderCalled' => $missingRemoteArg['providerCalled'],
+    'extraRemoteArgError' => $extraRemoteArg['error'],
+    'extraRemoteArgProviderCalled' => $extraRemoteArg['providerCalled'],
     'secretInputsRead' => false,
 ];

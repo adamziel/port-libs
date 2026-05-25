@@ -1578,6 +1578,11 @@ return [
                 'stdout' => $proofHex,
                 'stderr' => '',
             ], QuadbStore::exportProofStdinCommandOutput($dir, "2\n4\n99\n", hex: true, integerKeys: true));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $proofBytes,
+                'stderr' => '',
+            ], QuadbStore::exportProofStdinCommandOutput($dir, "2\r\n4\r\n99\r\n", integerKeys: true));
             $integerDump = QuadbStore::exportProofCommandOutput($dir, ['2', '4', '99'], dump: true, integerKeys: true);
             $t->same(0, $integerDump['exitCode']);
             $t->contains('ITEMS (2):', $integerDump['stdout']);

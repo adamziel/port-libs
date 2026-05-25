@@ -968,6 +968,7 @@ return [
         $t->same(['GET', 'POST'], $redirectExample['seeOtherRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['wrongEndpointRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['credentialRequestMethods']);
+        $t->same(['GET', 'POST'], $redirectExample['fragmentRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['missingLocationRequestMethods']);
         $t->same(true, $redirectExample['responseSuccessful']);
 
@@ -1102,6 +1103,46 @@ return [
         $t->throws(RuntimeException::class, static fn () => $credentialPostRedirectClient->send($credentialPostRedirectRequest));
         $t->same(['GET', 'POST'], array_column($credentialPostRedirectRequests, 'method'));
         $t->same($credentialPostRedirectRequest->requestBytes(), $credentialPostRedirectRequests[1]['body']);
+
+        $fragmentPostRedirectRequests = [];
+        $fragmentPostRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$fragmentPostRedirectRequests, $packet, $flush, $advertisement): array {
+                    $fragmentPostRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 307,
+                        'headers' => ['Location' => 'https://git.example.test/redirected.git/git-receive-pack#pack'],
+                        'body' => '',
+                    ];
+                },
+                [],
+                7.0,
+                [],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $fragmentPostRedirectSession = $fragmentPostRedirectClient->handshake();
+        $fragmentPostRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $fragmentPostRedirectRequest = $fragmentPostRedirectSession->buildRequest([$blob]);
+
+        $t->throws(RuntimeException::class, static fn () => $fragmentPostRedirectClient->send($fragmentPostRedirectRequest));
+        $t->same(['GET', 'POST'], array_column($fragmentPostRedirectRequests, 'method'));
+        $t->same($fragmentPostRedirectRequest->requestBytes(), $fragmentPostRedirectRequests[1]['body']);
 
         $missingLocationPostRedirectRequests = [];
         $missingLocationPostRedirectClient = new ReceivePackClient(

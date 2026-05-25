@@ -76,6 +76,11 @@ try {
         throw new RuntimeException($integerProofCommand['stderr']);
     }
     $integerProofBytes = $integerProofCommand['stdout'];
+    $integerCrlfProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "2\r\n4\r\n99\r\n",
+        integerKeys: true
+    );
     $directIntegerProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['2', '4', '99'],
@@ -155,6 +160,8 @@ try {
         'integerStdinKeys' => [2, 4, 99],
         'integerExportProofStdinExitCode' => $integerProofCommand['exitCode'],
         'integerBinaryProofBytes' => strlen($integerProofBytes),
+        'integerCrlfProofMatchesLf' => $integerCrlfProofCommand['stdout'] === $integerProofBytes
+            && $integerCrlfProofCommand['exitCode'] === 0,
         'directIntegerExportProofExitCode' => $directIntegerProofCommand['exitCode'],
         'directIntegerBinaryProofMatchesStdin' => $directIntegerProofCommand['stdout'] === $integerProofBytes,
         'directIntegerHexProofMatchesStdin' => $directIntegerHexProofCommand === $integerHexProofCommand,

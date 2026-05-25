@@ -36,6 +36,8 @@ Priority-keeper refresh 2026-05-25T09:58Z adds the missing direct-dispatch
 Priority-finisher refresh 2026-05-25T10:13Z preserves whole REAL scalar output
 such as `3.0` through direct and argument-vector SQL dispatch and adds that
 case to the WordPress smoke surface.
+Clean-integrator rebase 2026-05-25T10:17Z also keeps signed integer and
+fractional float option-value smoke coverage in the same SQL-dispatch cluster.
 
 ## `json_each()` Option-Value Expansion Scenario
 
