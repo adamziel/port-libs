@@ -673,12 +673,16 @@ final class MarkdownWriter
 
         $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
         if (is_array($shortCaptionInlines) && $shortCaptionInlines !== []) {
-            return '[' . $this->renderInlines($shortCaptionInlines) . '] ' . $caption;
+            $shortCaption = '[' . $this->renderInlines($shortCaptionInlines) . ']';
+
+            return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
 
         $shortCaption = (string) $node->attr('shortCaption', '');
         if ($shortCaption !== '') {
-            return '[' . $this->escapeText($shortCaption) . '] ' . $caption;
+            $shortCaption = '[' . $this->escapeText($shortCaption) . ']';
+
+            return $caption === '' ? $shortCaption : $shortCaption . ' ' . $caption;
         }
 
         return $caption;

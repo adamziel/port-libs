@@ -3137,6 +3137,54 @@ MD;
             ': [fallback \\[short\\]] fallback long',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer short only table captions without dangling long caption space' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('table', [
+                'shortCaptionInlines' => [
+                    new AstNode('text', ['text' => 'Review ']),
+                    new AstNode('strong', [], [new AstNode('text', ['text' => 'queue'])]),
+                ],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Item'])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'State'])]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'media'])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'queued'])]),
+                    ]),
+                ]),
+            ]),
+            new AstNode('table', [
+                'shortCaption' => 'fallback [queue]',
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'A'])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            implode("\n", [
+                '| Item  | State  |',
+                '|-----|------|',
+                '| media | queued |',
+                '',
+                ': [Review **queue**]',
+            ]),
+            implode("\n", [
+                '| A   |',
+                '|---|',
+                '',
+                ': [fallback \\[queue\\]]',
+            ]),
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer definition lists with multiple block bodies' => static function (TestRunner $t): void {
         $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

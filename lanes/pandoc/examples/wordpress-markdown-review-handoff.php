@@ -263,6 +263,26 @@ $document = new AstNode('document', $document->attrs, [
             ]),
         ]),
     ]),
+    new AstNode('table', [
+        'shortCaptionInlines' => [
+            new AstNode('text', ['text' => 'Short-only ']),
+            new AstNode('strong', [], [new AstNode('text', ['text' => 'queue'])]),
+        ],
+        'alignments' => ['left', 'right'],
+    ], [
+        new AstNode('table_head', [], [
+            new AstNode('table_row', ['header' => true], [
+                new AstNode('table_cell', ['text' => 'Source'], [new AstNode('text', ['text' => 'Source'])]),
+                new AstNode('table_cell', ['text' => 'Open'], [new AstNode('text', ['text' => 'Open'])]),
+            ]),
+        ]),
+        new AstNode('table_body', [], [
+            new AstNode('table_row', [], [
+                new AstNode('table_cell', ['text' => 'media'], [new AstNode('text', ['text' => 'media'])]),
+                new AstNode('table_cell', ['text' => '2'], [new AstNode('text', ['text' => '2'])]),
+            ]),
+        ]),
+    ]),
     new AstNode('raw_block', [
         'format' => 'markdown',
         'text' => '> Raw reviewer block: keep this migration note with the handoff.',

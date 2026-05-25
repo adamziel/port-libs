@@ -16,6 +16,7 @@ $optionValues = [
     'false_indent_settings' => '[1,2]',
     'float_indent_settings' => '{"plugin":{"enabled":true,"source":"float-indent"}}',
     'text_blob_settings' => new SQLiteBlobValue('{"plugin":{"enabled":true,"source":"cast-blob"}}'),
+    'text_blob_indent_settings' => new SQLiteBlobValue('{"plugin":{"enabled":true,"source":"cast-blob-indent"}}'),
     'jsonb_settings' => new SQLiteBlobValue(SQLiteJsonB::encode([
         'plugin' => [
             'enabled' => true,
@@ -39,6 +40,7 @@ foreach ($optionValues as $optionName => $optionValue) {
         'boolean_indent_settings' => true,
         'false_indent_settings' => false,
         'float_indent_settings' => 2.5,
+        'text_blob_indent_settings' => '..',
         default => null,
     };
     try {

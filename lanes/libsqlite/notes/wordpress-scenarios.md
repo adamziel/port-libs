@@ -47,6 +47,11 @@ coercion for the second `json_pretty(JSON, INDENT)` argument too.
 Priority-keeper rework 2026-05-25T10:50Z adds the missing boolean false
 custom-indent option row and direct-dispatch assertion so both SQL-dispatch
 entry points cover SQLite's false-to-`0` second-argument coercion.
+Priority-rework refill 2026-05-25T11:02Z adds explicit cast text-BLOB JSON
+input review through both direct and argument-vector SQL dispatch, including a
+custom text indentation row in the WordPress smoke. This keeps the slice
+inside the accepted json_pretty SQL-dispatch cluster and preserves existing
+json_extract/jsonb_extract and json_each evidence.
 
 ## `json_each()` Option-Value Expansion Scenario
 

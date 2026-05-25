@@ -1618,6 +1618,14 @@ return [
             $t->same(0, $spacedPlusProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([2, 4]), $spacedPlusProof['stdout']);
             $t->same('', $spacedPlusProof['stderr']);
+            $verticalWhitespaceProof = QuadbStore::exportProofCommandOutput(
+                $dir,
+                ["\t+2suffix", "\n4"],
+                integerKeys: true
+            );
+            $t->same(0, $verticalWhitespaceProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([2, 4]), $verticalWhitespaceProof['stdout']);
+            $t->same('', $verticalWhitespaceProof['stderr']);
             $maxIntegerProof = QuadbStore::exportProofCommandOutput(
                 $dir,
                 ['0002147483647suffix', '+0000000002'],

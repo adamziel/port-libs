@@ -64,6 +64,11 @@ Priority-keeper rework 2026-05-25T10:50Z adds the missing direct-dispatch
 boolean false custom-indent assertion and matching WordPress smoke row while
 preserving the accepted argument-vector false-indent case. Focused
 verification is recorded in `lane-status.json`.
+Priority-rework refill 2026-05-25T11:02Z rebases that same json_pretty
+SQL-dispatch cluster on the accepted worktree and adds explicit text-BLOB JSON
+input coverage through both direct and argument-vector dispatch, including
+custom indentation from the SQL helper. Focused verification is recorded in
+`lane-status.json`.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty

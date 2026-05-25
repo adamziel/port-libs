@@ -122,6 +122,11 @@ try {
         ['  +2suffix', ' +4'],
         integerKeys: true
     );
+    $verticalWhitespaceProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ["\t+2suffix", "\n4"],
+        integerKeys: true
+    );
     $maxIntegerProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['0002147483647suffix', '+0000000002'],
@@ -180,6 +185,7 @@ try {
         'numericPrefixIntegerBinaryProofBytes' => strlen($numericPrefixProofCommand['stdout']),
         'spacedPlusIntegerExportProofExitCode' => $spacedPlusProofCommand['exitCode'],
         'spacedPlusIntegerProofMatchesNumericPrefix' => $spacedPlusProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
+        'verticalWhitespaceIntegerProofMatchesNumericPrefix' => $verticalWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'maxIntegerExportProofExitCode' => $maxIntegerProofCommand['exitCode'],
         'maxIntegerBinaryProofBytes' => strlen($maxIntegerProofCommand['stdout']),
         'signedZeroIntegerExportProofExitCode' => $signedZeroProofCommand['exitCode'],
