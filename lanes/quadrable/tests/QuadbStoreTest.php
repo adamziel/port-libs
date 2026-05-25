@@ -1700,6 +1700,11 @@ return [
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofCommandOutput($dir, ['-2147483649suffix'], integerKeys: true));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
                 'stderr' => "quadb error: FullKeys specified in proof encoding, but key not available\n",
             ], QuadbStore::exportProofCommandOutput($dir, ['2'], 'FullKeys', integerKeys: true));
         } finally {

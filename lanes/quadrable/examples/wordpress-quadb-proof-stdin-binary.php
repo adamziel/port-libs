@@ -188,6 +188,11 @@ try {
         ['-2147483648'],
         integerKeys: true
     );
+    $negativeUnderflowIntegerProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['-2147483649suffix'],
+        integerKeys: true
+    );
 
     echo json_encode([
         'scenario' => 'quadb exportProof --stdin binary proof input for delegated WordPress preview reads',
@@ -233,6 +238,8 @@ try {
             && $plusOverflowIntegerProofCommand['stderr'] === "quadb error: stoi\n",
         'minSignedIntegerProofFailsRange' => $minSignedIntegerProofCommand['exitCode'] === 1
             && $minSignedIntegerProofCommand['stderr'] === "quadb error: int range exceeded\n",
+        'negativeUnderflowIntegerProofFailsStoi' => $negativeUnderflowIntegerProofCommand['exitCode'] === 1
+            && $negativeUnderflowIntegerProofCommand['stderr'] === "quadb error: stoi\n",
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($sourceDir);
