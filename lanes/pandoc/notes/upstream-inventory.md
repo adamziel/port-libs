@@ -1597,3 +1597,30 @@ Dependency closure: no new support component is needed for this rework slice.
 The existing Markdown inline renderer and block writer newline handling cover
 the behavior locally; richer layout, package, or document-format conversions
 remain behind the existing inactive Pandoc support gates.
+
+The Space/SoftBreak/LineBreak rework was kept additive on top of the accepted
+baseline by adding the same inline-boundary evidence inside nested emphasis and
+strong delimiter contexts. This guards the writer path where inline constructors
+are rendered recursively rather than only at top-level paragraph scope: nested
+`Space` still emits one source space, nested `SoftBreak` remains a physical
+Markdown newline inside the emphasis delimiter, and nested `LineBreak` remains
+Pandoc's backslash-newline hard-break marker inside the strong delimiter.
+
+Focused local verification on 2026-05-25 after the additive nested inline
+Space/SoftBreak/LineBreak rework: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Reviewer spacing packet|hard boundary follows|next reviewer line"` emitted the
+explicit-space reviewer packet with a soft newline and hard-break
+backslash-newline marker; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,290
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed.
+
+Root verification was not run for the 2026-05-25 additive nested
+Space/SoftBreak/LineBreak rework because the assigned work was an isolated
+micro-slice.
+
+Dependency closure: no new support component is needed for this additive rework
+slice. It reuses the existing Markdown inline renderer, delimiter helpers, and
+block writer newline handling; richer layout, package, or document-format
+conversions remain behind the existing inactive Pandoc support gates.

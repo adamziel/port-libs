@@ -2916,6 +2916,30 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer nested space softbreak and hard line break inlines' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('emph', [], [
+                    new AstNode('text', ['text' => 'review']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'note']),
+                    new AstNode('softbreak'),
+                    new AstNode('text', ['text' => 'soft continuation']),
+                ]),
+                new AstNode('space'),
+                new AstNode('strong', [], [
+                    new AstNode('text', ['text' => 'hard']),
+                    new AstNode('linebreak'),
+                    new AstNode('text', ['text' => 'boundary']),
+                ]),
+            ]),
+        ]);
+
+        $t->same(
+            "*review note\nsoft continuation* **hard\\\nboundary**",
+            (new MarkdownWriter())->write($document)
+        );
+    },
     'maps upstream markdown writer line block emission' => static function (TestRunner $t): void {
         $nbsp = "\xC2\xA0";
         $document = new AstNode('document', [], [

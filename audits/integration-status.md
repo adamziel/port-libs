@@ -108637,3 +108637,18 @@ Root verification: `php tools/run-tests.php`: PASS wordpress option store expire
 Support-library/dependency closure: no new support-library activation; the patch reuses bounded smart HTTP receive-pack redirect handling and native status validation.
 Live-service exclusions: no live provider, network credential, or external service tests were run.
 Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/notes/wordpress-scenarios.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, and `audits/integration-status.md`.
+
+### 2026-05-25 pandoc priority rework accepted
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T075234Z.ready`
+- Patch SHA256: `f30bf048465f2e58600d03106184e68bc8655be73568c54df7e68e7008a71731`
+- Base accepted HEAD before attempt: `9e4676f008c45e5047090b4403bf4dbaf5948825`
+- Focused verification in detached worktree `.tmux-team/tmp/clean-integrator-pandoc-20260525T0759Z`:
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php` passed.
+  - `php -l lanes/pandoc/src/MarkdownWriter.php` passed.
+  - `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php` passed.
+  - `jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/lane-status.json` passed.
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed.
+  - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n "Reviewer spacing packet|hard boundary follows|next reviewer line"` passed.
+  - `git diff --check` passed.
+- Root verification: `php tools/run-tests.php` passed under resource gate.
