@@ -198,23 +198,30 @@ final class TsConfigPathResolver
         $resolution = (new PackageResolver('node', mainFields: ['tsconfig'], extensions: ['.json']))
             ->resolveImport(new ModuleImport('tsconfig-extends', $specifier, [], 0), $configDir);
         if ($resolution === null || !str_ends_with($resolution->path, '.json')) {
-            return $this->resolveDefaultPackageTsConfig($specifier, $configDir);
+            return $this->resolvePackageExtendsFallbackPath($specifier, $configDir);
         }
 
         return $resolution->path;
     }
 
-    private function resolveDefaultPackageTsConfig(string $specifier, string $configDir): ?string
+    private function resolvePackageExtendsFallbackPath(string $specifier, string $configDir): ?string
     {
         $packageName = $this->packageNameFromSpecifier($specifier);
-        if ($packageName === null || $specifier !== $packageName) {
+        if ($packageName === null) {
             return null;
         }
 
         for ($dir = $configDir; true; $dir = dirname($dir)) {
-            $candidate = $dir . DIRECTORY_SEPARATOR . 'node_modules' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $packageName) . DIRECTORY_SEPARATOR . 'tsconfig.json';
-            if (is_file($candidate)) {
-                return realpath($candidate) ?: $candidate;
+            $packageDir = $dir . DIRECTORY_SEPARATOR . 'node_modules' . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $packageName);
+            if (is_dir($packageDir)) {
+                $candidate = $specifier === $packageName
+                    ? $packageDir . DIRECTORY_SEPARATOR . 'tsconfig.json'
+                    : $packageDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, substr($specifier, strlen($packageName) + 1));
+
+                $path = $this->jsonConfigPath($candidate);
+                if ($path !== null && $this->isPathInsideDir($path, $packageDir)) {
+                    return $path;
+                }
             }
 
             $parent = dirname($dir);
@@ -236,6 +243,18 @@ final class TsConfigPathResolver
         $packageName = $slash === false ? $specifier : substr($specifier, 0, $slash);
 
         return $packageName !== '' && $packageName !== '.' && $packageName !== '..' ? $packageName : null;
+    }
+
+    private function jsonConfigPath(string $candidate): ?string
+    {
+        $paths = str_ends_with($candidate, '.json') ? [$candidate] : [$candidate, $candidate . '.json'];
+        foreach ($paths as $path) {
+            if (is_file($path)) {
+                return realpath($path) ?: $path;
+            }
+        }
+
+        return null;
     }
 
     /**

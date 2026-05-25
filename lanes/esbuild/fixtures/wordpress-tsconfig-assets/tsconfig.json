@@ -4,7 +4,8 @@
     "@wordpress/tsconfig/block",
     "@wordpress/tsconfig-base",
     "wp-tsconfig-preset",
-    "wp-tsconfig-preset/configs/blocks"
+    "wp-tsconfig-preset/configs/blocks",
+    "wp-tsconfig-legacy-fallback/configs/blocks"
   ],
   "compilerOptions": {
     "baseUrl": "./src"

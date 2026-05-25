@@ -529,5 +529,6 @@ printf("WordPress tsconfig paths aliases: %s\n", (
         '@preset-block/card/view' => 'src/blocks/card/view.ts',
         'wp-element' => 'src/vendor/wp-element/index.ts',
         'blocks/card/view' => 'src/blocks/card/view.ts',
+        '@legacy-fallback/card' => 'src/legacy-fallback/card.ts',
     ]
 ) ? 'yes' : 'no');

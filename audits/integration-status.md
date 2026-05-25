@@ -99378,3 +99378,28 @@ Repair for accepted marker `.tmux-team/tmp/handoff-candidates/port-libsqlite-202
 - `git diff --check`: PASS.
 - Support-library/dependency closure: no new support-library activation.
 - Live-service exclusions: none; no live-service provider tests run.
+
+## Clean isolated integration - esbuild - 2026-05-25T00:57:00Z UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T004721Z.ready`
+
+- Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T004721Z.patch`
+- Lane/slice/session: `esbuild` / `supervisor-next-20260525T004721Z` / `port-esbuild-20260525T004721Z`
+- Metadata: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T004721Z.md`
+- Worker log: `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-esbuild-20260525T004721Z.log`
+- Patch sha256: `b2fcdc73032ffeb8b6ad2587b02ea37ca9abac4d9d889bff25fa28747b79c99a` verified.
+- Focused commands: `php -l` on changed PHP files: PASS; `php tools/run-tests.php lanes/esbuild/tests`: PASS; JSON manifest/status validation: PASS.
+- Root command: `php tools/run-tests.php`: PASS.
+- `git diff --check`: PASS.
+- Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+- Live-service exclusions: no live-service provider tests run.
+- Files staged:
+  - `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`
+  - `lanes/esbuild/examples/wordpress-asset-preflight.php`
+  - `lanes/esbuild/fixtures/wordpress-tsconfig-assets/src/entry.ts`
+  - `lanes/esbuild/fixtures/wordpress-tsconfig-assets/tsconfig.json`
+  - `lanes/esbuild/lane-status.json`
+  - `lanes/esbuild/notes/upstream-inventory.md`
+  - `lanes/esbuild/notes/wordpress-scenarios.md`
+  - `lanes/esbuild/src/TsConfigPathResolver.php`
+  - `lanes/esbuild/tests/TsConfigPathResolverTest.php`
