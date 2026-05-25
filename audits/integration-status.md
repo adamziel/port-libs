@@ -1,5 +1,21 @@
 # Integration Status
 
+## Integration accepted - rclone OneDrive OAuth config - 2026-05-25 01:39 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T012149Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T012149Z.patch`.
+
+- Lane/slice/session: `rclone` / `supervisor-next-20260525T012149Z` / `port-rclone`.
+- Patch SHA-256: `0cb771ff02e5201b050b8c719e74e24dbc1fc7c44b1f` verified with `sha256sum -c`.
+- Apply result: `git apply --check` passed cleanly against `117b9952bd5431d4e44c78347f809b1e2ab69063`; no three-way rebase or conflict repair was needed.
+- Bounded integration repair: added the missing `require_once dirname(__DIR__) . '/src/OneDriveOAuthConfig.php';` to `lanes/rclone/examples/wordpress-onedrive-oauth-preflight.php` so the worker-advertised standalone example smoke runs outside the test harness.
+- Focused commands: `php -l lanes/rclone/src/OneDriveOAuthConfig.php`, `php -l lanes/rclone/tests/OneDriveOAuthConfigTest.php`, and `php -l lanes/rclone/examples/wordpress-onedrive-oauth-preflight.php` all reported no syntax errors; `php tools/run-tests.php lanes/rclone/tests/OneDriveOAuthConfigTest.php` passed with `1 test files, 25 assertions, 0 failures`; `php lanes/rclone/examples/wordpress-onedrive-oauth-preflight.php` passed after the bounded include repair; `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json` passed.
+- Root command: `php tools/run-tests.php` passed in the clean worktree with `209 test files, 24566 assertions, 0 failures`.
+- Diff hygiene: `git diff --check` passed.
+- Support-library/dependency closure: no support-library activation. This is a credential-free native config derivation helper for OneDrive OAuth endpoints and scopes.
+- Live-service exclusions: live OneDrive OAuth, browser, token-provider, and remote-provider tests were intentionally excluded; no secret values were read.
+- Files staged: `lanes/rclone/src/OneDriveOAuthConfig.php`, `lanes/rclone/tests/OneDriveOAuthConfigTest.php`, `lanes/rclone/examples/wordpress-onedrive-oauth-preflight.php`, `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, and `audits/integration-status.md`.
+
 ## Integration accepted - libsqlite json_patch SQL dispatch - 2026-05-25 01:31 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T012149Z.ready`.
