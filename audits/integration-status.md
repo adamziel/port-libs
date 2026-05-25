@@ -1,5 +1,34 @@
 # Integration Status
 
+## Integration accepted - LightningCSS transition prefixer border-radius slice - 2026-05-25 02:18 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T021139Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T021139Z.patch`.
+Lane/slice/session: `lightningcss` / `supervisor-rearm-20260525T021139Z` / `port-lightningcss`.
+
+Patch sha256 verified: `251c38ce1d2841bdb83cbd71771844d71faa134441d27e4d441a4585da5214c0`.
+Clean worktree: `/tmp/port-clean-integrator-lightningcss-rearmer-20260525T021139Z-20260525T021802Z`.
+Base accepted HEAD: `0e8d0b9f297ed881187031b944d2cd3310cbafc3`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/lightningcss/src/TransitionPrefixer.php`: no syntax errors.
+- `php -l lanes/lightningcss/tests/TransitionPrefixerTest.php`: no syntax errors.
+- `php -l lanes/lightningcss/examples/wordpress-border-radius-minifier.php`: no syntax errors.
+- `php tools/run-tests.php lanes/lightningcss/tests/TransitionPrefixerTest.php`: 1 test file, 150 assertions, 0 failures.
+- `php tools/run-tests.php lanes/lightningcss/tests`: 9 test files, 1070 assertions, 0 failures.
+- `php lanes/lightningcss/examples/wordpress-border-radius-minifier.php`: exited 0 and emitted the legacy WebKit radius-prefixed CSS example.
+- `jq empty lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json lanes/lightningcss/lane-status.json`: exited 0.
+- `git diff --check`: exited 0.
+
+Root verification:
+
+- `php tools/run-tests.php`: 210 test files, 24692 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The patch uses the existing bounded LightningCSS transition prefixer/minifier surface and adds no live provider or external engine dependency.
+Live-service exclusions: none needed; this is CSS-only and does not contact external services.
+Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-border-radius-minifier.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, `lanes/lightningcss/src/TransitionPrefixer.php`, `lanes/lightningcss/tests/TransitionPrefixerTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - Gitoxide git-daemon host delimiter preflight - 2026-05-25 02:06 UTC
 
 Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T015716Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T015716Z.patch`.

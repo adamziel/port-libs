@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/MediaQueryParser.php';
 require_once __DIR__ . '/../src/CssMinifier.php';
+require_once __DIR__ . '/../src/TransitionPrefixer.php';
 
-use PortLibs\LightningCSS\CssMinifier;
+use PortLibs\LightningCSS\TransitionPrefixer;
 
 $css = <<<'CSS'
 .wp-block-group.is-style-card {
@@ -25,8 +26,8 @@ $css = <<<'CSS'
 }
 CSS;
 
-$expected = '.wp-block-group.is-style-card{border-radius:10px 100px/120px}.wp-block-image.is-style-rounded img{-webkit-border-radius:0 10px;border-radius:0 10px}.wp-block-cover.is-style-rounded-corners{border-radius:16px 24px/8px 12px}';
-$actual = (new CssMinifier())->minify($css);
+$expected = '.wp-block-group.is-style-card{-webkit-border-radius:10px 100px/120px;border-radius:10px 100px/120px}.wp-block-image.is-style-rounded img{-webkit-border-radius:0 10px;border-radius:0 10px}.wp-block-cover.is-style-rounded-corners{-webkit-border-radius:16px 24px/8px 12px;border-radius:16px 24px/8px 12px}';
+$actual = (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 4]);
 
 if ($actual !== $expected) {
     fwrite(STDERR, "Unexpected minified CSS:\n{$actual}\n");

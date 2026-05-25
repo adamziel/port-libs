@@ -246,6 +246,7 @@ final class TransitionPrefixer
         $listStyleChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteListStyleFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
+        $borderRadiusChanged = $this->rewriteBorderRadiusPrefixEntries($entries, $targetOptions);
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
         $clampChanged = $this->rewriteClampFallbackEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
@@ -253,7 +254,7 @@ final class TransitionPrefixer
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
-        if ($transitionChanged || $colorSchemeChanged || $printColorAdjustChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
+        if ($transitionChanged || $colorSchemeChanged || $printColorAdjustChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -610,6 +611,14 @@ final class TransitionPrefixer
                 || ($safari !== null && $safari < 5.1),
             'imageSetNeedsWebkit' => $chrome !== null && $chrome <= 95.0 && !isset($normalized['ie']),
             'imageSetNeedsUrlFallback' => isset($normalized['ie']),
+            'borderRadiusNeedsWebkit' => ($chrome !== null && $chrome <= 4.0)
+                || ($safari !== null && $safari < 5.0),
+            'borderRadiusNeedsMoz' => $firefox !== null && $firefox <= 3.6,
+            'borderRadiusDropLegacyPrefixes' => (
+                ($chrome !== null && $chrome >= 5.0)
+                || ($safari !== null && $safari >= 5.0)
+                || ($firefox !== null && $firefox >= 4.0)
+            ),
             'clampNeedsMaxMinFallback' => $safari !== null && $safari <= 12.0,
             'lightDarkNeedsFallback' => !$lightDarkExcluded && (
                 ($chrome !== null && $chrome < 123.0)
@@ -727,6 +736,77 @@ final class TransitionPrefixer
         }
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteBorderRadiusPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $needsWebkit = $targetOptions['borderRadiusNeedsWebkit'] ?? false;
+        $needsMoz = $targetOptions['borderRadiusNeedsMoz'] ?? false;
+        $dropLegacy = $targetOptions['borderRadiusDropLegacyPrefixes'] ?? false;
+        if (!$needsWebkit && !$needsMoz && !$dropLegacy) {
+            return false;
+        }
+
+        $changed = false;
+        $hasUnprefixed = [];
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !str_starts_with($entry['property'], 'border-') || !str_ends_with($entry['property'], '-radius')) {
+                continue;
+            }
+            if (!str_starts_with($entry['property'], '-webkit-') && !str_starts_with($entry['property'], '-moz-')) {
+                $hasUnprefixed[$entry['property'] . "\0" . $entry['value']] = true;
+            }
+        }
+
+        $rewritten = [];
+        foreach ($entries as $entry) {
+            if ($entry['important'] || !str_ends_with($entry['property'], '-radius')) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if (str_starts_with($entry['property'], '-webkit-') || str_starts_with($entry['property'], '-moz-')) {
+                $unprefixed = preg_replace('/^-(?:webkit|moz)-/', '', $entry['property']) ?? $entry['property'];
+                if ($dropLegacy && isset($hasUnprefixed[$unprefixed . "\0" . $entry['value']])) {
+                    $changed = true;
+                    continue;
+                }
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($needsWebkit && !$this->hasBorderRadiusPrefixedEntry($entries, '-webkit-' . $entry['property'], $entry['value'])) {
+                $rewritten[] = $this->declarationEntry('-webkit-' . $entry['property'], $entry['value']);
+                $changed = true;
+            }
+            if ($needsMoz && !$this->hasBorderRadiusPrefixedEntry($entries, '-moz-' . $entry['property'], $entry['value'])) {
+                $rewritten[] = $this->declarationEntry('-moz-' . $entry['property'], $entry['value']);
+                $changed = true;
+            }
+            $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function hasBorderRadiusPrefixedEntry(array $entries, string $property, string $value): bool
+    {
+        foreach ($entries as $entry) {
+            if (!$entry['important'] && $entry['property'] === $property && $entry['value'] === $value) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

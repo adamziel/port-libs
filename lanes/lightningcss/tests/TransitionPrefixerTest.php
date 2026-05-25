@@ -160,6 +160,22 @@ return [
             $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 137])
         );
     },
+    'transition prefixer maps upstream border-radius target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-border-radius:10px 20px;border-radius:10px 20px}',
+            $prefixer->prefixForTargets('.foo { border-radius: 10px 20px 10px 20px; }', ['chrome' => 4])
+        );
+        $t->same(
+            '.foo{-moz-border-radius:10px;border-radius:10px;-moz-border-top-left-radius:20px;border-top-left-radius:20px}',
+            $prefixer->prefixForTargets('.foo { border-radius: 10px; border-top-left-radius: 20px; }', ['firefox' => 3.6])
+        );
+        $t->same(
+            '.foo{border-radius:10px 20px;border-top-left-radius:5px}',
+            $prefixer->prefixForTargets('.foo { -webkit-border-radius: 10px 20px; -moz-border-top-left-radius: 5px; border-radius: 10px 20px; border-top-left-radius: 5px; }', ['chrome' => 95])
+        );
+    },
     'wordpress editor color-scheme fallback flags prefix without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 :root {
