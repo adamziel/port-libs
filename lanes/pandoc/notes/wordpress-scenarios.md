@@ -218,6 +218,11 @@ block output: a WP-CLI review snippet can carry stable id/class/data-source
 metadata in Pandoc Markdown while preserving a literal nested backtick fence in
 the code body. Unattributed code blocks continue to use indented Markdown code,
 which keeps legacy plain snippets unchanged.
+Native Markdown reviewer handoff examples now also cover explicit Pandoc
+`Space`, `SoftBreak`, and `LineBreak` inline writer nodes: direct AST handoff
+packets keep intentional single-word spacing, soft reviewer line boundaries,
+and hard line breaks as Pandoc Markdown instead of dropping the explicit space
+node or flattening the break markers.
 The remaining bounded Inline Markup script/deletion cases are also mapped:
 `~~legacy cleanup~~` renders as deletion markup, `a^*draft*^` renders as a
 superscript containing emphasis, and `H~2~O` renders as subscript text while

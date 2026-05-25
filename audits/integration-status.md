@@ -108526,3 +108526,27 @@ Files staged:
 - Focused verification: `php -l` on changed PHP files passed; `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` passed; `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed (1 test files, 281 assertions, 0 failures); `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed; `git diff --check -- lanes/gitoxide` passed.
 - Root verification: `php tools/run-tests.php` passed (213 test files, 25842 assertions, 0 failures); `git diff --check` passed.
 - Root gate before focused/root: available KiB `128575780`/`128575216`, load `3.93`/`3.94`, no exact `php tools/run-tests.php` process.
+
+## Integration accepted - pandoc Space/SoftBreak/LineBreak rework - 20260525T074117Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T073748Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T073748Z.patch`.
+Metadata: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T073748Z.md`.
+Worker log: `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-pandoc-rework-20260525T073748Z.log`.
+Lane/slice/session: `pandoc` / `priority-rework-20260525T073748Z` / `port-pandoc-rework`.
+Old head: `20d468855a14e73021031806dac94393be04c7ed`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-pandoc-priority-rework-20260525T073748Z-20260525T074117Z`:
+- `php -l lanes/pandoc/src/MarkdownWriter.php`: passed.
+- `php -l lanes/pandoc/tests/MarkdownReaderTest.php`: passed.
+- `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`: passed.
+- `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n "Reviewer spacing packet|hard boundary follows|next reviewer line"`: passed.
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`: passed, 1 test file, 2,289 assertions, 0 failures.
+- `git diff --check`: passed.
+
+Root verification:
+- `php tools/run-tests.php`: passed from the same clean worktree.
+
+Support-library/dependency closure: no new support component activated; the slice reuses the existing Markdown inline renderer and block writer newline handling.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/notes/upstream-inventory.md`, `lanes/pandoc/notes/wordpress-scenarios.md`, `lanes/pandoc/src/MarkdownWriter.php`, `lanes/pandoc/tests/MarkdownReaderTest.php`, `audits/integration-status.md`.

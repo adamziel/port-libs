@@ -78,6 +78,15 @@ $document = new AstNode('document', $document->attrs, [
         ]),
         new AstNode('text', ['text' => '.']),
     ]),
+    new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer spacing packet:']),
+        new AstNode('space'),
+        new AstNode('text', ['text' => 'soft boundary']),
+        new AstNode('softbreak'),
+        new AstNode('text', ['text' => 'hard boundary follows']),
+        new AstNode('linebreak'),
+        new AstNode('text', ['text' => 'next reviewer line']),
+    ]),
     new AstNode('code_block', [
         'text' => "wp post meta get 42 source_url\n```\nkeep literal reviewer fence",
         'id' => 'review-wp-cli-snippet',

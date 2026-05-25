@@ -617,6 +617,7 @@ final class MarkdownWriter
     {
         return match ($node->type) {
             'text' => $this->escapeText((string) $node->attr('text', '')),
+            'space' => ' ',
             'softbreak' => "\n",
             'linebreak' => "\\\n",
             'code' => $this->renderCode($node),

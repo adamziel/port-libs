@@ -1570,3 +1570,30 @@ existing Markdown block renderer, inline renderer, and local NBSP indentation
 normalization handle line-block Markdown emission locally; richer layout or
 poetry-specific conversion should stay behind existing inactive Pandoc
 document-format support gates.
+
+The deferred 2026-05-25 Space/SoftBreak/LineBreak handoff was rebased on top of
+the accepted line-block writer evidence. `src/Text/Pandoc/Writers/Markdown/Inline.hs`
+uses explicit inline constructors for source spaces and line boundaries; the PHP
+Markdown writer now maps one focused check from that boundary: `Space` nodes emit
+one literal source space, `SoftBreak` nodes emit a physical Markdown newline, and
+`LineBreak` nodes emit Pandoc's hard-break backslash-newline marker.
+
+Focused local verification on 2026-05-25 after the rebased Markdown writer
+Space/SoftBreak/LineBreak inline emission slice: `php -l` passed for
+`MarkdownWriter.php`, `MarkdownReaderTest.php`, and
+`examples/wordpress-markdown-review-handoff.php`; `php
+lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Reviewer spacing packet|hard boundary follows|next reviewer line"` emitted the
+explicit-space reviewer packet with a soft newline and hard-break
+backslash-newline marker; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,289
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed.
+
+Root verification was not run for the 2026-05-25 rebased
+Space/SoftBreak/LineBreak inline emission slice because the assigned work was an
+isolated micro-slice.
+
+Dependency closure: no new support component is needed for this rework slice.
+The existing Markdown inline renderer and block writer newline handling cover
+the behavior locally; richer layout, package, or document-format conversions
+remain behind the existing inactive Pandoc support gates.
