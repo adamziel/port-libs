@@ -303,7 +303,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if (isset($parts['user'])) {
             $user = rawurldecode((string) $parts['user']);
             $pass = rawurldecode((string) ($parts['pass'] ?? ''));
-            $authorization = 'Basic ' . base64_encode($user . ':' . $pass);
+            $authorization = self::basicAuthorization($user, $pass, 'smart HTTP receive-pack URL credentials');
         }
 
         return [

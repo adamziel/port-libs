@@ -101272,3 +101272,17 @@ Clean integration result: `git apply --check /home/claude/port-libs/.tmux-team/t
 Root verification: not run, because no conflict-free source tree existed for this marker. Support-library/dependency closure decision: no support-library activation reviewed or accepted. Live-service exclusions: none.
 
 Exact repair command for the lane: rebase this marker on current `main` and re-emit a narrow schema-conflict resolve patch preserving the accepted merge-status/schema-conflict state already on `main`, then run `php -l lanes/dolt/src/PreviewMergeConflictsTable.php`, `php -l lanes/dolt/tests/PreviewMergeConflictsTableTest.php`, `php -l lanes/dolt/tests/MergeStatusTableTest.php`, `php -l lanes/dolt/examples/wordpress-merge-status-review.php`, `php -l lanes/dolt/fixtures/wp-merge-review.php`, `php tools/run-tests.php lanes/dolt/tests/PreviewMergeConflictsTableTest.php lanes/dolt/tests/MergeStatusTableTest.php`, `php lanes/dolt/examples/wordpress-merge-status-review.php`, `php -r 'json_decode(file_get_contents("lanes/dolt/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/dolt/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'`, and `git diff --check -- lanes/dolt`.
+
+## Isolated clean-patch integration - gitoxide smart HTTP credential safety - 2026-05-25 03:52 UTC
+
+Accepted marker `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T030356Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T030356Z.patch`.
+
+Lane/slice/session: `gitoxide` / `rearmer-20260525T030356Z` / `port-gitoxide`. Patch sha256 matched `3c30b6028373535472a8075bac9e793046420f12457c4fd5dcbd7e4abf829f39`.
+
+Focused verification in clean worktree: `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`, `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, and `php -l lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php` passed. `php -r 'json_decode(...)'` passed for `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` and `lanes/gitoxide/lane-status.json`. `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed with 1 test file, 246 assertions, 0 failures. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0. `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the clean worktree with 211 test files, 24912 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The patch reuses the existing lane-local smart HTTP receive-pack URL normalization, Basic auth construction, and string validation path. Live-service exclusions: no live HTTP, SSH, git-daemon, or provider service was contacted.
+
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, `audits/integration-status.md`.

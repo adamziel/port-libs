@@ -663,6 +663,15 @@ Focused git-daemon receive-pack path-safety inventory inspected on 2026-05-25:
 - Focused Gitoxide PHP verification after the git-daemon path-safety slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 210 assertions, and 0 failures. The updated WordPress receive-pack transport example exits 0 and demonstrates safe git-daemon service-request payload construction.
 - Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
 
+Focused smart HTTP receive-pack URL credential safety inventory inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` smart HTTP credential/header boundary mapping. No live HTTP/provider runner was executed for this isolated micro-slice.
+- The PHP slice now validates decoded URL username/password credentials through the same Basic Authorization helper used by proxy credentials, rejecting NUL/CR/LF before any request or Authorization header construction.
+- The WordPress receive-pack transport fixture now records unsafe smart HTTP credential control-byte rejection alongside the existing SSH and git-daemon transport preflight checks.
+- Dependency closure for the smart HTTP URL credential safety slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack URL normalization, Basic auth construction, and PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the smart HTTP URL credential safety slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 246 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
 Focused git-daemon receive-pack IPv6 host-parameter inventory inspected on 2026-05-25:
 
 - Reused the existing static `gix-transport` git-daemon service-request mapping. No live git-daemon/provider runner was executed for this isolated micro-slice.
