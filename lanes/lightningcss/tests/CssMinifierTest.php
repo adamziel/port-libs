@@ -2193,6 +2193,34 @@ CSS;
             $minifier->minify('.foo { border-radius: 0px 10px 0px 10px; }')
         );
     },
+    'css minifier maps upstream border-radius longhand composition' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{border-radius:10px}',
+            $minifier->minify(
+                '.foo { border-top-left-radius: 10px; border-top-right-radius: 10px; border-bottom-right-radius: 10px; border-bottom-left-radius: 10px; }'
+            )
+        );
+        $t->same(
+            '.foo{border-radius:10px 20px/1px 2px}',
+            $minifier->minify(
+                '.foo { border-top-left-radius: 10px 1px; border-top-right-radius: 20px 2px; border-bottom-right-radius: 10px 1px; border-bottom-left-radius: 20px 2px; }'
+            )
+        );
+        $t->same(
+            '.foo{border-radius:4px;border-radius:10px 20px}',
+            $minifier->minify(
+                '.foo { border-top-left-radius: 2px; border-radius: 4px; border-top-left-radius: 10px; border-top-right-radius: 20px; border-bottom-right-radius: 10px; border-bottom-left-radius: 20px; }'
+            )
+        );
+        $t->same(
+            '.foo{-webkit-border-radius:8px 16px;-moz-border-radius:8px 16px}',
+            $minifier->minify(
+                '.foo { -webkit-border-top-left-radius: 8px; -webkit-border-top-right-radius: 16px; -webkit-border-bottom-right-radius: 8px; -webkit-border-bottom-left-radius: 16px; -moz-border-top-left-radius: 8px; -moz-border-top-right-radius: 16px; -moz-border-bottom-right-radius: 8px; -moz-border-bottom-left-radius: 16px; }'
+            )
+        );
+    },
     'wordpress supports-gated block layouts minify without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @supports (((display: grid) and (not (display: subgrid)))) {

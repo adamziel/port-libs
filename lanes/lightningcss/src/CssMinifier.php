@@ -102,6 +102,7 @@ final class CssMinifier
         $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
+        $css = $this->composeBorderRadiusDeclarationBlocks($css);
         $css = $this->composeFontDeclarationBlocks($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
@@ -6704,6 +6705,153 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function composeBorderRadiusDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeBorderRadiusDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeBorderRadiusDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    private function composeBorderRadiusDeclarationList(string $body): string
+    {
+        if (stripos($body, 'border-') === false || stripos($body, '-radius') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteBorderRadiusGroup($entries, '');
+        $this->rewriteBorderRadiusGroup($entries, '-webkit-');
+        $this->rewriteBorderRadiusGroup($entries, '-moz-');
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteBorderRadiusGroup(array &$entries, string $prefix): void
+    {
+        $shorthand = $prefix . 'border-radius';
+        $corners = [
+            'top-left' => $prefix . 'border-top-left-radius',
+            'top-right' => $prefix . 'border-top-right-radius',
+            'bottom-right' => $prefix . 'border-bottom-right-radius',
+            'bottom-left' => $prefix . 'border-bottom-left-radius',
+        ];
+        $relevant = array_merge([$shorthand], array_values($corners));
+        $latest = [];
+        $lastShorthand = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop'] || !in_array($entry['property'], $relevant, true)) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === $shorthand) {
+                $lastShorthand = $index;
+                continue;
+            }
+            $latest[$entry['property']] = $index;
+        }
+
+        if ($lastShorthand !== null) {
+            foreach ($corners as $property) {
+                foreach ($entries as $index => $entry) {
+                    if (!$entry['drop'] && $entry['property'] === $property && $index < $lastShorthand) {
+                        $entries[$index]['drop'] = true;
+                    }
+                }
+                if (isset($latest[$property]) && $latest[$property] < $lastShorthand) {
+                    unset($latest[$property]);
+                }
+            }
+        }
+
+        foreach ($corners as $property) {
+            if (!isset($latest[$property])) {
+                return;
+            }
+        }
+
+        $included = array_values($latest);
+        $replaceAt = min($included);
+        $horizontal = [];
+        $vertical = [];
+
+        foreach ($corners as $property) {
+            $corner = $this->parseBorderRadiusCornerValue($entries[$latest[$property]]['value']);
+            if ($corner === null) {
+                return;
+            }
+            $horizontal[] = $corner[0];
+            $vertical[] = $corner[1];
+        }
+
+        foreach ($included as $index) {
+            $entries[$index]['drop'] = true;
+        }
+
+        $entries[$replaceAt]['drop'] = false;
+        $entries[$replaceAt]['property'] = $shorthand;
+        $entries[$replaceAt]['name'] = $shorthand;
+        $entries[$replaceAt]['value'] = $this->serializeBorderRadiusCornerLists($horizontal, $vertical);
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private function parseBorderRadiusCornerValue(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        $horizontal = $this->minifyLengthToken($tokens[0]);
+        $vertical = $this->minifyLengthToken($tokens[1] ?? $tokens[0]);
+
+        return [$horizontal, $vertical];
+    }
+
+    /**
+     * @param list<string> $horizontal
+     * @param list<string> $vertical
+     */
+    private function serializeBorderRadiusCornerLists(array $horizontal, array $vertical): string
+    {
+        $horizontalValue = implode(' ', $this->compressBoxSideValues($horizontal));
+        if ($horizontal === $vertical) {
+            return $horizontalValue;
+        }
+
+        return $horizontalValue . '/' . implode(' ', $this->compressBoxSideValues($vertical));
     }
 
     private function composeFontDeclarationList(string $body): string

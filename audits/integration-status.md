@@ -1,5 +1,51 @@
 # Integration Status
 
+## Clean-patch integration accepted - LightningCSS - 2026-05-25 UTC
+
+Accepted source from corrected processing of isolated marker
+`.tmux-team/tmp/handoff-candidates/port-lightningcss-current-rebase-20260525T013638Z-e5e6b2a6.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-lightningcss-current-rebase-20260525T013638Z-e5e6b2a6.patch`.
+Lane/slice/session: `lightningcss` /
+`current-rebase-20260525T013638Z-e5e6b2a6` /
+`current-rebase-prep-style-bundle`.
+
+Patch SHA-256 verification passed:
+`e5e6b2a670d273039368e43c1f254ff87be0def405ba6318617dd002756dc08c`.
+Apply result: `git apply --check` passed against
+`1a04eb123e8d3878caa55a0fcd9a7203c8160632`, then `git apply` applied the
+patch cleanly. This corrects the preceding audit-only supersession entry, where
+`git apply --check` had been treated too strongly.
+
+Focused commands: `php -l lanes/lightningcss/src/CssMinifier.php`, `php -l
+lanes/lightningcss/tests/CssMinifierTest.php`, and `php -l
+lanes/lightningcss/examples/wordpress-border-radius-minifier.php` all reported
+no syntax errors; `php tools/run-tests.php
+lanes/lightningcss/tests/CssMinifierTest.php` passed with `1 test files, 688
+assertions, 0 failures`; `php tools/run-tests.php lanes/lightningcss/tests`
+passed with `9 test files, 1067 assertions, 0 failures`; `php
+lanes/lightningcss/examples/wordpress-border-radius-minifier.php
+>/tmp/lightningcss-example-correction.txt` passed; `jq empty
+lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json
+lanes/lightningcss/lane-status.json` passed.
+
+Root command: `php tools/run-tests.php` passed in the clean worktree with `209
+test files, 24592 assertions, 0 failures`. Diff hygiene: `git diff --check`
+passed.
+
+Support-library/dependency-closure decision: no support-library activation; the
+slice is lane-local `CssMinifier` border-radius declaration composition.
+Live-service exclusions: no live-service, provider, credentialed, network,
+Node/npm, Rust/Cargo, or secret-bearing tests were run. Files staged:
+`lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/lightningcss/examples/wordpress-border-radius-minifier.php`,
+`lanes/lightningcss/lane-status.json`,
+`lanes/lightningcss/notes/upstream-inventory.md`,
+`lanes/lightningcss/notes/wordpress-scenarios.md`,
+`lanes/lightningcss/src/CssMinifier.php`,
+`lanes/lightningcss/tests/CssMinifierTest.php`, and
+`audits/integration-status.md`.
+
 ## Clean-patch integration accepted - Difftastic - 2026-05-25 UTC
 
 Accepted source from corrected processing of isolated marker

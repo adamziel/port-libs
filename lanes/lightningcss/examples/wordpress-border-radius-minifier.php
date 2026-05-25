@@ -16,9 +16,16 @@ $css = <<<'CSS'
   -webkit-border-radius: 0px 10px 0px 10px;
   border-radius: 0px 10px 0px 10px;
 }
+
+.wp-block-cover.is-style-rounded-corners {
+  border-top-left-radius: 16px 8px;
+  border-top-right-radius: 24px 12px;
+  border-bottom-right-radius: 16px 8px;
+  border-bottom-left-radius: 24px 12px;
+}
 CSS;
 
-$expected = '.wp-block-group.is-style-card{border-radius:10px 100px/120px}.wp-block-image.is-style-rounded img{-webkit-border-radius:0 10px;border-radius:0 10px}';
+$expected = '.wp-block-group.is-style-card{border-radius:10px 100px/120px}.wp-block-image.is-style-rounded img{-webkit-border-radius:0 10px;border-radius:0 10px}.wp-block-cover.is-style-rounded-corners{border-radius:16px 24px/8px 12px}';
 $actual = (new CssMinifier())->minify($css);
 
 if ($actual !== $expected) {
