@@ -176,6 +176,27 @@ return [
             $prefixer->prefixForTargets('.foo { -webkit-border-radius: 10px 20px; -moz-border-top-left-radius: 5px; border-radius: 10px 20px; border-top-left-radius: 5px; }', ['chrome' => 95])
         );
     },
+    'transition prefixer maps upstream border-radius logical corner fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $rtl = ':is(:lang(ae),:lang(ar),:lang(arc),:lang(bcc),:lang(bqi),:lang(ckb),:lang(dv),:lang(fa),:lang(glk),:lang(he),:lang(ku),:lang(mzn),:lang(nqo),:lang(pnb),:lang(ps),:lang(sd),:lang(ug),:lang(ur),:lang(yi))';
+
+        $t->same(
+            ".foo:not({$rtl}){border-top-left-radius:5px}.foo{$rtl}{border-top-right-radius:5px}",
+            $prefixer->prefixForTargets('.foo { border-start-start-radius: 5px; }', ['safari' => 12])
+        );
+        $t->same(
+            ".foo:not({$rtl}){border-top-left-radius:5px;border-top-right-radius:10px}.foo{$rtl}{border-top-right-radius:5px;border-top-left-radius:10px}",
+            $prefixer->prefixForTargets('.foo { border-start-start-radius: 5px; border-start-end-radius: 10px; }', ['safari' => 12])
+        );
+        $t->same(
+            ".foo:not({$rtl}){border-bottom-right-radius:10px;border-bottom-left-radius:5px}.foo{$rtl}{border-bottom-left-radius:10px;border-bottom-right-radius:5px}",
+            $prefixer->prefixForTargets('.foo { border-end-end-radius: 10px; border-end-start-radius: 5px; }', ['safari' => 12])
+        );
+        $t->same(
+            ".foo:not({$rtl}){border-top-left-radius:var(--start);border-top-right-radius:var(--end)}.foo{$rtl}{border-top-right-radius:var(--start);border-top-left-radius:var(--end)}",
+            $prefixer->prefixForTargets('.foo { border-start-start-radius: var(--start); border-start-end-radius: var(--end); }', ['safari' => 12])
+        );
+    },
     'wordpress editor color-scheme fallback flags prefix without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 :root {

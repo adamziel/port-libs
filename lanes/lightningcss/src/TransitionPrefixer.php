@@ -224,6 +224,14 @@ final class TransitionPrefixer
                 . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
         }
 
+        if ($targetOptions['borderRadiusNeedsLogicalFallback'] ?? false) {
+            $logicalRadiusFallback = $this->rewriteLogicalBorderRadiusEntries($entries);
+            if ($logicalRadiusFallback !== null) {
+                return $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($logicalRadiusFallback[0]) . '}'
+                    . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($logicalRadiusFallback[1]) . '}';
+            }
+        }
+
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
         $supportRules = [];
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
@@ -614,6 +622,7 @@ final class TransitionPrefixer
             'borderRadiusNeedsWebkit' => ($chrome !== null && $chrome <= 4.0)
                 || ($safari !== null && $safari < 5.0),
             'borderRadiusNeedsMoz' => $firefox !== null && $firefox <= 3.6,
+            'borderRadiusNeedsLogicalFallback' => $safari !== null && $safari <= 12.0,
             'borderRadiusDropLegacyPrefixes' => (
                 ($chrome !== null && $chrome >= 5.0)
                 || ($safari !== null && $safari >= 5.0)
@@ -807,6 +816,50 @@ final class TransitionPrefixer
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:list<array{property:string,name:string,value:string,important:bool}>}|null
+     */
+    private function rewriteLogicalBorderRadiusEntries(array $entries): ?array
+    {
+        $ltrEntries = [];
+        $rtlEntries = [];
+        $changed = false;
+
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                $ltrEntries[] = $entry;
+                $rtlEntries[] = $entry;
+                continue;
+            }
+
+            $ltrProperty = $this->logicalBorderRadiusPhysicalProperty($entry['property'], 'ltr');
+            $rtlProperty = $this->logicalBorderRadiusPhysicalProperty($entry['property'], 'rtl');
+            if ($ltrProperty === null || $rtlProperty === null) {
+                $ltrEntries[] = $entry;
+                $rtlEntries[] = $entry;
+                continue;
+            }
+
+            $ltrEntries[] = $this->declarationEntry($ltrProperty, $entry['value']);
+            $rtlEntries[] = $this->declarationEntry($rtlProperty, $entry['value']);
+            $changed = true;
+        }
+
+        return $changed ? [$ltrEntries, $rtlEntries] : null;
+    }
+
+    private function logicalBorderRadiusPhysicalProperty(string $property, string $direction): ?string
+    {
+        return match ($property) {
+            'border-start-start-radius' => $direction === 'rtl' ? 'border-top-right-radius' : 'border-top-left-radius',
+            'border-start-end-radius' => $direction === 'rtl' ? 'border-top-left-radius' : 'border-top-right-radius',
+            'border-end-end-radius' => $direction === 'rtl' ? 'border-bottom-left-radius' : 'border-bottom-right-radius',
+            'border-end-start-radius' => $direction === 'rtl' ? 'border-bottom-right-radius' : 'border-bottom-left-radius',
+            default => null,
+        };
     }
 
     /**

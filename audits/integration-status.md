@@ -1,5 +1,37 @@
 # Integration Status
 
+## Integration accepted - LightningCSS logical border-radius fallback slice - 2026-05-25 02:52 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T022815Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T022815Z.patch`.
+Lane/slice/session: `lightningcss` / `rearmer-20260525T022815Z` / `port-lightningcss`.
+
+Patch sha256 verified: `974ad5eb60c95f0c285871fc406a59e5818148b5f7c2de652ec0f1ba3ca91a50`.
+Clean worktree: `/tmp/port-clean-integrator-lightningcss-rearmer-20260525T022815Z`.
+Base accepted HEAD: `96c451e7`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/lightningcss/src/TransitionPrefixer.php`: no syntax errors.
+- `php -l lanes/lightningcss/tests/TransitionPrefixerTest.php`: no syntax errors.
+- `php -l lanes/lightningcss/examples/wordpress-border-radius-minifier.php`: no syntax errors.
+- `php tools/run-tests.php lanes/lightningcss/tests/TransitionPrefixerTest.php`: 1 test file, 154 assertions, 0 failures.
+- `php tools/run-tests.php lanes/lightningcss/tests`: 9 test files, 1077 assertions, 0 failures.
+- `php lanes/lightningcss/examples/wordpress-border-radius-minifier.php >/tmp/lightningcss-border-radius.out && wc -c /tmp/lightningcss-border-radius.out`: exited 0; output size 1116 bytes.
+- JSON validation for `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json` and `lanes/lightningcss/lane-status.json`: exited 0.
+- `git diff --check`: exited 0.
+
+Root verification:
+
+- Pre-root `pgrep -af '^php tools/run-tests\.php$'`: no active no-argument root harness.
+- `php tools/run-tests.php`: 211 test files, 24741 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The slice reuses the existing bounded `TransitionPrefixer` target-option flow, RTL selector helper, declaration scanner, and existing radius value/composition support.
+
+Live-service exclusions: none needed; no live-service provider tests were run.
+
+Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-border-radius-minifier.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, `lanes/lightningcss/src/TransitionPrefixer.php`, `lanes/lightningcss/tests/TransitionPrefixerTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - Dolt schema conflict description slice - 2026-05-25 02:45 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T022019Z.ready`.
