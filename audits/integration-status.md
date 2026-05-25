@@ -1,5 +1,47 @@
 # Integration Status
 
+## Integration accepted - isolated Quadrable head cleanup - 2026-05-25 03:17 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T031001Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T031001Z.patch`.
+
+Lane/slice/session: `quadrable` / `rearmer-20260525T031001Z` /
+`port-quadrable`. Patch sha256 verified:
+`9593a5571f11070cdece085acb1377e87c57f618d68ebeddb319164a28b108ea`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-quadrable-rearmer-20260525T031001Z`:
+
+- `php -l lanes/quadrable/tests/QuadbStoreTest.php` - passed, no syntax errors.
+- `php -l lanes/quadrable/examples/wordpress-quadb-head-cleanup.php` - passed, no syntax errors.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` - passed, 1 test file, 935 assertions, 0 failures.
+- `php tools/run-tests.php lanes/quadrable/tests` - passed, 10 test files, 3,124 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-quadb-head-cleanup.php` - passed; emitted discarded-preview cleanup smoke JSON with `headRemoveCommand.exitCode` 0, `discardedHeadRemoved` true, and `approvedPreviewStillCurrent` true.
+- `php -r 'json_decode(file_get_contents("lanes/quadrable/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/quadrable/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'` - passed.
+- `git diff --check` - passed.
+
+Root verification in the same clean worktree:
+
+- Pre-root exact harness gate `pgrep -af '^php tools/run-tests\.php$'` returned no active process.
+- `php tools/run-tests.php` - passed, 211 test files, 24,926 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component activated. The
+slice reuses the existing bounded file-backed `QuadbStore` command wrapper,
+head-state persistence, and tracked-node garbage collection components.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/examples/wordpress-quadb-head-cleanup.php`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/upstream-inventory.md`
+- `lanes/quadrable/tests/QuadbStoreTest.php`
+- `audits/integration-status.md`
+
 ## Integration superseded - Syncthing duplicate watcher restart marker - 2026-05-25 03:09 UTC
 
 Superseded isolated ready marker `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023636Z.ready`.

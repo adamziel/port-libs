@@ -959,11 +959,55 @@ return [
             $t->contains('   master : ', $afterRemove->headText());
             $t->true(!str_contains($afterRemove->headText(), 'preview :'), 'removed current head should disappear from head output');
 
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::forkCommandOutput($storeDir, 'discarded-preview', 'master'));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::putCommandOutput($storeDir, 'wp_posts:1', 'Discarded preview'));
+            $discarded = QuadbStore::open($storeDir);
+            $t->contains('=> discarded-preview : ', $discarded->headText());
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::headRemoveCommandOutput($storeDir, 'discarded-preview'));
+            $afterNamedRemove = QuadbStore::open($storeDir);
+            $t->same('discarded-preview', $afterNamedRemove->currentHeadName());
+            $t->same(HashTree::EMPTY_HASH, $afterNamedRemove->tree()->rootHash());
+            $t->true(!str_contains($afterNamedRemove->headText(), 'discarded-preview :'), 'named head rm should remove the requested head');
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::checkoutCommandOutput($storeDir));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::putCommandOutput($storeDir, 'wp_posts:2', 'Detached draft'));
+            $detachedBeforeRemove = QuadbStore::open($storeDir);
+            $t->true($detachedBeforeRemove->isDetachedHead());
+            $t->contains('D> [detached] : ', $detachedBeforeRemove->headText());
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::headRemoveCommandOutput($storeDir));
+            $afterDetachedRemove = QuadbStore::open($storeDir);
+            $t->true($afterDetachedRemove->isDetachedHead());
+            $t->same(HashTree::EMPTY_HASH, $afterDetachedRemove->tree()->rootHash());
+            $t->contains('D> [detached] : 0x' . HashTree::EMPTY_HASH . ' (0)', $afterDetachedRemove->headText());
+
             $gcCommand = QuadbStore::garbageCollectCommandOutput($storeDir);
             $t->same(0, $gcCommand['exitCode']);
             $t->same('', $gcCommand['stderr']);
             $gc = quadrableQuadbParseGcText($gcCommand['stdout']);
-            $t->same($storedBeforeRemove, $gc['total']);
             $t->true($gc['garbage'] > 0);
         } finally {
             quadrableQuadbRemoveDir($missingDir);

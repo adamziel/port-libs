@@ -60,25 +60,37 @@ try {
     $approvedRoot = $repo->tree()->rootHash();
 
     $headsBeforeCleanup = $lines($repo->headText());
-    $repo->removeHead('preview-a');
-    $storedNodesBeforeGc = $storedNodeCount($repo);
-    $gcOutput = rtrim($repo->garbageCollectText(), "\r\n");
-    $storedNodesAfterGc = $storedNodeCount($repo);
-    $headsAfterCleanup = $lines($repo->headText());
+    $headRemoveCommand = QuadbStore::headRemoveCommandOutput($dir, 'preview-a');
+    if ($headRemoveCommand['exitCode'] !== 0) {
+        throw new RuntimeException($headRemoveCommand['stderr']);
+    }
+
+    $afterRemove = QuadbStore::open($dir);
+    $storedNodesBeforeGc = $storedNodeCount($afterRemove);
+    $gcCommand = QuadbStore::garbageCollectCommandOutput($dir);
+    if ($gcCommand['exitCode'] !== 0) {
+        throw new RuntimeException($gcCommand['stderr']);
+    }
+
+    $afterGc = QuadbStore::open($dir);
+    $gcOutput = rtrim($gcCommand['stdout'], "\r\n");
+    $storedNodesAfterGc = $storedNodeCount($afterGc);
+    $headsAfterCleanup = $lines($afterGc->headText());
 
     echo json_encode([
-        'scenario' => 'garbage collect a discarded quadb WordPress preview head while preserving the approved preview root',
-        'currentStatus' => rtrim($repo->statusText(), "\r\n"),
+        'scenario' => 'remove and garbage collect a discarded quadb WordPress preview head with upstream-shaped command output',
+        'currentStatus' => rtrim($afterGc->statusText(), "\r\n"),
         'approvedPreviewRoot' => $approvedRoot,
-        'approvedPreviewRootAfterGc' => $repo->tree()->rootHash(),
+        'approvedPreviewRootAfterGc' => $afterGc->tree()->rootHash(),
         'headsBeforeCleanup' => $headsBeforeCleanup,
         'headsAfterCleanup' => $headsAfterCleanup,
+        'headRemoveCommand' => $headRemoveCommand,
         'gcOutput' => $gcOutput,
         'storedNodesBeforeGc' => $storedNodesBeforeGc,
         'storedNodesAfterGc' => $storedNodesAfterGc,
         'discardedNodesCollected' => $storedNodesAfterGc < $storedNodesBeforeGc,
-        'discardedHeadRemoved' => !str_contains($repo->headText(), 'preview-a :'),
-        'approvedPreviewStillCurrent' => $repo->currentHeadName() === 'preview-b',
+        'discardedHeadRemoved' => !str_contains($afterGc->headText(), 'preview-a :'),
+        'approvedPreviewStillCurrent' => $afterGc->currentHeadName() === 'preview-b',
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($dir);
