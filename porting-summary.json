@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 08:33:57 UTC",
-    "sourceCommit": "29038ae5b44947b12926e29fb9b6c58eb47fefc7",
-    "sourceCommitShort": "29038ae5b449",
+    "generated": "2026-05-25 08:42:05 UTC",
+    "sourceCommit": "3194b521c2dd086df6f1dda8cf21242d3ad3756b",
+    "sourceCommitShort": "3194b521c2dd",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "c593238be26550728d608231d1d64f20f6a3596b",
-    "dashboardCommitShort": "c593238be265",
+    "dashboardCommit": "8488e5a770075631f9e63ef699eeea208f089b73",
+    "dashboardCommitShort": "8488e5a77007",
     "averageProgressPercent": "85.8",
     "lanes": [
         {
@@ -66,7 +66,7 @@
             "denominator": "2878",
             "mapped": "1467",
             "coverage": "1467 / 2878",
-            "php": "2771 pass / 0 fail",
+            "php": "2775 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
             "audit": "isolated rework micro-slice 2026-05-25 pr...",
@@ -168,7 +168,7 @@
             "denominator": "2553",
             "mapped": "484",
             "coverage": "484 / 2553",
-            "php": "502 pass / 0 fail",
+            "php": "503 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus bounded upstream Go runner...",
             "audit": "verified 2026-05-25 isolated micro-slice...",
