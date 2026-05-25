@@ -78,20 +78,58 @@ JSONB SQL-dispatch assertion gap, covering JSONB blobs through both direct and
 argument-vector `json_pretty()` dispatch when no second SQL argument is
 provided. Focused verification is recorded in `lane-status.json`.
 Priority-refill rework 2026-05-25T12:13Z adds explicit SQL NULL
-first-argument coverage when a custom indent second argument is supplied
-through both direct and argument-vector `json_pretty()` dispatch, plus the
-matching `null_indent_settings` WordPress smoke row. Focused PHP verification
-passed with 1 selected file, 2080 assertions, and 0 failures; the root harness
-was not run for this isolated micro-slice.
-Supervisor-rework refill 2026-05-25T12:53Z adds the missing default-indent
-JSON subtype first-argument assertions through both direct and argument-vector
-`json_pretty()` dispatch, plus a matching WordPress smoke row for subtype
-option values. Focused PHP verification passed with 1 selected file, 2082 assertions, and 0 failures; the WordPress smoke reported `json_subtype_settings` with matching `json` and `directJson` output. The root harness was not run for this isolated micro-slice.
+first-argument plus custom-indent second-argument coverage through both direct
+and argument-vector `json_pretty()` SQL dispatch. Focused verification is
+recorded in `lane-status.json`.
+
+## Focused Native Mapping: `json_tree()` Recursive Table-Valued Rows
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded recursive row-production boundary
+for SQLite JSON1 `json_tree(X[,P])`. Native `SQLiteJsonTree` produces
+SQLite-shaped `key`, `value`, `type`, `atom`, `id`, `parent`, `fullkey`, and
+`path` columns for strict JSON text, SQLite JSON5 text, JSONB blobs, located
+subtrees, scalar roots, missing paths, and SQL NULL inputs. It uses preorder
+ids with parent links, quotes object labels that are not bare path labels,
+validates malformed paths/input through the existing JSON path/parser stack,
+and accepts case-insensitive `json_tree` SQL function dispatch.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON1/JSONB evidence for the same
+upstream behavior cluster:
+
+```sh
+json101.test json102.test json501.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported recursive
+root/plugin/rules rows for strict JSON, JSON5 text, JSONB blobs, and SQL NULL
+inputs, and focused PHP passed 1 selected test file, 2102 assertions, and 0
+failures. This worker did not start the root aggregate harness because root
+verification was not assigned.
 
 Dependency closure: no new support component is needed. The slice reuses the
-existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
-formatter support; it does not activate or count progress against any shared
-support-library component.
+existing lane-local JSON path, JSON5, JSONB, canonical encoding, SQL value
+typing, and BLOB wrapper components; it counts no shared support-library
+progress.
 
 ## Focused Native Mapping: JSON Operator Parenthesized Scalar RHS Constants
 

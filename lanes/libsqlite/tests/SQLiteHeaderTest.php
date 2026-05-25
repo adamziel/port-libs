@@ -34,6 +34,7 @@ use PortLibs\LibSqlite\SQLiteJsonPretty;
 use PortLibs\LibSqlite\SQLiteJsonQuote;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
+use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
@@ -3362,6 +3363,65 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEachSqlFunction('json_tree', $settings));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEach($settings, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEach('{"plugin":,}', '$.plugin'));
+    },
+    'recursively iterates sqlite json_tree table rows for text json5 and jsonb inputs' => static function (TestRunner $t): void {
+        $settings = '{"plugin":{"enabled":true,"title":"Cache","rules":[{"name":"seo"},{"name":"cache"}],"empty":null},"priority":7}';
+        $json5 = "{plugin:{enabled:false,title:'Cache',rules:['seo','cache',],},priority:+7}";
+        $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => true,
+                'rules' => [
+                    ['name' => 'seo'],
+                    ['name' => 'cache'],
+                ],
+                'dotted.key' => 'quoted',
+            ],
+        ]));
+
+        $rootRows = SQLiteJsonTree::jsonTree($settings);
+        $t->same([null, 'plugin', 'enabled', 'title', 'rules', 0, 'name', 1, 'name', 'empty', 'priority'], array_column($rootRows, 'key'));
+        $t->same(['object', 'object', 'true', 'text', 'array', 'object', 'text', 'object', 'text', 'null', 'integer'], array_column($rootRows, 'type'));
+        $t->same([null, 0, 1, 1, 1, 4, 5, 4, 7, 1, 0], array_column($rootRows, 'parent'));
+        $t->same(['$', '$', '$.plugin', '$.plugin', '$.plugin', '$.plugin.rules', '$.plugin.rules[0]', '$.plugin.rules', '$.plugin.rules[1]', '$.plugin', '$'], array_column($rootRows, 'path'));
+        $t->same('$.plugin.rules[1].name', $rootRows[8]['fullkey']);
+        $t->same('cache', $rootRows[8]['atom']);
+        $t->same(7, $rootRows[10]['value']);
+
+        $pluginRows = SQLiteJsonTree::jsonTreeSqlFunction('JSON_TREE', $json5, '$.plugin');
+        $t->same([null, 'enabled', 'title', 'rules', 0, 1], array_column($pluginRows, 'key'));
+        $t->same(['object', 'false', 'text', 'array', 'text', 'text'], array_column($pluginRows, 'type'));
+        $t->same([null, 0, 0, 0, 3, 3], array_column($pluginRows, 'parent'));
+        $t->same('$.plugin.rules[1]', $pluginRows[5]['fullkey']);
+        $t->same('cache', $pluginRows[5]['atom']);
+
+        $rulesRows = SQLiteJsonTree::jsonTree($jsonb, '$.plugin.rules');
+        $t->same([null, 0, 'name', 1, 'name'], array_column($rulesRows, 'key'));
+        $t->same(['array', 'object', 'text', 'object', 'text'], array_column($rulesRows, 'type'));
+        $t->same('$.plugin.rules[1].name', $rulesRows[4]['fullkey']);
+
+        $quotedRows = SQLiteJsonTree::jsonTree($jsonb, '$.plugin');
+        $t->same('$.plugin."dotted.key"', $quotedRows[7]['fullkey']);
+
+        $scalarRows = SQLiteJsonTree::jsonTree($settings, '$.plugin.title');
+        $t->same([[null, 'Cache', 'text', 'Cache', 0, null, '$.plugin.title', '$.plugin.title']], array_map(
+            static fn (array $row): array => [
+                $row['key'],
+                $row['value'],
+                $row['type'],
+                $row['atom'],
+                $row['id'],
+                $row['parent'],
+                $row['fullkey'],
+                $row['path'],
+            ],
+            $scalarRows,
+        ));
+
+        $t->same([], SQLiteJsonTree::jsonTree(null));
+        $t->same([], SQLiteJsonTree::jsonTree($settings, '$.plugin.missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTreeSqlFunction('json_each', $settings));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTree($settings, '$.plugin[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTree('{"plugin":,}', '$.plugin'));
     },
     'extracts sqlite json values with SQL result typing for text json5 and jsonb' => static function (TestRunner $t): void {
         $json = '{"plugin":{"enabled":true,"title":"Cache","priority":7,"ratio":1.5,"rules":[{"name":"seo"},{"name":"cache"}],"empty":null}}';

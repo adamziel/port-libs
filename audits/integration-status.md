@@ -1,4 +1,54 @@
 
+## Integration accepted - libsqlite json_tree recursive rows - 2026-05-25 13:10 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T130102Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T130102Z.patch`.
+
+Lane/slice/session: `libsqlite` / `priority-refill-20260525T130102Z` /
+`port-libsqlite-rework`. Patch sha256 verified as
+`a0016aac9f9fb11e36dd3d35169d43ac06f99f9fc7afae9ca3ad79ec68434dfa`.
+
+Apply result: plain `git apply --check` failed on stale libsqlite
+manifest/status/runner-note context. Bounded `git apply --3way` applied the
+source, test, example, and WordPress scenario hunks cleanly and left conflicts
+only in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/lane-status.json`, and
+`lanes/libsqlite/notes/upstream-runner.md`. Resolution kept the worker's
+updated json_tree metadata for those lane-local status files on top of current
+accepted source.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-libsqlite-priority-refill-20260525T130102Z`:
+`php -l lanes/libsqlite/src/SQLiteJsonTree.php`,
+`php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php` all
+passed. `php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php`
+passed and reported strict JSON, JSON5, JSONB, and SQL NULL recursive option
+rows. `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+passed with `1 test files, 2104 assertions, 0 failures`. `jq empty
+lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`
+passed. `git diff --check` passed.
+
+Root verification: after checking the resource gate and confirming
+`pgrep -af '^php tools/run-tests\.php$'` was empty, `php tools/run-tests.php`
+ran under `.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and
+passed with `214 test files, 26158 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The slice
+reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding,
+and SQL value typing components. Live-service provider tests were not run.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/examples/wordpress-json-tree-option-settings.php`,
+`lanes/libsqlite/lane-status.json`,
+`lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/src/SQLiteJsonTree.php`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - rclone OneDrive cleanup type-error guard - 2026-05-25 09:12 UTC
 
 Accepted isolated ready marker:

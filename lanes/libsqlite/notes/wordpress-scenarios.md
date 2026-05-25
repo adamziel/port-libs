@@ -93,6 +93,30 @@ support component is needed; the slice reuses existing lane-local JSON path,
 JSON5, JSONB, canonical encoding, and BLOB support and counts no shared
 support-library progress.
 
+## `json_tree()` Recursive Option-Value Expansion Scenario
+
+Native JSON table-valued inspection now includes a bounded `json_tree(X[,P])`
+row producer for strict JSON text, SQLite JSON5 text, JSONB blobs, missing
+paths, scalar paths, and SQL NULL option values. The example
+`examples/wordpress-json-tree-option-settings.php` recursively expands copied
+`wp_options.option_value` plugin settings at the root, `$.plugin`, and
+`$.plugin.rules`, reporting SQLite-shaped `key`, `value`, `type`, `atom`,
+`id`, `parent`, `fullkey`, and `path` columns without requiring the SQLite
+extension. This gives WordPress import and repair tooling a local-only way to
+review nested setting trees and rule arrays before import.
+
+Status delta 2026-05-25 isolated micro-slice: added `SQLiteJsonTree`, focused
+tests, and a WordPress smoke. The slice covers recursive row production and
+parent ids; hidden `json`/`root` columns, planner behavior, and virtual table
+cursor internals remain out of scope. Focused verification is recorded in
+`lane-status.json`. Blocker: no hydrated upstream cache exists in this
+isolated worktree, so no fresh SQLite testfixture run was performed; this
+slice reuses prior focused JSON1/JSONB runner evidence and maps the recursive
+table-valued-function row-shape boundary natively. Dependency closure: no new
+support component is needed; the slice reuses existing lane-local JSON path,
+JSON5, JSONB, canonical encoding, and BLOB support and counts no shared
+support-library progress.
+
 ## JSON Operator Parenthesized RHS Index Preflight Scenario
 
 Native JSON operator expression-index preflight now folds parenthesized scalar
