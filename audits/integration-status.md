@@ -101162,3 +101162,15 @@ Root command and exact result: `php tools/run-tests.php` exit 0 (PASS wordpress 
 Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json lanes/rclone/notes/upstream-inventory.md lanes/rclone/src/OneDriveTokenRenewer.php lanes/rclone/tests/OneDriveTokenRenewerTest.php `
+
+## Clean-patch rejection - readability - 2026-05-25 03:01 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-readability-20260525T024326Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T024326Z.patch`
+Decision: rejected/deferred after focused verification.
+Focused commands: `php -l <changed PHP files>` exit 0; `php tools/run-tests.php lanes/readability/tests` exit 0 (PASS maps Mozilla replace-font-tags fixture to span markup PASS maps Mozilla tmz-1 fixture with legacy post headline envelope PASS normalizes legacy WordPress font tags before block output  1 test files, 1859 assertions, 0 failures ); `git diff --check` exit 2.
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `audits/integration-status.md` only.
+Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
