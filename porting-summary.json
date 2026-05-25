@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 23:35:19 UTC",
-    "sourceCommit": "d13a045386786339df87be3b79de52ac0c626cbd",
-    "sourceCommitShort": "d13a04538678",
+    "generated": "2026-05-25 23:37:58 UTC",
+    "sourceCommit": "62b286e5e5bcac5b89dfaf501c18684f5561e12d",
+    "sourceCommitShort": "62b286e5e5bc",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "3953795253f308bc30e14081d60637ae945e76d9",
-    "dashboardCommitShort": "3953795253f3",
+    "dashboardCommit": "edf92efa097ecf2d5b4cb6f130dcb80780b8ddc0",
+    "dashboardCommitShort": "edf92efa097e",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -185,11 +185,11 @@
             "denominator": "1984",
             "mapped": "1578",
             "coverage": "1578 / 1984",
-            "php": "153 pass / 0 fail",
+            "php": "154 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream npm runner eviden...",
             "audit": "verified 2026-05-25 isolated micro-slice:...",
-            "currentWork": "Captioned retained media wrappers now serialize as WordPress HTML review blocks when a di...",
+            "currentWork": "The copied Mozilla remove-extra-paragraphs fixture now has focused exact expected-text an...",
             "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted...",
             "blocker": "No focused readability blocker.",
             "commit": "pending"
