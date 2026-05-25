@@ -508,6 +508,7 @@ final class PdfTextExtractor
     private function fontToUnicodeMaps(string $pdfBytes): array
     {
         $objects = $this->pdfObjects($pdfBytes);
+        $namedCMapBodies = $this->namedCMapBodies($objects);
         $fontObjectMaps = [];
 
         foreach ($objects as $objectNumber => $body) {
@@ -523,7 +524,7 @@ final class PdfTextExtractor
                 continue;
             }
 
-            $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects);
+            $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects, $namedCMapBodies);
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
                 $fontObjectMaps[$objectNumber] = $cmap;
             }
@@ -579,29 +580,75 @@ final class PdfTextExtractor
     }
 
     /**
-     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     * @return array<string, string>
      * @param array<int, string> $objects
      */
-    private function toUnicodeMapFromObject(string $objectBody, array $objects): ?array
+    private function namedCMapBodies(array $objects): array
+    {
+        $named = [];
+        foreach ($objects as $body) {
+            $cmap = $this->decodedCMapBody($body, $objects);
+            if ($cmap === null || !preg_match('/\/CMapName\s+\/([^\s\[\]()<>{}\/%]+)\s+def\b/s', $cmap, $match)) {
+                continue;
+            }
+
+            $named[$this->decodePdfName($match[1])] = $cmap;
+        }
+
+        return $named;
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}|null
+     * @param array<int, string> $objects
+     * @param array<string, string> $namedCMapBodies
+     */
+    private function toUnicodeMapFromObject(string $objectBody, array $objects, array $namedCMapBodies): ?array
+    {
+        $decoded = $this->decodedCMapBody($objectBody, $objects);
+        if ($decoded === null) {
+            return null;
+        }
+
+        return $this->parseToUnicodeCMap($decoded, $namedCMapBodies);
+    }
+
+    /**
+     * @param array<int, string> $objects
+     */
+    private function decodedCMapBody(string $objectBody, array $objects): ?string
     {
         if (!preg_match('/<<(.*?)>>\s*stream\r?\n?(.*?)\r?\n?endstream/s', $objectBody, $match)) {
             return null;
         }
 
-        $decoded = $this->decodeStream($match[1], $match[2], $objects);
-        if ($decoded === null) {
-            return null;
-        }
-
-        return $this->parseToUnicodeCMap($decoded);
+        return $this->decodeStream($match[1], $match[2], $objects);
     }
 
     /**
      * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}
+     * @param array<string, string> $namedCMapBodies
+     * @param list<string> $seenCMaps
      */
-    private function parseToUnicodeCMap(string $cmap): array
+    private function parseToUnicodeCMap(string $cmap, array $namedCMapBodies = [], array $seenCMaps = []): array
     {
         $map = [];
+        $codeSpaceRanges = [];
+
+        if (preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+usecmap\b/s', $cmap, $useCMapMatches)) {
+            foreach ($useCMapMatches[1] as $rawName) {
+                $name = $this->decodePdfName($rawName);
+                if (in_array($name, $seenCMaps, true) || !isset($namedCMapBodies[$name])) {
+                    continue;
+                }
+
+                $base = $this->parseToUnicodeCMap($namedCMapBodies[$name], $namedCMapBodies, [...$seenCMaps, $name]);
+                $map = $base['map'] + $map;
+                foreach ($base['codeSpaceRanges'] as $range) {
+                    $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
+                }
+            }
+        }
 
         if (preg_match_all('/beginbfchar(.*?)endbfchar/s', $cmap, $charBlocks)) {
             foreach ($charBlocks[1] as $block) {
@@ -624,9 +671,17 @@ final class PdfTextExtractor
             }
         }
 
+        foreach ($this->parseCMapCodeSpaceRanges($cmap) as $range) {
+            $codeSpaceRanges[$range['start'] . ':' . $range['end'] . ':' . $range['width']] = $range;
+        }
+        $codeSpaceRanges = array_values($codeSpaceRanges);
+        usort($codeSpaceRanges, static function (array $left, array $right): int {
+            return $right['width'] <=> $left['width'] ?: $left['start'] <=> $right['start'];
+        });
+
         return [
             'map' => $map,
-            'codeSpaceRanges' => $this->parseCMapCodeSpaceRanges($cmap),
+            'codeSpaceRanges' => $codeSpaceRanges,
         ];
     }
 

@@ -102011,3 +102011,21 @@ Files staged:
 - `lanes/lightningcss/src/TransitionPrefixer.php`
 - `lanes/lightningcss/tests/CssMinifierTest.php`
 - `lanes/lightningcss/tests/TransitionPrefixerTest.php`
+
+## Integration accepted - isolated markerpdf - 2026-05-25T04:14:24Z
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T031908Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T031908Z.patch`
+Lane/slice/session: `markerpdf` / `rearmer-20260525T031908Z` / `port-markerpdf`
+Patch sha256: `ecb5e22929575db99ef1d4429ad46f49bb0d5ca3417322a69e72c422e0d8c59e` (matched marker).
+Focused verification: `php -l lanes/markerpdf/src/PdfTextExtractor.php && php -l lanes/markerpdf/tests/PdfTextExtractorTest.php && php -l lanes/markerpdf/examples/wordpress-pdf-cmap-usecmap-import.php && jq empty lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json lanes/markerpdf/lane-status.json && php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php && php tools/run-tests.php lanes/markerpdf/tests` plus worker log evidence in `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-markerpdf-20260525T031908Z.log`; all passed in clean worktree.
+Root verification: `php tools/run-tests.php` passed in `/tmp/port-clean-integrator-markerpdf-20260525T031908Z-1484547`.
+Support-library/dependency closure: no new support component activated; accepted as lane-local micro-slice per worker metadata.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/markerpdf/lane-status.json`
+- `lanes/markerpdf/notes/upstream-test-inventory.md`
+- `lanes/markerpdf/notes/wordpress-scenarios.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+- `lanes/markerpdf/tests/PdfTextExtractorTest.php`

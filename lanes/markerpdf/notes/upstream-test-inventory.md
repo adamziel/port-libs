@@ -4,6 +4,13 @@ Inventory source: shallow clone of `https://github.com/sddai/markerPDF` at `da6a
 
 The manifest denominator now keeps `benchmarkDenominator.total` numeric at `78`; the long inventory explanation is recorded separately as `inventorySummary`. The clone check on 2026-05-24 19:13 UTC confirmed `git ls-tree -r --name-only HEAD | wc -l` returns `78`, with `0` committed Python unit test files found and the full upstream benchmark runner still blocked on Poetry plus heavy PDF/model dependencies.
 
+## Reduced Handoff 2026-05-25 03:19 UTC
+
+- Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-cmap-usecmap-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted stream-filter and ToUnicode handoffs.
+- ToUnicode usecmap slice: `PdfTextExtractor` now collects named CMap streams and resolves `/BaseName usecmap` inheritance before local ToUnicode entries, so derived CMaps can reuse base glyph mappings and still supply local overrides before native WordPress paragraph extraction.
+- Focused evidence: `php -l lanes/markerpdf/src/PdfTextExtractor.php`, `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`, `php -l lanes/markerpdf/examples/wordpress-pdf-cmap-usecmap-import.php`, `php lanes/markerpdf/examples/wordpress-pdf-cmap-usecmap-import.php`, `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed with 1 test file, 50 assertions, and 0 failures, `php tools/run-tests.php lanes/markerpdf/tests` passed with 47 test files, 983 assertions, and 0 failures, and `git diff --check -- lanes/markerpdf` passed.
+- Acceptance blocker remains integrator/root aggregate verification plus full upstream runner parity and the inactive `pdf-text-dictionary-core`, `layout-ocr-result-core`, and `table-geometry-core` gates. Dependency closure: no new support component is needed; this reuses the existing bounded native `PdfTextExtractor` content-stream parser and ToUnicode CMap lookup. Broader searchable PDF dictionary extraction should reuse the existing `pdf-text-dictionary-core` row only when that accepted rich slice opens.
+
 ## Reduced Handoff 2026-05-25 02:36 UTC
 
 - Scope adds only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-cmap-bfrange-import.php`, and lane-owned manifest/status/notes refreshes on top of the accepted stream-filter and ToUnicode handoffs.

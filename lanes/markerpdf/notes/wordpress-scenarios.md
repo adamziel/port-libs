@@ -30,6 +30,8 @@ The 2026-05-25 01:28 UTC PDF name escape slice decodes `#XX` escapes in PDF name
 
 The 2026-05-25 02:36 UTC ToUnicode bfrange-array slice parses explicit destination arrays in `beginbfrange` CMap blocks before native text lookup. `examples/wordpress-pdf-cmap-bfrange-import.php` demonstrates the WordPress import effect by emitting `Import Blocks` as a Gutenberg paragraph from encoded glyph IDs whose Unicode targets are not a simple sequential range, without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+The 2026-05-25 03:19 UTC ToUnicode usecmap slice resolves named base CMap inheritance before local ToUnicode entries. `examples/wordpress-pdf-cmap-usecmap-import.php` demonstrates the WordPress import effect by emitting `Import Blocks` as a Gutenberg paragraph from a derived CMap that inherits base glyph mappings and supplies a local space mapping, without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 The lane now also maps the upstream `pdftext` dictionary boundary from `marker/pdf/extract_text.py::pdftext_format_to_blocks`. `PdfTextBlockConverter` converts supplied pdftext page dictionaries into Marker's native Page/Block/Line/Span arrays, including font flag suffixes, span IDs, rotation-aware page bboxes, and pdftext hyphen/newline cleanup before later layout annotation.
 
 The lane now also maps the supplied-data boundary of `marker/pdf/extract_text.py::get_text_blocks`. `PdfTextDocumentExtractor` applies upstream `start_page`/`max_pages` page-range semantics to supplied pdftext dictionaries, restarts span IDs relative to the selected range, preserves original PDF page numbers, and carries PDF TOC metadata for partial WordPress imports.
