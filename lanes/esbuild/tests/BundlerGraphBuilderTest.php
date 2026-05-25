@@ -129,15 +129,23 @@ return [
         $t->same(true, str_contains($output['output']['contents'], "// src/local-preview.js\n"));
         $t->same(true, str_contains($output['output']['contents'], "export const preview = 'card-preview';"));
         $t->same(false, str_contains($output['output']['contents'], "import './local-preview.js';"));
-        $t->same(true, str_contains($output['output']['contents'], "import './block.css';"));
-        $t->same(true, str_contains($output['output']['contents'], "import metadata from './block.json' with { type: 'json' };"));
+        $t->same(false, str_contains($output['output']['contents'], "import './block.css';"));
+        $t->same(false, str_contains($output['output']['contents'], "import metadata from './block.json' with { type: 'json' };"));
+        $t->same(true, str_contains($output['output']['contents'], "import './src/block.css';"));
+        $t->same(true, str_contains($output['output']['contents'], "import metadata from './src/block.json' with { type: 'json' };"));
         $t->same(false, str_contains($output['output']['contents'], 'front-end stylesheet fixture'));
         $t->same(true, $output['output']['bytes'] > $output['inputs']['src/loader-entry.js']['bytes']);
         $t->same(true, isset($output['inputs']['src/local-preview.js']));
         $t->same(false, isset($output['inputs']['src/block.css']));
         $t->same(false, isset($output['inputs']['src/block.json']));
         $t->same(1, $output['inputs']['src/loader-entry.js']['importsRemoved']);
+        $t->same(2, $output['inputs']['src/loader-entry.js']['importsRewritten']);
+        $t->same([
+            ['from' => './block.css', 'to' => './src/block.css', 'kind' => 'side-effect'],
+            ['from' => './block.json', 'to' => './src/block.json', 'kind' => 'default'],
+        ], $output['inputs']['src/loader-entry.js']['rewrites']);
         $t->same(0, $output['inputs']['src/local-preview.js']['importsRemoved']);
+        $t->same(0, $output['inputs']['src/local-preview.js']['importsRewritten']);
         $t->same([], $output['diagnostics']['missing']);
         $t->same([], $output['diagnostics']['unsupported']);
     },
@@ -169,5 +177,16 @@ return [
         $t->same(['./asset.bin'], array_map(static fn (array $diagnostic): string => $diagnostic['path'], $unsupportedOutput['diagnostics']['unsupported']));
         $t->same(false, isset($unsupportedOutput['inputs']['src/asset.bin']));
         $t->same(true, isset($unsupportedOutput['inputs']['src/local-preview.js']));
+    },
+    'rewrites retained terminal asset imports relative to nested output paths' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $graph = (new BundlerGraphBuilder())->build($fixtureRoot . '/src/loader-entry.js');
+        $output = (new BundlerOutput())->build($graph, $fixtureRoot, 'build/block-view.js');
+
+        $t->same(true, str_contains($output['output']['contents'], "import '../src/block.css';"));
+        $t->same(true, str_contains($output['output']['contents'], "import metadata from '../src/block.json' with { type: 'json' };"));
+        $t->same([
+            ['from' => './block.css', 'to' => '../src/block.css', 'kind' => 'side-effect'],
+            ['from' => './block.json', 'to' => '../src/block.json', 'kind' => 'default'],
+        ], $output['inputs']['src/loader-entry.js']['rewrites']);
     },
 ];

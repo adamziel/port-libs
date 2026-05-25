@@ -122,6 +122,28 @@ Files staged:
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 # Integration Status
 
+## Clean-patch integration - Esbuild - 20260525T062116Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T060506Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T060506Z.patch`
+Lane/slice/session: `esbuild` / `watchdog-next-20260525T060506Z` / `port-esbuild`
+Patch sha256: `567ea4c764f6b69f964e7bfa801601bcb2a80293adfb1486e689befb243bb7b8` verified with `sha256sum -c`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-esbuild-watchdog-next-20260525T060506Z-20260525T062116Z`:
+
+- `php -l` on changed PHP files: passed for `BundlerOutput.php`, `BundlerMetafile.php`, `BundlerGraphBuilderTest.php`, and `wordpress-asset-preflight.php`.
+- `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php`: passed, 1 selected test file, 90 assertions, 0 failures.
+- `php tools/run-tests.php lanes/esbuild/tests`: passed, 7 selected test files, 1934 assertions, 0 failures.
+- `php lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'WordPress (bounded JS output bytes|terminal import path rewrites|metafile output bytes)'`: passed.
+- `jq empty lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree, 213 test files, 25588 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this is a lane-local bundled output import-path rewrite/metafile slice.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/upstream-inventory.md`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/BundlerMetafile.php`, `lanes/esbuild/src/BundlerOutput.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `audits/integration-status.md`.
+
 ## Clean-patch integration - Readability - 20260525T062005Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-readability-20260525T060504Z.ready`

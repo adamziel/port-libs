@@ -7,7 +7,7 @@ namespace PortLibs\Esbuild;
 final class BundlerMetafile
 {
     /**
-     * @param array{output?: array{path: string, bytes: int}, inputs?: array<string, array{bytes: int, outputBytes: int, importsRemoved: int}>}|null $output
+     * @param array{output?: array{path: string, bytes: int}, inputs?: array<string, array{bytes: int, outputBytes: int, importsRemoved: int, importsRewritten?: int, rewrites?: list<array{from: string, to: string, kind: string}>}>}|null $output
      * @return array{entry: string, inputs: array<string, array{bytes: int, imports: list<array{path: string, kind: string, external: bool, loader?: string, missing?: bool, unsupported?: bool}>}>, outputs?: array<string, array{bytes: int, inputs: array<string, array{bytesInOutput: int, importsRemoved: int}>, importsRemoved: int}>, diagnostics: array{external: list<array{path: string, kind: string}>, missing: list<array{path: string, kind: string}>, unsupported: list<array{path: string, kind: string, resolved: string}>}}
      */
     public function summarize(BundlerGraph $graph, ?string $root = null, ?array $output = null): array
@@ -71,7 +71,7 @@ final class BundlerMetafile
     }
 
     /**
-     * @param array{output: array{path: string, bytes: int}, inputs: array<string, array{bytes: int, outputBytes: int, importsRemoved: int}>} $output
+     * @param array{output: array{path: string, bytes: int}, inputs: array<string, array{bytes: int, outputBytes: int, importsRemoved: int, importsRewritten?: int, rewrites?: list<array{from: string, to: string, kind: string}>}>} $output
      * @return array<string, array{bytes: int, inputs: array<string, array{bytesInOutput: int, importsRemoved: int}>, importsRemoved: int}>
      */
     private function outputSummary(array $output): array

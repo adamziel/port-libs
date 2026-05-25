@@ -604,11 +604,17 @@ printf("WordPress bounded JS output bytes: %s\n", (
     && str_contains($loaderBundlerOutput['output']['contents'], "// src/loader-entry.js\n")
     && str_contains($loaderBundlerOutput['output']['contents'], "// src/local-preview.js\n")
     && !str_contains($loaderBundlerOutput['output']['contents'], "import './local-preview.js';")
-    && str_contains($loaderBundlerOutput['output']['contents'], "import './block.css';")
+    && str_contains($loaderBundlerOutput['output']['contents'], "import './src/block.css';")
     && ($loaderBundlerOutput['inputs']['src/loader-entry.js']['importsRemoved'] ?? null) === 1
     && isset($loaderBundlerOutput['inputs']['src/local-preview.js'])
     && !isset($loaderBundlerOutput['inputs']['src/block.css'])
     && ($unsupportedLoaderOutput['diagnostics']['unsupported'][0]['path'] ?? null) === './asset.bin'
+) ? 'yes' : 'no');
+printf("WordPress terminal import path rewrites: %s\n", (
+    ($loaderBundlerOutput['inputs']['src/loader-entry.js']['importsRewritten'] ?? null) === 2
+    && ($loaderBundlerOutput['inputs']['src/loader-entry.js']['rewrites'][0]['to'] ?? null) === './src/block.css'
+    && ($loaderBundlerOutput['inputs']['src/loader-entry.js']['rewrites'][1]['to'] ?? null) === './src/block.json'
+    && str_contains($loaderBundlerOutput['output']['contents'], "import metadata from './src/block.json' with { type: 'json' };")
 ) ? 'yes' : 'no');
 printf("WordPress metafile output bytes: %s\n", (
     ($loaderOutputMetafile['outputs']['block-view.js']['bytes'] ?? null) === $loaderBundlerOutput['output']['bytes']
