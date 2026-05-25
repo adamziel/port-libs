@@ -118,7 +118,9 @@ final class SyncFuzzer
      *     totalDiffs: int,
      *     totalScanDiffs: int,
      *     maxRecords: int,
-     *     maxEdits: int
+     *     maxEdits: int,
+     *     maxSnapshotBytes: int,
+     *     maxTrackedSharedNodes: int
      * }
      */
     public static function summarizeResults(array $results): array
@@ -136,6 +138,8 @@ final class SyncFuzzer
             'totalScanDiffs' => 0,
             'maxRecords' => 0,
             'maxEdits' => 0,
+            'maxSnapshotBytes' => 0,
+            'maxTrackedSharedNodes' => 0,
         ];
 
         foreach ($results as $result) {
@@ -146,6 +150,8 @@ final class SyncFuzzer
             $summary['totalScanDiffs'] += $result['scanDiffCount'];
             $summary['maxRecords'] = max($summary['maxRecords'], $result['numElems']);
             $summary['maxEdits'] = max($summary['maxEdits'], $result['numAlterations']);
+            $summary['maxSnapshotBytes'] = max($summary['maxSnapshotBytes'], $result['snapshotBytes'] ?? 0);
+            $summary['maxTrackedSharedNodes'] = max($summary['maxTrackedSharedNodes'], $result['trackedSharedNodeCount'] ?? 0);
         }
 
         return $summary;

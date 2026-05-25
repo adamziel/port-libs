@@ -102782,3 +102782,24 @@ Files staged:
 - `lanes/pandoc/notes/upstream-inventory.md`
 - `lanes/pandoc/src/MarkdownWriter.php`
 - `lanes/pandoc/tests/MarkdownReaderTest.php`
+
+## Integration accepted - isolated quadrable watchdog-next-20260525T045947Z - 2026-05-25T05:12:57Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T045947Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T045947Z.patch`
+Lane/slice/session: `quadrable` / `watchdog-next-20260525T045947Z` / `port-quadrable`
+Patch sha256: `ad60150b018021e843f6c059645fe62e8777956d5d36f921f5035d3386260eae` verified. Applied with bounded three-way rebase from `da9ef2d3621dfbb1c979bb9c3dddda7cb5b910ee`.
+Focused commands:
+- `php tools/run-tests.php lanes/quadrable/tests/SyncTest.php => exit 0; 1 test files, 240 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25273 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/wordpress-scenarios.md`
+- `lanes/quadrable/src/SyncFuzzer.php`
+- `lanes/quadrable/tests/SyncTest.php`

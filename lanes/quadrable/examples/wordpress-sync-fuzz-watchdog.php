@@ -11,7 +11,7 @@ $seed = isset($argv[2]) ? (int) $argv[2] : 0;
 
 $fuzzer = new SyncFuzzer(maxRoundTrips: 200);
 $results = $fuzzer->run($trials, $seed);
-$summary = SyncFuzzer::summarizeResults($results);
+$persistedResults = $fuzzer->runWithPersistedTrackedSnapshots($trials, $seed);
 
 echo json_encode([
     'scenario' => 'optional Playground snapshot sync-fuzzer watchdog evidence',
@@ -19,5 +19,6 @@ echo json_encode([
     'requestedTrials' => $trials,
     'upstreamFullProbeTrials' => 500,
     'fastSuiteRunsFullProbe' => false,
-    'summary' => $summary,
+    'inMemorySummary' => SyncFuzzer::summarizeResults($results),
+    'persistedTrackedSummary' => SyncFuzzer::summarizeResults($persistedResults),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

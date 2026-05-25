@@ -494,12 +494,27 @@ return [
         $t->same($summary['totalDiffs'], $summary['totalScanDiffs']);
         $t->same(max(array_column($results, 'numElems')), $summary['maxRecords']);
         $t->same(max(array_column($results, 'numAlterations')), $summary['maxEdits']);
+        $t->same(0, $summary['maxSnapshotBytes']);
+        $t->same(0, $summary['maxTrackedSharedNodes']);
+
+        $persistedResults = $fuzzer->runWithPersistedTrackedSnapshots(2, 0);
+        $persistedSummary = SyncFuzzer::summarizeResults($persistedResults);
+
+        $t->same(2, $persistedSummary['trials']);
+        $t->same($persistedResults[0]['rootHash'], $persistedSummary['firstRoot']);
+        $t->same($persistedResults[1]['rootHash'], $persistedSummary['lastRoot']);
+        $t->same(max(array_column($persistedResults, 'snapshotBytes')), $persistedSummary['maxSnapshotBytes']);
+        $t->same(max(array_column($persistedResults, 'trackedSharedNodeCount')), $persistedSummary['maxTrackedSharedNodes']);
+        $t->true($persistedSummary['maxSnapshotBytes'] > 0, 'persisted watchdog summary should expose snapshot bytes');
+        $t->true($persistedSummary['maxTrackedSharedNodes'] > 0, 'persisted watchdog summary should expose shared tracked nodes');
 
         $emptySummary = SyncFuzzer::summarizeResults([]);
         $t->same(0, $emptySummary['trials']);
         $t->same(null, $emptySummary['firstRoot']);
         $t->same(null, $emptySummary['lastRoot']);
         $t->same(0, $emptySummary['totalRequests']);
+        $t->same(0, $emptySummary['maxSnapshotBytes']);
+        $t->same(0, $emptySummary['maxTrackedSharedNodes']);
     },
 ];
 
