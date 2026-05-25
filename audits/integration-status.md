@@ -103210,3 +103210,32 @@ No source was accepted from the remaining current ready markers in this pass. Fo
 - .tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.ready
   Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.patch
   Conflicted files: lanes/syncthing/UPSTREAM_TEST_MANIFEST.json, lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php, lanes/syncthing/lane-status.json, lanes/syncthing/notes/wordpress-scenarios.md, lanes/syncthing/src/FolderWatchScanScheduler.php.
+## Integration accepted - Quadrable isolated watchdog summary fields - 2026-05-25 05:42 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T053441Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T053441Z.patch` (`sha256 f3353998a228bf777e921e7566e38e041215a52f35cf937ceed2d9cb35958944`, verified).
+Lane/slice/session: `quadrable` / `watchdog-next-20260525T053441Z` / `port-quadrable`.
+
+Focused verification in clean worktree:
+- `php -l lanes/quadrable/src/SyncFuzzer.php` passed.
+- `php -l lanes/quadrable/tests/SyncTest.php` passed.
+- `php -l lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php` passed.
+- `php tools/run-tests.php lanes/quadrable/tests/SyncTest.php` passed: 1 file, 249 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php 2 0` passed and emitted matching in-memory/persisted `rootDigest` plus max diff/shadow-node pressure fields.
+- `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json` passed.
+- `git diff --check` passed.
+
+Root gate: exact no-argument root PID `2160419` was active before root verification and cleared during the allowed wait window. Root verification then ran from the same clean worktree: `php tools/run-tests.php` passed with 212 test files, 25411 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The slice reuses existing bounded `SyncFuzzer`, tracked-node-store persistence, and WordPress watchdog example code; optional 500-trial watchdog comparison remains a lane-local slow probe/manual CI candidate.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/upstream-inventory.md`
+- `lanes/quadrable/notes/wordpress-scenarios.md`
+- `lanes/quadrable/src/SyncFuzzer.php`
+- `lanes/quadrable/tests/SyncTest.php`
+- `audits/integration-status.md`

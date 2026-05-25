@@ -119,8 +119,12 @@ final class SyncFuzzer
      *     totalScanDiffs: int,
      *     maxRecords: int,
      *     maxEdits: int,
+     *     maxDiffs: int,
+     *     maxScanDiffs: int,
+     *     maxShadowNodeId: int,
      *     maxSnapshotBytes: int,
-     *     maxTrackedSharedNodes: int
+     *     maxTrackedSharedNodes: int,
+     *     rootDigest: ?string
      * }
      */
     public static function summarizeResults(array $results): array
@@ -138,9 +142,14 @@ final class SyncFuzzer
             'totalScanDiffs' => 0,
             'maxRecords' => 0,
             'maxEdits' => 0,
+            'maxDiffs' => 0,
+            'maxScanDiffs' => 0,
+            'maxShadowNodeId' => 0,
             'maxSnapshotBytes' => 0,
             'maxTrackedSharedNodes' => 0,
+            'rootDigest' => null,
         ];
+        $rootDigestContext = hash_init('sha256');
 
         foreach ($results as $result) {
             $summary['maxRoundTrips'] = max($summary['maxRoundTrips'], $result['roundTrips']);
@@ -150,8 +159,16 @@ final class SyncFuzzer
             $summary['totalScanDiffs'] += $result['scanDiffCount'];
             $summary['maxRecords'] = max($summary['maxRecords'], $result['numElems']);
             $summary['maxEdits'] = max($summary['maxEdits'], $result['numAlterations']);
+            $summary['maxDiffs'] = max($summary['maxDiffs'], $result['diffCount']);
+            $summary['maxScanDiffs'] = max($summary['maxScanDiffs'], $result['scanDiffCount']);
+            $summary['maxShadowNodeId'] = max($summary['maxShadowNodeId'], $result['maxShadowNodeId'] ?? 0);
             $summary['maxSnapshotBytes'] = max($summary['maxSnapshotBytes'], $result['snapshotBytes'] ?? 0);
             $summary['maxTrackedSharedNodes'] = max($summary['maxTrackedSharedNodes'], $result['trackedSharedNodeCount'] ?? 0);
+            hash_update($rootDigestContext, pack('N', $result['trial']));
+            hash_update($rootDigestContext, hex2bin($result['rootHash']));
+        }
+        if ($results !== []) {
+            $summary['rootDigest'] = hash_final($rootDigestContext);
         }
 
         return $summary;
