@@ -536,10 +536,13 @@ return [
             'totalResponses' => $summary['totalResponses'],
             'maxSnapshotBytes' => $summary['maxSnapshotBytes'],
             'maxTrackedSharedNodes' => $summary['maxTrackedSharedNodes'],
-        ]);
+        ], $summary['rootDigest']);
         $t->true($passing['ok'], 'exact observed budgets should pass');
         $t->same([], $passing['failures']);
         $t->same($summary, $passing['summary']);
+        $t->same($summary['rootDigest'], $passing['expectedRootDigest']);
+        $t->same(true, $passing['rootDigestMatches']);
+        $t->same(null, $passing['rootDigestFailure']);
 
         $failing = SyncFuzzer::watchdogReport($results, [
             'maxRoundTrips' => max(0, $summary['maxRoundTrips'] - 1),
@@ -554,6 +557,17 @@ return [
             array_column($failing['failures'], 'metric')
         );
         $t->throws(\InvalidArgumentException::class, static fn (): array => SyncFuzzer::watchdogReport($results, ['totalRequests' => -1]));
+        $t->throws(\InvalidArgumentException::class, static fn (): array => SyncFuzzer::watchdogReport($results, [], 'not-a-digest'));
+
+        $wrongDigest = str_repeat('0', 64);
+        if ($summary['rootDigest'] === $wrongDigest) {
+            $wrongDigest = str_repeat('1', 64);
+        }
+        $digestMismatch = SyncFuzzer::watchdogReport($results, [], $wrongDigest);
+        $t->same(false, $digestMismatch['ok'], 'wrong expected root digest should fail');
+        $t->same([], $digestMismatch['failures']);
+        $t->same(false, $digestMismatch['rootDigestMatches']);
+        $t->same(['actual' => $summary['rootDigest'], 'expected' => $wrongDigest], $digestMismatch['rootDigestFailure']);
     },
 ];
 

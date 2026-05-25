@@ -122,6 +122,27 @@ Files staged:
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 # Integration Status
 
+## Clean-patch integration - Quadrable - 20260525T062420Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T060504Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T060504Z.patch`
+Lane/slice/session: `quadrable` / `watchdog-next-20260525T060504Z` / `port-quadrable`
+Patch sha256: `1523a483bb11b80b0579c74accc27d6caa6817f4cdfc12d22844d5113f279f64` verified with `sha256sum -c`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-quadrable-watchdog-next-20260525T060504Z-20260525T062420Z`:
+
+- `php -l` on changed PHP files: passed for `SyncFuzzer.php`, `SyncTest.php`, and `wordpress-sync-fuzz-watchdog.php`.
+- `php tools/run-tests.php lanes/quadrable/tests/SyncTest.php`: passed, 1 selected test file, 263 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php 2 0`: passed with `ok=true` and `rootDigestMatches=true`.
+- `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree, 213 test files, 25605 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this is a lane-local sync fuzzer watchdog summary slice.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php`, `lanes/quadrable/lane-status.json`, `lanes/quadrable/notes/upstream-inventory.md`, `lanes/quadrable/notes/wordpress-scenarios.md`, `lanes/quadrable/src/SyncFuzzer.php`, `lanes/quadrable/tests/SyncTest.php`, `audits/integration-status.md`.
+
 ## Clean-patch integration - Dolt - 20260525T062218Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T060505Z.ready`

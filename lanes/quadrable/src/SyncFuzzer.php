@@ -204,10 +204,13 @@ final class SyncFuzzer
      *         maxSnapshotBytes: int,
      *         maxTrackedSharedNodes: int
      *     },
-     *     failures: list<array{metric:string, actual:int, limit:int}>
+     *     failures: list<array{metric:string, actual:int, limit:int}>,
+     *     expectedRootDigest: ?string,
+     *     rootDigestMatches: bool,
+     *     rootDigestFailure: ?array{actual:?string, expected:string}
      * }
      */
-    public static function watchdogReport(array $results, array $budget): array
+    public static function watchdogReport(array $results, array $budget, ?string $expectedRootDigest = null): array
     {
         $summary = self::summarizeResults($results);
         $metricMap = [
@@ -241,10 +244,26 @@ final class SyncFuzzer
             }
         }
 
+        $rootDigestFailure = null;
+        if ($expectedRootDigest !== null) {
+            if (!preg_match('/^[0-9a-f]{64}$/', $expectedRootDigest)) {
+                throw new \InvalidArgumentException('sync fuzzer expected root digest must be a lowercase sha256 hex string');
+            }
+            if ($summary['rootDigest'] !== $expectedRootDigest) {
+                $rootDigestFailure = [
+                    'actual' => $summary['rootDigest'],
+                    'expected' => $expectedRootDigest,
+                ];
+            }
+        }
+
         return [
-            'ok' => $failures === [],
+            'ok' => $failures === [] && $rootDigestFailure === null,
             'summary' => $summary,
             'failures' => $failures,
+            'expectedRootDigest' => $expectedRootDigest,
+            'rootDigestMatches' => $rootDigestFailure === null,
+            'rootDigestFailure' => $rootDigestFailure,
         ];
     }
 
