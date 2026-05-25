@@ -109287,3 +109287,24 @@ Decision: superseded, not source-integrated. The patch test hunk for `lanes/rclo
 
 Focused/root verification: not rerun for this superseded marker; no source changes accepted. Support-library/dependency closure unchanged. Live-service exclusions unchanged: no live Graph/OAuth/provider tests.
 Files staged: `audits/integration-status.md` only.
+
+## Integration accepted - gitoxide priority finisher reapplied - 2026-05-25 09:27 UTC
+
+Accepted source from prior verified clean commit: `e059451069db818353e95dee6ac7d1a6820ad1c4`, originally produced from `.tmux-team/tmp/handoff-candidates/port-gitoxide-finisher-20260525T091724Z.ready` before a concurrent branch update displaced it.
+Lane/slice/session: `gitoxide` / `priority-finisher-20260525T091723Z` / `port-gitoxide-finisher`.
+Old head: `ae07a026b0b4f14f42c8f178426ce42a49c094bb`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-gitoxide-reaccept-20260525T092653Z`:
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` - pass.
+- `php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php` - pass.
+- `php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` - pass.
+- JSON validation for Gitoxide manifest/status - pass.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` - pass.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` - pass, 1 test file, 300 assertions, 0 failures.
+- `git diff --check` - pass.
+
+Root verification: `php tools/run-tests.php` ran in the same clean worktree and exited 0. Summary tail: PASS maps upstream iteration with remove and wait PASS manages wordpress folder services without dropping retained state PASS propagates service map callback errors like upstream each errors PASS sqlite checkpoint store persists snapshots across connections with FileInfo metadata PASS sqlite checkpoint store rejects stale revisions and expires rows before reuse PASS sqlite checkpoint store merges results and lists unexpired folders in stable order PASS folder scan service resumes through a sqlite checkpoint store PASS sqlite checkpoint store rejects unsafe table names and malformed payload rows PASS maps upstream version update ordering semantics PASS merges counters using upstream max-by-device rules PASS compares version vectors including concurrent orderings PASS detects concurrent wordpress edits before merge PASS rejects invalid vector counters PASS wordpress option store persists checkpoint payloads with FileInfo metadata PASS wordpress option store rejects stale revisions and compare-and-swap conflicts PASS wordpress option store expires snapshots and deletes stale options before reuse PASS folder scan service resumes through a wordpress option checkpoint store PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  214 test files, 25983 assertions, 0 failures 
+
+Support-library/dependency closure: no new support-library activation; the patch only rebases accepted Gitoxide smart HTTP receive-pack redirect accounting/status evidence.
+Live-service exclusions: no live service/provider tests; no full cargo workspace run.
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `audits/integration-status.md`.
