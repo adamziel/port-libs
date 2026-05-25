@@ -108614,3 +108614,26 @@ Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples
 - Marker: `port-quadrable-20260525T074117Z.ready`; patch sha256 verified: `a53b28744242c102451e92efb7d1a04e3c53f9df343e66c56165220240bcc9fc`.
 - Focused verification: `php -l` on changed PHP files passed; `jq empty` passed; `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passed: `1 test files, 947 assertions, 0 failures`; proof input guard example smoke passed; `git diff --check` passed.
 - Root verification: `php tools/run-tests.php` passed: `214 test files, 25890 assertions, 0 failures`.
+
+## Integration accepted - gitoxide smart HTTP POST redirect rework - 20260525T075739Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T074351Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T074351Z.patch`.
+Lane/slice/session: `gitoxide` / `priority-rework-20260525T074351Z` / `port-gitoxide-rework`.
+Patch sha256 verified: `67cae6e6c6f2e251609ed8f2e040679b12c9dfb01063a47a60e3e01ffe4d4ce5`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-gitoxide-priority-rework-20260525T074351Z-20260525T075551Z`:
+- `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php`: exit 0.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`: exit 0.
+- `php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`: exit 0.
+- `php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: exit 0.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`: Focused test run: 1 selected test files (root lock skipped) PASS stream receive-pack transport reads advertisement writes request and reads sideband response PASS receive-pack client parses direct report-status responses without sideband PASS stream receive-pack transport reports watchdog timeout while reading packet length PASS stream receive-pack transport reports watchdog timeout while reading packet payload PASS git-daemon receive-pack transport sends service request and delegates client flow PASS git-daemon receive-pack service request validates urls and parameters PASS smart http receive-pack transport strips service advertisement and posts request PASS smart http receive-pack urls headers and response validation follow git http protocol PASS smart http receive-pack preserves auth headers and session cookies across requests PASS smart http receive-pack follows safe initial redirects and reuses effective base PASS smart http receive-pack applies proxy options and credential helpers PASS smart http default requester performs socks5h handshake with proxy credentials PASS smart http default requester performs https through socks5h with trusted ca PASS smart http default requester performs socks4a remote host handshake PASS ssh receive-pack transport connects through injected exec streams PASS ssh receive-pack urls and commands are validated without shelling out PASS receive-pack transport guards state order and truncated packet streams PASS receive-pack client reports advertisement ERR packets before ref parsing PASS receive-pack client refuses responses without report-status negotiation PASS wordpress fixture runs receive-pack over native stream transport PASS wordpress fixture stores smart http proxy credentials without leaking origin headers PASS wordpress fixture documents smart http socks tls receive-pack discovery PASS wordpress fixture refuses cleartext url credentials before smart http discovery  1 test files, 286 assertions, 0 failures 
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: exit 0.
+- JSON validation for `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` and `lanes/gitoxide/lane-status.json`: exit 0.
+- `git diff --check`: exit 0.
+
+Root verification: `php tools/run-tests.php`: PASS wordpress option store expires snapshots and deletes stale options before reuse PASS folder scan service resumes through a wordpress option checkpoint store PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  214 test files, 25890 assertions, 0 failures 
+
+Support-library/dependency closure: no new support-library activation; the patch reuses bounded smart HTTP receive-pack redirect handling and native status validation.
+Live-service exclusions: no live provider, network credential, or external service tests were run.
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/notes/wordpress-scenarios.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, and `audits/integration-status.md`.
