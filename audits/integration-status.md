@@ -1,5 +1,39 @@
 # Integration Status
 
+## Integration accepted - LightningCSS logical border-radius reset slice - 2026-05-25 02:35 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T021730Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T021730Z.patch`.
+Lane/slice/session: `lightningcss` / `supervisor-rearm-20260525T021730Z` / `port-lightningcss`.
+
+Patch sha256 verified: `3fa0951f98ec37b3183748a237a7f7965b30929d03d8ea82e5ca3d58e106e4f1`.
+Clean worktree: `/tmp/port-clean-integrator-lightningcss-supervisor-rearm-20260525T021730Z`.
+Base accepted HEAD: `30ed7fad`.
+
+Plain `git apply --check` failed on LightningCSS status/manifest/example drift after the already accepted border-radius prefixer slice; bounded three-way apply left conflicts only in lane status, manifest, notes, and example files. Those conflicts were resolved by merging the accepted prefixer counters/evidence with this submitted logical-corner reset evidence. Source/test behavior from the patch was not rewritten.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/lightningcss/src/CssMinifier.php`: no syntax errors.
+- `php -l lanes/lightningcss/tests/CssMinifierTest.php`: no syntax errors.
+- `php -l lanes/lightningcss/examples/wordpress-border-radius-minifier.php`: no syntax errors.
+- `php -l lanes/lightningcss/src/TransitionPrefixer.php`: no syntax errors.
+- `php -l lanes/lightningcss/tests/TransitionPrefixerTest.php`: no syntax errors.
+- `php tools/run-tests.php lanes/lightningcss/tests/CssMinifierTest.php`: 1 test file, 691 assertions, 0 failures.
+- `php lanes/lightningcss/examples/wordpress-border-radius-minifier.php`: exited 0 and emitted compact CSS with legacy WebKit radius output and final pill radius.
+- `php tools/run-tests.php lanes/lightningcss/tests`: 9 test files, 1073 assertions, 0 failures.
+- JSON validation for `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json` and `lanes/lightningcss/lane-status.json`: exited 0.
+- `git diff --check`: exited 0.
+
+Root verification:
+
+- Pre-root `pgrep -af '^php tools/run-tests\.php$'`: no active no-argument root harness.
+- `php tools/run-tests.php`: 211 test files, 24730 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The slice uses existing bounded `CssMinifier` border-radius declaration-entry composition and the already accepted `TransitionPrefixer` radius support. No live-service provider tests were run.
+
+Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-border-radius-minifier.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, `lanes/lightningcss/src/CssMinifier.php`, `lanes/lightningcss/tests/CssMinifierTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - rclone OneDrive token renewer slice - 2026-05-25 02:22 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T021002Z.ready`.

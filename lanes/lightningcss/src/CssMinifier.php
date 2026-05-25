@@ -6763,12 +6763,29 @@ final class CssMinifier
             'bottom-right' => $prefix . 'border-bottom-right-radius',
             'bottom-left' => $prefix . 'border-bottom-left-radius',
         ];
+        $logicalCorners = $prefix === '' ? [
+            'border-start-start-radius',
+            'border-start-end-radius',
+            'border-end-end-radius',
+            'border-end-start-radius',
+        ] : [];
         $relevant = array_merge([$shorthand], array_values($corners));
         $latest = [];
         $lastShorthand = null;
+        $latestLogical = [];
 
         foreach ($entries as $index => $entry) {
-            if ($entry['drop'] || !in_array($entry['property'], $relevant, true)) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if (in_array($entry['property'], $logicalCorners, true)) {
+                if ($entry['important']) {
+                    return;
+                }
+                $latestLogical[$entry['property']] = $index;
+                continue;
+            }
+            if (!in_array($entry['property'], $relevant, true)) {
                 continue;
             }
             if ($entry['important']) {
@@ -6782,6 +6799,16 @@ final class CssMinifier
         }
 
         if ($lastShorthand !== null) {
+            foreach ($logicalCorners as $property) {
+                foreach ($entries as $index => $entry) {
+                    if (!$entry['drop'] && $entry['property'] === $property && $index < $lastShorthand) {
+                        $entries[$index]['drop'] = true;
+                    }
+                }
+                if (isset($latestLogical[$property]) && $latestLogical[$property] < $lastShorthand) {
+                    unset($latestLogical[$property]);
+                }
+            }
             foreach ($corners as $property) {
                 foreach ($entries as $index => $entry) {
                     if (!$entry['drop'] && $entry['property'] === $property && $index < $lastShorthand) {
@@ -6802,6 +6829,13 @@ final class CssMinifier
 
         $included = array_values($latest);
         $replaceAt = min($included);
+        $lastIncluded = max($included);
+        foreach ($latestLogical as $index) {
+            if ($index > $replaceAt && $index < $lastIncluded) {
+                return;
+            }
+        }
+
         $horizontal = [];
         $vertical = [];
 

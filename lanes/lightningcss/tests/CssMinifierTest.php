@@ -2220,6 +2220,24 @@ CSS;
                 '.foo { -webkit-border-top-left-radius: 8px; -webkit-border-top-right-radius: 16px; -webkit-border-bottom-right-radius: 8px; -webkit-border-bottom-left-radius: 16px; -moz-border-top-left-radius: 8px; -moz-border-top-right-radius: 16px; -moz-border-bottom-right-radius: 8px; -moz-border-bottom-left-radius: 16px; }'
             )
         );
+        $t->same(
+            '.foo{border-radius:10px 100px/120px;border-start-start-radius:10px}',
+            $minifier->minify(
+                '.foo { border-radius: 10px 100px 10px 100px / 120px 120px; border-start-start-radius: 10px; }'
+            )
+        );
+        $t->same(
+            '.foo{border-radius:10px 100px/120px}',
+            $minifier->minify(
+                '.foo { border-start-start-radius: 10px; border-radius: 10px 100px 10px 100px / 120px 120px; }'
+            )
+        );
+        $t->same(
+            '.foo{border-top-left-radius:10px 120px;border-top-right-radius:100px 120px;border-start-start-radius:10px;border-bottom-right-radius:100px 120px;border-bottom-left-radius:10px 120px}',
+            $minifier->minify(
+                '.foo { border-top-left-radius: 10px 120px; border-top-right-radius: 100px 120px; border-start-start-radius: 10px; border-bottom-right-radius: 100px 120px; border-bottom-left-radius: 10px 120px; }'
+            )
+        );
     },
     'wordpress supports-gated block layouts minify without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'

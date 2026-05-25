@@ -24,9 +24,14 @@ $css = <<<'CSS'
   border-bottom-right-radius: 16px 8px;
   border-bottom-left-radius: 24px 12px;
 }
+
+.wp-block-button.is-style-pill > .wp-block-button__link {
+  border-start-start-radius: 2px;
+  border-radius: 999px;
+}
 CSS;
 
-$expected = '.wp-block-group.is-style-card{-webkit-border-radius:10px 100px/120px;border-radius:10px 100px/120px}.wp-block-image.is-style-rounded img{-webkit-border-radius:0 10px;border-radius:0 10px}.wp-block-cover.is-style-rounded-corners{-webkit-border-radius:16px 24px/8px 12px;border-radius:16px 24px/8px 12px}';
+$expected = '.wp-block-group.is-style-card{-webkit-border-radius:10px 100px/120px;border-radius:10px 100px/120px}.wp-block-image.is-style-rounded img{-webkit-border-radius:0 10px;border-radius:0 10px}.wp-block-cover.is-style-rounded-corners{-webkit-border-radius:16px 24px/8px 12px;border-radius:16px 24px/8px 12px}.wp-block-button.is-style-pill>.wp-block-button__link{-webkit-border-radius:999px;border-radius:999px}';
 $actual = (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 4]);
 
 if ($actual !== $expected) {
