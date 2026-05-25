@@ -2,6 +2,25 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## `json_remove()`/`jsonb_remove()` Argument-Vector Cleanup Scenario
+
+Native JSON removal now includes bounded SQL-style argument-vector dispatch for
+`json_remove()` and `jsonb_remove()` with case-insensitive function lookup.
+The example `examples/wordpress-json-remove-sql-dispatch-preflight.php`
+exercises copied `wp_options.option_value` inputs through uppercase
+argument-vector dispatch for text and JSONB result typing, multiple path
+removals, SQL NULL input, and root removal. This gives WordPress import and
+repair tooling a local-only cleanup preflight that mirrors SQLite's SQL entry
+point without requiring the SQLite extension.
+
+Status delta 2026-05-25 isolated refill: added
+`removeSqlFunctionArguments()`, switched direct remove function-name
+validation to case-insensitive lookup, added focused arity, JSON argument type,
+path type, and invalid-name rejection tests, and updated the existing
+WordPress smoke to report uppercase argument-vector dispatch. Dependency
+closure: no new support component is needed; the slice reuses existing
+lane-local JSON path, JSON5, JSONB, canonical JSON, BLOB, and SQL NULL support.
+
 ## `json_insert()`/`json_set()`/`json_replace()` Option Mutation Dispatch Scenario
 
 Native JSON option mutation now includes bounded SQL-style argument-vector

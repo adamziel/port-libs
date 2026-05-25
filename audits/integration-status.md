@@ -1,4 +1,64 @@
 
+## Clean-patch accepted - libsqlite JSON remove dispatch - 2026-05-25 17:58 UTC
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-closure-20260525T174056Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-closure-20260525T174056Z.patch`.
+
+Lane/slice/session: `libsqlite` / `closure-refill-20260525T174055Z` /
+`port-libsqlite-closure`. Patch sha256 verified as
+`295b8da87c816cf6cba45b5dd53c685012a7bacd5d82ede1d045c83548b97e3d`.
+
+Clean application result: plain `git apply --check` failed on stale
+libsqlite manifest/status/notes after the accepted mutation dispatch commit;
+bounded `git apply --3way` applied source, test, and example hunks cleanly and
+left conflicts only in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`,
+and `lanes/libsqlite/notes/wordpress-scenarios.md`. Resolution was limited to
+merging stale metadata so the prior mutation dispatch slice remained recorded
+and the new remove dispatch slice became current.
+
+Focused verification repeated in clean worktree
+`/tmp/port-clean-integrator-libsqlite-closure-refill-20260525T174056Z`:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonRemove.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-remove-sql-dispatch-preflight.php`:
+  passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`:
+  passed.
+- `php lanes/libsqlite/examples/wordpress-json-remove-sql-dispatch-preflight.php`:
+  passed and reported uppercase `JSONB_REMOVE` argument-vector dispatch.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed,
+  `1 test files, 2226 assertions, 0 failures`.
+- `git diff --check`: passed.
+
+Root verification: resource/process gate was open immediately before root
+verification (`/` had `108927752` KiB available, load average first field was
+`0.33`, and no exact no-argument root harness was active). `php
+tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` in
+the clean worktree and passed with `214 test files, 26370 assertions, 0
+failures`.
+
+Support-library/dependency closure: no new support component was activated.
+The slice reuses lane-local JSON path, JSON5, JSONB encoder/decoder,
+canonical JSON, BLOB wrapper, and SQL NULL handling.
+
+Live-service exclusions: none; this is an offline libsqlite fixture and PHP
+unit-test slice.
+
+Files staged:
+
+- `audits/integration-status.md`
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-remove-sql-dispatch-preflight.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonRemove.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+
 ## Clean-patch accepted - libsqlite JSON mutation dispatch - 2026-05-25 17:50 UTC
 
 Ready marker:

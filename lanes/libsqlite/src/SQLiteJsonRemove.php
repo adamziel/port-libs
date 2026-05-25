@@ -8,10 +8,10 @@ final class SQLiteJsonRemove
 {
     public static function removeSqlFunction(string $function, string|SQLiteBlobValue|null $value, string ...$paths): string|SQLiteBlobValue|null
     {
-        if ($function === 'json_remove') {
+        if (strcasecmp($function, 'json_remove') === 0) {
             return self::remove($value, ...$paths);
         }
-        if ($function !== 'jsonb_remove') {
+        if (strcasecmp($function, 'jsonb_remove') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON remove function must be json_remove or jsonb_remove');
         }
         if ($value === null) {
@@ -24,6 +24,29 @@ final class SQLiteJsonRemove
             : SQLiteJsonB::remove($jsonb, ...$paths);
 
         return $removed === null ? null : new SQLiteBlobValue($removed);
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    public static function removeSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue|null
+    {
+        if ($arguments === []) {
+            throw new \InvalidArgumentException('SQLite json_remove() expects JSON plus zero or more paths');
+        }
+
+        $value = array_shift($arguments);
+        if (!$value instanceof SQLiteBlobValue && !is_string($value) && $value !== null) {
+            throw new \InvalidArgumentException('SQLite json_remove() JSON argument must be text, BLOB, or NULL');
+        }
+
+        foreach ($arguments as $path) {
+            if (!is_string($path)) {
+                throw new \InvalidArgumentException('SQLite json_remove() path arguments must be text');
+            }
+        }
+
+        return self::removeSqlFunction($function, $value, ...$arguments);
     }
 
     public static function remove(string|SQLiteBlobValue|null $value, string ...$paths): ?string

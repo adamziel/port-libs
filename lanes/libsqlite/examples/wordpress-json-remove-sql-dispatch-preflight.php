@@ -8,7 +8,7 @@ use PortLibs\LibSqlite\SQLiteJsonRemove;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$function = $argv[1] ?? 'jsonb_remove';
+$function = $argv[1] ?? 'JSONB_REMOVE';
 $input = $argv[2] ?? '{"plugin":{"enabled":true,"legacyToken":"secret","rules":[{"name":"seo"},{"name":"cache"}]},"keep":1}';
 $paths = array_slice($argv, 3);
 if ($paths === []) {
@@ -27,7 +27,7 @@ if (str_starts_with($input, 'hex:')) {
     $inputKind = 'json-or-json5-text';
 }
 
-$result = SQLiteJsonRemove::removeSqlFunction($function, $inputValue, ...$paths);
+$result = SQLiteJsonRemove::removeSqlFunctionArguments($function, [$inputValue, ...$paths]);
 
 echo json_encode([
     'function' => $function,
@@ -37,5 +37,5 @@ echo json_encode([
     'resultType' => $result instanceof SQLiteBlobValue ? 'sqlite-jsonb-blob' : 'json-text-or-sql-null',
     'jsonAfter' => $result instanceof SQLiteBlobValue ? SQLiteJsonB::decode($result->bytes) : $result,
     'jsonbHexAfter' => $result instanceof SQLiteBlobValue ? bin2hex($result->bytes) : null,
-    'wordpressUse' => 'Local-only wp_options cleanup preflight that preserves SQLite json_remove() text results versus jsonb_remove() JSONB blob results before import.',
+    'wordpressUse' => 'Local-only wp_options cleanup preflight that preserves SQLite json_remove() text results versus jsonb_remove() JSONB blob results through SQL argument-vector dispatch before import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

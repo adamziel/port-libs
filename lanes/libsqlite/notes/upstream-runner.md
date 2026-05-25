@@ -1,5 +1,41 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: `json_remove()`/`jsonb_remove()` Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice rebases the bounded SQLite JSON remove SQL-dispatch
+behavior on the current accepted libsqlite JSON stack. Native
+`SQLiteJsonRemove` now validates `json_remove` and `jsonb_remove` with
+SQLite-style case-insensitive function lookup across direct calls and
+SQL-style argument-vector dispatch, preserves text-result versus JSONB-result
+typing, propagates SQL NULL, preserves no-path and root-removal behavior, and
+rejects invalid arity, invalid function names, invalid JSON argument types, or
+non-text path arguments without expanding into planner or expression
+evaluation.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON remove evidence for the same
+upstream behavior cluster:
+
+```sh
+json102.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence is recorded in `lane-status.json` after local focused
+verification.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON path, JSON5 parser, JSONB encoder/decoder, canonical
+JSON, BLOB wrapper, and SQL NULL handling components; it counts no shared
+support-library progress.
+
 ## Focused Native Mapping: JSON Mutation Argument-Vector Dispatch
 
 Date: 2026-05-25
