@@ -279,7 +279,18 @@ final class SyntaxHighlightClassifier
 
     private function isPhpBuiltinVariable(string $source, Token $token): bool
     {
-        if ($token->text !== 'this') {
+        if (!in_array($token->text, [
+            'GLOBALS',
+            '_COOKIE',
+            '_ENV',
+            '_FILES',
+            '_GET',
+            '_POST',
+            '_REQUEST',
+            '_SERVER',
+            '_SESSION',
+            'this',
+        ], true)) {
             return false;
         }
 

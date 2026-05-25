@@ -101234,3 +101234,17 @@ Root verification: `php tools/run-tests.php` passed in the clean worktree with z
 Support-library/dependency closure: no support-library activation. The patch adds lane-local unsupported-edge diagnostics to the existing analyzer/resolver/graph surface. Live-service exclusions: none.
 
 Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/fixtures/wordpress-package-assets/src/asset.bin`, `lanes/esbuild/fixtures/wordpress-package-assets/src/unsupported-loader-entry.js`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/upstream-inventory.md`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/BundlerGraph.php`, `lanes/esbuild/src/BundlerGraphBuilder.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `audits/integration-status.md`.
+
+## Isolated clean-patch integration - difftastic PHP superglobal highlighting - 2026-05-25 03:46 UTC
+
+Accepted marker `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T030449Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T030449Z.patch`.
+
+Lane/slice/session: `difftastic` / `supervisor-rearm-20260525T030449Z` / `port-difftastic`. Patch sha256 matched `1e97380046447a1ce89bc89289ad2762ba92655c9483970256c801404605f9bf`.
+
+Focused verification in clean worktree: `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`, `php -l lanes/difftastic/examples/wordpress-php-superglobal-highlight-display.php`, and `php -l lanes/difftastic/tests/TokenDifferTest.php` passed. `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed with 1 test file, 1496 assertions, 0 failures. `php lanes/difftastic/examples/wordpress-php-superglobal-highlight-display.php` emitted valid JSON after `json_decode(..., JSON_THROW_ON_ERROR)`. `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the clean worktree with 211 test files, 24910 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The patch reuses the existing lane-local `SyntaxHighlightClassifier`, ANSI highlighter, and JSON diff rendering path for upstream `variable.builtin` capture behavior. Live-service exclusions: none.
+
+Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/examples/wordpress-php-superglobal-highlight-display.php`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, `audits/integration-status.md`.

@@ -3796,6 +3796,20 @@ return [
         $t->true($functionStart !== false, 'Fixture should contain plugin_dir_path.');
         $t->true(!in_array(['start' => $functionStart, 'end' => $functionStart + strlen('plugin_dir_path'), 'style' => '1'], $spans, true), 'Ordinary PHP function identifiers should remain normal.');
     },
+    'ansi highlighter maps upstream php superglobal builtin variables' => static function (TestRunner $t): void {
+        $line = "\$nonce = \$_REQUEST['nonce'] ?? \$_POST['nonce'] ?? \$_SERVER['HTTP_REFERER']; request_handler();";
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'php']);
+
+        foreach (['_REQUEST', '_POST', '_SERVER'] as $superglobal) {
+            $start = strpos($line, $superglobal);
+            $t->true($start !== false, "Fixture should contain {$superglobal}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($superglobal), 'style' => '1'], $spans, true), "{$superglobal} should follow upstream variable.builtin keyword-style handling.");
+        }
+
+        $plainStart = strpos($line, 'request_handler');
+        $t->true($plainStart !== false, 'Fixture should contain request_handler.');
+        $t->true(!in_array(['start' => $plainStart, 'end' => $plainStart + strlen('request_handler'), 'style' => '1'], $spans, true), 'Ordinary PHP function identifiers should remain normal.');
+    },
     'ansi highlighter maps upstream c preprocessor and primitive type captures' => static function (TestRunner $t): void {
         $line = '#include <stdint.h> static uint32_t acme_block_flags(uint8_t enabled) { return enabled ? 1 : 0; }';
         $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'c']);
@@ -4327,6 +4341,28 @@ return [
         $t->contains('__FILE__:keyword', $encoded);
         $t->contains('plugin_dir_path:normal', $encoded);
         $t->contains('Acme_Card:normal', $encoded);
+    },
+    'wordpress php request display highlights upstream superglobal builtin variables' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-php-superglobal-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/includes/rest-nonce.php', $decoded['path']);
+        $t->contains('_REQUEST:keyword', $encoded);
+        $t->contains('_SERVER:keyword', $encoded);
+        $t->contains('sanitize_text_field:normal', $encoded);
+        $t->contains('wp_unslash:normal', $encoded);
     },
     'wordpress c preprocessor display follows upstream keyword and primitive type boundary' => static function (TestRunner $t): void {
         ob_start();
