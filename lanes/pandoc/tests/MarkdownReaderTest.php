@@ -2738,6 +2738,37 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer spaced link destinations with angle brackets' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('link', [
+                    'url' => 'https://example.test/import packets/source one.html',
+                    'title' => 'Packet review',
+                ], [$text('source packet')]),
+                $text(' and '),
+                new AstNode('link', [
+                    'url' => 'https://example.test/import<raw>/source two.html',
+                ], [$text('raw packet')]),
+                $text(' plus '),
+                new AstNode('link', [
+                    'url' => 'https://example.test/import packets/source one.html',
+                ], [$text('reference packet')]),
+            ]),
+        ]);
+
+        $t->same(
+            '[source packet](<https://example.test/import packets/source one.html> "Packet review") and [raw packet](<https://example.test/import\\<raw\\>/source two.html>) plus [reference packet](<https://example.test/import packets/source one.html>)',
+            (new MarkdownWriter())->write($document)
+        );
+        $t->same(implode("\n", [
+            '[source packet] and [raw packet] plus [reference packet]',
+            '',
+            '  [source packet]: <https://example.test/import packets/source one.html> "Packet review"',
+            '  [raw packet]: <https://example.test/import\\<raw\\>/source two.html>',
+            '  [reference packet]: <https://example.test/import packets/source one.html>',
+        ]), (new MarkdownWriter(['referenceLinks' => true]))->write($document));
+    },
     'maps upstream markdown writer reference definitions with link attributes' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $sourceLink = static fn (string $id, string $source): AstNode => new AstNode('link', [

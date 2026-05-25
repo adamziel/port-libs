@@ -63,6 +63,16 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer archived packet: ']),
+        new AstNode('link', [
+            'url' => 'https://example.test/import packets/source one.html',
+            'title' => 'Packet review',
+        ], [
+            new AstNode('text', ['text' => 'source packet']),
+        ]),
+        new AstNode('text', ['text' => '.']),
+    ]),
+    new AstNode('paragraph', [], [
         new AstNode('text', ['text' => 'Reviewer media preview: ']),
         new AstNode('image', [
             'url' => 'https://example.test/uploads/review-screenshot.jpg',

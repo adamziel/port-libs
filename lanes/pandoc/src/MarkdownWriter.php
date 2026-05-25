@@ -856,7 +856,7 @@ final class MarkdownWriter
         $titleMarkdown = $title === '' ? '' : ' "' . $this->escapeLinkTitle($title) . '"';
 
         return '[' . $this->renderInlines($node->children) . ']('
-            . (string) $node->attr('url', '')
+            . $this->renderLinkDestination((string) $node->attr('url', ''))
             . $titleMarkdown
             . ')'
             . $this->renderLinkAttributes($node);
@@ -1411,7 +1411,7 @@ final class MarkdownWriter
         $attrs = $this->renderAttributesTuple($reference['attrs']);
 
         return '  [' . $reference['label'] . ']: '
-            . $reference['url']
+            . $this->renderLinkDestination($reference['url'])
             . $title
             . ($attrs === '' ? '' : ' ' . $attrs);
     }
@@ -1547,6 +1547,21 @@ final class MarkdownWriter
             )),
             $url
         ) ?? $url;
+    }
+
+    private function renderLinkDestination(string $url): string
+    {
+        if (!$this->linkDestinationNeedsAngles($url)) {
+            return $url;
+        }
+
+        return '<' . str_replace(['\\', '<', '>'], ['\\\\', '\\<', '\\>'], $url) . '>';
+    }
+
+    private function linkDestinationNeedsAngles(string $url): bool
+    {
+        return $url === ''
+            || preg_match('/[\s\x00-\x1F\x7F<>]/u', $url) === 1;
     }
 
     /**
