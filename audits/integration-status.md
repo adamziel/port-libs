@@ -109066,3 +109066,13 @@ Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples
 - Diff check: git diff --check passed.
 - Root verification: php tools/run-tests.php passed.
 - Scope: local/bounded rclone only; no live-service provider tests run.
+
+## Priority clean integrator pandoc acceptance - 2026-05-25T084033Z
+
+- Lane: pandoc
+- Marker: .tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T083258Z.md
+- Patch sha256: b3267ea5c5d914f4cf7131a14528c76561e87a5ed7780782b7dc6217a9d5be51
+- Applied to main: 2e62387f805a64ecc8c065b4e5f3f6dc68b770e6
+- Focused verification: php -l MarkdownWriter.php, MarkdownReaderTest.php, and wordpress-markdown-review-handoff.php passed; php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php passed (1 file, 2,291 assertions); example smoke passed; manifest/status JSON decode passed.
+- Diff check: git diff --check passed.
+- Root verification: php tools/run-tests.php passed (214 files, 25,934 assertions, 0 failures).
