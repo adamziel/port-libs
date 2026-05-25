@@ -268,7 +268,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private static function normalizeRepositoryUrl(string $repositoryUrl): array
     {
-        if ($repositoryUrl === '' || str_contains($repositoryUrl, "\0") || str_contains($repositoryUrl, "\r") || str_contains($repositoryUrl, "\n")) {
+        if ($repositoryUrl === '' || self::containsControlByte($repositoryUrl)) {
             throw new \InvalidArgumentException('smart HTTP receive-pack URL must be non-empty and must not contain control bytes');
         }
 
@@ -410,7 +410,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     private static function resolveRedirectUrl(string $location, string $currentUrl): string
     {
-        if (str_contains($location, "\0") || str_contains($location, "\r") || str_contains($location, "\n")) {
+        if (self::containsControlByte($location)) {
             throw new \RuntimeException('smart HTTP receive-pack redirect Location contains control bytes');
         }
 
@@ -774,9 +774,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         $sslCaInfo = null;
         if (array_key_exists('sslCaInfo', $httpOptions) && $httpOptions['sslCaInfo'] !== null && $httpOptions['sslCaInfo'] !== '') {
             if (!is_string($httpOptions['sslCaInfo'])
-                || str_contains($httpOptions['sslCaInfo'], "\0")
-                || str_contains($httpOptions['sslCaInfo'], "\r")
-                || str_contains($httpOptions['sslCaInfo'], "\n")
+                || self::containsControlByte($httpOptions['sslCaInfo'])
             ) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack sslCaInfo must be a path string without control bytes');
             }
@@ -834,7 +832,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private static function normalizeProxy(string $proxy): array
     {
-        if ($proxy === '' || str_contains($proxy, "\0") || str_contains($proxy, "\r") || str_contains($proxy, "\n")) {
+        if ($proxy === '' || self::containsControlByte($proxy)) {
             throw new \InvalidArgumentException('smart HTTP receive-pack proxy must be non-empty and must not contain control bytes');
         }
 

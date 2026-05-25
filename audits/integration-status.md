@@ -154,6 +154,57 @@ Files staged:
 - `lanes/pandoc/src/MarkdownWriter.php`
 - `lanes/pandoc/tests/MarkdownReaderTest.php`
 - `audits/integration-status.md`
+## Clean-patch integration accepted - gitoxide raw smart HTTP controls - 2026-05-25 06:36 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T060503Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T060503Z.patch`.
+
+Lane/slice/session: `gitoxide` / `watchdog-next-20260525T060503Z` /
+`port-gitoxide`.
+Patch SHA-256 verified:
+`5b6028b56a6a1f95fb6fc8a1685dfb62089b7a741914e4553cf3a1c17035a5db`.
+
+Verification:
+
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T060503Z.patch`
+  - result: passed.
+- `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php`
+  - result: no syntax errors detected.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`
+  - result: no syntax errors detected.
+- `php -l lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+  - result: no syntax errors detected.
+- `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+  - result: no syntax errors detected.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`
+  - result: 1 test files, 277 assertions, 0 failures.
+- `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+  - result: passed.
+- `php -r 'json_decode(file_get_contents("lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/gitoxide/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'`
+  - result: passed.
+- `git diff --check -- lanes/gitoxide`
+  - result: passed with no output.
+
+Root verification: not run for this bounded lane-local micro-slice.
+
+Support-library/dependency-closure decision: no shared support-library row was
+activated. The slice reuses existing bounded smart HTTP URL/proxy option
+normalization and native PHP byte validation.
+
+Live-service exclusions: no live provider or network tests were run.
+
+Files staged:
+
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`
+- `lanes/gitoxide/tests/ReceivePackTransportTest.php`
+- `audits/integration-status.md`
 - `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
 - `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
 - `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
