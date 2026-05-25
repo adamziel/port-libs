@@ -869,6 +869,46 @@ return [
         $t->same(['GET', 'POST'], array_column($rewritingPostRedirectRequests, 'method'));
         $t->same($rewritingPostRedirectRequest->requestBytes(), $rewritingPostRedirectRequests[1]['body']);
 
+        $permanentPostRedirectRequests = [];
+        $permanentPostRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$permanentPostRedirectRequests, $packet, $flush, $advertisement): array {
+                    $permanentPostRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 301,
+                        'headers' => ['Location' => 'https://git.example.test/redirected.git/git-receive-pack'],
+                        'body' => '',
+                    ];
+                },
+                [],
+                7.0,
+                [],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $permanentPostRedirectSession = $permanentPostRedirectClient->handshake();
+        $permanentPostRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $permanentPostRedirectRequest = $permanentPostRedirectSession->buildRequest([$blob]);
+
+        $t->throws(RuntimeException::class, static fn () => $permanentPostRedirectClient->send($permanentPostRedirectRequest));
+        $t->same(['GET', 'POST'], array_column($permanentPostRedirectRequests, 'method'));
+        $t->same($permanentPostRedirectRequest->requestBytes(), $permanentPostRedirectRequests[1]['body']);
+
         $seeOtherPostRedirectRequests = [];
         $seeOtherPostRedirectClient = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
@@ -918,8 +958,10 @@ return [
         ], $redirectExample['requestUrls']);
         $t->same(true, $redirectFixture['postBodyPreserved']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
+        $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);
         $t->same(['GET', 'POST'], $redirectExample['rewritingRequestMethods']);
+        $t->same(['GET', 'POST'], $redirectExample['permanentRequestMethods']);
         $t->same(['GET', 'POST'], $redirectExample['seeOtherRequestMethods']);
         $t->same(true, $redirectExample['responseSuccessful']);
 
