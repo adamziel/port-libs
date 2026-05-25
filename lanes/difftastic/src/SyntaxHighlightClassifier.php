@@ -70,6 +70,10 @@ final class SyntaxHighlightClassifier
             return 'keyword';
         }
 
+        if ($this->isYamlLanguage($language) && $this->isYamlBuiltinScalar($token->text)) {
+            return 'keyword';
+        }
+
         if ($this->isCLikeLanguage($language) && $this->isCPreprocessorDirective($source, $token->start)) {
             return 'keyword';
         }
@@ -189,6 +193,11 @@ final class SyntaxHighlightClassifier
         return in_array($language, ['el', 'elisp', 'emacs-lisp'], true);
     }
 
+    private function isYamlLanguage(string $language): bool
+    {
+        return in_array($language, ['yaml', 'yml'], true);
+    }
+
     private function isCLikeLanguage(string $language): bool
     {
         return in_array($language, ['c', 'cc', 'cpp', 'c++', 'h', 'hpp', 'objc', 'objective-c'], true);
@@ -240,6 +249,11 @@ final class SyntaxHighlightClassifier
         $previous = $this->previousNonWhitespaceCharacter($source, $start);
 
         return $previous === '@' || $previous === '!';
+    }
+
+    private function isYamlBuiltinScalar(string $text): bool
+    {
+        return in_array(strtolower($text), ['false', 'null', 'true'], true);
     }
 
     private function isCPreprocessorDirective(string $source, int $start): bool

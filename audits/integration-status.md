@@ -101810,3 +101810,28 @@ Support-library/dependency closure: no support-library activation. The patch add
 Live-service exclusions: no live-service provider tests were run.
 
 Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/BundlerMetafile.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated difftastic YAML scalar highlight patch - 2026-05-25 04:10 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T031901Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T031901Z.patch`.
+
+Lane/slice/session: `difftastic` / `supervisor-rearm-20260525T031901Z` / `port-difftastic`. Patch SHA-256 verified as `3d2f5da0eb1dc5b8a249cb363753aad3e0d57e014524fdf8107fc9fa0b81a9b2`. `git apply --check` failed on stale difftastic metadata/source context, then bounded `git apply --3way` was resolved by preserving the already accepted Emacs Lisp highlight slice and adding only the YAML scalar classifier/test/fixture changes.
+
+Focused verification in clean worktree:
+
+- `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`: passed.
+- `php -l lanes/difftastic/tests/TokenDifferTest.php`: passed.
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`: passed, `1 test files, 1512 assertions, 0 failures`.
+- `php lanes/difftastic/examples/wordpress-plugin-workflow-yaml-display.php` plus JSON decode smoke: passed, `example json ok`.
+- `git diff --check`: passed.
+
+Root verification:
+
+- Pre-root exact no-argument process gate `pgrep -af '^php tools/run-tests\.php$'`: empty.
+- `php tools/run-tests.php`: passed, `212 test files, 25046 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The patch reuses the bounded lane-local tokenizer, `SyntaxHighlightClassifier`, and JSON display renderer path; broader YAML parser support remains outside this slice.
+
+Live-service exclusions: none applicable; no live-service provider tests were run.
+
+Files staged: `lanes/difftastic/fixtures/wordpress-plugin-workflow-after.yml`, `lanes/difftastic/fixtures/wordpress-plugin-workflow-before.yml`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, and `audits/integration-status.md`.

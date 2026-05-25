@@ -1,4 +1,11 @@
 name: Release block plugin
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        default: false
+      release-channel:
+        default: stable
 jobs:
   package:
     steps:

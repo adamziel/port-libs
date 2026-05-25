@@ -3686,6 +3686,35 @@ return [
         $t->contains('display:normal', $encoded);
         $t->contains('opacity:normal', $encoded);
     },
+    'json display renderer maps upstream yaml boolean and null scalars as keyword highlights' => static function (TestRunner $t): void {
+        $before = "enabled: true\nrelease: null\n";
+        $after = "enabled: false\nrelease: stable\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/yaml_scalar_highlight.yml',
+            'YAML',
+            ['language' => 'yaml'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $side . ' ' . $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('YAML', $decoded['language']);
+        $t->contains('lhs true:keyword', $encoded);
+        $t->contains('rhs false:keyword', $encoded);
+        $t->contains('lhs null:keyword', $encoded);
+        $t->contains('rhs stable:normal', $encoded);
+    },
     'json display renderer maps upstream tree sitter error highlight variant' => static function (TestRunner $t): void {
         $before = "const settings = { title: \"Card\" };\n";
         $after = "const settings = { title: \"Card\" }};\n";
@@ -5180,6 +5209,10 @@ return [
         $t->contains('lhs json:string', $encoded);
         $t->contains('rhs pot:string', $encoded);
         $t->contains('rhs acme:string', $encoded);
+        $t->contains('lhs true:keyword', $encoded);
+        $t->contains('rhs false:keyword', $encoded);
+        $t->contains('lhs null:keyword', $encoded);
+        $t->contains('rhs stable:normal', $encoded);
         $t->true(!str_contains($encoded, 'json:normal'), 'WP-CLI command changes inside YAML run blocks should not fall back to normal highlighting.');
     },
     'wordpress plugin workflow step diff reports yaml block sequence changes' => static function (TestRunner $t): void {
