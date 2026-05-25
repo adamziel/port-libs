@@ -1580,6 +1580,20 @@ return [
                 'stdout' => '',
                 'stderr' => "quadb error: stoi\n",
             ], QuadbStore::exportProofCommandOutput($dir, ['2', 'not-an-int'], integerKeys: true));
+            $numericPrefixProof = QuadbStore::exportProofCommandOutput($dir, ['2suffix', '4'], integerKeys: true);
+            $t->same(0, $numericPrefixProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([2, 4]), $numericPrefixProof['stdout']);
+            $t->same('', $numericPrefixProof['stderr']);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofCommandOutput($dir, ['2147483648'], integerKeys: true));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: int range exceeded\n",
+            ], QuadbStore::exportProofCommandOutput($dir, ['-1'], integerKeys: true));
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',

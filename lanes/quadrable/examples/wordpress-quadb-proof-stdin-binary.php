@@ -79,9 +79,19 @@ try {
         ['2', '4', '99'],
         integerKeys: true
     );
+    $numericPrefixProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['2suffix', '4'],
+        integerKeys: true
+    );
     $badIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
         $integerDir,
         "2\nnot-an-int\n",
+        integerKeys: true
+    );
+    $negativeIntegerProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['-1'],
         integerKeys: true
     );
 
@@ -100,7 +110,10 @@ try {
         'integerBinaryProofBytes' => strlen($integerProofBytes),
         'directIntegerExportProofExitCode' => $directIntegerProofCommand['exitCode'],
         'directIntegerBinaryProofMatchesStdin' => $directIntegerProofCommand['stdout'] === $integerProofBytes,
+        'numericPrefixIntegerExportProofExitCode' => $numericPrefixProofCommand['exitCode'],
+        'numericPrefixIntegerBinaryProofBytes' => strlen($numericPrefixProofCommand['stdout']),
         'badIntegerProofStdin' => $badIntegerProofCommand,
+        'negativeIntegerProofDirect' => $negativeIntegerProofCommand,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($sourceDir);

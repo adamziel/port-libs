@@ -109107,3 +109107,40 @@ Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples
 - Focused verification: php -l MarkdownWriter.php, MarkdownReaderTest.php, and wordpress-markdown-review-handoff.php passed; php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php passed (1 file, 2,291 assertions); example smoke passed; manifest/status JSON decode passed.
 - Diff check: git diff --check passed.
 - Root verification: php tools/run-tests.php passed (214 files, 25,934 assertions, 0 failures).
+
+## Integration accepted - Quadrable direct integer proof parser rework - 20260525T084559Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T084033Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T084033Z.patch`.
+Lane/slice/session: `quadrable` / `priority-keeper-rework-20260525T084033Z` / `port-quadrable-rework`.
+Old head: `1ba9430615a68b4eca7ed22f2c91d408d6c5976e`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-quadrable-priority-keeper-rework-20260525T084033Z-20260525T084559Z`:
+
+- `sha256sum -c`: passed for patch sha256 `85b51383374a219045ce0c2ec197707ecf19f1fcedcf79affd8f1ded418ff147`.
+- `git apply --check "/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T084033Z.patch"`: passed; patch applied without three-way conflict.
+- `php -l lanes/quadrable/src/QuadbStore.php`: passed.
+- `php -l lanes/quadrable/tests/QuadbStoreTest.php`: passed.
+- `php -l lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`: passed.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`: passed, 1 file, 964 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`: passed; smoke output written to `/tmp/quadrable-example-20260525T084559Z.json` and included numeric-prefix and negative-key direct proof fields.
+- JSON validation for `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json` and `lanes/quadrable/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification:
+
+- Pre-root gate checked: root filesystem available KiB >= 86000000, load < 25, and no exact `php tools/run-tests.php` process.
+- `php tools/run-tests.php`: passed in the clean worktree with zero failures.
+
+Support-library/dependency closure: no new support component activated; this slice reuses existing Quadrable proof transport, command-level integer parser behavior, QuadbStore command wrappers, and the WordPress proof stdin/binary example.
+
+Live-service exclusions: none; no live provider tests were run.
+
+Files staged:
+
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/upstream-inventory.md`
+- `lanes/quadrable/tests/QuadbStoreTest.php`
+- `audits/integration-status.md`
