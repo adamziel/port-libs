@@ -108750,3 +108750,34 @@ Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/exam
 - Support-library/dependency closure: unchanged; no new support component.
 - Live-service exclusions: no live OneDrive/provider tests run.
 - Files staged: `audits/integration-status.md` only.
+
+## Integration accepted - Libsqlite json_pretty SQL dispatch rework - 2026-05-25 08:12 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T080056Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T080056Z.patch` (`sha256 dd0e142bbfea58c2aa5a81247e1dd2de33da7202937f16552278724f8c2c4e40`, verified).
+Lane/slice/session: `libsqlite` / `priority-rework-20260525T080030Z` / `port-libsqlite-rework`.
+Base accepted HEAD in marker: `7327effee784f93566ce770a1b2b39eb02427ccd`; applied cleanly to current main `9d1ad84035f093169932c1e9b60137eacfa201ca`.
+
+Focused verification in clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteJsonPretty.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: 1 test files, 2031 assertions, 0 failures.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+- `git diff --check` passed.
+
+Root gate: exact root harness was busy on two earlier checks at 08:10Z and 08:11Z; this accepted attempt waited for a clear gate, then disk/load/root-PHP gates passed immediately before focused checks and before root verification. Root verification from this clean worktree: `php tools/run-tests.php` passed: 214 test files, 25910 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The slice reuses lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty-format support.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonPretty.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`

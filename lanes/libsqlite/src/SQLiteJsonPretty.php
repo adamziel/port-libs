@@ -30,7 +30,7 @@ final class SQLiteJsonPretty
 
     public static function jsonPrettySqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, ?string $indent = null): ?string
     {
-        if ($function !== 'json_pretty') {
+        if (strtolower($function) !== 'json_pretty') {
             throw new \InvalidArgumentException('SQLite JSON pretty function must be json_pretty');
         }
 

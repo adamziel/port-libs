@@ -5,7 +5,8 @@ SQLite fallback/read-write tooling for WordPress hosts where the SQLite extensio
 ## `json_pretty()` SQL-Dispatch Option-Value Review Scenario
 
 Native JSON pretty-printing now includes a bounded SQL function-name dispatch
-helper for `json_pretty()`. The example
+helper for `json_pretty()` with SQLite-style case-insensitive function lookup.
+The example
 `examples/wordpress-json-pretty-option-review.php` exercises the dispatch
 path for copied `wp_options.option_value` inputs, including strict JSON text,
 SQLite JSON5 text, cast text BLOBs, JSONB blobs, SQL NULL option values,
@@ -13,9 +14,10 @@ malformed settings, and custom indentation. This gives WordPress migration and
 repair tooling a local-only review path that mirrors SQLite's SQL entry point
 without requiring the SQLite extension.
 
-Status delta 2026-05-25 isolated rework: added `jsonPrettySqlFunction()` and
-updated the existing WordPress smoke to call the SQL-dispatch helper. This
-preserves accepted json_extract/jsonb_extract subtype dispatch and json_each
+Status delta 2026-05-25 isolated rework: added `jsonPrettySqlFunction()`,
+kept invalid-name rejection, accepted uppercase SQL spelling, and updated the
+existing WordPress smoke to call the SQL-dispatch helper. This preserves
+accepted json_extract/jsonb_extract subtype dispatch and json_each
 table-valued row evidence while making the deferred json_pretty patch
 additive. Dependency closure: no new support component is needed; the slice
 reuses existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and
