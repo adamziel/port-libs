@@ -1319,6 +1319,11 @@ return [
                 'stdout' => $expectedPatch,
                 'stderr' => '',
             ], QuadbStore::diffCommandOutput($dir, 'master', '|'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: separator must be non-empty\n",
+            ], QuadbStore::diffCommandOutput($dir, 'master', ''));
 
             $t->same([
                 'exitCode' => 0,
@@ -1352,6 +1357,11 @@ return [
                 'stdout' => '',
                 'stderr' => "quadb error: couldn't find separator in input line\n",
             ], QuadbStore::patchCommandOutput($dir, "+wp_posts:1 missing separator\n", '|'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: separator must be non-empty\n",
+            ], QuadbStore::patchCommandOutput($dir, "# preview patch\n" . $expectedPatch, ''));
         } finally {
             quadrableQuadbRemoveDir($missingDir);
             quadrableQuadbRemoveDir($emptyDir);

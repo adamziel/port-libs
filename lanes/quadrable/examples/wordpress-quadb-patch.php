@@ -60,10 +60,16 @@ try {
 
     $replica = QuadbStore::open($dir);
     $missingDiff = QuadbStore::diffCommandOutput($missingDir, 'master', '|');
+    $emptySeparatorDiff = QuadbStore::diffCommandOutput($dir, 'master', '');
+    $emptySeparatorPatch = QuadbStore::patchCommandOutput($dir, $patch, '');
 
     echo json_encode([
         'scenario' => 'apply quadb command-style tracked string-key patch lines to a WordPress preview snapshot',
         'missingStoreFailsClosed' => $missingDiff['exitCode'] === 1 && !is_dir($missingDir),
+        'emptySeparatorFailsClosed' => $emptySeparatorDiff['exitCode'] === 1
+            && $emptySeparatorPatch['exitCode'] === 1
+            && $emptySeparatorDiff['stderr'] === "quadb error: separator must be non-empty\n"
+            && $emptySeparatorPatch['stderr'] === "quadb error: separator must be non-empty\n",
         'diffCommandClean' => $diffCommand['stderr'] === '',
         'patchCommandClean' => $patchCommand['stderr'] === '',
         'patchLines' => array_values(array_filter(explode("\n", trim($patch)), static fn (string $line): bool => $line !== '')),
