@@ -100489,3 +100489,24 @@ Support-library/dependency-closure decision: no new support-library activation. 
 Live-service exclusions: none; no live-service provider tests were run.
 
 Files staged: `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, `lanes/difftastic/examples/wordpress-php-magic-constant-highlight-display.php`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/notes/wordpress-scenarios.md`, and `audits/integration-status.md`.
+
+## Clean-patch rejection - difftastic - 2026-05-25 02:45 UTC
+
+Ready marker: `port-difftastic-20260525T023604Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T023604Z.patch`
+Lane/slice/session: `difftastic` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `d13d12bbcbe407d08213f2707f1f257a134358d5`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-difftastic-20260525T024524Z/lanes/difftastic/tests/TokenDifferTest.php 
+- `php tools/run-tests.php lanes/difftastic/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-difftastic-20260525T024524Z/lanes/difftastic/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T023604Z.patch`, then fix the failing focused command above without broadening the slice.
+
