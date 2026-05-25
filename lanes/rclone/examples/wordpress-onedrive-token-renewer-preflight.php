@@ -20,6 +20,24 @@ $activeExpiry = $renewer->expire();
 $wasArmedAfterActiveExpiry = $renewer->isArmedForNextExpiry();
 $renewer->stopUpload();
 $postUploadExpiry = $renewer->expire();
+
+$bracketedUpload = $renewer->duringUpload(static function () use ($renewer): string {
+    $uploadExpiry = $renewer->expire();
+
+    return $uploadExpiry['refreshed'] ? 'wxr-upload-refreshed' : 'wxr-upload-not-refreshed';
+});
+$activeUploadsAfterBracket = $renewer->activeUploads();
+
+$bracketedFailure = null;
+try {
+    $renewer->duringUpload(static function (): void {
+        throw new RuntimeException('wxr upload failed');
+    });
+} catch (RuntimeException $exception) {
+    $bracketedFailure = $exception->getMessage();
+}
+$activeUploadsAfterFailure = $renewer->activeUploads();
+
 $renewer->shutdown();
 $shutdownExpiry = $renewer->expire();
 
@@ -30,6 +48,10 @@ return [
     'idleExpiryRefreshed' => $idleExpiry['refreshed'],
     'activeExpiryRefreshed' => $activeExpiry['refreshed'],
     'postUploadExpiryRefreshed' => $postUploadExpiry['refreshed'],
+    'bracketedUpload' => $bracketedUpload,
+    'bracketedFailure' => $bracketedFailure,
+    'activeUploadsAfterBracket' => $activeUploadsAfterBracket,
+    'activeUploadsAfterFailure' => $activeUploadsAfterFailure,
     'shutdownExpiryRefreshed' => $shutdownExpiry['refreshed'],
     'activeUploadsAfterStop' => $renewer->activeUploads(),
     'expirySignals' => $renewer->expirySignals(),

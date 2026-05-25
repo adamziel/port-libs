@@ -50,6 +50,29 @@ final class OneDriveTokenRenewer
     }
 
     /**
+     * Model OneDrive upload call sites that bracket Put/Update with
+     * oauthutil.Renew Start/Stop and defer Stop even when upload work fails.
+     *
+     * @template T
+     * @param \Closure(): T $upload
+     * @return T
+     */
+    public function duringUpload(\Closure $upload): mixed
+    {
+        $activeBeforeStart = $this->activeUploads;
+        $this->startUpload();
+        $started = $this->activeUploads !== $activeBeforeStart;
+
+        try {
+            return $upload();
+        } finally {
+            if ($started) {
+                $this->stopUpload();
+            }
+        }
+    }
+
+    /**
      * @return array{refreshed: bool, error: ?string, activeUploads: int}
      */
     public function expire(): array

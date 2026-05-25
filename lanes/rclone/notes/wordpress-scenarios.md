@@ -1,5 +1,11 @@
 # rclone WordPress Scenario
 
+## 2026-05-25 OneDrive Upload Bracketing
+
+- Updated `examples/wordpress-onedrive-token-renewer-preflight.php` to model a WordPress WXR upload wrapped by OneDrive token-renewer Start/Stop accounting.
+- The scenario now records active-upload metadata refresh, guaranteed accounting cleanup after a successful bracketed upload, guaranteed cleanup after a thrown upload error, post-upload idle suppression, shutdown suppression, and `secretInputsRead: false`.
+- Dependency closure: no new support component is needed; the existing deterministic token-renewer model covers this slice without live OAuth state, credential stores, timers, or provider requests.
+
 Portable backup/import/export sync for shared hosts and cloud storage providers.
 
 ## Current Native Slice

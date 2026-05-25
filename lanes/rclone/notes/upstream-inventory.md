@@ -1,5 +1,14 @@
 # rclone Upstream Inventory
 
+## 2026-05-25 OneDrive Upload Bracketing Slice
+
+- Upstream evidence: reuses the existing focused static read of `lib/oauthutil/renew.go` and `backend/onedrive/onedrive.go` at `28d6b0b7b906da70afdc036ba5bb21f3c86613b8`, specifically the OneDrive upload call sites that wrap upload work with `tokenRenewer.Start()` and deferred `Stop()`.
+- Native behavior added: deterministic upload bracketing via `OneDriveTokenRenewer::duringUpload()`, including Start before upload work, Stop after successful upload work, Stop after thrown upload errors, Stop when shutdown happens inside bracketed work, and expiry refresh eligibility while bracketed work is active.
+- Focused evidence: `php tools/run-tests.php lanes/rclone/tests/OneDriveTokenRenewerTest.php` passed with 9 behavior tests, 61 assertions, and 0 failures.
+- Blocker: no rclone-local PHP blocker. Live OneDrive provider/OAuth tests remain excluded for isolated lane work.
+- Dependency closure: no new support component is needed; this slice reuses the existing bounded native OneDrive token-renewer component and does not require OAuth, timers, credentials, or live provider access.
+- Next task: map another credential-free OneDrive provider lifecycle cluster, such as shutdown/feature cleanup or a narrow no-versions cleanup behavior.
+
 - Upstream: `https://github.com/rclone/rclone`
 - Commit: `28d6b0b7b906da70afdc036ba5bb21f3c86613b8`
 - Cache: `.upstream-cache/rclone`

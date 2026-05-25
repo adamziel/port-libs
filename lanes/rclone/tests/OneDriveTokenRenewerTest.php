@@ -74,6 +74,60 @@ return [
             'expiry-rearmed',
         ], $renewer->events());
     },
+    'onedrive token renewer brackets successful upload work with start and stop' => static function (TestRunner $t): void {
+        $reads = 0;
+        $renewer = new OneDriveTokenRenewer('onedrive:test', static function () use (&$reads): void {
+            ++$reads;
+        });
+
+        $result = $renewer->duringUpload(static function () use ($renewer): string {
+            $active = $renewer->expire();
+
+            return $active['refreshed'] ? 'uploaded' : 'not-refreshed';
+        });
+
+        $t->same('uploaded', $result);
+        $t->same(1, $reads);
+        $t->same(0, $renewer->activeUploads());
+        $t->same([
+            'upload-started',
+            'expiry-refresh-started',
+            'expiry-refresh-ok',
+            'expiry-rearmed',
+            'upload-stopped',
+        ], $renewer->events());
+    },
+    'onedrive token renewer stops upload accounting when upload work throws' => static function (TestRunner $t): void {
+        $renewer = new OneDriveTokenRenewer('onedrive:test', static function (): void {
+        });
+
+        $t->throws(RuntimeException::class, static fn () => $renewer->duringUpload(static function (): void {
+            throw new RuntimeException('upload failed');
+        }));
+        $t->same(0, $renewer->activeUploads());
+        $t->same([
+            'upload-started',
+            'upload-stopped',
+        ], $renewer->events());
+    },
+    'onedrive token renewer still stops bracketed upload when shutdown happens inside work' => static function (TestRunner $t): void {
+        $renewer = new OneDriveTokenRenewer('onedrive:test', static function (): void {
+        });
+
+        $renewer->duringUpload(static function () use ($renewer): void {
+            $renewer->shutdown();
+        });
+        $renewer->duringUpload(static function (): void {
+        });
+
+        $t->same(0, $renewer->activeUploads());
+        $t->same([
+            'upload-started',
+            'shutdown',
+            'upload-stopped',
+            'start-ignored-after-shutdown',
+        ], $renewer->events());
+    },
     'onedrive token renewer rearms after each handled expiry until shutdown' => static function (TestRunner $t): void {
         $reads = 0;
         $renewer = new OneDriveTokenRenewer('onedrive:test', static function () use (&$reads): void {
@@ -135,13 +189,17 @@ return [
         $example = require __DIR__ . '/../examples/wordpress-onedrive-token-renewer-preflight.php';
 
         $t->same('onedrive-token-renewer-preflight', $example['source']);
-        $t->same(['read-root-metadata'], $example['metadataReads']);
+        $t->same(['read-root-metadata', 'read-root-metadata'], $example['metadataReads']);
         $t->same(false, $example['idleExpiryRefreshed']);
         $t->same(true, $example['activeExpiryRefreshed']);
         $t->same(false, $example['postUploadExpiryRefreshed']);
+        $t->same('wxr-upload-refreshed', $example['bracketedUpload']);
+        $t->same('wxr upload failed', $example['bracketedFailure']);
+        $t->same(0, $example['activeUploadsAfterBracket']);
+        $t->same(0, $example['activeUploadsAfterFailure']);
         $t->same(false, $example['shutdownExpiryRefreshed']);
         $t->same(0, $example['activeUploadsAfterStop']);
-        $t->same(3, $example['expirySignals']);
+        $t->same(4, $example['expirySignals']);
         $t->same(false, $example['armedForNextExpiry']);
         $t->same(true, $example['wasArmedAfterActiveExpiry']);
         $t->same(false, $example['secretInputsRead']);

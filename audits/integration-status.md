@@ -1,5 +1,53 @@
 # Integration Status
 
+## Integration accepted - isolated rclone token-renewer bracketing - 2026-05-25 03:34 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T031901Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T031901Z.patch`.
+
+Lane/slice/session: `rclone` / `supervisor-rearm-20260525T031901Z` /
+`port-rclone`. Patch sha256 verified:
+`a49cd13907dbb9c788b129d88b67b78bf50182ca335039431344743a1d43cbff`.
+Base in marker was `e105895615417c60db89f6a5a884672401f3c4aa`; applied to
+clean `main` `5f40b471e0c2076f87d2265b5557074e11ff4d48` with bounded
+three-way metadata rebase. Source/test/example/notes hunks applied cleanly;
+conflicts were limited to rclone manifest/status counters and prose. The
+metadata was structurally merged to preserve the already-accepted OneDrive
+no-versions cleanup slice while adding this marker's OneDrive token-renewer
+upload-bracketing evidence.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-rclone-031901-20260525T033104Z`: `php -l
+lanes/rclone/src/OneDriveTokenRenewer.php` passed; `php -l
+lanes/rclone/tests/OneDriveTokenRenewerTest.php` passed; `php -l
+lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php` passed;
+`php tools/run-tests.php lanes/rclone/tests/OneDriveTokenRenewerTest.php`
+passed with 1 test file, 61 assertions, 0 failures; `php tools/run-tests.php
+lanes/rclone/tests` passed with 33 test files, 3892 assertions, 0 failures;
+`php lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`
+passed; JSON parse checks for `lanes/rclone/UPSTREAM_TEST_MANIFEST.json` and
+`lanes/rclone/lane-status.json` passed; `git diff --check` passed.
+
+Root verification: pre-root exact no-argument gate `pgrep -af '^php
+tools/run-tests\.php$'` was empty. `php tools/run-tests.php` ran in the clean
+worktree and passed with 212 test files, 24983 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; the slice
+reuses the existing bounded OneDrive token-renewer lifecycle model and
+credential-free in-memory provider/test helpers. Live-service exclusions:
+OneDrive OAuth/provider/Graph tests, mount/FUSE, Docker-backed serve/docker,
+and provider `TestIntegration`/`fstest/test_all` remotes were not run.
+
+Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`,
+`lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`,
+`lanes/rclone/notes/wordpress-scenarios.md`,
+`lanes/rclone/src/OneDriveTokenRenewer.php`,
+`lanes/rclone/tests/OneDriveTokenRenewerTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - isolated quadrable proof dump precedence - 2026-05-25 03:32 UTC
 
 Accepted isolated ready marker:
