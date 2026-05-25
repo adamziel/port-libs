@@ -1,5 +1,19 @@
 # Integration Status
 
+## Integration accepted - isolated lightningcss supervisor-next-20260525T005555Z - 2026-05-25 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T005555Z.ready`. Patch: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T005555Z.patch`. Lane/slice/session: `lightningcss` / `supervisor-next-20260525T005555Z` / `port-lightningcss`.
+
+Patch SHA-256 verified: `9e46853f0153e09d9868e85be78aa48f7549a060a6dbc17a4b849864d9a64d1e`. Applied cleanly to detached clean worktree from `6b4b0939`.
+
+Focused verification in the clean worktree: `php -l lanes/lightningcss/src/CssMinifier.php`, `php -l lanes/lightningcss/tests/CssMinifierTest.php`, and `php -l lanes/lightningcss/examples/wordpress-border-radius-minifier.php` all reported no syntax errors. `php lanes/lightningcss/examples/wordpress-border-radius-minifier.php` exited 0. `php tools/run-tests.php lanes/lightningcss/tests/CssMinifierTest.php` passed 1 selected test file, 684 assertions, 0 failures. `git diff --check` passed.
+
+Root verification in the clean worktree: pre-root exact process gate `pgrep -af '^php tools/run-tests\.php$'` was empty, and `php tools/run-tests.php` passed 208 test files, 24480 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this stays inside the existing LightningCSS minifier lane surface. Live-service exclusions: none.
+
+Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-border-radius-minifier.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, `lanes/lightningcss/src/CssMinifier.php`, `lanes/lightningcss/tests/CssMinifierTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - isolated difftastic supervisor-next-20260525T005555Z - 2026-05-25 UTC
 
 Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T005555Z.ready`.

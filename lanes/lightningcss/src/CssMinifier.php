@@ -2096,6 +2096,7 @@ final class CssMinifier
         $value = $this->minifyCaretValue($property, $value);
         $value = $this->minifyListStyleValue($property, $value);
         $value = $this->minifyContainerDeclarationValue($property, $value);
+        $value = $this->minifyBorderRadiusValue($property, $value);
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
@@ -2106,6 +2107,67 @@ final class CssMinifier
         }
 
         return $value;
+    }
+
+    private function minifyBorderRadiusValue(string $property, string $value): string
+    {
+        if (!in_array(strtolower($property), ['border-radius', '-webkit-border-radius', '-moz-border-radius'], true)) {
+            return $value;
+        }
+
+        $parts = $this->splitTopLevel($value, '/');
+        if ($parts === [] || count($parts) > 2) {
+            return trim($value);
+        }
+
+        $horizontal = $this->minifyBorderRadiusSideList($parts[0]);
+        if ($horizontal === null) {
+            return trim($value);
+        }
+
+        if (count($parts) === 1) {
+            return $horizontal;
+        }
+
+        $vertical = $this->minifyBorderRadiusSideList($parts[1]);
+        if ($vertical === null) {
+            return trim($value);
+        }
+
+        return $horizontal . '/' . $vertical;
+    }
+
+    private function minifyBorderRadiusSideList(string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === [] || count($tokens) > 4) {
+            return null;
+        }
+
+        $tokens = array_map(fn (string $token): string => $this->minifyLengthToken($token), $tokens);
+
+        return implode(' ', $this->compressBoxSideValues($tokens));
+    }
+
+    /**
+     * @param list<string> $tokens
+     * @return list<string>
+     */
+    private function compressBoxSideValues(array $tokens): array
+    {
+        if (count($tokens) === 4 && $tokens[3] === $tokens[1]) {
+            array_pop($tokens);
+        }
+
+        if (count($tokens) === 3 && $tokens[2] === $tokens[0]) {
+            array_pop($tokens);
+        }
+
+        if (count($tokens) === 2 && $tokens[1] === $tokens[0]) {
+            array_pop($tokens);
+        }
+
+        return $tokens;
     }
 
     private function minifyLightDarkFunctions(string $value): string

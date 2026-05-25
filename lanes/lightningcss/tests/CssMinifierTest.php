@@ -2173,6 +2173,26 @@ CSS;
             (new CssMinifier())->minify($css)
         );
     },
+    'css minifier maps upstream border-radius shorthand compaction' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{border-radius:10px 100px}',
+            $minifier->minify('.foo { border-radius: 10px 100px 10px 100px; }')
+        );
+        $t->same(
+            '.foo{border-radius:10px 100px/120px}',
+            $minifier->minify('.foo { border-radius: 10px 100px 10px 100px / 120px 120px; }')
+        );
+        $t->same(
+            '.foo{-webkit-border-radius:10px 100px;-moz-border-radius:10px 100px;border-radius:10px 100px}',
+            $minifier->minify('.foo { -webkit-border-radius: 10px 100px 10px 100px; -moz-border-radius: 10px 100px 10px 100px; border-radius: 10px 100px 10px 100px; }')
+        );
+        $t->same(
+            '.foo{border-radius:0 10px}',
+            $minifier->minify('.foo { border-radius: 0px 10px 0px 10px; }')
+        );
+    },
     'wordpress supports-gated block layouts minify without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @supports (((display: grid) and (not (display: subgrid)))) {
