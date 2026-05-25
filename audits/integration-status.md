@@ -108330,3 +108330,23 @@ PASS wordpress option store hashes unsafe folder IDs and rejects malformed paylo
 Support-library/dependency closure: no new support component activated; the patch reuses lane-local JSON extraction, JSON path inspection, JSONB, BLOB, subtype, and constructor code.
 Live-service exclusions: none; no live provider tests were run.
 Files staged: , , , , , , , and .
+
+## Integration accepted - Quadrable priority handoff port-quadrable-20260525T072351Z - 2026-05-25T07:28Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T072351Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T072351Z.patch` (sha256 8cfbb25cd136a6914e705af4a5603a8f05a5a08a731b2d5d90d20f3c8e8df754, verified).
+Lane/slice/session: `quadrable` / `watchdog-next-20260525T0725Z` / `port-quadrable`.
+
+Focused verification in clean detached worktree:
+- `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json` passed.
+- `php -l lanes/quadrable/src/SyncFuzzer.php` passed.
+- `php -l lanes/quadrable/tests/SyncTest.php` passed.
+- `php -l lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php` passed.
+- `php tools/run-tests.php lanes/quadrable/tests/SyncTest.php` passed: Focused test run: 1 selected test files (root lock skipped) PASS maps upstream sync request and response transport round trips PASS maps upstream sync proof fragments through bounded witness expansion PASS maps upstream sync fragment request path ordering guard PASS wordpress sync diffs reconstruct a changed authenticated snapshot PASS wordpress sync request guard rejects overlapping proof fragment paths PASS wordpress sync scan callback matches final authenticated diff PASS sync proof fragments preserve upstream shaped imported diff node ids PASS sync session exposes upstream shaped shadow root node ids PASS deterministic upstream shaped sync fuzz converges with scan diff equivalence PASS bounded upstream mt19937 sync fuzz converges with authenticated diff parity PASS native sync fuzzer maps upstream trial dimensions and budgets PASS native sync fuzzer round trips persisted tracked node snapshots PASS sync fuzzer summarizes optional watchdog evidence without running slow probes in fast suite PASS sync fuzzer watchdog report flags budget overruns deterministically 1 test files, 278 assertions, 0 failures .
+- `php lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php 2 0` passed.
+- `git diff --check` passed.
+
+Root gate: before focused/root checks, / available KiB was >= 86000000, first loadavg was < 25, and no exact `php tools/run-tests.php` process was present. Root verification `php tools/run-tests.php` passed: 213 test files, 25798 assertions, 0 failures.
+
+Dependency closure: no new support component; reuses bounded SyncFuzzer, tracked-node-store persistence, and WordPress watchdog example components.
+Live-service exclusions: none; no live-service provider tests were run.

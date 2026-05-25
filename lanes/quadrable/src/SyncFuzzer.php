@@ -220,6 +220,9 @@ final class SyncFuzzer
      *         totalScanDiffs: int,
      *         maxRecords: int,
      *         maxEdits: int,
+     *         maxDiffs: int,
+     *         maxScanDiffs: int,
+     *         maxShadowNodeId: int,
      *         maxSnapshotBytes: int,
      *         maxTrackedSharedNodes: int
      *     },
@@ -248,6 +251,9 @@ final class SyncFuzzer
             'totalScanDiffs' => 'totalScanDiffs',
             'maxRecords' => 'maxRecords',
             'maxEdits' => 'maxEdits',
+            'maxDiffs' => 'maxDiffs',
+            'maxScanDiffs' => 'maxScanDiffs',
+            'maxShadowNodeId' => 'maxShadowNodeId',
             'maxSnapshotBytes' => 'maxSnapshotBytes',
             'maxTrackedSharedNodes' => 'maxTrackedSharedNodes',
         ];

@@ -18,11 +18,17 @@ $inMemoryBudget = [
     'maxRoundTrips' => max(1, $inMemorySummary['maxRoundTrips']),
     'totalRequests' => max(1, $inMemorySummary['totalRequests']),
     'totalResponses' => max(1, $inMemorySummary['totalResponses']),
+    'maxDiffs' => max(1, $inMemorySummary['maxDiffs']),
+    'maxScanDiffs' => max(1, $inMemorySummary['maxScanDiffs']),
+    'maxShadowNodeId' => max(1, $inMemorySummary['maxShadowNodeId']),
 ];
 $persistedBudget = [
     'maxRoundTrips' => max(1, $persistedSummary['maxRoundTrips']),
     'totalRequests' => max(1, $persistedSummary['totalRequests']),
     'totalResponses' => max(1, $persistedSummary['totalResponses']),
+    'maxDiffs' => max(1, $persistedSummary['maxDiffs']),
+    'maxScanDiffs' => max(1, $persistedSummary['maxScanDiffs']),
+    'maxShadowNodeId' => max(1, $persistedSummary['maxShadowNodeId']),
     'maxSnapshotBytes' => max(1, $persistedSummary['maxSnapshotBytes']),
     'maxTrackedSharedNodes' => max(1, $persistedSummary['maxTrackedSharedNodes']),
 ];

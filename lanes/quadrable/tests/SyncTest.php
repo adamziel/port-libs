@@ -541,6 +541,9 @@ return [
             'maxRoundTrips' => $summary['maxRoundTrips'],
             'totalRequests' => $summary['totalRequests'],
             'totalResponses' => $summary['totalResponses'],
+            'maxDiffs' => $summary['maxDiffs'],
+            'maxScanDiffs' => $summary['maxScanDiffs'],
+            'maxShadowNodeId' => $summary['maxShadowNodeId'],
             'maxSnapshotBytes' => $summary['maxSnapshotBytes'],
             'maxTrackedSharedNodes' => $summary['maxTrackedSharedNodes'],
         ], $summary['rootDigest'], $summary['trialDigest']);
@@ -558,12 +561,15 @@ return [
             'maxRoundTrips' => max(0, $summary['maxRoundTrips'] - 1),
             'totalRequests' => max(0, $summary['totalRequests'] - 1),
             'totalResponses' => max(0, $summary['totalResponses'] - 1),
+            'maxDiffs' => max(0, $summary['maxDiffs'] - 1),
+            'maxScanDiffs' => max(0, $summary['maxScanDiffs'] - 1),
+            'maxShadowNodeId' => max(0, $summary['maxShadowNodeId'] - 1),
             'maxSnapshotBytes' => max(0, $summary['maxSnapshotBytes'] - 1),
             'maxTrackedSharedNodes' => max(0, $summary['maxTrackedSharedNodes'] - 1),
         ]);
         $t->same(false, $failing['ok'], 'tight budgets should fail');
         $t->same(
-            ['maxRoundTrips', 'totalRequests', 'totalResponses', 'maxSnapshotBytes', 'maxTrackedSharedNodes'],
+            ['maxRoundTrips', 'totalRequests', 'totalResponses', 'maxDiffs', 'maxScanDiffs', 'maxShadowNodeId', 'maxSnapshotBytes', 'maxTrackedSharedNodes'],
             array_column($failing['failures'], 'metric')
         );
         $t->throws(\InvalidArgumentException::class, static fn (): array => SyncFuzzer::watchdogReport($results, ['totalRequests' => -1]));
