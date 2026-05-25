@@ -109654,6 +109654,58 @@ Files staged:
 - `lanes/libsqlite/notes/wordpress-scenarios.md`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+## Integration accepted - quadrable integer proof whitespace rework - 2026-05-25 13:00 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T123052Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T123052Z.patch`.
+
+Lane/slice/session: `quadrable` /
+`priority-keeper-rework-20260525T123051Z` /
+`port-quadrable-rework`. Patch sha256 verified as
+`2c2dbb4fed5cbf732b5d417f29800001beac31bea00c22dc6587290e58b8eed1`.
+
+Apply result: plain apply failed against current `main` because accepted
+status/evidence paragraphs had moved since worker base
+`db5bdd8e4250f8521401888aaf85f61ca875905f`; bounded `git apply --3way`
+applied cleanly with no conflicts on detached clean worktree
+`/tmp/port-clean-integrator-quadrable-priority-20260525T123052Z` rooted at
+`46dddf6230a0378d771a230f364028420291d35f`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/quadrable/src/QuadbStore.php`: passed.
+- `php -l lanes/quadrable/tests/QuadbStoreTest.php`: passed.
+- `php -l lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`: passed.
+- `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json`: passed.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`: passed, 1 test file, 998 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`: passed and reported `trailingWhitespaceIntegerProofMatchesNumericPrefix: true`.
+- `git diff --check`: passed.
+
+Root verification: after the gate was open (`df -Pk /` available KiB above
+`86000000`, load below `25`, and no exact no-argument root process),
+`php tools/run-tests.php` ran under
+`.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and passed:
+214 test files, 26126 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component was activated.
+The patch reuses existing bounded proof transport, command-level CLI integer
+parser, `QuadbStore` command wrappers, and WordPress proof stdin/binary
+example coverage.
+
+Live-service exclusions: none; no live providers or external services were
+used.
+
+Files staged:
+
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/upstream-inventory.md`
+- `lanes/quadrable/tests/QuadbStoreTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - rclone cleanup-command rework refresh - 2026-05-25 12:55 UTC
 
 Accepted isolated ready marker:

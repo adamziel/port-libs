@@ -117,6 +117,11 @@ try {
         ['2suffix', '4'],
         integerKeys: true
     );
+    $trailingWhitespaceProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ["2 \tignored", "4\nignored"],
+        integerKeys: true
+    );
     $spacedPlusProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['  +2suffix', ' +4'],
@@ -208,6 +213,7 @@ try {
         'stdinIntegerDumpMatchesDirect' => $stdinIntegerDumpWithBadFormat === $directIntegerDumpWithBadFormat,
         'numericPrefixIntegerExportProofExitCode' => $numericPrefixProofCommand['exitCode'],
         'numericPrefixIntegerBinaryProofBytes' => strlen($numericPrefixProofCommand['stdout']),
+        'trailingWhitespaceIntegerProofMatchesNumericPrefix' => $trailingWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'spacedPlusIntegerExportProofExitCode' => $spacedPlusProofCommand['exitCode'],
         'spacedPlusIntegerProofMatchesNumericPrefix' => $spacedPlusProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'verticalWhitespaceIntegerProofMatchesNumericPrefix' => $verticalWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],

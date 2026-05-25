@@ -1614,6 +1614,14 @@ return [
             $t->same(0, $numericPrefixProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([2, 4]), $numericPrefixProof['stdout']);
             $t->same('', $numericPrefixProof['stderr']);
+            $trailingWhitespaceProof = QuadbStore::exportProofCommandOutput(
+                $dir,
+                ["2 \tignored", "4\nignored"],
+                integerKeys: true
+            );
+            $t->same(0, $trailingWhitespaceProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([2, 4]), $trailingWhitespaceProof['stdout']);
+            $t->same('', $trailingWhitespaceProof['stderr']);
             $spacedPlusProof = QuadbStore::exportProofCommandOutput($dir, ['  +2suffix', ' +4'], integerKeys: true);
             $t->same(0, $spacedPlusProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([2, 4]), $spacedPlusProof['stdout']);
