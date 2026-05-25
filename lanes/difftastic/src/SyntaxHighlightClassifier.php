@@ -102,6 +102,10 @@ final class SyntaxHighlightClassifier
             }
         }
 
+        if ($this->isGoLanguage($language) && $this->isGoBuiltinConstant($token->text)) {
+            return 'keyword';
+        }
+
         if ($this->isPhpLikeLanguage($language)
             && ($this->isPhpBuiltinVariable($source, $token) || $this->isPhpMagicConstant($token->text))
         ) {
@@ -227,6 +231,11 @@ final class SyntaxHighlightClassifier
         return in_array($language, ['javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx'], true);
     }
 
+    private function isGoLanguage(string $language): bool
+    {
+        return in_array($language, ['go', 'golang'], true);
+    }
+
     private function isPhpLikeLanguage(string $language): bool
     {
         return in_array($language, ['hack', 'hh', 'php'], true);
@@ -318,6 +327,11 @@ final class SyntaxHighlightClassifier
     private function isJavaScriptBuiltinVariable(string $text): bool
     {
         return in_array($text, ['arguments', 'module', 'console', 'window', 'document', 'this', 'super'], true);
+    }
+
+    private function isGoBuiltinConstant(string $text): bool
+    {
+        return in_array($text, ['false', 'iota', 'nil', 'true'], true);
     }
 
     private function isPhpBuiltinVariable(string $source, Token $token): bool
@@ -657,6 +671,12 @@ final class SyntaxHighlightClassifier
                 'var', 'while', 'with', 'yield',
             ],
             'json' => ['false', 'null', 'true'],
+            'go', 'golang' => [
+                'break', 'case', 'chan', 'const', 'continue', 'defer', 'default',
+                'else', 'fallthrough', 'for', 'func', 'go', 'goto', 'if',
+                'import', 'interface', 'map', 'package', 'range', 'return',
+                'select', 'struct', 'switch', 'type', 'var',
+            ],
             'php', 'hack', 'hh' => [
                 'case', 'catch', 'class', 'declare', 'default', 'else', 'extends',
                 'false', 'finally', 'for', 'foreach', 'function', 'if', 'implements',
@@ -705,6 +725,12 @@ final class SyntaxHighlightClassifier
             'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx' => [
                 'any', 'array', 'bigint', 'boolean', 'never', 'number', 'object',
                 'promise', 'record', 'string', 'symbol', 'unknown', 'void',
+            ],
+            'go', 'golang' => [
+                'any', 'bool', 'byte', 'comparable', 'complex64', 'complex128',
+                'error', 'float32', 'float64', 'int', 'int8', 'int16', 'int32',
+                'int64', 'rune', 'string', 'uint', 'uint8', 'uint16', 'uint32',
+                'uint64', 'uintptr',
             ],
             'php', 'hack', 'hh' => [
                 'array', 'bool', 'callable', 'float', 'int', 'iterable', 'mixed',

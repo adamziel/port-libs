@@ -3523,6 +3523,48 @@ return [
         $t->contains('blocks:normal', $encoded);
         $t->contains('len:normal', $encoded);
     },
+    'json display renderer maps upstream go keyword builtin and type captures' => static function (TestRunner $t): void {
+        $before = "package main\n\nfunc main() {}\n";
+        $after = "package main\n\n"
+            . "type Block struct {\n"
+            . "    Title string\n"
+            . "    Enabled bool\n"
+            . "}\n\n"
+            . "func register(blocks []Block) error {\n"
+            . "    for _, block := range blocks {\n"
+            . "        if block.Enabled == false || block.Title == \"\" { return nil }\n"
+            . "    }\n"
+            . "    return nil\n"
+            . "}\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/go_highlight.go',
+            'Go',
+            ['language' => 'go'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Go', $decoded['language']);
+        foreach (['type', 'struct', 'func', 'for', 'range', 'if', 'return', 'nil', 'false'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['string', 'bool', 'error'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        foreach (['register', 'blocks', 'block', 'Enabled', 'Title'] as $normal) {
+            $t->contains("{$normal}:normal", $encoded);
+        }
+    },
     'json display renderer maps upstream python constructor decorators as type highlights' => static function (TestRunner $t): void {
         $before = "def migrate_post(post):\n    return post\n";
         $after = "@CacheWarmup\n"
@@ -3886,6 +3928,22 @@ return [
         $lenStart = strpos($line, 'len');
         $t->true($lenStart !== false, 'Fixture should contain len.');
         $t->true(!in_array(['start' => $lenStart, 'end' => $lenStart + strlen('len'), 'style' => '1'], $spans, true), 'Ordinary Rust method identifiers should remain normal.');
+    },
+    'ansi highlighter maps upstream go keyword builtin and type captures' => static function (TestRunner $t): void {
+        $line = 'func register(blocks []Block) error { for _, block := range blocks { if block.Enabled == false { return nil } } }';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'go']);
+
+        foreach (['func', 'error', 'for', 'range', 'if', 'false', 'return', 'nil'] as $highlighted) {
+            $start = strpos($line, $highlighted);
+            $t->true($start !== false, "Fixture should contain {$highlighted}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($highlighted), 'style' => '1'], $spans, true), "{$highlighted} should follow upstream keyword/type display styling.");
+        }
+
+        foreach (['register', 'blocks', 'Block', 'Enabled'] as $normal) {
+            $start = strpos($line, $normal);
+            $t->true($start !== false, "Fixture should contain {$normal}.");
+            $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream capture.");
+        }
     },
     'ansi highlighter maps upstream python constructor decorator captures' => static function (TestRunner $t): void {
         $line = '@CacheWarmup';
@@ -4477,6 +4535,32 @@ return [
         $t->contains('t:keyword', $encoded);
         $t->contains('when:normal', $encoded);
         $t->contains('message:normal', $encoded);
+    },
+    'wordpress go build helper display follows upstream keyword type boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-go-build-helper-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/tools/register-blocks.go', $decoded['path']);
+        foreach (['type', 'struct', 'func', 'for', 'range', 'if', 'return', 'nil', 'false'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['string', 'bool', 'error'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        $t->contains('register:normal', $encoded);
+        $t->contains('Dynamic:normal', $encoded);
     },
     'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
         ob_start();

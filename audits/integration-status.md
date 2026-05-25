@@ -1,5 +1,50 @@
 # Integration Status
 
+## Integration accepted - isolated Difftastic Go highlight slice - 2026-05-25 04:38 UTC
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T030832Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T030832Z.patch`.
+
+Lane/slice/session: `difftastic` /
+`supervisor-rearm-20260525T030831Z` / `port-difftastic`.
+Patch sha256 verified:
+`7e0c67e174833dd63035187c1dca692c26180f8243de0baa4dd5f3a616f5b0f5`.
+
+Application notes: straight `git apply --check` failed on accepted drift in
+Difftastic manifest/status/notes and adjacent test additions. Bounded
+`git apply --3way` was used in a detached clean worktree from
+`d81305aa688f772f1c983b5ad9de933be05187fc`; the conflicts were limited to
+stale metadata counters and a neighboring accepted test block. Resolution kept
+the current accepted metadata and added only the submitted Go classifier,
+example, focused tests, and upstream-inventory note.
+
+Focused commands and results:
+
+- `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php` passed.
+- `php -l lanes/difftastic/tests/TokenDifferTest.php` passed.
+- `php -l lanes/difftastic/examples/wordpress-go-build-helper-highlight-display.php`
+  passed.
+- `jq empty lanes/difftastic/lane-status.json lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`
+  passed.
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed:
+  1 selected test file, 1577 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The slice
+uses existing lane-local Difftastic syntax highlighting and JSON display
+helpers only. No live-service provider tests were run.
+
+Root command/result: `php tools/run-tests.php` passed in this clean worktree:
+212 test files, 25145 assertions, 0 failures. `git diff --check` also passed.
+
+Files staged:
+`lanes/difftastic/src/SyntaxHighlightClassifier.php`,
+`lanes/difftastic/tests/TokenDifferTest.php`,
+`lanes/difftastic/examples/wordpress-go-build-helper-highlight-display.php`,
+`lanes/difftastic/notes/upstream-inventory.md`, and
+`audits/integration-status.md`.
+
 ## Clean-patch isolated queue deferral - 2026-05-25 04:33 UTC
 
 No isolated source patch was accepted in this clean-patch pass. I processed the current runtime contents of `.tmux-team/tmp/handoff-candidates/*.ready` and reduced 328 processable markers to the newest marker per lane. All twelve latest markers had matching `patch_sha256` values, but every patch failed a straight `git apply --check` against `refs/heads/main` at `0ad1c0ff`, and every bounded `git apply --3way` attempt left conflicts. Several conflicts were in behavior or focused test files, not only stale manifest/status counters, so they need lane re-emission rather than integrator invention.
