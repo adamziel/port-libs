@@ -91,6 +91,11 @@ try {
         "\n",
         integerKeys: true
     );
+    $whitespaceOnlyStdinIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        " \t\r\n",
+        integerKeys: true
+    );
     $directIntegerProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['2', '4', '99'],
@@ -155,6 +160,11 @@ try {
     $nulPrefixedProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ["\0+2"],
+        integerKeys: true
+    );
+    $stdinNulPrefixedProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "\0+2\n",
         integerKeys: true
     );
     $signOnlyProofCommand = QuadbStore::exportProofCommandOutput(
@@ -243,6 +253,8 @@ try {
             && $emptyStdinIntegerProofCommand['stdout'] === QuadbStore::open($integerDir)->exportIntegerProofBytes([]),
         'blankLineStdinIntegerProofFailsStoi' => $blankLineStdinIntegerProofCommand['exitCode'] === 1
             && $blankLineStdinIntegerProofCommand['stderr'] === "quadb error: stoi\n",
+        'whitespaceOnlyStdinIntegerProofFailsStoi' => $whitespaceOnlyStdinIntegerProofCommand['exitCode'] === 1
+            && $whitespaceOnlyStdinIntegerProofCommand['stderr'] === "quadb error: stoi\n",
         'directIntegerExportProofExitCode' => $directIntegerProofCommand['exitCode'],
         'directIntegerBinaryProofMatchesStdin' => $directIntegerProofCommand['stdout'] === $integerProofBytes,
         'directIntegerHexProofMatchesStdin' => $directIntegerHexProofCommand === $integerHexProofCommand,
@@ -260,6 +272,8 @@ try {
         'carriageReturnWhitespaceIntegerProofMatchesNumericPrefix' => $carriageReturnWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'nulPrefixedIntegerProofFailsStoi' => $nulPrefixedProofCommand['exitCode'] === 1
             && $nulPrefixedProofCommand['stderr'] === "quadb error: stoi\n",
+        'stdinNulPrefixedIntegerProofFailsStoi' => $stdinNulPrefixedProofCommand['exitCode'] === 1
+            && $stdinNulPrefixedProofCommand['stderr'] === "quadb error: stoi\n",
         'signOnlyIntegerProofFailsStoi' => $signOnlyProofCommand['exitCode'] === 1
             && $signOnlyProofCommand['stderr'] === "quadb error: stoi\n",
         'stdinSignOnlyIntegerProofFailsStoi' => $stdinSignOnlyProofCommand['exitCode'] === 1

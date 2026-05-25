@@ -253,8 +253,8 @@ final class MarkdownWriter
         $style = (string) $node->attr('style', 'decimal');
         $delimiter = (string) $node->attr('delimiter', 'period');
         $label = match ($style) {
-            'lower_alpha' => chr(ord('a') + (($number - 1) % 26)),
-            'upper_alpha' => chr(ord('A') + (($number - 1) % 26)),
+            'lower_alpha' => $this->alphaListLabel($number, false),
+            'upper_alpha' => $this->alphaListLabel($number, true),
             'lower_roman' => strtolower($this->romanNumeral($number)),
             'upper_roman' => $this->romanNumeral($number),
             default => (string) $number,
@@ -271,6 +271,19 @@ final class MarkdownWriter
         }
 
         return $marker . ' ';
+    }
+
+    private function alphaListLabel(int $number, bool $upper): string
+    {
+        $number = max(1, $number);
+        $label = '';
+        while ($number > 0) {
+            $number--;
+            $label = chr(ord('a') + ($number % 26)) . $label;
+            $number = intdiv($number, 26);
+        }
+
+        return $upper ? strtoupper($label) : $label;
     }
 
     private function romanNumeral(int $number): string

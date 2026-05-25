@@ -2298,6 +2298,25 @@ MD;
             '?)  overflow lower roman',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer alphabetic list marker overflow' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('ordered_list', ['start' => 25, 'style' => 'lower_alpha', 'delimiter' => 'period'], [
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'review y marker'])]),
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'review z marker'])]),
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'review aa marker'])]),
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'review ab marker'])]),
+            ]),
+            new AstNode('ordered_list', ['start' => 27, 'style' => 'upper_alpha', 'delimiter' => 'one_paren'], [
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'upper AA marker'])]),
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'upper AB marker'])]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            "y.  review y marker\nz.  review z marker\naa. review aa marker\nab. review ab marker",
+            'AA) upper AA marker' . "\n" . 'AB) upper AB marker',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer note and reference placement' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [

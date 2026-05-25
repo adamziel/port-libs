@@ -1592,6 +1592,11 @@ return [
                 'stdout' => '',
                 'stderr' => "quadb error: stoi\n",
             ], QuadbStore::exportProofStdinCommandOutput($dir, "\n", integerKeys: true));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofStdinCommandOutput($dir, " \t\r\n", integerKeys: true));
             $integerDump = QuadbStore::exportProofCommandOutput($dir, ['2', '4', '99'], dump: true, integerKeys: true);
             $t->same(0, $integerDump['exitCode']);
             $t->contains('ITEMS (2):', $integerDump['stdout']);
@@ -1664,6 +1669,11 @@ return [
                 'stdout' => '',
                 'stderr' => "quadb error: stoi\n",
             ], QuadbStore::exportProofCommandOutput($dir, ["\0+2"], integerKeys: true));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofStdinCommandOutput($dir, "\0+2\n", integerKeys: true));
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',

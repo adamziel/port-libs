@@ -301,6 +301,17 @@ $document = new AstNode('document', $document->attrs, [
             new AstNode('text', ['text' => 'Overflow reviewer packet keeps Pandoc marker semantics']),
         ]),
     ]),
+    new AstNode('ordered_list', ['start' => 25, 'style' => 'lower_alpha'], [
+        new AstNode('list_item', [], [
+            new AstNode('text', ['text' => 'Reviewer alpha queue near source appendix end']),
+        ]),
+        new AstNode('list_item', [], [
+            new AstNode('text', ['text' => 'Reviewer alpha queue z marker']),
+        ]),
+        new AstNode('list_item', [], [
+            new AstNode('text', ['text' => 'Reviewer alpha queue aa marker after overflow']),
+        ]),
+    ]),
     new AstNode('raw_block', [
         'format' => 'markdown',
         'text' => '> Raw reviewer block: keep this migration note with the handoff.',
