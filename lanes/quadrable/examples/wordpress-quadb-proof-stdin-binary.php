@@ -74,6 +74,11 @@ try {
         throw new RuntimeException($integerProofCommand['stderr']);
     }
     $integerProofBytes = $integerProofCommand['stdout'];
+    $directIntegerProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['2', '4', '99'],
+        integerKeys: true
+    );
     $badIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
         $integerDir,
         "2\nnot-an-int\n",
@@ -93,6 +98,8 @@ try {
         'integerStdinKeys' => [2, 4, 99],
         'integerExportProofStdinExitCode' => $integerProofCommand['exitCode'],
         'integerBinaryProofBytes' => strlen($integerProofBytes),
+        'directIntegerExportProofExitCode' => $directIntegerProofCommand['exitCode'],
+        'directIntegerBinaryProofMatchesStdin' => $directIntegerProofCommand['stdout'] === $integerProofBytes,
         'badIntegerProofStdin' => $badIntegerProofCommand,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {

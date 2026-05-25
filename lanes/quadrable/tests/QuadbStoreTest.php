@@ -1549,6 +1549,7 @@ return [
 
             $root = $repo->tree()->rootHash();
             $proofHex = $repo->exportIntegerProofHex([2, 4, 99]);
+            $proofBytes = quadrableQuadbDecodeHexProof($proofHex);
             $proof = Proof::decode(quadrableQuadbDecodeHexProof($proofHex));
             $partial = SparseTree::importProof($proof, $root);
 
@@ -1559,6 +1560,31 @@ return [
             $t->throws(RuntimeException::class, static fn () => $partial->getKey(Key::fromInteger(1)));
             $t->throws(RuntimeException::class, static fn () => $repo->exportIntegerProofHex([2], Proof::ENCODING_FULL_KEYS));
             $t->throws(InvalidArgumentException::class, static fn () => $repo->exportIntegerProof([2, '3']));
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $proofBytes,
+                'stderr' => '',
+            ], QuadbStore::exportProofCommandOutput($dir, ['2', '4', '99'], integerKeys: true));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $proofHex,
+                'stderr' => '',
+            ], QuadbStore::exportProofCommandOutput($dir, ['2', '4', '99'], hex: true, integerKeys: true));
+            $integerDump = QuadbStore::exportProofCommandOutput($dir, ['2', '4', '99'], dump: true, integerKeys: true);
+            $t->same(0, $integerDump['exitCode']);
+            $t->contains('ITEMS (2):', $integerDump['stdout']);
+            $t->same('', $integerDump['stderr']);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofCommandOutput($dir, ['2', 'not-an-int'], integerKeys: true));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: FullKeys specified in proof encoding, but key not available\n",
+            ], QuadbStore::exportProofCommandOutput($dir, ['2'], 'FullKeys', integerKeys: true));
         } finally {
             quadrableQuadbRemoveDir($dir);
         }
