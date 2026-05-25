@@ -7,9 +7,10 @@ namespace PortLibs\Esbuild;
 final class BundlerMetafile
 {
     /**
-     * @return array{entry: string, inputs: array<string, array{bytes: int, imports: list<array{path: string, kind: string, external: bool, loader?: string, missing?: bool, unsupported?: bool}>}>, diagnostics: array{external: list<array{path: string, kind: string}>, missing: list<array{path: string, kind: string}>, unsupported: list<array{path: string, kind: string, resolved: string}>}}
+     * @param array{output?: array{path: string, bytes: int}, inputs?: array<string, array{bytes: int, outputBytes: int, importsRemoved: int}>}|null $output
+     * @return array{entry: string, inputs: array<string, array{bytes: int, imports: list<array{path: string, kind: string, external: bool, loader?: string, missing?: bool, unsupported?: bool}>}>, outputs?: array<string, array{bytes: int, inputs: array<string, array{bytesInOutput: int, importsRemoved: int}>, importsRemoved: int}>, diagnostics: array{external: list<array{path: string, kind: string}>, missing: list<array{path: string, kind: string}>, unsupported: list<array{path: string, kind: string, resolved: string}>}}
      */
-    public function summarize(BundlerGraph $graph, ?string $root = null): array
+    public function summarize(BundlerGraph $graph, ?string $root = null, ?array $output = null): array
     {
         $root = $root === null ? dirname($graph->entry) : ((string) realpath($root) ?: $root);
         $inputs = [];
@@ -42,7 +43,7 @@ final class BundlerMetafile
         }
         ksort($inputs);
 
-        return [
+        $summary = [
             'entry' => $this->relativePath($graph->entry, $root),
             'inputs' => $inputs,
             'diagnostics' => [
@@ -59,6 +60,40 @@ final class BundlerMetafile
                     'kind' => $edge->kind,
                     'resolved' => $this->edgePath($edge, $root),
                 ], $graph->unsupportedEdges),
+            ],
+        ];
+
+        if ($output !== null && isset($output['output']['path'], $output['output']['bytes'], $output['inputs'])) {
+            $summary['outputs'] = $this->outputSummary($output);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param array{output: array{path: string, bytes: int}, inputs: array<string, array{bytes: int, outputBytes: int, importsRemoved: int}>} $output
+     * @return array<string, array{bytes: int, inputs: array<string, array{bytesInOutput: int, importsRemoved: int}>, importsRemoved: int}>
+     */
+    private function outputSummary(array $output): array
+    {
+        $inputs = [];
+        $importsRemoved = 0;
+
+        foreach ($output['inputs'] as $path => $input) {
+            $inputs[$path] = [
+                'bytesInOutput' => $input['outputBytes'],
+                'importsRemoved' => $input['importsRemoved'],
+            ];
+            $importsRemoved += $input['importsRemoved'];
+        }
+
+        ksort($inputs);
+
+        return [
+            $output['output']['path'] => [
+                'bytes' => $output['output']['bytes'],
+                'inputs' => $inputs,
+                'importsRemoved' => $importsRemoved,
             ],
         ];
     }

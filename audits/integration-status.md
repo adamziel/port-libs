@@ -103530,3 +103530,30 @@ Files staged:
 - `lanes/dolt/notes/wordpress-scenarios.md`
 - `lanes/dolt/src/MergeStatusTable.php`
 - `lanes/dolt/tests/MergeStatusTableTest.php`
+
+## Clean-patch integration accepted - esbuild - 20260525T060301Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T055536Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T055536Z.patch`
+Lane/slice/session: `esbuild` / `watchdog-next-20260525T055536Z` / `port-esbuild`
+Base old_head: `39521f5a3c7243cffd0664add8036f4819b0a81f`
+
+Focused verification:
+- `sha256sum /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T055536Z.patch`: matched `fdc84cf7f4591b9ab45ffd6e0c5f71c3be6fea3dfd4a6612ab814819bb95c524`.
+- `php -l` on 3 changed PHP file(s): passed.
+- `php tools/run-tests.php lanes/esbuild/tests`: passed; PASS lowers wordpress namespace scoped disposable preview asset without node PASS lowers wordpress namespace disposable preview with colliding helper names without node PASS lowers wordpress namespace async disposable preview without node  7 test files, 1926 assertions, 0 failures 
+- `git diff --check`: passed.
+
+Root verification:
+- Pre-root exact gate `pgrep -af '^php tools/run-tests\.php$'`: clear after 0s wait.
+- `php tools/run-tests.php`: passed; PASS wordpress option store expires snapshots and deletes stale options before reuse PASS folder scan service resumes through a wordpress option checkpoint store PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  212 test files, 25460 assertions, 0 failures 
+
+Support-library/dependency closure: no new support-library activation accepted for this isolated lane-local micro-slice; existing gated dependency backlog remains inactive unless the lane status already records a bounded future gate.
+Live-service exclusions: no live-service provider tests were run.
+Files staged:
+- `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/esbuild/examples/wordpress-asset-preflight.php`
+- `lanes/esbuild/lane-status.json`
+- `lanes/esbuild/notes/wordpress-scenarios.md`
+- `lanes/esbuild/src/BundlerMetafile.php`
+- `lanes/esbuild/tests/BundlerGraphBuilderTest.php`

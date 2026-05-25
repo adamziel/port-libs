@@ -154,6 +154,7 @@ $loaderGraphEdges = array_combine(
 $unsupportedLoaderGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/unsupported-loader-entry.js');
 $unsupportedLoaderMetafile = (new BundlerMetafile())->summarize($unsupportedLoaderGraph, $packageFixtureDir);
 $loaderBundlerOutput = (new BundlerOutput())->build($loaderBundlerGraph, $packageFixtureDir, 'block-view.js');
+$loaderOutputMetafile = (new BundlerMetafile())->summarize($loaderBundlerGraph, $packageFixtureDir, $loaderBundlerOutput);
 $unsupportedLoaderOutput = (new BundlerOutput())->build($unsupportedLoaderGraph, $packageFixtureDir, 'block-view.js');
 $unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
@@ -608,6 +609,14 @@ printf("WordPress bounded JS output bytes: %s\n", (
     && isset($loaderBundlerOutput['inputs']['src/local-preview.js'])
     && !isset($loaderBundlerOutput['inputs']['src/block.css'])
     && ($unsupportedLoaderOutput['diagnostics']['unsupported'][0]['path'] ?? null) === './asset.bin'
+) ? 'yes' : 'no');
+printf("WordPress metafile output bytes: %s\n", (
+    ($loaderOutputMetafile['outputs']['block-view.js']['bytes'] ?? null) === $loaderBundlerOutput['output']['bytes']
+    && ($loaderOutputMetafile['outputs']['block-view.js']['importsRemoved'] ?? null) === 1
+    && ($loaderOutputMetafile['outputs']['block-view.js']['inputs']['src/loader-entry.js']['bytesInOutput'] ?? null) === $loaderBundlerOutput['inputs']['src/loader-entry.js']['outputBytes']
+    && ($loaderOutputMetafile['outputs']['block-view.js']['inputs']['src/loader-entry.js']['importsRemoved'] ?? null) === 1
+    && isset($loaderOutputMetafile['outputs']['block-view.js']['inputs']['src/local-preview.js'])
+    && !isset($loaderOutputMetafile['outputs']['block-view.js']['inputs']['src/block.css'])
 ) ? 'yes' : 'no');
 printf("WordPress tsconfig paths aliases: %s\n", (
     array_combine(

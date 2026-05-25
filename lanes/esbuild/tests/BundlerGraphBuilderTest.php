@@ -141,6 +141,22 @@ return [
         $t->same([], $output['diagnostics']['missing']);
         $t->same([], $output['diagnostics']['unsupported']);
     },
+    'propagates bounded output byte accounting into the metafile surface' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $graph = (new BundlerGraphBuilder())->build($fixtureRoot . '/src/loader-entry.js');
+        $output = (new BundlerOutput())->build($graph, $fixtureRoot, 'block-view.js');
+        $metafile = (new BundlerMetafile())->summarize($graph, $fixtureRoot, $output);
+
+        $t->same(true, isset($metafile['outputs']['block-view.js']));
+        $t->same($output['output']['bytes'], $metafile['outputs']['block-view.js']['bytes']);
+        $t->same(1, $metafile['outputs']['block-view.js']['importsRemoved']);
+        $t->same($output['inputs']['src/loader-entry.js']['outputBytes'], $metafile['outputs']['block-view.js']['inputs']['src/loader-entry.js']['bytesInOutput']);
+        $t->same($output['inputs']['src/local-preview.js']['outputBytes'], $metafile['outputs']['block-view.js']['inputs']['src/local-preview.js']['bytesInOutput']);
+        $t->same(1, $metafile['outputs']['block-view.js']['inputs']['src/loader-entry.js']['importsRemoved']);
+        $t->same(0, $metafile['outputs']['block-view.js']['inputs']['src/local-preview.js']['importsRemoved']);
+        $t->same(false, isset($metafile['outputs']['block-view.js']['inputs']['src/block.css']));
+        $t->same(false, isset($metafile['outputs']['block-view.js']['inputs']['src/block.json']));
+        $t->same(true, isset($metafile['inputs']['src/loader-entry.js']));
+    },
     'preserves output diagnostics for external and unsupported graph edges' => static function (TestRunner $t) use ($fixtureRoot): void {
         $nodeGraph = (new BundlerGraphBuilder(new PackageResolver('node')))->build($fixtureRoot . '/src/node-entry.js');
         $nodeOutput = (new BundlerOutput())->build($nodeGraph, $fixtureRoot);
