@@ -140,8 +140,8 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
 
     private static function validateRepositoryPath(string $repositoryPath): void
     {
-        if ($repositoryPath === '' || str_contains($repositoryPath, "\0")) {
-            throw new \InvalidArgumentException('git-daemon receive-pack repository path must be non-empty and must not contain NUL bytes');
+        if ($repositoryPath === '' || self::containsControlByte($repositoryPath)) {
+            throw new \InvalidArgumentException('git-daemon receive-pack repository path must be non-empty and must not contain control bytes');
         }
         if (!str_starts_with($repositoryPath, '/')) {
             throw new \InvalidArgumentException('git-daemon receive-pack repository path must be an absolute URL path');
@@ -150,8 +150,8 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
 
     private static function validateHost(string $host): void
     {
-        if ($host === '' || str_contains($host, "\0")) {
-            throw new \InvalidArgumentException('git-daemon receive-pack host must be non-empty and must not contain NUL bytes');
+        if ($host === '' || self::containsControlByte($host)) {
+            throw new \InvalidArgumentException('git-daemon receive-pack host must be non-empty and must not contain control bytes');
         }
     }
 
@@ -168,10 +168,15 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
     private static function validateExtraParameters(array $extraParameters): void
     {
         foreach ($extraParameters as $extraParameter) {
-            if (!is_string($extraParameter) || $extraParameter === '' || str_contains($extraParameter, "\0")) {
-                throw new \InvalidArgumentException('git-daemon receive-pack extra parameters must be non-empty strings without NUL bytes');
+            if (!is_string($extraParameter) || $extraParameter === '' || self::containsControlByte($extraParameter)) {
+                throw new \InvalidArgumentException('git-daemon receive-pack extra parameters must be non-empty strings without control bytes');
             }
         }
+    }
+
+    private static function containsControlByte(string $value): bool
+    {
+        return preg_match('/[\x00-\x1f\x7f]/', $value) === 1;
     }
 
     private static function hostParameterValue(string $host, ?int $port): string

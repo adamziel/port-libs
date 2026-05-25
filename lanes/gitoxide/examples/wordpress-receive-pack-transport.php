@@ -18,5 +18,6 @@ return [
     'gitDaemonServiceRequestPayload' => substr($fixture['gitDaemonServiceRequest'], 4),
     'gitDaemonIpv6ServiceRequestPayload' => substr($fixture['gitDaemonIpv6ServiceRequest'], 4),
     'unsafeGitDaemonPathRejected' => $fixture['unsafeGitDaemonPathRejected'],
+    'unsafeGitDaemonControlByteRejected' => $fixture['unsafeGitDaemonControlByteRejected'],
     'unsafeSshTargetRejected' => $fixture['unsafeSshTargetRejected'],
 ];

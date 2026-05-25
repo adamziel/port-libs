@@ -1,5 +1,57 @@
 # Integration Status
 
+## Clean-patch integration accepted - Gitoxide - 2026-05-25 01:12 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T010544Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T010544Z.patch`.
+
+Lane/slice/session: `gitoxide` /
+`supervisor-next-20260525T010543Z` / `port-gitoxide`.
+Patch sha256 verified:
+`0edcacdc0852a58cf1949b0d1a0e4ed58be0dd052693eba5fdab60484d246111`.
+Straight `git apply --check` failed against current `main` due to normal
+lane drift in Gitoxide manifest/status/source files; bounded
+`git apply --3way` applied all Gitoxide lane files cleanly with no conflicts.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-gitoxide-supervisor-next-20260525T010543Z-1779671509`:
+
+- `php -l lanes/gitoxide/src/GitDaemonReceivePackTransport.php`: passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed.
+- `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php`: passed.
+- `php -l lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`: passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`:
+  passed, 1 selected test file, 215 assertions, 0 failures.
+- `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php`: passed,
+  exit 0.
+- JSON validation for `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/gitoxide/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification: after waiting for an existing no-argument root harness to
+clear, `php tools/run-tests.php` ran in the same clean worktree and passed with
+208 test files, 24488 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component or activation gate
+is accepted. This slice only broadens native Git daemon receive-pack input
+validation using existing transport/pkt-line code.
+
+Live-service exclusions: no live Git daemon, SSH server, provider, or network
+service tests were run.
+
+Files staged:
+
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `lanes/gitoxide/src/GitDaemonReceivePackTransport.php`
+- `lanes/gitoxide/tests/ReceivePackTransportTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - esbuild exports array/custom-condition slice - 2026-05-25 UTC
 
 Accepted isolated clean-patch marker:
