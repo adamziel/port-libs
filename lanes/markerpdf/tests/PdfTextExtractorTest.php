@@ -266,6 +266,32 @@ return [
         $t->same('WordPress Blocks', $extractor->extractPlainText($pdf));
         $t->same(['WordPress Blocks'], $extractor->extractTextRuns($pdf));
     },
+    'uses ToUnicode codespace width before unmapped WordPress CID fallback' => static function (TestRunner $t): void {
+        $content = 'BT /Fcid 12 Tf 72 720 Td <0041> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<0000> <00FF>\n"
+            . "endcodespacerange\n"
+            . "1 beginbfchar\n"
+            . "<00> <0058>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fcid 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /CodespaceFallbackSubset /Encoding /Identity-H /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('A', $extractor->extractPlainText($pdf));
+        $t->same(['A'], $extractor->extractTextRuns($pdf));
+        $t->true(!str_contains($extractor->extractPlainText($pdf), 'XA'));
+    },
     'uses ToUnicode bfrange arrays for WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <202122> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"

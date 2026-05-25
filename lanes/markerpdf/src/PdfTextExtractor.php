@@ -1715,34 +1715,18 @@ final class PdfTextExtractor
         $offset = 0;
         $length = strlen($normalized);
         while ($offset < $length) {
-            $matched = false;
-            foreach ($keyLengths as $keyLength) {
-                if ($keyLength <= 0 || $offset + $keyLength > $length) {
-                    continue;
-                }
-
-                $key = substr($normalized, $offset, $keyLength);
-                if (array_key_exists($key, $mappings)) {
-                    $text .= $mappings[$key];
-                    $offset += $keyLength;
-                    $matched = true;
-                    break;
-                }
-            }
-
-            if ($matched) {
-                continue;
-            }
-
-            $fallbackLength = $this->fallbackToUnicodeSourceLength(
+            $sourceLength = $this->toUnicodeSourceLength(
                 $keyLengths,
                 $length - $offset,
                 $toUnicodeMap['codeSpaceRanges'] ?? [],
                 $normalized,
                 $offset
             );
-            $text .= $this->decodeUnmappedToUnicodeSource(substr($normalized, $offset, $fallbackLength));
-            $offset += $fallbackLength;
+            $key = substr($normalized, $offset, $sourceLength);
+            $text .= array_key_exists($key, $mappings)
+                ? $mappings[$key]
+                : $this->decodeUnmappedToUnicodeSource($key);
+            $offset += $sourceLength;
         }
 
         return $text;
@@ -1752,7 +1736,7 @@ final class PdfTextExtractor
      * @param list<int> $keyLengths
      * @param list<array{start: int, end: int, width: int}> $codeSpaceRanges
      */
-    private function fallbackToUnicodeSourceLength(
+    private function toUnicodeSourceLength(
         array $keyLengths,
         int $remainingHexLength,
         array $codeSpaceRanges,
@@ -1775,7 +1759,7 @@ final class PdfTextExtractor
             $keyLengths,
             static fn (int $keyLength): bool => $keyLength > 0 && $keyLength <= $remainingHexLength
         ));
-        sort($usableLengths, SORT_NUMERIC);
+        rsort($usableLengths, SORT_NUMERIC);
 
         return $usableLengths[0] ?? min(2, max(1, $remainingHexLength));
     }

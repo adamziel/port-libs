@@ -104183,3 +104183,55 @@ No focused/root verification was run for this stale marker because conflicts
 remained and the repaired newer marker was already accepted with clean focused
 and root evidence. No support-library activation, live-service tests, or
 dashboard publication were performed.
+## Clean-patch integration accepted - markerpdf ToUnicode codespace fallback - 2026-05-25 06:31 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T060503Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T060503Z.patch`.
+
+Lane/slice/session: `markerpdf` / `watchdog-next-20260525T060503Z` /
+`port-markerpdf`.
+Patch SHA-256 verified:
+`43277b237cb178449f20455bbc746c3a15858348a498c2787197cd1a367fbb27`.
+
+Verification:
+
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T060503Z.patch`
+  - result: passed.
+- `php -l lanes/markerpdf/src/PdfTextExtractor.php`
+  - result: no syntax errors detected.
+- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`
+  - result: no syntax errors detected.
+- `php -l lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-fallback-import.php`
+  - result: no syntax errors detected.
+- `php lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-fallback-import.php`
+  - result: passed.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`
+  - result: 1 test files, 59 assertions, 0 failures.
+- `php tools/run-tests.php lanes/markerpdf/tests`
+  - result: 47 test files, 992 assertions, 0 failures.
+- `php -r 'json_decode(file_get_contents("lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/markerpdf/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'`
+  - result: passed.
+- `git diff --check -- lanes/markerpdf`
+  - result: passed with no output.
+
+Root verification: not run for this bounded lane-local micro-slice.
+
+Support-library/dependency-closure decision: no shared support-library row was
+activated. The slice reuses the existing native `PdfTextExtractor` parser and
+ToUnicode CMap lookup.
+
+Live-service exclusions: none applicable; no live-service provider tests were
+run.
+
+Files staged:
+
+- `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-fallback-import.php`
+- `lanes/markerpdf/lane-status.json`
+- `lanes/markerpdf/notes/upstream-test-inventory.md`
+- `lanes/markerpdf/notes/wordpress-scenarios.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+- `lanes/markerpdf/tests/PdfTextExtractorTest.php`
+- `audits/integration-status.md`
