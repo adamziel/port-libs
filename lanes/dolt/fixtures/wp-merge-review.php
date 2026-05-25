@@ -95,7 +95,9 @@ return [
     'schemaConflictResolutionTables' => ['wp_options'],
     'rootObjectConflicts' => [
         ['name' => 'wp_import_preview_view', 'numConflicts' => 1],
+        ['name' => 'wp_prepare_import_batch', 'numConflicts' => 1],
     ],
+    'rootObjectResolutionObjects' => ['wp_import_preview_view', 'wp_prepare_import_batch'],
     'rootObjectConflictDetails' => [
         [
             'object_type' => 'view',
@@ -352,6 +354,7 @@ return [
         ['table' => 'wp_posts', 'num_conflicts' => 2],
         ['table' => 'wp_options', 'num_conflicts' => 0],
         ['table' => 'wp_import_preview_view', 'num_conflicts' => 1],
+        ['table' => 'wp_prepare_import_batch', 'num_conflicts' => 1],
     ],
     'expectedRootObjectConflictRows' => [
         [
@@ -494,6 +497,11 @@ return [
         'status_guidance' => MergeStatusTable::ALL_MERGED_HEADER,
         'commit_guidance' => null,
     ],
+    'expectedResolvedRootObjectConflictState' => [
+        'remaining_root_object_conflicts' => [],
+        'conflict_rows' => [],
+        'merge_failure_summary' => null,
+    ],
     'expectedStatusGuidance' => "You have unmerged tables.\n"
         . "  (fix conflicts and constraint violations and run \"dolt commit\")\n"
         . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
@@ -520,7 +528,9 @@ return [
         . "Auto-merging wp_import_audit\n"
         . "CONSTRAINT VIOLATION (content): Merge created constraint violation in wp_import_audit\n"
         . "Auto-merging wp_import_preview_view\n"
-        . "CONFLICT (content): Merge conflict in wp_import_preview_view",
+        . "CONFLICT (content): Merge conflict in wp_import_preview_view\n"
+        . "Auto-merging wp_prepare_import_batch\n"
+        . "CONFLICT (content): Merge conflict in wp_prepare_import_batch",
     'expectedMergeFailureSummary' => "Automatic merge failed; 4 table(s) are unmerged.\n"
         . "Fix conflicts and constraint violations and then commit the result.\n"
         . "Use 'dolt conflicts' to investigate and resolve conflicts.",

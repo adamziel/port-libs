@@ -188,6 +188,40 @@ final class MergeStatusTable
     }
 
     /**
+     * Project the visible conflict-table state after root-object conflicts
+     * such as views or stored procedures are marked resolved.
+     *
+     * @param list<string|array{name:string, numConflicts?:int}> $rootObjectConflicts
+     * @param list<string> $resolvedObjects
+     * @return array{remaining_root_object_conflicts:list<array{table:string,num_conflicts:int}>, conflict_rows:list<array{table:string,num_conflicts:int}>, merge_failure_summary:string|null}
+     */
+    public function resolveRootObjectConflicts(array $rootObjectConflicts, array $resolvedObjects): array
+    {
+        $resolved = [];
+        foreach ($this->uniqueTableNames($resolvedObjects) as $objectName) {
+            $resolved[$objectName] = true;
+        }
+
+        $remaining = [];
+        foreach ($this->conflictRows([], [], $rootObjectConflicts) as $row) {
+            if (isset($resolved[$row['table']])) {
+                continue;
+            }
+            $remaining[] = $row;
+        }
+        $remainingObjects = array_map(
+            static fn (array $row): array => ['name' => $row['table'], 'numConflicts' => $row['num_conflicts']],
+            $remaining
+        );
+
+        return [
+            'remaining_root_object_conflicts' => $remaining,
+            'conflict_rows' => $remaining,
+            'merge_failure_summary' => $this->mergeFailureSummary([], [], [], $remainingObjects),
+        ];
+    }
+
+    /**
      * Render the artifact prelude printed by upstream `dolt merge` before its
      * final failure summary.
      *

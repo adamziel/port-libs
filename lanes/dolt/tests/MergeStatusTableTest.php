@@ -92,6 +92,41 @@ return [
         ], $resolved);
         $t->throws(InvalidArgumentException::class, static fn () => $table->resolveSchemaConflicts(['wp_options'], ['']));
     },
+    'dolt add root object conflict resolution clears conflict rows' => static function (TestRunner $t): void {
+        $table = new MergeStatusTable();
+
+        $partial = $table->resolveRootObjectConflicts(
+            [
+                ['name' => 'wp_import_preview_view', 'numConflicts' => 1],
+                ['name' => 'wp_prepare_import_batch', 'numConflicts' => 1],
+            ],
+            ['wp_import_preview_view'],
+        );
+        $t->same([
+            'remaining_root_object_conflicts' => [
+                ['table' => 'wp_prepare_import_batch', 'num_conflicts' => 1],
+            ],
+            'conflict_rows' => [
+                ['table' => 'wp_prepare_import_batch', 'num_conflicts' => 1],
+            ],
+            'merge_failure_summary' => "Automatic merge failed; 0 table(s) are unmerged.\n"
+                . MergeStatusTable::MERGE_CONFLICTS_HELP,
+        ], $partial);
+
+        $resolved = $table->resolveRootObjectConflicts(
+            [
+                ['name' => 'wp_import_preview_view', 'numConflicts' => 1],
+                ['name' => 'wp_prepare_import_batch', 'numConflicts' => 1],
+            ],
+            ['wp_import_preview_view', 'wp_prepare_import_batch'],
+        );
+        $t->same([
+            'remaining_root_object_conflicts' => [],
+            'conflict_rows' => [],
+            'merge_failure_summary' => null,
+        ], $resolved);
+        $t->throws(InvalidArgumentException::class, static fn () => $table->resolveRootObjectConflicts(['wp_import_preview_view'], ['']));
+    },
     'dolt status guidance maps unresolved constraint violation merge text' => static function (TestRunner $t): void {
         $guidance = (new MergeStatusTable())->statusGuidance(
             true,
@@ -488,6 +523,10 @@ return [
             $fixture['schemaConflictRows'],
             $fixture['schemaConflictResolutionTables'],
         );
+        $resolvedRootObjectConflictState = $table->resolveRootObjectConflicts(
+            $fixture['rootObjectConflicts'],
+            $fixture['rootObjectResolutionObjects'],
+        );
         $previewConflictRowsWithoutIds = array_map(static function (array $row): array {
             unset($row['dolt_conflict_id']);
             return $row;
@@ -546,6 +585,7 @@ return [
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $previewConflictRowsWithoutIds);
         $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $previewSchemaConflictDescriptionRows);
         $t->same($fixture['expectedResolvedSchemaConflictState'], $resolvedSchemaConflictState);
+        $t->same($fixture['expectedResolvedRootObjectConflictState'], $resolvedRootObjectConflictState);
         $t->same($fixture['expectedStatusGuidance'], $statusGuidance);
         $t->same($fixture['expectedCommitGuidance'], $commitGuidance);
         $t->same($fixture['expectedMergeArtifactPrelude'], $mergeArtifactPrelude);
@@ -575,6 +615,7 @@ return [
         $t->same($fixture['expectedPreviewSchemaConflictError'], $example['previewSchemaConflictError']);
         $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $example['previewSchemaConflictDescriptionRows']);
         $t->same($fixture['expectedResolvedSchemaConflictState'], $example['resolvedSchemaConflictState']);
+        $t->same($fixture['expectedResolvedRootObjectConflictState'], $example['resolvedRootObjectConflictState']);
         $t->same($fixture['expectedMergeConstraintError'], $example['mergeConstraintError']);
         $t->same($fixture['expectedStatusGuidance'], $example['statusGuidance']);
         $t->same($fixture['expectedCommitGuidance'], $example['commitGuidance']);

@@ -1,5 +1,45 @@
 # Integration Status
 
+## Integration accepted - isolated dolt root-object conflict resolution - 2026-05-25 03:37 UTC
+
+Accepted current clean-patch marker
+`.tmux-team/tmp/handoff-candidates/port-dolt-20260525T031930Z.ready`
+with patch
+`.tmux-team/tmp/handoff-candidates/port-dolt-20260525T031930Z.patch`.
+
+Lane/slice/session: `dolt` / `supervisor-rearm-20260525T031930Z` /
+`port-dolt`. Patch SHA-256 verified as
+`9ff96ca709b78ff22c0d5c7d92f1b9beb4cb4f2bd4b4d4650aa95935095aeeb1`.
+The patch applied cleanly to accepted `main` HEAD `19bc87d3f744`.
+
+Focused verification in clean worktree:
+`php -l` for changed Dolt PHP source/test/fixture/example files passed;
+manifest/status JSON decode passed; `php tools/run-tests.php
+lanes/dolt/tests/MergeStatusTableTest.php` passed with `1 test files, 138
+assertions, 0 failures`; the WordPress merge-status example returned `0` for
+remaining root-object conflicts and `NULL` for the merge-failure summary;
+`git diff --check` passed.
+
+Root verification: exact no-argument root gate was clear, then `php
+tools/run-tests.php` ran in the same clean worktree. Result: pass, `212 test
+files, 24995 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support-library activation. The
+slice reuses the existing bounded native PHP merge/status projection surface
+and root-object name normalization.
+
+Live-service exclusions: none needed; this Dolt slice has no live-service
+provider tests.
+
+Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/dolt/examples/wordpress-merge-status-review.php`,
+`lanes/dolt/fixtures/wp-merge-review.php`, `lanes/dolt/lane-status.json`,
+`lanes/dolt/notes/upstream-runner.md`,
+`lanes/dolt/notes/wordpress-scenarios.md`,
+`lanes/dolt/src/MergeStatusTable.php`,
+`lanes/dolt/tests/MergeStatusTableTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - isolated difftastic Emacs Lisp highlight slice - 2026-05-25 03:31 UTC
 
 Accepted current clean-patch marker

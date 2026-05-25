@@ -2058,3 +2058,12 @@
 - Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo count($r["resolvedSchemaConflictState"]["remaining_schema_conflicts"])."\n"; echo $r["resolvedSchemaConflictState"]["status_guidance"]."\n";'` returned `0` and `All conflicts and constraint violations fixed but you are still merging.` followed by the upstream commit conclusion hint.
 - Root harness: not run - isolated micro-slice.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status projection surface and table-name normalization, with no shell-outs and no activation of a shared dependency.
+
+## Supervisor Rearm 2026-05-25 Root-Object Conflict Resolution Slice
+
+- Upstream evidence reused: `dolt_conflicts` includes root-object conflict names alongside table conflicts, while root-object details are separate schema-object rows. Prior focused merge/conflict Go/BATS evidence remains the bounded denominator for this lane slice; no wider upstream runner was executed in this isolated worktree.
+- Native delta: `MergeStatusTable::resolveRootObjectConflicts()` now projects the visible state after root-object conflict resolution, removing resolved view/procedure names from `dolt_conflicts`-style rows and clearing the root-object-only failure summary once all supplied root objects are resolved.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 138 assertions, and 0 failures.
+- Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo count($r["resolvedRootObjectConflictState"]["remaining_root_object_conflicts"])."\n"; var_export($r["resolvedRootObjectConflictState"]["merge_failure_summary"]); echo "\n";'` returned `0` and `NULL`.
+- Root harness: not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status projection surface and root-object table-name normalization, with no shell-outs and no activation of a shared dependency.
