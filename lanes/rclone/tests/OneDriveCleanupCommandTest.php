@@ -24,6 +24,7 @@ return [
         $t->same([], $flow['logs']);
         $t->same(null, $flow['error']);
         $t->same(true, $flow['providerCalled']);
+        $t->same('complete', $flow['stoppedAt']);
     },
     'onedrive cleanup command dry run records skips without deleting versions' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([
@@ -97,9 +98,11 @@ return [
         ]);
 
         $t->same('failed to list root', $walk['error']);
+        $t->same('walk', $walk['stoppedAt']);
         $t->same(0, $walk['walkedObjects']);
         $t->same(false, $walk['providerCalled']);
         $t->same('internal error: not a onedrive object', $type['error']);
+        $t->same('type-check', $type['stoppedAt']);
         $t->same(0, $type['versionRequests']);
         $t->same(false, $type['providerCalled']);
     },
@@ -117,6 +120,7 @@ return [
         $t->same(0, $flow['versionRequests']);
         $t->same([], $flow['deletedVersions']);
         $t->same(false, $flow['providerCalled']);
+        $t->same('disabled-no-versions', $flow['stoppedAt']);
     },
     'onedrive cleanup command validates command remote arguments before cleanup work' => static function (TestRunner $t): void {
         $missing = OneDriveCleanupCommand::run([
@@ -182,24 +186,30 @@ return [
         ]);
 
         $t->same('cleanup command expects exactly one remote argument', $missing['error']);
+        $t->same('command-arity', $missing['stoppedAt']);
         $t->same(0, $missing['walkedObjects']);
         $t->same(0, $missing['versionRequests']);
         $t->same(false, $missing['providerCalled']);
         $t->same('cleanup command expects exactly one remote argument', $extra['error']);
+        $t->same('command-arity', $extra['stoppedAt']);
         $t->same(false, $extra['providerCalled']);
         $t->same('cleanup command expects exactly one remote argument', $empty['error']);
+        $t->same('command-arity', $empty['stoppedAt']);
         $t->same(0, $empty['walkedObjects']);
         $t->same(0, $empty['versionRequests']);
         $t->same(false, $empty['providerCalled']);
         $t->same('cleanup command expects exactly one remote argument', $missingWhileDisabled['error']);
+        $t->same('command-arity', $missingWhileDisabled['stoppedAt']);
         $t->same(0, $missingWhileDisabled['walkedObjects']);
         $t->same(0, $missingWhileDisabled['versionRequests']);
         $t->same(false, $missingWhileDisabled['providerCalled']);
         $t->same('cleanup command expects exactly one remote argument', $extraWhileDisabled['error']);
+        $t->same('command-arity', $extraWhileDisabled['stoppedAt']);
         $t->same(0, $extraWhileDisabled['walkedObjects']);
         $t->same(0, $extraWhileDisabled['versionRequests']);
         $t->same(false, $extraWhileDisabled['providerCalled']);
         $t->same('cleanup command expects exactly one remote argument', $emptyWhileDisabled['error']);
+        $t->same('command-arity', $emptyWhileDisabled['stoppedAt']);
         $t->same(0, $emptyWhileDisabled['walkedObjects']);
         $t->same(0, $emptyWhileDisabled['versionRequests']);
         $t->same(false, $emptyWhileDisabled['providerCalled']);
@@ -228,10 +238,12 @@ return [
         ]);
 
         $t->same(null, $disabled['error']);
+        $t->same('disabled-no-versions', $disabled['stoppedAt']);
         $t->same(0, $disabled['walkedObjects']);
         $t->same(0, $disabled['versionRequests']);
         $t->same(false, $disabled['providerCalled']);
         $t->same('cleanup unsupported', $enabledFeatureMasked['error']);
+        $t->same('feature-gate', $enabledFeatureMasked['stoppedAt']);
         $t->same(0, $enabledFeatureMasked['walkedObjects']);
         $t->same(0, $enabledFeatureMasked['versionRequests']);
         $t->same(false, $enabledFeatureMasked['providerCalled']);
@@ -302,6 +314,7 @@ return [
         ]);
 
         $t->same('cleanup unsupported', $flow['error']);
+        $t->same('feature-gate', $flow['stoppedAt']);
         $t->same(0, $flow['walkedObjects']);
         $t->same(0, $flow['versionRequests']);
         $t->same([], $flow['skippedVersions']);
@@ -319,6 +332,7 @@ return [
         ]);
 
         $t->same('cleanup unsupported', $flow['error']);
+        $t->same('feature-gate', $flow['stoppedAt']);
         $t->same(0, $flow['walkedObjects']);
         $t->same(0, $flow['versionRequests']);
         $t->same([], $flow['deletedVersions']);
@@ -336,6 +350,7 @@ return [
         ]);
 
         $t->same('cleanup unsupported', $flow['error']);
+        $t->same('feature-gate', $flow['stoppedAt']);
         $t->same(0, $flow['walkedObjects']);
         $t->same(0, $flow['versionRequests']);
         $t->same([], $flow['logs']);
@@ -390,17 +405,22 @@ return [
         ]);
 
         $t->same('rc operations/cleanup requires fs', $missingFs['error']);
+        $t->same('rc-fs', $missingFs['stoppedAt']);
         $t->same(false, $missingFs['providerCalled']);
         $t->same('rc operations/cleanup requires fs', $emptyFs['error']);
+        $t->same('rc-fs', $emptyFs['stoppedAt']);
         $t->same('rc operations/cleanup requires fs', $missingFsDisabled['error']);
+        $t->same('rc-fs', $missingFsDisabled['stoppedAt']);
         $t->same(false, $missingFsDisabled['providerCalled']);
         $t->same(['exports/site.wxr#old-review'], $cleanup['deletedVersions']);
         $t->same(null, $cleanup['error']);
         $t->same(true, $cleanup['providerCalled']);
         $t->same(null, $disabledWithCommandArgs['error']);
+        $t->same('disabled-no-versions', $disabledWithCommandArgs['stoppedAt']);
         $t->same(0, $disabledWithCommandArgs['walkedObjects']);
         $t->same(false, $disabledWithCommandArgs['providerCalled']);
         $t->same('cleanup unsupported', $unsupported['error']);
+        $t->same('feature-gate', $unsupported['stoppedAt']);
         $t->same(false, $unsupported['providerCalled']);
     },
     'wordpress onedrive cleanup command preflight removes stale wxr versions only' => static function (TestRunner $t): void {
@@ -408,39 +428,48 @@ return [
 
         $t->same('onedrive-cleanup-command-preflight', $example['source']);
         $t->same(['exports/site.wxr#old-review', 'exports/site.wxr#pre-import'], $example['deletedVersions']);
+        $t->same('complete', $example['cleanupStoppedAt']);
         $t->same(['exports/site.wxr#old-review', 'exports/site.wxr#pre-import'], $example['dryRunSkippedVersions']);
         $t->same(['uploads/2026/05/import.jpg#superseded'], $example['continuedAfterErrorDeletedVersions']);
         $t->same(['exports/site.wxr: Failed to remove versions: Graph delete denied'], $example['continuedAfterErrorLogs']);
         $t->same(['uploads/2026/05/import.jpg#superseded'], $example['continuedAfterListErrorDeletedVersions']);
         $t->same(['exports/site.wxr: Failed to remove versions: Graph versions list denied'], $example['continuedAfterListErrorLogs']);
         $t->same('cleanup unsupported', $example['featureMaskedError']);
+        $t->same('feature-gate', $example['featureMaskedStoppedAt']);
         $t->same(null, $example['disabledNoVersionsError']);
+        $t->same('disabled-no-versions', $example['disabledNoVersionsStoppedAt']);
         $t->same(false, $example['disabledNoVersionsProviderCalled']);
         $t->same(null, $example['disabledNoVersionsTypeError']);
         $t->same('internal error: not a onedrive object', $example['enabledTypeError']);
+        $t->same('type-check', $example['enabledTypeStoppedAt']);
         $t->same(false, $example['enabledTypeErrorProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['missingRemoteArgError']);
+        $t->same('command-arity', $example['missingRemoteArgStoppedAt']);
         $t->same(false, $example['missingRemoteArgProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['extraRemoteArgError']);
         $t->same(false, $example['extraRemoteArgProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['emptyRemoteArgError']);
         $t->same(false, $example['emptyRemoteArgProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['missingRemoteArgDisabledError']);
+        $t->same('command-arity', $example['missingRemoteArgDisabledStoppedAt']);
         $t->same(false, $example['missingRemoteArgDisabledProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['extraRemoteArgDisabledError']);
         $t->same(false, $example['extraRemoteArgDisabledProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['emptyRemoteArgDisabledError']);
         $t->same(false, $example['emptyRemoteArgDisabledProviderCalled']);
         $t->same(null, $example['validRemoteArgDisabledError']);
+        $t->same('disabled-no-versions', $example['validRemoteArgDisabledStoppedAt']);
         $t->same(false, $example['validRemoteArgDisabledProviderCalled']);
         $t->same('cleanup unsupported', $example['validRemoteArgFeatureMaskedError']);
         $t->same(false, $example['validRemoteArgFeatureMaskedProviderCalled']);
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsError']);
+        $t->same('rc-fs', $example['rcMissingFsStoppedAt']);
         $t->same(false, $example['rcMissingFsProviderCalled']);
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsDisabledError']);
         $t->same(false, $example['rcMissingFsDisabledProviderCalled']);
         $t->same(['exports/site.wxr#old-review'], $example['rcDeletedVersions']);
         $t->same(null, $example['rcDisabledCommandArgsError']);
+        $t->same('disabled-no-versions', $example['rcDisabledCommandArgsStoppedAt']);
         $t->same(false, $example['rcDisabledCommandArgsProviderCalled']);
         $t->same('cleanup unsupported', $example['rcUnsupportedError']);
         $t->same(false, $example['rcUnsupportedProviderCalled']);

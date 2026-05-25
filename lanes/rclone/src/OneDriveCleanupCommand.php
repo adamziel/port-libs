@@ -16,7 +16,7 @@ final class OneDriveCleanupCommand
     /**
      * @param list<array{remote: string, versions: list<array{id?: string, ID?: string}|string>, type?: string, deleteErrors?: array<string, string>, listError?: string}> $entries
      * @param array{dryRun?: bool, noVersions?: bool, walkError?: string, featureAvailable?: bool, remoteArgs?: list<string>} $options
-     * @return array{walkedObjects: int, versionRequests: int, deletedVersions: list<string>, skippedVersions: list<string>, logs: list<string>, error: ?string, providerCalled: bool}
+     * @return array{walkedObjects: int, versionRequests: int, deletedVersions: list<string>, skippedVersions: list<string>, logs: list<string>, error: ?string, providerCalled: bool, stoppedAt: string}
      */
     public static function run(array $entries, array $options = []): array
     {
@@ -28,21 +28,26 @@ final class OneDriveCleanupCommand
             'logs' => [],
             'error' => null,
             'providerCalled' => false,
+            'stoppedAt' => 'start',
         ];
 
         $argError = self::validateRemoteArgs($options['remoteArgs'] ?? ['onedrive:']);
         if ($argError !== null) {
             $flow['error'] = $argError;
+            $flow['stoppedAt'] = 'command-arity';
 
             return $flow;
         }
 
         if (!(bool) ($options['noVersions'] ?? true)) {
+            $flow['stoppedAt'] = 'disabled-no-versions';
+
             return $flow;
         }
 
         if (!(bool) ($options['featureAvailable'] ?? true)) {
             $flow['error'] = 'cleanup unsupported';
+            $flow['stoppedAt'] = 'feature-gate';
 
             return $flow;
         }
@@ -50,6 +55,7 @@ final class OneDriveCleanupCommand
         $walkError = self::optionalString($options['walkError'] ?? null);
         if ($walkError !== null && $walkError !== '') {
             $flow['error'] = $walkError;
+            $flow['stoppedAt'] = 'walk';
 
             return $flow;
         }
@@ -58,6 +64,7 @@ final class OneDriveCleanupCommand
         foreach ($entries as $entry) {
             if (($entry['type'] ?? 'object') !== 'object') {
                 $flow['error'] = 'internal error: not a onedrive object';
+                $flow['stoppedAt'] = 'type-check';
 
                 return $flow;
             }
@@ -83,13 +90,15 @@ final class OneDriveCleanupCommand
             }
         }
 
+        $flow['stoppedAt'] = 'complete';
+
         return $flow;
     }
 
     /**
      * @param list<array{remote: string, versions: list<array{id?: string, ID?: string}|string>, type?: string, deleteErrors?: array<string, string>, listError?: string}> $entries
      * @param array{dryRun?: bool, noVersions?: bool, walkError?: string, featureAvailable?: bool, fs?: string, remoteArgs?: list<string>} $options
-     * @return array{walkedObjects: int, versionRequests: int, deletedVersions: list<string>, skippedVersions: list<string>, logs: list<string>, error: ?string, providerCalled: bool}
+     * @return array{walkedObjects: int, versionRequests: int, deletedVersions: list<string>, skippedVersions: list<string>, logs: list<string>, error: ?string, providerCalled: bool, stoppedAt: string}
      */
     public static function runRemoteControl(array $entries, array $options = []): array
     {
@@ -97,6 +106,7 @@ final class OneDriveCleanupCommand
         if ($fs === null || $fs === '') {
             $flow = self::emptyFlow();
             $flow['error'] = 'rc operations/cleanup requires fs';
+            $flow['stoppedAt'] = 'rc-fs';
 
             return $flow;
         }
@@ -121,7 +131,7 @@ final class OneDriveCleanupCommand
     }
 
     /**
-     * @return array{walkedObjects: int, versionRequests: int, deletedVersions: list<string>, skippedVersions: list<string>, logs: list<string>, error: ?string, providerCalled: bool}
+     * @return array{walkedObjects: int, versionRequests: int, deletedVersions: list<string>, skippedVersions: list<string>, logs: list<string>, error: ?string, providerCalled: bool, stoppedAt: string}
      */
     private static function emptyFlow(): array
     {
@@ -133,6 +143,7 @@ final class OneDriveCleanupCommand
             'logs' => [],
             'error' => null,
             'providerCalled' => false,
+            'stoppedAt' => 'start',
         ];
     }
 
