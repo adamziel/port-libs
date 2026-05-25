@@ -453,6 +453,37 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler ignores legacy restart acknowledgement after folder removal' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore());
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+
+            $watch->recordWatcherError('wordpress-media', 'legacy watcher closed before unshare', scanOnWatchError: false, now: 9200);
+            $t->same(true, $scheduler->removeFolder('wordpress-media'));
+
+            $t->same(false, $watch->markWatcherRestarted('wordpress-media'));
+            $t->same(null, $watch->watchStatus('wordpress-media', 9206));
+            $t->same([], $watch->watchStatuses(9206));
+            $t->same([], $watch->dueWatcherRestarts(9206));
+            $t->same(null, $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 9207));
+            $t->same([], $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 9210)->snapshots());
+            $t->same(null, $service->checkpoint(9210));
+            $t->same(false, $watch->markWatcherRestarted('wordpress-media'));
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string

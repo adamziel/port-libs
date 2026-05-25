@@ -2313,3 +2313,45 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: watcher restart acknowledgement
 should be ignored after folder removal and must not recreate watcher state for
 unshared folders.
+
+## 2026-05-25 Removed-Folder Legacy Watcher Restart Acknowledgement
+
+This isolated micro-slice maps the removed-folder side of the upstream
+filesystem watcher restart boundary from `lib/model/folder.go`: a legacy
+watcher restart acknowledgement can race with folder unshare/removal, but once
+the folder is no longer registered it must not be accepted as a healthy restart
+or recreate watcher state for that folder.
+
+Native PHP now has `FolderWatchScanScheduler::markWatcherRestarted()` check the
+folder registry before accepting an acknowledgement. Removed folders return
+`false` and stale restart status is cleared without creating an aggregator or
+dispatching delayed scans. The WordPress watcher smoke now reports
+`removedRestartAcknowledged: false`, no restart status after the removed-folder
+acknowledgement, and explicit watcher cleanup returning the folder status to
+`null`.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate is wiring
+`markWatcherRestarted()` from a WordPress/local watcher adapter that may receive
+a late native watcher callback after a folder is unshared; the evidence plan is
+the focused watcher tests plus the local WordPress example smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 139 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported removed-folder legacy acknowledgement rejection
+  without recreating restart state.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: removed-folder watcher cleanup
+should also discard stale queued filesystem events when explicit watcher
+teardown races with delayed scan dispatch.

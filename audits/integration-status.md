@@ -1,5 +1,51 @@
 # Integration Status
 
+## Integration accepted - isolated Syncthing watcher acknowledgement slice - 2026-05-25 03:31 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T032210Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T032210Z.patch`.
+
+Lane/slice/session: `syncthing` / `rearmer-20260525T032210Z` /
+`port-syncthing`. Patch sha256 verified:
+`031c1dc4140b03daa1eecbdec8c2e174d39b22ec3c532eabc984e377c0f9e60e`.
+The patch applied cleanly to accepted head `0b567db39778700c4446301697785dec2ac9ae0f`
+in clean worktree `/tmp/port-clean-integrator-syncthing-rearmer-20260525T032210Z`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php`: passed, no syntax errors.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: passed, no syntax errors.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`: passed, no syntax errors.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: passed, 1 test file, 139 assertions, 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`: passed; smoke output confirmed removed-folder legacy restart acknowledgement is rejected without recreating watcher state.
+- `php -r 'json_decode(file_get_contents("lanes/syncthing/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/syncthing/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'`: passed.
+- `git diff --check`: passed.
+
+Root verification: an existing exact no-argument root harness
+`php tools/run-tests.php` was active as PID `698758`, so acceptance waited
+instead of starting a duplicate. After the gate cleared, `php tools/run-tests.php`
+ran in the clean worktree and passed: 212 test files, 25024 assertions, 0
+failures.
+
+Support-library/dependency closure: no support-library activation. This slice
+reuses existing lane-local watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint-store components. Evidence expectation
+is the focused watcher regression plus the WordPress watcher smoke above.
+
+Live-service exclusions: no live-service provider tests were run or required.
+
+Files staged:
+
+- `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+- `lanes/syncthing/lane-status.json`
+- `lanes/syncthing/notes/wordpress-scenarios.md`
+- `lanes/syncthing/src/FolderWatchScanScheduler.php`
+- `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - isolated dolt root-object conflict resolution - 2026-05-25 03:37 UTC
 
 Accepted current clean-patch marker

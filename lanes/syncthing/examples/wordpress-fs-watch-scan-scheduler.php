@@ -78,9 +78,12 @@ try {
     $legacyPendingAfterRestart = $watchScheduler->watchStatus('wordpress-media', 1086);
     $legacyScanBeforeDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1086);
     $legacyScanAfterDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1090);
+    $watchScheduler->recordWatcherError('wordpress-media', 'legacy watcher closed before unshare', scanOnWatchError: false, now: 1100);
     $scheduler->removeFolder('wordpress-media');
+    $removedRestartAcknowledged = $watchScheduler->markWatcherRestarted('wordpress-media');
+    $removedStatusAfterAcknowledgement = $watchScheduler->watchStatus('wordpress-media', 1105);
     $removedWatchState = $watchScheduler->removeWatchingFolder('wordpress-media');
-    $removedStatus = $watchScheduler->watchStatus('wordpress-media', 1050);
+    $removedStatus = $watchScheduler->watchStatus('wordpress-media', 1110);
 
     echo json_encode([
         'watcher' => 'Syncthing FSWatcherDelay-style media scan and restart fallback',
@@ -109,6 +112,8 @@ try {
         'legacyPendingAfterRestart' => $legacyPendingAfterRestart,
         'legacyScanBeforeDue' => $legacyScanBeforeDue->toRestStatus(),
         'legacyScanAfterDue' => $legacyScanAfterDue->toRestStatus(),
+        'removedRestartAcknowledged' => $removedRestartAcknowledged,
+        'removedStatusAfterAcknowledgement' => $removedStatusAfterAcknowledgement,
         'removedWatchState' => $removedWatchState,
         'removedStatus' => $removedStatus,
         'checkpointRevision' => $service->checkpoint(1021)?->revision,

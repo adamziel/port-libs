@@ -146,6 +146,12 @@ final class FolderWatchScanScheduler
     public function markWatcherRestarted(string $folderId): bool
     {
         self::assertFolderId($folderId);
+        if (!$this->folderExists($folderId)) {
+            unset($this->watchRestarts[$folderId]);
+
+            return false;
+        }
+
         if (!isset($this->watchRestarts[$folderId])) {
             return false;
         }
