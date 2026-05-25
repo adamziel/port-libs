@@ -167,7 +167,10 @@ final class SyntaxHighlightClassifier
             return false;
         }
 
-        if (($this->isGoLanguage($language) || $this->isJavaLanguage($language) || $language === 'swift') && $text === ':') {
+        if (
+            ($this->isCSharpLanguage($language) || $this->isGoLanguage($language) || $this->isJavaLanguage($language) || $language === 'swift')
+            && $text === ':'
+        ) {
             return true;
         }
 
@@ -184,6 +187,8 @@ final class SyntaxHighlightClassifier
             'hack',
             'hh',
             'bash',
+            'c#',
+            'csharp',
             'go',
             'golang',
             'java',
@@ -272,6 +277,11 @@ final class SyntaxHighlightClassifier
     private function isJavaLanguage(string $language): bool
     {
         return $language === 'java';
+    }
+
+    private function isCSharpLanguage(string $language): bool
+    {
+        return in_array($language, ['c#', 'csharp'], true);
     }
 
     private function isPhpLikeLanguage(string $language): bool
@@ -744,6 +754,18 @@ final class SyntaxHighlightClassifier
                 'private', 'protected', 'public', 'return', 'static', 'super',
                 'switch', 'this', 'throw', 'throws', 'true', 'try', 'while',
             ],
+            'c#', 'csharp' => [
+                'abstract', 'as', 'base', 'break', 'case', 'catch', 'checked',
+                'class', 'const', 'continue', 'default', 'delegate', 'do',
+                'else', 'enum', 'event', 'explicit', 'extern', 'false',
+                'finally', 'fixed', 'for', 'foreach', 'if', 'implicit', 'in',
+                'interface', 'internal', 'is', 'lock', 'namespace', 'new',
+                'null', 'operator', 'out', 'override', 'params', 'private',
+                'protected', 'public', 'readonly', 'ref', 'return', 'sealed',
+                'sizeof', 'stackalloc', 'static', 'struct', 'switch', 'this',
+                'throw', 'true', 'try', 'typeof', 'unchecked', 'unsafe',
+                'using', 'virtual', 'void', 'volatile', 'while',
+            ],
             'php', 'hack', 'hh' => [
                 'case', 'catch', 'class', 'declare', 'default', 'else', 'extends',
                 'false', 'finally', 'for', 'foreach', 'function', 'if', 'implements',
@@ -825,6 +847,11 @@ final class SyntaxHighlightClassifier
             'java' => [
                 'boolean', 'byte', 'char', 'double', 'float', 'int', 'long',
                 'short', 'void',
+            ],
+            'c#', 'csharp' => [
+                'bool', 'byte', 'char', 'decimal', 'double', 'dynamic', 'float',
+                'int', 'long', 'nint', 'nuint', 'object', 'sbyte', 'short',
+                'string', 'uint', 'ulong', 'ushort', 'var', 'void',
             ],
             'lua' => ['boolean', 'function', 'nil', 'number', 'string', 'table', 'thread', 'userdata'],
             'php', 'hack', 'hh' => [

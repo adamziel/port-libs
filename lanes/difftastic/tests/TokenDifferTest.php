@@ -3725,7 +3725,7 @@ return [
         foreach (['public', 'final', 'private', 'for', 'if', 'return', 'false', 'true'] as $keyword) {
             $t->contains("{$keyword}:keyword", $encoded);
         }
-        foreach ([':', '=='] as $operator) {
+        foreach (['=='] as $operator) {
             $t->contains("{$operator}:keyword", $encoded);
         }
         foreach (['BlockRegistry', 'String'] as $type) {
@@ -3733,6 +3733,51 @@ return [
         }
         $t->contains('boolean:type', $encoded);
         foreach (['register', 'blocks', 'block', 'dynamic', 'name'] as $normal) {
+            $t->contains("{$normal}:normal", $encoded);
+        }
+    },
+    'json display renderer maps upstream csharp keyword operator and type captures' => static function (TestRunner $t): void {
+        $before = "namespace Tools;\n\npublic class Main {}\n";
+        $after = "namespace Tools;\n\n"
+            . "public sealed class BlockRegistry {\n"
+            . "    private readonly string name;\n"
+            . "    private readonly bool enabled;\n\n"
+            . "    public bool Register(BlockRegistry[] blocks) {\n"
+            . "        foreach (BlockRegistry block in blocks) {\n"
+            . "            if (block.enabled == false) { return false; }\n"
+            . "        }\n"
+            . "        return true;\n"
+            . "    }\n"
+            . "}\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/csharp_highlight.cs',
+            'C#',
+            ['language' => 'csharp'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('C#', $decoded['language']);
+        foreach (['public', 'sealed', 'private', 'readonly', 'foreach', 'in', 'if', 'return', 'false', 'true'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['=='] as $operator) {
+            $t->contains("{$operator}:keyword", $encoded);
+        }
+        foreach (['string', 'bool'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        foreach (['BlockRegistry', 'Register', 'blocks', 'block', 'enabled', 'name'] as $normal) {
             $t->contains("{$normal}:normal", $encoded);
         }
     },
@@ -4179,6 +4224,22 @@ return [
         }
 
         foreach (['register', 'blocks', 'block', 'dynamic'] as $normal) {
+            $start = strpos($line, $normal);
+            $t->true($start !== false, "Fixture should contain {$normal}.");
+            $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream capture.");
+        }
+    },
+    'ansi highlighter maps upstream csharp keyword operator and type captures' => static function (TestRunner $t): void {
+        $line = 'public bool Register(BlockRegistry[] blocks) { foreach (BlockRegistry block in blocks) { if (block.enabled == false) { return false; } } }';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'csharp']);
+
+        foreach (['public', 'bool', 'foreach', 'in', 'if', '==', 'false', 'return'] as $highlighted) {
+            $start = strpos($line, $highlighted);
+            $t->true($start !== false, "Fixture should contain {$highlighted}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($highlighted), 'style' => '1'], $spans, true), "{$highlighted} should follow upstream C# keyword/type/operator styling.");
+        }
+
+        foreach (['Register', 'BlockRegistry', 'blocks', 'block', 'enabled'] as $normal) {
             $start = strpos($line, $normal);
             $t->true($start !== false, "Fixture should contain {$normal}.");
             $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream capture.");
@@ -4876,7 +4937,7 @@ return [
         foreach (['public', 'final', 'private', 'for', 'if', 'return', 'false', 'true', 'this'] as $keyword) {
             $t->contains("{$keyword}:keyword", $encoded);
         }
-        foreach (['=', ':', '=='] as $operator) {
+        foreach (['=', '=='] as $operator) {
             $t->contains("{$operator}:keyword", $encoded);
         }
         foreach (['BlockRegistry', 'String', 'boolean'] as $type) {
@@ -4884,6 +4945,36 @@ return [
         }
         $t->contains('register:normal', $encoded);
         $t->contains('dynamic:normal', $encoded);
+    },
+    'wordpress csharp build helper display follows upstream keyword type boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-csharp-build-helper-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/tools/BlockRegistry.cs', $decoded['path']);
+        foreach (['using', 'public', 'sealed', 'private', 'readonly', 'foreach', 'in', 'if', 'return', 'false', 'true', 'this'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['=', '=='] as $operator) {
+            $t->contains("{$operator}:keyword", $encoded);
+        }
+        foreach (['string', 'bool'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        $t->contains('Register:normal', $encoded);
+        $t->contains('BlockRegistry:normal', $encoded);
+        $t->contains('enabled:normal', $encoded);
     },
     'wordpress bash deploy display follows upstream keyword operator boundary' => static function (TestRunner $t): void {
         ob_start();

@@ -110725,3 +110725,40 @@ Root verification:
 Decision: accepted. This slice exposes retained Syncthing watcher cleanup
 payloads through WordPress-shaped scan routes and adds one-folder/all cleanup
 acknowledgement coverage without adding a support-library dependency.
+
+## Clean-patch accepted - Difftastic C# highlight display - 2026-05-25 22:50 UTC
+
+Accepted isolated marker
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T173456Z.ready`
+from a detached clean worktree at current source head `72cbddd7`.
+
+Patch evidence:
+- `lane=difftastic`, `slice=support-refill-20260525T173455Z`.
+- Patch sha256 verified:
+  `6492856bfe4c81519e352dd2e3a7bfed6243297be0bc8364c1781815d133eb73`.
+- Touched paths were limited to `lanes/difftastic/**`: C# WordPress
+  highlight example, syntax highlight classifier, focused token-differ tests,
+  manifest, lane status, and upstream inventory notes.
+- No stale marker existed at
+  `.tmux-team/tmp/handoff-candidates/stale/port-difftastic-20260525T173456Z.ready.needs-lane-rework.md`.
+
+Focused verification from the clean candidate worktree:
+- `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php` passed.
+- `php -l lanes/difftastic/tests/TokenDifferTest.php` passed.
+- `php -l lanes/difftastic/examples/wordpress-csharp-build-helper-highlight-display.php`
+  passed.
+- The C# WordPress highlight example emitted valid JSON.
+- `jq empty lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json`
+  passed.
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`
+  passed: `1 test files, 1900 assertions, 0 failures`.
+- `git diff --check -- lanes/difftastic` passed.
+
+Root verification:
+- `php tools/run-tests.php` passed under
+  `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock`.
+  Result: `214 test files, 26470 assertions, 0 failures`.
+
+Decision: accepted. This slice maps C# keyword/operator/type highlighting
+through the existing Difftastic syntax-highlight display path without adding a
+support-library dependency.
