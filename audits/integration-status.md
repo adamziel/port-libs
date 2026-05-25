@@ -100804,3 +100804,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/examples/wordpress-asset-preflight.php lanes/esbuild/lane-status.json lanes/esbuild/notes/wordpress-scenarios.md lanes/esbuild/src/BundlerEdge.php lanes/esbuild/src/BundlerGraphBuilder.php lanes/esbuild/tests/BundlerGraphBuilderTest.php `
 
+
+## Clean-patch integration accepted - gitoxide - 2026-05-25 02:48 UTC
+
+Ready marker: `port-gitoxide-20260525T023853Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T023853Z.patch`
+Lane/slice/session: `gitoxide` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `fad8c223bc62fa9245a181ac9e2134d820f32a6c`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/gitoxide/tests`: exit 0; PASS wordpress fixture exposes deployable content tree entries  32 test files, 2720 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24802 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/examples/wordpress-receive-pack-transport.php lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php lanes/gitoxide/lane-status.json lanes/gitoxide/notes/upstream-inventory.md lanes/gitoxide/notes/wordpress-scenarios.md lanes/gitoxide/src/GitDaemonReceivePackTransport.php lanes/gitoxide/tests/ReceivePackTransportTest.php `
+

@@ -194,6 +194,9 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
             if (!is_string($extraParameter) || $extraParameter === '' || self::containsControlByte($extraParameter)) {
                 throw new \InvalidArgumentException('git-daemon receive-pack extra parameters must be non-empty strings without control bytes');
             }
+            if (preg_match('/^[A-Za-z][A-Za-z0-9-]*=.+$/', $extraParameter) !== 1) {
+                throw new \InvalidArgumentException('git-daemon receive-pack extra parameters must be key=value pairs with non-empty protocol keys and values');
+            }
         }
     }
 
