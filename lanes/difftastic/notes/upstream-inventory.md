@@ -612,3 +612,20 @@ git diff --check -- lanes/difftastic
 The focused test expectation is 267 named tests, 1637 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
 
 Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing tree-highlights promotion evidence route; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.
+
+For this SQL keyword/operator/type highlight slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`. The mapped upstream boundary is difftastic's `Sql` `TreeSitterConfig`, which loads `tree_sitter_sequel::HIGHLIGHTS_QUERY`; that query marks many statement words such as `CREATE`, `TABLE`, `SELECT`, `FROM`, `WHERE`, `PRIMARY`, and `KEY` as `@keyword`, operators such as `=` as `@operator`, and type words such as `BIGINT`, `VARCHAR`, `BOOLEAN`, and `NULL` as `@type.builtin`. Difftastic's `tree_highlights` promotes keyword/operator captures into keyword-style spans and type captures into type-style spans, but it does not promote SQL `@boolean`, `@field`, or `@function.call` captures into the display enum. The WordPress example applies this to `wp-content/plugins/acme-card/schema/install.sql`, a plugin schema/install review path.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-sql-schema-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-sql-schema-highlight-display.php | php -r '$json = stream_get_contents(STDIN); json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo "example-json-ok\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test result for this slice is 1 selected test file, 1684 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing tree-highlights promotion evidence route; no shared parser, SQL parser, tree-sitter runtime, generated query engine, or native support library is activated.

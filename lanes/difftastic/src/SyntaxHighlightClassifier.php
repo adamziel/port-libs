@@ -188,6 +188,7 @@ final class SyntaxHighlightClassifier
             'rs',
             'ruby',
             'rust',
+            'sql',
             'ts',
             'tsx',
             'typescript',
@@ -731,6 +732,19 @@ final class SyntaxHighlightClassifier
                 'rescue', 'retry', 'return', 'then', 'true', 'unless', 'until',
                 'when', 'while', 'yield',
             ],
+            'sql' => [
+                'add', 'after', 'alter', 'and', 'as', 'begin', 'between', 'by',
+                'case', 'column', 'commit', 'constraint', 'create', 'cross',
+                'database', 'default', 'delete', 'distinct', 'do', 'drop',
+                'else', 'end', 'exists', 'foreign', 'from', 'full', 'group',
+                'having', 'if', 'in', 'index', 'inner', 'insert', 'into', 'is',
+                'join', 'key', 'lateral', 'left', 'like', 'limit', 'natural',
+                'not', 'offset', 'on', 'or', 'order', 'outer', 'primary',
+                'references', 'rename', 'replace', 'returning', 'right',
+                'rollback', 'select', 'set', 'table', 'then', 'to',
+                'transaction', 'union', 'unique', 'update', 'using', 'values',
+                'view', 'when', 'where', 'with',
+            ],
             'yaml', 'yml' => ['false', 'null', 'true'],
             default => [],
         };
@@ -768,6 +782,14 @@ final class SyntaxHighlightClassifier
             'rust', 'rs' => [
                 'bool', 'char', 'f32', 'f64', 'i8', 'i16', 'i32', 'i64', 'i128',
                 'isize', 'str', 'u8', 'u16', 'u32', 'u64', 'u128', 'usize',
+            ],
+            'sql' => [
+                'bigint', 'binary', 'bit', 'boolean', 'char', 'character',
+                'date', 'datetime', 'decimal', 'double', 'enum', 'float',
+                'inet', 'int', 'integer', 'json', 'jsonb', 'mediumint',
+                'null', 'numeric', 'real', 'serial', 'smallint', 'string', 'text',
+                'time', 'timestamp', 'tinyint', 'uuid', 'varchar', 'varying',
+                'xml',
             ],
             default => [],
         };

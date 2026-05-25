@@ -103072,3 +103072,71 @@ Root verification: `php tools/run-tests.php` passed in the clean worktree with z
 Support-library/dependency closure: no new support-library activation; this reuses lane-local JSON5 parsing, JSONB error-position handling, cast-text BLOB fallback, and SQL NULL behavior. No live-service tests were applicable and no secrets were read.
 
 Files staged: `lanes/libsqlite/src/SQLiteJsonErrorPosition.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, `lanes/libsqlite/examples/wordpress-json-error-position-preflight.php`, `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, `audits/integration-status.md`.
+
+## Clean-patch integration - difftastic - 20260525T053250Z
+
+Accepted marker: \.
+Patch: \.
+Lane/slice/session: \ / \ / \.
+
+Focused verification:
+- \Usage: php [options] [-f] <file> [--] [args...]
+   php [options] -r <code> [--] [args...]
+   php [options] [-B <begin_code>] -R <code> [-E <end_code>] [--] [args...]
+   php [options] [-B <begin_code>] -F <file> [-E <end_code>] [--] [args...]
+   php [options] -S <addr>:<port> [-t docroot] [router]
+   php [options] -- [args...]
+   php [options] -a
+
+  -a               Run as interactive shell (requires readline extension)
+  -c <path>|<file> Look for php.ini file in this directory
+  -n               No configuration (ini) files will be used
+  -d foo[=bar]     Define INI entry foo with value 'bar'
+  -e               Generate extended information for debugger/profiler
+  -f <file>        Parse and execute <file>.
+  -h               This help
+  -i               PHP information
+  -l               Syntax check only (lint)
+  -m               Show compiled in modules
+  -r <code>        Run PHP <code> without using script tags <?..?>
+  -B <begin_code>  Run PHP <begin_code> before processing input lines
+  -R <code>        Run PHP <code> for every input line
+  -F <file>        Parse and execute <file> for every input line
+  -E <end_code>    Run PHP <end_code> after processing all input lines
+  -H               Hide any passed arguments from external tools.
+  -S <addr>:<port> Run with built-in web server.
+  -t <docroot>     Specify document root <docroot> for built-in web server.
+  -s               Output HTML syntax highlighted source.
+  -v               Version number
+  -w               Output source with stripped comments and whitespace.
+
+  args...          Arguments passed to script. Use -- args when first argument
+                   starts with - or script is read from stdin
+
+  --ini            Show configuration file names
+  --ini=diff       Show INI entries that differ from the built-in default
+
+  --rf <name>      Show information about function <name>.
+  --rc <name>      Show information about class <name>.
+  --re <name>      Show information about extension <name>.
+  --rz <name>      Show information about Zend extension <name>.
+  --ri <name>      Show configuration for extension <name>.
+
+  --repeat <count> Repeat script execution <count> times.
+                   For internal purposes only. on changed PHP files: passed.
+- \: passed. PASS wordpress slightly invalid wxr bytes render as text with replacement characters PASS wordpress plugin workflow yaml display keeps wp cli command changes string highlighted PASS wordpress plugin workflow step diff reports yaml block sequence changes  1 test files, 1696 assertions, 0 failures 
+- \: passed.
+- \: passed.
+
+Root verification:
+- \: passed. PASS wordpress option store expires snapshots and deletes stale options before reuse PASS folder scan service resumes through a wordpress option checkpoint store PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  212 test files, 25402 assertions, 0 failures 
+
+Support-library/dependency closure: no support-library activation; accepted as a lane-local bounded patch using existing lane components. Live-service provider tests were not run.
+
+Files staged:
+- lanes/difftastic/UPSTREAM_TEST_MANIFEST.json
+- lanes/difftastic/lane-status.json
+- lanes/difftastic/notes/upstream-inventory.md
+- lanes/difftastic/notes/wordpress-scenarios.md
+- lanes/difftastic/src/SyntaxHighlightClassifier.php
+- lanes/difftastic/tests/TokenDifferTest.php

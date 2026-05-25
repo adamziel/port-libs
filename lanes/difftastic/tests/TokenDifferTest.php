@@ -3568,6 +3568,46 @@ return [
             $t->contains("{$normal}:normal", $encoded);
         }
     },
+    'json display renderer maps upstream sql keyword operator and type captures' => static function (TestRunner $t): void {
+        $before = "-- WordPress migration starts empty\n";
+        $after = "CREATE TABLE wp_acme_cards (\n"
+            . "    id BIGINT NOT NULL,\n"
+            . "    slug VARCHAR(191) DEFAULT '',\n"
+            . "    visible BOOLEAN DEFAULT true,\n"
+            . "    PRIMARY KEY (id)\n"
+            . ");\n"
+            . "SELECT slug FROM wp_acme_cards WHERE visible = true;\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/sql_highlight.sql',
+            'SQL',
+            ['language' => 'sql'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('SQL', $decoded['language']);
+        foreach (['CREATE', 'TABLE', 'NOT', 'DEFAULT', 'PRIMARY', 'KEY', 'SELECT', 'FROM', 'WHERE'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['BIGINT', 'NULL', 'VARCHAR', 'BOOLEAN'] as $type) {
+            $t->contains("{$type}:type", $encoded);
+        }
+        $t->contains('=:keyword', $encoded);
+        $t->contains('true:normal', $encoded);
+        foreach (['wp_acme_cards', 'slug', 'visible'] as $normal) {
+            $t->contains("{$normal}:normal", $encoded);
+        }
+    },
     'json display renderer maps upstream lua keyword and builtin constant captures' => static function (TestRunner $t): void {
         $before = "local steps = {}\n\nreturn steps\n";
         $after = "local steps = {}\n\n"
@@ -3983,6 +4023,26 @@ return [
             $start = strpos($line, $normal);
             $t->true($start !== false, "Fixture should contain {$normal}.");
             $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream capture.");
+        }
+    },
+    'ansi highlighter maps upstream sql keyword operator and type captures' => static function (TestRunner $t): void {
+        $line = 'CREATE TABLE wp_acme_cards (id BIGINT NOT NULL, visible BOOLEAN DEFAULT true); SELECT slug FROM wp_acme_cards WHERE visible = true;';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'sql']);
+
+        foreach (['CREATE', 'TABLE', 'BIGINT', 'NOT', 'NULL', 'BOOLEAN', 'DEFAULT', 'SELECT', 'FROM', 'WHERE'] as $highlighted) {
+            $start = strpos($line, $highlighted);
+            $t->true($start !== false, "Fixture should contain {$highlighted}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($highlighted), 'style' => '1'], $spans, true), "{$highlighted} should follow upstream SQL keyword/type display styling.");
+        }
+
+        $equalsStart = strpos($line, '=');
+        $t->true($equalsStart !== false, 'Fixture should contain SQL operator.');
+        $t->true(in_array(['start' => $equalsStart, 'end' => $equalsStart + 1, 'style' => '1'], $spans, true), 'SQL operators should follow upstream operator-as-keyword display styling.');
+
+        foreach (['wp_acme_cards', 'visible', 'true'] as $normal) {
+            $start = strpos($line, $normal);
+            $t->true($start !== false, "Fixture should contain {$normal}.");
+            $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream SQL capture.");
         }
     },
     'ansi highlighter maps upstream lua keyword and builtin constant captures' => static function (TestRunner $t): void {

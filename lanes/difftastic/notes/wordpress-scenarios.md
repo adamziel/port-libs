@@ -400,6 +400,10 @@ The WordPress Emacs Lisp maintenance example covers plugin-local editor/script t
 
 Dependency closure: no new support component is needed for the Emacs Lisp special-form/constant highlight slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a native Emacs Lisp parser support component would only be proposed behind an accepted gate for broader Elisp syntax-list or macro/form semantics beyond keyword/constant display captures.
 
+The WordPress SQL schema display example covers plugin install/upgrade SQL under `wp-content/plugins/acme-card/schema/install.sql`. Native JSON display highlights schema-review keywords such as `CREATE TABLE`, `PRIMARY KEY`, `SELECT`, `FROM`, and `WHERE`, highlights operators and builtin type names such as `BIGINT`, `VARCHAR`, `BOOLEAN`, and `NULL`, and leaves table names, column names, and boolean literals normal because upstream SQL `@field`, `@function.call`, and `@boolean` captures are not promoted into difftastic's display highlight enum.
+
+Dependency closure: no new support component is needed for the SQL keyword/operator/type highlight slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a native SQL parser support component would only be proposed behind an accepted gate for broader SQL structural diffing beyond display-capture parity.
+
 ## Next Task
 
-Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, C/C++ preprocessor/type captures, Emacs Lisp special forms/constants, and the already mapped Python/Ruby clusters, while keeping unsupported function and property captures normal unless the upstream display enum promotes them.
+Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, C/C++ preprocessor/type captures, SQL keyword/operator/type captures, Emacs Lisp special forms/constants, and the already mapped Python/Ruby clusters, while keeping unsupported function, field/property, and boolean captures normal unless the upstream display enum promotes them.
