@@ -1,5 +1,33 @@
 # Integration Status
 
+## Integration accepted - Readability native media block slice - 2026-05-25 02:20 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-readability-20260525T021047Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-readability-20260525T021047Z.patch`.
+Lane/slice/session: `readability` / `rearmer-20260525T021047Z` / `port-readability`.
+
+Patch sha256 verified: `20c69128dc23953ea34352fbe52408ac983a1002f01f37e218f030f446a9cbc8`.
+Clean worktree: `/tmp/port-clean-integrator-readability-rearmer-20260525T021047Z-20260525T021947Z`.
+Base accepted HEAD: `642ba9762954e759aea0b5478f44a7d99a0b26c0`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/readability/src/ArticleExtractor.php`: no syntax errors.
+- `php -l lanes/readability/tests/ArticleExtractorTest.php`: no syntax errors.
+- `php -l lanes/readability/examples/wordpress-native-media-element-import.php`: no syntax errors.
+- `php tools/run-tests.php lanes/readability/tests`: 1 test file, 1854 assertions, 0 failures.
+- `php lanes/readability/examples/wordpress-native-media-element-import.php`: exited 0 and confirmed two HTML media blocks, retained video/audio, and no paragraph-wrapped media.
+- `jq empty lanes/readability/UPSTREAM_TEST_MANIFEST.json lanes/readability/lane-status.json`: exited 0.
+- `git diff --check`: exited 0.
+
+Root verification:
+
+- `php tools/run-tests.php`: 210 test files, 24697 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The patch stays inside the existing DOM cleanup and WordPress block serialization surface.
+Live-service exclusions: none; this slice uses local HTML fixtures only.
+Files staged: `lanes/readability/UPSTREAM_TEST_MANIFEST.json`, `lanes/readability/examples/wordpress-native-media-element-import.php`, `lanes/readability/lane-status.json`, `lanes/readability/notes/upstream-inventory.md`, `lanes/readability/notes/wordpress-scenarios.md`, `lanes/readability/src/ArticleExtractor.php`, `lanes/readability/tests/ArticleExtractorTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - LightningCSS transition prefixer border-radius slice - 2026-05-25 02:18 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T021139Z.ready`.

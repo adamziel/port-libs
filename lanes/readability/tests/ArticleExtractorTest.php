@@ -3536,6 +3536,25 @@ return [
         $t->contains('<img src="http://fakehost/test/florian-giorgio-P1U7-ZgKeOM-unsplash.jpg" alt="An image">', $blocks);
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<ul>"), 'media lists should not be wrapped in paragraph blocks');
     },
+    'serializes retained native media elements as WordPress HTML blocks' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Native Media Import</title></head><body><article>'
+            . '<h1>Native Media Import</h1>'
+            . '<p>' . str_repeat('Portable WordPress imports can retain native media elements from old hosted-player markup. ', 3) . '</p>'
+            . '<video controls poster="/poster.jpg"><source src="/clip.mp4" type="video/mp4"></video>'
+            . '<audio controls src="/episode.mp3"></audio>'
+            . '<p>' . str_repeat('The retained media should stay reviewable without being wrapped as paragraph HTML. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://example.test/posts/native-media.html');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(2, substr_count($blocks, '<!-- wp:html -->'), 'standalone native media elements should become HTML blocks');
+        $t->contains('<video controls poster="https://example.test/poster.jpg"><source src="https://example.test/clip.mp4" type="video/mp4"></source></video>', $blocks);
+        $t->contains('<audio controls src="https://example.test/episode.mp3"></audio>', $blocks);
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<video"), 'standalone video should not be paragraph-wrapped');
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<audio"), 'standalone audio should not be paragraph-wrapped');
+    },
     'maps Mozilla replace-font-tags fixture to span markup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/replace-font-tags';
         $source = (string) file_get_contents($fixture . '/source.html');
