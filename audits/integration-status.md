@@ -99728,3 +99728,14 @@ Root verification: `php tools/run-tests.php` passed with 208 test files, 24523 a
 Support-library/dependency closure: no new support-library activation; this reuses the bounded native `NestingTransformer` scope lowering and `CssMinifier` selector spacing scanner.
 Live-service exclusions: none; no live-service provider tests were run.
 Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-nesting-transformer.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, `lanes/lightningcss/src/CssMinifier.php`, `lanes/lightningcss/src/NestingTransformer.php`, `lanes/lightningcss/tests/NestingTransformerTest.php`, `audits/integration-status.md`.
+
+## Integration accepted - isolated esbuild supervisor-next-20260525T012109Z - 2026-05-25 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T012109Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T012109Z.patch`.
+Lane/slice/session: `esbuild` / `supervisor-next-20260525T012109Z` / `port-esbuild`.
+Focused verification in clean worktree: patch sha256 matched `a86affe74fdbc38415151f921b082eb94e7704b915ae02798d0f6c04cb84ac56`; `php -l` on changed PHP files passed; `jq empty lanes/esbuild/lane-status.json lanes/esbuild/UPSTREAM_TEST_MANIFEST.json` passed; `php tools/run-tests.php lanes/esbuild/tests/PackageResolverTest.php` passed with 1 test files, 95 assertions, 0 failures; `php tools/run-tests.php lanes/esbuild/tests` passed with 6 test files, 1844 assertions, 0 failures; `php lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'node builtin import-record propagation|node builtin external records'` passed; `git diff --check` passed.
+Root verification: `php tools/run-tests.php` passed with 208 test files, 24529 assertions, 0 failures in the same clean worktree.
+Support-library/dependency closure: no new support-library activation; this reuses the lane-local `PackageResolver` and adds a lane-local `ImportRecord` DTO only. `js-package-resolution-core` remains deferred.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/ImportRecord.php`, `lanes/esbuild/src/PackageResolver.php`, `lanes/esbuild/tests/PackageResolverTest.php`, `audits/integration-status.md`.

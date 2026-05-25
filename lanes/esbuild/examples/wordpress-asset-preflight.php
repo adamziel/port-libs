@@ -134,6 +134,13 @@ $containingBrowserBuiltinDisabledResolution = (new PackageResolver('browser'))->
 $nodeBuiltinResolution = (new PackageResolver('node'))->resolveImport(new ModuleImport('named', 'path', [], 0), $containingBrowserMapDir);
 $nodePrefixBuiltinResolution = (new PackageResolver('node'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $containingBrowserMapDir);
 $nodeFsPromisesBuiltinResolution = (new PackageResolver('node'))->resolveImport(new ModuleImport('commonjs-require', 'fs/promises', [], 0), $packageEntryDir);
+$nodeImportRecordAnalysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import path from "path";
+const promises = require("fs/promises");
+import("node:crypto");
+import cardRuntime from "port-libs-card-runtime";
+JS);
+$nodeImportRecords = (new PackageResolver('node'))->importRecords($nodeImportRecordAnalysis, $packageEntryDir);
 $unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $normalizePackageFixturePath = static function (string $path) use ($packageFixtureDir): string {
@@ -522,6 +529,26 @@ printf("WordPress node builtin external records: %s\n", (
     && $nodeFsPromisesBuiltinResolution->subpath === './promises'
     && $unshimmedBrowserNodePrefixResolution === null
     && $unshimmedNeutralNodePrefixResolution === null
+) ? 'yes' : 'no');
+printf("WordPress node builtin import-record propagation: %s\n", (
+    array_combine(
+        array_map(static fn ($record): string => $record->source, $nodeImportRecords),
+        array_map(static fn ($record): bool => $record->external, $nodeImportRecords),
+    ) === [
+        'path' => true,
+        'fs/promises' => true,
+        'node:crypto' => true,
+        'port-libs-card-runtime' => false,
+    ]
+    && array_combine(
+        array_map(static fn ($record): string => $record->source, $nodeImportRecords),
+        array_map(static fn ($record): ?string => $record->mainField, $nodeImportRecords),
+    ) === [
+        'path' => 'node-builtin',
+        'fs/promises' => 'node-builtin',
+        'node:crypto' => 'node-builtin',
+        'port-libs-card-runtime' => 'main',
+    ]
 ) ? 'yes' : 'no');
 printf("WordPress tsconfig paths aliases: %s\n", (
     array_combine(

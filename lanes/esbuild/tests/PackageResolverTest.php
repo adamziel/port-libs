@@ -270,6 +270,55 @@ return [
         $t->same(false, $neutral->resolveImport(new ModuleImport('named', 'path', [], 0), $entryDir)?->external);
         $t->same(null, $neutral->resolveImport(new ModuleImport('named', 'node:fs', [], 0), $entryDir));
     },
+    'propagates node builtin externals into import records' => static function (TestRunner $t) use ($entryDir, $normalizeFixturePath): void {
+        $analysis = (new JsModuleAnalyzer())->analyze(<<<'JS'
+import path from "path";
+const promises = require("fs/promises");
+import("node:crypto");
+import cardRuntime from "port-libs-card-runtime";
+JS);
+
+        $records = (new PackageResolver('node'))->importRecords($analysis, $entryDir);
+
+        $t->same([
+            'path' => true,
+            'fs/promises' => true,
+            'node:crypto' => true,
+            'port-libs-card-runtime' => false,
+        ], array_combine(
+            array_map(static fn ($record): string => $record->source, $records),
+            array_map(static fn ($record): bool => $record->external, $records),
+        ));
+        $t->same([
+            'path' => '',
+            'fs/promises' => '',
+            'node:crypto' => '',
+            'port-libs-card-runtime' => 'node_modules/port-libs-card-runtime/dist/main.cjs',
+        ], array_combine(
+            array_map(static fn ($record): string => $record->source, $records),
+            array_map(static fn ($record): string => $record->path === '' ? '' : $normalizeFixturePath($record->path), $records),
+        ));
+        $t->same([
+            'path' => 'node-builtin',
+            'fs/promises' => 'node-builtin',
+            'node:crypto' => 'node-builtin',
+            'port-libs-card-runtime' => 'main',
+        ], array_combine(
+            array_map(static fn ($record): string => $record->source, $records),
+            array_map(static fn ($record): ?string => $record->mainField, $records),
+        ));
+        $t->same([
+            'path' => 'default',
+            'fs/promises' => 'commonjs-require',
+            'node:crypto' => 'dynamic',
+            'port-libs-card-runtime' => 'default',
+        ], array_combine(
+            array_map(static fn ($record): string => $record->source, $records),
+            array_map(static fn ($record): string => $record->kind, $records),
+        ));
+        $t->same('fs', $records[1]->packageName);
+        $t->same('./promises', $records[1]->subpath);
+    },
     'maps upstream package imports local targets conditions patterns and package remaps' => static function (TestRunner $t) use ($entryDir, $normalizeFixturePath): void {
         $browser = new PackageResolver('browser');
         $node = new PackageResolver('node');

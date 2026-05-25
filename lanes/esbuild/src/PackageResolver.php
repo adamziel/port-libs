@@ -93,6 +93,25 @@ final class PackageResolver
     }
 
     /**
+     * @return list<ImportRecord>
+     */
+    public function importRecords(ModuleAnalysis $analysis, string $sourceDir): array
+    {
+        return array_map(
+            static fn (PackageResolution $resolution): ImportRecord => new ImportRecord(
+                $resolution->import->kind,
+                $resolution->import->source,
+                $resolution->path,
+                $resolution->external,
+                $resolution->mainField,
+                $resolution->packageName,
+                $resolution->subpath,
+            ),
+            $this->resolve($analysis, $sourceDir),
+        );
+    }
+
+    /**
      * @return array{path:string, scopeDir:string, packageJsonPath:string, disabled?:bool, package?:bool}|null
      */
     private function resolveContainingPackageBrowserMap(ModuleImport $import, string $sourceDir): ?array
