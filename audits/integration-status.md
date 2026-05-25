@@ -108697,3 +108697,23 @@ Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/exam
   - `php lanes/quadrable/examples/wordpress-quadb-proof-input-guard.php` passed.
   - `git diff --check` passed.
 - Root verification: `php tools/run-tests.php` passed under resource gate.
+
+### 2026-05-25 libsqlite priority rework accepted
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T075234Z.ready`
+- Patch SHA256: `b652440439819d5c269683259ac0de153ab523daa5999297a8f00a5ed5dd63b7`
+- Patch: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T075234Z.patch`
+- Lane/slice/session: `libsqlite` / `priority-rework-20260525T075205Z` / `port-libsqlite-rework`
+- Base accepted HEAD before attempt: `4d5a99e509159e81912fa5ed924c317796f75740`
+- Focused verification in detached worktree `/tmp/port-clean-integrator-libsqlite-priority-rework-20260525T075205Z-20260525T080522Z`:
+  - `php -l lanes/libsqlite/src/SQLiteJsonPretty.php` passed.
+  - `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+  - `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` passed.
+  - `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` passed.
+  - `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+  - `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: 1 test file, 2030 assertions, 0 failures.
+  - `git diff --check` passed.
+- Root verification: `php tools/run-tests.php` passed under resource gate.
+- Support-library/dependency closure: no new support component; existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty-format support reused.
+- Live-service exclusions: none applicable; no live service/provider tests run.
+- Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `audits/integration-status.md`.
