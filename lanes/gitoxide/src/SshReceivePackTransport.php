@@ -194,6 +194,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
         if ($host === '' || self::hasControlBytes($host)) {
             throw new \InvalidArgumentException('SSH receive-pack host must be non-empty and must not contain control bytes');
         }
+        if (preg_match('/[\s\/\\\\]/', $host) === 1) {
+            throw new \InvalidArgumentException('SSH receive-pack host must not contain whitespace, slash, or backslash delimiters');
+        }
         if (str_starts_with($host, '-')) {
             throw new \InvalidArgumentException('SSH receive-pack host is ambiguous as an SSH command argument');
         }
@@ -203,6 +206,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
     {
         if ($user !== null && ($user === '' || self::hasControlBytes($user))) {
             throw new \InvalidArgumentException('SSH receive-pack user must be non-empty and must not contain control bytes');
+        }
+        if ($user !== null && preg_match('/[\s\/\\\\]/', $user) === 1) {
+            throw new \InvalidArgumentException('SSH receive-pack user must not contain whitespace, slash, or backslash delimiters');
         }
         if ($user !== null && str_starts_with($user, '-')) {
             throw new \InvalidArgumentException('SSH receive-pack user is ambiguous as an SSH command argument');

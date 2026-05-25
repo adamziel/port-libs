@@ -101081,3 +101081,14 @@ Support-library/dependency-closure decision: no activation accepted.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `audits/integration-status.md` only.
 Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
+
+## Clean-patch integration accepted - gitoxide - 2026-05-25 02:59 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T025232Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T025232Z.patch`
+Patch hash: verified by intake; applied to clean head `765f12cb9dac131cc9cdddc46eb35bbaaa2cfea0`.
+Focused commands and exact results: `php -l <changed PHP files>` exit 0; `php tools/run-tests.php lanes/gitoxide/tests` exit 0 (PASS wordpress fixture exposes deployable content tree entries  32 test files, 2727 assertions, 0 failures ); `git diff --check` exit 0.
+Root command and exact result: `php tools/run-tests.php` exit 0 (PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24872 assertions, 0 failures ).
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/examples/wordpress-receive-pack-transport.php lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php lanes/gitoxide/lane-status.json lanes/gitoxide/notes/upstream-inventory.md lanes/gitoxide/src/SshReceivePackTransport.php lanes/gitoxide/tests/ReceivePackTransportTest.php `

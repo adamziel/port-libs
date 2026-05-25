@@ -174,6 +174,14 @@ Focused annotated tag raw-target/ref-iterator inventory inspected on 2026-05-22:
 - `TagRefIter` advances field by field and returns an error token once a later field fails, leaving earlier target/kind/name tokens available to callers. It also emits a `Tagger(None)` token when the optional tagger header is absent.
 - The PHP slice now keeps `GitTag::$target` normalized while preserving `GitTag::$rawTarget` for storage-byte roundtrips, adds `GitTag::iterateTokens()` for upstream-shaped partial iterator results, and updates the WordPress release-tag fixture/example to prove uppercase raw target bytes survive provenance hashing.
 
+Focused SSH receive-pack delimiter preflight inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` SSH invocation and `gix-url` parse inventory for receive-pack target validation. No live SSH/provider runner was executed.
+- This slice maps the bounded argument-safety edge where decoded SSH host/user components must not contain whitespace, slash, or backslash delimiters before the caller-provided connector receives host/user/port/command arguments.
+- The PHP slice tightens `SshReceivePackTransport::parseRepositoryUrl()` for both `ssh://` and scp-like targets while preserving quoted repository paths with spaces in `receivePackCommand()`.
+- WordPress receive-pack fixture/example coverage now records rejection for decoded SSH host/user delimiters before a deployment tool hands target data to an SSH adapter.
+- Dependency closure: no new support component is needed. The existing caller-injected SSH connector boundary is reused; broader SSH authentication/channel integration remains a future bounded support gate with live-provider tests excluded from this isolated lane slice.
+
 Focused annotated tag owned-writer inventory and runner evidence added on 2026-05-22:
 
 - Re-inspected `gix-object/src/tag/write.rs`, `gix-object/src/object/convert.rs`, and `gix-object/tests/object/tag.rs` with targeted upstream reads.
