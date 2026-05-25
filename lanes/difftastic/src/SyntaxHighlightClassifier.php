@@ -87,6 +87,9 @@ final class SyntaxHighlightClassifier
         }
 
         if ($this->isPythonLanguage($language)) {
+            if ($this->isPythonBuiltinVariable($token->text)) {
+                return 'keyword';
+            }
             if ($this->isPythonBuiltinFunctionCall($source, $token)) {
                 return 'normal';
             }
@@ -250,6 +253,11 @@ final class SyntaxHighlightClassifier
             'TypeAlias', 'Union', 'bool', 'bytes', 'dict', 'float', 'int',
             'list', 'set', 'str', 'tuple',
         ], true);
+    }
+
+    private function isPythonBuiltinVariable(string $text): bool
+    {
+        return in_array($text, ['self', 'cls'], true);
     }
 
     private function isPythonTypeAnnotationContext(string $source, Token $token): bool

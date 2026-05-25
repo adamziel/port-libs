@@ -3472,6 +3472,8 @@ return [
         $before = "def migrate_post(post):\n    return post\n";
         $after = "global migration_report\n"
             . "nonlocal migrated\n"
+            . "self.report = None\n"
+            . "cls.enabled = False\n"
             . "match state:\n"
             . "    case True:\n"
             . "        print(len(posts))\n"
@@ -3495,7 +3497,7 @@ return [
         $encoded = implode("\n", $changes);
 
         $t->same('Python', $decoded['language']);
-        foreach (['global', 'nonlocal', 'match', 'case', 'True'] as $keyword) {
+        foreach (['global', 'nonlocal', 'self', 'None', 'cls', 'False', 'match', 'case', 'True'] as $keyword) {
             $t->contains("{$keyword}:keyword", $encoded);
         }
         foreach (['print', 'len', 'dict'] as $builtin) {
@@ -3715,13 +3717,13 @@ return [
         $t->same([], $builtinSpans, 'Function/function.builtin decorator captures should remain normal because upstream does not promote them into the display highlight enum.');
     },
     'ansi highlighter maps upstream python keywords but leaves builtin calls normal' => static function (TestRunner $t): void {
-        $line = 'match state: case True: print(len(posts)); dict(post)';
+        $line = 'self.report = None; cls.enabled = False; match state: case True: print(len(posts)); dict(post)';
         $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'python']);
 
-        foreach (['match', 'case', 'True'] as $keyword) {
+        foreach (['self', 'None', 'cls', 'False', 'match', 'case', 'True'] as $keyword) {
             $start = strpos($line, $keyword);
             $t->true($start !== false, "Fixture should contain {$keyword}.");
-            $t->true(in_array(['start' => $start, 'end' => $start + strlen($keyword), 'style' => '1'], $spans, true), "{$keyword} should follow upstream keyword/constant capture handling.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($keyword), 'style' => '1'], $spans, true), "{$keyword} should follow upstream keyword/constant/variable.builtin capture handling.");
         }
 
         foreach (['print', 'len', 'dict'] as $builtin) {
@@ -4195,7 +4197,7 @@ return [
         $encoded = implode("\n", $changes);
 
         $t->same('wp-content/plugins/acme-migrator/tools/migrate_blocks.py', $decoded['path']);
-        foreach (['nonlocal', 'match', 'case', 'True'] as $keyword) {
+        foreach (['self', 'None', 'cls', 'False', 'nonlocal', 'match', 'case', 'True'] as $keyword) {
             $t->contains("{$keyword}:keyword", $encoded);
         }
         foreach (['print', 'len', 'dict'] as $builtin) {
