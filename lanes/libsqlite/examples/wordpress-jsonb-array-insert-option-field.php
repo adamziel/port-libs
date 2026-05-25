@@ -3,16 +3,20 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteJson5Parser;
+use PortLibs\LibSqlite\SQLiteJsonArrayInsert;
 use PortLibs\LibSqlite\SQLiteJsonB;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
+use PortLibs\LibSqlite\SQLiteBlobValue;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $input = $argv[1] ?? null;
-$arguments = array_slice($argv, 2);
+$operation = $argv[2] ?? null;
+$arguments = array_slice($argv, 3);
 
-if ($input === null || count($arguments) < 2 || count($arguments) % 2 !== 0) {
-    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php json-or-hex path value [path value...]\n");
-    fwrite(STDERR, "Applies SQLite jsonb_array_insert semantics to option/meta JSON migration arrays and prints the resulting JSONB bytes.\n");
+if ($input === null || !in_array($operation, ['array_insert', 'json_array_insert', 'jsonb_array_insert'], true) || count($arguments) < 2 || count($arguments) % 2 !== 0) {
+    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php json-or-hex array_insert|json_array_insert|jsonb_array_insert path value [path value...]\n");
+    fwrite(STDERR, "Applies SQLite json_array_insert/jsonb_array_insert semantics to option/meta JSON migration arrays and prints text or JSONB SQL-dispatch results.\n");
     exit(1);
 }
 
@@ -34,7 +38,10 @@ $decodeValue = static function (string $text) use ($decodeJsonInput): mixed {
             throw new InvalidArgumentException('JSONB value hex is malformed');
         }
 
-        return SQLiteJsonB::decode($bytes);
+        return new SQLiteBlobValue($bytes);
+    }
+    if (str_starts_with($text, 'json:')) {
+        return new SQLiteJsonSubtypeValue(substr($text, 5));
     }
 
     try {
@@ -67,13 +74,18 @@ while ($arguments !== []) {
     $extraPairs[] = $extraValue;
 }
 
-$mutated = SQLiteJsonB::arrayInsert($jsonb, $path, $value, ...$extraPairs);
+$function = $operation === 'json_array_insert' ? 'json_array_insert' : 'jsonb_array_insert';
+$result = SQLiteJsonArrayInsert::arrayInsertSqlFunction($function, new SQLiteBlobValue($jsonb), $path, $value, ...$extraPairs);
+$mutated = $result instanceof SQLiteBlobValue ? $result->bytes : SQLiteJsonB::encode($decodeJsonInput((string) $result));
 
 echo json_encode([
     'inputKind' => $inputKind,
-    'operation' => 'array_insert',
+    'operation' => $operation,
+    'sqlFunction' => $function,
+    'resultKind' => $result instanceof SQLiteBlobValue ? 'sqlite-jsonb' : 'text-json',
     'decodedBefore' => $decoded,
     'decodedAfter' => SQLiteJsonB::decode($mutated),
-    'sqliteJsonbHex' => bin2hex($mutated),
-    'wordpressUse' => 'Preflight wp_options option arrays or postmeta migration queues by inserting JSON elements with SQLite jsonb_array_insert path semantics without requiring the SQLite extension.',
+    'sqliteJsonbHex' => $result instanceof SQLiteBlobValue ? bin2hex($mutated) : null,
+    'jsonText' => is_string($result) ? $result : null,
+    'wordpressUse' => 'Preflight wp_options option arrays or postmeta migration queues by inserting JSON elements with SQLite json_array_insert/jsonb_array_insert SQL-dispatch semantics without requiring the SQLite extension.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

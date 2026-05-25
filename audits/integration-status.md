@@ -1,5 +1,49 @@
 # Integration Status
 
+## Integration accepted - isolated libsqlite JSON array insert SQL dispatch - 2026-05-25 03:22 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T031001Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T031001Z.patch`.
+
+Lane/slice/session: `libsqlite` / `rearmer-20260525T031001Z` /
+`port-libsqlite`. Patch sha256 verified:
+`b7153d02670efc0488b7e01fc8c2f6526ca93d7dc36fac3e196a0d014343d520`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-libsqlite-rearmer-20260525T031001Z`:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonArrayInsert.php` - passed, no syntax errors.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` - passed, no syntax errors.
+- `php -l lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php` - passed, no syntax errors.
+- `php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'` - passed.
+- `php lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php '{"queue":["scan","rewrite"]}' json_array_insert '$.queue[1]' 'json:{"task":"cache"}'` - passed; emitted text JSON output with inserted object in the queue.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` - passed, 1 test file, 1,923 assertions, 0 failures.
+- `git diff --check` - passed.
+
+Root verification in the same clean worktree:
+
+- Pre-root exact harness gate `pgrep -af '^php tools/run-tests\.php$'` returned no active process.
+- `php tools/run-tests.php` - passed, 211 test files, 24,936 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component activated. The
+slice reuses existing lane-local JSON5, JSONB, canonical JSON, JSON subtype,
+and BLOB wrapper components; no shared support-library progress is claimed.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonArrayInsert.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - isolated Quadrable head cleanup - 2026-05-25 03:17 UTC
 
 Accepted ready marker:

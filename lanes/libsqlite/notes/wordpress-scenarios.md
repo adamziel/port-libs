@@ -1372,3 +1372,14 @@ preflight copied `wp_options` JSON option values with text JSON results or
 JSONB blob results, preserving SQLite's distinction between ordinary SQL
 scalar values and JSON subtype/JSONB embedded fragments without requiring the
 SQLite extension.
+
+## `json_array_insert()`/`jsonb_array_insert()` Array Insert Dispatch Scenario
+
+Native JSON array insertion now includes a bounded SQLite SQL result-type
+boundary for `json_array_insert()` and `jsonb_array_insert()`. The updated
+`examples/wordpress-jsonb-array-insert-option-field.php` script can preflight
+copied `wp_options` JSON option arrays or postmeta migration queues with text
+JSON results or JSONB blob results, preserving SQLite's array-index,
+reverse-index append, missing-array creation, non-array no-op, and JSON
+subtype/JSONB embedded-fragment boundaries without requiring the SQLite
+extension.
