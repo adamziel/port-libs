@@ -8,11 +8,23 @@ final class SQLiteJsonQuote
 {
     public static function jsonQuoteSqlFunction(string $function, string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value): string
     {
-        if ($function !== 'json_quote') {
+        if (strcasecmp($function, 'json_quote') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON quote function must be json_quote');
         }
 
         return self::jsonQuote($value);
+    }
+
+    /**
+     * @param list<string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null> $arguments
+     */
+    public static function jsonQuoteSqlFunctionArguments(string $function, array $arguments): string
+    {
+        if (count($arguments) !== 1) {
+            throw new \InvalidArgumentException('SQLite json_quote() expects one argument');
+        }
+
+        return self::jsonQuoteSqlFunction($function, $arguments[0]);
     }
 
     public static function jsonQuote(string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value): string

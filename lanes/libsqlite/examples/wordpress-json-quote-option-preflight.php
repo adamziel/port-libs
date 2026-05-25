@@ -29,7 +29,7 @@ $inputs = [
 $checks = [];
 foreach ($inputs as $name => $value) {
     try {
-        $quoted = SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', $value);
+        $quoted = SQLiteJsonQuote::jsonQuoteSqlFunctionArguments('JSON_QUOTE', [$value]);
         $status = 'quoted';
     } catch (InvalidArgumentException $exception) {
         $quoted = null;

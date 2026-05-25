@@ -2,6 +2,25 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## `json_quote()` Option-Value SQL Dispatch Scenario
+
+Native JSON SQL-value quoting now includes bounded SQL-style argument-vector
+dispatch for `json_quote()` with case-insensitive function lookup. The example
+`examples/wordpress-json-quote-option-preflight.php` exercises copied
+`wp_options.option_value` inputs through uppercase argument-vector SQL
+dispatch for SQL NULL, integers, REAL values, copied text settings,
+control-character text, JSONB blobs, and raw BLOB rejection. This gives
+WordPress import and repair tooling a local-only preflight that mirrors
+SQLite's SQL entry point without requiring the SQLite extension.
+
+Status delta 2026-05-25 isolated refill: added
+`jsonQuoteSqlFunctionArguments()`, switched direct quote function-name
+validation to case-insensitive lookup, added focused arity and invalid-name
+rejection tests, and updated the existing WordPress smoke to report uppercase
+argument-vector dispatch. Dependency closure: no new support component is
+needed; the slice reuses existing lane-local JSONB, JSON subtype, BLOB, SQL
+scalar, and SQL NULL support.
+
 ## `json_type()`/`json_array_length()` Option-Value Inspection Dispatch Scenario
 
 Native JSON inspection now includes bounded SQL-style argument-vector dispatch

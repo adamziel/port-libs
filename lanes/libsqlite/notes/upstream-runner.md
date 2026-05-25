@@ -1,5 +1,39 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: `json_quote()` Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQL-dispatch boundary for SQLite
+JSON SQL-value quoting. Native `SQLiteJsonQuote` now validates `json_quote`
+with SQLite-style case-insensitive function lookup across direct calls and
+one-argument vector dispatch, keeps the accepted SQL scalar, JSON subtype,
+JSONB BLOB, raw BLOB rejection, and SQL NULL behavior, and rejects invalid
+arity and invalid function names without expanding into broader SQL
+expression evaluation.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON quote evidence for the same
+upstream behavior cluster:
+
+```sh
+json101.test json102.test subtype1.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence is recorded in `lane-status.json` after local focused
+verification.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSONB, JSON subtype, BLOB wrapper, SQL scalar coercion,
+and SQL NULL handling components; it counts no shared support-library
+progress.
+
 ## Focused Native Mapping: `json_type()`/`json_array_length()` Argument-Vector Dispatch
 
 Date: 2026-05-25

@@ -2916,10 +2916,18 @@ return [
         $t->same('"copied settings"', SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', 'copied settings'));
         $t->same('{"a":1}', SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', new SQLiteJsonSubtypeValue('{"a":1}')));
         $t->same('{"plugin":{"enabled":true,"count":2}}', SQLiteJsonQuote::jsonQuoteSqlFunction('json_quote', new SQLiteBlobValue($jsonb)));
+        $t->same('null', SQLiteJsonQuote::jsonQuoteSqlFunction('JSON_QUOTE', null));
+        $t->same('0', SQLiteJsonQuote::jsonQuoteSqlFunctionArguments('JSON_QUOTE', [false]));
+        $t->same('100.0', SQLiteJsonQuote::jsonQuoteSqlFunctionArguments('JSON_QUOTE', [1e2]));
+        $t->same('{"a":1}', SQLiteJsonQuote::jsonQuoteSqlFunctionArguments('JSON_QUOTE', [new SQLiteJsonSubtypeValue('{"a":1}')]));
+        $t->same('{"plugin":{"enabled":true,"count":2}}', SQLiteJsonQuote::jsonQuoteSqlFunctionArguments('JSON_QUOTE', [new SQLiteBlobValue($jsonb)]));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuote(new SQLiteBlobValue('01234')));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuote(new SQLiteBlobValue("\x8b\xff" . str_repeat("\0", 7))));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuoteSqlFunction('json_valid', 'copied settings'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuoteSqlFunctionArguments('JSON_QUOTE', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuoteSqlFunctionArguments('JSON_QUOTE', ['copied settings', 'extra']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonQuote::jsonQuoteSqlFunctionArguments('json_valid', ['copied settings']));
     },
     'constructs sqlite json arrays from sql values for option diagnostics' => static function (TestRunner $t): void {
         $jsonObject = new SQLiteJsonSubtypeValue('{"abc":2.5,"def":null,"ghi":"hello"}');

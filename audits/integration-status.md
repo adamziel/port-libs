@@ -110110,3 +110110,41 @@ Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`,
 `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`,
 `lanes/gitoxide/tests/ReceivePackTransportTest.php`, and
 `audits/integration-status.md`.
+
+## Clean patch integration accepted - libsqlite - 2026-05-25 15:58 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T154220Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T154220Z.patch`.
+Lane/slice/session: `libsqlite` / `priority-refill-20260525T154219Z` / `port-libsqlite-rework`.
+Base accepted HEAD: `9df0e81c1ad0e47c0d929984259275a644c5d894`.
+Patch sha256 verified: `6789307916731dc0cccd47487a0d90896e0a399f13f9f2c1eaecdfc4e151c3dc`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-libsqlite-priority-refill-20260525T154220Z`:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonQuote.php`: passed, no syntax errors.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, no syntax errors.
+- `php -l lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php`: passed, no syntax errors.
+- `php lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php`: passed, reported uppercase `JSON_QUOTE` argument-vector checks for SQL NULL, integer, REAL, text, control-character text, JSONB BLOB, and raw BLOB rejection.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 2167 assertions, 0 failures`.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification: after gate check reported `/` available `103758376` KiB,
+load `15.08`, and no exact `php tools/run-tests.php` process, ran
+`flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+in the clean worktree. Result: passed, `214 test files, 26254 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support-library activation. This
+bounded slice reuses existing lane-local JSONB, JSON subtype, BLOB wrapper, SQL
+scalar coercion, and SQL NULL handling.
+
+Live-service exclusions: no live-service provider tests were run.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/examples/wordpress-json-quote-option-preflight.php`,
+`lanes/libsqlite/lane-status.json`,
+`lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/src/SQLiteJsonQuote.php`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.
