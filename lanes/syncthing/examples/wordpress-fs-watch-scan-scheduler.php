@@ -32,6 +32,8 @@ try {
         maxFilesPerDir: 1,
         watchRestartInitialDelaySeconds: 5,
         watchRestartMaxDelaySeconds: 20,
+        recentCleanupTtlSeconds: 20,
+        recentCleanupMaxEntries: 2,
     );
 
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 1000);
@@ -99,6 +101,8 @@ try {
     $removedDuringDispatchScan = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1130);
     $removedDuringDispatchStatus = $watchScheduler->watchStatus('wordpress-media-removed-during-dispatch', 1130);
     $recentCleanupAfterRemovedDispatch = $watchScheduler->recentCleanupStatuses();
+    $recentCleanupRetained = $watchScheduler->recentCleanupStatuses(1130);
+    $recentCleanupExpired = $watchScheduler->recentCleanupStatuses(1151);
 
     echo json_encode([
         'watcher' => 'Syncthing FSWatcherDelay-style media scan and restart fallback',
@@ -137,6 +141,8 @@ try {
         'removedDuringDispatchScan' => $removedDuringDispatchScan->toRestStatus(),
         'removedDuringDispatchStatus' => $removedDuringDispatchStatus,
         'recentCleanupAfterRemovedDispatch' => $recentCleanupAfterRemovedDispatch,
+        'recentCleanupRetained' => $recentCleanupRetained,
+        'recentCleanupExpired' => $recentCleanupExpired,
         'checkpointRevision' => $service->checkpoint(1021)?->revision,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } finally {

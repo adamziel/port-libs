@@ -2458,3 +2458,41 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: bound retention/expiry for recent
 watcher cleanup payloads if multiple removed WordPress media folders accumulate
 between REST polls.
+
+## 2026-05-25 Watcher Recent Cleanup Retention
+
+This isolated micro-slice bounds the REST-facing recent cleanup payloads added
+in the previous watcher slice. `FolderWatchScanScheduler` now accepts
+`recentCleanupTtlSeconds` and `recentCleanupMaxEntries`, prunes stale cleanup
+payloads when callers poll with an explicit clock, and keeps only the newest
+cleanup rows when multiple removed WordPress media folders accumulate between
+REST polls. A zero-second TTL is supported as an immediate-clear policy.
+
+The WordPress watcher smoke uses a short retention window and reports
+`recentCleanupRetained` immediately after removed-folder delayed dispatch
+cleanup, then `recentCleanupExpired` after the polling window passes.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate remains
+wiring bounded cleanup payloads into a WordPress/local REST status surface; the
+evidence plan is the focused watcher tests plus the local WordPress example
+smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 216 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported retained then expired recent cleanup payloads.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: expose an explicit
+recent-cleanup acknowledgement/clear path for REST clients after they consume
+bounded cleanup payloads.

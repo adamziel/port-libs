@@ -104776,3 +104776,24 @@ Support-library/dependency closure: no support-library activation; bounded lane-
 Live-service exclusions: no live-service/provider tests run.
 Files staged:
 - `audits/integration-status.md`
+
+## Integration accepted - syncthing watchdog-next-20260525T070945Z - 2026-05-25 07:18 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T070945Z.ready`; patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T070945Z.patch`.
+Lane/slice/session: `syncthing` / `watchdog-next-20260525T070945Z` / `port-syncthing`.
+Patch sha256 verified: `860abe37846b73fe3810adb0d3c38f9c039d77663f617340105d9a04f204b557`.
+Focused verification gates: `/` available KiB `133007600`, first loadavg `3.09`, no `php tools/run-tests.php` process.
+Focused verification: `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed; `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed; `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` passed; `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed (1 test files, 216 assertions, 0 failures); `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` passed.
+Root verification gate: `/` available KiB `133007600`, first loadavg `3.09`, no `php tools/run-tests.php` process.
+Root verification: `php tools/run-tests.php` passed (213 test files, 25776 assertions, 0 failures).
+Diff check: `git diff --check` passed.
+Support-library/dependency closure: no support-library activation; lane-local watcher cleanup retention and audit/manifest updates only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+- `lanes/syncthing/lane-status.json`
+- `lanes/syncthing/notes/wordpress-scenarios.md`
+- `lanes/syncthing/src/FolderWatchScanScheduler.php`
+- `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`

@@ -36,9 +36,14 @@ final class FolderWatchScanScheduler
         private readonly int $maxFilesPerDir = 128,
         private readonly int $watchRestartInitialDelaySeconds = 10,
         private readonly int $watchRestartMaxDelaySeconds = 60,
+        private readonly int $recentCleanupTtlSeconds = 300,
+        private readonly int $recentCleanupMaxEntries = 64,
     ) {
         if ($this->watchRestartInitialDelaySeconds < 0 || $this->watchRestartMaxDelaySeconds < 0) {
             throw new \InvalidArgumentException('Watch restart delays must not be negative');
+        }
+        if ($this->recentCleanupTtlSeconds < 0 || $this->recentCleanupMaxEntries < 1) {
+            throw new \InvalidArgumentException('Recent cleanup retention must use a non-negative TTL and at least one entry');
         }
         $this->effectiveNotifyTimeoutSeconds = $this->notifyTimeoutSeconds === null
             ? FolderWatchEventAggregator::defaultNotifyTimeoutSeconds($this->notifyDelaySeconds)
@@ -274,6 +279,7 @@ final class FolderWatchScanScheduler
         ];
 
         $this->recentCleanups[$folderId] = $cleanup;
+        $this->pruneRecentCleanups($now);
 
         return $cleanup;
     }
@@ -330,8 +336,11 @@ final class FolderWatchScanScheduler
     /**
      * @return array<string, array{folder:string, cleanupAt:int, hadState:bool, folderExists:bool, folderPaused:bool, discardedPendingEvents:bool, preservedPendingEvents:bool, clearedRestart:bool, clearedInProgress:bool, pendingEventCountBefore:int, pendingEventCountAfter:int, pendingPathsBefore:list<string>, pendingPathsAfter:list<string>, statusAfter:?array<string, mixed>}>
      */
-    public function recentCleanupStatuses(): array
+    public function recentCleanupStatuses(?int $now = null): array
     {
+        if ($now !== null) {
+            $this->pruneRecentCleanups(self::clock($now));
+        }
         $statuses = $this->recentCleanups;
         ksort($statuses, SORT_STRING);
 
@@ -464,6 +473,36 @@ final class FolderWatchScanScheduler
             'remainingSeconds' => $remainingSeconds,
             'due' => $remainingSeconds === 0,
         ];
+    }
+
+    private function pruneRecentCleanups(int $now): void
+    {
+        if ($this->recentCleanupTtlSeconds === 0) {
+            $this->recentCleanups = [];
+
+            return;
+        }
+
+        $oldestKeptAt = $now - $this->recentCleanupTtlSeconds;
+        foreach ($this->recentCleanups as $folderId => $cleanup) {
+            if ($cleanup['cleanupAt'] < $oldestKeptAt) {
+                unset($this->recentCleanups[$folderId]);
+            }
+        }
+
+        if (count($this->recentCleanups) <= $this->recentCleanupMaxEntries) {
+            return;
+        }
+
+        uasort(
+            $this->recentCleanups,
+            static fn (array $left, array $right): int => ($left['cleanupAt'] <=> $right['cleanupAt'])
+                ?: strcmp($left['folder'], $right['folder'])
+        );
+
+        while (count($this->recentCleanups) > $this->recentCleanupMaxEntries) {
+            array_shift($this->recentCleanups);
+        }
     }
 
     /**

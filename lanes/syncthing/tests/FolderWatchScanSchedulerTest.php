@@ -666,6 +666,62 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler expires recent cleanup payloads after the retention window' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore());
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                recentCleanupTtlSeconds: 5,
+            );
+
+            $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 9700);
+            $scheduler->removeFolder('wordpress-media');
+            $watch->cleanupWatchingFolder('wordpress-media', discardPendingEvents: true, now: 9701);
+
+            $t->same(['wordpress-media'], array_keys($watch->recentCleanupStatuses(9706)));
+            $t->same([], $watch->recentCleanupStatuses(9707));
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
+    'watch scan scheduler keeps only the newest bounded recent cleanup payloads' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $scheduler = new FolderScanScheduler();
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                recentCleanupTtlSeconds: 60,
+                recentCleanupMaxEntries: 2,
+            );
+
+            foreach (['media-a', 'media-b', 'media-c'] as $offset => $folderId) {
+                $scheduler->addFolder($folderId, new FolderScanService($folderId, new FileInfoScanner($root), new FolderScanCheckpointStore()));
+                $watch->recordEvent($folderId, 'wp-content/uploads/2026/05/hero.jpg', now: 9800 + $offset);
+                $scheduler->removeFolder($folderId);
+                $watch->cleanupWatchingFolder($folderId, discardPendingEvents: true, now: 9801 + $offset);
+            }
+
+            $cleanups = $watch->recentCleanupStatuses(9803);
+
+            $t->same(['media-b', 'media-c'], array_keys($cleanups));
+            $t->same(9802, $cleanups['media-b']['cleanupAt'] ?? null);
+            $t->same(9803, $cleanups['media-c']['cleanupAt'] ?? null);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $cleanups['media-c']['pendingPathsBefore'] ?? []);
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string
