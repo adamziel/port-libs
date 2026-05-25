@@ -1,3 +1,40 @@
+## Clean-patch accepted - Syncthing watcher route folder filters - 2026-05-25 23:28 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-syncthing-20260525T232031Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`5abea07449b38bf02711d367dd0ef0727ad0fc791db9b29a2976259eaf7d0652`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`9a748b71` (`Integrate LightningCSS custom-media definition comments`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/syncthing/src/FolderScanRouteRegistry.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-route-registry.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php`
+  passed: `1 test files, 69 assertions, 0 failures`.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php`
+  passed.
+- Syncthing manifest/status JSON validation passed.
+- `git diff --check -- lanes/syncthing` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=103304616` KiB and `load1=2.16`; no exact no-argument root
+  harness was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26540 assertions, 0 failures`.
+
+Cleanup:
+- Pending until the commit is safely on `main`: remove the accepted ready
+  marker, patch, metadata file, referenced worker log, inactive source
+  worktree, and temporary verification worktree.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted Syncthing commit.
+
 ## Clean-patch accepted - LightningCSS custom-media definition comments - 2026-05-25 23:25 UTC
 
 Accepted one isolated marker:

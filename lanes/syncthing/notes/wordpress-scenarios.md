@@ -19,6 +19,15 @@ draining queued events or forcing an early scan. Dependency closure: no new
 support component is needed; this reuses the existing bounded watcher scheduler
 and route-registry components.
 
+The route-registry one-folder watcher-status slice lets REST clients pass a
+`folder` payload to `GET /syncthing/db/watch/status`, `GET
+/syncthing/db/watch/restarts`, and `GET /syncthing/db/watch/cleanups`. The
+routes return only that folder's watcher, due-restart, or recent-cleanup row, or
+an empty map when the folder has no matching state, while preserving the
+aggregate all-folder response when the filter is omitted. Dependency closure:
+no new support component is needed; this reuses the existing bounded watcher
+scheduler and route-registry components.
+
 ## Current Native Slice
 
 Native scanner-style content blocks now match Syncthing's `lib/scanner/blocks_test.go`

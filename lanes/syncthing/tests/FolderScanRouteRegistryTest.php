@@ -147,6 +147,52 @@ return [
             syncthing_folder_scan_route_rm($root);
         }
     },
+    'route registry filters watcher status routes to one requested folder' => static function (TestRunner $t): void {
+        $root = syncthing_folder_scan_route_root();
+        try {
+            syncthing_folder_scan_route_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            syncthing_folder_scan_route_write($root, 'wp-content/private/secret.jpg', 'ijklmnop');
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore()));
+            $scheduler->addFolder('wordpress-private', new FolderScanService('wordpress-private', new FileInfoScanner($root), new FolderScanCheckpointStore()));
+            $watchScheduler = new FolderWatchScanScheduler($scheduler, notifyDelaySeconds: 10, watchRestartInitialDelaySeconds: 5, recentCleanupTtlSeconds: 20);
+            $registry = FolderScanRouteRegistry::forScanApi(new FolderScanApiCoordinator($scheduler), watchScheduler: $watchScheduler);
+
+            $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 3600);
+            $watchScheduler->recordEvent('wordpress-private', 'wp-content/private/secret.jpg', now: 3600);
+            $watchScheduler->recordWatcherError('wordpress-media', 'watch backend closed for media', scanOnWatchError: false, now: 3601);
+            $watchScheduler->recordWatcherError('wordpress-private', 'watch backend closed for private uploads', scanOnWatchError: false, now: 3601);
+            $scheduler->removeFolder('wordpress-private');
+            $watchScheduler->scanDueWatchEvents(now: 3610);
+
+            $watchStatus = $registry->dispatch('GET', '/syncthing/db/watch/status', [
+                'folder' => 'wordpress-media',
+            ], now: 3606);
+            $restartStatus = $registry->dispatch('GET', '/syncthing/db/watch/restarts', [
+                'folder' => 'wordpress-media',
+            ], now: 3606);
+            $cleanupStatus = $registry->dispatch('GET', '/syncthing/db/watch/cleanups', [
+                'folder' => 'wordpress-private',
+            ], now: 3610);
+            $missingCleanupStatus = $registry->dispatch('GET', '/syncthing/db/watch/cleanups', [
+                'folder' => 'wordpress-media',
+            ], now: 3610);
+            $missingWatchStatus = $registry->dispatch('GET', '/syncthing/db/watch/status', [
+                'folder' => 'missing-folder',
+            ], now: 3610);
+
+            $t->same(['wordpress-media'], array_keys($watchStatus->body['watchers']));
+            $t->same('watch backend closed for media', $watchStatus->body['watchers']['wordpress-media']['watcherRestart']['lastError'] ?? null);
+            $t->same(['wordpress-media'], array_keys($restartStatus->body['restarts']));
+            $t->same('watch backend closed for media', $restartStatus->body['restarts']['wordpress-media']['lastError'] ?? null);
+            $t->same(['wordpress-private'], array_keys($cleanupStatus->body['cleanups']));
+            $t->same(true, $cleanupStatus->body['cleanups']['wordpress-private']['discardedPendingEvents'] ?? null);
+            $t->same([], $missingCleanupStatus->body['cleanups']);
+            $t->same([], $missingWatchStatus->body['watchers']);
+        } finally {
+            syncthing_folder_scan_route_rm($root);
+        }
+    },
     'route registry acknowledges all watcher cleanup payloads after retention pruning' => static function (TestRunner $t): void {
         $root = syncthing_folder_scan_route_root();
         try {

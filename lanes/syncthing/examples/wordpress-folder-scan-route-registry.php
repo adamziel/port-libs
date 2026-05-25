@@ -43,8 +43,14 @@ try {
     $completed = $queue->runNext(now: 1001);
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 1010);
     $pendingWatchStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/status', [], now: 1014);
+    $pendingMediaWatchStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/status', [
+        'folder' => 'wordpress-media',
+    ], now: 1014);
     $watchScheduler->recordWatcherError('wordpress-media', 'watch backend closed after media edit', scanOnWatchError: false, now: 1011);
     $restartStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/restarts', [], now: 1016);
+    $mediaRestartStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/restarts', [
+        'folder' => 'wordpress-media',
+    ], now: 1016);
     $restartCompleted = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/watch/restarts/complete', [
         'folder' => 'wordpress-media',
     ], now: 1016);
@@ -54,6 +60,9 @@ try {
     $scheduler->removeFolder('wordpress-media');
     $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1035);
     $cleanupStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/cleanups', [], now: 1035);
+    $mediaCleanupStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/cleanups', [
+        'folder' => 'wordpress-media',
+    ], now: 1035);
     $cleanupAcknowledged = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/watch/cleanups/ack', [
         'folder' => 'wordpress-media',
     ], now: 1035);
@@ -63,10 +72,13 @@ try {
         'accepted' => $accepted->toArray(),
         'completed' => $completed?->toArray(),
         'pendingWatchStatus' => $pendingWatchStatus->toArray(),
+        'pendingMediaWatchStatus' => $pendingMediaWatchStatus->toArray(),
         'restartStatus' => $restartStatus->toArray(),
+        'mediaRestartStatus' => $mediaRestartStatus->toArray(),
         'restartCompleted' => $restartCompleted->toArray(),
         'delayedWatchScanRevision' => $delayedWatchScan->snapshot('wordpress-media')?->revision,
         'cleanupStatus' => $cleanupStatus->toArray(),
+        'mediaCleanupStatus' => $mediaCleanupStatus->toArray(),
         'cleanupAcknowledged' => $cleanupAcknowledged->toArray(),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } finally {

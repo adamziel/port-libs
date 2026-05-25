@@ -43,10 +43,14 @@ final class FolderScanRouteRegistry
 
         if ($watchScheduler !== null) {
             $registry->register('GET', '/syncthing/db/watch/status', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
+                $folder = self::payloadFolder($payload);
+
                 return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
                     'ok' => true,
                     'status' => 'ok',
-                    'watchers' => $watchScheduler->watchStatuses($now),
+                    'watchers' => $folder === null
+                        ? $watchScheduler->watchStatuses($now)
+                        : self::oneFolderMap($folder, $watchScheduler->watchStatus($folder, $now)),
                 ]);
             }, [
                 'upstreamRoute' => 'lib/model/folder.go watchChan pending event status',
@@ -55,10 +59,15 @@ final class FolderScanRouteRegistry
                 'watcherPendingStatus' => true,
             ]);
             $registry->register('GET', '/syncthing/db/watch/restarts', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
+                $folder = self::payloadFolder($payload);
+                $restarts = $watchScheduler->dueWatcherRestarts($now);
+
                 return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
                     'ok' => true,
                     'status' => 'ok',
-                    'restarts' => $watchScheduler->dueWatcherRestarts($now),
+                    'restarts' => $folder === null
+                        ? $restarts
+                        : (isset($restarts[$folder]) ? [$folder => $restarts[$folder]] : []),
                 ]);
             }, [
                 'upstreamRoute' => 'lib/model/folder.go restartWatchChan due watcher restart status',
@@ -93,10 +102,15 @@ final class FolderScanRouteRegistry
                 'watcherRestartComplete' => true,
             ]);
             $registry->register('GET', '/syncthing/db/watch/cleanups', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
+                $folder = self::payloadFolder($payload);
+                $cleanups = $watchScheduler->recentCleanupStatuses($now);
+
                 return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
                     'ok' => true,
                     'status' => 'ok',
-                    'cleanups' => $watchScheduler->recentCleanupStatuses($now),
+                    'cleanups' => $folder === null
+                        ? $cleanups
+                        : (isset($cleanups[$folder]) ? [$folder => $cleanups[$folder]] : []),
                 ]);
             }, [
                 'upstreamRoute' => 'lib/model/folder.go watcher lifecycle status',
@@ -276,5 +290,28 @@ final class FolderScanRouteRegistry
     private static function routeKey(string $method, string $path): string
     {
         return $method . ' ' . $path;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private static function payloadFolder(array $payload): ?string
+    {
+        if (!array_key_exists('folder', $payload)) {
+            return null;
+        }
+
+        $folder = trim((string) $payload['folder']);
+
+        return $folder === '' ? null : $folder;
+    }
+
+    /**
+     * @param null|array<string, mixed> $status
+     * @return array<string, array<string, mixed>>
+     */
+    private static function oneFolderMap(string $folder, ?array $status): array
+    {
+        return $status === null ? [] : [$folder => $status];
     }
 }
