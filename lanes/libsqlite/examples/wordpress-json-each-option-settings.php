@@ -30,9 +30,13 @@ $reports = [];
 foreach ($inputs as $name => $value) {
     $reports[] = [
         'name' => $name,
-        'rootRows' => SQLiteJsonEach::jsonEachSqlFunction('json_each', $value),
-        'pluginRows' => SQLiteJsonEach::jsonEach($value, '$.plugin'),
-        'rulesRows' => SQLiteJsonEach::jsonEach($value, '$.plugin.rules'),
+        'rootRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $value)),
+        'pluginRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEach($value, '$.plugin')),
+        'rulesRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEach($value, '$.plugin.rules')),
+        'dispatch' => [
+            'sqlFunction' => 'JSON_EACH',
+            'caseInsensitive' => true,
+        ],
     ];
 }
 
@@ -40,3 +44,24 @@ echo json_encode([
     'reports' => $reports,
     'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+
+/**
+ * @param list<array<string, mixed>> $rows
+ * @return list<array<string, mixed>>
+ */
+function normalizeJsonEachRows(array $rows): array
+{
+    return array_map(
+        static function (array $row): array {
+            if ($row['json'] instanceof SQLiteBlobValue) {
+                $row['json'] = [
+                    'type' => 'blob',
+                    'hexPrefix' => strtoupper(substr(bin2hex($row['json']->bytes), 0, 24)),
+                ];
+            }
+
+            return $row;
+        },
+        $rows,
+    );
+}

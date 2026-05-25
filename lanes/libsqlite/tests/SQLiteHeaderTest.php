@@ -3326,7 +3326,7 @@ return [
         $t->same($settings, $rootRows[0]['json']);
         $t->same('$', $rootRows[0]['root']);
 
-        $pluginRows = SQLiteJsonEach::jsonEachSqlFunction('json_each', $json5, '$.plugin');
+        $pluginRows = SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $json5, '$.plugin');
         $t->same(['enabled', 'title', 'rules'], array_column($pluginRows, 'key'));
         $t->same(['false', 'text', 'array'], array_column($pluginRows, 'type'));
         $t->same(0, $pluginRows[0]['value']);

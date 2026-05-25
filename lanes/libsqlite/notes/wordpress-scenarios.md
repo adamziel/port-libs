@@ -1648,3 +1648,34 @@ git diff --check -- lanes/libsqlite
 Result: syntax checks passed, the WordPress example reported recursive root/plugin/rules rows with hidden `json`/`root` summaries, focused PHP passed 1 selected test file, 2116 assertions, and 0 failures, and final diff/json checks are recorded in `lane-status.json`. This worker did not start the root aggregate harness because root verification was not assigned.
 
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and SQL value typing support; it counts no shared support-library progress.
+
+## Focused Native Mapping: `json_each()` Case-Insensitive SQL Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice updates the local wp_options `json_each()` expansion smoke to exercise uppercase `JSON_EACH` SQL dispatch. That keeps plugin settings review paths aligned with SQLite's case-insensitive function-name behavior while preserving the accepted strict JSON, JSON5 text, JSONB blob, SQL NULL, hidden `json`/`root`, and invalid-function coverage.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated `.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was started. This slice reuses prior focused JSON1 table-valued evidence for the same upstream behavior cluster:
+
+```sh
+json101.test json102.test json501.test json107.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonEach.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: recorded in `lane-status.json` after focused verification. Root aggregate harness was not assigned for this isolated micro-slice.
+
+Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.

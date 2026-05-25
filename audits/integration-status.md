@@ -109885,3 +109885,53 @@ Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
 `lanes/libsqlite/notes/wordpress-scenarios.md`,
 `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
 `audits/integration-status.md`.
+## Integration accepted - libsqlite json_each dispatch - 2026-05-25 14:00 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T134930Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T134930Z.patch`.
+
+Lane/slice/session: `libsqlite` /
+`priority-refill-20260525T134930Z` / `port-libsqlite-rework`.
+Patch sha256 verified:
+`cdfa13bd7877797dd891f78482a7e4f34d5a987956592b574eb5219ffd683b94`.
+Applied cleanly to clean detached worktree from
+`867f012ad03437688c83813c4dc7520bc232b698`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonEach.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed,
+  1 selected test file, 2116 assertions, 0 failures.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Root verification:
+
+- Pre-root gate was open: `/` above 86000000 KiB available, load below 25,
+  and no exact no-argument `php tools/run-tests.php` process.
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`:
+  passed, 214 test files, 26176 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component is activated.
+The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB,
+canonical encoding, and table-valued row support. It counts no shared
+support-library progress.
+
+Live-service exclusions: none applicable; no live provider or secret-bearing
+tests were run.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-each-option-settings.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonEach.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
