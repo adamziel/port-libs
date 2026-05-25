@@ -3496,6 +3496,33 @@ return [
         $t->contains('block:type', $encoded);
         $t->same(3, substr_count($encoded, 'block:type'));
     },
+    'json display renderer maps upstream rust macro captures as keyword highlights' => static function (TestRunner $t): void {
+        $before = "fn register() {\n    let blocks = [\"acme/card\"];\n}\n";
+        $after = "fn register() {\n    let blocks = vec![\"acme/card\", \"acme/gallery\"];\n    println!(\"registered {}\", blocks.len());\n}\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/rust_macro_highlight.rs',
+            'Rust',
+            ['language' => 'rust'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Rust', $decoded['language']);
+        $t->contains('vec:keyword', $encoded);
+        $t->contains('println:keyword', $encoded);
+        $t->contains('blocks:normal', $encoded);
+        $t->contains('len:normal', $encoded);
+    },
     'json display renderer maps upstream python constructor decorators as type highlights' => static function (TestRunner $t): void {
         $before = "def migrate_post(post):\n    return post\n";
         $after = "@CacheWarmup\n"
@@ -3790,6 +3817,20 @@ return [
         $t->true(in_array(['start' => 11, 'end' => 17, 'style' => '1'], $spans, true), 'Rust lifetime labels should follow upstream label-as-type capture handling.');
         $t->true(in_array(['start' => 27, 'end' => 32, 'style' => '1'], $spans, true), 'Borrowed lifetime labels should follow upstream label-as-type capture handling.');
         $t->true(in_array(['start' => 43, 'end' => 48, 'style' => '1'], $spans, true), 'Return lifetime labels should follow upstream label-as-type capture handling.');
+    },
+    'ansi highlighter maps upstream rust macro captures as keyword highlights' => static function (TestRunner $t): void {
+        $line = 'let blocks = vec!["acme/card"]; println!("{} blocks", blocks.len());';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'rust']);
+
+        foreach (['vec', 'println'] as $macro) {
+            $start = strpos($line, $macro);
+            $t->true($start !== false, "Fixture should contain {$macro}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($macro) + 1, 'style' => '1'], $spans, true), "{$macro}! should follow upstream function.macro keyword-style handling alongside the existing keyword-style ! operator.");
+        }
+
+        $lenStart = strpos($line, 'len');
+        $t->true($lenStart !== false, 'Fixture should contain len.');
+        $t->true(!in_array(['start' => $lenStart, 'end' => $lenStart + strlen('len'), 'style' => '1'], $spans, true), 'Ordinary Rust method identifiers should remain normal.');
     },
     'ansi highlighter maps upstream python constructor decorator captures' => static function (TestRunner $t): void {
         $line = '@CacheWarmup';
@@ -4309,6 +4350,28 @@ return [
         $t->contains('uint32_t:type', $encoded);
         $t->contains('uint8_t:type', $encoded);
         $t->contains('acme_block_flags:normal', $encoded);
+    },
+    'wordpress rust native module display follows upstream macro capture boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-rust-macro-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/native/register_blocks.rs', $decoded['path']);
+        $t->contains('vec:keyword', $encoded);
+        $t->contains('println:keyword', $encoded);
+        $t->contains('blocks:normal', $encoded);
+        $t->contains('len:normal', $encoded);
     },
     'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
         ob_start();

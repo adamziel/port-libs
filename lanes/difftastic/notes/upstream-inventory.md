@@ -540,7 +540,7 @@ Dependency closure: no new support component is needed for this slice. It reuses
 
 ## Next Task
 
-Expand the next upstream-query-backed syntax highlighting boundary outside the already mapped JavaScript, PHP, Python, Ruby, and C/C++ clusters, without promoting function/property captures that upstream leaves outside the display highlight enum.
+Expand the next upstream-query-backed syntax highlighting boundary outside the already mapped JavaScript, PHP, Python, Ruby, C/C++, and Rust clusters, without promoting function/property captures that upstream leaves outside the display highlight enum.
 
 For this C/C++ preprocessor and primitive type highlight slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`. The mapped upstream boundary is difftastic's `tree_highlights` promotion of keyword and type captures: preprocessor directive identifiers such as `include` and `define` are promoted only in `#...` directive context, fixed-width primitive identifiers such as `uint32_t` and `uint8_t` are promoted as type spans, and ordinary function identifiers such as `acme_block_flags` remain normal.
 
@@ -558,3 +558,20 @@ git diff --check -- lanes/difftastic
 The focused test expectation is 249 named tests, 1467 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
 
 Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/JSON renderer path; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.
+
+For this Rust function.macro highlight slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`. The mapped upstream boundary is difftastic's `tree_highlights` promotion of `function.macro` captures into the keyword display bucket: Rust identifiers immediately followed by `!`, such as `vec!` and `println!`, are keyword-highlighted, while ordinary method/function identifiers such as `len` remain normal unless another already-mapped promoted capture applies.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-rust-macro-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-rust-macro-highlight-display.php >/tmp/difftastic-rust-macro-example.json && php -r 'json_decode(file_get_contents("/tmp/difftastic-rust-macro-example.json"), true, 512, JSON_THROW_ON_ERROR); echo "example json ok\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test expectation is 253 named tests, 1483 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.

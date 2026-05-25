@@ -74,6 +74,10 @@ final class SyntaxHighlightClassifier
             return 'type';
         }
 
+        if ($this->isRustLanguage($language) && $this->isRustMacroCall($source, $token)) {
+            return 'keyword';
+        }
+
         if ($this->isJavaScriptLikeLanguage($language)) {
             if ($this->isJavaScriptBuiltinVariable($token->text)) {
                 return 'keyword';
@@ -251,6 +255,11 @@ final class SyntaxHighlightClassifier
 
         return $previous === ''
             || preg_match('/[\s<&,(=:]/', $previous) === 1;
+    }
+
+    private function isRustMacroCall(string $source, Token $token): bool
+    {
+        return $this->nextNonWhitespaceCharacter($source, $token->end) === '!';
     }
 
     private function isJavaScriptAllCapsConstantIdentifier(string $text): bool

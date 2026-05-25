@@ -100993,3 +100993,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php lanes/syncthing/lane-status.json lanes/syncthing/notes/wordpress-scenarios.md lanes/syncthing/tests/FolderWatchScanSchedulerTest.php `
 
+
+## Clean-patch integration accepted - difftastic - 2026-05-25 02:55 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T024931Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T024931Z.patch`
+Lane/slice/session: `difftastic` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `d5b21a9e799b09f2da46ff2025ec157fa99d4a2a`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/difftastic/tests`: exit 0; PASS wordpress plugin workflow step diff reports yaml block sequence changes  1 test files, 1483 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24860 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json lanes/difftastic/notes/upstream-inventory.md lanes/difftastic/src/SyntaxHighlightClassifier.php lanes/difftastic/tests/TokenDifferTest.php `
+
