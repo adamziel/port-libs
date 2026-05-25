@@ -105,6 +105,55 @@ Support-library/dependency closure: no support-library activation. The patch is 
 Files staged:
 
 - `audits/integration-status.md`
+## Clean-patch integration accepted - pandoc code-span delimiters - 2026-05-25 06:34 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T060504Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T060504Z.patch`.
+
+Lane/slice/session: `pandoc` / `watchdog-next-20260525T060504Z` /
+`port-pandoc`.
+Patch SHA-256 verified:
+`935de669d05ba3ef569955db53f08b4e00f86e04cdd92847302cc6095af0a600`.
+
+Verification:
+
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T060504Z.patch`
+  - result: passed.
+- `php -l lanes/pandoc/src/MarkdownWriter.php`
+  - result: no syntax errors detected.
+- `php -l lanes/pandoc/tests/MarkdownReaderTest.php`
+  - result: no syntax errors detected.
+- `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+  - result: no syntax errors detected.
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`
+  - result: 1 test files, 2287 assertions, 0 failures.
+- `php -r 'json_decode(file_get_contents("lanes/pandoc/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/pandoc/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'`
+  - result: passed.
+- `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg 'Reviewer code token|review queue'`
+  - result: emitted the two-backtick reviewer code token.
+- `git diff --check -- lanes/pandoc`
+  - result: passed with no output.
+
+Root verification: not run for this bounded lane-local micro-slice.
+
+Support-library/dependency-closure decision: no shared support-library row was
+activated. The slice reuses the existing Markdown inline writer, attribute
+renderer, and local backtick-run scanner.
+
+Live-service exclusions: none applicable; no live-service provider tests were
+run.
+
+Files staged:
+
+- `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- `lanes/pandoc/lane-status.json`
+- `lanes/pandoc/notes/wordpress-scenarios.md`
+- `lanes/pandoc/src/MarkdownWriter.php`
+- `lanes/pandoc/tests/MarkdownReaderTest.php`
+- `audits/integration-status.md`
 - `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
 - `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
 - `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`

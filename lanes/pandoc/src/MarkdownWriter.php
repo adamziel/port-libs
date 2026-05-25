@@ -686,7 +686,13 @@ final class MarkdownWriter
 
     private function renderCode(AstNode $node): string
     {
-        return '`' . str_replace('`', '\\`', (string) $node->attr('text', '')) . '`' . $this->renderLinkAttributes($node);
+        $text = (string) $node->attr('text', '');
+        $delimiter = str_repeat('`', max(1, $this->longestBacktickRun($text) + 1));
+        if (str_contains($text, '`') || str_starts_with($text, ' ') || str_ends_with($text, ' ')) {
+            $text = ' ' . $text . ' ';
+        }
+
+        return $delimiter . $text . $delimiter . $this->renderLinkAttributes($node);
     }
 
     private function renderSpan(AstNode $node): string
@@ -1011,7 +1017,7 @@ final class MarkdownWriter
 
     private function longestBacktickRun(string $text): int
     {
-        if (preg_match_all('/`+/', $text, $matches) !== 1) {
+        if (preg_match_all('/`+/', $text, $matches) < 1) {
             return 0;
         }
 

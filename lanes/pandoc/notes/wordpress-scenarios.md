@@ -826,6 +826,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   attributes. Source-review tokens such as `wp_enqueue_script` can carry
   stable ids, classes, and `data-source` metadata in Markdown packets without
   falling back to raw inline HTML.
+- Native Markdown reviewer handoff exports now emit Pandoc-style code-span
+  delimiters for source tokens that contain literal backticks or boundary
+  spaces. The reviewer handoff example writes a source token containing `wp`, `meta`, and literal backticks with a
+  two-backtick delimiter plus id/class/data-source attributes, keeping
+  WordPress migration packet source keys round-trippable without escaping the
+  literal backticks inside the code text.
 - Native Markdown reviewer handoff exports now emit Pandoc-style bracketed
   spans for attributed review markers. Migration spans can carry stable ids,
   classes, titles, and `data-source` metadata around emphasized source flags
@@ -853,13 +859,14 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded Markdown writer block branch after fenced Div output, such
-as fenced code block attributes or additional raw block format variants if not
-already covered on the Markdown writer path.
+Map another bounded Markdown writer branch after inline code-span delimiter
+emission, such as multi-block table-cell fallback, table span degradation
+policy, or additional raw block format variants with native upstream fixture
+parity if not already covered on the Markdown writer path.
 
 ## Dependency Closure
 
 No new support component is needed for this slice. The existing bounded
-Markdown block writer and attribute renderer are reused for fenced Div
-emission; evidence is the focused lane test plus the WordPress reviewer
-handoff example smoke.
+Markdown inline writer, attribute renderer, and local backtick-run scanner are
+reused for code-span delimiter emission; evidence is the focused lane test plus
+the WordPress reviewer handoff example smoke.

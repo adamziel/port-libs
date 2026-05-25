@@ -71,7 +71,7 @@ $document = new AstNode('document', $document->attrs, [
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => 'Reviewer code token: ']),
         new AstNode('code', [
-            'text' => 'wp_enqueue_script',
+            'text' => 'wp `meta` key',
             'id' => 'enqueue',
             'classes' => ['php', 'wp-import'],
             'attributes' => ['data-source' => 'batch-42'],

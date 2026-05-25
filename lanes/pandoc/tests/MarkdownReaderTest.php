@@ -2671,7 +2671,7 @@ MD;
         ]);
 
         $t->same(
-            'Reviewer token: `wp_enqueue_script`{#enqueue .php .wp-import data-source="batch-42" title="Import source"} and literal `a\\`b`{.sample}.',
+            'Reviewer token: `wp_enqueue_script`{#enqueue .php .wp-import data-source="batch-42" title="Import source"} and literal `` a`b ``{.sample}.',
             (new MarkdownWriter())->write($document)
         );
     },
@@ -2874,6 +2874,29 @@ MD;
             '',
             '    plain legacy snippet',
         ]), (new MarkdownWriter())->write($document));
+    },
+    'maps upstream markdown writer code span backtick delimiters' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Reviewer tokens: ']),
+                new AstNode('code', ['text' => 'wp `meta` key']),
+                new AstNode('text', ['text' => ', ']),
+                new AstNode('code', [
+                    'text' => ' `leading and trailing` ',
+                    'id' => 'review-token',
+                    'classes' => ['php'],
+                    'attributes' => ['data-source' => 'batch-42'],
+                ]),
+                new AstNode('text', ['text' => ', and ']),
+                new AstNode('code', ['text' => 'plain_token']),
+                new AstNode('text', ['text' => '.']),
+            ]),
+        ]);
+
+        $t->same(
+            'Reviewer tokens: `` wp `meta` key ``, ``  `leading and trailing`  ``{#review-token .php data-source="batch-42"}, and `plain_token`.',
+            (new MarkdownWriter())->write($document)
+        );
     },
     'maps upstream markdown writer pipe table alignment widths and captions' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
