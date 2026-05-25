@@ -163,6 +163,20 @@ return [
         $fixture['sqlConflictTransaction']['autocommit'],
         $fixture['sqlConflictTransaction']['allowCommitConflicts'],
     ),
+    'sqlRollbackState' => $mergeStatus->mergeRollbackState(
+        $fixture['conflictTables'],
+        $fixture['schemaConflictRows'],
+        $fixture['constraintViolationTables'],
+        $fixture['rootObjectConflicts'],
+        $fixture['sqlRollbackOptions'],
+    ),
+    'sqlQueryableConflictState' => $mergeStatus->mergeRollbackState(
+        $fixture['conflictTables'],
+        $fixture['schemaConflictRows'],
+        $fixture['constraintViolationTables'],
+        $fixture['rootObjectConflicts'],
+        $fixture['sqlQueryableConflictOptions'],
+    ),
     'mergeConstraintError' => $constraintViolations->unresolvedMergeError($fixture['constraintViolationsByTable']),
     'mergeConstraintSummary' => $constraintViolations->mergeViolationSummaryText($fixture['constraintViolationsByTable']),
 ];

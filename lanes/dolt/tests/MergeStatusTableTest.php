@@ -599,6 +599,52 @@ return [
         $t->contains('dolt_conflicts and dolt_schema_conflicts', $table->mergeTransactionConflictError(true, false));
         $t->contains('@@dolt_allow_commit_conflicts = 1', $table->mergeTransactionConflictError(true, true));
     },
+    'sql merge rollback state clears artifacts only for autocommit rollback' => static function (TestRunner $t): void {
+        $table = new MergeStatusTable();
+        $conflicts = [['name' => 'wp_posts', 'numConflicts' => 2]];
+        $schemaConflicts = ['wp_options'];
+        $constraintTables = ['wp_posts', 'wp_import_audit'];
+
+        $rolledBack = $table->mergeRollbackState($conflicts, $schemaConflicts, $constraintTables, [], [
+            'source' => 'migration/import-branch',
+            'sourceCommit' => 'featurehash',
+            'target' => 'refs/heads/main',
+            'autocommit' => true,
+        ]);
+        $t->same(MergeStatusTable::UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR, $rolledBack['error']);
+        $t->same(true, $rolledBack['rolled_back']);
+        $t->same(false, $rolledBack['merge_status']['is_merging']);
+        $t->same([], $rolledBack['conflict_rows']);
+        $t->same(null, $rolledBack['status_guidance']);
+        $t->same(null, $rolledBack['merge_failure_summary']);
+
+        $queryable = $table->mergeRollbackState($conflicts, $schemaConflicts, $constraintTables, [], [
+            'source' => 'migration/import-branch',
+            'sourceCommit' => 'featurehash',
+            'target' => 'refs/heads/main',
+            'autocommit' => false,
+        ]);
+        $t->same(MergeStatusTable::UNRESOLVED_CONFLICTS_TRANSACTION_ERROR, $queryable['error']);
+        $t->same(false, $queryable['rolled_back']);
+        $t->same(true, $queryable['merge_status']['is_merging']);
+        $t->same('wp_posts, wp_import_audit, wp_options', $queryable['merge_status']['unmerged_tables']);
+        $t->same([
+            ['table' => 'wp_posts', 'num_conflicts' => 2],
+            ['table' => 'wp_options', 'num_conflicts' => 0],
+        ], $queryable['conflict_rows']);
+        $t->contains('wp_import_audit', $queryable['status_guidance']);
+
+        $allowed = $table->mergeRollbackState($conflicts, [], [], [], [
+            'source' => 'migration/import-branch',
+            'sourceCommit' => 'featurehash',
+            'target' => 'refs/heads/main',
+            'autocommit' => true,
+            'allowCommitConflicts' => true,
+        ]);
+        $t->same(null, $allowed['error']);
+        $t->same(false, $allowed['rolled_back']);
+        $t->same(true, $allowed['merge_status']['is_merging']);
+    },
     'dolt merge status validates active merge fields and conflict counts' => static function (TestRunner $t): void {
         $table = new MergeStatusTable();
 
@@ -712,6 +758,20 @@ return [
             $fixture['sqlConflictTransaction']['autocommit'],
             $fixture['sqlConflictTransaction']['allowCommitConflicts'],
         );
+        $sqlRollbackState = $table->mergeRollbackState(
+            $fixture['conflictTables'],
+            $fixture['schemaConflictRows'],
+            $fixture['constraintViolationTables'],
+            $fixture['rootObjectConflicts'],
+            $fixture['sqlRollbackOptions'],
+        );
+        $sqlQueryableConflictState = $table->mergeRollbackState(
+            $fixture['conflictTables'],
+            $fixture['schemaConflictRows'],
+            $fixture['constraintViolationTables'],
+            $fixture['rootObjectConflicts'],
+            $fixture['sqlQueryableConflictOptions'],
+        );
         $mergeConstraintError = (new ConstraintViolationsTable())->unresolvedMergeError($fixture['constraintViolationsByTable']);
         $example = (static fn (): array => require __DIR__ . '/../examples/wordpress-merge-status-review.php')();
         $examplePreviewConflictRowsWithoutIds = array_map(static function (array $row): array {
@@ -750,6 +810,8 @@ return [
         $t->same($fixture['expectedAheadProcedureRow'], $aheadProcedureRow);
         $t->same($fixture['expectedAbortProcedureRow'], $abortProcedureRow);
         $t->same($fixture['expectedSqlAutocommitConflictError'], $sqlAutocommitConflictError);
+        $t->same($fixture['expectedSqlRollbackState'], $sqlRollbackState);
+        $t->same($fixture['expectedSqlQueryableConflictState'], $sqlQueryableConflictState);
         $t->same($fixture['expectedMergeConstraintError'], $mergeConstraintError);
         $t->same($fixture['expectedPreviewConflictSummaryRows'], $example['previewConflictSummaryRows']);
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $examplePreviewConflictRowsWithoutIds);
@@ -786,6 +848,8 @@ return [
             'abort' => $fixture['expectedAbortProcedureRow'],
         ], $example['mergeProcedureRows']);
         $t->same($fixture['expectedSqlAutocommitConflictError'], $example['sqlAutocommitConflictError']);
+        $t->same($fixture['expectedSqlRollbackState'], $example['sqlRollbackState']);
+        $t->same($fixture['expectedSqlQueryableConflictState'], $example['sqlQueryableConflictState']);
         $t->contains('wp_postmeta', $mergeStatus['unmerged_tables']);
         $t->same(22, strlen((string) $example['previewConflictRows'][0]['dolt_conflict_id']));
         $t->contains('Constraint violations:', $example['mergeConstraintError']);
@@ -804,6 +868,9 @@ return [
         $t->same(1, $example['mergeProcedureRows']['fastForward']['fast_forward']);
         $t->same(1, $example['mergeProcedureRows']['conflicts']['conflicts']);
         $t->contains('@autocommit transaction rolled back', $example['sqlAutocommitConflictError']);
+        $t->same(true, $example['sqlRollbackState']['rolled_back']);
+        $t->same(false, $example['sqlRollbackState']['merge_status']['is_merging']);
+        $t->contains('wp_options', $example['sqlQueryableConflictState']['merge_status']['unmerged_tables']);
         $t->true(!in_array('wp_postmeta', array_column($conflictRows, 'table'), true));
     },
 ];

@@ -2094,3 +2094,12 @@
 - Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo $r["sqlAutocommitConflictError"]."\n"; echo $r["mergeProcedureRows"]["conflicts"]["message"]."\n";'` returned the upstream `@autocommit transaction rolled back` guidance and `conflicts found`.
 - Root harness: not run - isolated micro-slice.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/procedure projection surface and static upstream error text, with no shell-outs and no activation of a shared dependency.
+
+## Watchdog Next 2026-05-25 SQL Merge Rollback Visibility Slice
+
+- Upstream evidence reused: the same `dsess/transactions.go` transaction boundary and focused `CALL DOLT_MERGE` autocommit-off evidence distinguish rollback cleanup from queryable unresolved conflict state. No wider upstream runner was executed in this isolated worktree.
+- Native delta: `MergeStatusTable::mergeRollbackState()` now projects the SQL-visible state after unresolved merge conflicts: autocommit rollback returns the upstream rollback error with inactive merge status and empty conflict/guidance rows, while autocommit-disabled unresolved conflicts retain `dolt_merge_status`, `dolt_conflicts`, status guidance, commit guidance, and failure summary rows for resolution.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 181 assertions, and 0 failures.
+- Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo ($r["sqlRollbackState"]["rolled_back"] ? "rolled-back" : "queryable")."\n"; echo ($r["sqlRollbackState"]["merge_status"]["is_merging"] ? "merging" : "inactive")."\n"; echo count($r["sqlRollbackState"]["conflict_rows"])."\n"; echo count($r["sqlQueryableConflictState"]["conflict_rows"])."\n";'` returned `rolled-back`, `inactive`, `0`, and `4`.
+- Root harness: not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/procedure projection surface and static upstream transaction evidence, with no shell-outs and no activation of a shared dependency.

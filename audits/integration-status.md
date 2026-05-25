@@ -1,4 +1,43 @@
 
+## Integration accepted - isolated Dolt SQL rollback visibility patch - 2026-05-25 07:08 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T063336Z.ready`
+with patch `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T063336Z.patch`.
+
+Lane/slice/session: `dolt` / `watchdog-next-20260525T063336Z` /
+`port-dolt`. Patch SHA-256 verified:
+`2f0365430c8f41786b62a168d1e666f04debf3741243b0c401faae0dc9543d31`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-dolt-watchdog-next-20260525T063336Z-2462422`:
+
+- `php -l lanes/dolt/src/MergeStatusTable.php`: passed.
+- `php -l lanes/dolt/tests/MergeStatusTableTest.php`: passed.
+- `php -l lanes/dolt/examples/wordpress-merge-status-review.php`: passed.
+- `jq empty lanes/dolt/UPSTREAM_TEST_MANIFEST.json lanes/dolt/lane-status.json`: passed.
+- `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php`: passed, 1 test file, 181 assertions, 0 failures.
+- `php -r '...'` example smoke against `lanes/dolt/examples/wordpress-merge-status-review.php`: passed with `example-ok`.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean
+worktree with 213 test files, 25739 assertions, 0 failures.
+
+Support-library/dependency closure: no shared support-library activation.
+The patch reuses the existing lane-local merge status/procedure projection
+surface and static transaction evidence.
+
+Live-service exclusions: none needed; this is local SQL/merge-status behavior.
+
+Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/dolt/examples/wordpress-merge-status-review.php`,
+`lanes/dolt/fixtures/wp-merge-review.php`,
+`lanes/dolt/lane-status.json`,
+`lanes/dolt/notes/upstream-runner.md`,
+`lanes/dolt/notes/wordpress-scenarios.md`,
+`lanes/dolt/src/MergeStatusTable.php`,
+`lanes/dolt/tests/MergeStatusTableTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - isolated difftastic Java highlight patch - 2026-05-25 07:03 UTC
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T063336Z.ready`

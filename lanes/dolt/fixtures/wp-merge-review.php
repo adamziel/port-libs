@@ -356,6 +356,20 @@ return [
         'autocommit' => true,
         'allowCommitConflicts' => false,
     ],
+    'sqlRollbackOptions' => [
+        'source' => 'migration/import-branch',
+        'sourceCommit' => 'b2274926e0dcd84aab000ee242df5b5e75689eef',
+        'target' => 'refs/heads/main',
+        'autocommit' => true,
+        'allowCommitConflicts' => false,
+    ],
+    'sqlQueryableConflictOptions' => [
+        'source' => 'migration/import-branch',
+        'sourceCommit' => 'b2274926e0dcd84aab000ee242df5b5e75689eef',
+        'target' => 'refs/heads/main',
+        'autocommit' => false,
+        'allowCommitConflicts' => false,
+    ],
     'expectedMergeStatusRow' => [
         'is_merging' => true,
         'source' => 'migration/import-branch',
@@ -659,6 +673,56 @@ return [
         'message' => MergeStatusTable::MERGE_ABORTED_MESSAGE,
     ],
     'expectedSqlAutocommitConflictError' => MergeStatusTable::UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR,
+    'expectedSqlRollbackState' => [
+        'error' => MergeStatusTable::UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR,
+        'rolled_back' => true,
+        'merge_status' => [
+            'is_merging' => false,
+            'source' => null,
+            'source_commit' => null,
+            'target' => null,
+            'unmerged_tables' => null,
+        ],
+        'conflict_rows' => [],
+        'status_guidance' => null,
+        'commit_guidance' => null,
+        'merge_failure_summary' => null,
+    ],
+    'expectedSqlQueryableConflictState' => [
+        'error' => MergeStatusTable::UNRESOLVED_CONFLICTS_TRANSACTION_ERROR,
+        'rolled_back' => false,
+        'merge_status' => [
+            'is_merging' => true,
+            'source' => 'migration/import-branch',
+            'source_commit' => 'b2274926e0dcd84aab000ee242df5b5e75689eef',
+            'target' => 'refs/heads/main',
+            'unmerged_tables' => 'wp_posts, wp_postmeta, wp_import_audit, wp_options',
+        ],
+        'conflict_rows' => [
+            ['table' => 'wp_posts', 'num_conflicts' => 2],
+            ['table' => 'wp_options', 'num_conflicts' => 0],
+            ['table' => 'wp_import_preview_view', 'num_conflicts' => 1],
+            ['table' => 'wp_prepare_import_batch', 'num_conflicts' => 1],
+        ],
+        'status_guidance' => "You have unmerged tables.\n"
+            . "  (fix conflicts and constraint violations and run \"dolt commit\")\n"
+            . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
+            . "Unmerged paths:\n"
+            . "  (use \"dolt add <table>...\" to mark resolution)\n"
+            . "\tschema conflict:  wp_options\n"
+            . "\tboth modified:    wp_posts\n"
+            . "\tmodified          wp_import_audit\n"
+            . "\tmodified          wp_postmeta",
+        'commit_guidance' => "Unmerged paths:\n"
+            . "  (use \"dolt add <table>...\" to mark resolution)\n"
+            . "\tschema conflict:  wp_options\n"
+            . "\tboth modified:    wp_posts\n"
+            . "\tmodified          wp_import_audit\n"
+            . "\tmodified          wp_postmeta",
+        'merge_failure_summary' => "Automatic merge failed; 4 table(s) are unmerged.\n"
+            . "Fix conflicts and constraint violations and then commit the result.\n"
+            . "Use 'dolt conflicts' to investigate and resolve conflicts.",
+    ],
     'expectedMergeConstraintError' => ConstraintViolationsTable::UNRESOLVED_CONSTRAINT_VIOLATIONS_ERROR
         . ConstraintViolationsTable::CONSTRAINT_VIOLATIONS_LIST_PREFIX
         . "\nType: Foreign Key Constraint Violation\n"

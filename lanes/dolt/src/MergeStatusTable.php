@@ -568,6 +568,71 @@ final class MergeStatusTable
     }
 
     /**
+     * Project SQL-visible merge artifact state after an unresolved-conflict
+     * merge attempt either rolls back or remains queryable for resolution.
+     *
+     * @param list<string|array{name:string, numConflicts?:int}> $dataConflictTables
+     * @param list<string|array{name:string, numConflicts?:int}> $schemaConflictTables
+     * @param list<string> $constraintViolationTables
+     * @param list<string|array{name:string, numConflicts?:int}> $rootObjectConflicts
+     * @param array{source?:string, sourceCommit?:string, target?:string, autocommit?:bool, allowCommitConflicts?:bool} $options
+     * @return array{error:string|null, rolled_back:bool, merge_status:array{is_merging:bool, source:string|null, source_commit:string|null, target:string|null, unmerged_tables:string|null}, conflict_rows:list<array{table:string,num_conflicts:int}>, status_guidance:string|null, commit_guidance:string|null, merge_failure_summary:string|null}
+     */
+    public function mergeRollbackState(
+        array $dataConflictTables = [],
+        array $schemaConflictTables = [],
+        array $constraintViolationTables = [],
+        array $rootObjectConflicts = [],
+        array $options = [],
+    ): array {
+        $artifactState = $this->resolveMergeArtifacts(
+            $dataConflictTables,
+            $schemaConflictTables,
+            $constraintViolationTables,
+            $rootObjectConflicts,
+        );
+        $hasUnresolvedConflicts = $artifactState['conflict_rows'] !== [] || $artifactState['remaining_constraint_violations'] !== [];
+        $autocommit = $this->optionalBoolOption($options, 'autocommit') ?? true;
+        $allowCommitConflicts = $this->boolOption($options, 'allowCommitConflicts');
+        $error = $this->mergeTransactionConflictError($hasUnresolvedConflicts, $autocommit, $allowCommitConflicts);
+        $rolledBack = $error !== null && $autocommit;
+
+        if ($rolledBack) {
+            return [
+                'error' => $error,
+                'rolled_back' => true,
+                'merge_status' => $this->statusRow(false),
+                'conflict_rows' => [],
+                'status_guidance' => null,
+                'commit_guidance' => null,
+                'merge_failure_summary' => null,
+            ];
+        }
+
+        $source = $this->optionalNonEmptyString($options['source'] ?? null, 'source') ?? 'MERGE_HEAD';
+        $sourceCommit = $this->optionalNonEmptyString($options['sourceCommit'] ?? null, 'sourceCommit') ?? 'MERGE_COMMIT';
+        $target = $this->optionalNonEmptyString($options['target'] ?? null, 'target') ?? 'HEAD';
+
+        return [
+            'error' => $error,
+            'rolled_back' => false,
+            'merge_status' => $this->statusRow(
+                $hasUnresolvedConflicts,
+                $source,
+                $sourceCommit,
+                $target,
+                array_map(static fn (array $row): string => $row['table'], $artifactState['remaining_data_conflicts']),
+                $artifactState['remaining_constraint_violations'],
+                array_map(static fn (array $row): string => $row['table'], $artifactState['remaining_schema_conflicts']),
+            ),
+            'conflict_rows' => $artifactState['conflict_rows'],
+            'status_guidance' => $artifactState['status_guidance'],
+            'commit_guidance' => $artifactState['commit_guidance'],
+            'merge_failure_summary' => $artifactState['merge_failure_summary'],
+        ];
+    }
+
+    /**
      * Project upstream's pre-merge incompatible flag validation.
      *
      * @param array{squash?:bool, noFf?:bool, ffOnly?:bool, commit?:bool, noCommit?:bool} $options
