@@ -38,6 +38,9 @@ such as `3.0` through direct and argument-vector SQL dispatch and adds that
 case to the WordPress smoke surface.
 Clean-integrator rebase 2026-05-25T10:17Z also keeps signed integer and
 fractional float option-value smoke coverage in the same SQL-dispatch cluster.
+Priority-finisher refresh 2026-05-25T10:28Z adds direct SQL-dispatch coverage
+for cast text BLOB and JSON subtype custom indentation, and the WordPress
+smoke now reports direct `JSON_PRETTY` output beside argument-vector output.
 
 ## `json_each()` Option-Value Expansion Scenario
 

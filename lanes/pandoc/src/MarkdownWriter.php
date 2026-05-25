@@ -81,6 +81,7 @@ final class MarkdownWriter
             'figure' => $this->renderFigure($node, $indent),
             'bullet_list' => $this->renderList($node, false, $indent),
             'ordered_list' => $this->renderList($node, true, $indent),
+            'definition_list' => $this->renderDefinitionList($node, $indent),
             'line_block' => $this->renderLineBlock($node, $indent),
             'blockquote' => $this->renderBlockQuote($node, $indent),
             'div' => $this->renderDivBlock($node, $indent),
@@ -149,6 +150,72 @@ final class MarkdownWriter
                 : $this->renderInlines($line->children);
             $content = str_replace("\xC2\xA0", ' ', $content);
             $lines[] = rtrim($prefix . ($content === '' ? '' : ' ' . $content));
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderDefinitionList(AstNode $node, int $indent): array
+    {
+        $lines = [];
+        $prefix = str_repeat(' ', $indent);
+
+        foreach ($node->children as $item) {
+            if ($item->type !== 'definition_item' || $item->children === []) {
+                continue;
+            }
+
+            $term = $item->children[0];
+            $termMarkdown = $term->type === 'definition_term'
+                ? $this->renderInlines($term->children)
+                : $this->renderInlines([$term]);
+
+            if ($lines !== [] && end($lines) !== '') {
+                $lines[] = '';
+            }
+            $lines[] = $prefix . $termMarkdown;
+
+            foreach (array_slice($item->children, 1) as $definition) {
+                if ($definition->type !== 'definition') {
+                    continue;
+                }
+
+                $definitionLines = $this->renderDefinitionBody($definition, $indent);
+                if ($definitionLines !== []) {
+                    array_push($lines, ...$definitionLines);
+                }
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderDefinitionBody(AstNode $definition, int $indent): array
+    {
+        $body = $this->renderBlockCollection($definition->children);
+        $markerPrefix = str_repeat(' ', $indent) . ':   ';
+        $continuationPrefix = str_repeat(' ', $indent + 4);
+
+        if ($body === '') {
+            return [rtrim($markerPrefix)];
+        }
+
+        $bodyLines = explode("\n", $body);
+        $first = array_shift($bodyLines);
+        $lines = [$markerPrefix . (string) $first];
+
+        foreach ($bodyLines as $line) {
+            $lines[] = $line === '' ? '' : $continuationPrefix . $line;
+        }
+
+        if ((bool) $definition->attr('loose', false)) {
+            $lines[] = '';
         }
 
         return $lines;

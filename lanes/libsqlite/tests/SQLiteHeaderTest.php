@@ -3150,6 +3150,8 @@ return [
         $t->same("{\n    \"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunction('JSON_PRETTY', '{"a":1}'));
         $t->same("{\n--\"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', '{"a":1}', '--'));
         $t->same("{\n  \"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', new SQLiteJsonSubtypeValue('{"a":1}'), '  '));
+        $t->same("{\n**\"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', '{"a":1}', new SQLiteBlobValue('**')));
+        $t->same("{\n::\"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', '{"a":1}', new SQLiteJsonSubtypeValue('::')));
         $t->same('42', SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', 42));
         $t->same('-7', SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', -7));
         $t->same('3.5', SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', 3.5));

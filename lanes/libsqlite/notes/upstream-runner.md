@@ -51,6 +51,11 @@ JSON string `3.0`.
 Clean-integrator rebase 2026-05-25T10:17Z also retains the signed-integer and
 fractional-float scalar assertions from the priority-keeper handoff through
 both SQL-dispatch entry points, plus matching WordPress smoke values.
+Priority-finisher refresh 2026-05-25T10:28Z adds direct SQL-dispatch coverage
+for cast text BLOB and JSON subtype custom indentation, matching the already
+accepted argument-vector indentation behavior, and updates the WordPress smoke
+to report direct dispatch output alongside argument-vector output. Focused PHP
+verification passed with 1 selected file, 2058 assertions, and 0 failures.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty

@@ -3080,6 +3080,73 @@ MD;
             ': Migration **review** packet',
         ]), (new MarkdownWriter())->write($document));
     },
+    'maps upstream markdown writer definition lists with multiple block bodies' => static function (TestRunner $t): void {
+        $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
+        $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
+        $term = static fn (array $children, string $plain): AstNode => new AstNode('term', ['text' => $plain], $children);
+
+        $document = new AstNode('document', [], [
+            new AstNode('definition_list', [], [
+                new AstNode('definition_item', ['term' => 'apple'], [
+                    $term([
+                        new AstNode('emph', [], [$text('apple')]),
+                    ], 'apple'),
+                    new AstNode('definition', ['loose' => false], [
+                        $paragraph('red fruit'),
+                        $paragraph('contains seeds, crisp, pleasant to taste'),
+                    ]),
+                ]),
+                new AstNode('definition_item', ['term' => 'orange'], [
+                    $term([$text('orange')], 'orange'),
+                    new AstNode('definition', ['loose' => true], [
+                        $paragraph('orange fruit'),
+                        new AstNode('code_block', ['text' => '{ orange code block }']),
+                        new AstNode('blockquote', [], [
+                            $paragraph('orange block quote'),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n", [
+            '*apple*',
+            ':   red fruit',
+            '',
+            '    contains seeds, crisp, pleasant to taste',
+            '',
+            'orange',
+            ':   orange fruit',
+            '',
+            '        { orange code block }',
+            '',
+            '    > orange block quote',
+            '',
+        ]), (new MarkdownWriter())->write($document));
+    },
+    'maps upstream markdown writer alternate definition markers to canonical colon output' => static function (TestRunner $t): void {
+        $document = (new MarkdownReader())->read(implode("\n", [
+            'Source glossary',
+            '',
+            '  ~ Preserve alternate marker notes from older Pandoc exports.',
+            '',
+            '  ~ Verify nested review tasks',
+            '',
+            '    1. Confirm block conversion',
+            '    2. Attach media IDs',
+        ]));
+
+        $t->same(implode("\n", [
+            'Source glossary',
+            ':   Preserve alternate marker notes from older Pandoc exports.',
+            '',
+            ':   Verify nested review tasks',
+            '',
+            '    1.  Confirm block conversion',
+            '    2.  Attach media IDs',
+            '',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer table span degradation to rectangular pipe rows' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [

@@ -189,6 +189,26 @@ $document = new AstNode('document', $document->attrs, [
             new AstNode('text', ['text' => 'Final source stanza line']),
         ]),
     ]),
+    new AstNode('definition_list', [], [
+        new AstNode('definition_item', ['term' => 'Source glossary'], [
+            new AstNode('term', ['text' => 'Source glossary'], [
+                new AstNode('text', ['text' => 'Source glossary']),
+            ]),
+            new AstNode('definition', ['loose' => true], [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Preserve reviewer definitions from legacy Pandoc exports.']),
+                ]),
+                new AstNode('ordered_list', ['start' => 1], [
+                    new AstNode('list_item', [], [
+                        new AstNode('text', ['text' => 'Confirm block conversion']),
+                    ]),
+                    new AstNode('list_item', [], [
+                        new AstNode('text', ['text' => 'Attach media IDs']),
+                    ]),
+                ]),
+            ]),
+        ]),
+    ]),
     new AstNode('table', [
         'caption' => 'Migration review queue',
         'captionInlines' => [

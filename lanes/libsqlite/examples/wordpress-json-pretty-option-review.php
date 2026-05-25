@@ -41,6 +41,7 @@ foreach ($optionValues as $optionName => $optionValue) {
         $report[$optionName] = [
             'status' => 'pretty',
             'json' => SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', $arguments),
+            'directJson' => SQLiteJsonPretty::jsonPrettySqlFunction('JSON_PRETTY', $optionValue, $indent),
         ];
     } catch (InvalidArgumentException $exception) {
         $report[$optionName] = [
