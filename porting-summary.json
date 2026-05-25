@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 04:17:30 UTC",
-    "sourceCommit": "51ddac53926aef62759a4120e509f744bcafa5a1",
-    "sourceCommitShort": "51ddac53926a",
+    "generated": "2026-05-25 04:22:34 UTC",
+    "sourceCommit": "9f2e980356e4ef73758c5c5afac12e00152c45b5",
+    "sourceCommitShort": "9f2e980356e4",
     "sourceBranch": "dashboard-publish-source",
-    "dashboardCommit": "5f3711962eb8f1bdad525cbe311510fdf8b02a54",
-    "dashboardCommitShort": "5f3711962eb8",
+    "dashboardCommit": "47baf3cbc7f953a9160f8056b3ee28d4df97844e",
+    "dashboardCommitShort": "47baf3cbc7f9",
     "averageProgressPercent": "85.7",
     "lanes": [
         {
@@ -189,10 +189,10 @@
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream npm runner eviden...",
             "audit": "verified 2026-05-25 isolated micro-slice:...",
-            "currentWork": "Mozilla social-buttons fixture coverage now asserts exact normalized expected-content par...",
+            "currentWork": "Class-weight rearm retry now mirrors the upstream threshold retry idea more closely: afte...",
             "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted...",
             "blocker": "No focused readability blocker.",
-            "commit": "uncommi"
+            "commit": "pending"
         },
         {
             "library": "syncthing",
