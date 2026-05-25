@@ -102029,3 +102029,22 @@ Files staged:
 - `lanes/markerpdf/notes/wordpress-scenarios.md`
 - `lanes/markerpdf/src/PdfTextExtractor.php`
 - `lanes/markerpdf/tests/PdfTextExtractorTest.php`
+
+## Integration accepted - isolated pandoc - 2026-05-25T04:14:57Z
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T032256Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T032256Z.patch`
+Lane/slice/session: `pandoc` / `rearmer-20260525T032255Z` / `port-pandoc`
+Patch sha256: `ad74cf229cde5cb9797bbf4c248ab1ad5137de02dc50426b384d1b1d6c475604` (matched marker).
+Focused verification: `php -l lanes/pandoc/src/MarkdownWriter.php && php -l lanes/pandoc/tests/MarkdownReaderTest.php && php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php && jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/lane-status.json && php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` plus worker log evidence in `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-pandoc-20260525T032256Z.log`; all passed in clean worktree.
+Root verification: `php tools/run-tests.php` passed in `/tmp/port-clean-integrator-pandoc-20260525T032256Z-1484547`.
+Support-library/dependency closure: no new support component activated; accepted as lane-local micro-slice per worker metadata.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- `lanes/pandoc/lane-status.json`
+- `lanes/pandoc/notes/upstream-inventory.md`
+- `lanes/pandoc/notes/wordpress-scenarios.md`
+- `lanes/pandoc/src/MarkdownWriter.php`
+- `lanes/pandoc/tests/MarkdownReaderTest.php`

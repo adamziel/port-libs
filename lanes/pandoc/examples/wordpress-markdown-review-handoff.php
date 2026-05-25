@@ -78,6 +78,12 @@ $document = new AstNode('document', $document->attrs, [
         ]),
         new AstNode('text', ['text' => '.']),
     ]),
+    new AstNode('code_block', [
+        'text' => "wp post meta get 42 source_url\n```\nkeep literal reviewer fence",
+        'id' => 'review-wp-cli-snippet',
+        'classes' => ['bash', 'wp-cli'],
+        'attributes' => ['data-source' => 'batch-42'],
+    ]),
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => 'Reviewer span marker: ']),
         new AstNode('span', [

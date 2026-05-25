@@ -2849,6 +2849,32 @@ MD;
         $t->contains('{#review-packet .wp-import .needs-review data-source="batch-42"}', $markdown);
         $t->contains('> Keep nested quote with packet.', $markdown);
     },
+    'maps upstream markdown writer fenced code block attributes' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Before code handoff.']),
+            ]),
+            new AstNode('code_block', [
+                'text' => "wp post meta get 42 source_url\n```\nliteral nested fence",
+                'id' => 'review-script',
+                'classes' => ['bash', 'wp-cli'],
+                'attributes' => ['data-source' => 'batch-42'],
+            ]),
+            new AstNode('code_block', ['text' => 'plain legacy snippet']),
+        ]);
+
+        $t->same(implode("\n", [
+            'Before code handoff.',
+            '',
+            '````{#review-script .bash .wp-cli data-source="batch-42"}',
+            'wp post meta get 42 source_url',
+            '```',
+            'literal nested fence',
+            '````',
+            '',
+            '    plain legacy snippet',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

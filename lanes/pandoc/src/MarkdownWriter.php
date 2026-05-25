@@ -286,6 +286,11 @@ final class MarkdownWriter
      */
     private function renderCodeBlock(AstNode $node, int $indent): array
     {
+        $attrs = $this->renderLinkAttributes($node);
+        if ($attrs !== '') {
+            return $this->renderFencedCodeBlock($node, $attrs, $indent);
+        }
+
         $lines = [];
         $prefix = str_repeat(' ', $indent + 4);
         foreach (explode("\n", (string) $node->attr('text', '')) as $line) {
@@ -293,6 +298,22 @@ final class MarkdownWriter
         }
 
         return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderFencedCodeBlock(AstNode $node, string $attrs, int $indent): array
+    {
+        $prefix = str_repeat(' ', $indent);
+        $text = (string) $node->attr('text', '');
+        $fence = str_repeat('`', max(3, $this->longestBacktickRun($text) + 1));
+
+        return [
+            $prefix . $fence . $attrs,
+            ...array_map(static fn (string $line): string => $prefix . $line, explode("\n", $text)),
+            $prefix . $fence,
+        ];
     }
 
     /**
@@ -749,6 +770,15 @@ final class MarkdownWriter
     private function longestColonRun(string $text): int
     {
         if (preg_match_all('/:+/', $text, $matches) !== 1) {
+            return 0;
+        }
+
+        return max(array_map('strlen', $matches[0]));
+    }
+
+    private function longestBacktickRun(string $text): int
+    {
+        if (preg_match_all('/`+/', $text, $matches) !== 1) {
             return 0;
         }
 

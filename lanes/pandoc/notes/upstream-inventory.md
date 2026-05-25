@@ -210,6 +210,15 @@ Inventory source: blob-filtered shallow clone at `.upstream-cache/pandoc`.
   `ColSpan 2`, a body `Cell` with `RowSpan 3`, and a complex two-row
   `TableHead` whose `Location` header has `RowSpan 2` and whose temperature
   header has `ColSpan 3`.
+- 2026-05-25 isolated slice `rearmer-20260525T032255Z`: mapped one additional
+  `Text.Pandoc.Writers.Markdown` branch for attributed code block emission.
+  Native `MarkdownWriter` now emits attributed `code_block` nodes as
+  backtick-fenced code blocks with Pandoc `{#id .class key="value"}`
+  attributes, chooses a fence longer than literal backtick runs in the code
+  body, and keeps unattributed code blocks on the existing indented-code path.
+  Dependency closure: no new support component is needed; the slice reuses the
+  existing lane-local attribute tuple renderer and a bounded native PHP
+  fence-length scanner.
 - `test/markdown-reader-more.txt` post-grid reference-link edge slice inspected
   in this run: upstream lines 337-358 cover a backslash-containing link label,
   an unresolved reference-looking fallback pair, a shortcut reference followed
