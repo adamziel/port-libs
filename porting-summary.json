@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 01:53:36 UTC",
-    "sourceCommit": "bdd57f0a98e41716852d84214c74e7101c8133c6",
-    "sourceCommitShort": "bdd57f0a98e4",
-    "sourceBranch": "dashboard-publish-20260525T015317Z",
-    "dashboardCommit": "e722eb8b832b9cde6ae1bd00c2310c0d3a1a7545",
-    "dashboardCommitShort": "e722eb8b832b",
+    "generated": "2026-05-25 01:57:15 UTC",
+    "sourceCommit": "ba92af56fef6ee3634571ae2a1a7b1fa072e247f",
+    "sourceCommitShort": "ba92af56fef6",
+    "sourceBranch": "dashboard-publish-20260525T015700Z",
+    "dashboardCommit": "e37469b8fe831eb00285f68405ca269809524fb4",
+    "dashboardCommitShort": "e37469b8fe83",
     "averageProgressPercent": "85.6",
     "lanes": [
         {
@@ -189,7 +189,7 @@
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream npm runner eviden...",
             "audit": "verified 2026-05-25 isolated micro-slice:...",
-            "currentWork": "Native quote-block WordPress serialization maps retained upstream blockquotes from copied...",
+            "currentWork": "Native standalone-video WordPress serialization maps retained upstream `iframe`/`object`/...",
             "nextTarget": "Map `lifehacker-working` or another remaining Kinja/comment-heavy fixture with a targeted...",
             "blocker": "No focused readability blocker.",
             "commit": "uncommi"
