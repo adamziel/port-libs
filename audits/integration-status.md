@@ -1,5 +1,33 @@
 # Integration Status
 
+## Integration accepted - rclone OneDrive token renewer slice - 2026-05-25 02:22 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T021002Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T021002Z.patch`.
+Lane/slice/session: `rclone` / `rearmer-20260525T021001Z` / `port-rclone`.
+
+Patch sha256 verified: `8f738e69e0d8ab66f01c782316f639484777303b7c21c832a5b234da15e9dc74`.
+Clean worktree: `/tmp/port-clean-integrator-rclone-rearmer-20260525T021001Z-20260525T022107Z`.
+Base accepted HEAD: `1c4a539168deebe88311348f7f79d39e614356e4`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/rclone/src/OneDriveTokenRenewer.php`: no syntax errors.
+- `php -l lanes/rclone/tests/OneDriveTokenRenewerTest.php`: no syntax errors.
+- `php -l lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`: no syntax errors.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveTokenRenewerTest.php`: 1 test file, 30 assertions, 0 failures.
+- `php lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`: exited 0.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json`: exited 0.
+- `git diff --check`: exited 0.
+
+Root verification:
+
+- `php tools/run-tests.php`: 211 test files, 24727 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The patch is bounded to the existing rclone OneDrive/OAuth lifecycle model and does not introduce a shared dependency.
+Live-service exclusions: live OneDrive OAuth/provider calls, timers, provider credentials, browser OAuth state, and real metadata refresh calls were excluded. Verification used deterministic local callbacks only.
+Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, `lanes/rclone/src/OneDriveTokenRenewer.php`, `lanes/rclone/tests/OneDriveTokenRenewerTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - Readability native media block slice - 2026-05-25 02:20 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-readability-20260525T021047Z.ready`.
