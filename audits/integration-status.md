@@ -103253,3 +103253,36 @@ Support-library/dependency closure: unchanged; no support-library row activated.
 
 Files staged:
 - `audits/integration-status.md`
+
+
+## Integration accepted - Quadrable watchdog budget report fields - 2026-05-25 05:48 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T053749Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T053749Z.patch` (`sha256 61332ba52d1ca4fbcafdf343301a08bb5e731c8b36dd784456e0e594c5fdc89b`, verified).
+Lane/slice/session: `quadrable` / `watchdog-next-20260525T053749Z` / `port-quadrable`.
+
+Apply/rebase: `git apply --check` failed on stale Quadrable manifest/status/scenario context; bounded `git apply --3way` applied the source, example, and test hunks cleanly and left conflicts only in Quadrable bookkeeping files. Conflict resolution preserved the previously accepted root-digest/pressure watchdog metadata and added this patch's budget-report wording.
+
+Focused verification in clean worktree:
+- `php -r 'json_decode(file_get_contents("lanes/quadrable/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/quadrable/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'` passed.
+- `php -l lanes/quadrable/src/SyncFuzzer.php` passed.
+- `php -l lanes/quadrable/tests/SyncTest.php` passed.
+- `php -l lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php` passed.
+- `php tools/run-tests.php lanes/quadrable/tests/SyncTest.php` passed: 1 file, 255 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php 2 0` passed and emitted `ok: true` for both in-memory and persisted tracked reports, matching root digests, snapshot-byte/shared-node maxima, pressure fields, and empty failure lists.
+- `git diff --check` passed.
+
+Root gate: `pgrep -af '^php tools/run-tests\.php$'` returned no active no-argument root harness before verification. Root verification ran from the same clean worktree: `php tools/run-tests.php` passed with 212 test files, 25417 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The patch reuses existing bounded `SyncFuzzer`, tracked-node-store persistence, and WordPress watchdog example code; optional 500-trial watchdog comparison remains lane-local/manual CI evidence.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/wordpress-scenarios.md`
+- `lanes/quadrable/src/SyncFuzzer.php`
+- `lanes/quadrable/tests/SyncTest.php`
+- `audits/integration-status.md`

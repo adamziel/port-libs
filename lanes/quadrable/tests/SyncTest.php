@@ -525,6 +525,36 @@ return [
         $t->same(0, $emptySummary['maxTrackedSharedNodes']);
         $t->same(null, $emptySummary['rootDigest']);
     },
+    'sync fuzzer watchdog report flags budget overruns deterministically' => static function (TestRunner $t): void {
+        $fuzzer = new SyncFuzzer(maxRoundTrips: 200);
+        $results = $fuzzer->runWithPersistedTrackedSnapshots(2, 0);
+        $summary = SyncFuzzer::summarizeResults($results);
+
+        $passing = SyncFuzzer::watchdogReport($results, [
+            'maxRoundTrips' => $summary['maxRoundTrips'],
+            'totalRequests' => $summary['totalRequests'],
+            'totalResponses' => $summary['totalResponses'],
+            'maxSnapshotBytes' => $summary['maxSnapshotBytes'],
+            'maxTrackedSharedNodes' => $summary['maxTrackedSharedNodes'],
+        ]);
+        $t->true($passing['ok'], 'exact observed budgets should pass');
+        $t->same([], $passing['failures']);
+        $t->same($summary, $passing['summary']);
+
+        $failing = SyncFuzzer::watchdogReport($results, [
+            'maxRoundTrips' => max(0, $summary['maxRoundTrips'] - 1),
+            'totalRequests' => max(0, $summary['totalRequests'] - 1),
+            'totalResponses' => max(0, $summary['totalResponses'] - 1),
+            'maxSnapshotBytes' => max(0, $summary['maxSnapshotBytes'] - 1),
+            'maxTrackedSharedNodes' => max(0, $summary['maxTrackedSharedNodes'] - 1),
+        ]);
+        $t->same(false, $failing['ok'], 'tight budgets should fail');
+        $t->same(
+            ['maxRoundTrips', 'totalRequests', 'totalResponses', 'maxSnapshotBytes', 'maxTrackedSharedNodes'],
+            array_column($failing['failures'], 'metric')
+        );
+        $t->throws(\InvalidArgumentException::class, static fn (): array => SyncFuzzer::watchdogReport($results, ['totalRequests' => -1]));
+    },
 ];
 
 function quadrableSyncWordPressSnapshotTree(): SparseTree

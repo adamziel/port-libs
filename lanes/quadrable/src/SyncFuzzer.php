@@ -175,6 +175,80 @@ final class SyncFuzzer
     }
 
     /**
+     * @param list<array{
+     *     trial: int,
+     *     numElems: int,
+     *     numAlterations: int,
+     *     roundTrips: int,
+     *     requests: int,
+     *     responses: int,
+     *     diffCount: int,
+     *     scanDiffCount: int,
+     *     rootHash: string
+     * }> $results
+     * @param array<string,int> $budget
+     *
+     * @return array{
+     *     ok: bool,
+     *     summary: array{
+     *         trials: int,
+     *         firstRoot: ?string,
+     *         lastRoot: ?string,
+     *         maxRoundTrips: int,
+     *         totalRequests: int,
+     *         totalResponses: int,
+     *         totalDiffs: int,
+     *         totalScanDiffs: int,
+     *         maxRecords: int,
+     *         maxEdits: int,
+     *         maxSnapshotBytes: int,
+     *         maxTrackedSharedNodes: int
+     *     },
+     *     failures: list<array{metric:string, actual:int, limit:int}>
+     * }
+     */
+    public static function watchdogReport(array $results, array $budget): array
+    {
+        $summary = self::summarizeResults($results);
+        $metricMap = [
+            'maxRoundTrips' => 'maxRoundTrips',
+            'totalRequests' => 'totalRequests',
+            'totalResponses' => 'totalResponses',
+            'totalDiffs' => 'totalDiffs',
+            'totalScanDiffs' => 'totalScanDiffs',
+            'maxRecords' => 'maxRecords',
+            'maxEdits' => 'maxEdits',
+            'maxSnapshotBytes' => 'maxSnapshotBytes',
+            'maxTrackedSharedNodes' => 'maxTrackedSharedNodes',
+        ];
+        $failures = [];
+
+        foreach ($metricMap as $budgetKey => $summaryKey) {
+            if (!array_key_exists($budgetKey, $budget)) {
+                continue;
+            }
+            $limit = $budget[$budgetKey];
+            if ($limit < 0) {
+                throw new \InvalidArgumentException('sync fuzzer watchdog budget must be non-negative for ' . $budgetKey);
+            }
+            $actual = $summary[$summaryKey];
+            if ($actual > $limit) {
+                $failures[] = [
+                    'metric' => $budgetKey,
+                    'actual' => $actual,
+                    'limit' => $limit,
+                ];
+            }
+        }
+
+        return [
+            'ok' => $failures === [],
+            'summary' => $summary,
+            'failures' => $failures,
+        ];
+    }
+
+    /**
      * @return array{
      *     trial: int,
      *     numElems: int,
