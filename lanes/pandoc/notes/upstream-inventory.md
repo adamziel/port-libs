@@ -1684,3 +1684,33 @@ It reuses the existing Markdown inline renderer, blockquote renderer, delimiter
 helpers, and block writer newline handling; no DOCX/OpenXML, PDF, EPUB/ODT, CFB,
 citation, Unicode/charset, metadata, archive, or compression component is
 activated.
+
+The priority-keeper-rework-20260525T092306Z pass rechecked the same stale
+Space/SoftBreak/LineBreak handoff markers on accepted HEAD
+`a3fa3df0175bb39daa4296f083898ddc9f5f4f5a`. The current accepted Pandoc lane
+already contains the native writer behavior and focused tests, so this rework
+preserves the implementation evidence instead of replacing newer line-block,
+raw-block, table, or inline-attribute coverage. The mapped branch remains three
+focused Markdown writer checks: direct paragraph emission, recursive
+emphasis/strong emission, and blockquote prefix rendering.
+
+Focused local verification on 2026-05-25 after
+priority-keeper-rework-20260525T092306Z: `php -l` passed for
+`MarkdownWriter.php`, `MarkdownReaderTest.php`, and
+`examples/wordpress-markdown-review-handoff.php`; lane JSON status/manifest
+decoded with `JSON_THROW_ON_ERROR`; `php
+lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Reviewer spacing packet|hard boundary follows|next reviewer line"` emitted the
+explicit-space reviewer packet with soft newline and hard-break
+backslash-newline marker; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,291
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed.
+
+Root verification was not run for priority-keeper-rework-20260525T092306Z
+because the assigned work is an isolated micro-slice.
+
+Dependency closure: no new support component is needed for this rework slice.
+It reuses the existing Markdown inline renderer, blockquote renderer, delimiter
+helpers, block writer newline handling, and WordPress Markdown review handoff
+example; no DOCX/OpenXML, PDF, EPUB/ODT, CFB, citation, Unicode/charset,
+metadata, archive, or compression component is activated.

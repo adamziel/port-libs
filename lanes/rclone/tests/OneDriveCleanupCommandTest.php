@@ -101,6 +101,7 @@ return [
         $t->same(false, $walk['providerCalled']);
         $t->same('internal error: not a onedrive object', $type['error']);
         $t->same(0, $type['versionRequests']);
+        $t->same(false, $type['providerCalled']);
     },
     'onedrive cleanup command can be disabled when no versions cleanup is off' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([

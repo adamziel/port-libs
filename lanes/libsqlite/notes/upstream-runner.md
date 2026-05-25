@@ -33,8 +33,9 @@ Prior result: passed 2 selected Tcl scripts, 45,007 tests, and 0 errors in
 `veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
 
 Native PHP evidence after rework is recorded in `lane-status.json`.
-The latest additive check passed the WordPress smoke and focused
-`SQLiteHeaderTest.php` with 2047 assertions and 0 failures.
+The latest priority-keeper refresh adds malformed JSON propagation coverage
+through the argument-vector SQL dispatch path and passed the WordPress smoke
+and focused `SQLiteHeaderTest.php` with 2048 assertions and 0 failures.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty

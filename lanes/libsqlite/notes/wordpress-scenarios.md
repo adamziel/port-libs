@@ -27,6 +27,9 @@ table-valued row evidence while making the deferred json_pretty patch
 additive. Dependency closure: no new support component is needed; the slice
 reuses existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, subtype, and
 pretty formatter support and counts no shared support-library progress.
+Priority-keeper refresh 2026-05-25T09:23Z keeps the same behavior cluster and
+adds focused malformed JSON propagation coverage through the argument-vector
+SQL-dispatch path, preserving the already accepted manifest/status evidence.
 
 ## `json_each()` Option-Value Expansion Scenario
 
