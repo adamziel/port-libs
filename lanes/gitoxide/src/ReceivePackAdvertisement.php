@@ -38,6 +38,9 @@ final class ReceivePackAdvertisement
             if ($packet['kind'] !== 'data') {
                 throw new \InvalidArgumentException("receive-pack advertisement: unexpected {$packet['kind']} packet");
             }
+            if (str_starts_with($packet['payload'], 'ERR ')) {
+                throw new \RuntimeException('receive-pack advertisement: receive-pack error ' . self::trimLineEnding(substr($packet['payload'], 4)));
+            }
 
             $payload = self::trimLineEnding($packet['payload']);
             if ($capabilities === null) {

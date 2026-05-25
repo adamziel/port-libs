@@ -108516,3 +108516,13 @@ Files staged:
 - Focused verification: `php -l` on changed PHP files passed; `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed (1 test files, 2026 assertions, 0 failures); `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed; `git diff --check -- lanes/libsqlite` passed.
 - Root verification: `php tools/run-tests.php` passed (213 test files, 25840 assertions, 0 failures); `git diff --check` passed.
 - Root gate before focused/root: available KiB `129429868`/`129378992`, load `2.88`/`2.88`, no exact `php tools/run-tests.php` process.
+
+## 2026-05-25 priority clean integration - gitoxide port-gitoxide-20260525T072619Z
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T072619Z.ready`.
+- Patch SHA-256 verified: `5c04dd78fa785bb2a5a2935106967df01a25534ab38108a464053cf6ce36c6ce`.
+- Worker evidence inspected: `.tmux-team/logs/isolated-lane-workers/port-gitoxide-20260525T072619Z.log` reported focused lint, example smoke, JSON manifest validation, lane test, and lane diff check passing.
+- CAS note: first verified attempt passed but `refs/heads/main` moved before update; this entry records the required one retry from `873d0ae935d6b9c4bc6919dd84b32a9be7fd8846`.
+- Focused verification: `php -l` on changed PHP files passed; `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` passed; `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed (1 test files, 281 assertions, 0 failures); `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed; `git diff --check -- lanes/gitoxide` passed.
+- Root verification: `php tools/run-tests.php` passed (213 test files, 25842 assertions, 0 failures); `git diff --check` passed.
+- Root gate before focused/root: available KiB `128575780`/`128575216`, load `3.93`/`3.94`, no exact `php tools/run-tests.php` process.

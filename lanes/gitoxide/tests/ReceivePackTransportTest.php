@@ -1376,6 +1376,22 @@ return [
         $truncated = new StreamReceivePackTransport($streamWith('000aabc'), $streamWith(''));
         $t->throws(RuntimeException::class, static fn () => $truncated->readAdvertisement());
     },
+    'receive-pack client reports advertisement ERR packets before ref parsing' => static function (TestRunner $t) use ($packet, $streamWith): void {
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($packet("ERR repository access denied\n") . '0000'), $streamWith('')),
+            'port-libs/0.1'
+        );
+
+        try {
+            $client->handshake();
+        } catch (RuntimeException $exception) {
+            $t->contains('receive-pack error repository access denied', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected advertisement ERR packet to fail the handshake');
+    },
     'receive-pack client refuses responses without report-status negotiation' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress no report status payload');
@@ -1414,6 +1430,7 @@ return [
         $t->same(true, $fixture['unsafeSmartHttpNoProxyDelimiterRejected']);
         $t->same(true, $fixture['unsafeSmartHttpRawUrlControlByteRejected']);
         $t->same(true, $fixture['unsafeSmartHttpRawProxyControlByteRejected']);
+        $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
     },

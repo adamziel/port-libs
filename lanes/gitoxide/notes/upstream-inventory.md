@@ -817,3 +817,12 @@ Focused stream receive-pack watchdog timeout reporting inspected on 2026-05-25:
 - Dependency closure for the stream watchdog timeout slice: no new support component is needed. The slice reuses existing bounded receive-pack stream transport plus native PHP stream metadata; no shared support-library row or activation gate is proposed.
 - Focused Gitoxide PHP verification after the watchdog slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 279 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, example, manifest, and status PHP/JSON files where applicable. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
 - Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused receive-pack advertisement ERR packet reporting inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` receive-pack packet-stream/error-boundary mapping and native receive-pack advertisement parser. No live provider, network, or full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice reports `ERR ...` pkt-lines in receive-pack advertisements as runtime receive-pack errors before capability or ref parsing. This keeps authorization/repository-denied responses distinct from malformed ref advertisements.
+- The WordPress receive-pack transport fixture now records advertisement error reporting alongside existing stream watchdog timeout reporting, smart HTTP credential/URL/proxy/header preflights, SSH target preflights, and git-daemon service-request checks.
+- Dependency closure for the advertisement ERR packet slice: no new support component is needed. The slice reuses existing bounded receive-pack stream transport and advertisement pkt-line parsing; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the advertisement ERR slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 281 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
