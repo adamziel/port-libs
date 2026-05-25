@@ -103166,3 +103166,47 @@ Decision: deferred for lane rework. sha256 verification passed, but direct apply
 Exact failing repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T050516Z.patch from a clean worktree at main 63eec502bfe505d9254fd9aba81722e298019893.
 
 Focused/root verification: not run because the patch did not produce a conflict-free source tree. Support-library/dependency closure: no activation accepted. Live-service provider tests were not run.
+
+## Clean-patch queue defer - unresolved three-way conflicts - 20260525T0548Z
+
+No source was accepted from the remaining current ready markers in this pass. For each marker below, sha256 verification was available from the ready marker and the bounded apply command was attempted from a clean worktree at main 921067ff278c0a8ae4d8a958697832def669fb82. Direct apply was stale, and git apply --3way left unresolved conflicts, so focused/root verification was not run for these markers. No support-library activation was accepted and no live-service provider tests were run.
+
+- .tmux-team/tmp/handoff-candidates/port-difftastic-20260525T052923Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T052923Z.patch
+  Conflicted files: lanes/difftastic/UPSTREAM_TEST_MANIFEST.json, lanes/difftastic/lane-status.json, lanes/difftastic/notes/upstream-inventory.md, lanes/difftastic/notes/wordpress-scenarios.md.
+
+- .tmux-team/tmp/handoff-candidates/port-esbuild-20260525T052717Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T052717Z.patch
+  Conflicted files: lanes/esbuild/UPSTREAM_TEST_MANIFEST.json, lanes/esbuild/examples/wordpress-asset-preflight.php, lanes/esbuild/lane-status.json, lanes/esbuild/notes/upstream-inventory.md, lanes/esbuild/notes/wordpress-scenarios.md, lanes/esbuild/src/BundlerOutput.php.
+
+- .tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T050720Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T050720Z.patch
+  Conflicted files: lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json, lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php, lanes/gitoxide/lane-status.json, lanes/gitoxide/notes/upstream-inventory.md.
+
+- .tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T052922Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T052922Z.patch
+  Conflicted files: lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json, lanes/libsqlite/lane-status.json, lanes/libsqlite/notes/upstream-runner.md, lanes/libsqlite/notes/wordpress-scenarios.md.
+
+- .tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.patch
+  Conflicted files: lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json, lanes/lightningcss/lane-status.json, lanes/lightningcss/notes/upstream-inventory.md, lanes/lightningcss/notes/wordpress-scenarios.md, lanes/lightningcss/src/CustomMediaTransformer.php.
+
+- .tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.patch
+  Conflicted files: lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json, lanes/markerpdf/lane-status.json, lanes/markerpdf/notes/upstream-test-inventory.md, lanes/markerpdf/notes/wordpress-scenarios.md, lanes/markerpdf/src/PdfTextExtractor.php.
+
+- .tmux-team/tmp/handoff-candidates/port-pandoc-20260525T050927Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T050927Z.patch
+  Conflicted files: lanes/pandoc/UPSTREAM_TEST_MANIFEST.json, lanes/pandoc/lane-status.json, lanes/pandoc/tests/MarkdownReaderTest.php.
+
+- .tmux-team/tmp/handoff-candidates/port-quadrable-20260525T050721Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T050721Z.patch
+  Conflicted files: lanes/quadrable/UPSTREAM_TEST_MANIFEST.json, lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php, lanes/quadrable/lane-status.json, lanes/quadrable/notes/wordpress-scenarios.md.
+
+- .tmux-team/tmp/handoff-candidates/port-rclone-20260525T050722Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T050722Z.patch
+  Conflicted files: lanes/rclone/UPSTREAM_TEST_MANIFEST.json, lanes/rclone/lane-status.json.
+
+- .tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.ready
+  Repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.patch
+  Conflicted files: lanes/syncthing/UPSTREAM_TEST_MANIFEST.json, lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php, lanes/syncthing/lane-status.json, lanes/syncthing/notes/wordpress-scenarios.md, lanes/syncthing/src/FolderWatchScanScheduler.php.
