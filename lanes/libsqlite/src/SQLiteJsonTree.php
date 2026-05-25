@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteJsonTree
 {
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
      */
     public static function jsonTreeSqlFunction(string $function, string|SQLiteBlobValue|null $value, string $path = '$'): array
     {
@@ -19,7 +19,7 @@ final class SQLiteJsonTree
     }
 
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
      */
     public static function jsonTree(string|SQLiteBlobValue|null $value, string $path = '$'): array
     {
@@ -34,22 +34,22 @@ final class SQLiteJsonTree
 
         $rows = [];
         $nextId = 0;
-        self::appendRows($rows, $nextId, null, $located['value'], $path, $path);
+        self::appendRows($rows, $nextId, null, $located['value'], $path, $path, $value, $path);
 
         return $rows;
     }
 
     /**
-     * @param list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string}> $rows
+     * @param list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}> $rows
      */
-    private static function appendRows(array &$rows, int &$nextId, int|string|null $key, mixed $value, string $fullkey, string $path, ?int $parent = null): void
+    private static function appendRows(array &$rows, int &$nextId, int|string|null $key, mixed $value, string $fullkey, string $path, string|SQLiteBlobValue $json, string $root, ?int $parent = null): void
     {
         $id = $nextId++;
-        $rows[] = self::row($key, $value, $id, $parent, $fullkey, $path);
+        $rows[] = self::row($key, $value, $id, $parent, $fullkey, $path, $json, $root);
 
         if ($value instanceof \stdClass || (is_array($value) && !array_is_list($value))) {
             foreach (self::objectMembers($value) as $childKey => $child) {
-                self::appendRows($rows, $nextId, $childKey, $child, self::appendObjectPath($fullkey, $childKey), $fullkey, $id);
+                self::appendRows($rows, $nextId, $childKey, $child, self::appendObjectPath($fullkey, $childKey), $fullkey, $json, $root, $id);
             }
 
             return;
@@ -57,15 +57,15 @@ final class SQLiteJsonTree
 
         if (is_array($value) && array_is_list($value)) {
             foreach ($value as $childKey => $child) {
-                self::appendRows($rows, $nextId, $childKey, $child, $fullkey . '[' . $childKey . ']', $fullkey, $id);
+                self::appendRows($rows, $nextId, $childKey, $child, $fullkey . '[' . $childKey . ']', $fullkey, $json, $root, $id);
             }
         }
     }
 
     /**
-     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string}
+     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:int|null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}
      */
-    private static function row(int|string|null $key, mixed $value, int $id, ?int $parent, string $fullkey, string $path): array
+    private static function row(int|string|null $key, mixed $value, int $id, ?int $parent, string $fullkey, string $path, string|SQLiteBlobValue $json, string $root): array
     {
         return [
             'key' => $key,
@@ -76,6 +76,8 @@ final class SQLiteJsonTree
             'parent' => $parent,
             'fullkey' => $fullkey,
             'path' => $path,
+            'json' => $json,
+            'root' => $root,
         ];
     }
 

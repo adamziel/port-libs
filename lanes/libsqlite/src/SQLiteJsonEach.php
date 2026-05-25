@@ -7,7 +7,7 @@ namespace PortLibs\LibSqlite;
 final class SQLiteJsonEach
 {
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
      */
     public static function jsonEachSqlFunction(string $function, string|SQLiteBlobValue|null $value, string $path = '$'): array
     {
@@ -19,7 +19,7 @@ final class SQLiteJsonEach
     }
 
     /**
-     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string}>
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
      */
     public static function jsonEach(string|SQLiteBlobValue|null $value, string $path = '$'): array
     {
@@ -37,7 +37,7 @@ final class SQLiteJsonEach
             $rows = [];
             $id = 1;
             foreach (self::objectMembers($root) as $key => $child) {
-                $rows[] = self::row($key, $child, $id++, null, self::appendObjectPath($path, $key), $path);
+                $rows[] = self::row($key, $child, $id++, null, self::appendObjectPath($path, $key), $path, $value, $path);
             }
 
             return $rows;
@@ -46,19 +46,19 @@ final class SQLiteJsonEach
         if (is_array($root) && array_is_list($root)) {
             $rows = [];
             foreach ($root as $key => $child) {
-                $rows[] = self::row($key, $child, $key + 1, null, $path . '[' . $key . ']', $path);
+                $rows[] = self::row($key, $child, $key + 1, null, $path . '[' . $key . ']', $path, $value, $path);
             }
 
             return $rows;
         }
 
-        return [self::row(null, $root, 1, null, $path, $path)];
+        return [self::row(null, $root, 1, null, $path, $path, $value, $path)];
     }
 
     /**
-     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string}
+     * @return array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}
      */
-    private static function row(int|string|null $key, mixed $value, int $id, null $parent, string $fullkey, string $path): array
+    private static function row(int|string|null $key, mixed $value, int $id, null $parent, string $fullkey, string $path, string|SQLiteBlobValue $json, string $root): array
     {
         $type = self::typeName($value);
 
@@ -71,6 +71,8 @@ final class SQLiteJsonEach
             'parent' => $parent,
             'fullkey' => $fullkey,
             'path' => $path,
+            'json' => $json,
+            'root' => $root,
         ];
     }
 

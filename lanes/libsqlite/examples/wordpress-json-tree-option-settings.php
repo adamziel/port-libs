@@ -28,15 +28,43 @@ $inputs = [
 
 $reports = [];
 foreach ($inputs as $name => $value) {
+    $rootRows = SQLiteJsonTree::jsonTreeSqlFunction('json_tree', $value);
+    $pluginRows = SQLiteJsonTree::jsonTree($value, '$.plugin');
+    $rulesRows = SQLiteJsonTree::jsonTree($value, '$.plugin.rules');
     $reports[] = [
         'name' => $name,
-        'rootRows' => SQLiteJsonTree::jsonTreeSqlFunction('json_tree', $value),
-        'pluginRows' => SQLiteJsonTree::jsonTree($value, '$.plugin'),
-        'rulesRows' => SQLiteJsonTree::jsonTree($value, '$.plugin.rules'),
+        'rootRows' => normalizeJsonTreeRows($rootRows),
+        'pluginRows' => normalizeJsonTreeRows($pluginRows),
+        'rulesRows' => normalizeJsonTreeRows($rulesRows),
+        'hiddenColumns' => [
+            'jsonColumnType' => $pluginRows === [] ? null : ($pluginRows[0]['json'] instanceof SQLiteBlobValue ? 'blob' : 'text'),
+            'rootColumn' => $pluginRows[0]['root'] ?? null,
+        ],
     ];
 }
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value recursive expansion that mirrors bounded SQLite json_tree() rows for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value recursive expansion that mirrors bounded SQLite json_tree() rows and hidden json/root columns for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
+
+/**
+ * @param list<array<string, mixed>> $rows
+ * @return list<array<string, mixed>>
+ */
+function normalizeJsonTreeRows(array $rows): array
+{
+    return array_map(
+        static function (array $row): array {
+            if ($row['json'] instanceof SQLiteBlobValue) {
+                $row['json'] = [
+                    'type' => 'blob',
+                    'hexPrefix' => strtoupper(substr(bin2hex($row['json']->bytes), 0, 24)),
+                ];
+            }
+
+            return $row;
+        },
+        $rows,
+    );
+}
