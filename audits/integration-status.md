@@ -102614,3 +102614,24 @@ Deferred/rework command:
 
 Files staged:
 - `audits/integration-status.md`
+
+## Integration accepted - isolated difftastic watchdog-next-20260525T045845Z - 2026-05-25T05:05:10Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T045845Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T045845Z.patch`
+Lane/slice/session: `difftastic` / `watchdog-next-20260525T045845Z` / `port-difftastic`
+Patch sha256: `f05a42feab3b09d49a90e453758cb05e63478c4afbb973ab7745d9989e775788` verified. Applied with bounded three-way rebase from `96b5a02c66593d336658d09d0053c41589df3cc7`.
+Focused commands:
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php => exit 0; 1 test files, 1637 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25236 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/difftastic/lane-status.json`
+- `lanes/difftastic/notes/upstream-inventory.md`
+- `lanes/difftastic/notes/wordpress-scenarios.md`
+- `lanes/difftastic/src/SyntaxHighlightClassifier.php`
+- `lanes/difftastic/tests/TokenDifferTest.php`

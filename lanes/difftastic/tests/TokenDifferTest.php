@@ -3565,6 +3565,43 @@ return [
             $t->contains("{$normal}:normal", $encoded);
         }
     },
+    'json display renderer maps upstream lua keyword and builtin constant captures' => static function (TestRunner $t): void {
+        $before = "local steps = {}\n\nreturn steps\n";
+        $after = "local steps = {}\n\n"
+            . "function register_blocks(blocks)\n"
+            . "    for _, block in ipairs(blocks) do\n"
+            . "        if block.dynamic == false then\n"
+            . "            return nil\n"
+            . "        end\n"
+            . "    end\n\n"
+            . "    return steps\n"
+            . "end\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/lua_highlight.lua',
+            'Lua',
+            ['language' => 'lua'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('Lua', $decoded['language']);
+        foreach (['function', 'for', 'in', 'do', 'if', 'false', 'then', 'return', 'nil', 'end'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        foreach (['register_blocks', 'blocks', 'block', 'dynamic', 'ipairs', 'steps'] as $normal) {
+            $t->contains("{$normal}:normal", $encoded);
+        }
+    },
     'json display renderer maps upstream python constructor decorators as type highlights' => static function (TestRunner $t): void {
         $before = "def migrate_post(post):\n    return post\n";
         $after = "@CacheWarmup\n"
@@ -3940,6 +3977,22 @@ return [
         }
 
         foreach (['register', 'blocks', 'Block', 'Enabled'] as $normal) {
+            $start = strpos($line, $normal);
+            $t->true($start !== false, "Fixture should contain {$normal}.");
+            $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream capture.");
+        }
+    },
+    'ansi highlighter maps upstream lua keyword and builtin constant captures' => static function (TestRunner $t): void {
+        $line = 'function register_blocks(blocks) for _, block in ipairs(blocks) do if block.dynamic == false then return nil end end';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'lua']);
+
+        foreach (['function', 'for', 'in', 'do', 'if', 'false', 'then', 'return', 'nil', 'end'] as $highlighted) {
+            $start = strpos($line, $highlighted);
+            $t->true($start !== false, "Fixture should contain {$highlighted}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($highlighted), 'style' => '1'], $spans, true), "{$highlighted} should follow upstream keyword/constant display styling.");
+        }
+
+        foreach (['register_blocks', 'blocks', 'block', 'dynamic', 'ipairs'] as $normal) {
             $start = strpos($line, $normal);
             $t->true($start !== false, "Fixture should contain {$normal}.");
             $t->true(!in_array(['start' => $start, 'end' => $start + strlen($normal), 'style' => '1'], $spans, true), "{$normal} should remain normal without a promoted upstream capture.");
@@ -4561,6 +4614,29 @@ return [
         }
         $t->contains('register:normal', $encoded);
         $t->contains('Dynamic:normal', $encoded);
+    },
+    'wordpress lua build helper display follows upstream keyword constant boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-lua-build-script-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/tools/register-blocks.lua', $decoded['path']);
+        foreach (['function', 'for', 'in', 'do', 'if', 'false', 'then', 'return', 'nil', 'end'] as $keyword) {
+            $t->contains("{$keyword}:keyword", $encoded);
+        }
+        $t->contains('register_blocks:normal', $encoded);
+        $t->contains('ipairs:normal', $encoded);
     },
     'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
         ob_start();

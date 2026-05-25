@@ -204,6 +204,8 @@ The targeted Python compound-clause fixture now exercises `elif`, `else`, `try`,
 
 The Python keyword/builtin display example now also covers upstream `variable.builtin` receiver captures. Migration helper assignments such as `self.report = None` and `cls.enabled = False` emit keyword-style spans for `self`, `cls`, `None`, and `False`, while `print`, `len`, and `dict` calls remain normal so review UIs do not over-highlight ordinary runtime calls.
 
+The Lua build-helper display example maps the same upstream keyword/constant display promotion boundary for plugin tooling scripts. Review data for `wp-content/plugins/acme-card/tools/register-blocks.lua` highlights Lua control-flow keywords and `nil`/`false` constants while leaving ordinary helper names and library calls such as `register_blocks` and `ipairs` normal.
+
 The upstream CSS fixture now exercises selector-block alignment and declaration property matching. The WordPress block-style CSS fixture applies this to global style review: a `.wp-block-acme-card` custom-property color changes, `border-radius` is added, and a query-title selector is introduced while a reordered `.wp-block-image` rule stays out of the rendered change stream.
 
 The upstream Tailwind CSS and simple SCSS fixtures now exercise CSS at-rule item signatures plus SCSS mixin selector/header matching. The WordPress block-editor SCSS fixture applies this to block style mixins: changed mixin defaults and nested `var(--wp--preset--color--*)` references stay focused while the whole `@mixin acme-card(...)` body remains matched.

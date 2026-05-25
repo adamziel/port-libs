@@ -102,6 +102,10 @@ final class SyntaxHighlightClassifier
             }
         }
 
+        if ($this->isLuaLanguage($language) && $this->isLuaBuiltinConstant($token->text)) {
+            return 'keyword';
+        }
+
         if ($this->isGoLanguage($language) && $this->isGoBuiltinConstant($token->text)) {
             return 'keyword';
         }
@@ -236,6 +240,11 @@ final class SyntaxHighlightClassifier
         return in_array($language, ['go', 'golang'], true);
     }
 
+    private function isLuaLanguage(string $language): bool
+    {
+        return $language === 'lua';
+    }
+
     private function isPhpLikeLanguage(string $language): bool
     {
         return in_array($language, ['hack', 'hh', 'php'], true);
@@ -332,6 +341,11 @@ final class SyntaxHighlightClassifier
     private function isGoBuiltinConstant(string $text): bool
     {
         return in_array($text, ['false', 'iota', 'nil', 'true'], true);
+    }
+
+    private function isLuaBuiltinConstant(string $text): bool
+    {
+        return in_array($text, ['false', 'nil', 'true'], true);
     }
 
     private function isPhpBuiltinVariable(string $source, Token $token): bool
@@ -671,6 +685,11 @@ final class SyntaxHighlightClassifier
                 'var', 'while', 'with', 'yield',
             ],
             'json' => ['false', 'null', 'true'],
+            'lua' => [
+                'and', 'break', 'do', 'else', 'elseif', 'end', 'for',
+                'function', 'goto', 'if', 'in', 'local', 'not', 'or',
+                'repeat', 'return', 'then', 'until', 'while',
+            ],
             'go', 'golang' => [
                 'break', 'case', 'chan', 'const', 'continue', 'defer', 'default',
                 'else', 'fallthrough', 'for', 'func', 'go', 'goto', 'if',
@@ -732,6 +751,7 @@ final class SyntaxHighlightClassifier
                 'int64', 'rune', 'string', 'uint', 'uint8', 'uint16', 'uint32',
                 'uint64', 'uintptr',
             ],
+            'lua' => ['boolean', 'function', 'nil', 'number', 'string', 'table', 'thread', 'userdata'],
             'php', 'hack', 'hh' => [
                 'array', 'bool', 'callable', 'float', 'int', 'iterable', 'mixed',
                 'never', 'object', 'parent', 'self', 'string', 'void',

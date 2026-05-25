@@ -595,3 +595,20 @@ git diff --check -- lanes/difftastic
 The focused test expectation is 256 named tests, 1503 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
 
 Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing upstream vendored-query evidence route; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.
+
+For this Lua keyword and builtin constant highlight slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`. The mapped upstream boundary is difftastic's `tree_highlights` promotion of keyword and constant captures into the display keyword bucket: Lua keywords such as `function`, `for`, `in`, `do`, `if`, `then`, `return`, and `end` plus builtin constants `nil`, `true`, and `false` are keyword-highlighted, while ordinary identifiers and library calls such as `register_blocks` and `ipairs` remain normal unless another already-mapped promoted capture applies. The WordPress example applies this to `wp-content/plugins/acme-card/tools/register-blocks.lua`, a plugin build-helper review path.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-lua-build-script-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-lua-build-script-highlight-display.php >/tmp/difftastic-lua-example.json && php -r 'json_decode(file_get_contents("/tmp/difftastic-lua-example.json"), true, 512, JSON_THROW_ON_ERROR); echo "example json ok\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test expectation is 267 named tests, 1637 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing tree-highlights promotion evidence route; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.
