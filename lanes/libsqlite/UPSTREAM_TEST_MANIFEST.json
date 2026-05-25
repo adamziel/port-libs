@@ -13,8 +13,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
         "total": 1589,
-        "mapped": 227,
-        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 json_extract JSON subtype propagation slice uses prior focused upstream JSON runner evidence over json101.test, json102.test, subtype1.test, json501.test, json107.test, and jsonb01.test with 622 tests / 0 errors for subtype interaction, 780 tests / 0 errors for JSON inspection, and 650 tests / 0 errors for JSONB validity/path behavior because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_extract(X,P...) JSON constructor argument subtype propagation for object/array and multi-path results while preserving SQL typing for scalar single-path results.",
+        "mapped": 228,
+        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 json_remove text-result path slice uses prior focused upstream JSON runner evidence over json102.test and jsonb01.test with 356 tests / 0 errors because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_remove(X,P...) text-result behavior for strict JSON text, supported JSON5 text, cast text BLOBs, SQLite JSONB blobs, SQL NULL input, no-path canonical output, multiple path removals in SQLite argument order, missing path no-ops, reverse array indexes, and root removal to SQL NULL.",
         "inventory": {
             "allRepositoryFiles": 2208,
             "hydratedTestInventoryFiles": 2131,
@@ -238,6 +238,10 @@
             "focusedJsonConstructorRunnerTests": 305,
             "focusedJsonConstructorStaticSourceTestReferences": 95,
             "focusedJsonConstructorTclCommandLines": 251,
+            "focusedJsonRemoveTextResultFiles": 4,
+            "focusedJsonRemoveTextResultRunnerSelectedScripts": 2,
+            "focusedJsonRemoveTextResultRunnerTests": 356,
+            "focusedJsonRemoveTextResultSmokeExpressions": 9,
             "focusedJsonConstructorSmokeExpressions": 12,
             "focusedJsonCanonicalizationFiles": 5,
             "focusedJsonCanonicalizationInspectedLines": 8173,

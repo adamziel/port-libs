@@ -39,6 +39,19 @@ rather than double-quoted text. This gives WordPress migration and repair
 tooling local-only constructor diagnostics before copied plugin settings are
 imported, without requiring the SQLite extension.
 
+## `json_remove()` Option-Value Cleanup Scenario
+
+Native JSON removal now follows a bounded SQLite `json_remove(X,P...)`
+text-result slice for strict JSON text, SQLite JSON5 text, cast text BLOBs,
+SQLite JSONB blobs, SQL NULL option values, no-path canonicalization, multiple
+paths in SQLite argument order, missing-path no-ops, array reverse indexes, and
+root `$` removal to SQL NULL. The example
+`examples/wordpress-json-remove-option-preflight.php` checks local
+`wp_options.option_value`-shaped copied plugin settings and removes obsolete
+settings such as `$.plugin.legacyToken` and stale rule entries before import.
+This gives WordPress import and repair tooling a local-only cleanup path
+without requiring the SQLite extension.
+
 ## JSON Operator `min()`/`max()` RHS Index Preflight Scenario
 
 Native JSON operator expression-index preflight now folds reduced SQLite

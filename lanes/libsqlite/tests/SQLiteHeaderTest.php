@@ -27,6 +27,7 @@ use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
 use PortLibs\LibSqlite\SQLiteJsonPath;
 use PortLibs\LibSqlite\SQLiteJsonPretty;
 use PortLibs\LibSqlite\SQLiteJsonQuote;
+use PortLibs\LibSqlite\SQLiteJsonRemove;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
@@ -3166,6 +3167,43 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extractJsonArgument($json));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extractJsonArgument($json, '$.plugin[#-]'));
+    },
+    'removes sqlite json text paths with canonical text result typing' => static function (TestRunner $t): void {
+        $json = '{"plugin":{"enabled":true,"legacyToken":"secret","rules":[{"name":"seo"},{"name":"cache"}],"empty":null},"keep":1}';
+        $json5 = "{plugin:{enabled:true,legacyToken:'secret',rules:[{name:'seo'},{name:'cache'},],},keep:1,}";
+        $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => true,
+                'legacyToken' => 'secret',
+                'rules' => [
+                    ['name' => 'seo'],
+                    ['name' => 'cache'],
+                ],
+            ],
+            'keep' => 1,
+        ]));
+
+        $t->same(
+            '{"plugin":{"enabled":true,"rules":[{"name":"seo"},{"name":"cache"}],"empty":null},"keep":1}',
+            SQLiteJsonRemove::remove($json, '$.plugin.legacyToken'),
+        );
+        $t->same(
+            '{"plugin":{"enabled":true,"rules":[{"name":"cache"}],"empty":null},"keep":1}',
+            SQLiteJsonRemove::remove($json, '$.plugin.legacyToken', '$.plugin.rules[0]'),
+        );
+        $t->same(
+            '{"plugin":{"enabled":true,"legacyToken":"secret","rules":[{"name":"seo"}]},"keep":1}',
+            SQLiteJsonRemove::remove($json5, '$.plugin.rules[#-1]'),
+        );
+        $t->same(
+            '{"plugin":{"enabled":true,"rules":[{"name":"seo"},{"name":"cache"}]},"keep":1}',
+            SQLiteJsonRemove::remove($jsonb, '$.plugin.legacyToken'),
+        );
+        $t->same('{"plugin":{"enabled":true,"legacyToken":"secret","rules":[{"name":"seo"},{"name":"cache"}],"empty":null},"keep":1}', SQLiteJsonRemove::remove($json));
+        $t->same(null, SQLiteJsonRemove::remove($json, '$'));
+        $t->same(null, SQLiteJsonRemove::remove(null, '$.plugin'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::remove($json, '$.plugin[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::remove('{"plugin":,}', '$.plugin'));
     },
     'inspects focused sqlite jsonb types at root and paths' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode([

@@ -4847,3 +4847,46 @@ Remaining boundaries: full SQL expression evaluation, subtype propagation
 through every SQL operator/function boundary, aggregate JSON functions,
 table-valued `json_each`/`json_tree`, broader BLOB ambiguity cases, WAL,
 rollback/savepoint, and b-tree delete/rebalance remain future slices.
+
+## Focused Native Mapping: `json_remove()` Text Result Paths
+
+For this bounded `json_remove(X,P...)` text-result slice, this isolated
+worktree reused prior focused upstream JSON remove evidence because the
+hydrated `.upstream-cache` checkout was absent here:
+
+```sh
+json102.test jsonb01.test
+```
+
+Prior accepted evidence passed 356 upstream tests with 0 errors for adjacent
+`json_remove()`/`jsonb_remove()` path behavior, including object-member
+removal, array removal, reverse array indexes, missing-path no-ops, multiple
+path argument order, root removal to SQL `NULL`, and malformed JSONB
+rejection.
+
+The native PHP slice adds `SQLiteJsonRemove::remove()` for SQLite
+`json_remove()` text-result behavior over strict JSON text, supported JSON5
+text, cast text BLOBs, SQLite JSONB blobs, SQL NULL input, no-path canonical
+text output, multiple path removals in SQLite argument order, and `$` root
+removal to SQL NULL. It reuses the existing lane-local JSON5 decoder, JSONB
+edit engine, JSON path parser, and canonical JSON encoder. The focused
+libsqlite harness passed 228 PHP tests with 1867 assertions and 0 failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-json-remove-option-preflight.php` script ran
+successfully, removing obsolete plugin settings from a local
+`wp_options.option_value` JSON fixture and printing canonical JSON text
+without requiring the SQLite extension.
+
+Dependency closure: no new support component is needed. This slice reuses
+existing bounded lane-local JSON5, JSONB, JSON path, and canonical JSON
+components; it counts no shared support-library progress.
+
+Remaining boundaries: `jsonb_remove()` public text/BLOB return selection is
+still covered by the existing JSONB helper rather than a SQL dispatcher, and
+full SQL expression evaluation, JSON aggregate functions, table-valued
+`json_each`/`json_tree`, broader BLOB ambiguity cases, WAL,
+rollback/savepoint, and b-tree delete/rebalance remain future slices.
