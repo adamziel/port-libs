@@ -170,6 +170,23 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer ignores stale references inside definition comments' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --wide (min-width: 782px /* stale, ) (--missing-definition) */);
+@custom-media --motion (prefers-reduced-motion: no-preference /* old alias: (--legacy-motion), */);
+
+@media (--wide), (--motion) {
+  .wp-block-group {
+    color: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            '@media (width>=782px),(prefers-reduced-motion:no-preference){.wp-block-group{color:#ff0}}',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer maps upstream negated range aliases' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --not-width not (min-width: 300px);

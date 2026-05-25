@@ -1,3 +1,40 @@
+## Clean-patch accepted - LightningCSS custom-media definition comments - 2026-05-25 23:25 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-lightningcss-20260525T231430Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`694a9ca2ef0cbf53f0e349718f536f004ca283765fffde682cfdd8a4812fd5ce`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`dcc803eb` (`Integrate Pandoc parenthesized link destinations`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/lightningcss/tests/CustomMediaTransformerTest.php` passed.
+- `php -l lanes/lightningcss/examples/wordpress-custom-media-transformer.php` passed.
+- LightningCSS manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/lightningcss/tests/CustomMediaTransformerTest.php`
+  passed: `1 test files, 37 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/lightningcss/tests` passed:
+  `9 test files, 1087 assertions, 0 failures`.
+- `php lanes/lightningcss/examples/wordpress-custom-media-transformer.php`
+  passed.
+- `git diff --check -- lanes/lightningcss` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=103602864` KiB and `load1=2.28`; no exact no-argument root
+  harness was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26532 assertions, 0 failures`.
+
+Cleanup:
+- Pending until the commit is safely on `main`: remove the accepted ready
+  marker, patch, metadata file, referenced worker log, inactive source
+  worktree, and temporary verification worktree.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted LightningCSS commit.
+
 ## Clean-patch accepted - Pandoc parenthesized link destinations - 2026-05-25 23:22 UTC
 
 Accepted one isolated marker:

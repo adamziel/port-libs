@@ -8,8 +8,8 @@ use PortLibs\LightningCSS\CustomMediaTransformer;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
-@custom-media --wp-mobile (max-width: 599px);
-@custom-media --wp-motion (prefers-reduced-motion: no-preference);
+@custom-media --wp-mobile (max-width: 599px /* old alias: (--wp-phone), ) */);
+@custom-media --wp-motion (prefers-reduced-motion: no-preference /* old alias: (--wp-legacy-motion), */);
 @custom-media --wp-wide (min-width: 782px);
 
 @import url(./blocks/query-card.css) /* wp block layer, old alias: (--wp-tablet), ) */ layer(theme.blocks) supports((display: grid)) screen and (min-width: 480px /* old floor, ) */) and (--wp-wide), print and (--wp-motion);
