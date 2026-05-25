@@ -100867,3 +100867,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json lanes/lightningcss/examples/wordpress-border-radius-minifier.php lanes/lightningcss/lane-status.json lanes/lightningcss/notes/upstream-inventory.md lanes/lightningcss/notes/wordpress-scenarios.md lanes/lightningcss/src/CssMinifier.php lanes/lightningcss/tests/CssMinifierTest.php `
 
+
+## Clean-patch integration accepted - markerpdf - 2026-05-25 02:50 UTC
+
+Ready marker: `port-markerpdf-20260525T023604Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T023604Z.patch`
+Lane/slice/session: `markerpdf` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `bdf3ce5d6dd5f4c836261c6f0ec6b1284377d730`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/markerpdf/tests`: exit 0; PASS normalizes extracted PDF bullets for a WordPress list block import  47 test files, 981 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24816 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json lanes/markerpdf/lane-status.json lanes/markerpdf/notes/upstream-test-inventory.md lanes/markerpdf/notes/wordpress-scenarios.md lanes/markerpdf/src/PdfTextExtractor.php lanes/markerpdf/tests/PdfTextExtractorTest.php `
+

@@ -635,6 +635,34 @@ final class PdfTextExtractor
      */
     private function parseToUnicodeRanges(string $block, array &$map): void
     {
+        if (preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*\[(.*?)\]/s', $block, $arrayRanges, PREG_SET_ORDER)) {
+            foreach ($arrayRanges as $range) {
+                $start = $this->normalizeHexKey($range[1]);
+                $end = $this->normalizeHexKey($range[2]);
+                if ($start === '' || $end === '') {
+                    continue;
+                }
+
+                preg_match_all('/<([\da-fA-F\s]+)>/s', $range[3], $targets);
+                if (($targets[1] ?? []) === []) {
+                    continue;
+                }
+
+                $source = hexdec($start);
+                $last = hexdec($end);
+                $sourceWidth = strlen($start);
+                foreach ($targets[1] as $target) {
+                    if ($source > $last) {
+                        break;
+                    }
+
+                    $sourceKey = str_pad(strtolower(dechex($source)), $sourceWidth, '0', STR_PAD_LEFT);
+                    $map[$sourceKey] = $this->decodeCMapUnicodeHex($target);
+                    $source++;
+                }
+            }
+        }
+
         if (preg_match_all('/<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>\s*<([\da-fA-F\s]+)>/s', $block, $ranges, PREG_SET_ORDER)) {
             foreach ($ranges as $range) {
                 $start = $this->normalizeHexKey($range[1]);
