@@ -1653,3 +1653,34 @@ It reuses the existing Markdown inline renderer, blockquote renderer, delimiter
 helpers, and block writer newline handling; richer layout, package, or
 document-format conversions remain behind the existing inactive Pandoc support
 gates.
+
+The priority-rework-20260525T081310Z pass rebases the same previously
+conflicting Space/SoftBreak/LineBreak behavior on the current accepted
+Markdown writer baseline without replacing the accepted line-block, raw-block,
+or inline-attribute evidence. The implementation remains additive: the native
+writer keeps focused coverage for explicit `Space`, `SoftBreak`, and
+`LineBreak` constructors at top-level paragraph scope, inside recursive
+emphasis/strong rendering, and after blockquote line-prefixing. The manifest
+subcount for this branch is corrected to three focused checks to match the
+rebased tests.
+
+Focused local verification on 2026-05-25 after
+priority-rework-20260525T081310Z: `php -l` passed for
+`MarkdownWriter.php`, `MarkdownReaderTest.php`, and
+`examples/wordpress-markdown-review-handoff.php`; lane JSON status/manifest
+decoded with `JSON_THROW_ON_ERROR`; `php
+lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Reviewer spacing packet|hard boundary follows|next reviewer line"` emitted the
+explicit-space reviewer packet with soft newline and hard-break
+backslash-newline marker; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,291
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed.
+
+Root verification was not run for priority-rework-20260525T081310Z because the
+assigned work is an isolated micro-slice.
+
+Dependency closure: no new support component is needed for this rework slice.
+It reuses the existing Markdown inline renderer, blockquote renderer, delimiter
+helpers, and block writer newline handling; no DOCX/OpenXML, PDF, EPUB/ODT, CFB,
+citation, Unicode/charset, metadata, archive, or compression component is
+activated.

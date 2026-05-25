@@ -108856,3 +108856,29 @@ Root verification:
 Support-library/dependency closure: no new support component activated; this is a lane-local manifest assertion-count correction for existing smart HTTP receive-pack redirect evidence.
 Live-service exclusions: no live provider or network tests; no full cargo workspace runner.
 Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `audits/integration-status.md`.
+
+## Integration accepted - pandoc rework - 20260525T081901Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T081310Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T081310Z.patch`
+Lane/slice/session: `pandoc` / `priority-rework-20260525T081310Z` / `port-pandoc-rework`
+Old head: `17c152d417ca8e6024149cd154d30e026305799e`
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-pandoc-priority-rework-20260525T081310Z-20260525T081901Z`:
+- `sha256sum /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T081310Z.patch`: matched `faf11d8781abecaec09a4ec27d13f46a9d435f9690dd0bebf28f542f9344522a`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T081310Z.patch`: passed.
+- `php -l lanes/pandoc/src/MarkdownWriter.php`: passed.
+- `php -l lanes/pandoc/tests/MarkdownReaderTest.php`: passed.
+- `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`: passed.
+- JSON decode for `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json` and `lanes/pandoc/lane-status.json`: json ok.
+- `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n "Reviewer spacing packet|hard boundary follows|next reviewer line"`: matched expected reviewer spacing/hard-break lines.
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`: 1 test files, 2291 assertions, 0 failures.
+- `git diff --check`: passed.
+
+Root verification:
+- Pre-root exact no-argument harness gate: empty.
+- `php tools/run-tests.php`: 214 test files, 25910 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component activated; this rework reuses existing Markdown inline renderer, blockquote renderer, delimiter helpers, and block writer newline handling.
+Live-service exclusions: no live provider tests; no full upstream Pandoc runner.
+Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/notes/upstream-inventory.md`, `audits/integration-status.md`.
