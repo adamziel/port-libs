@@ -128,11 +128,16 @@ return [
         $t->same(true, str_contains($output['output']['contents'], "// src/loader-entry.js\n"));
         $t->same(true, str_contains($output['output']['contents'], "// src/local-preview.js\n"));
         $t->same(true, str_contains($output['output']['contents'], "export const preview = 'card-preview';"));
+        $t->same(false, str_contains($output['output']['contents'], "import './local-preview.js';"));
+        $t->same(true, str_contains($output['output']['contents'], "import './block.css';"));
+        $t->same(true, str_contains($output['output']['contents'], "import metadata from './block.json' with { type: 'json' };"));
         $t->same(false, str_contains($output['output']['contents'], 'front-end stylesheet fixture'));
         $t->same(true, $output['output']['bytes'] > $output['inputs']['src/loader-entry.js']['bytes']);
         $t->same(true, isset($output['inputs']['src/local-preview.js']));
         $t->same(false, isset($output['inputs']['src/block.css']));
         $t->same(false, isset($output['inputs']['src/block.json']));
+        $t->same(1, $output['inputs']['src/loader-entry.js']['importsRemoved']);
+        $t->same(0, $output['inputs']['src/local-preview.js']['importsRemoved']);
         $t->same([], $output['diagnostics']['missing']);
         $t->same([], $output['diagnostics']['unsupported']);
     },

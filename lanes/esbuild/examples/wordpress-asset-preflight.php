@@ -602,6 +602,9 @@ printf("WordPress bounded JS output bytes: %s\n", (
     && $loaderBundlerOutput['output']['bytes'] > 0
     && str_contains($loaderBundlerOutput['output']['contents'], "// src/loader-entry.js\n")
     && str_contains($loaderBundlerOutput['output']['contents'], "// src/local-preview.js\n")
+    && !str_contains($loaderBundlerOutput['output']['contents'], "import './local-preview.js';")
+    && str_contains($loaderBundlerOutput['output']['contents'], "import './block.css';")
+    && ($loaderBundlerOutput['inputs']['src/loader-entry.js']['importsRemoved'] ?? null) === 1
     && isset($loaderBundlerOutput['inputs']['src/local-preview.js'])
     && !isset($loaderBundlerOutput['inputs']['src/block.css'])
     && ($unsupportedLoaderOutput['diagnostics']['unsupported'][0]['path'] ?? null) === './asset.bin'

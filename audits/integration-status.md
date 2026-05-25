@@ -103028,3 +103028,25 @@ Root verification: `php tools/run-tests.php` passed in the clean worktree with z
 Support-library/dependency closure: no new support-library activation; this remains a lane-local syntax highlight classifier/display slice. Live service tests were not applicable and no secrets were read.
 
 Files staged: `lanes/difftastic/examples/wordpress-go-build-helper-highlight-display.php`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, `audits/integration-status.md`.
+
+## Clean-patch integration - esbuild BundlerOutput import removal - 20260525T052738Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T052405Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T052405Z.patch`.
+Lane/slice/session: `esbuild` / `watchdog-next-20260525T052405Z` / `port-esbuild`.
+Patch sha256 verified: `2f2e8e1d51031a897613f6c5b0aea1834bce3c66fa3e83b84c967a5b25a800ed`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-esbuild-watchdog-next-20260525T052405Z-20260525T052738Z`:
+- `php -l lanes/esbuild/src/BundlerOutput.php`: passed.
+- `php -l lanes/esbuild/tests/BundlerGraphBuilderTest.php`: passed.
+- `php -l lanes/esbuild/examples/wordpress-asset-preflight.php`: passed.
+- `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php`: passed, 1 file / 72 assertions / 0 failures.
+- `php tools/run-tests.php lanes/esbuild/tests`: passed, 7 files / 1916 assertions / 0 failures.
+- `php lanes/esbuild/examples/wordpress-asset-preflight.php`: passed.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the clean worktree with zero failures.
+
+Support-library/dependency closure: no new support-library activation; this reuses existing lane-local analyzer/resolver/graph/metafile/output components. The deferred `js-package-resolution-core` row remains inactive. Live service tests were not applicable and no secrets were read.
+
+Files staged: `lanes/esbuild/src/BundlerOutput.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/upstream-inventory.md`, `lanes/esbuild/notes/wordpress-scenarios.md`, `audits/integration-status.md`.
