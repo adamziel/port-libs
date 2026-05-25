@@ -82,6 +82,24 @@ $emptyRemoteArg = OneDriveCleanupCommand::run($objects, [
     'featureAvailable' => false,
     'walkError' => 'would not be reached',
 ]);
+$rcMissingFs = OneDriveCleanupCommand::runRemoteControl($objects, [
+    'featureAvailable' => false,
+    'walkError' => 'would not be reached',
+]);
+$rcCleanup = OneDriveCleanupCommand::runRemoteControl([
+    [
+        'remote' => 'exports/site.wxr',
+        'versions' => ['current', 'old-review'],
+    ],
+], [
+    'fs' => 'onedrive:',
+    'remoteArgs' => [],
+]);
+$rcUnsupported = OneDriveCleanupCommand::runRemoteControl($objects, [
+    'fs' => 'local:',
+    'featureAvailable' => false,
+    'remoteArgs' => ['not', 'used', 'by', 'rc'],
+]);
 
 return [
     'source' => 'onedrive-cleanup-command-preflight',
@@ -103,5 +121,10 @@ return [
     'extraRemoteArgProviderCalled' => $extraRemoteArg['providerCalled'],
     'emptyRemoteArgError' => $emptyRemoteArg['error'],
     'emptyRemoteArgProviderCalled' => $emptyRemoteArg['providerCalled'],
+    'rcMissingFsError' => $rcMissingFs['error'],
+    'rcMissingFsProviderCalled' => $rcMissingFs['providerCalled'],
+    'rcDeletedVersions' => $rcCleanup['deletedVersions'],
+    'rcUnsupportedError' => $rcUnsupported['error'],
+    'rcUnsupportedProviderCalled' => $rcUnsupported['providerCalled'],
     'secretInputsRead' => false,
 ];

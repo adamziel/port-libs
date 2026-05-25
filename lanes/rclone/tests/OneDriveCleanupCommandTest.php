@@ -264,6 +264,44 @@ return [
         $t->same([], $flow['logs']);
         $t->same(false, $flow['providerCalled']);
     },
+    'onedrive rc cleanup uses fs param and bypasses command remote arity' => static function (TestRunner $t): void {
+        $missingFs = OneDriveCleanupCommand::runRemoteControl([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'featureAvailable' => false,
+            'walkError' => 'would not be reached',
+        ]);
+        $emptyFs = OneDriveCleanupCommand::runRemoteControl([], [
+            'fs' => '',
+            'featureAvailable' => false,
+        ]);
+        $cleanup = OneDriveCleanupCommand::runRemoteControl([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'fs' => 'onedrive:',
+            'remoteArgs' => [],
+        ]);
+        $unsupported = OneDriveCleanupCommand::runRemoteControl([], [
+            'fs' => 'local:',
+            'featureAvailable' => false,
+            'remoteArgs' => ['unexpected', 'command', 'args'],
+        ]);
+
+        $t->same('rc operations/cleanup requires fs', $missingFs['error']);
+        $t->same(false, $missingFs['providerCalled']);
+        $t->same('rc operations/cleanup requires fs', $emptyFs['error']);
+        $t->same(['exports/site.wxr#old-review'], $cleanup['deletedVersions']);
+        $t->same(null, $cleanup['error']);
+        $t->same(true, $cleanup['providerCalled']);
+        $t->same('cleanup unsupported', $unsupported['error']);
+        $t->same(false, $unsupported['providerCalled']);
+    },
     'wordpress onedrive cleanup command preflight removes stale wxr versions only' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-cleanup-command-preflight.php';
 
@@ -286,6 +324,11 @@ return [
         $t->same(false, $example['extraRemoteArgProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['emptyRemoteArgError']);
         $t->same(false, $example['emptyRemoteArgProviderCalled']);
+        $t->same('rc operations/cleanup requires fs', $example['rcMissingFsError']);
+        $t->same(false, $example['rcMissingFsProviderCalled']);
+        $t->same(['exports/site.wxr#old-review'], $example['rcDeletedVersions']);
+        $t->same('cleanup unsupported', $example['rcUnsupportedError']);
+        $t->same(false, $example['rcUnsupportedProviderCalled']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];

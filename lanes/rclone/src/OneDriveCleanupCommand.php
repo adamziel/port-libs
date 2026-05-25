@@ -87,6 +87,27 @@ final class OneDriveCleanupCommand
     }
 
     /**
+     * @param list<array{remote: string, versions: list<array{id?: string, ID?: string}|string>, type?: string, deleteErrors?: array<string, string>, listError?: string}> $entries
+     * @param array{dryRun?: bool, noVersions?: bool, walkError?: string, featureAvailable?: bool, fs?: string, remoteArgs?: list<string>} $options
+     * @return array{walkedObjects: int, versionRequests: int, deletedVersions: list<string>, skippedVersions: list<string>, logs: list<string>, error: ?string, providerCalled: bool}
+     */
+    public static function runRemoteControl(array $entries, array $options = []): array
+    {
+        $fs = self::optionalString($options['fs'] ?? null);
+        if ($fs === null || $fs === '') {
+            $flow = self::emptyFlow();
+            $flow['error'] = 'rc operations/cleanup requires fs';
+
+            return $flow;
+        }
+
+        $cleanupOptions = $options;
+        unset($cleanupOptions['remoteArgs']);
+
+        return self::run($entries, $cleanupOptions);
+    }
+
+    /**
      * @param list<string> $remoteArgs
      */
     public static function validateRemoteArgs(array $remoteArgs): ?string
@@ -97,6 +118,22 @@ final class OneDriveCleanupCommand
         }
 
         return 'cleanup command expects exactly one remote argument';
+    }
+
+    /**
+     * @return array{walkedObjects: int, versionRequests: int, deletedVersions: list<string>, skippedVersions: list<string>, logs: list<string>, error: ?string, providerCalled: bool}
+     */
+    private static function emptyFlow(): array
+    {
+        return [
+            'walkedObjects' => 0,
+            'versionRequests' => 0,
+            'deletedVersions' => [],
+            'skippedVersions' => [],
+            'logs' => [],
+            'error' => null,
+            'providerCalled' => false,
+        ];
     }
 
     /**
