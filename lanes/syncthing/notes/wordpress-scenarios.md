@@ -2046,3 +2046,48 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: folder removal/unshare cleanup
 should discard pending watcher events and restart state while keeping
 paused-folder resume semantics covered by the current stop cleanup slice.
+
+## 2026-05-24 Watcher Removal And Unshare Cleanup
+
+This isolated micro-slice maps the next filesystem watcher lifecycle boundary
+from upstream `lib/model/folder.go`: watcher stop/restart state plus folder
+removal/unshare cleanup when a folder leaves the model service map. It reuses
+the existing bounded `lib/watchaggregator` evidence and prior watcher lifecycle
+reads instead of adding a new Go runner; full `go test ./...` remains
+unexecuted for the recorded blob-filter/cache and budget reasons.
+
+Native PHP now adds `FolderWatchScanScheduler::removeWatchingFolder()` as the
+explicit removal/unshare path. Unlike pause cleanup, removal discards queued
+WordPress media watch events, pending watcher restart status, last dispatched
+batch metadata, and Syncthing-owned in-progress markers after
+`FolderScanScheduler::removeFolder()` removes the folder. `stopWatchingFolder()`
+continues to preserve pending events for paused-folder resume.
+`wordpress-fs-watch-scan-scheduler.php` now shows the pause-preserving state,
+then removes the folder and reports that watcher state was removed and the
+post-removal status is null.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate is wiring
+`removeWatchingFolder()` from a WordPress/local watcher adapter when a folder is
+removed or unshared; the evidence plan is the focused watcher tests plus the
+local WordPress example smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 61 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported `removedWatchState: true` plus `removedStatus:
+  null`.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: restart due handling should
+expose when a watcher restart is ready and let a WordPress/local watcher
+adapter mark the restart attempt complete without triggering a scan.

@@ -175,6 +175,11 @@ final class FolderWatchScanScheduler
         return $hadState;
     }
 
+    public function removeWatchingFolder(string $folderId): bool
+    {
+        return $this->stopWatchingFolder($folderId, discardPendingEvents: true);
+    }
+
     /**
      * @return null|array{folder:string, pendingEventCount:int, pendingPaths:list<string>, pendingTypes:array<string, string>, inProgressPaths:list<string>, notifyDelaySeconds:int, notifyTimeoutSeconds:int, nextScanAt:?int, due:bool, watcherRestart:?array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, remainingSeconds:int, due:bool, scanOnWatchError:bool}}
      */

@@ -52,6 +52,9 @@ try {
     $watchScheduler->stopWatchingFolder('wordpress-media');
     $pausedStatus = $watchScheduler->watchStatus('wordpress-media', 1040);
     $pausedScan = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1040);
+    $scheduler->removeFolder('wordpress-media');
+    $removedWatchState = $watchScheduler->removeWatchingFolder('wordpress-media');
+    $removedStatus = $watchScheduler->watchStatus('wordpress-media', 1050);
 
     echo json_encode([
         'watcher' => 'Syncthing FSWatcherDelay-style media scan and restart fallback',
@@ -63,6 +66,8 @@ try {
         'watchErrorScanResult' => $watchErrorScan->toRestStatus(),
         'pausedStatusAfterCleanup' => $pausedStatus,
         'pausedScanResult' => $pausedScan->toRestStatus(),
+        'removedWatchState' => $removedWatchState,
+        'removedStatus' => $removedStatus,
         'checkpointRevision' => $service->checkpoint(1021)?->revision,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } finally {

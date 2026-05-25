@@ -98772,3 +98772,22 @@ Files staged:
 - `lanes/readability/notes/wordpress-scenarios.md`
 - `lanes/readability/src/ArticleExtractor.php`
 - `lanes/readability/tests/ArticleExtractorTest.php`
+
+## Clean-patch integration - syncthing - 2026-05-25T00:04:18Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-syncthing-rebase-20260524T234505Z-f12a51ff.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-rebase-20260524T234505Z-f12a51ff.patch`
+Lane/slice/session: `syncthing` / `watchdog-next-20260524T233852Z` / `n/a`
+Patch SHA-256: `f12a51ff599fcc047a77d1eafabd0725142c6de0e7fcd8bb44118af1dd5abad4` verified.
+Apply mode: `check` against old head `4a58c408181e097c538a227366b03b9ee605ebf0`.
+Focused commands: `php -l` on changed PHP files; `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`; changed PHP examples; JSON validation for changed lane status/manifests. Result: pass.
+Root command: `php tools/run-tests.php`. Result: pass.
+Support-library/dependency closure: lane-local only; no support-library activation accepted.
+Live-service exclusions: no live-service provider or credentialed tests run.
+Files staged:
+- `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+- `lanes/syncthing/lane-status.json`
+- `lanes/syncthing/notes/wordpress-scenarios.md`
+- `lanes/syncthing/src/FolderWatchScanScheduler.php`
+- `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`

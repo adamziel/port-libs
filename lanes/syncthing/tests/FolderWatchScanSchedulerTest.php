@@ -194,6 +194,37 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler removal discards pending events and restart state after unshare' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore());
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+
+            $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 5000);
+            $watch->recordWatcherError('wordpress-media', 'watcher closed during unshare', scanOnWatchError: false, now: 5001);
+            $t->same(true, $scheduler->removeFolder('wordpress-media'));
+
+            $t->same(true, $watch->removeWatchingFolder('wordpress-media'));
+            $t->same(null, $watch->watchStatus('wordpress-media', 5010));
+            $t->same([], $watch->watchStatuses(5010));
+            $t->same([], $watch->lastDispatchedBatches());
+            $t->same([], $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 5010)->snapshots());
+            $t->same(null, $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 5011));
+            $t->same(false, $watch->removeWatchingFolder('wordpress-media'));
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string
