@@ -1,5 +1,67 @@
 # Integration Status
 
+## Integration superseded - empty repaired rework markers - 2026-05-25 04:50 UTC
+
+Processed four isolated repaired ready markers whose exported patches are
+intentionally empty because current `refs/heads/main` already contains the
+submitted behavior. No source files were accepted from these markers.
+
+- `.tmux-team/tmp/handoff-candidates/port-difftastic-rework-20260525T043642Z.ready`
+  / `.tmux-team/tmp/handoff-candidates/port-difftastic-rework-20260525T043642Z.patch`
+  / lane `difftastic` / slice `rework-python-builtin-annotation-highlighting`
+  / session `port-rework-difftastic`.
+- `.tmux-team/tmp/handoff-candidates/port-esbuild-rework-20260525T043652Z.ready`
+  / `.tmux-team/tmp/handoff-candidates/port-esbuild-rework-20260525T043652Z.patch`
+  / lane `esbuild` / slice `rework-package-tsconfig-extends`
+  / session `port-rework-esbuild`.
+- `.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T043721Z.ready`
+  / `.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T043721Z.patch`
+  / lane `pandoc` / slice `rework-bracketed-span-markdown-writer`
+  / session `port-rework-pandoc`.
+- `.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T043603Z.ready`
+  / `.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T043603Z.patch`
+  / lane `quadrable` / slice `rework-sync-fuzzer-summary`
+  / session `port-rework-quadrable`.
+
+Patch SHA-256 verification: all four patches matched the declared empty-patch
+hash `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+`git apply --check` reported `No valid patches in input` for each file, as
+expected for a zero-byte patch; no three-way rebase was attempted and the clean
+worktree stayed unchanged.
+
+Clean worktree:
+`/tmp/port-clean-integrator-superseded-reworks-20260525T044732Z` from
+`refs/heads/main` at `244c850c6404304e3cf08fde7ab87630c524ded2`.
+
+Focused verification repeated in the clean worktree:
+
+- Difftastic: PHP lint passed for `SyntaxHighlightClassifier.php`,
+  `TokenDifferTest.php`, and the two Python highlight examples; `php
+  tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed with
+  1 test file, 1577 assertions, 0 failures.
+- Esbuild: PHP lint passed for `TsConfigPathResolver.php`,
+  `TsConfigPathResolverTest.php`, and `wordpress-asset-preflight.php`; `php
+  tools/run-tests.php lanes/esbuild/tests/TsConfigPathResolverTest.php` passed
+  with 1 test file, 37 assertions, 0 failures; `php tools/run-tests.php
+  lanes/esbuild/tests` passed with 7 test files, 1893 assertions, 0 failures.
+- Pandoc: PHP lint passed for `MarkdownWriter.php`, `MarkdownReaderTest.php`,
+  and `wordpress-markdown-review-handoff.php`; `php tools/run-tests.php
+  lanes/pandoc/tests/MarkdownReaderTest.php` passed with 1 test file, 2285
+  assertions, 0 failures.
+- Quadrable: PHP lint passed for `SyncFuzzer.php`, `SyncTest.php`, and
+  `wordpress-sync-fuzz-watchdog.php`; `php tools/run-tests.php
+  lanes/quadrable/tests/SyncTest.php` passed with 1 test file, 229 assertions,
+  0 failures; `php lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php`
+  passed and emitted the bounded watchdog summary.
+- `git diff --check`: PASS.
+
+Root verification: not run for these four markers because they had no source
+or metadata delta to accept and are recorded only as superseded. No root claim
+is made for them.
+
+Support-library/dependency closure: no support-library activation. Live-service
+exclusions: none applicable. Files staged: `audits/integration-status.md` only.
+
 ## Integration accepted - rclone OneDrive Put/createObject rework note - 2026-05-25 04:48 UTC
 
 Accepted isolated ready marker:
