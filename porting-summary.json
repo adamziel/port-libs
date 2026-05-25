@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 22:15:04 UTC",
-    "sourceCommit": "a02832175192f3b4a59130ce8cf71f9cd1a23d90",
-    "sourceCommitShort": "a02832175192",
+    "generated": "2026-05-25 22:24:46 UTC",
+    "sourceCommit": "f487be92a9cb3c087105c139cca3919a2a366064",
+    "sourceCommitShort": "f487be92a9cb",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "2dacb27f83f543310fd0982bac26dd4980b6fb15",
-    "dashboardCommitShort": "2dacb27f83f5",
+    "dashboardCommit": "bf83a09496b621b9bc76513341ce57eec2437b95",
+    "dashboardCommitShort": "bf83a09496b6",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -115,16 +115,16 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "78",
-            "mapped": "175",
-            "coverage": "175 / 78",
-            "php": "290 pass / 0 fail",
+            "mapped": "176",
+            "coverage": "176 / 78",
+            "php": "291 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory + inspected CI benchmark archive + loc...",
             "audit": "isolated lane worker 2026-05-25: reduced...",
-            "currentWork": "Reduced ToUnicode codespacerange fallback handoff. PdfTextExtractor now chooses CMap sour...",
+            "currentWork": "Reduced simple-font Encoding Differences handoff. PdfTextExtractor now maps single-byte f...",
             "nextTarget": "Choose the next bounded markerPDF text extraction gap, likely a small remaining PDF conte...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "pending"
+            "commit": "accepte"
         },
         {
             "library": "pandoc",
