@@ -101115,3 +101115,15 @@ Support-library/dependency-closure decision: no activation accepted.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `audits/integration-status.md` only.
 Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
+
+## Clean-patch rejection - markerpdf - 2026-05-25 03:00 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T024837Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T024837Z.patch`
+Decision: rejected/deferred after focused verification.
+Focused commands: `php -l <changed PHP files>` exit 1; `php tools/run-tests.php lanes/markerpdf/tests` exit 255 (PASS slices supplied pdftext dictionary pages like upstream get_text_blocks PASS treats zero max_pages like upstream falsey max page input PASS rejects out of range page slices before WordPress import PASS feeds selected pdftext pages into Gutenberg-ready paragraph text PHP Parse error:  syntax error, unexpected token "<<", expecting "]" in /tmp/port-clean-integrator-markerpdf-safe-20260525T030005Z/lanes/markerpdf/tests/PdfTextExtractorTest.php on line 269 ); `git diff --check` exit 2.
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `audits/integration-status.md` only.
+Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
