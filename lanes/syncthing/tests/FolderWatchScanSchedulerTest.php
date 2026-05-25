@@ -263,6 +263,56 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler preserves pending restart while paused and exposes it after resume' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/poster.webp', 'ijklmnop');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore());
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+
+            $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 7000);
+            $watch->markItemStarted('wordpress-media', 'wp-content/uploads/2026/05/poster.webp');
+            $watch->recordWatcherError('wordpress-media', 'watch backend paused before restart', scanOnWatchError: false, now: 7001);
+            $scheduler->pauseFolder('wordpress-media');
+
+            $t->same(true, $watch->pauseWatchingFolder('wordpress-media'));
+            $pausedStatus = $watch->watchStatus('wordpress-media', 7006);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $pausedStatus['pendingPaths'] ?? []);
+            $t->same([], $pausedStatus['inProgressPaths'] ?? ['missing']);
+            $t->same(true, $pausedStatus['watcherRestart']['due'] ?? null);
+            $t->same([], $watch->dueWatcherRestarts(7006));
+            $t->same(null, $watch->completeDueWatcherRestart('wordpress-media', 7006));
+            $t->same([], $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 7010)->snapshots());
+            $t->same(null, $service->checkpoint(7010));
+
+            $scheduler->resumeFolder('wordpress-media');
+            $dueRestart = $watch->dueWatcherRestarts(7010);
+            $t->same(['wordpress-media'], array_keys($dueRestart));
+            $t->same('watch backend paused before restart', $dueRestart['wordpress-media']['lastError'] ?? null);
+            $completedRestart = $watch->completeDueWatcherRestart('wordpress-media', 7010);
+            $t->same(1, $completedRestart['restartAttempt'] ?? null);
+
+            $dueScan = $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 7010);
+            $t->same(1, $dueScan->snapshot('wordpress-media')?->revision);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $dueScan->snapshot('wordpress-media')?->checkpoint->completedPaths());
+            $finalStatus = $watch->watchStatus('wordpress-media', 7010);
+            $t->same(0, $finalStatus['pendingEventCount'] ?? -1);
+            $t->true(array_key_exists('watcherRestart', $finalStatus));
+            $t->same(null, $finalStatus['watcherRestart']);
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string

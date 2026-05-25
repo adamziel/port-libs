@@ -53,10 +53,15 @@ try {
     $restartDue = $watchScheduler->dueWatcherRestarts(1031);
     $completedRestart = $watchScheduler->completeDueWatcherRestart('wordpress-media', 1031);
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 1030);
+    $watchScheduler->recordWatcherError('wordpress-media', 'watch backend paused before restart', scanOnWatchError: false, now: 1032);
     $scheduler->pauseFolder('wordpress-media');
-    $watchScheduler->stopWatchingFolder('wordpress-media');
+    $watchScheduler->pauseWatchingFolder('wordpress-media');
     $pausedStatus = $watchScheduler->watchStatus('wordpress-media', 1040);
+    $pausedRestartDue = $watchScheduler->dueWatcherRestarts(1040);
     $pausedScan = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1040);
+    $scheduler->resumeFolder('wordpress-media');
+    $resumedRestartDue = $watchScheduler->dueWatcherRestarts(1040);
+    $resumedRestartCompleted = $watchScheduler->completeDueWatcherRestart('wordpress-media', 1040);
     $scheduler->removeFolder('wordpress-media');
     $removedWatchState = $watchScheduler->removeWatchingFolder('wordpress-media');
     $removedStatus = $watchScheduler->watchStatus('wordpress-media', 1050);
@@ -74,7 +79,10 @@ try {
         'restartDue' => $restartDue,
         'completedRestart' => $completedRestart,
         'pausedStatusAfterCleanup' => $pausedStatus,
+        'pausedRestartDue' => $pausedRestartDue,
         'pausedScanResult' => $pausedScan->toRestStatus(),
+        'resumedRestartDue' => $resumedRestartDue,
+        'resumedRestartCompleted' => $resumedRestartCompleted,
         'removedWatchState' => $removedWatchState,
         'removedStatus' => $removedStatus,
         'checkpointRevision' => $service->checkpoint(1021)?->revision,

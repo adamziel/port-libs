@@ -213,6 +213,20 @@ final class FolderWatchScanScheduler
         return $hadState;
     }
 
+    public function pauseWatchingFolder(string $folderId): bool
+    {
+        self::assertFolderId($folderId);
+
+        $hadState = isset($this->watchRestarts[$folderId]) || isset($this->aggregators[$folderId]);
+        unset($this->lastDispatchedBatches[$folderId]);
+
+        if (isset($this->aggregators[$folderId])) {
+            $this->aggregators[$folderId]->clearInProgress();
+        }
+
+        return $hadState;
+    }
+
     public function removeWatchingFolder(string $folderId): bool
     {
         return $this->stopWatchingFolder($folderId, discardPendingEvents: true);

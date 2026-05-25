@@ -1,5 +1,19 @@
 # Integration Status
 
+## Integration accepted - isolated Syncthing watcher pause restart slice - 2026-05-25 01:52 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-syncthing-current-rebase-20260525T013424Z-0b8f5b.ready` with patch `.tmux-team/tmp/handoff-candidates/port-syncthing-current-rebase-20260525T013424Z-0b8f5b.patch`.
+
+Lane/slice/session: `syncthing` / `current-rebase-20260525T013424Z-0b8f5b` / `current-rebase-prep-sync-git`. Patch sha256 `0b8f5bfda7435a5d6daf0ead8d9d23064a4a55a7c44ce2a778cdbdb94f3ab431` matched before application. Applied cleanly in detached clean worktree `/tmp/port-clean-integrator-syncthing-current-rebase-20260525T013424Z-015046` from old head `dc820220c1c4b0f3d835a53832022a12595efea3`.
+
+Focused verification repeated in the clean worktree: `php -l lanes/syncthing/src/FolderWatchScanScheduler.php`, `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`, and `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` all passed. `jq empty lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json` passed. `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed with 1 selected test file, 89 assertions, 0 failures. `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php >/tmp/syncthing-example-integrator.txt` passed. `git diff --check` passed.
+
+Root verification: pre-root gate initially saw active PID `3460122` (`php tools/run-tests.php`), waited until the exact no-argument root gate cleared, then `php tools/run-tests.php` ran in the same clean worktree and passed with 209 test files, 24616 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. This is a lane-local watcher scheduler slice reusing existing native PHP watcher scheduler, event aggregator, scan scheduler, scan service, and checkpoint store behavior. Live-service exclusions: no live Syncthing daemon, network discovery, filesystem watch backend service, provider, credentialed service, Go upstream suite, or network tests were run.
+
+Files staged: `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`, `lanes/syncthing/lane-status.json`, `lanes/syncthing/notes/wordpress-scenarios.md`, `lanes/syncthing/src/FolderWatchScanScheduler.php`, `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - isolated gitoxide decoded git-daemon URL slice - 2026-05-25 01:49 UTC
 
 Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-gitoxide-current-rebase-20260525T013424Z-00d185.ready` with patch `.tmux-team/tmp/handoff-candidates/port-gitoxide-current-rebase-20260525T013424Z-00d185.patch`.
