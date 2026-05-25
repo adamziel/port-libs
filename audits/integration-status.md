@@ -1,5 +1,44 @@
 # Integration Status
 
+## Integration accepted - rclone OneDrive Put/createObject rework note - 2026-05-25 04:48 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T043629Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T043629Z.patch`.
+Lane/slice/session: `rclone` / `rework-onedrive-put-create-object` /
+`port-rework-rclone`. Patch SHA-256 matched
+`4df9274378a933ac0534465a40ef036d0c2ea28f4396f88dea1f6106bf1b7a17`.
+
+Clean worktree:
+`/tmp/port-clean-integrator-rclone-rework-put-20260525T044603Z` from
+`refs/heads/main` at `0d6c6b9ab9ff73eb0435d52dfaaec1c178d3711a`.
+`git apply --check` and `git apply` both succeeded without three-way rebase.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/rclone/src/OneDrivePermissionPlanner.php`: PASS, no syntax errors.
+- `php -l lanes/rclone/tests/OneDrivePermissionPlannerTest.php`: PASS, no syntax errors.
+- `php -l lanes/rclone/examples/wordpress-onedrive-put-create-object.php`: PASS, no syntax errors.
+- `php tools/run-tests.php lanes/rclone/tests/OneDrivePermissionPlannerTest.php`: PASS, 1 test file, 253 assertions, 0 failures.
+- `php lanes/rclone/examples/wordpress-onedrive-put-create-object.php`: PASS, exit 0.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json`: PASS.
+- `git diff --check`: PASS.
+
+Root verification: exact no-argument root gate was empty before starting the
+root command. `php tools/run-tests.php`: PASS, 212 test files, 25149
+assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; the patch
+only adds lane-local verification notes for already-present OneDrive
+`Fs.Put`/`createObject` planner behavior. Live-service exclusions: no live
+OneDrive/provider tests were run.
+
+Files staged:
+
+- `lanes/rclone/notes/upstream-inventory.md`
+- `audits/integration-status.md`
+
 ## Integration accepted - Readability Kinja annotation rework - 2026-05-25 04:45 UTC
 
 Accepted isolated ready marker:
