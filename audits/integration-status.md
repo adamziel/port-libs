@@ -1,5 +1,34 @@
 # Integration Status
 
+## Clean-patch supersession - Difftastic - 2026-05-25 UTC
+
+Superseded marker:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-current-rebase-20260525T013638Z-3fdbe6a1.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-current-rebase-20260525T013638Z-3fdbe6a1.patch`.
+Lane/slice/session: `difftastic` /
+`current-rebase-20260525T013638Z-3fdbe6a1` /
+`current-rebase-prep-style-bundle`.
+
+Patch SHA-256 verification passed:
+`3fdbe6a18c52bc1ec147e736732815512d45323b9dcd28bfd2eb9dd339f6f58d`.
+Clean worktree base was `636f51c516bd953785817ec15a758ca1d8e91227`.
+`git apply --check` produced no source changes because the Difftastic browser
+globals highlight slice is already present in `refs/heads/main`.
+
+Focused verification was not rerun for this superseded marker because no source
+was staged; the current-rebase metadata records focused pass evidence for
+`php -l` on the touched Difftastic files, `php tools/run-tests.php
+lanes/difftastic/tests/TokenDifferTest.php`, the WordPress example JSON decode
+check, `jq empty` on the lane metadata, and `git diff --check -- lanes/difftastic`.
+Root verification was not run because no source acceptance occurred.
+
+Support-library/dependency-closure decision: no support-library activation; the
+slice is lane-local syntax highlight classifier/display coverage. Live-service
+exclusions: no live-service, provider, credentialed, network, Node/npm, Cargo,
+or secret-bearing tests were involved. Files staged for this audit-only commit:
+`audits/integration-status.md`.
+
 ## Integration accepted - rclone OneDrive OAuth config - 2026-05-25 01:39 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T012149Z.ready`.
