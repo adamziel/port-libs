@@ -262,7 +262,13 @@ final class MarkdownWriter
 
             if ($child->type === 'paragraph') {
                 if (count($lines) === 1 && rtrim($lines[0]) === rtrim($prefix)) {
-                    $lines[0] = rtrim($prefix . $this->renderInlines($child->children));
+                    $lines = [];
+                    $lines = $this->appendInlineListItemLines(
+                        $lines,
+                        $prefix,
+                        $continuationIndent,
+                        $this->renderInlines($child->children)
+                    );
                     continue;
                 }
 
@@ -281,7 +287,29 @@ final class MarkdownWriter
         }
 
         if ($inlineChildren !== [] || !$hasFirstLine) {
-            $lines[] = rtrim($prefix . $this->renderInlines($inlineChildren));
+            $lines = $this->appendInlineListItemLines(
+                $lines,
+                $prefix,
+                $continuationIndent,
+                $this->renderInlines($inlineChildren)
+            );
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function appendInlineListItemLines(array $lines, string $prefix, int $continuationIndent, string $markdown): array
+    {
+        $inlineLines = explode("\n", $markdown);
+        $first = array_shift($inlineLines);
+
+        $lines[] = rtrim($prefix . (string) $first);
+        foreach ($inlineLines as $line) {
+            $lines[] = str_repeat(' ', $continuationIndent) . $line;
         }
 
         return $lines;
@@ -1402,6 +1430,7 @@ final class MarkdownWriter
     {
         return in_array($node->type, [
             'text',
+            'space',
             'emph',
             'strong',
             'strikeout',
