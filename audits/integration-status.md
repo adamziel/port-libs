@@ -98711,3 +98711,23 @@ Files staged:
 - `lanes/lightningcss/notes/wordpress-scenarios.md`
 - `lanes/lightningcss/src/CssFormatter.php`
 - `lanes/lightningcss/tests/CssFormatterTest.php`
+
+## Clean-patch integration - pandoc - 2026-05-25T00:02:29Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-20260524T233545Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260524T233545Z.patch`
+Lane/slice/session: `pandoc` / `watchdog-next-20260524T233545Z` / `port-pandoc`
+Patch SHA-256: `3a1fccda4a2484bdac83db63353ac8c269ece6698728a7be5cd3ca554723e263` verified.
+Apply mode: `check` against old head `920af0c13fdf4e21c31f4d918c500eea0f1c53dc`.
+Focused commands: `php -l` on changed PHP files; `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`; changed PHP examples; JSON validation for changed lane status/manifests. Result: pass.
+Root command: `php tools/run-tests.php`. Result: pass.
+Support-library/dependency closure: lane-local only; no support-library activation accepted.
+Live-service exclusions: no live-service provider or credentialed tests run.
+Files staged:
+- `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- `lanes/pandoc/lane-status.json`
+- `lanes/pandoc/notes/upstream-inventory.md`
+- `lanes/pandoc/notes/wordpress-scenarios.md`
+- `lanes/pandoc/src/MarkdownWriter.php`
+- `lanes/pandoc/tests/MarkdownReaderTest.php`

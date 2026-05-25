@@ -1391,3 +1391,24 @@ focused file now contains 208 behavior tests.
 
 Root verification was not run for the 2026-05-24 code attribute slice because
 the assigned work was an isolated micro-slice.
+
+`src/Text/Pandoc/Writers/Markdown/Inline.hs` was inspected again for the
+bounded inline mark emission branch. The PHP Markdown writer now maps one
+focused check from that boundary: `small_caps` emits a bracketed span with the
+`.smallcaps` class, `strikeout` emits double-tilde delimiters, and
+`superscript`/`subscript` emit Pandoc Markdown script delimiters with spaces
+escaped inside script content.
+
+Focused local verification on 2026-05-24 after the Markdown writer inline mark
+emission slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Reviewer inline marks|smallcaps|~~legacy|revision"` emitted
+`Reviewer inline marks: [source glossary]{.smallcaps}, ~~legacy caption~~,
+revision^draft\ 2^, and H~2~O.`; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,278
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed. The
+focused file now contains 210 behavior tests.
+
+Root verification was not run for the 2026-05-24 inline mark emission slice
+because the assigned work was an isolated micro-slice.

@@ -99,6 +99,25 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer inline marks: ']),
+        new AstNode('small_caps', [], [
+            new AstNode('text', ['text' => 'source glossary']),
+        ]),
+        new AstNode('text', ['text' => ', ']),
+        new AstNode('strikeout', [], [
+            new AstNode('text', ['text' => 'legacy caption']),
+        ]),
+        new AstNode('text', ['text' => ', revision']),
+        new AstNode('superscript', [], [
+            new AstNode('text', ['text' => 'draft 2']),
+        ]),
+        new AstNode('text', ['text' => ', and H']),
+        new AstNode('subscript', [], [
+            new AstNode('text', ['text' => '2']),
+        ]),
+        new AstNode('text', ['text' => 'O.']),
+    ]),
+    new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
 ]);

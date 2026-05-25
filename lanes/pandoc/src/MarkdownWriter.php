@@ -318,6 +318,10 @@ final class MarkdownWriter
             'code' => $this->renderCode($node),
             'emph' => $this->delimitInlineContent('*', '*', $this->renderInlines($node->children)),
             'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
+            'strikeout' => $this->delimitInlineContent('~~', '~~', $this->renderInlines($node->children)),
+            'superscript' => $this->delimitScriptContent('^', $this->renderInlines($node->children)),
+            'subscript' => $this->delimitScriptContent('~', $this->renderInlines($node->children)),
+            'small_caps' => $this->renderSmallCaps($node),
             'span' => $this->renderSpan($node),
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
@@ -411,6 +415,14 @@ final class MarkdownWriter
         $attrs = $this->renderLinkAttributes($node);
 
         return $attrs === '' ? $content : '[' . $content . ']' . $attrs;
+    }
+
+    private function renderSmallCaps(AstNode $node): string
+    {
+        $attrs = $this->linkAttrTuple($node);
+        array_unshift($attrs['classes'], 'smallcaps');
+
+        return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
 
     /**
@@ -571,6 +583,13 @@ final class MarkdownWriter
         }
 
         return $leading . $opener . $content . $closer . $trailing;
+    }
+
+    private function delimitScriptContent(string $delimiter, string $content): string
+    {
+        $delimited = $this->delimitInlineContent($delimiter, $delimiter, str_replace(' ', '\\ ', $content));
+
+        return str_replace("\xC2\xA0", '\\ ', $delimited);
     }
 
     private function escapeText(string $text): string
@@ -1001,6 +1020,10 @@ final class MarkdownWriter
             'text',
             'emph',
             'strong',
+            'strikeout',
+            'superscript',
+            'subscript',
+            'small_caps',
             'span',
             'softbreak',
             'linebreak',

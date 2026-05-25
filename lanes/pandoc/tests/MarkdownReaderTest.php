@@ -2703,6 +2703,30 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer small caps strikeout superscript and subscript' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Reviewer marks: '),
+                new AstNode('small_caps', [], [$text('source glossary')]),
+                $text(', '),
+                new AstNode('strikeout', [], [
+                    $text('legacy '),
+                    new AstNode('emph', [], [$text('caption')]),
+                ]),
+                $text(', post'),
+                new AstNode('superscript', [], [$text('draft 2')]),
+                $text(', and H'),
+                new AstNode('subscript', [], [$text('2')]),
+                $text('O.'),
+            ]),
+        ]);
+
+        $t->same(
+            'Reviewer marks: [source glossary]{.smallcaps}, ~~legacy *caption*~~, post^draft\\ 2^, and H~2~O.',
+            (new MarkdownWriter())->write($document)
+        );
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
