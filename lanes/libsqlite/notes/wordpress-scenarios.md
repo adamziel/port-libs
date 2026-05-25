@@ -10,7 +10,7 @@ The example
 `examples/wordpress-json-pretty-option-review.php` exercises the dispatch
 path for copied `wp_options.option_value` inputs, including strict JSON text,
 SQLite JSON5 text, cast text BLOBs, JSONB blobs, SQL NULL option values,
-scalar SQL option values including booleans, fractional floats, and whole REAL
+JSON subtype fragments, scalar SQL option values including booleans, fractional floats, and whole REAL
 values, malformed settings, and custom text/numeric/boolean indentation. This gives WordPress migration and
 repair tooling a local-only review path that mirrors SQLite's SQL entry point
 without requiring the SQLite extension.
@@ -64,6 +64,9 @@ Priority-refill rework 2026-05-25T12:13Z adds the matching SQL NULL
 first-argument plus custom-indent second-argument row for copied option values,
 so both direct and argument-vector SQL-dispatch paths return NULL for
 `json_pretty(NULL, '--')` instead of treating the indent as meaningful output.
+Supervisor-rework refill 2026-05-25T12:53Z adds a JSON subtype option-value
+smoke row and matching focused assertions for default indentation through both
+direct and argument-vector SQL-dispatch paths.
 Dependency closure remains unchanged: no new support component is needed.
 
 ## `json_each()` Option-Value Expansion Scenario

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonPretty;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -12,6 +13,7 @@ $optionValues = [
     'strict_settings' => '{"plugin":{"enabled":true,"modes":["cache","seo"],"limits":{"batch":25}}}',
     'json5_settings' => "{plugin:{enabled:true,modes:['cache','seo',],}, /* copied option */}",
     'custom_indent_settings' => '{"plugin":{"enabled":true,"modes":["cache","seo"]}}',
+    'json_subtype_settings' => new SQLiteJsonSubtypeValue('{"plugin":{"enabled":true,"source":"json-subtype"}}'),
     'boolean_indent_settings' => '{"plugin":{"enabled":true,"source":"boolean-indent"}}',
     'false_indent_settings' => '[1,2]',
     'float_indent_settings' => '{"plugin":{"enabled":true,"source":"float-indent"}}',
@@ -75,5 +77,5 @@ foreach ($optionValues as $optionName => $optionValue) {
 
 echo json_encode([
     'optionJson' => $report,
-    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, JSON5 plugin settings, custom text/numeric/boolean indentation, cast text BLOBs, JSONB option blobs with default and custom indentation, scalar SQL option values including whole REAL values, NULL option values, and malformed settings before import.',
+    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, JSON subtype fragments, JSON5 plugin settings, custom text/numeric/boolean indentation, cast text BLOBs, JSONB option blobs with default and custom indentation, scalar SQL option values including whole REAL values, NULL option values, and malformed settings before import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

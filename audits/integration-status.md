@@ -109749,3 +109749,44 @@ Files staged:
 - `lanes/rclone/lane-status.json`
 - `lanes/rclone/notes/cleanup-command-rework-20260525T122630Z.md`
 - `audits/integration-status.md`
+## Integration accepted - libsqlite JSON subtype pretty dispatch - 2026-05-25 12:58 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T125325Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T125325Z.patch`.
+
+Lane/slice/session: `libsqlite` /
+`supervisor-rework-refill-20260525T125325Z` /
+`port-libsqlite-rework`. Patch sha256 verified:
+`58e9f638d2c2979f3794fdfbd5efef26c2ddc58fb52a27c65cc47c1285deecfa`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-libsqlite-supervisor-rework-refill-20260525T125325Z`:
+`php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed;
+`php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`
+passed; `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+| grep json_subtype_settings` passed; `php tools/run-tests.php
+lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 2082
+assertions, 0 failures`; `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json
+lanes/libsqlite/lane-status.json` passed; `git diff --check` passed.
+
+Root verification: after gate check (`df -Pk /` available `112234152` KiB,
+load `10.18`, and no exact `php tools/run-tests.php` process), ran
+`flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php
+tools/run-tests.php` in the clean worktree. Result: `214 test files, 26136
+assertions, 0 failures`.
+
+Support-library/dependency closure: no new support component activated. This
+slice reuses existing lane-local JSON canonicalization, JSON subtype, JSON5,
+JSONB, BLOB, and pretty-format support; no shared support-library progress is
+counted.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`,
+`lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.

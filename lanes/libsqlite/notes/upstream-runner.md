@@ -83,6 +83,10 @@ through both direct and argument-vector `json_pretty()` dispatch, plus the
 matching `null_indent_settings` WordPress smoke row. Focused PHP verification
 passed with 1 selected file, 2080 assertions, and 0 failures; the root harness
 was not run for this isolated micro-slice.
+Supervisor-rework refill 2026-05-25T12:53Z adds the missing default-indent
+JSON subtype first-argument assertions through both direct and argument-vector
+`json_pretty()` dispatch, plus a matching WordPress smoke row for subtype
+option values. Focused PHP verification passed with 1 selected file, 2082 assertions, and 0 failures; the WordPress smoke reported `json_subtype_settings` with matching `json` and `directJson` output. The root harness was not run for this isolated micro-slice.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
