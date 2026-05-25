@@ -1,4 +1,57 @@
 
+## Clean-patch integrated - rclone closure-refill - 2026-05-25 17:45 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-closure-20260525T174156Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-closure-20260525T174156Z.patch`.
+
+Lane/slice/session: `rclone` / `closure-refill-20260525T174156Z` /
+`port-rclone-closure`. Patch sha256 verified as
+`37a63dc3c47b3a4a359d18f9e77bf859c2f793861fcd291407c6561f139cca13`.
+
+Clean application result: plain `git apply --check` and `git apply` both
+succeeded in detached clean worktree
+`/tmp/port-clean-integrator-rclone-closure-refill-20260525T174156Z` from old
+main `8d18eb6576edf6c3fa99b76aa42ed252756ba8d0`. The patch is lane-local to
+`lanes/rclone/**` and changes only the rclone manifest/status plus a
+cleanup-command rework note.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/rclone/src/OneDriveCleanupCommand.php`: passed.
+- `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php`: passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`:
+  passed.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json`:
+  passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php`:
+  passed, `1 test files, 133 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/rclone/tests`: passed, `35 test files, 4090
+  assertions, 0 failures`.
+- `php lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`:
+  passed.
+- `git diff --check -- lanes/rclone`: passed.
+
+Root verification: resource/process gate was open immediately before root
+verification (`/` had `108936356` KiB available, load average first field was
+`6.05`, and no exact no-argument root harness was active). `php
+tools/run-tests.php` ran under
+`.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and passed with
+`214 test files, 26351 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support library was activated. The
+slice reuses existing bounded native OneDrive cleanup-command/RC parameter
+models; live OneDrive Graph/OAuth/provider tests and secret-bearing inputs were
+excluded.
+
+Files staged:
+
+- `audits/integration-status.md`
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/cleanup-command-rework-20260525T174156Z.md`
+
 ## Clean-patch intake deferred - root resource gate closed - 2026-05-25 17:23 UTC
 
 No isolated source output was integrated in this pass.
