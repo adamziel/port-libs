@@ -93,6 +93,8 @@ return [
         ['name' => 'wp_options'],
     ],
     'schemaConflictResolutionTables' => ['wp_options'],
+    'schemaConflictSideResolutionTable' => 'wp_postmeta',
+    'schemaConflictSideResolution' => 'theirs',
     'partialResolution' => [
         'data' => [],
         'schema' => ['wp_options'],

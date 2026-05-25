@@ -75,6 +75,11 @@ return [
         $fixture['schemaConflictRows'],
         $fixture['schemaConflictResolutionTables'],
     ),
+    'resolvedSchemaConflictSideState' => $mergeStatus->resolveSchemaConflictSide(
+        $fixture['previewSchemaConflictDescriptions'],
+        $fixture['schemaConflictSideResolutionTable'],
+        $fixture['schemaConflictSideResolution'],
+    ),
     'resolvedRootObjectConflictState' => $mergeStatus->resolveRootObjectConflicts(
         $fixture['rootObjectConflicts'],
         $fixture['rootObjectResolutionObjects'],

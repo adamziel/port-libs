@@ -92,6 +92,49 @@ return [
         ], $resolved);
         $t->throws(InvalidArgumentException::class, static fn () => $table->resolveSchemaConflicts(['wp_options'], ['']));
     },
+    'dolt conflicts resolve chooses schema side and clears selected table' => static function (TestRunner $t): void {
+        $table = new MergeStatusTable();
+        $conflicts = [
+            [
+                'table_name' => 'wp_options',
+                'our_schema' => "CREATE TABLE `wp_options` (`autoload` varchar(20))",
+                'their_schema' => "CREATE TABLE `wp_options` (`autoload` text)",
+            ],
+            [
+                'table_name' => 'wp_postmeta',
+                'our_schema' => "CREATE TABLE `wp_postmeta` (`meta_key` varchar(255), KEY `idx_post_meta_key` (`meta_key`))",
+                'their_schema' => "CREATE TABLE `wp_postmeta` (`meta_key` varchar(255), KEY `idx_meta_review` (`meta_key`))",
+            ],
+        ];
+
+        $ours = $table->resolveSchemaConflictSide($conflicts, 'wp_options', 'ours');
+        $t->same([
+            'table' => 'wp_options',
+            'resolution' => 'ours',
+            'selected_schema' => "CREATE TABLE `wp_options` (`autoload` varchar(20))",
+            'remaining_schema_conflicts' => [
+                ['table' => 'wp_postmeta', 'num_conflicts' => 0],
+            ],
+            'status_guidance' => "You have unmerged tables.\n"
+                . "  (fix conflicts and run \"dolt commit\")\n"
+                . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
+                . "Unmerged paths:\n"
+                . "  (use \"dolt add <table>...\" to mark resolution)\n"
+                . "\tschema conflict:  wp_postmeta",
+            'commit_guidance' => "Unmerged paths:\n"
+                . "  (use \"dolt add <table>...\" to mark resolution)\n"
+                . "\tschema conflict:  wp_postmeta",
+        ], $ours);
+
+        $theirs = $table->resolveSchemaConflictSide($conflicts, 'wp_postmeta', 'theirs');
+        $t->same("CREATE TABLE `wp_postmeta` (`meta_key` varchar(255), KEY `idx_meta_review` (`meta_key`))", $theirs['selected_schema']);
+        $t->same([
+            ['table' => 'wp_options', 'num_conflicts' => 0],
+        ], $theirs['remaining_schema_conflicts']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $table->resolveSchemaConflictSide($conflicts, 'wp_options', 'base'));
+        $t->throws(InvalidArgumentException::class, static fn () => $table->resolveSchemaConflictSide($conflicts, 'wp_terms', 'ours'));
+    },
     'dolt add root object conflict resolution clears conflict rows' => static function (TestRunner $t): void {
         $table = new MergeStatusTable();
 

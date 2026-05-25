@@ -2076,3 +2076,12 @@
 - Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo count($r["partiallyResolvedMergeState"]["remaining_data_conflicts"])."\n"; echo implode(",", $r["partiallyResolvedMergeState"]["remaining_constraint_violations"])."\n"; echo $r["partiallyResolvedMergeState"]["merge_failure_summary"]."\n";'` returned `1`, `wp_postmeta,wp_import_audit`, and an `Automatic merge failed; 3 table(s) are unmerged.` summary.
 - Root harness: not run - isolated micro-slice.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/constraint projection surface, with no shell-outs and no activation of a shared dependency.
+
+## Watchdog Next 2026-05-25 Schema-Conflict Side Resolution Slice
+
+- Upstream evidence reused: `schema-conflicts.bats` documents `dolt_conflicts_resolve('--ours', 't')` and `--theirs` schema-conflict resolution cases, currently skipped upstream behind Dolt issue 6616, while active schema-conflict BATS and Go cases verify `dolt_schema_conflicts` rows and merge/status conflict visibility. No wider upstream runner was executed in this isolated worktree.
+- Native delta: `MergeStatusTable::resolveSchemaConflictSide()` now projects side-selection state for `dolt_conflicts_resolve('--ours'|'--theirs', table)`, returning the chosen schema text, clearing the selected schema-conflict table, and preserving remaining schema-conflict status/commit guidance.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 150 assertions, and 0 failures.
+- Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo $r["resolvedSchemaConflictSideState"]["table"]."\n"; echo $r["resolvedSchemaConflictSideState"]["resolution"]."\n"; echo count($r["resolvedSchemaConflictSideState"]["remaining_schema_conflicts"])."\n"; echo strpos($r["resolvedSchemaConflictSideState"]["selected_schema"], "idx_meta_review") !== false ? "selected-theirs-index\n" : "missing\n";'` returned `wp_postmeta`, `theirs`, `2`, and `selected-theirs-index`.
+- Root harness: not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/schema-conflict projection surface and supplied schema strings, with no shell-outs and no activation of a shared dependency.

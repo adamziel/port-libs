@@ -103501,3 +103501,32 @@ No focused or root verification result is claimed for this defer because the
 patch was not in a conflict-free state. No live OneDrive/provider tests were
 run, no support-library row was activated, and no dashboard artifact was
 published.
+
+## Clean-patch integration accepted - dolt - 20260525T060221Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T055535Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T055535Z.patch`
+Lane/slice/session: `dolt` / `watchdog-next-20260525T055535Z` / `port-dolt`
+Base old_head: `c850047ea393ad78a4f8d2d76532b8b3153873ee`
+
+Focused verification:
+- `sha256sum /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T055535Z.patch`: matched `274e28d4ae52e0cfa036913c3164bba854517ff67a1160b2962aab6af57c7e96`.
+- `php -l` on 4 changed PHP file(s): passed.
+- `php tools/run-tests.php lanes/dolt/tests`: passed; PASS wordpress diff stat fixture summarizes migration review counts PASS primary key set changes report dolt warning and stop non-fuzzy diffs PASS wordpress plugin schema drift fixture projects through latest diff schema  20 test files, 1130 assertions, 0 failures 
+- `git diff --check`: passed.
+
+Root verification:
+- Pre-root exact gate `pgrep -af '^php tools/run-tests\.php$'`: clear after 0s wait.
+- `php tools/run-tests.php`: passed; PASS wordpress option store expires snapshots and deletes stale options before reuse PASS folder scan service resumes through a wordpress option checkpoint store PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  212 test files, 25450 assertions, 0 failures 
+
+Support-library/dependency closure: no new support-library activation accepted for this isolated lane-local micro-slice; existing gated dependency backlog remains inactive unless the lane status already records a bounded future gate.
+Live-service exclusions: no live-service provider tests were run.
+Files staged:
+- `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/dolt/examples/wordpress-merge-status-review.php`
+- `lanes/dolt/fixtures/wp-merge-review.php`
+- `lanes/dolt/lane-status.json`
+- `lanes/dolt/notes/upstream-runner.md`
+- `lanes/dolt/notes/wordpress-scenarios.md`
+- `lanes/dolt/src/MergeStatusTable.php`
+- `lanes/dolt/tests/MergeStatusTableTest.php`

@@ -188,6 +188,60 @@ final class MergeStatusTable
     }
 
     /**
+     * Project the visible state after `dolt_conflicts_resolve('--ours'|'--theirs', <table>)`
+     * resolves one schema-conflict table by choosing a schema side.
+     *
+     * @param list<array<string,mixed>> $schemaConflicts
+     * @return array{table:string, resolution:string, selected_schema:string, remaining_schema_conflicts:list<array{table:string,num_conflicts:int}>, status_guidance:string|null, commit_guidance:string|null}
+     */
+    public function resolveSchemaConflictSide(array $schemaConflicts, string $tableName, string $resolution): array
+    {
+        $tableName = $this->rootObjectString($tableName, 'schema conflict table name');
+        $resolution = strtolower($this->rootObjectString($resolution, 'schema conflict resolution'));
+        if ($resolution !== 'ours' && $resolution !== 'theirs') {
+            throw new \InvalidArgumentException("Dolt schema conflict resolution must be 'ours' or 'theirs'.");
+        }
+
+        $selectedSchema = null;
+        $remaining = [];
+        foreach ($schemaConflicts as $conflict) {
+            $conflictTable = $this->rootObjectString(
+                $conflict['table_name'] ?? $conflict['table'] ?? $conflict['name'] ?? null,
+                'schema conflict table name'
+            );
+            if ($conflictTable === $tableName) {
+                $schema = $conflict[$resolution === 'ours' ? 'our_schema' : 'their_schema'] ?? null;
+                if (!is_string($schema) || $schema === '') {
+                    throw new \InvalidArgumentException("Dolt schema conflict {$tableName} must include a non-empty selected {$resolution} schema.");
+                }
+                $selectedSchema = $schema;
+                continue;
+            }
+
+            $remaining[] = ['name' => $conflictTable];
+        }
+
+        if ($selectedSchema === null) {
+            throw new \InvalidArgumentException("Dolt schema conflict table {$tableName} was not found.");
+        }
+
+        $remainingRows = $this->conflictRows([], $remaining);
+        $remainingTables = array_map(
+            static fn (array $row): string => $row['table'],
+            $remainingRows
+        );
+
+        return [
+            'table' => $tableName,
+            'resolution' => $resolution,
+            'selected_schema' => $selectedSchema,
+            'remaining_schema_conflicts' => $remainingRows,
+            'status_guidance' => $this->statusGuidance(true, [], $remainingTables),
+            'commit_guidance' => $this->commitUnmergedPaths([], $remainingTables),
+        ];
+    }
+
+    /**
      * Project the visible conflict-table state after root-object conflicts
      * such as views or stored procedures are marked resolved.
      *
