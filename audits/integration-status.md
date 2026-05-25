@@ -103409,3 +103409,95 @@ Deferred markers and exact repair commands:
 - `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.ready`: `git apply --check .tmux-team/tmp/handoff-candidates/port-syncthing-20260525T051951Z.patch` fails on `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`; `git apply --3way` leaves conflicts in manifest/status/WordPress notes plus `examples/wordpress-fs-watch-scan-scheduler.php` and `src/FolderWatchScanScheduler.php`. Repair command: rebase the folder watch scheduler cleanup slice on current `main`, then run `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` and root.
 
 No support-library rows were activated by these deferrals. No live-service provider tests were run. The source patches and metadata remain in place for lane repair.
+## Clean-patch isolated queue defer - 2026-05-25 05:59 UTC
+
+No source patch was accepted in this pass. I processed the current top-level
+isolated ready markers under `.tmux-team/tmp/handoff-candidates/*.ready` at
+runtime, not the stale directory and not historical `port-iso-*224329Z`
+markers. All current markers that contained `lane=`, `patch=`, and
+`metadata=` also had matching `patch_sha256=` values; every listed patch hash
+verified with `sha256sum -c`.
+
+The direct clean-head check failed for every current marker with:
+
+`git apply --check .tmux-team/tmp/handoff-candidates/<marker>.patch`
+
+Current markers checked:
+`port-difftastic-20260525T045348Z.ready`,
+`port-difftastic-20260525T052923Z.ready`,
+`port-dolt-20260525T045845Z.ready`,
+`port-dolt-20260525T050516Z.ready`,
+`port-esbuild-20260525T045743Z.ready`,
+`port-esbuild-20260525T052717Z.ready`,
+`port-esbuild-20260525T055536Z.ready`,
+`port-gitoxide-20260525T045347Z.ready`,
+`port-gitoxide-20260525T050152Z.ready`,
+`port-gitoxide-20260525T050720Z.ready`,
+`port-libsqlite-20260525T045947Z.ready`,
+`port-libsqlite-20260525T050515Z.ready`,
+`port-libsqlite-20260525T052922Z.ready`,
+`port-lightningcss-20260525T045947Z.ready`,
+`port-lightningcss-20260525T050514Z.ready`,
+`port-lightningcss-20260525T051029Z.ready`,
+`port-markerpdf-20260525T045347Z.ready`,
+`port-markerpdf-20260525T050515Z.ready`,
+`port-pandoc-20260525T045348Z.ready`,
+`port-pandoc-20260525T050515Z.ready`,
+`port-pandoc-20260525T050927Z.ready`,
+`port-quadrable-20260525T045348Z.ready`,
+`port-quadrable-20260525T050255Z.ready`,
+`port-quadrable-20260525T050721Z.ready`,
+`port-quadrable-20260525T054306Z.ready`,
+`port-quadrable-20260525T054606Z.ready`,
+`port-quadrable-20260525T055534Z.ready`,
+`port-rclone-20260525T045348Z.ready`,
+`port-rclone-20260525T050255Z.ready`,
+`port-rclone-20260525T050722Z.ready`,
+`port-rclone-20260525T054700Z.ready`,
+`port-syncthing-20260525T045639Z.ready`,
+`port-syncthing-20260525T045947Z.ready`,
+`port-syncthing-20260525T051538Z.ready`, and
+`port-syncthing-20260525T051951Z.ready`.
+
+I attempted bounded three-way handling for the newest rclone marker,
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.ready`.
+The source, test, and example additions applied, but `git apply --3way` left
+coordination conflicts in:
+
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/upstream-inventory.md`
+- `lanes/rclone/notes/wordpress-scenarios.md`
+
+The conflict is not a behavior conflict, but it is not safe to flatten by
+taking either side: current `main` already records the accepted OneDrive
+token-renewer underflow watchdog slice, while the provider-shutdown patch
+updates the same latest-evidence/status blocks. The bounded repair is a
+lane-side metadata rebase that preserves the accepted underflow evidence and
+adds the provider-shutdown evidence as an additional entry instead of replacing
+it.
+
+Exact repair commands for the lane:
+
+`git worktree add --detach /tmp/port-clean-integrator-rclone-provider-shutdown-repair $(git rev-parse refs/heads/main)`
+
+`cd /tmp/port-clean-integrator-rclone-provider-shutdown-repair`
+
+`git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.patch`
+
+Then resolve only the four rclone coordination files listed above by merging
+accepted underflow-watchdog status with provider-shutdown status; do not edit
+the provider-shutdown source/test behavior. After the repair, verify with:
+
+`php tools/run-tests.php lanes/rclone/tests/OneDriveProviderLifecycleTest.php`
+
+`php tools/run-tests.php lanes/rclone/tests`
+
+`git diff --check`
+
+`php tools/run-tests.php`
+
+No focused or root verification result is claimed for this defer because the
+patch was not in a conflict-free state. No live OneDrive/provider tests were
+run, no support-library row was activated, and no dashboard artifact was
+published.
