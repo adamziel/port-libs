@@ -53,6 +53,12 @@ try {
         throw new RuntimeException($proofCommand['stderr']);
     }
     $proofBytes = $proofCommand['stdout'];
+    $eofProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $sourceDir,
+        rtrim($keyInput, "\n"),
+        'FullKeys',
+        hex: false
+    );
     $homeProofBytes = $source->exportProofBytesFromKeyLines("wp_options:home\n", Proof::ENCODING_FULL_KEYS);
 
     $target = QuadbStore::init($targetDir);
@@ -250,6 +256,8 @@ try {
         'stdinKeys' => explode("\n", rtrim($keyInput, "\n")),
         'exportProofStdinExitCode' => $proofCommand['exitCode'],
         'binaryProofBytes' => strlen($proofBytes),
+        'eofFinalKeyProofMatchesLf' => $eofProofCommand['exitCode'] === 0
+            && $eofProofCommand['stdout'] === $proofBytes,
         'encodingType' => ord($proofBytes[0]),
         'siteUrl' => $target->get('wp_options:siteurl'),
         'post' => $target->get('wp_posts:1'),

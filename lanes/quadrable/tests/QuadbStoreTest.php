@@ -1821,6 +1821,7 @@ return [
             $trustedRoot = $source->tree()->rootHash();
             $keyInput = "wp_options:siteurl\nwp_posts:1\nwp_posts:404\n";
             $proofBytes = $source->exportProofBytesFromKeyLines($keyInput, Proof::ENCODING_FULL_KEYS);
+            $eofKeyInput = "wp_options:siteurl\nwp_posts:1\nwp_posts:404";
             $proofCommand = QuadbStore::exportProofStdinCommandOutput(
                 $sourceDir,
                 $keyInput,
@@ -1852,6 +1853,16 @@ return [
             $t->same(0, $proofCommand['exitCode']);
             $t->same($proofBytes, $proofCommand['stdout']);
             $t->same('', $proofCommand['stderr']);
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $proofBytes,
+                'stderr' => '',
+            ], QuadbStore::exportProofStdinCommandOutput(
+                $sourceDir,
+                $eofKeyInput,
+                'FullKeys',
+                hex: false
+            ));
             $t->same(
                 $source->exportProofFromKeyLines($keyInput)->dumpText(),
                 QuadbStore::exportProofStdinCommandOutput(

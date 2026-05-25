@@ -1050,6 +1050,8 @@ return [
                                     'deploy_gate=root; Path=/; Secure',
                                     'deploy_gate=redirect; Path=/redirected.git; Secure',
                                     'deploy_gate=receive; Path=/redirected.git/git-receive-pack; Secure',
+                                    'replace_gate=stale; Path=/redirected.git; Secure',
+                                    'replace_gate=fresh; Path=/redirected.git; Secure',
                                 ],
                             ],
                             'body' => '',
@@ -1077,9 +1079,10 @@ return [
 
         $t->same(true, $pathSpecificOrderResponse->isSuccessful());
         $t->same(
-            'deploy_gate=receive; deploy_gate=redirect; deploy_gate=root',
+            'deploy_gate=receive; deploy_gate=redirect; replace_gate=fresh; deploy_gate=root',
             $pathSpecificOrderRequests[2]['headers']['Cookie']
         );
+        $t->same(false, str_contains($pathSpecificOrderRequests[2]['headers']['Cookie'], 'replace_gate=stale'));
         $t->same($pathSpecificOrderRequest->requestBytes(), $pathSpecificOrderRequests[2]['body']);
 
         $relativePermanentRedirectRequests = [];
@@ -1271,6 +1274,7 @@ return [
         $t->same(true, $redirectExample['secureCookiePlainRedirectOmitted']);
         $t->same(true, $redirectExample['defaultPathRedirectCookieOmitted']);
         $t->same(true, $redirectExample['sameNameScopedRedirectCookieRetained']);
+        $t->same(true, $redirectExample['sameScopeRedirectCookieReplaced']);
         $t->same(true, $redirectExample['pathSpecificRedirectCookiesFirst']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
