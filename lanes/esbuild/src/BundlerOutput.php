@@ -7,7 +7,7 @@ namespace PortLibs\Esbuild;
 final class BundlerOutput
 {
     /**
-     * @return array{entry: string, output: array{path: string, bytes: int, contents: string}, inputs: array<string, array{bytes: int, outputBytes: int, importsRemoved: int, importsRewritten: int, rewrites: list<array{from: string, to: string, kind: string}>}}, diagnostics: array{external: list<array{path: string, kind: string}>, missing: list<array{path: string, kind: string}>, unsupported: list<array{path: string, kind: string, resolved: string}>}}
+     * @return array{entry: string, output: array{path: string, bytes: int, contents: string}, inputs: array<string, array{bytes: int, outputBytes: int, importsRemoved: int, importsRewritten: int, importsExternal: int, rewrites: list<array{from: string, to: string, kind: string}>, externalImports: list<array{path: string, kind: string}>}}, diagnostics: array{external: list<array{path: string, kind: string}>, missing: list<array{path: string, kind: string}>, unsupported: list<array{path: string, kind: string, resolved: string}>}}
      */
     public function build(BundlerGraph $graph, ?string $root = null, string $outputPath = 'out.js'): array
     {
@@ -23,6 +23,7 @@ final class BundlerOutput
             $source = (string) file_get_contents($module->path);
             [$rewrittenSource, $importsRemoved] = $this->removeBundledStaticImports($source, $module, $graph);
             [$rewrittenSource, $rewrites] = $this->rewriteRetainedStaticImports($rewrittenSource, $module, $root, $outputPath);
+            $externalImports = $this->externalImports($module);
             $relativePath = $this->relativePath($module->path, $root);
             $chunk = "// {$relativePath}\n" . rtrim($rewrittenSource) . "\n";
             $chunks[] = $chunk;
@@ -31,7 +32,9 @@ final class BundlerOutput
                 'outputBytes' => strlen($chunk),
                 'importsRemoved' => $importsRemoved,
                 'importsRewritten' => count($rewrites),
+                'importsExternal' => count($externalImports),
                 'rewrites' => $rewrites,
+                'externalImports' => $externalImports,
             ];
         }
 
@@ -168,6 +171,27 @@ final class BundlerOutput
         $relative = $this->relativeBetween($fromDir, $edge->path);
 
         return str_starts_with($relative, '.') ? $relative : './' . $relative;
+    }
+
+    /**
+     * @return list<array{path: string, kind: string}>
+     */
+    private function externalImports(BundlerModule $module): array
+    {
+        $external = [];
+
+        foreach ($module->edges as $edge) {
+            if (!$edge->external) {
+                continue;
+            }
+
+            $external[] = [
+                'path' => $edge->source,
+                'kind' => $edge->kind,
+            ];
+        }
+
+        return $external;
     }
 
     /**

@@ -1,4 +1,53 @@
 
+## Integration accepted - esbuild node external import accounting - 2026-05-25 07:18 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T070533Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T070533Z.patch`.
+
+Lane/slice/session: `esbuild` /
+`watchdog-next-20260525T070533Z` / `port-esbuild`.
+Patch SHA-256 verified:
+`180948c019832d2f95e0d80ca34148d09087b9d955ad27141af6ebb09c231b0e`.
+Clean base: `caa99c8121490b1124dd79897fc568d611c0f0fe`.
+
+Focused verification repeated in clean worktree
+`/tmp/port-clean-integrator-esbuild-watchdog-next-20260525T071356Z`:
+
+- `php -l lanes/esbuild/src/BundlerOutput.php` - passed, no syntax errors.
+- `php -l lanes/esbuild/src/BundlerMetafile.php` - passed, no syntax errors.
+- `php -l lanes/esbuild/tests/BundlerGraphBuilderTest.php` - passed, no syntax errors.
+- `php -l lanes/esbuild/examples/wordpress-asset-preflight.php` - passed, no syntax errors.
+- `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php` - passed: `1 test files, 98 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/esbuild/tests` - passed: `7 test files, 1942 assertions, 0 failures`.
+- `php lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'WordPress (bounded JS output bytes|terminal import path rewrites|node output external imports|metafile output bytes)'` - passed and matched all four smoke lines.
+- `jq empty lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/lane-status.json` - passed.
+- `git diff --check` - passed.
+
+Root verification:
+
+- Pre-root gate satisfied: `/` available KiB was above `86000000`, load was below `25`, and `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- `php tools/run-tests.php` - passed: `213 test files, 25770 assertions, 0 failures`.
+
+Support-library/dependency closure decision: no support-library activation.
+The patch reuses lane-local graph, package resolver, output, and metafile
+surfaces. `js-package-resolution-core` remains deferred until a later accepted
+cross-lane resolver gate requires it.
+
+Live-service exclusions: none; no live provider tests were run.
+
+Files staged:
+
+- `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/esbuild/examples/wordpress-asset-preflight.php`
+- `lanes/esbuild/lane-status.json`
+- `lanes/esbuild/notes/wordpress-scenarios.md`
+- `lanes/esbuild/src/BundlerMetafile.php`
+- `lanes/esbuild/src/BundlerOutput.php`
+- `lanes/esbuild/tests/BundlerGraphBuilderTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - libsqlite json_extract dispatch - 2026-05-25 07:16 UTC
 
 Accepted isolated ready marker:

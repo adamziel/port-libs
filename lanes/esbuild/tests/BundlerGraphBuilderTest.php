@@ -178,6 +178,26 @@ return [
         $t->same(false, isset($unsupportedOutput['inputs']['src/asset.bin']));
         $t->same(true, isset($unsupportedOutput['inputs']['src/local-preview.js']));
     },
+    'preserves and accounts for external imports in node platform output previews' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $graph = (new BundlerGraphBuilder(new PackageResolver('node')))->build($fixtureRoot . '/src/node-entry.js');
+        $output = (new BundlerOutput())->build($graph, $fixtureRoot, 'node-block-view.js');
+        $metafile = (new BundlerMetafile())->summarize($graph, $fixtureRoot, $output);
+
+        $t->same(true, str_contains($output['output']['contents'], "import path from 'path';"));
+        $t->same(true, str_contains($output['output']['contents'], "import('node:crypto');"));
+        $t->same(2, $output['inputs']['src/node-entry.js']['importsExternal']);
+        $t->same([
+            ['path' => 'path', 'kind' => 'default'],
+            ['path' => 'node:crypto', 'kind' => 'dynamic'],
+        ], $output['inputs']['src/node-entry.js']['externalImports']);
+        $t->same(0, $output['inputs']['src/local-preview.js']['importsExternal']);
+        $t->same(2, $metafile['outputs']['node-block-view.js']['importsExternal']);
+        $t->same([
+            ['path' => 'path', 'kind' => 'default', 'input' => 'src/node-entry.js'],
+            ['path' => 'node:crypto', 'kind' => 'dynamic', 'input' => 'src/node-entry.js'],
+        ], $metafile['outputs']['node-block-view.js']['externalImports']);
+        $t->same(2, $metafile['outputs']['node-block-view.js']['inputs']['src/node-entry.js']['importsExternal']);
+    },
     'rewrites retained terminal asset imports relative to nested output paths' => static function (TestRunner $t) use ($fixtureRoot): void {
         $graph = (new BundlerGraphBuilder())->build($fixtureRoot . '/src/loader-entry.js');
         $output = (new BundlerOutput())->build($graph, $fixtureRoot, 'build/block-view.js');

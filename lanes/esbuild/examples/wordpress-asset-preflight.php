@@ -155,6 +155,8 @@ $unsupportedLoaderGraph = (new BundlerGraphBuilder())->build($packageEntryDir . 
 $unsupportedLoaderMetafile = (new BundlerMetafile())->summarize($unsupportedLoaderGraph, $packageFixtureDir);
 $loaderBundlerOutput = (new BundlerOutput())->build($loaderBundlerGraph, $packageFixtureDir, 'block-view.js');
 $loaderOutputMetafile = (new BundlerMetafile())->summarize($loaderBundlerGraph, $packageFixtureDir, $loaderBundlerOutput);
+$nodeBundlerOutput = (new BundlerOutput())->build($nodeBundlerGraph, $packageFixtureDir, 'node-block-view.js');
+$nodeOutputMetafile = (new BundlerMetafile())->summarize($nodeBundlerGraph, $packageFixtureDir, $nodeBundlerOutput);
 $unsupportedLoaderOutput = (new BundlerOutput())->build($unsupportedLoaderGraph, $packageFixtureDir, 'block-view.js');
 $unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
@@ -615,6 +617,14 @@ printf("WordPress terminal import path rewrites: %s\n", (
     && ($loaderBundlerOutput['inputs']['src/loader-entry.js']['rewrites'][0]['to'] ?? null) === './src/block.css'
     && ($loaderBundlerOutput['inputs']['src/loader-entry.js']['rewrites'][1]['to'] ?? null) === './src/block.json'
     && str_contains($loaderBundlerOutput['output']['contents'], "import metadata from './src/block.json' with { type: 'json' };")
+) ? 'yes' : 'no');
+printf("WordPress node output external imports: %s\n", (
+    ($nodeBundlerOutput['inputs']['src/node-entry.js']['importsExternal'] ?? null) === 2
+    && ($nodeBundlerOutput['inputs']['src/node-entry.js']['externalImports'][0]['path'] ?? null) === 'path'
+    && ($nodeBundlerOutput['inputs']['src/node-entry.js']['externalImports'][1]['path'] ?? null) === 'node:crypto'
+    && ($nodeOutputMetafile['outputs']['node-block-view.js']['importsExternal'] ?? null) === 2
+    && str_contains($nodeBundlerOutput['output']['contents'], "import path from 'path';")
+    && str_contains($nodeBundlerOutput['output']['contents'], "import('node:crypto');")
 ) ? 'yes' : 'no');
 printf("WordPress metafile output bytes: %s\n", (
     ($loaderOutputMetafile['outputs']['block-view.js']['bytes'] ?? null) === $loaderBundlerOutput['output']['bytes']
