@@ -26,7 +26,7 @@ final class MarkdownWriter
     private int $lastReferenceIndex = 0;
 
     /**
-     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string} $options
+     * @param array{setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, bulletListMarker?: string, softBreak?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -816,7 +816,7 @@ final class MarkdownWriter
         return match ($node->type) {
             'text' => $this->escapeText((string) $node->attr('text', '')),
             'space' => ' ',
-            'softbreak' => "\n",
+            'softbreak' => $this->softBreakMarkdown(),
             'linebreak' => "\\\n",
             'code' => $this->renderCode($node),
             'emph' => $this->delimitInlineContent('*', '*', $this->renderInlines($node->children)),
@@ -960,6 +960,11 @@ final class MarkdownWriter
         }
 
         return '$' . $text . '$';
+    }
+
+    private function softBreakMarkdown(): string
+    {
+        return (string) ($this->options['softBreak'] ?? 'preserve') === 'space' ? ' ' : "\n";
     }
 
     /**

@@ -356,4 +356,5 @@ echo (new MarkdownWriter([
     'referenceLinks' => true,
     'referenceLocation' => 'end_of_block',
     'setextHeadings' => true,
+    'softBreak' => 'space',
 ]))->write($document) . "\n";

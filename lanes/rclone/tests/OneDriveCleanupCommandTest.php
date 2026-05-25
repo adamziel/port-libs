@@ -147,6 +147,17 @@ return [
             'featureAvailable' => false,
             'walkError' => 'would not be reached',
         ]);
+        $missingWhileDisabled = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'remoteArgs' => [],
+            'noVersions' => false,
+            'featureAvailable' => false,
+            'walkError' => 'would not be reached',
+        ]);
 
         $t->same('cleanup command expects exactly one remote argument', $missing['error']);
         $t->same(0, $missing['walkedObjects']);
@@ -158,6 +169,10 @@ return [
         $t->same(0, $empty['walkedObjects']);
         $t->same(0, $empty['versionRequests']);
         $t->same(false, $empty['providerCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $missingWhileDisabled['error']);
+        $t->same(0, $missingWhileDisabled['walkedObjects']);
+        $t->same(0, $missingWhileDisabled['versionRequests']);
+        $t->same(false, $missingWhileDisabled['providerCalled']);
     },
     'onedrive cleanup command disabled no versions path does not require cleanup feature' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([
@@ -348,6 +363,8 @@ return [
         $t->same(false, $example['extraRemoteArgProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['emptyRemoteArgError']);
         $t->same(false, $example['emptyRemoteArgProviderCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $example['missingRemoteArgDisabledError']);
+        $t->same(false, $example['missingRemoteArgDisabledProviderCalled']);
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsError']);
         $t->same(false, $example['rcMissingFsProviderCalled']);
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsDisabledError']);

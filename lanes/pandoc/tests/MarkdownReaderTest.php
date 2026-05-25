@@ -2247,6 +2247,53 @@ MD;
             (new MarkdownWriter(['setextHeadings' => true]))->write($document)
         );
     },
+    'maps upstream markdown writer softbreak space option' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Reviewer soft boundary']),
+                new AstNode('softbreak'),
+                new AstNode('text', ['text' => 'stays readable in a compact handoff']),
+                new AstNode('linebreak'),
+                new AstNode('text', ['text' => 'while hard line breaks remain explicit']),
+            ]),
+            new AstNode('table', [
+                'alignments' => ['left', 'left'],
+            ], [
+                new AstNode('table_head', [], [
+                    new AstNode('table_row', ['header' => true], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Source'])]),
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'Note'])]),
+                    ]),
+                ]),
+                new AstNode('table_body', [], [
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', [], [new AstNode('text', ['text' => 'post'])]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'soft one']),
+                            new AstNode('softbreak'),
+                            new AstNode('text', ['text' => 'soft two']),
+                            new AstNode('linebreak'),
+                            new AstNode('text', ['text' => 'hard follow-up']),
+                        ]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            "Reviewer soft boundary\nstays readable in a compact handoff\\\nwhile hard line breaks remain explicit",
+            "| Source | Note                                       |\n"
+                . "|:-----|:-----------------------------------------|\n"
+                . '| post   | soft one<br />soft two<br />hard follow-up |',
+        ]), (new MarkdownWriter())->write($document));
+
+        $t->same(implode("\n\n", [
+            "Reviewer soft boundary stays readable in a compact handoff\\\nwhile hard line breaks remain explicit",
+            "| Source | Note                                  |\n"
+                . "|:-----|:------------------------------------|\n"
+                . '| post   | soft one soft two<br />hard follow-up |',
+        ]), (new MarkdownWriter(['softBreak' => 'space']))->write($document));
+    },
     'maps upstream markdown writer fancy ordered list markers' => static function (TestRunner $t): void {
         $writer = new MarkdownWriter();
         $reader = new MarkdownReader();
