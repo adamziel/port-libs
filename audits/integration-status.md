@@ -108737,3 +108737,16 @@ Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/exam
 - Support-library/dependency closure: no new support component; existing Markdown inline renderer, blockquote renderer, delimiter helpers, and block writer newline handling reused.
 - Live-service exclusions: none applicable; no live service/provider tests run.
 - Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/notes/upstream-inventory.md`, `lanes/pandoc/notes/wordpress-scenarios.md`, `lanes/pandoc/tests/MarkdownReaderTest.php`, `audits/integration-status.md`.
+
+### 2026-05-25 rclone priority rework superseded
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T080056Z.ready`
+- Patch: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T080056Z.patch`
+- Patch SHA256: `79cdd00d8872697da971287ae58d8af3fa4e10a9cf53eec004cba45d3ada59c2`
+- Lane/slice/session: `rclone` / `priority-rework-20260525T080030Z` / `port-rclone-rework`.
+- Decision: superseded by accepted rclone commit `3cd14b1aec9111fe765bd51d923cd52dc13a32ca` plus current `main` evidence. The current tree already contains explicit OneDrive cleanup version-list failure continuation coverage in `lanes/rclone/tests/OneDriveCleanupCommandTest.php` and WordPress example assertions in `lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`.
+- Apply result on current `main`: `git apply --check .tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T080056Z.patch` failed on `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, and `lanes/rclone/tests/OneDriveCleanupCommandTest.php`; `git apply --3way --check` was possible, but would duplicate or weaken already accepted wording/evidence.
+- Root verification: not rerun for this superseded marker; no source files staged.
+- Support-library/dependency closure: unchanged; no new support component.
+- Live-service exclusions: no live OneDrive/provider tests run.
+- Files staged: `audits/integration-status.md` only.
