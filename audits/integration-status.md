@@ -109981,3 +109981,47 @@ credential-bearing provider tests were not run.
 Files staged: `lanes/rclone/lane-status.json`,
 `lanes/rclone/notes/cleanup-command-rework-20260525T141559Z.md`, and
 `audits/integration-status.md`.
+## Integration accepted - rclone cleanup-command rework refresh - 2026-05-25 14:31 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T143013Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T143013Z.patch`
+(`sha256=32c47ea2515caab8bb15c31e24e05ec8886c872eb8db55743a51a75545cde8e3`).
+Lane/slice/session: `rclone` / `priority-refill-20260525T143013Z` /
+`port-rclone-rework`. Base accepted HEAD:
+`ca88aa19953802d49345ec136bf0c31083741aea`.
+
+Patch application: `git apply --check` passed in clean detached worktree
+`/tmp/port-clean-integrator-rclone-priority-refill-20260525T143013Z`, then
+the patch applied without three-way repair.
+
+Focused verification in the clean worktree: syntax checks passed for
+`OneDriveCleanupCommand.php`, `OneDriveCleanupCommandTest.php`, and
+`wordpress-onedrive-cleanup-command-preflight.php`; JSON validation passed for
+`lanes/rclone/lane-status.json` and `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`;
+`php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php`
+passed with 1 selected test file, 93 assertions, 0 failures; `php
+tools/run-tests.php lanes/rclone/tests` passed with 35 selected test files,
+4050 assertions, 0 failures; the local return-array example smoke passed with
+`example-smoke-ok`; and `git diff --check -- lanes/rclone` passed.
+
+Root verification gate before root run: `/` had `133675184` KiB available,
+load average was `13.42`, and `pgrep -af '^php tools/run-tests\.php$'` was
+empty. Root command was run under
+`.tmux-team/tmp/clean-integrator-run.lock` with the lock held only for:
+`php tools/run-tests.php`. Result: passed; 214 test files, 26181 assertions,
+0 failures.
+
+Support-library/dependency closure: no new support component was activated.
+The accepted patch only records the cleanup-command rework resolution using
+existing bounded native OneDrive cleanup/version-cleaner code and deterministic
+local fixtures.
+
+Live-service exclusions: no live OneDrive Graph/OAuth/provider, provider
+config, mount/FUSE, Docker-backed serve, or credential-bearing tests were run.
+No secret values were read or copied.
+
+Files staged: `audits/integration-status.md`,
+`lanes/rclone/lane-status.json`, and
+`lanes/rclone/notes/cleanup-command-rework-20260525T143013Z.md`.
