@@ -103154,3 +103154,15 @@ Support-library/dependency closure: no support-library activation. Live-service 
 Files staged:
 - lanes/difftastic/examples/wordpress-sql-schema-highlight-display.php
 - audits/integration-status.md
+
+## Clean-patch defer - dolt - 20260525T0545Z
+
+Deferred marker: .tmux-team/tmp/handoff-candidates/port-dolt-20260525T050516Z.ready.
+Patch: .tmux-team/tmp/handoff-candidates/port-dolt-20260525T050516Z.patch.
+Lane/slice/session: dolt / watchdog-next-20260525T050516Z / port-dolt.
+
+Decision: deferred for lane rework. sha256 verification passed, but direct apply failed and bounded git apply --3way left unresolved conflicts in lanes/dolt/UPSTREAM_TEST_MANIFEST.json, lanes/dolt/examples/wordpress-merge-status-review.php, lanes/dolt/fixtures/wp-merge-review.php, lanes/dolt/lane-status.json, lanes/dolt/notes/wordpress-scenarios.md, lanes/dolt/src/MergeStatusTable.php, and lanes/dolt/tests/MergeStatusTableTest.php.
+
+Exact failing repair command: git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T050516Z.patch from a clean worktree at main 63eec502bfe505d9254fd9aba81722e298019893.
+
+Focused/root verification: not run because the patch did not produce a conflict-free source tree. Support-library/dependency closure: no activation accepted. Live-service provider tests were not run.
