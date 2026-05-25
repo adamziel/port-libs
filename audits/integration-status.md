@@ -1,4 +1,30 @@
 
+## Clean-patch integration defer - LightningCSS - 2026-05-25 05:22 UTC
+
+Deferred ready marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.patch`.
+
+Lane/slice/session: `lightningcss` / `watchdog-next-20260525T051029Z` / `port-lightningcss`.
+Patch SHA-256 verified: `5fa147e0e8acc2e9ecf02c98eb3a699e8af85dd9ec8dcc76a2df476728cee62a`.
+Decision: deferred, not integrated.
+
+Exact failing command in clean worktree from `e6c377c0cc0a5807e18cca298382dd1189cd5463`:
+
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.patch` failed.
+- Bounded fallback `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.patch` left conflicts.
+
+Conflicted files:
+
+- `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/lightningcss/lane-status.json`
+- `lanes/lightningcss/notes/upstream-inventory.md`
+- `lanes/lightningcss/notes/wordpress-scenarios.md`
+- `lanes/lightningcss/src/CustomMediaTransformer.php`
+
+Repair command for the lane: re-emit the custom-media import-tail slice from current `refs/heads/main` with only `CustomMediaTransformer.php`, `CustomMediaTransformerTest.php`, `wordpress-custom-media-transformer.php`, and minimal manifest/status/notes updates, then repeat `php -l` on changed PHP files, `php tools/run-tests.php lanes/lightningcss/tests/CustomMediaTransformerTest.php`, `php tools/run-tests.php lanes/lightningcss/tests`, `php lanes/lightningcss/examples/wordpress-custom-media-transformer.php`, JSON validation, and `git diff --check -- lanes/lightningcss`.
+
+No focused/root verification was run for this marker because source conflicts remained. No support-library activation, live-service tests, or dashboard publication were performed.
+
 ## Clean-patch integration - Gitoxide - 2026-05-25 05:22 UTC
 
 Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T051537Z.ready`.
