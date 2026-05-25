@@ -102868,3 +102868,19 @@ Focused verification passed: `php tools/run-tests.php lanes/readability/tests/Na
 No Readability source was accepted because the required no-argument root gate was not clean. Repair command: from current `refs/heads/main`, apply `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T045741Z.patch`, run `php tools/run-tests.php lanes/readability/tests/NativeMediaWrapperTest.php`, then fix or split the unrelated `lanes/readability/tests/ArticleExtractorTest.php` bug-1255978 fixture drift until `php tools/run-tests.php` exits 0.
 
 Support-library/dependency closure for all deferred markers: no support-library row was activated. Live-service exclusions: no live-service/provider tests were run.
+
+## Integration queue pass - superseded and deferred markers - 2026-05-25T05:18:00Z
+
+Current ready markers were re-read after the accepted commits above. The following newest markers were patch-sha verified, applied with `git apply --3way` from current `refs/heads/main`, and produced no diff, so they are superseded by already-accepted commits and no root-verification slot was spent: `port-difftastic-20260525T050824Z.ready`, `port-dolt-20260525T050928Z.ready`, `port-esbuild-20260525T050517Z.ready`, `port-readability-20260525T050824Z.ready`, and `port-syncthing-20260525T050927Z.ready`.
+
+The following newest markers remain deferred because bounded three-way apply left conflicts:
+
+- `port-gitoxide-20260525T050720Z.ready`: `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T050720Z.patch` conflicts in `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, and `lanes/gitoxide/notes/upstream-inventory.md`.
+- `port-libsqlite-20260525T050515Z.ready`: `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T050515Z.patch` conflicts in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, and `lanes/libsqlite/notes/wordpress-scenarios.md`.
+- `port-lightningcss-20260525T050514Z.ready`: `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T050514Z.patch` conflicts in `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-custom-media-transformer.php`, and `lanes/lightningcss/lane-status.json`.
+- `port-markerpdf-20260525T050515Z.ready`: `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T050515Z.patch` conflicts in `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json` and `lanes/markerpdf/lane-status.json`.
+- `port-pandoc-20260525T050927Z.ready`: `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T050927Z.patch` conflicts in `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, and `lanes/pandoc/tests/MarkdownReaderTest.php`.
+- `port-quadrable-20260525T050721Z.ready`: `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T050721Z.patch` conflicts in `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php`, `lanes/quadrable/lane-status.json`, and `lanes/quadrable/notes/wordpress-scenarios.md`.
+- `port-rclone-20260525T050722Z.ready`: `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T050722Z.patch` conflicts in `lanes/rclone/UPSTREAM_TEST_MANIFEST.json` and `lanes/rclone/lane-status.json`.
+
+Focused/root verification was not run for the conflicted markers because they were not in buildable states. Support-library/dependency closure: no support-library row was activated. Live-service exclusions: no live-service/provider tests were run.
