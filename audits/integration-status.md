@@ -102635,3 +102635,16 @@ Files staged:
 - `lanes/difftastic/notes/wordpress-scenarios.md`
 - `lanes/difftastic/src/SyntaxHighlightClassifier.php`
 - `lanes/difftastic/tests/TokenDifferTest.php`
+
+## Integration repair - Difftastic missing example inclusion - 2026-05-25T05:07:29Z
+
+Repair for commit `651b7810afbdd823f336d9d07ca7917ba3be03cb`: the isolated patch added `lanes/difftastic/examples/wordpress-lua-build-script-highlight-display.php`, and the accepted test references it, but the first integration commit missed the new untracked example file during staging.
+Focused commands:
+- `php -l lanes/difftastic/examples/wordpress-lua-build-script-highlight-display.php` => exit 0
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` => rerun below before commit
+Root command: `php tools/run-tests.php` => rerun below before commit
+Support-library/dependency closure: unchanged; no support-library activation.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/difftastic/examples/wordpress-lua-build-script-highlight-display.php`
