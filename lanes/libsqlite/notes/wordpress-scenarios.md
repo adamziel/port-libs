@@ -11,7 +11,7 @@ The example
 path for copied `wp_options.option_value` inputs, including strict JSON text,
 SQLite JSON5 text, cast text BLOBs, JSONB blobs, SQL NULL option values,
 scalar SQL option values including booleans, fractional floats, and whole REAL
-values, malformed settings, and custom indentation. This gives WordPress migration and
+values, malformed settings, and custom text/numeric/boolean indentation. This gives WordPress migration and
 repair tooling a local-only review path that mirrors SQLite's SQL entry point
 without requiring the SQLite extension.
 
@@ -41,6 +41,9 @@ fractional float option-value smoke coverage in the same SQL-dispatch cluster.
 Priority-finisher refresh 2026-05-25T10:28Z adds direct SQL-dispatch coverage
 for cast text BLOB and JSON subtype custom indentation, and the WordPress
 smoke now reports direct `JSON_PRETTY` output beside argument-vector output.
+Priority-keeper refresh 2026-05-25T10:40Z adds boolean true and fractional
+REAL custom-indent option rows so local review output covers SQLite SQL scalar
+coercion for the second `json_pretty(JSON, INDENT)` argument too.
 
 ## `json_each()` Option-Value Expansion Scenario
 

@@ -779,6 +779,7 @@ final class MarkdownWriter
             'superscript' => $this->delimitScriptContent('^', $this->renderInlines($node->children)),
             'subscript' => $this->delimitScriptContent('~', $this->renderInlines($node->children)),
             'small_caps' => $this->renderSmallCaps($node),
+            'underline' => $this->renderUnderline($node),
             'span' => $this->renderSpan($node),
             'quoted' => $this->renderQuoted($node),
             'link' => $this->renderLink($node, $following),
@@ -884,6 +885,14 @@ final class MarkdownWriter
     {
         $attrs = $this->linkAttrTuple($node);
         array_unshift($attrs['classes'], 'smallcaps');
+
+        return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+    }
+
+    private function renderUnderline(AstNode $node): string
+    {
+        $attrs = $this->linkAttrTuple($node);
+        array_unshift($attrs['classes'], 'underline');
 
         return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
     }
@@ -1559,6 +1568,7 @@ final class MarkdownWriter
             'superscript',
             'subscript',
             'small_caps',
+            'underline',
             'span',
             'quoted',
             'softbreak',

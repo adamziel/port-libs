@@ -119,6 +119,12 @@ $document = new AstNode('document', $document->attrs, [
             new AstNode('text', ['text' => 'source glossary']),
         ]),
         new AstNode('text', ['text' => ', ']),
+        new AstNode('underline', [
+            'attributes' => ['data-source' => 'html-reader'],
+        ], [
+            new AstNode('text', ['text' => 'inserted reviewer note']),
+        ]),
+        new AstNode('text', ['text' => ', ']),
         new AstNode('strikeout', [], [
             new AstNode('text', ['text' => 'legacy caption']),
         ]),

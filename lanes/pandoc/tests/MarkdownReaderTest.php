@@ -2703,12 +2703,19 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
-    'maps upstream markdown writer small caps strikeout superscript and subscript' => static function (TestRunner $t): void {
+    'maps upstream markdown writer small caps underline strikeout superscript and subscript' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [
                 $text('Reviewer marks: '),
                 new AstNode('small_caps', [], [$text('source glossary')]),
+                $text(', '),
+                new AstNode('underline', [
+                    'attributes' => ['data-source' => 'html-reader'],
+                ], [
+                    $text('inserted '),
+                    new AstNode('strong', [], [$text('review')]),
+                ]),
                 $text(', '),
                 new AstNode('strikeout', [], [
                     $text('legacy '),
@@ -2723,7 +2730,7 @@ MD;
         ]);
 
         $t->same(
-            'Reviewer marks: [source glossary]{.smallcaps}, ~~legacy *caption*~~, post^draft\\ 2^, and H~2~O.',
+            'Reviewer marks: [source glossary]{.smallcaps}, [inserted **review**]{.underline data-source="html-reader"}, ~~legacy *caption*~~, post^draft\\ 2^, and H~2~O.',
             (new MarkdownWriter())->write($document)
         );
     },

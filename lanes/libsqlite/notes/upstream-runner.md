@@ -56,6 +56,10 @@ for cast text BLOB and JSON subtype custom indentation, matching the already
 accepted argument-vector indentation behavior, and updates the WordPress smoke
 to report direct dispatch output alongside argument-vector output. Focused PHP
 verification passed with 1 selected file, 2058 assertions, and 0 failures.
+Priority-keeper refresh 2026-05-25T10:40Z adds boolean true and fractional
+REAL custom-indent coercion through both direct and argument-vector
+`json_pretty()` SQL dispatch, plus WordPress smoke rows for those option
+review cases. Focused verification is recorded in `lane-status.json`.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
