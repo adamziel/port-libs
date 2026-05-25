@@ -103140,3 +103140,17 @@ Files staged:
 - lanes/difftastic/notes/wordpress-scenarios.md
 - lanes/difftastic/src/SyntaxHighlightClassifier.php
 - lanes/difftastic/tests/TokenDifferTest.php
+
+## Clean-patch repair - difftastic example inclusion - 20260525T0540Z
+
+Accepted missing example inclusion for marker .tmux-team/tmp/handoff-candidates/port-difftastic-20260525T052404Z.ready after concurrent main commit 733e68d8 integrated the source/test/metadata but omitted lanes/difftastic/examples/wordpress-sql-schema-highlight-display.php.
+
+Focused verification: php -l lanes/difftastic/examples/wordpress-sql-schema-highlight-display.php passed; php lanes/difftastic/examples/wordpress-sql-schema-highlight-display.php passed; php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php passed; git diff --check passed.
+
+Root verification: php tools/run-tests.php passed in this clean worktree with 212 test files, 25402 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. Live-service provider tests were not run.
+
+Files staged:
+- lanes/difftastic/examples/wordpress-sql-schema-highlight-display.php
+- audits/integration-status.md
