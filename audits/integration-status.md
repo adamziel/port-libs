@@ -1,4 +1,49 @@
 
+## Integration deferred - isolated Gitoxide stream watchdog patch - 2026-05-25 07:10 UTC
+
+Deferred marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T063334Z.ready`
+with patch `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T063334Z.patch`.
+
+Lane/slice/session: `gitoxide` / `watchdog-next-20260525T063334Z` /
+`port-gitoxide`. Patch SHA-256 verified:
+`94875112a99ef8779c03f4c58dbf46ec593e399db66c19dfc516dd52b53fb4ef`.
+
+`git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T063334Z.patch`
+failed against accepted `main` after newer Gitoxide smart-HTTP control-byte
+work. `git apply --3way` applied the behavior files cleanly but left conflicts
+in:
+
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+
+The conflict overlaps previously accepted smart-HTTP raw URL/proxy/redirect
+control-byte fixture/status entries with the submitted stream receive-pack
+packet/byte watchdog entries. This is not an already-present patch and not a
+hash failure, but it requires a lane-local rework that combines both fixture
+keys and status wording without regressing the accepted smart-HTTP slice.
+
+Repair command for the lane:
+`git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T063334Z.patch`
+from current accepted `main`, then resolve only the five files listed above by
+retaining the accepted smart-HTTP raw-control-byte entries and adding the stream
+watchdog entries. Re-run:
+
+- `php -l lanes/gitoxide/src/StreamReceivePackTransport.php`
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`
+- `php -l lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+- `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json`
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`
+- `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `git diff --check -- lanes/gitoxide`
+
+No focused or root verification slot was consumed for this deferred marker
+after the conflict was identified. The marker, patch, and metadata remain in
+place for a repaired handoff.
+
 ## Integration accepted - isolated Dolt SQL rollback visibility patch - 2026-05-25 07:08 UTC
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T063336Z.ready`
