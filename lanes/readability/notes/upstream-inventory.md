@@ -254,6 +254,15 @@ This fixture is now copied under `lanes/readability/fixtures/mozilla/002/` and m
 - Next task: map `lifehacker-working` or another remaining Kinja/comment-heavy fixture once the upstream cache is present in the isolated worktree, or map another already-copied small cleanup fixture such as `remove-extra-paragraphs` with exact expected-content parity.
 - Dependency closure: no new support component is needed; this slice reuses the lane's existing DOM extraction, Mozilla fixture comparison helpers, share-widget cleanup, and WordPress block serialization components.
 
+## 2026-05-25 Isolated Slice: Mozilla Remove Extra Paragraphs Fixture
+
+- Behavior cluster: copied Mozilla `remove-extra-paragraphs` fixture coverage for upstream empty paragraph cleanup.
+- Status delta: promoted the existing grouped coverage into a focused native fixture test asserting upstream metadata, readerable classification, exact normalized expected-content text, exact retained nonempty paragraph text, the absence of empty paragraphs in extracted HTML, and five WordPress paragraph blocks with no blank block serialization. Added `examples/wordpress-empty-paragraph-cleanup.php` to smoke the WordPress import path.
+- Focused evidence: `php -l lanes/readability/tests/ArticleExtractorTest.php` passed; `php -l lanes/readability/examples/wordpress-empty-paragraph-cleanup.php` passed; `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php` passed 154 tests / 1915 assertions / 0 failures; `php lanes/readability/examples/wordpress-empty-paragraph-cleanup.php` printed paragraph blocks: 5, blank source paragraphs retained: no, blank WordPress blocks emitted: no; `git diff --check -- lanes/readability` passed.
+- Blocker: no focused readability blocker. The isolated worktree does not contain `.upstream-cache/readability`, so no new upstream oracle command was run for this slice.
+- Next task: map `lifehacker-working` or another remaining Kinja/comment-heavy fixture once the upstream cache is present in the isolated worktree, or map another already-copied cleanup fixture with exact expected-content and WordPress block evidence.
+- Dependency closure: no new support component is needed; this slice reuses the lane's existing DOM extraction, empty-paragraph cleanup, Mozilla fixture comparison helpers, and WordPress paragraph block serialization.
+
 The Atlas Obscura `article-author-tag` slice also has targeted upstream runner evidence:
 
 ```text

@@ -416,6 +416,34 @@ return [
             $t->same([], $attributeValues($article->contentHtml, '//p[not(normalize-space()) and not(.//img or .//embed or .//object or .//iframe)]'));
         }
     },
+    'maps Mozilla remove-extra-paragraphs fixture to nonempty WordPress paragraphs' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $fixtureText, $normalizedText): void {
+        $fixture = __DIR__ . '/../fixtures/mozilla/remove-extra-paragraphs';
+        $source = (string) file_get_contents($fixture . '/source.html');
+        $expected = (string) file_get_contents($fixture . '/expected.html');
+        $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'http://fakehost/test/page.html', true);
+        $blocks = $extractor->toWordPressBlocks($extractor->extract($source, 'http://fakehost/test/page.html'));
+
+        $t->same($metadata['title'], $article->title);
+        $t->same($metadata['byline'], $article->byline);
+        $t->same($metadata['siteName'], $article->siteName);
+        $t->same($metadata['publishedTime'], $article->publishedTime);
+        $t->same($metadata['dir'], $article->dir);
+        $t->same($metadata['readerable'], $extractor->isProbablyReaderable($source));
+        $t->same($normalizedText($metadata['excerpt']), $normalizedText($article->excerpt));
+        $t->same($fixtureText($expected), $fixtureText($article->contentHtml));
+        $t->same(
+            array_map($normalizedText, $attributeValues($expected, '//p')),
+            array_map($normalizedText, $attributeValues($article->contentHtml, '//p')),
+        );
+        $t->same(['div', 'div'], $elementChildTags($article->contentHtml, '//div[@id="readability-page-1"]'));
+        $t->same(5, count($attributeValues($article->contentHtml, '//p')), 'only the five upstream nonempty paragraphs should survive cleanup');
+        $t->same([], $attributeValues($article->contentHtml, '//p[not(normalize-space()) and not(.//img or .//embed or .//object or .//iframe)]'));
+        $t->same(5, substr_count($blocks, '<!-- wp:paragraph -->'), 'empty source paragraphs should not become WordPress paragraph blocks');
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<p></p>"), 'blank paragraph markup should not be serialized as an import block');
+    },
     'maps Mozilla invalid-attributes fixture while sanitizing malformed wrapper markup' => static function (TestRunner $t) use ($attributeValues, $elementChildTags, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/invalid-attributes';
         $source = (string) file_get_contents($fixture . '/source.html');

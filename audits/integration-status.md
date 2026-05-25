@@ -1,3 +1,46 @@
+## Clean-patch accepted - Readability empty paragraph fixture parity - 2026-05-25 23:39 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-readability-20260525T232847Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`fd549c14d0f196e5a0fc74125432feb3ab09f83c8a124026f1cbdba10eb02b04`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`d13a0453` (`Integrate rclone cleanup command valid remote`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/readability/tests/ArticleExtractorTest.php` passed.
+- `php -l lanes/readability/examples/wordpress-empty-paragraph-cleanup.php`
+  passed.
+- `jq empty lanes/readability/UPSTREAM_TEST_MANIFEST.json
+  lanes/readability/lane-status.json` passed.
+- `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php`
+  passed: `1 test files, 1915 assertions, 0 failures`.
+- `php lanes/readability/examples/wordpress-empty-paragraph-cleanup.php`
+  passed and reported `Paragraph blocks: 5`,
+  `Blank source paragraphs retained: no`, and
+  `Blank WordPress blocks emitted: no`.
+- `git diff --check -- lanes/readability` passed.
+
+Root verification:
+- Pre-root gate under `.tmux-team/tmp/clean-integrator-run.lock` reported
+  `df_free=102081976` KiB, `load1=1.38`, and no exact no-argument root
+  harness process.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26566 assertions, 0 failures`.
+
+Decision: accepted. The slice maps the copied Mozilla
+`remove-extra-paragraphs` fixture to nonempty WordPress paragraph serialization
+and updates Readability manifest/status/notes evidence. No support-library row
+was activated.
+
+Cleanup after publish: remove the accepted ready marker, patch, metadata,
+referenced worker log, inactive source worktree, and temporary verification
+worktree after the commit is safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted Readability commit.
+
 ## Clean-patch accepted - rclone cleanup command valid remote - 2026-05-25 23:35 UTC
 
 Accepted one isolated marker:
