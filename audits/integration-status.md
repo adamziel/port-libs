@@ -103239,3 +103239,17 @@ Files staged:
 - `lanes/quadrable/src/SyncFuzzer.php`
 - `lanes/quadrable/tests/SyncTest.php`
 - `audits/integration-status.md`
+## Integration superseded - Quadrable current rebase watchdog summary fields - 2026-05-25 05:43 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-current-rebase-20260525T054020Z-02383337bcf4.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-quadrable-current-rebase-20260525T054020Z-02383337bcf4.patch` (`sha256 f3353998a228bf777e921e7566e38e041215a52f35cf937ceed2d9cb35958944`, verified).
+Lane/slice/session: `quadrable` / `current-rebase-watchdog-next-20260525T053441Z` / `port-quadrable`.
+
+Decision: superseded, not integrated as source. In a clean worktree from `17f05ef2fa6d9c98246cc2238f8b67a27675b9c7`, `git apply --check` failed because the patch hunks were already present, and `git apply --reverse --check` passed. The same patch content was accepted in commit `17f05ef2fa6d9c98246cc2238f8b67a27675b9c7` after focused and root verification.
+
+Focused/root verification: reused the accepted commit evidence immediately above; no additional root slot was spent for this duplicate marker.
+
+Support-library/dependency closure: unchanged; no support-library row activated.
+
+Files staged:
+- `audits/integration-status.md`
