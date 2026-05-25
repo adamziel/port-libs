@@ -93,7 +93,7 @@ final class OneDriveTokenRenewer
         }
 
         ++$this->expirySignals;
-        if ($this->activeUploads === 0) {
+        if ($this->activeUploads <= 0) {
             $this->armedForNextExpiry = true;
             $this->events[] = 'expiry-no-active-upload';
             $this->events[] = 'expiry-rearmed';

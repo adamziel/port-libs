@@ -51,9 +51,28 @@ return [
         $t->same(-1, $renewer->activeUploads());
 
         $underflow = $renewer->expire();
-        $t->same(true, $underflow['refreshed']);
+        $t->same(false, $underflow['refreshed']);
         $t->same(-1, $underflow['activeUploads']);
-        $t->same(2, $reads);
+        $t->same(1, $reads);
+    },
+    'onedrive token renewer treats stop underflow as idle for watchdog refresh' => static function (TestRunner $t): void {
+        $reads = 0;
+        $renewer = new OneDriveTokenRenewer('onedrive:test', static function () use (&$reads): void {
+            ++$reads;
+        });
+
+        $renewer->stopUpload();
+        $cycle = $renewer->watchdogCycle();
+
+        $t->same(-1, $renewer->activeUploads());
+        $t->same(false, $cycle['refreshed']);
+        $t->same(true, $cycle['running']);
+        $t->same(0, $reads);
+        $t->same([
+            'upload-stopped',
+            'expiry-no-active-upload',
+            'expiry-rearmed',
+        ], $renewer->events());
     },
     'onedrive token renewer reports callback errors without stopping upload accounting' => static function (TestRunner $t): void {
         $renewer = new OneDriveTokenRenewer('onedrive:test', static function (): void {
@@ -255,6 +274,8 @@ return [
         $t->same(true, $example['wasArmedAfterActiveExpiry']);
         $t->same(false, $example['watchdogAfterClosedRunning']);
         $t->same(false, $example['watchdogNoExpirySourceRunning']);
+        $t->same(false, $example['watchdogUnderflowRefreshed']);
+        $t->same(-1, $example['watchdogUnderflowActiveUploads']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];

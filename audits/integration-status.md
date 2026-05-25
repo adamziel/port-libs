@@ -103286,3 +103286,37 @@ Files staged:
 - `lanes/quadrable/src/SyncFuzzer.php`
 - `lanes/quadrable/tests/SyncTest.php`
 - `audits/integration-status.md`
+
+
+## Integration accepted - rclone OneDrive token renewer underflow slice - 2026-05-25 05:52 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054306Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054306Z.patch` (`sha256 4a2227adc11d3ebed70e0627ed05d861746f10fa5b6ece9aa06af9149a3459ce`, verified).
+Lane/slice/session: `rclone` / `watchdog-next-20260525T054306Z` / `port-rclone`.
+
+Apply/rebase: `git apply --check` passed cleanly against `97d630f462d2d1f7580608285eab514da762b1c4`; no three-way conflict resolution was needed.
+
+Focused verification in clean worktree:
+- `php -r 'json_decode(file_get_contents("lanes/rclone/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/rclone/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'` passed.
+- `php -l lanes/rclone/src/OneDriveTokenRenewer.php` passed.
+- `php -l lanes/rclone/tests/OneDriveTokenRenewerTest.php` passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php` passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveTokenRenewerTest.php` passed: 1 file, 86 assertions, 0 failures.
+- `php tools/run-tests.php lanes/rclone/tests` passed: 33 files, 3917 assertions, 0 failures.
+- `git diff --check` passed.
+
+Root gate: `pgrep -af '^php tools/run-tests\.php$'` returned no active no-argument root harness before verification. Root verification ran from the same clean worktree: `php tools/run-tests.php` passed with 212 test files, 25424 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The slice reuses the bounded native OneDrive token-renewer lifecycle helper; it deliberately avoids live Graph calls, timers, token stores, process environments, OAuth browser state, cloud remotes, and provider credentials.
+
+Live-service exclusions: live OneDrive OAuth/provider tests were not run; this was credential-free static-read evidence plus native local PHP tests.
+
+Files staged:
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/upstream-inventory.md`
+- `lanes/rclone/notes/wordpress-scenarios.md`
+- `lanes/rclone/src/OneDriveTokenRenewer.php`
+- `lanes/rclone/tests/OneDriveTokenRenewerTest.php`
+- `audits/integration-status.md`

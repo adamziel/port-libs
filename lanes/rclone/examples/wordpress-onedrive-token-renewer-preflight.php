@@ -60,6 +60,15 @@ $noExpirySource = new OneDriveTokenRenewer(
 );
 $watchdogNoExpirySource = $noExpirySource->watchdogCycle();
 
+$underflowRenewer = new OneDriveTokenRenewer(
+    'wordpress-upload-accounting-underflow',
+    static function () use (&$metadataReads): void {
+        $metadataReads[] = 'unexpected-underflow-read';
+    },
+);
+$underflowRenewer->stopUpload();
+$watchdogUnderflow = $underflowRenewer->watchdogCycle();
+
 return [
     'source' => 'onedrive-token-renewer-preflight',
     'renewerName' => $renewer->name(),
@@ -79,8 +88,11 @@ return [
     'watchdogActiveRefreshed' => $watchdogActive['refreshed'],
     'watchdogAfterClosedRunning' => $watchdogAfterClosed['running'],
     'watchdogNoExpirySourceRunning' => $watchdogNoExpirySource['running'],
+    'watchdogUnderflowRefreshed' => $watchdogUnderflow['refreshed'],
+    'watchdogUnderflowActiveUploads' => $watchdogUnderflow['activeUploads'],
     'watchdogEvents' => $watchdogRenewer->events(),
     'noExpirySourceEvents' => $noExpirySource->events(),
+    'underflowEvents' => $underflowRenewer->events(),
     'events' => $renewer->events(),
     'secretInputsRead' => false,
 ];
