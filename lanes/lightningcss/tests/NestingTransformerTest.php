@@ -294,6 +294,14 @@ CSS;
             '.parent{color:#00f}@scope(.parent>.scope) to (.parent>.scope .limit){:scope .content{color:#ff0}}',
             $transformer->lower('.parent { color: blue; @scope (& > .scope) to (& .limit) { & .content { color: yellow; } } }')
         );
+        $t->same(
+            '@scope(.card){.wp-block-theme :scope{color:#ff0}}',
+            $transformer->lower('@scope (.card) { @nest .wp-block-theme & { color: yellow; } }')
+        );
+        $t->same(
+            '@media (width>=600px){@scope(.card){.wp-block-theme :scope .title{color:#ff0}}}',
+            $transformer->lower('@media (min-width: 600px) { @scope (.card) { @nest .wp-block-theme & .title { color: yellow; } } }')
+        );
     },
     'nesting transformer maps upstream nested starting-style lowering' => static function (TestRunner $t): void {
         $css = <<<'CSS'
@@ -338,12 +346,16 @@ CSS;
     & .wp-block-post-title {
       color: yellow;
     }
+
+    @nest .is-grid & .wp-block-post-title {
+      color: blue;
+    }
   }
 }
 CSS;
 
         $t->same(
-            '.wp-block-query{color:#00f}.wp-block-query .wp-block-post-title{color:red}.is-featured :is(.wp-block-query .wp-block-post-title){opacity:.9}.wp-block-query:hover .wp-block-post-title{text-decoration-color:#ff0}@media (width>=600px){.wp-block-query .wp-block-post-title{color:#00f}}@scope(.wp-block-query>.wp-block-post-template) to (.wp-block-query>.wp-block-post-template .wp-block-post-excerpt){:scope .wp-block-post-title{color:#ff0}}',
+            '.wp-block-query{color:#00f}.wp-block-query .wp-block-post-title{color:red}.is-featured :is(.wp-block-query .wp-block-post-title){opacity:.9}.wp-block-query:hover .wp-block-post-title{text-decoration-color:#ff0}@media (width>=600px){.wp-block-query .wp-block-post-title{color:#00f}}@scope(.wp-block-query>.wp-block-post-template) to (.wp-block-query>.wp-block-post-template .wp-block-post-excerpt){:scope .wp-block-post-title{color:#ff0}.is-grid :scope .wp-block-post-title{color:#00f}}',
             (new NestingTransformer())->lower($css)
         );
     },

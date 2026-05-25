@@ -58,7 +58,7 @@ final class CssMinifier
                 continue;
             }
 
-            if ($char === ':' && $pendingSpace && $this->startsFunctionalPseudoClass($css, $i)) {
+            if ($char === ':' && $pendingSpace && $this->startsDescendantPseudoClass($css, $i)) {
                 if ($this->needsSelectorDescendantSpaceBeforePseudo($output)) {
                     $output .= ' ';
                 }
@@ -1304,9 +1304,9 @@ final class CssMinifier
             && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#');
     }
 
-    private function startsFunctionalPseudoClass(string $css, int $offset): bool
+    private function startsDescendantPseudoClass(string $css, int $offset): bool
     {
-        return preg_match('/^:(?:is|where|not|has)\(/i', substr($css, $offset)) === 1;
+        return preg_match('/^:(?:(?:is|where|not|has)\(|scope\b)/i', substr($css, $offset)) === 1;
     }
 
     private function needsSelectorDescendantSpaceBeforePseudo(string $output): bool

@@ -71,7 +71,12 @@ final class NestingTransformer
             $close = $this->findMatchingBrace($css, $nextBlock);
             $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
 
-            if (str_starts_with($prelude, '@')) {
+            if (str_starts_with($prelude, '@scope')) {
+                $scopePrelude = $parentSelectors === null
+                    ? $this->resolveScopePrelude($prelude, [':scope'])
+                    : $this->resolveScopePrelude($prelude, $parentSelectors);
+                $output .= $scopePrelude . '{' . $this->lowerScopeBody($body) . '}';
+            } elseif (str_starts_with($prelude, '@')) {
                 $inner = $parentSelectors === null
                     ? $this->lowerRuleList($body, null)
                     : $this->lowerStyleBody($parentSelectors, $body);

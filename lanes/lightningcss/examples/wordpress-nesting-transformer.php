@@ -59,6 +59,10 @@ $css = <<<'CSS'
     & .wp-block-post-title {
       color: yellow;
     }
+
+    @nest .is-grid & .wp-block-post-title {
+      color: blue;
+    }
   }
 }
 CSS;

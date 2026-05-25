@@ -99717,3 +99717,14 @@ Root verification: `php tools/run-tests.php` passed with 208 test files, 24521 a
 Support-library/dependency closure: no new support-library activation; this reuses lane-local receive-pack transport URL parsing, pkt-line construction, and native string validation.
 Live-service exclusions: none; no live-service provider tests were run.
 Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/GitDaemonReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, `audits/integration-status.md`.
+
+## Integration accepted - isolated lightningcss supervisor-next-20260525T011321Z - 2026-05-25 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T011321Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T011321Z.patch`.
+Lane/slice/session: `lightningcss` / `supervisor-next-20260525T011321Z` / `port-lightningcss`.
+Focused verification in clean worktree: `php -l` on changed PHP files passed; `jq empty lanes/lightningcss/lane-status.json lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json` passed; `php tools/run-tests.php lanes/lightningcss/tests/NestingTransformerTest.php` passed with 1 test files, 42 assertions, 0 failures; `php tools/run-tests.php lanes/lightningcss/tests` passed with 9 test files, 1063 assertions, 0 failures; `php lanes/lightningcss/examples/wordpress-nesting-transformer.php` exited 0; `git diff --check` passed.
+Root verification: `php tools/run-tests.php` passed with 208 test files, 24523 assertions, 0 failures in the same clean worktree.
+Support-library/dependency closure: no new support-library activation; this reuses the bounded native `NestingTransformer` scope lowering and `CssMinifier` selector spacing scanner.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-nesting-transformer.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, `lanes/lightningcss/src/CssMinifier.php`, `lanes/lightningcss/src/NestingTransformer.php`, `lanes/lightningcss/tests/NestingTransformerTest.php`, `audits/integration-status.md`.
