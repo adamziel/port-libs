@@ -101200,3 +101200,17 @@ Clean integration result: `git apply --check /home/claude/port-libs/.tmux-team/t
 Root verification: not run, because no conflict-free source tree existed for this marker. Support-library/dependency closure decision: no support-library activation reviewed or accepted. Live-service exclusions: none.
 
 Exact repair command for the lane: rebase this marker on current `main` and re-emit a narrow patch preserving the existing Rust function.macro highlight status/test/notes while adding only the Go helper source/test/example/manifest/status/notes updates, then run `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`, `php -l lanes/difftastic/tests/TokenDifferTest.php`, `php -l lanes/difftastic/examples/wordpress-go-helper-highlight-display.php`, `jq empty lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json`, `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`, `php lanes/difftastic/examples/wordpress-go-helper-highlight-display.php`, and `git diff --check -- lanes/difftastic`.
+
+## Isolated clean-patch integration - dolt schema conflict resolution state - 2026-05-25 03:17 UTC
+
+Accepted marker `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T025625Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T025625Z.patch`.
+
+Lane/slice/session: `dolt` / `supervisor-rearm-20260525T025625Z` / `port-dolt`. Patch sha256 matched `e8a226db85533133b5d00c60234bf9517b35f7ca06fa2eeb4890538c0d1c6bbc`.
+
+Focused verification in clean worktree: `php -l lanes/dolt/src/MergeStatusTable.php`, `php -l lanes/dolt/tests/MergeStatusTableTest.php`, `php -l lanes/dolt/examples/wordpress-merge-status-review.php`, `php -l lanes/dolt/fixtures/wp-merge-review.php`, and `jq empty lanes/dolt/UPSTREAM_TEST_MANIFEST.json lanes/dolt/lane-status.json` all passed. `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed. `php lanes/dolt/examples/wordpress-merge-status-review.php` ran successfully. `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the clean worktree with zero failures.
+
+Support-library/dependency closure: no support-library activation. The patch reuses the existing lane-local merge/status projection surface and table-name normalization. Live-service exclusions: none.
+
+Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`, `lanes/dolt/examples/wordpress-merge-status-review.php`, `lanes/dolt/fixtures/wp-merge-review.php`, `lanes/dolt/lane-status.json`, `lanes/dolt/notes/upstream-runner.md`, `lanes/dolt/notes/wordpress-scenarios.md`, `lanes/dolt/src/MergeStatusTable.php`, `lanes/dolt/tests/MergeStatusTableTest.php`, `audits/integration-status.md`.
