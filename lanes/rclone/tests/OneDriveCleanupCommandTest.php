@@ -117,6 +117,25 @@ return [
         $t->same([], $flow['deletedVersions']);
         $t->same(false, $flow['providerCalled']);
     },
+    'onedrive cleanup command disabled no versions path does not require cleanup feature' => static function (TestRunner $t): void {
+        $flow = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'noVersions' => false,
+            'featureAvailable' => false,
+            'walkError' => 'would not be reached',
+        ]);
+
+        $t->same(null, $flow['error']);
+        $t->same(0, $flow['walkedObjects']);
+        $t->same(0, $flow['versionRequests']);
+        $t->same([], $flow['deletedVersions']);
+        $t->same([], $flow['logs']);
+        $t->same(false, $flow['providerCalled']);
+    },
     'onedrive cleanup command fails masked cleanup feature before dry run' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([
             [
