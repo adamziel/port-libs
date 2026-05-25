@@ -132,6 +132,11 @@ try {
         ["\f+2suffix", "\v4"],
         integerKeys: true
     );
+    $carriageReturnWhitespaceProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ["\r+2suffix", "\r4"],
+        integerKeys: true
+    );
     $nulPrefixedProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ["\0+2"],
@@ -197,6 +202,7 @@ try {
         'spacedPlusIntegerProofMatchesNumericPrefix' => $spacedPlusProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'verticalWhitespaceIntegerProofMatchesNumericPrefix' => $verticalWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'formFeedWhitespaceIntegerProofMatchesNumericPrefix' => $formFeedWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
+        'carriageReturnWhitespaceIntegerProofMatchesNumericPrefix' => $carriageReturnWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'nulPrefixedIntegerProofFailsStoi' => $nulPrefixedProofCommand['exitCode'] === 1
             && $nulPrefixedProofCommand['stderr'] === "quadb error: stoi\n",
         'maxIntegerExportProofExitCode' => $maxIntegerProofCommand['exitCode'],

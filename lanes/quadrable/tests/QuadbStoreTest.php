@@ -1634,6 +1634,14 @@ return [
             $t->same(0, $formFeedWhitespaceProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([2, 4]), $formFeedWhitespaceProof['stdout']);
             $t->same('', $formFeedWhitespaceProof['stderr']);
+            $carriageReturnWhitespaceProof = QuadbStore::exportProofCommandOutput(
+                $dir,
+                ["\r+2suffix", "\r4"],
+                integerKeys: true
+            );
+            $t->same(0, $carriageReturnWhitespaceProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([2, 4]), $carriageReturnWhitespaceProof['stdout']);
+            $t->same('', $carriageReturnWhitespaceProof['stderr']);
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',
