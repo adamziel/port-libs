@@ -103935,3 +103935,41 @@ Files staged:
 - `lanes/difftastic/src/SyntaxHighlightClassifier.php`
 - `lanes/difftastic/tests/TokenDifferTest.php`
 - `audits/integration-status.md`
+## Clean-patch integration defer - rclone stale provider shutdown marker - 2026-05-25 06:15 UTC
+
+Deferred ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.patch`.
+
+Lane/slice/session: `rclone` / `watchdog-next-20260525T054700Z` /
+`port-rclone`.
+Patch SHA-256 verified:
+`30917c7c994b8ecaa9c0b1525df47058c18f32493796799dad465c0bc85cf3fa`.
+Decision: deferred, not integrated.
+
+Exact failing command against clean `refs/heads/main` after accepting
+`port-rclone-20260525T060815Z`:
+
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.patch` failed.
+- Bounded fallback `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T054700Z.patch` left conflicts.
+
+Conflicted files:
+
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/upstream-inventory.md`
+- `lanes/rclone/notes/wordpress-scenarios.md`
+
+Repair command for the lane: re-emit the older provider-shutdown/watchdog slice
+from current `refs/heads/main`, dropping any hunks already present from
+`port-rclone-20260525T060815Z`, then repeat `php -l` on changed PHP files,
+`php tools/run-tests.php lanes/rclone/tests/OneDriveProviderLifecycleTest.php`,
+`php tools/run-tests.php lanes/rclone/tests`, `git diff --check`, and the
+serialized no-argument `php tools/run-tests.php` from the clean rebase
+snapshot.
+
+No focused/root verification was run for this stale marker because conflicts
+remained and the repaired newer marker was already accepted with clean focused
+and root evidence. No support-library activation, live-service tests, or
+dashboard publication were performed.
