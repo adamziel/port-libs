@@ -101069,3 +101069,15 @@ Support-library/dependency-closure decision: no activation accepted.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `audits/integration-status.md` only.
 Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
+
+## Clean-patch rejection - dolt - 2026-05-25 02:58 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T024502Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T024502Z.patch`
+Decision: rejected/deferred after focused verification.
+Focused commands: `php -l <changed PHP files>` exit 1; `php tools/run-tests.php lanes/dolt/tests` exit 255 (PASS dolt patch orders secondary index foreign key and primary key ddl like upstream PASS dolt patch modifies and drops secondary indexes and foreign keys like upstream PASS wordpress patch review example separates schema and data queues PASS wordpress binary patch review example exposes media hash SQL literals PHP Parse error:  syntax error, unexpected token "<<", expecting "]" in /tmp/port-clean-integrator-dolt-safe-20260525T025837Z/lanes/dolt/tests/PreviewMergeConflictsTableTest.php on line 2); `git diff --check` exit 2.
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `audits/integration-status.md` only.
+Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
