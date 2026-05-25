@@ -75,4 +75,17 @@ return [
         $t->same(false, isset($graph->modules[(string) realpath($fixtureRoot . '/src/block.json')]));
         $t->same(true, isset($graph->modules[(string) realpath($fixtureRoot . '/src/local-preview.js')]));
     },
+    'records unsupported resolved asset loaders without parsing them as JavaScript' => static function (TestRunner $t) use ($fixtureRoot, $normalizeFixturePath): void {
+        $entry = $fixtureRoot . '/src/unsupported-loader-entry.js';
+        $graph = (new BundlerGraphBuilder())->build($entry);
+
+        $t->same(1, count($graph->unsupportedEdges));
+        $t->same('./asset.bin', $graph->unsupportedEdges[0]->source);
+        $t->same('src/asset.bin', $normalizeFixturePath($graph->unsupportedEdges[0]->path));
+        $t->same(null, $graph->unsupportedEdges[0]->loader);
+        $t->same(false, $graph->unsupportedEdges[0]->missing);
+        $t->same([], $graph->missingEdges);
+        $t->same(false, isset($graph->modules[(string) realpath($fixtureRoot . '/src/asset.bin')]));
+        $t->same(true, isset($graph->modules[(string) realpath($fixtureRoot . '/src/local-preview.js')]));
+    },
 ];

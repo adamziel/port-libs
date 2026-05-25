@@ -149,6 +149,7 @@ $loaderGraphEdges = array_combine(
     array_map(static fn ($edge): string => $edge->source, $loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/loader-entry.js')]->edges),
     $loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/loader-entry.js')]->edges,
 );
+$unsupportedLoaderGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/unsupported-loader-entry.js');
 $unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $normalizePackageFixturePath = static function (string $path) use ($packageFixtureDir): string {
@@ -575,6 +576,12 @@ printf("WordPress loader-aware graph assets: %s\n", (
     && isset($loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/local-preview.js')])
     && !isset($loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/block.css')])
     && !isset($loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/block.json')])
+) ? 'yes' : 'no');
+printf("WordPress unsupported loader diagnostics: %s\n", (
+    array_map(static fn ($edge): string => $edge->source, $unsupportedLoaderGraph->unsupportedEdges) === ['./asset.bin']
+    && $unsupportedLoaderGraph->unsupportedEdges[0]->loader === null
+    && isset($unsupportedLoaderGraph->modules[(string) realpath($packageEntryDir . '/local-preview.js')])
+    && !isset($unsupportedLoaderGraph->modules[(string) realpath($packageEntryDir . '/asset.bin')])
 ) ? 'yes' : 'no');
 printf("WordPress tsconfig paths aliases: %s\n", (
     array_combine(

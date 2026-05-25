@@ -101220,3 +101220,17 @@ Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`, `lanes/dolt/examples/wor
 The previous `dolt` integration audit commit `34e42aa86e37a25a2f1e6073a2618ec572147b2b` recorded the accepted marker after a clean focused/root run, but the source patch had only been checked, not applied, before commit. This correction applies `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T025625Z.patch` on top of that audited head.
 
 Repeated verification after applying source: `php -l` on all changed PHP files passed, `jq empty lanes/dolt/UPSTREAM_TEST_MANIFEST.json lanes/dolt/lane-status.json` passed, `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed, `git diff --check` passed, and `php tools/run-tests.php` passed with 211 test files, 24884 assertions, 0 failures.
+
+## Isolated clean-patch integration - esbuild unsupported loader graph diagnostics - 2026-05-25 03:31 UTC
+
+Accepted marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T025706Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T025706Z.patch`.
+
+Lane/slice/session: `esbuild` / `rearmer-20260525T025706Z` / `port-esbuild`. Patch sha256 matched `973f18fdff2dffe07dc1bb800174c07945281a1f4acec025571dc798b704e8b4`.
+
+Focused verification in clean worktree: `php -l` passed for `lanes/esbuild/src/BundlerGraph.php`, `lanes/esbuild/src/BundlerGraphBuilder.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, and `lanes/esbuild/examples/wordpress-asset-preflight.php`. `jq empty lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/lane-status.json` passed. `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php` passed. `php tools/run-tests.php lanes/esbuild/tests` passed. `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the clean worktree with zero failures.
+
+Support-library/dependency closure: no support-library activation. The patch adds lane-local unsupported-edge diagnostics to the existing analyzer/resolver/graph surface. Live-service exclusions: none.
+
+Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/fixtures/wordpress-package-assets/src/asset.bin`, `lanes/esbuild/fixtures/wordpress-package-assets/src/unsupported-loader-entry.js`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/upstream-inventory.md`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/BundlerGraph.php`, `lanes/esbuild/src/BundlerGraphBuilder.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `audits/integration-status.md`.

@@ -25,6 +25,7 @@ final class BundlerGraphBuilder
         $modules = [];
         $externalEdges = [];
         $missingEdges = [];
+        $unsupportedEdges = [];
         $queue = [$entry];
 
         while ($queue !== []) {
@@ -52,6 +53,10 @@ final class BundlerGraphBuilder
                     $missingEdges[] = $edge;
                     continue;
                 }
+                if ($edge->loader === null) {
+                    $unsupportedEdges[] = $edge;
+                    continue;
+                }
                 if (!isset($modules[$edge->path]) && $this->canAnalyze($edge->path)) {
                     $queue[] = $edge->path;
                 }
@@ -60,7 +65,7 @@ final class BundlerGraphBuilder
             $modules[$path] = new BundlerModule($path, $analysis, $edges);
         }
 
-        return new BundlerGraph($entry, $modules, $externalEdges, $missingEdges);
+        return new BundlerGraph($entry, $modules, $externalEdges, $missingEdges, $unsupportedEdges);
     }
 
     private function edgeForImport(ModuleImport $import, string $sourceDir): BundlerEdge
@@ -167,10 +172,11 @@ final class BundlerGraphBuilder
         return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
             'css' => 'css',
             'json' => 'json',
+            'mjs', 'cjs', 'js' => 'js',
             'jsx' => 'jsx',
             'ts' => 'ts',
             'tsx' => 'tsx',
-            default => 'js',
+            default => null,
         };
     }
 }
