@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 22:39:04 UTC",
-    "sourceCommit": "0906117aae8e32476f50e4034819ba040ccd8a5d",
-    "sourceCommitShort": "0906117aae8e",
+    "generated": "2026-05-25 22:42:44 UTC",
+    "sourceCommit": "ae6a7b757ac6e8fdcd1301daf59c29f48eb8f5fb",
+    "sourceCommitShort": "ae6a7b757ac6",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "5d097aec9412c2ebe074d9c44a0044d2a1d9ddd5",
-    "dashboardCommitShort": "5d097aec9412",
+    "dashboardCommit": "9e52539e3c6cb8255ab397025cdae2093b14a866",
+    "dashboardCommitShort": "9e52539e3c6c",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -200,15 +200,15 @@
             "suite": "verified-cloned-static-test-inventory-plus-focused-runner",
             "benchmark": "verified-cloned-static-test-inventory-plus-focused-runner",
             "denominator": "658",
-            "mapped": "342",
-            "coverage": "342 / 658",
-            "php": "342 pass / 0 fail",
+            "mapped": "344",
+            "coverage": "344 / 658",
+            "php": "344 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "verified cloned static upstream test inventory plus bou...",
             "audit": "audited 2026-05-25",
-            "currentWork": "Native `FolderWatchScanScheduler::acknowledgeRecentCleanup()` and `acknowledgeRecentClean...",
-            "nextTarget": "Map the next Syncthing watcher lifecycle edge: expose recent cleanup acknowledgement thro...",
-            "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused watcher...",
+            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now accepts a watcher scheduler and regist...",
+            "nextTarget": "Map the next Syncthing route/status edge: add a bounded watcher route for due restart sta...",
+            "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused route-r...",
             "commit": "55605cb"
         }
     ],
