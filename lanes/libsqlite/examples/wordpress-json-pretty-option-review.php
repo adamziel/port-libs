@@ -20,6 +20,7 @@ $optionValues = [
         ],
     ])),
     'scalar_flag_settings' => true,
+    'scalar_disabled_settings' => false,
     'scalar_ratio_settings' => 3.5,
     'null_settings' => null,
     'malformed_settings' => '{plugin:true,,}',

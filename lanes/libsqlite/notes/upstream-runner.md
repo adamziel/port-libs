@@ -34,9 +34,9 @@ Prior result: passed 2 selected Tcl scripts, 45,007 tests, and 0 errors in
 `veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
 
 Native PHP evidence after rework is recorded in `lane-status.json`.
-The latest additive direct-dispatch scalar check passed the WordPress smoke
-and focused `SQLiteHeaderTest.php` with 2052 assertions and 0 failures in the
-clean integrator worktree.
+The latest additive direct-dispatch and argument-vector boolean false scalar
+checks passed the WordPress smoke and focused `SQLiteHeaderTest.php` with 2053
+assertions and 0 failures in the clean integrator worktree.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty

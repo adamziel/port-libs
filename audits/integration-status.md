@@ -109388,3 +109388,22 @@ Files staged:
 - `lanes/gitoxide/notes/wordpress-scenarios.md`
 - `lanes/gitoxide/tests/ReceivePackTransportTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - libsqlite json pretty retry - 20260525T095538Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-retry-deferred-20260525T0952Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-retry-deferred-20260525T0952Z.patch`
+Lane/slice/session: `libsqlite` / `priority-keeper-rework-20260525T093834Z-retry` / `clean-integrator`
+
+Focused verification in `/tmp/port-clean-integrator-libsqlite-priority-keeper-rework-20260525T093834Z-retry-20260525T095538Z`:
+- `php -l lanes/libsqlite/src/SQLiteJsonPretty.php` - PASS
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteJsonPrettyTest.php` - PASS
+- `php tools/run-tests.php lanes/libsqlite/tests` - PASS
+- `git diff --check` - PASS
+
+Root verification:
+- `php tools/run-tests.php` - PASS
+
+Support-library/dependency closure: no support-library activation; lane-local libsqlite JSON pretty scalar dispatch retry only.
+Live-service exclusions: none; no live-service provider tests run.
+Files staged: libsqlite lane files touched by the patch plus `audits/integration-status.md`.

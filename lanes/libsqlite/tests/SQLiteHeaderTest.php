@@ -3164,6 +3164,7 @@ return [
         $t->same('42', SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [42]));
         $t->same('3.5', SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [3.5]));
         $t->same('1', SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [true]));
+        $t->same('0', SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [false]));
         $t->same("[\n01,\n02\n]", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', ['[1,2]', 0]));
         $t->same("[\n01,\n02\n]", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', ['[1,2]', false]));
 

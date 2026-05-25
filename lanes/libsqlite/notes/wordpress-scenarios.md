@@ -19,7 +19,7 @@ Status delta 2026-05-25 isolated rework: added `jsonPrettySqlFunction()`,
 kept invalid-name rejection, accepted uppercase SQL spelling through direct
 and argument-vector dispatch, added one-or-two argument-vector dispatch
 coverage, added subtype input and malformed-input dispatch smoke coverage,
-added scalar SQL argument-vector coercion coverage for integer, float, and boolean inputs,
+added scalar SQL argument-vector coercion coverage for integer, float, true, and false inputs,
 aligned direct SQL-dispatch scalar coercion with the argument-vector path,
 and updated the existing WordPress smoke to call the SQL-dispatch helper
 through its argument-vector entry point. This preserves
