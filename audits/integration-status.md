@@ -1,4 +1,62 @@
 
+## Clean-patch intake deferred - root resource gate closed - 2026-05-25 17:23 UTC
+
+No isolated source output was integrated in this pass.
+
+Processed marker:
+`.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T172044Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T172044Z.patch`.
+
+Lane/slice/session: `pandoc` / `priority-refill-20260525T172044Z` /
+`port-pandoc`. Patch sha256 verified as
+`ac493e1929ccd1366bc4ae110998d5b2916afd18675f1ab41b53032586f3c5d9`.
+
+Clean application result: plain `git apply --check` and `git apply` both
+succeeded in detached clean worktree
+`/tmp/port-clean-integrator-pandoc-priority-refill-20260525T172044Z` from old
+main `03deaa9312057d14e792f7e280fe3c7bd43b0335`. The patch is lane-local to
+`lanes/pandoc/**` and changes `WordPressBlockWriter` explicit `space` inline
+rendering plus focused Pandoc status/manifest/test/example files.
+
+Focused verification repeated in the clean worktree:
+
+- `jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/lane-status.json`:
+  passed.
+- `php -l lanes/pandoc/src/WordPressBlockWriter.php &&
+  php -l lanes/pandoc/tests/MarkdownReaderTest.php &&
+  php -l lanes/pandoc/examples/wordpress-inline-break-handoff.php`: passed.
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`: passed,
+  `1 test files, 2314 assertions, 0 failures`.
+- `php lanes/pandoc/examples/wordpress-inline-break-handoff.php`: passed.
+- `git diff --check`: passed.
+
+Root verification: not run. The pre-root resource/process gate was rechecked
+outside `.tmux-team/tmp/clean-integrator-run.lock`: `/` had `115527304` KiB
+available and no exact no-argument root harness was active, but load average
+first field was `61.24`, above the required `<25`. After the required 60 second
+sleep outside the lock, `/` had `115108164` KiB available and no exact
+no-argument root harness was active, but load average first field was still
+`67.59`. Because the gate stayed closed, no root slot was spent, no source
+commit was made, no atomic `update-ref` accepted source, and the marker/patch/
+metadata/log were left in place for the next clean-patch pass.
+
+Support-library/dependency closure decision: no support-library activation.
+The patch reuses Pandoc's existing native inline AST and WordPress block writer
+paths; it does not introduce DOCX/OpenXML, ZIP/package, PDF, EPUB/ODT,
+citation/math, YAML/JSON metadata, Unicode/charset, archive/compression, or
+live-service provider behavior.
+
+Live-service exclusions: none needed; no live-service provider tests were run.
+
+Files staged for source acceptance: none. Source patch files verified but
+deferred: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/pandoc/examples/wordpress-inline-break-handoff.php`,
+`lanes/pandoc/lane-status.json`,
+`lanes/pandoc/notes/priority-refill-20260525T172044Z.md`,
+`lanes/pandoc/src/WordPressBlockWriter.php`, and
+`lanes/pandoc/tests/MarkdownReaderTest.php`.
+
 ## Integration accepted - libsqlite JSON patch argument-vector dispatch - 2026-05-25 16:34 UTC
 
 Accepted isolated ready marker:
