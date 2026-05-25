@@ -181,6 +181,7 @@ return [
         $t->same(['uploads/2026/05/import.jpg#superseded'], $example['continuedAfterListErrorDeletedVersions']);
         $t->same(['exports/site.wxr: Failed to remove versions: Graph versions list denied'], $example['continuedAfterListErrorLogs']);
         $t->same('cleanup unsupported', $example['featureMaskedError']);
+        $t->same(false, $example['disabledNoVersionsProviderCalled']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];

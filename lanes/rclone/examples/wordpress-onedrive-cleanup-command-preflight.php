@@ -46,6 +46,11 @@ $featureMasked = OneDriveCleanupCommand::run($objects, [
     'dryRun' => true,
     'featureAvailable' => false,
 ]);
+$disabledNoVersions = OneDriveCleanupCommand::run($objects, [
+    'noVersions' => false,
+    'featureAvailable' => false,
+    'walkError' => 'would not be reached',
+]);
 
 return [
     'source' => 'onedrive-cleanup-command-preflight',
@@ -56,5 +61,6 @@ return [
     'continuedAfterListErrorDeletedVersions' => $continuedAfterListError['deletedVersions'],
     'continuedAfterListErrorLogs' => $continuedAfterListError['logs'],
     'featureMaskedError' => $featureMasked['error'],
+    'disabledNoVersionsProviderCalled' => $disabledNoVersions['providerCalled'],
     'secretInputsRead' => false,
 ];

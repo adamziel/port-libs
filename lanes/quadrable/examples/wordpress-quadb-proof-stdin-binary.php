@@ -79,6 +79,18 @@ try {
         ['2', '4', '99'],
         integerKeys: true
     );
+    $integerHexProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "2\n4\n99\n",
+        hex: true,
+        integerKeys: true
+    );
+    $directIntegerHexProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['2', '4', '99'],
+        hex: true,
+        integerKeys: true
+    );
     $numericPrefixProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['2suffix', '4'],
@@ -110,6 +122,7 @@ try {
         'integerBinaryProofBytes' => strlen($integerProofBytes),
         'directIntegerExportProofExitCode' => $directIntegerProofCommand['exitCode'],
         'directIntegerBinaryProofMatchesStdin' => $directIntegerProofCommand['stdout'] === $integerProofBytes,
+        'directIntegerHexProofMatchesStdin' => $directIntegerHexProofCommand === $integerHexProofCommand,
         'numericPrefixIntegerExportProofExitCode' => $numericPrefixProofCommand['exitCode'],
         'numericPrefixIntegerBinaryProofBytes' => strlen($numericPrefixProofCommand['stdout']),
         'badIntegerProofStdin' => $badIntegerProofCommand,

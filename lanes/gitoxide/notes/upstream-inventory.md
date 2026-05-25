@@ -674,6 +674,7 @@ Focused smart HTTP receive-pack POST redirect preservation inspected on 2026-05-
 - Priority rework `priority-rework-20260525T080340Z` reran the same focused evidence on top of accepted HEAD `3cd14b1aec9111fe765bd51d923cd52dc13a32ca` and preserved the accepted stream watchdog timeout plus advertisement ERR packet accounting while keeping the POST redirect evidence additive.
 - Priority keeper rework `priority-keeper-rework-20260525T082739Z` rebased the same smart HTTP POST redirect behavior on accepted HEAD `e1c9dc8786d9a9e573b797656bcb810a8d0d21d8` and added explicit 303 See Other POST rejection evidence without changing accepted stream watchdog timeout or advertisement ERR packet accounting.
 - Priority keeper rework `priority-keeper-rework-20260525T083816Z` rebased the smart HTTP POST redirect behavior on accepted HEAD `47e33b5e41613fc523ba16156d09f4111cbc6f07` and added explicit 301 Moved Permanently POST rejection evidence, keeping 307/308 generated-pack replay and 302/303 rewrite rejection additive to the already accepted stream watchdog timeout and advertisement ERR packet reporting.
+- Priority keeper rework `priority-keeper-rework-20260525T085330Z` rebases the same lane-local smart HTTP POST redirect behavior on accepted HEAD `9828ac923ce0cc62487799769d3aa6859e3669b1`, preserving the accepted stream watchdog timeout, advertisement ERR packet reporting, and explicit 301/302/303 rewrite rejection evidence without changing the native transport API.
 
 Focused smart HTTP receive-pack URL credential safety inventory inspected on 2026-05-25:
 

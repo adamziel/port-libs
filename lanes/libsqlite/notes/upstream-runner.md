@@ -8,9 +8,10 @@ This isolated rework rebases the deferred `json_pretty` SQL-dispatch behavior
 on top of the accepted `json_extract`/`jsonb_extract` subtype dispatch and
 `json_each` table-valued row slices. Native `SQLiteJsonPretty` now validates
 the SQL function name `json_pretty` with SQLite-style case-insensitive
-function lookup, dispatches default and caller-supplied indentation through
-the accepted formatter, handles one-or-two argument vectors for SQL-style
-arity validation, accepts JSON subtype input, preserves SQL NULL and
+function lookup across direct calls and argument-vector dispatch, dispatches
+default and caller-supplied indentation through the accepted formatter,
+handles one-or-two argument vectors for SQL-style arity validation, accepts
+JSON subtype input, preserves SQL NULL and
 malformed input propagation, and rejects invalid function names without changing the accepted
 `json_pretty(JSON[,INDENT])` formatting boundary.
 
@@ -32,7 +33,7 @@ Prior result: passed 2 selected Tcl scripts, 45,007 tests, and 0 errors in
 
 Native PHP evidence after rework is recorded in `lane-status.json`.
 The latest additive check passed the WordPress smoke and focused
-`SQLiteHeaderTest.php` with 2040 assertions and 0 failures.
+`SQLiteHeaderTest.php` with 2041 assertions and 0 failures.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
