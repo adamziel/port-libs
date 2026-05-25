@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 05:42:06 UTC",
-    "sourceCommit": "fa0e7ebe924e4e159f0507e4420d620c6a3d1c3b",
-    "sourceCommitShort": "fa0e7ebe924e",
+    "generated": "2026-05-25 05:48:12 UTC",
+    "sourceCommit": "97d630f462d2d1f7580608285eab514da762b1c4",
+    "sourceCommitShort": "97d630f462d2",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "4a31da9cc6351a3cb48b3e7bdef20a8132248cea",
-    "dashboardCommitShort": "4a31da9cc635",
+    "dashboardCommit": "be09c9158b59638f26d5c354692bd88dea23cf67",
+    "dashboardCommitShort": "be09c9158b59",
     "averageProgressPercent": "85.8",
     "lanes": [
         {
@@ -151,10 +151,10 @@
             "denominator": "55",
             "mapped": "55",
             "coverage": "55 / 55",
-            "php": "136 pass / 0 fail",
+            "php": "137 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream runner pass plus native BLAKE2s/key/sparse-tre...",
-            "audit": "updated 2026-05-25T05:34Z isolated micro-...",
+            "audit": "updated 2026-05-25T05:37Z isolated micro-...",
             "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStor...",
             "nextTarget": "If accepted, decide whether to wire the optional 500-trial sync-fuzzer watchdog into a ma...",
             "blocker": "No current quadrable-specific upstream runner or focused PHP blocker.",
