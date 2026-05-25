@@ -1,4 +1,35 @@
 
+## Superseded isolated marker - rclone - 2026-05-25 08:40 UTC
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T083258Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T083258Z.patch`.
+Lane/slice/session: `rclone` / `priority-keeper-rework-20260525T083258Z` / `port-rclone-rework`.
+
+Patch sha256 was verified as
+`4a7bd7b160e51ee5aca19c5dd38514287ea5ee682a0b201cad63e1408a29426f`.
+The marker was checked against accepted `main` at
+`2e62387f805a64ecc8c065b4e5f3f6dc68b770e6`.
+
+Decision: superseded, not root-verified as a separate source batch. The
+accepted commit `2e62387f805a64ecc8c065b4e5f3f6dc68b770e6` already integrates
+the same OneDrive cleanup feature-mask ordering intent with stronger focused
+coverage: `lanes/rclone/tests/OneDriveCleanupCommandTest.php` contains
+`onedrive cleanup command checks masked feature before traversal errors`,
+asserting `cleanup unsupported`, `walkedObjects=0`, `versionRequests=0`,
+`deletedVersions=[]`, and `providerCalled=false`. That accepted commit also
+recorded the no-argument root harness result for the rclone feature-mask guard.
+
+Focused/root checks for this marker: no new focused or root verification was
+started after supersession was detected. `git apply --check` failed only
+because the same lane files had already moved in the accepted rclone commit;
+`git apply --3way` showed conflicts in `lanes/rclone/lane-status.json`,
+`lanes/rclone/notes/upstream-inventory.md`, and
+`lanes/rclone/tests/OneDriveCleanupCommandTest.php`, all attributable to the
+newer accepted feature-mask guard. Support-library/dependency closure remains
+unchanged: no new support component, no live OneDrive/provider tests, no secret
+or live credential reads. Files staged for this audit-only decision:
+`audits/integration-status.md`.
+
 ## Integration accepted - gitoxide receive-pack 303 redirect guard - 2026-05-25 08:43 UTC
 
 Accepted isolated ready marker:
