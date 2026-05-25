@@ -912,15 +912,7 @@ USAGE;
                 ];
             }
 
-            if ($format === 'HashedKeys') {
-                $encodingType = Proof::ENCODING_HASHED_KEYS;
-            } elseif ($format === 'FullKeys') {
-                $encodingType = Proof::ENCODING_FULL_KEYS;
-            } else {
-                throw new \RuntimeException('unknown proof format');
-            }
-
-            $encodedProof = $proof->encode($encodingType);
+            $encodedProof = $proof->encode(self::proofEncodingTypeForCommandFormat($format));
 
             return [
                 'exitCode' => 0,
@@ -966,15 +958,7 @@ USAGE;
                 ];
             }
 
-            if ($format === 'HashedKeys') {
-                $encodingType = Proof::ENCODING_HASHED_KEYS;
-            } elseif ($format === 'FullKeys') {
-                $encodingType = Proof::ENCODING_FULL_KEYS;
-            } else {
-                throw new \RuntimeException('unknown proof format');
-            }
-
-            $encodedProof = $proof->encode($encodingType);
+            $encodedProof = $proof->encode(self::proofEncodingTypeForCommandFormat($format));
 
             return [
                 'exitCode' => 0,
@@ -1164,6 +1148,18 @@ USAGE;
             'stdout' => $store->importProofBytesOutputText($encodedProof, $expectedRoot),
             'stderr' => '',
         ];
+    }
+
+    private static function proofEncodingTypeForCommandFormat(string $format): int
+    {
+        if ($format === 'HashedKeys') {
+            return Proof::ENCODING_HASHED_KEYS;
+        }
+        if ($format === 'FullKeys') {
+            return Proof::ENCODING_FULL_KEYS;
+        }
+
+        throw new \RuntimeException('unknown proof format');
     }
 
     public function directory(): string

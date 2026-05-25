@@ -1400,6 +1400,32 @@ return [
                 ['wp_options:siteurl'],
                 Proof::ENCODING_FULL_KEYS
             ));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: FullKeys specified in proof encoding, but key not available\n",
+            ], QuadbStore::exportProofCommandOutput(
+                $privateDir,
+                ['wp_options:siteurl'],
+                'FullKeys',
+                true,
+                false,
+                false,
+                false
+            ));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $private->exportProofHex(['wp_options:siteurl']),
+                'stderr' => '',
+            ], QuadbStore::exportProofCommandOutput(
+                $privateDir,
+                ['wp_options:siteurl'],
+                'HashedKeys',
+                true,
+                false,
+                false,
+                false
+            ));
 
             $private->fork('preview');
             $private->put('wp_posts:1', 'Preview edit');
@@ -1630,6 +1656,16 @@ return [
                     dump: true
                 )['stdout']
             );
+            $stdinDumpWithBadFormat = QuadbStore::exportProofStdinCommandOutput(
+                $sourceDir,
+                $keyInput,
+                'BadFormat',
+                dump: true
+            );
+            $t->same(0, $stdinDumpWithBadFormat['exitCode']);
+            $t->contains('ITEMS (3):', $stdinDumpWithBadFormat['stdout']);
+            $t->contains('wp_options:siteurl', $stdinDumpWithBadFormat['stdout']);
+            $t->same('', $stdinDumpWithBadFormat['stderr']);
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',

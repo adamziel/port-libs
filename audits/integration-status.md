@@ -108608,3 +108608,9 @@ Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples
 - Marker: `port-libsqlite-rework-20260525T074351Z.ready`; patch sha256 verified: `ebb582b4250ba08cdbcc2b1ced2af5a5d08571ab2d420f81d020e46118f2cd16`.
 - Focused verification: `php -l` on changed PHP files passed; example smoke passed; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2030 assertions, 0 failures`; `jq empty` passed; `git diff --check` passed.
 - Root verification: `php tools/run-tests.php` passed: `214 test files, 25884 assertions, 0 failures`.
+
+### 2026-05-25 priority clean integrator - quadrable proof format command gate
+
+- Marker: `port-quadrable-20260525T074117Z.ready`; patch sha256 verified: `a53b28744242c102451e92efb7d1a04e3c53f9df343e66c56165220240bcc9fc`.
+- Focused verification: `php -l` on changed PHP files passed; `jq empty` passed; `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passed: `1 test files, 947 assertions, 0 failures`; proof input guard example smoke passed; `git diff --check` passed.
+- Root verification: `php tools/run-tests.php` passed: `214 test files, 25890 assertions, 0 failures`.

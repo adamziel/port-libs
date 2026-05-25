@@ -58,6 +58,12 @@ try {
         false,
         true
     );
+    $stdinDumpWithBadFormat = QuadbStore::exportProofStdinCommandOutput(
+        $sourceDir,
+        "wp_options:siteurl\n",
+        'Bad',
+        dump: true
+    );
 
     if (!mkdir($targetDir, 0755, true) && !is_dir($targetDir)) {
         throw new RuntimeException('unable to create WordPress proof target directory');
@@ -123,6 +129,10 @@ try {
             && str_starts_with($dumpWithBadFormat['stdout'], 'ITEMS (')
             && str_contains($dumpWithBadFormat['stdout'], 'wp_options:siteurl')
             && $dumpWithBadFormat['stderr'] === '',
+        'stdinDumpWithBadFormatStillDumps' => $stdinDumpWithBadFormat['exitCode'] === 0
+            && str_starts_with($stdinDumpWithBadFormat['stdout'], 'ITEMS (')
+            && str_contains($stdinDumpWithBadFormat['stdout'], 'wp_options:siteurl')
+            && $stdinDumpWithBadFormat['stderr'] === '',
         'oddHexStderr' => rtrim($oddHex['stderr'], "\r\n"),
         'uppercasePrefixStderr' => rtrim($uppercasePrefix['stderr'], "\r\n"),
         'emptyProofStderr' => rtrim($emptyProof['stderr'], "\r\n"),
