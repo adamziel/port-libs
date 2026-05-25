@@ -26,6 +26,19 @@ canonical JSON text, missing paths as NULL, and multi-path summaries as JSON
 arrays. This gives WordPress import and repair tooling a local-only way to
 read copied plugin settings without requiring the SQLite extension.
 
+## `json_extract()` Subtype Diagnostics Scenario
+
+Native JSON extraction now also exposes a bounded JSON-argument path for
+SQLite subtype propagation when object/array or multi-path
+`json_extract(X,P...)` results are passed into JSON constructors. The example
+`examples/wordpress-json-extract-subtype-option-diagnostics.php` checks local
+strict JSON, JSON5 text, and JSONB `wp_options.option_value`-shaped copied
+plugin settings, wraps extracted rules and summaries with `json_array()` and
+`json_object()`, and verifies that nested JSON values are embedded as JSON
+rather than double-quoted text. This gives WordPress migration and repair
+tooling local-only constructor diagnostics before copied plugin settings are
+imported, without requiring the SQLite extension.
+
 ## JSON Operator `min()`/`max()` RHS Index Preflight Scenario
 
 Native JSON operator expression-index preflight now folds reduced SQLite

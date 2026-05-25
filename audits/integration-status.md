@@ -99102,3 +99102,21 @@ Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260
 - Support-library/dependency closure: no support-library activation; this reuses the lane-local CSS minifier scanner.
 - Live-service exclusions: none.
 - Files staged: `lanes/lightningcss/**` and `audits/integration-status.md`.
+
+## Clean-patch integration - libsqlite - 20260525T003353Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T002424Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T002424Z.patch`
+Lane/slice/session: `libsqlite` / `supervisor-next-20260525T002424Z` / `port-libsqlite`
+Patch sha256: `04339a7dc0cb9469c0994f7eec4ba5c6dcab326e0e3e36dabf32a114a5bffd0d` (verified)
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-libsqlite-supervisor-next-20260525T002424Z-20260525T003353Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonExtract.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`

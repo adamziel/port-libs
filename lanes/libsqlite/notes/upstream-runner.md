@@ -4800,3 +4800,50 @@ Remaining boundaries: full SQL expression evaluation, `json_extract()` subtype
 propagation and all BLOB ambiguity edge cases beyond existing cast text/JSONB
 handling, JSON aggregates, table-valued `json_each`/`json_tree`, WAL,
 rollback/savepoint, and b-tree delete/rebalance remain future slices.
+
+## Focused Native Mapping: `json_extract()` JSON Subtype Propagation
+
+For the bounded JSON subtype slice, this isolated worktree reused the same
+prior focused upstream JSON evidence as the SQL-result typing slice because
+the hydrated `.upstream-cache` checkout was absent here:
+
+```sh
+json101.test json102.test subtype1.test
+json101.test json102.test json501.test
+json107.test json101.test json102.test jsonb01.test
+```
+
+Prior accepted evidence passed 622 upstream tests with 0 errors for
+`json_quote()` and subtype interaction over `json101.test`, `json102.test`,
+and `subtype1.test`; 780 upstream tests with 0 errors for JSON path
+inspection over strict JSON, JSON5 text, cast text BLOBs, missing paths,
+scalar paths, and array/object paths; and 650 upstream tests with 0 errors for
+JSONB validation/path handling boundaries.
+
+The native PHP slice adds `SQLiteJsonExtract::extractJsonArgument()` for the
+bounded SQLite behavior where `json_extract(X,P...)` object/array and
+multi-path results carry the JSON subtype when passed into JSON constructors.
+Single-path SQL scalars keep SQLite SQL typing: booleans become `1`/`0`, text
+stays text, and missing/null paths become SQL NULL. The focused libsqlite
+harness passed 227 PHP tests with 1858 assertions and 0 failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-json-extract-subtype-option-diagnostics.php` script ran
+successfully, reporting copied strict JSON, JSON5, and JSONB
+`wp_options.option_value` inputs where extracted object/array and multi-path
+values are embedded into JSON constructor diagnostics without being
+double-quoted.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing lane-local JSON5 parser, JSONB encoder/decoder, path locator,
+canonical JSON encoder, JSON subtype wrapper, and JSON constructor helpers;
+it counts no shared support-library progress.
+
+Remaining boundaries: full SQL expression evaluation, subtype propagation
+through every SQL operator/function boundary, aggregate JSON functions,
+table-valued `json_each`/`json_tree`, broader BLOB ambiguity cases, WAL,
+rollback/savepoint, and b-tree delete/rebalance remain future slices.

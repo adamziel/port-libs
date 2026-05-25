@@ -3116,6 +3116,57 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extract($json, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extract('{"plugin":,}', '$.plugin'));
     },
+    'propagates sqlite json_extract JSON subtype values into constructors' => static function (TestRunner $t): void {
+        $json = '{"plugin":{"enabled":true,"title":"Cache","rules":[{"name":"seo"},{"name":"cache"}],"empty":null}}';
+        $json5 = "{plugin:{enabled:false,title:'Cache',rules:[{name:'seo'},],},}";
+        $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => true,
+                'title' => 'Cache',
+                'rules' => [
+                    ['name' => 'seo'],
+                    ['name' => 'cache'],
+                ],
+            ],
+        ]));
+
+        $t->same(
+            '[{"name":"cache"}]',
+            SQLiteJsonConstructor::jsonArray(SQLiteJsonExtract::extractJsonArgument($json, '$.plugin.rules[#-1]')),
+        );
+        $t->same(
+            '[[{"name":"seo"}]]',
+            SQLiteJsonConstructor::jsonArray(SQLiteJsonExtract::extractJsonArgument($json5, '$.plugin.rules')),
+        );
+        $t->same(
+            '[["Cache",true]]',
+            SQLiteJsonConstructor::jsonArray(SQLiteJsonExtract::extractJsonArgument($jsonb, '$.plugin.title', '$.plugin.enabled')),
+        );
+        $t->same(
+            '["Cache"]',
+            SQLiteJsonConstructor::jsonArray(SQLiteJsonExtract::extractJsonArgument($json, '$.plugin.title')),
+        );
+        $t->same(
+            '[1,0,null]',
+            SQLiteJsonConstructor::jsonArray(
+                SQLiteJsonExtract::extractJsonArgument($json, '$.plugin.enabled'),
+                SQLiteJsonExtract::extractJsonArgument($json5, '$.plugin.enabled'),
+                SQLiteJsonExtract::extractJsonArgument($json, '$.plugin.missing'),
+            ),
+        );
+        $t->same(
+            '{"rules":[{"name":"seo"},{"name":"cache"}],"summary":["Cache",true]}',
+            SQLiteJsonConstructor::jsonObject(
+                'rules',
+                SQLiteJsonExtract::extractJsonArgument($jsonb, '$.plugin.rules'),
+                'summary',
+                SQLiteJsonExtract::extractJsonArgument($json, '$.plugin.title', '$.plugin.enabled'),
+            ),
+        );
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extractJsonArgument($json));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonExtract::extractJsonArgument($json, '$.plugin[#-]'));
+    },
     'inspects focused sqlite jsonb types at root and paths' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode([
             'object' => ['nested' => 1],
