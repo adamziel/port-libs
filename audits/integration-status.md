@@ -1,4 +1,49 @@
 
+## Integration accepted - rclone cleanup-command rework refresh - 2026-05-25 13:55 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-finisher-20260525T134530Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-finisher-20260525T134530Z.patch`.
+
+Lane/slice/session: `rclone` / `priority-refill-20260525T134529Z` /
+`port-rclone-finisher`. Patch sha256 verified as
+`10645621bd9e0909646bf46b03494b6665f9f2cd7021285e80cbc290620264fa`.
+
+Apply result: plain `git apply --check` and `git apply` both succeeded in clean
+worktree `/tmp/port-clean-integrator-rclone-priority-refill-20260525T134530Z`
+from old main `17bd374fd5d8fb0af41318f4f8dc0893bcf0026b`. The patch is an
+additive lane-local rework refresh: `lanes/rclone/lane-status.json` wording plus
+`lanes/rclone/notes/cleanup-command-rework-20260525T134529Z.md`.
+
+Focused verification: `php -l lanes/rclone/src/OneDriveCleanupCommand.php`,
+`php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php`, and
+`php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`
+all passed. `php tools/run-tests.php
+lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed with `1 test files,
+93 assertions, 0 failures`. `php tools/run-tests.php lanes/rclone/tests` passed
+with `35 test files, 4050 assertions, 0 failures`. The cleanup-command WordPress
+example smoke passed with `source=onedrive-cleanup-command-preflight` and
+`secretInputsRead=false`. `jq empty lanes/rclone/lane-status.json
+lanes/rclone/UPSTREAM_TEST_MANIFEST.json` passed. `git diff --check` passed.
+
+Root verification: after checking the resource gate and confirming
+`pgrep -af '^php tools/run-tests\.php$'` was empty, `php tools/run-tests.php`
+ran under `.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and
+passed with `214 test files, 26176 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The slice
+reuses existing lane-local OneDrive cleanup/version-cleaner abstractions and
+deterministic in-memory fixtures.
+
+Live-service exclusions: live OneDrive OAuth/provider tests, mount/FUSE
+packages, Docker-backed serve/docker coverage, fstest provider remotes, and any
+credential-bearing provider coverage were intentionally not run.
+
+Files staged: `lanes/rclone/lane-status.json`,
+`lanes/rclone/notes/cleanup-command-rework-20260525T134529Z.md`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - libsqlite json_tree recursive rows - 2026-05-25 13:10 UTC
 
 Accepted isolated ready marker:
