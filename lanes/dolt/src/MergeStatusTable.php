@@ -222,6 +222,45 @@ final class MergeStatusTable
     }
 
     /**
+     * Project the visible merge state after a partial resolution pass removes
+     * selected row, schema, constraint, and root-object blockers.
+     *
+     * @param list<string|array{name:string, numConflicts?:int}> $dataConflictTables
+     * @param list<string|array{name:string, numConflicts?:int}> $schemaConflictTables
+     * @param list<string> $constraintViolationTables
+     * @param list<string|array{name:string, numConflicts?:int}> $rootObjectConflicts
+     * @param array{data?:list<string>, schema?:list<string>, constraints?:list<string>, rootObjects?:list<string>} $resolved
+     * @return array{remaining_data_conflicts:list<array{table:string,num_conflicts:int}>, remaining_schema_conflicts:list<array{table:string,num_conflicts:int}>, remaining_constraint_violations:list<non-empty-string>, remaining_root_object_conflicts:list<array{table:string,num_conflicts:int}>, conflict_rows:list<array{table:string,num_conflicts:int}>, status_guidance:string|null, commit_guidance:string|null, merge_failure_summary:string|null}
+     */
+    public function resolveMergeArtifacts(
+        array $dataConflictTables = [],
+        array $schemaConflictTables = [],
+        array $constraintViolationTables = [],
+        array $rootObjectConflicts = [],
+        array $resolved = [],
+    ): array {
+        $remainingData = $this->unresolvedConflictRows($dataConflictTables, $resolved['data'] ?? []);
+        $remainingSchema = $this->unresolvedConflictRows($schemaConflictTables, $resolved['schema'] ?? []);
+        $remainingConstraints = $this->unresolvedTableNames($constraintViolationTables, $resolved['constraints'] ?? []);
+        $remainingRootObjects = $this->unresolvedConflictRows($rootObjectConflicts, $resolved['rootObjects'] ?? []);
+
+        $dataItems = $this->conflictRowsToItems($remainingData);
+        $schemaItems = $this->conflictRowsToItems($remainingSchema);
+        $rootObjectItems = $this->conflictRowsToItems($remainingRootObjects);
+
+        return [
+            'remaining_data_conflicts' => $remainingData,
+            'remaining_schema_conflicts' => $remainingSchema,
+            'remaining_constraint_violations' => $remainingConstraints,
+            'remaining_root_object_conflicts' => $remainingRootObjects,
+            'conflict_rows' => $this->conflictRows($dataItems, $schemaItems, $rootObjectItems),
+            'status_guidance' => $this->statusGuidance(true, $dataItems, $schemaItems, $remainingConstraints),
+            'commit_guidance' => $this->commitUnmergedPaths($dataItems, $schemaItems, $remainingConstraints),
+            'merge_failure_summary' => $this->mergeFailureSummary($dataItems, $schemaItems, $remainingConstraints, $rootObjectItems),
+        ];
+    }
+
+    /**
      * Render the artifact prelude printed by upstream `dolt merge` before its
      * final failure summary.
      *
@@ -678,6 +717,64 @@ final class MergeStatusTable
     private function tableNamesAsString(array $names): string
     {
         return implode(', ', $names);
+    }
+
+    /**
+     * @param list<string|array{name:string, numConflicts?:int}> $conflictTables
+     * @param list<string> $resolvedTables
+     * @return list<array{table:string,num_conflicts:int}>
+     */
+    private function unresolvedConflictRows(array $conflictTables, array $resolvedTables): array
+    {
+        $resolved = [];
+        foreach ($this->uniqueTableNames($resolvedTables) as $tableName) {
+            $resolved[$tableName] = true;
+        }
+
+        $remaining = [];
+        foreach ($this->conflictRows($conflictTables) as $row) {
+            if (isset($resolved[$row['table']])) {
+                continue;
+            }
+            $remaining[] = $row;
+        }
+
+        return $remaining;
+    }
+
+    /**
+     * @param list<string> $tableNames
+     * @param list<string> $resolvedTables
+     * @return list<non-empty-string>
+     */
+    private function unresolvedTableNames(array $tableNames, array $resolvedTables): array
+    {
+        $resolved = [];
+        foreach ($this->uniqueTableNames($resolvedTables) as $tableName) {
+            $resolved[$tableName] = true;
+        }
+
+        $remaining = [];
+        foreach ($this->uniqueTableNames($tableNames) as $tableName) {
+            if (isset($resolved[$tableName])) {
+                continue;
+            }
+            $remaining[] = $tableName;
+        }
+
+        return $remaining;
+    }
+
+    /**
+     * @param list<array{table:string,num_conflicts:int}> $rows
+     * @return list<array{name:string,numConflicts:int}>
+     */
+    private function conflictRowsToItems(array $rows): array
+    {
+        return array_map(
+            static fn (array $row): array => ['name' => $row['table'], 'numConflicts' => $row['num_conflicts']],
+            $rows
+        );
     }
 
     /**

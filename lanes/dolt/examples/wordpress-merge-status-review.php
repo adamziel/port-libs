@@ -79,6 +79,13 @@ return [
         $fixture['rootObjectConflicts'],
         $fixture['rootObjectResolutionObjects'],
     ),
+    'partiallyResolvedMergeState' => $mergeStatus->resolveMergeArtifacts(
+        $fixture['conflictTables'],
+        $fixture['schemaConflictRows'],
+        $fixture['constraintViolationTables'],
+        $fixture['rootObjectConflicts'],
+        $fixture['partialResolution'],
+    ),
     'statusGuidance' => $mergeStatus->statusGuidance(
         $fixture['isMerging'],
         $fixture['conflictTables'],

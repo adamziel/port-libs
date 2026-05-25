@@ -127,6 +127,76 @@ return [
         ], $resolved);
         $t->throws(InvalidArgumentException::class, static fn () => $table->resolveRootObjectConflicts(['wp_import_preview_view'], ['']));
     },
+    'partial merge artifact resolution keeps only unresolved blockers visible' => static function (TestRunner $t): void {
+        $state = (new MergeStatusTable())->resolveMergeArtifacts(
+            [
+                ['name' => 'wp_posts', 'numConflicts' => 2],
+                ['name' => 'wp_terms', 'numConflicts' => 1],
+            ],
+            [
+                ['name' => 'wp_options'],
+                ['name' => 'wp_postmeta'],
+            ],
+            ['wp_posts', 'wp_postmeta', 'wp_import_audit'],
+            [
+                ['name' => 'wp_import_preview_view', 'numConflicts' => 1],
+            ],
+            [
+                'data' => ['wp_terms'],
+                'schema' => ['wp_options'],
+                'constraints' => ['wp_posts'],
+                'rootObjects' => ['wp_import_preview_view'],
+            ],
+        );
+
+        $t->same([
+            'remaining_data_conflicts' => [
+                ['table' => 'wp_posts', 'num_conflicts' => 2],
+            ],
+            'remaining_schema_conflicts' => [
+                ['table' => 'wp_postmeta', 'num_conflicts' => 0],
+            ],
+            'remaining_constraint_violations' => ['wp_postmeta', 'wp_import_audit'],
+            'remaining_root_object_conflicts' => [],
+            'conflict_rows' => [
+                ['table' => 'wp_posts', 'num_conflicts' => 2],
+                ['table' => 'wp_postmeta', 'num_conflicts' => 0],
+            ],
+            'status_guidance' => "You have unmerged tables.\n"
+                . "  (fix conflicts and constraint violations and run \"dolt commit\")\n"
+                . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
+                . "Unmerged paths:\n"
+                . "  (use \"dolt add <table>...\" to mark resolution)\n"
+                . "\tschema conflict:  wp_postmeta\n"
+                . "\tboth modified:    wp_posts\n"
+                . "\tmodified          wp_import_audit",
+            'commit_guidance' => "Unmerged paths:\n"
+                . "  (use \"dolt add <table>...\" to mark resolution)\n"
+                . "\tschema conflict:  wp_postmeta\n"
+                . "\tboth modified:    wp_posts\n"
+                . "\tmodified          wp_import_audit",
+            'merge_failure_summary' => "Automatic merge failed; 3 table(s) are unmerged.\n"
+                . "Fix conflicts and constraint violations and then commit the result.\n"
+                . MergeStatusTable::MERGE_CONFLICTS_HELP,
+        ], $state);
+
+        $resolved = (new MergeStatusTable())->resolveMergeArtifacts(
+            [['name' => 'wp_posts', 'numConflicts' => 2]],
+            [['name' => 'wp_options']],
+            ['wp_postmeta'],
+            [['name' => 'wp_import_preview_view', 'numConflicts' => 1]],
+            [
+                'data' => ['wp_posts'],
+                'schema' => ['wp_options'],
+                'constraints' => ['wp_postmeta'],
+                'rootObjects' => ['wp_import_preview_view'],
+            ],
+        );
+        $t->same(MergeStatusTable::ALL_MERGED_HEADER, $resolved['status_guidance']);
+        $t->same(null, $resolved['commit_guidance']);
+        $t->same(null, $resolved['merge_failure_summary']);
+        $t->throws(InvalidArgumentException::class, static fn () => (new MergeStatusTable())->resolveMergeArtifacts([], [], [''], [], []));
+    },
     'dolt status guidance maps unresolved constraint violation merge text' => static function (TestRunner $t): void {
         $guidance = (new MergeStatusTable())->statusGuidance(
             true,
@@ -527,6 +597,13 @@ return [
             $fixture['rootObjectConflicts'],
             $fixture['rootObjectResolutionObjects'],
         );
+        $partiallyResolvedMergeState = $table->resolveMergeArtifacts(
+            $fixture['conflictTables'],
+            $fixture['schemaConflictRows'],
+            $fixture['constraintViolationTables'],
+            $fixture['rootObjectConflicts'],
+            $fixture['partialResolution'],
+        );
         $previewConflictRowsWithoutIds = array_map(static function (array $row): array {
             unset($row['dolt_conflict_id']);
             return $row;
@@ -586,6 +663,7 @@ return [
         $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $previewSchemaConflictDescriptionRows);
         $t->same($fixture['expectedResolvedSchemaConflictState'], $resolvedSchemaConflictState);
         $t->same($fixture['expectedResolvedRootObjectConflictState'], $resolvedRootObjectConflictState);
+        $t->same($fixture['expectedPartiallyResolvedMergeState'], $partiallyResolvedMergeState);
         $t->same($fixture['expectedStatusGuidance'], $statusGuidance);
         $t->same($fixture['expectedCommitGuidance'], $commitGuidance);
         $t->same($fixture['expectedMergeArtifactPrelude'], $mergeArtifactPrelude);
@@ -616,6 +694,7 @@ return [
         $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $example['previewSchemaConflictDescriptionRows']);
         $t->same($fixture['expectedResolvedSchemaConflictState'], $example['resolvedSchemaConflictState']);
         $t->same($fixture['expectedResolvedRootObjectConflictState'], $example['resolvedRootObjectConflictState']);
+        $t->same($fixture['expectedPartiallyResolvedMergeState'], $example['partiallyResolvedMergeState']);
         $t->same($fixture['expectedMergeConstraintError'], $example['mergeConstraintError']);
         $t->same($fixture['expectedStatusGuidance'], $example['statusGuidance']);
         $t->same($fixture['expectedCommitGuidance'], $example['commitGuidance']);

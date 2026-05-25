@@ -2067,3 +2067,12 @@
 - Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo count($r["resolvedRootObjectConflictState"]["remaining_root_object_conflicts"])."\n"; var_export($r["resolvedRootObjectConflictState"]["merge_failure_summary"]); echo "\n";'` returned `0` and `NULL`.
 - Root harness: not run - isolated micro-slice.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status projection surface and root-object table-name normalization, with no shell-outs and no activation of a shared dependency.
+
+## Watchdog Next 2026-05-25 Mixed Merge Artifact Resolution Slice
+
+- Upstream evidence reused: Dolt exposes unresolved merge artifacts through `dolt_conflicts`, `dolt_merge_status`, `dolt status`, commit guidance, immediate merge failure summaries, and constraint-violation system tables. Prior focused merge/status/conflict/constraint Go, BATS, and CLI evidence remains the bounded denominator for this lane slice; no wider upstream runner was executed in this isolated worktree.
+- Native delta: `MergeStatusTable::resolveMergeArtifacts()` now projects the visible state after selected data conflicts, schema conflicts, constraint-violation tables, and root-object conflicts are resolved, preserving only remaining blockers in conflict rows, status guidance, commit guidance, and merge failure summaries.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 145 assertions, and 0 failures.
+- Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo count($r["partiallyResolvedMergeState"]["remaining_data_conflicts"])."\n"; echo implode(",", $r["partiallyResolvedMergeState"]["remaining_constraint_violations"])."\n"; echo $r["partiallyResolvedMergeState"]["merge_failure_summary"]."\n";'` returned `1`, `wp_postmeta,wp_import_audit`, and an `Automatic merge failed; 3 table(s) are unmerged.` summary.
+- Root harness: not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/constraint projection surface, with no shell-outs and no activation of a shared dependency.

@@ -187,3 +187,11 @@ Next best slice: map schema-conflict table mutation semantics or post-resolution
 - Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 138 assertions, and 0 failures; syntax checks passed for changed PHP files; `wordpress-merge-status-review.php` smoke returned zero remaining root-object conflicts after resolving the preview view and import procedure.
 - Blocker: no Dolt PHP blocker in this micro-slice; full upstream Go/BATS parity remains out of scope for the isolated worker boundary.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status projection surface and root-object table-name normalization, with no shell-outs and no activation of a shared dependency.
+
+## Watchdog Next 2026-05-25 04:53 UTC
+
+- Status delta: added native mixed post-resolution merge artifact state after selected data conflicts, schema conflicts, constraint-violation tables, and root-object conflicts are cleared.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 145 assertions, and 0 failures; syntax checks passed for the changed source, test, fixture, and example; `wordpress-merge-status-review.php` smoke returned one remaining data conflict, two remaining constraint tables, and the expected `Automatic merge failed; 3 table(s) are unmerged.` summary.
+- Blocker: no Dolt PHP blocker in this micro-slice; full upstream Go/BATS parity remains out of scope for the isolated worker boundary.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/constraint projection surface, with no shell-outs and no activation of a shared dependency.
+- Next task: map schema-conflict table mutation semantics next, keeping the slice bounded to visible status/conflict rows and WordPress migration review output.

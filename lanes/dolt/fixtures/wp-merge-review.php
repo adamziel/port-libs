@@ -93,6 +93,12 @@ return [
         ['name' => 'wp_options'],
     ],
     'schemaConflictResolutionTables' => ['wp_options'],
+    'partialResolution' => [
+        'data' => [],
+        'schema' => ['wp_options'],
+        'constraints' => ['wp_posts', 'wp_options'],
+        'rootObjects' => ['wp_import_preview_view', 'wp_prepare_import_batch'],
+    ],
     'rootObjectConflicts' => [
         ['name' => 'wp_import_preview_view', 'numConflicts' => 1],
         ['name' => 'wp_prepare_import_batch', 'numConflicts' => 1],
@@ -501,6 +507,33 @@ return [
         'remaining_root_object_conflicts' => [],
         'conflict_rows' => [],
         'merge_failure_summary' => null,
+    ],
+    'expectedPartiallyResolvedMergeState' => [
+        'remaining_data_conflicts' => [
+            ['table' => 'wp_posts', 'num_conflicts' => 2],
+        ],
+        'remaining_schema_conflicts' => [],
+        'remaining_constraint_violations' => ['wp_postmeta', 'wp_import_audit'],
+        'remaining_root_object_conflicts' => [],
+        'conflict_rows' => [
+            ['table' => 'wp_posts', 'num_conflicts' => 2],
+        ],
+        'status_guidance' => "You have unmerged tables.\n"
+            . "  (fix conflicts and constraint violations and run \"dolt commit\")\n"
+            . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
+            . "Unmerged paths:\n"
+            . "  (use \"dolt add <table>...\" to mark resolution)\n"
+            . "\tboth modified:    wp_posts\n"
+            . "\tmodified          wp_import_audit\n"
+            . "\tmodified          wp_postmeta",
+        'commit_guidance' => "Unmerged paths:\n"
+            . "  (use \"dolt add <table>...\" to mark resolution)\n"
+            . "\tboth modified:    wp_posts\n"
+            . "\tmodified          wp_import_audit\n"
+            . "\tmodified          wp_postmeta",
+        'merge_failure_summary' => "Automatic merge failed; 3 table(s) are unmerged.\n"
+            . "Fix conflicts and constraint violations and then commit the result.\n"
+            . "Use 'dolt conflicts' to investigate and resolve conflicts.",
     ],
     'expectedStatusGuidance' => "You have unmerged tables.\n"
         . "  (fix conflicts and constraint violations and run \"dolt commit\")\n"

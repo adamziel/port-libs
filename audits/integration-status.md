@@ -102648,3 +102648,26 @@ Live-service exclusions: no live-service/provider tests run.
 Files staged:
 - `audits/integration-status.md`
 - `lanes/difftastic/examples/wordpress-lua-build-script-highlight-display.php`
+
+## Integration accepted - isolated dolt watchdog-next-20260525T045348Z - 2026-05-25T05:08:54Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T045348Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T045348Z.patch`
+Lane/slice/session: `dolt` / `watchdog-next-20260525T045348Z` / `port-dolt`
+Patch sha256: `71e6557222e61c7db22c75ccb335335dd10a8e4867da9bed293fa5f8ddcd6227` verified. Applied with bounded three-way rebase from `72b484aa8f2784f65c3eda0599b1e7af7bb3eed0`.
+Focused commands:
+- `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php => exit 0; 1 test files, 145 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25243 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/dolt/examples/wordpress-merge-status-review.php`
+- `lanes/dolt/fixtures/wp-merge-review.php`
+- `lanes/dolt/lane-status.json`
+- `lanes/dolt/notes/upstream-runner.md`
+- `lanes/dolt/notes/wordpress-scenarios.md`
+- `lanes/dolt/src/MergeStatusTable.php`
+- `lanes/dolt/tests/MergeStatusTableTest.php`
