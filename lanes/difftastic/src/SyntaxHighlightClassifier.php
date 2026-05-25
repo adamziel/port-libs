@@ -82,6 +82,10 @@ final class SyntaxHighlightClassifier
             }
         }
 
+        if ($this->isPhpLikeLanguage($language) && $this->isPhpBuiltinVariable($source, $token)) {
+            return 'keyword';
+        }
+
         if ($this->isRubyLanguage($language) && $this->isRubyAllCapsConstantIdentifier($token->text)) {
             return 'keyword';
         }
@@ -186,6 +190,11 @@ final class SyntaxHighlightClassifier
         return in_array($language, ['javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx'], true);
     }
 
+    private function isPhpLikeLanguage(string $language): bool
+    {
+        return in_array($language, ['hack', 'hh', 'php'], true);
+    }
+
     private function isMarkupTagName(string $source, int $start): bool
     {
         if ($start <= 0) {
@@ -234,6 +243,15 @@ final class SyntaxHighlightClassifier
     private function isJavaScriptBuiltinVariable(string $text): bool
     {
         return in_array($text, ['arguments', 'module', 'console', 'window', 'document', 'this', 'super'], true);
+    }
+
+    private function isPhpBuiltinVariable(string $source, Token $token): bool
+    {
+        if ($token->text !== 'this') {
+            return false;
+        }
+
+        return $token->start > 0 && ($source[$token->start - 1] ?? '') === '$';
     }
 
     private function isPythonBuiltinFunctionCall(string $source, Token $token): bool

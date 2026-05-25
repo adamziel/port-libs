@@ -519,6 +519,23 @@ The focused test expectation is 245 named tests, 1403 assertions, and 0 failures
 
 Dependency closure: no new support component is needed for this slice. It reuses the existing lane-local syntax highlighter and exact upstream query evidence path; no shared parser, tree-sitter runtime, or generated query component is activated.
 
+For this PHP `$this` variable.builtin slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, and `JsonDiffRenderer`. The mapped upstream boundary is tree-sitter-php `queries/highlights.scm`, where `relative_scope` is captured as `variable.builtin`; the lane promotes only `$this` in PHP/Hack contexts to the same keyword-style display bucket already used for mapped builtin-variable captures. Function and method identifiers remain normal unless another already-mapped promoted capture applies.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-php-this-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-php-this-highlight-display.php >/tmp/difftastic-php-this-example.json && php -r 'json_decode(file_get_contents("/tmp/difftastic-php-this-example.json"), true, 512, JSON_THROW_ON_ERROR); echo "example json ok\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test expectation is 246 named tests, 1425 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/JSON renderer path; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.
+
 ## Next Task
 
-Expand Python syntax highlighting with the next upstream-query-backed boundary outside the current annotation cluster, without promoting runtime expressions.
+Expand the next upstream-query-backed syntax highlighting boundary outside the already mapped JavaScript, PHP, Python, and Ruby clusters, without promoting function/property captures that upstream leaves outside the display highlight enum.

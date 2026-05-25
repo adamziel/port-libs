@@ -4161,6 +4161,27 @@ return [
         $t->contains('arguments:keyword', $encoded);
         $t->contains('wp:normal', $encoded);
     },
+    'wordpress php class display highlights this as upstream builtin variable' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-php-this-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/src/BlockRenderer.php', $decoded['path']);
+        $t->contains('this:keyword', $encoded);
+        $t->contains('render_block:normal', $encoded);
+        $t->contains('normalize_attributes:normal', $encoded);
+    },
     'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
         ob_start();
         require dirname(__DIR__) . '/examples/wordpress-python-decorator-highlight-display.php';
