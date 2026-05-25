@@ -366,6 +366,54 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler leaves queued events pending after restart completion' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/poster.webp', 'ijklmnop');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore());
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+
+            $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 9000);
+            $watch->recordWatcherError('wordpress-media', 'watch backend closed after event', scanOnWatchError: false, now: 9001);
+
+            $completedRestart = $watch->completeDueWatcherRestart('wordpress-media', 9006);
+            $statusAfterRestart = $watch->watchStatus('wordpress-media', 9006);
+
+            $t->same(1, $completedRestart['restartAttempt'] ?? null);
+            $t->true(array_key_exists('watcherRestart', $statusAfterRestart));
+            $t->same(null, $statusAfterRestart['watcherRestart']);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $statusAfterRestart['pendingPaths'] ?? []);
+            $t->same(9010, $statusAfterRestart['nextScanAt'] ?? null);
+            $t->same(false, $statusAfterRestart['due'] ?? null);
+            $t->same([], $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 9006)->snapshots());
+            $t->same(null, $service->checkpoint(9006));
+
+            $dueScan = $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 9010);
+            $t->same(1, $dueScan->snapshot('wordpress-media')?->revision);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $dueScan->snapshot('wordpress-media')?->checkpoint->completedPaths());
+            $t->same([
+                'wordpress-media' => [
+                    [
+                        'eventType' => FolderWatchEventAggregator::EVENT_NON_REMOVE,
+                        'paths' => ['wp-content/uploads/2026/05/hero.jpg'],
+                        'count' => 1,
+                    ],
+                ],
+            ], $watch->lastDispatchedBatches());
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string

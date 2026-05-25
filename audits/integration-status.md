@@ -1,5 +1,36 @@
 # Integration Status
 
+## Integration accepted - Syncthing queued watcher restart slice - 2026-05-25 03:04 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023248Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023248Z.patch`.
+Lane/slice/session: `syncthing` / `rearmer-20260525T023248Z` / `port-syncthing`.
+
+Patch sha256 verified: `28454058f7f9eea3236056c2f2add2f26f01995f1d74599b3aca5f395cf1b16e`.
+Clean worktree: `/tmp/port-clean-integrator-syncthing-rearmer-20260525T023248Z`.
+Base accepted HEAD: `7ad0a7e3`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php`: no syntax errors.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: no syntax errors.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`: no syntax errors.
+- `jq empty lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json`: exited 0.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: 1 test file, 118 assertions, 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`: exited 0 and reported queued restart completion, pending upload status after restart completion, a before-due no-op scan, and a later due scan.
+- `git diff --check`: exited 0.
+
+Root verification:
+
+- Pre-root `pgrep -af '^php tools/run-tests\.php$'`: no active no-argument root harness.
+- `php tools/run-tests.php`: 211 test files, 24752 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The slice reuses the existing bounded Syncthing watcher scheduler, event aggregator, folder scan scheduler, scan service, and checkpoint store.
+
+Live-service exclusions: no live-service provider tests were run. Full upstream `go test ./...` remains excluded because the upstream checkout is blob-filtered/no-checkout and would require hydrating and running the broader Go module/test graph.
+
+Files staged: `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`, `lanes/syncthing/lane-status.json`, `lanes/syncthing/notes/wordpress-scenarios.md`, `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - LightningCSS logical border-radius fallback slice - 2026-05-25 02:52 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T022815Z.ready`.

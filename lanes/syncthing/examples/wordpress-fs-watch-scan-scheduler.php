@@ -65,6 +65,13 @@ try {
     $scheduler->resumeFolder('wordpress-media');
     $resumedRestartDue = $watchScheduler->dueWatcherRestarts(1054);
     $resumedRestartCompleted = $watchScheduler->completeDueWatcherRestart('wordpress-media', 1054);
+    $resumedScanAfterRestart = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1054);
+    $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/gallery.jpg', now: 1060);
+    $watchScheduler->recordWatcherError('wordpress-media', 'watch backend closed with queued event', scanOnWatchError: false, now: 1061);
+    $queuedRestartCompleted = $watchScheduler->completeDueWatcherRestart('wordpress-media', 1066);
+    $queuedPendingAfterRestart = $watchScheduler->watchStatus('wordpress-media', 1066);
+    $queuedScanBeforeDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1066);
+    $queuedScanAfterDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1070);
     $scheduler->removeFolder('wordpress-media');
     $removedWatchState = $watchScheduler->removeWatchingFolder('wordpress-media');
     $removedStatus = $watchScheduler->watchStatus('wordpress-media', 1050);
@@ -87,6 +94,11 @@ try {
         'pausedScanResult' => $pausedScan->toRestStatus(),
         'resumedRestartDue' => $resumedRestartDue,
         'resumedRestartCompleted' => $resumedRestartCompleted,
+        'resumedScanAfterRestart' => $resumedScanAfterRestart->toRestStatus(),
+        'queuedRestartCompleted' => $queuedRestartCompleted,
+        'queuedPendingAfterRestart' => $queuedPendingAfterRestart,
+        'queuedScanBeforeDue' => $queuedScanBeforeDue->toRestStatus(),
+        'queuedScanAfterDue' => $queuedScanAfterDue->toRestStatus(),
         'removedWatchState' => $removedWatchState,
         'removedStatus' => $removedStatus,
         'checkpointRevision' => $service->checkpoint(1021)?->revision,

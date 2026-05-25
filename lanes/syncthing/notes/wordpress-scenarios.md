@@ -2226,3 +2226,46 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: watcher restart completion
 should leave already-queued filesystem events pending for normal delayed scan
 dispatch rather than forcing or discarding them.
+
+## 2026-05-25 Watcher Restart Completion Preserves Queued Events
+
+This isolated micro-slice maps the queued-event side of the upstream
+filesystem watcher restart boundary from `lib/model/folder.go`: a restarted
+watch source can be marked healthy after its backoff has elapsed, but already
+coalesced filesystem events remain governed by the normal `FSWatcherDelay`
+window. Completing the restart clears only restart status; it does not force a
+scan, drop the pending event batch, or mark the delayed batch as dispatched.
+
+Native PHP already held the correct state boundary in
+`FolderWatchScanScheduler::completeDueWatcherRestart()` by clearing only
+`watchRestarts`; this batch adds focused regression coverage and WordPress
+smoke output for the invariant. `wordpress-fs-watch-scan-scheduler.php` now
+reports a completed queued restart, pending upload status with the original
+`nextScanAt`, a before-due no-op scan, and a later due scan that consumes the
+queued media event.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate is wiring
+`completeDueWatcherRestart()` from a WordPress/local watcher adapter after it
+recreates a native watch subscription; the evidence plan is the focused watcher
+tests plus the local WordPress example smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 118 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported queued restart completion, pending upload status
+  after restart completion, a before-due no-op scan, and the later due scan.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: legacy watcher restart
+acknowledgement via `markWatcherRestarted()` should preserve queued events just
+like due restart completion.
