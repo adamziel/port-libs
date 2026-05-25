@@ -2898,6 +2898,34 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer line block emission' => static function (TestRunner $t): void {
+        $nbsp = "\xC2\xA0";
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Reviewer import stanza:']),
+            ]),
+            new AstNode('line_block', [], [
+                new AstNode('line', ['text' => 'First source line'], [
+                    new AstNode('text', ['text' => 'First source line']),
+                ]),
+                new AstNode('line', ['text' => str_repeat($nbsp, 4) . 'indented continuation'], [
+                    new AstNode('text', ['text' => str_repeat($nbsp, 4) . 'indented continuation']),
+                ]),
+                new AstNode('line', ['text' => '']),
+                new AstNode('line', ['text' => 'Final line with *literal* marker'], [
+                    new AstNode('text', ['text' => 'Final line with *literal* marker']),
+                ]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            'Reviewer import stanza:',
+            '| First source line'
+                . "\n" . '|     indented continuation'
+                . "\n" . '|'
+                . "\n" . '| Final line with \*literal\* marker',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer pipe table alignment widths and captions' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('table', [

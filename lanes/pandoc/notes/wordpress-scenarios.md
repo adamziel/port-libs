@@ -832,6 +832,11 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   two-backtick delimiter plus id/class/data-source attributes, keeping
   WordPress migration packet source keys round-trippable without escaping the
   literal backticks inside the code text.
+- Native Markdown reviewer handoff exports now emit Pandoc-style line blocks.
+  Source stanzas such as addresses, poem-like captions, and OCR/import review
+  lines leave WordPress as pipe-prefixed Markdown line blocks; blank source
+  lines remain bare pipes, and indentation captured by the reader is converted
+  back to ordinary spaces for Pandoc-compatible re-import.
 - Native Markdown reviewer handoff exports now emit Pandoc-style bracketed
   spans for attributed review markers. Migration spans can carry stable ids,
   classes, titles, and `data-source` metadata around emphasized source flags
@@ -859,14 +864,14 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 
 ## Next Task
 
-Map another bounded Markdown writer branch after inline code-span delimiter
-emission, such as multi-block table-cell fallback, table span degradation
+Map another bounded Markdown writer branch after line block emission, such as
+multi-block table-cell fallback, table span degradation
 policy, or additional raw block format variants with native upstream fixture
 parity if not already covered on the Markdown writer path.
 
 ## Dependency Closure
 
 No new support component is needed for this slice. The existing bounded
-Markdown inline writer, attribute renderer, and local backtick-run scanner are
-reused for code-span delimiter emission; evidence is the focused lane test plus
-the WordPress reviewer handoff example smoke.
+Markdown block renderer and inline renderer are reused for line-block emission,
+with local NBSP indentation normalization; evidence is the focused lane test
+plus the WordPress reviewer handoff example smoke.

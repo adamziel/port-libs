@@ -165,6 +165,21 @@ $document = new AstNode('document', $document->attrs, [
             ]),
         ]),
     ]),
+    new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer line block stanza:']),
+    ]),
+    new AstNode('line_block', [], [
+        new AstNode('line', ['text' => 'Source address line one'], [
+            new AstNode('text', ['text' => 'Source address line one']),
+        ]),
+        new AstNode('line', ['text' => "\xC2\xA0\xC2\xA0preserve visual indentation"], [
+            new AstNode('text', ['text' => "\xC2\xA0\xC2\xA0preserve visual indentation"]),
+        ]),
+        new AstNode('line', ['text' => '']),
+        new AstNode('line', ['text' => 'Final source stanza line'], [
+            new AstNode('text', ['text' => 'Final source stanza line']),
+        ]),
+    ]),
     new AstNode('table', [
         'caption' => 'Migration review queue',
         'captionInlines' => [

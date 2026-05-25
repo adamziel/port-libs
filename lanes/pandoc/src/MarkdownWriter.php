@@ -81,6 +81,7 @@ final class MarkdownWriter
             'figure' => $this->renderFigure($node, $indent),
             'bullet_list' => $this->renderList($node, false, $indent),
             'ordered_list' => $this->renderList($node, true, $indent),
+            'line_block' => $this->renderLineBlock($node, $indent),
             'blockquote' => $this->renderBlockQuote($node, $indent),
             'div' => $this->renderDivBlock($node, $indent),
             'code_block' => $this->renderCodeBlock($node, $indent),
@@ -128,6 +129,29 @@ final class MarkdownWriter
         $body = $this->renderBlockCollection($node->children);
 
         return $body === '' ? [] : explode("\n", $body);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderLineBlock(AstNode $node, int $indent): array
+    {
+        $prefix = str_repeat(' ', $indent) . '|';
+        $lines = [];
+
+        foreach ($node->children as $line) {
+            if ($line->type !== 'line') {
+                continue;
+            }
+
+            $content = $line->children === []
+                ? (string) $line->attr('text', '')
+                : $this->renderInlines($line->children);
+            $content = str_replace("\xC2\xA0", ' ', $content);
+            $lines[] = rtrim($prefix . ($content === '' ? '' : ' ' . $content));
+        }
+
+        return $lines;
     }
 
     /**

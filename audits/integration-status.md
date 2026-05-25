@@ -104833,3 +104833,21 @@ Root verification: `php tools/run-tests.php` passed in the same clean worktree.
 
 Live-service exclusions: no live-service provider tests were run. For rclone, verification was limited to local bounded token-renewer lifecycle tests and example smoke with no credentials or live remotes.
 
+
+## Integration accepted - Pandoc Markdown line-block emission - 2026-05-25 07:22 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T071150Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T071150Z.patch` (sha256 `6600b73a48ba748968d255df2da5bd6e498a5984820823405fc706aca0d6ef4c`, verified).
+Lane: `pandoc`.
+
+Focused verification in clean detached worktree `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-port-pandoc-20260525T071150Z`:
+- PHP lint on changed PHP files: passed.
+- JSON validation with `jq empty` on changed JSON files: passed where applicable.
+- Example/smoke: php lanes/pandoc/examples/wordpress-markdown-review-handoff.php >/dev/null passed.
+- Focused command: `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed.
+- `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree.
+
+Live-service exclusions: no live-service provider tests were run. For rclone, verification was limited to local bounded token-renewer lifecycle tests and example smoke with no credentials or live remotes.
+

@@ -1542,3 +1542,31 @@ existing table AST shape, inline renderer, and local width/alignment formatter
 handle pipe table Markdown emission locally; richer package, spreadsheet, or
 table-layout conversion should stay behind existing inactive Pandoc
 document-format support gates.
+
+`src/Text/Pandoc/Writers/Markdown.hs` was inspected for the bounded line-block
+writer branch after the inline code-span delimiter slice. The PHP Markdown
+writer now maps one focused check from that boundary: `line_block` nodes emit
+Pandoc pipe-prefixed lines, empty line entries remain bare pipes, indentation
+NBSPs captured by the Markdown reader are converted back to source spaces, and
+Markdown-sensitive inline text inside line-block lines is escaped by the
+existing inline renderer.
+
+Focused local verification on 2026-05-25 after the Markdown writer line block
+emission slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | sed -n
+'60,68p'` emitted the reviewer line block stanza, pipe-prefixed source line,
+indented continuation line, bare pipe blank line, and final source stanza line;
+`php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,288
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed. The
+focused file now contains 218 behavior tests.
+
+Root verification was not run for the 2026-05-25 line block emission slice
+because the assigned work was an isolated micro-slice.
+
+Dependency closure: no new support component is needed for this slice. The
+existing Markdown block renderer, inline renderer, and local NBSP indentation
+normalization handle line-block Markdown emission locally; richer layout or
+poetry-specific conversion should stay behind existing inactive Pandoc
+document-format support gates.
