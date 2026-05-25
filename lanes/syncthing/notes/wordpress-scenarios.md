@@ -2091,3 +2091,49 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: restart due handling should
 expose when a watcher restart is ready and let a WordPress/local watcher
 adapter mark the restart attempt complete without triggering a scan.
+
+## 2026-05-25 Watcher Restart Due Completion
+
+This isolated micro-slice maps the next filesystem watcher restart boundary
+from upstream `lib/model/folder.go`: `watchChan`, `startWatch`, `stopWatch`,
+`monitorWatch`, `restartWatchChan`, and `scanOnWatchErr`. It reuses the
+existing bounded `lib/watchaggregator` evidence and prior watcher lifecycle
+reads instead of adding a new Go runner; full `go test ./...` remains
+unexecuted for the recorded blob-filter/cache and budget reasons.
+
+Native PHP now adds `FolderWatchScanScheduler::dueWatcherRestarts()` and
+`completeDueWatcherRestart()`. A WordPress/local watcher adapter can list only
+restart attempts whose backoff has elapsed for active, unpaused folders and can
+clear a due restart attempt without triggering a folder scan. Attempts that are
+not yet due remain pending, so an adapter cannot accidentally drop restart
+state before the Syncthing-style backoff window has elapsed.
+`wordpress-fs-watch-scan-scheduler.php` now shows a not-due restart status,
+then a due restart payload, then a completed restart with no extra scan.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate is wiring
+`dueWatcherRestarts()` and `completeDueWatcherRestart()` from a WordPress/local
+watcher adapter after it recreates an inotify/FSEvents/watchman subscription;
+the evidence plan is the focused watcher tests plus the local WordPress
+example smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 73 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported `restartNotDue: []`, a due restart payload, and a
+  completed restart payload without incrementing the checkpoint revision for
+  that completion.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: paused folders with pending due
+watcher restarts should preserve restart state until resume, then expose
+completion to the WordPress/local watcher adapter.

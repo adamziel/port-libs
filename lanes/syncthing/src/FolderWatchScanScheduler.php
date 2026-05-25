@@ -155,6 +155,44 @@ final class FolderWatchScanScheduler
         return true;
     }
 
+    /**
+     * @return array<string, array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, remainingSeconds:int, due:bool, scanOnWatchError:bool}>
+     */
+    public function dueWatcherRestarts(?int $now = null): array
+    {
+        $now = self::clock($now);
+        $due = [];
+        foreach (array_keys($this->watchRestarts) as $folderId) {
+            if (!$this->folderAcceptsWatchEvents($folderId)) {
+                continue;
+            }
+
+            $status = $this->watchRestartStatus($folderId, $now);
+            if ($status !== null && $status['due']) {
+                $due[$folderId] = $status;
+            }
+        }
+        ksort($due, SORT_STRING);
+
+        return $due;
+    }
+
+    /**
+     * @return null|array{folder:string, lastError:string, errorAt:int, restartAttempt:int, restartDelaySeconds:int, restartAt:int, remainingSeconds:int, due:bool, scanOnWatchError:bool}
+     */
+    public function completeDueWatcherRestart(string $folderId, ?int $now = null): ?array
+    {
+        self::assertFolderId($folderId);
+        $status = $this->watchRestartStatus($folderId, self::clock($now));
+        if ($status === null || !$status['due'] || !$this->folderAcceptsWatchEvents($folderId)) {
+            return null;
+        }
+
+        unset($this->watchRestarts[$folderId]);
+
+        return $status;
+    }
+
     public function stopWatchingFolder(string $folderId, bool $discardPendingEvents = false): bool
     {
         self::assertFolderId($folderId);

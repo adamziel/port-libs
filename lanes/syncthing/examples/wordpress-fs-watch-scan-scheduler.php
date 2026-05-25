@@ -47,6 +47,11 @@ try {
         blockSize: 4,
         now: 1020,
     );
+    $watchScheduler->recordWatcherError('wordpress-media', 'watch backend restarted too early', scanOnWatchError: false, now: 1021);
+    $restartNotDue = $watchScheduler->dueWatcherRestarts(1025);
+    $completedBeforeDue = $watchScheduler->completeDueWatcherRestart('wordpress-media', 1025);
+    $restartDue = $watchScheduler->dueWatcherRestarts(1031);
+    $completedRestart = $watchScheduler->completeDueWatcherRestart('wordpress-media', 1031);
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 1030);
     $scheduler->pauseFolder('wordpress-media');
     $watchScheduler->stopWatchingFolder('wordpress-media');
@@ -64,6 +69,10 @@ try {
         'dispatchedBatches' => $dispatchedBatches,
         'dueResult' => $due->toRestStatus(),
         'watchErrorScanResult' => $watchErrorScan->toRestStatus(),
+        'restartNotDue' => $restartNotDue,
+        'completedBeforeDue' => $completedBeforeDue,
+        'restartDue' => $restartDue,
+        'completedRestart' => $completedRestart,
         'pausedStatusAfterCleanup' => $pausedStatus,
         'pausedScanResult' => $pausedScan->toRestStatus(),
         'removedWatchState' => $removedWatchState,

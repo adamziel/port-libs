@@ -225,6 +225,44 @@ return [
             syncthing_folder_watch_scan_rm($root);
         }
     },
+    'watch scan scheduler exposes due restarts for adapters without scanning' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore());
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+
+            $watch->recordWatcherError('wordpress-media', 'watch backend closed', scanOnWatchError: false, now: 6000);
+
+            $t->same([], $watch->dueWatcherRestarts(6004));
+            $t->same(null, $watch->completeDueWatcherRestart('wordpress-media', 6004));
+            $t->same(0, $service->checkpoint(6004)?->revision ?? 0);
+
+            $due = $watch->dueWatcherRestarts(6005);
+            $t->same(['wordpress-media'], array_keys($due));
+            $t->same('watch backend closed', $due['wordpress-media']['lastError'] ?? null);
+            $t->same(true, $due['wordpress-media']['due'] ?? null);
+            $t->same(false, $due['wordpress-media']['scanOnWatchError'] ?? null);
+
+            $completed = $watch->completeDueWatcherRestart('wordpress-media', 6005);
+            $t->same('wordpress-media', $completed['folder'] ?? null);
+            $t->same(1, $completed['restartAttempt'] ?? null);
+            $t->same(null, $watch->watchStatus('wordpress-media', 6005));
+            $t->same([], $watch->dueWatcherRestarts(6005));
+            $t->same(null, $service->checkpoint(6005));
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_watch_scan_root(): string
