@@ -16,7 +16,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private ?string $effectiveRepositoryUrl = null;
     private readonly ?string $authorizationHeader;
     private readonly mixed $requester;
-    /** @var array<string, array{value: string, domain: string, path: string, secure: bool, hostOnly: bool}> */
+    /** @var array<string, array{name: string, value: string, domain: string, path: string, secure: bool, hostOnly: bool}> */
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
@@ -1039,13 +1039,15 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             return;
         }
 
+        $key = self::cookieKey($name, $scope);
         if (self::expiresCookie($attributes)) {
-            unset($this->cookies[$name]);
+            unset($this->cookies[$key]);
 
             return;
         }
 
-        $this->cookies[$name] = [
+        $this->cookies[$key] = [
+            'name' => $name,
             'value' => $value,
             'domain' => $scope['domain'],
             'path' => $scope['path'],
@@ -1128,6 +1130,17 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             || str_starts_with($requestPath, rtrim($cookiePath, '/') . '/');
     }
 
+    /**
+     * @param array{domain: string, path: string, secure: bool, hostOnly: bool} $scope
+     */
+    private static function cookieKey(string $name, array $scope): string
+    {
+        return ($scope['hostOnly'] ? 'host' : 'domain')
+            . "\0" . $scope['domain']
+            . "\0" . $scope['path']
+            . "\0" . $name;
+    }
+
     private static function expiresCookie(string $attributes): bool
     {
         $expiresAt = null;
@@ -1178,7 +1191,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array<string, array{value: string, domain: string, path: string, secure: bool, hostOnly: bool}> $cookies
+     * @param array<string, array{name: string, value: string, domain: string, path: string, secure: bool, hostOnly: bool}> $cookies
      */
     private static function cookieHeader(array $cookies, string $url, ?string $base = null): ?string
     {
@@ -1189,7 +1202,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack cookie request URL');
         $requestHost = strtolower($request['host']);
         $requestPath = $request['path'] ?? '/';
-        foreach ($cookies as $name => $cookie) {
+        foreach ($cookies as $cookie) {
             $domainMatch = $cookie['hostOnly']
                 ? $requestHost === $cookie['domain']
                 : self::domainMatches($requestHost, $cookie['domain']);
@@ -1199,7 +1212,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             if ($cookie['secure'] && $request['scheme'] !== 'https') {
                 continue;
             }
-            $parts[] = "{$name}={$cookie['value']}";
+            $parts[] = "{$cookie['name']}={$cookie['value']}";
         }
 
         return $parts === [] ? null : implode('; ', $parts);

@@ -86,6 +86,10 @@ $rcMissingFs = OneDriveCleanupCommand::runRemoteControl($objects, [
     'featureAvailable' => false,
     'walkError' => 'would not be reached',
 ]);
+$rcMissingFsDisabled = OneDriveCleanupCommand::runRemoteControl($objects, [
+    'noVersions' => false,
+    'remoteArgs' => [],
+]);
 $rcCleanup = OneDriveCleanupCommand::runRemoteControl([
     [
         'remote' => 'exports/site.wxr',
@@ -123,6 +127,8 @@ return [
     'emptyRemoteArgProviderCalled' => $emptyRemoteArg['providerCalled'],
     'rcMissingFsError' => $rcMissingFs['error'],
     'rcMissingFsProviderCalled' => $rcMissingFs['providerCalled'],
+    'rcMissingFsDisabledError' => $rcMissingFsDisabled['error'],
+    'rcMissingFsDisabledProviderCalled' => $rcMissingFsDisabled['providerCalled'],
     'rcDeletedVersions' => $rcCleanup['deletedVersions'],
     'rcUnsupportedError' => $rcUnsupported['error'],
     'rcUnsupportedProviderCalled' => $rcUnsupported['providerCalled'],

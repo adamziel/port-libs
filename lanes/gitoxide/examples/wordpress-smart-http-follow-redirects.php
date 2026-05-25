@@ -16,6 +16,7 @@ return [
     'foreignDomainRedirectCookieOmitted' => $fixture['foreignDomainRedirectCookieOmitted'],
     'secureCookiePlainRedirectOmitted' => $fixture['secureCookiePlainRedirectOmitted'],
     'defaultPathRedirectCookieOmitted' => $fixture['defaultPathRedirectCookieOmitted'],
+    'sameNameScopedRedirectCookieRetained' => $fixture['sameNameScopedRedirectCookieRetained'],
     'postBodyPreserved' => $fixture['postBodyPreserved'],
     'rewritingPostRedirectRejected' => $fixture['rewritingPostRedirectRejected'],
     'rewritingRequestMethods' => $fixture['rewritingRequestMethods'],
