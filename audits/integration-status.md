@@ -101151,3 +101151,14 @@ Support-library/dependency-closure decision: no activation accepted.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `audits/integration-status.md` only.
 Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
+
+## Clean-patch integration accepted - rclone - 2026-05-25 03:00 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T025450Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T025450Z.patch`
+Patch hash: verified by intake; applied to clean head `c454029aed930a19d524c599d0438666f978ef0e`.
+Focused commands and exact results: `php -l <changed PHP files>` exit 0; `php tools/run-tests.php lanes/rclone/tests` exit 0 (PASS track renames wordpress uploads while archiving unmatched stale artifacts  32 test files, 3849 assertions, 0 failures ); `git diff --check` exit 0.
+Root command and exact result: `php tools/run-tests.php` exit 0 (PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24884 assertions, 0 failures ).
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json lanes/rclone/notes/upstream-inventory.md lanes/rclone/src/OneDriveTokenRenewer.php lanes/rclone/tests/OneDriveTokenRenewerTest.php `

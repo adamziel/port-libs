@@ -30,7 +30,7 @@ return [
         $t->same(3, $renewer->expirySignals());
         $t->same(true, $renewer->isArmedForNextExpiry());
     },
-    'onedrive token renewer keeps upload count balanced for concurrent uploads' => static function (TestRunner $t): void {
+    'onedrive token renewer keeps upload count atomic for concurrent uploads' => static function (TestRunner $t): void {
         $reads = 0;
         $renewer = new OneDriveTokenRenewer('onedrive:test', static function () use (&$reads): void {
             ++$reads;
@@ -48,7 +48,12 @@ return [
 
         $renewer->stopUpload();
         $renewer->stopUpload();
-        $t->same(0, $renewer->activeUploads());
+        $t->same(-1, $renewer->activeUploads());
+
+        $underflow = $renewer->expire();
+        $t->same(true, $underflow['refreshed']);
+        $t->same(-1, $underflow['activeUploads']);
+        $t->same(2, $reads);
     },
     'onedrive token renewer reports callback errors without stopping upload accounting' => static function (TestRunner $t): void {
         $renewer = new OneDriveTokenRenewer('onedrive:test', static function (): void {

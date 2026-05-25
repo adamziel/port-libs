@@ -45,10 +45,7 @@ final class OneDriveTokenRenewer
 
     public function stopUpload(): void
     {
-        if ($this->activeUploads > 0) {
-            --$this->activeUploads;
-        }
-
+        --$this->activeUploads;
         $this->events[] = 'upload-stopped';
     }
 
