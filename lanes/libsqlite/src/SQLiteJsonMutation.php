@@ -1,0 +1,97 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LibSqlite;
+
+final class SQLiteJsonMutation
+{
+    public static function mutateSqlFunction(
+        string $function,
+        string|SQLiteBlobValue|null $value,
+        string $path,
+        mixed $replacement,
+        mixed ...$pathValuePairs,
+    ): string|SQLiteBlobValue|null {
+        if ($value === null) {
+            return null;
+        }
+        if (count($pathValuePairs) % 2 !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON mutation requires path/value pairs');
+        }
+
+        $operation = match ($function) {
+            'json_insert', 'jsonb_insert' => 'insert',
+            'json_set', 'jsonb_set' => 'set',
+            'json_replace', 'jsonb_replace' => 'replace',
+            default => throw new \InvalidArgumentException('SQLite JSON mutation function must be json_insert, jsonb_insert, json_set, jsonb_set, json_replace, or jsonb_replace'),
+        };
+
+        $normalizedPairs = [];
+        for ($offset = 0; $offset < count($pathValuePairs); $offset += 2) {
+            $nextPath = $pathValuePairs[$offset];
+            if (!is_string($nextPath)) {
+                throw new \InvalidArgumentException('SQLite JSON mutation path must be a string');
+            }
+
+            $normalizedPairs[] = $nextPath;
+            $normalizedPairs[] = self::jsonMutationValue($pathValuePairs[$offset + 1]);
+        }
+
+        $jsonb = self::jsonbBytes($value);
+        $mutated = match ($operation) {
+            'insert' => SQLiteJsonB::insert($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
+            'set' => SQLiteJsonB::set($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
+            'replace' => SQLiteJsonB::replace($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
+        };
+
+        if (str_starts_with($function, 'jsonb_')) {
+            return new SQLiteBlobValue($mutated);
+        }
+
+        return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($mutated));
+    }
+
+    private static function jsonbBytes(string|SQLiteBlobValue $value): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            if (SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
+                SQLiteJsonB::decode($value->bytes);
+
+                return $value->bytes;
+            }
+
+            return SQLiteJsonB::encode(self::decodeJsonText($value->bytes));
+        }
+
+        return SQLiteJsonB::encode(self::decodeJsonText($value));
+    }
+
+    private static function jsonMutationValue(mixed $value): mixed
+    {
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return self::decodeJsonText($value->json);
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            if (!SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
+                throw new \InvalidArgumentException('JSON cannot hold BLOB values');
+            }
+
+            return SQLiteJsonB::decode($value->bytes);
+        }
+        if ($value === null || is_string($value) || is_int($value) || is_float($value) || is_bool($value)) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite JSON mutation value must be a SQL scalar, JSON subtype value, or JSONB BLOB value');
+    }
+
+    private static function decodeJsonText(string $json): mixed
+    {
+        try {
+            return json_decode($json, true, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return SQLiteJson5Parser::decode($json);
+        }
+    }
+}

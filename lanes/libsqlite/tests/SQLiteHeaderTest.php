@@ -25,6 +25,7 @@ use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJson5Parser;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
+use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonPath;
 use PortLibs\LibSqlite\SQLiteJsonPatch;
 use PortLibs\LibSqlite\SQLiteJsonPretty;
@@ -3335,6 +3336,74 @@ return [
         $t->same(null, SQLiteJsonPatch::patchSqlFunction('jsonb_patch', null, $patch));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPatch::patchSqlFunction('json_remove', $json, $patch));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPatch::patch('{"plugin":,}', $patch));
+    },
+    'dispatches sqlite json insert set and replace sql functions with text or jsonb result typing' => static function (TestRunner $t): void {
+        $json = '{"plugin":{"enabled":false,"rules":["seo"],"nested":{"old":1}},"keep":1}';
+        $jsonbInput = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => false,
+                'rules' => ['seo'],
+                'nested' => ['old' => 1],
+            ],
+            'keep' => 1,
+        ]));
+        $jsonFragment = new SQLiteJsonSubtypeValue('{"source":"native","strict":true}');
+        $jsonbFragment = new SQLiteBlobValue(SQLiteJsonB::encode(['name' => 'cache']));
+
+        $textSet = SQLiteJsonMutation::mutateSqlFunction(
+            'json_set',
+            $jsonbInput,
+            '$.plugin.enabled',
+            true,
+            '$.plugin.settings',
+            $jsonFragment,
+            '$.plugin.literal',
+            '[1,2]',
+        );
+        $t->same(
+            '{"plugin":{"enabled":true,"rules":["seo"],"nested":{"old":1},"settings":{"source":"native","strict":true},"literal":"[1,2]"},"keep":1}',
+            $textSet,
+        );
+
+        $blobInsert = SQLiteJsonMutation::mutateSqlFunction(
+            'jsonb_insert',
+            $json,
+            '$.plugin.rules[#]',
+            $jsonbFragment,
+            '$.plugin.enabled',
+            true,
+            '$.plugin.newFlag',
+            1,
+        );
+        $t->true($blobInsert instanceof SQLiteBlobValue);
+        $t->same(
+            [
+                'plugin' => [
+                    'enabled' => false,
+                    'rules' => ['seo', ['name' => 'cache']],
+                    'nested' => ['old' => 1],
+                    'newFlag' => 1,
+                ],
+                'keep' => 1,
+            ],
+            SQLiteJsonB::decode($blobInsert->bytes),
+        );
+
+        $textReplace = SQLiteJsonMutation::mutateSqlFunction(
+            'json_replace',
+            $json,
+            '$.plugin.nested.old',
+            null,
+            '$.plugin.missing',
+            'ignored',
+        );
+        $t->same('{"plugin":{"enabled":false,"rules":["seo"],"nested":{"old":null}},"keep":1}', $textReplace);
+
+        $t->same(null, SQLiteJsonMutation::mutateSqlFunction('jsonb_set', null, '$.plugin.enabled', true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_remove', $json, '$.plugin', true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', $json, '$.plugin', true, '$.x'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', $json, '$.plugin.raw', new SQLiteBlobValue("not-jsonb")));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonMutation::mutateSqlFunction('json_set', '{"plugin":,}', '$.plugin.enabled', true));
     },
     'inspects focused sqlite jsonb types at root and paths' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode([

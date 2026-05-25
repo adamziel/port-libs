@@ -1362,3 +1362,13 @@ JSONB aggregate outputs for copied option values, JSON subtype fragments,
 JSONB option blobs, booleans, and NULLs. This gives WordPress import and
 repair tooling a local-only way to preserve JSONB fixture typing for aggregate
 diagnostics without requiring the SQLite extension.
+
+## `json_insert()`/`json_set()`/`json_replace()` Mutation Dispatch Scenario
+
+Native JSON mutation now includes a bounded SQLite SQL result-type boundary for
+`json_insert()`, `json_set()`, `json_replace()`, and their `jsonb_*` variants.
+The updated `examples/wordpress-jsonb-mutate-option-field.php` script can
+preflight copied `wp_options` JSON option values with text JSON results or
+JSONB blob results, preserving SQLite's distinction between ordinary SQL
+scalar values and JSON subtype/JSONB embedded fragments without requiring the
+SQLite extension.

@@ -5035,3 +5035,52 @@ root aggregate harness because root verification was not assigned.
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON aggregate, JSON constructor, JSON subtype, JSONB, and
 BLOB wrapper components; it counts no shared support-library progress.
+
+## Focused Native Mapping: `json_insert()`/`json_set()`/`json_replace()` SQL Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQLite SQL result-type dispatch
+boundary for `json_insert()`, `json_set()`, `json_replace()`, and their
+`jsonb_*` variants. Native `SQLiteJsonMutation::mutateSqlFunction()` reuses
+the existing lane-local JSONB mutation engine, returning canonical JSON text
+for `json_*` functions and SQLite JSONB blob bytes for `jsonb_*` functions.
+SQL scalar mutation values stay scalar, while `SQLiteJsonSubtypeValue` and
+SQLite JSONB blobs embed as JSON fragments. The slice also rejects invalid
+function names, odd path/value argument shapes, non-string later paths,
+malformed input JSON/JSON5/JSONB, and raw non-JSONB BLOB values.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON mutation and JSONB evidence for
+the same upstream behavior cluster:
+
+```sh
+json101.test json102.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonMutation.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-jsonb-mutate-option-field.php
+php lanes/libsqlite/examples/wordpress-jsonb-mutate-option-field.php '{"plugin":{"enabled":false,"rules":["seo"]}}' json_set '$.plugin.enabled' true '$.plugin.settings' 'json:{"source":"native"}'
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported a SQLite text
+JSON result for `json_set()` with decoded output, focused PHP passed 1
+selected test file, 1913 assertions, and 0 failures, and
+`git diff --check -- lanes/libsqlite` passed. This worker did not start the
+root aggregate harness because root verification was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON5, JSONB, canonical JSON, JSON subtype, and BLOB
+wrapper components; it counts no shared support-library progress.
