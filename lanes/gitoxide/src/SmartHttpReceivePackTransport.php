@@ -669,9 +669,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         foreach ($extraParameters as $extraParameter) {
             if (!is_string($extraParameter)
                 || $extraParameter === ''
-                || str_contains($extraParameter, "\0")
-                || str_contains($extraParameter, "\r")
-                || str_contains($extraParameter, "\n")
+                || self::containsControlByte($extraParameter)
                 || str_contains($extraParameter, ':')
             ) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack extra parameters must be non-empty colon-free strings without control bytes');
@@ -935,7 +933,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             if ($pattern === '') {
                 continue;
             }
-            if (str_contains($pattern, "\0") || str_contains($pattern, "\r") || str_contains($pattern, "\n")) {
+            if (self::containsControlByte($pattern)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack noProxy entries must not contain control bytes');
             }
             $patterns[] = $pattern;
@@ -1574,7 +1572,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if (preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/', $name) !== 1) {
             throw new \InvalidArgumentException('smart HTTP receive-pack header name is invalid');
         }
-        if (str_contains($value, "\r") || str_contains($value, "\n") || str_contains($value, "\0")) {
+        if (self::containsControlByte($value)) {
             throw new \InvalidArgumentException('smart HTTP receive-pack header value is invalid');
         }
     }

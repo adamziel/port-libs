@@ -492,6 +492,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://example.test/wp%0acontent.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://example.test/repo.git?service=%0dgit-receive-pack'));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, ['bad:param']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, ["version\t=1"]));
 
         $badType = new SmartHttpReceivePackTransport(
             'https://example.test/repo.git',
@@ -578,6 +579,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ['Content-Type' => 'text/plain']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ["Bad\nHeader" => 'x']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ['User-Agent' => "bad\nvalue"]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, ['User-Agent' => "bad\tvalue"]));
     },
     'smart http receive-pack follows safe initial redirects and reuses effective base' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -984,6 +986,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxy' => 'http://proxy-user:bad%7fpass@proxy.example.test:8080']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxy' => 'http://bad%20proxy.example.test:8080']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxy' => 'socks5h://bad%2fproxy.example.test:1080']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "example.test,bad\t.test"]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentialStore' => 'not callable']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslCaInfo' => __DIR__ . '/missing-ca.pem']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslVerify' => 'no']));
@@ -1336,6 +1339,8 @@ return [
         $t->same(true, $fixture['unsafeGitDaemonEncodedHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeGitDaemonExtraParameterRejected']);
         $t->same(true, $fixture['unsafeSmartHttpCredentialTabRejected']);
+        $t->same(true, $fixture['unsafeSmartHttpExtraParameterTabRejected']);
+        $t->same(true, $fixture['unsafeSmartHttpHeaderTabRejected']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
     },

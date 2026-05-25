@@ -103320,3 +103320,30 @@ Files staged:
 - `lanes/rclone/src/OneDriveTokenRenewer.php`
 - `lanes/rclone/tests/OneDriveTokenRenewerTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - isolated Gitoxide receive-pack control-byte slice - 2026-05-25 05:50 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T054359Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T054359Z.patch`.
+Lane/slice/session: `gitoxide` / `watchdog-next-20260525T054359Z` / `port-gitoxide`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-gitoxide-watchdog-20260525T054943Z`:
+
+- `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php`: passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed.
+- `php -l lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`: passed.
+- `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php`: passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed, 1 test file, 266 assertions, 0 failures.
+- `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php`: passed.
+- `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification:
+
+- `php tools/run-tests.php`: passed in the same clean worktree.
+
+Support-library/dependency closure: no new support component activated; the patch reuses lane-local smart HTTP receive-pack header/proxy option normalization and native byte validation.
+
+Live-service exclusions: no live provider or network tests were run.
+
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, and `audits/integration-status.md`.
