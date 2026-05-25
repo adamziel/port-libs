@@ -2221,8 +2221,16 @@ CSS;
             )
         );
         $t->same(
-            '.foo{border-radius:4px;border-top-left-radius:10px}',
+            '.foo{border-radius:10px 4px 4px}',
             $minifier->minify('.foo { border-radius: 4px; border-top-left-radius: 10px; }')
+        );
+        $t->same(
+            '.foo{border-radius:20px 10px 10px}',
+            $minifier->minify('.foo { border-radius: 10px; border-top-left-radius: 20px; }')
+        );
+        $t->same(
+            '.foo{border-radius:10px;border-top-left-radius:var(--test)}',
+            $minifier->minify('.foo { border-radius: 10px; border-top-left-radius: var(--test); }')
         );
         $t->same(
             '.foo{-webkit-border-radius:8px 16px;-moz-border-radius:8px 16px}',

@@ -6821,6 +6821,8 @@ final class CssMinifier
             }
         }
 
+        $this->rewriteBorderRadiusPartialOverrides($entries, $shorthand, $corners, $logicalCorners, $latestLogical, $latest, $lastShorthand);
+
         foreach ($corners as $property) {
             if (!isset($latest[$property])) {
                 return;
@@ -6859,6 +6861,135 @@ final class CssMinifier
         $entries[$replaceAt]['property'] = $shorthand;
         $entries[$replaceAt]['name'] = $shorthand;
         $entries[$replaceAt]['value'] = $this->serializeBorderRadiusCornerLists($horizontal, $vertical);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     * @param array<string, string> $corners
+     * @param list<string> $logicalCorners
+     * @param array<string, int> $latestLogical
+     * @param array<string, int> $latest
+     */
+    private function rewriteBorderRadiusPartialOverrides(
+        array &$entries,
+        string $shorthand,
+        array $corners,
+        array $logicalCorners,
+        array $latestLogical,
+        array $latest,
+        ?int $lastShorthand
+    ): void {
+        if ($lastShorthand === null || $entries[$lastShorthand]['drop']) {
+            return;
+        }
+
+        $overrides = [];
+        foreach ($corners as $corner => $property) {
+            if (isset($latest[$property]) && $latest[$property] > $lastShorthand) {
+                $overrides[$corner] = $latest[$property];
+            }
+        }
+
+        if ($overrides === [] || count($overrides) === count($corners)) {
+            return;
+        }
+
+        $lastOverride = max($overrides);
+        foreach ($latestLogical as $index) {
+            if ($index > $lastShorthand && $index < $lastOverride) {
+                return;
+            }
+        }
+
+        $parsed = $this->parseBorderRadiusShorthandValue($entries[$lastShorthand]['value']);
+        if ($parsed === null) {
+            return;
+        }
+
+        [$horizontal, $vertical] = $parsed;
+        $cornerIndexes = [
+            'top-left' => 0,
+            'top-right' => 1,
+            'bottom-right' => 2,
+            'bottom-left' => 3,
+        ];
+
+        foreach ($overrides as $corner => $index) {
+            $parsedCorner = $this->parseBorderRadiusCornerValue($entries[$index]['value']);
+            if ($parsedCorner === null || $this->containsDynamicBorderRadiusToken($parsedCorner)) {
+                return;
+            }
+
+            $cornerIndex = $cornerIndexes[$corner];
+            $horizontal[$cornerIndex] = $parsedCorner[0];
+            $vertical[$cornerIndex] = $parsedCorner[1];
+        }
+
+        if ($this->containsDynamicBorderRadiusToken($horizontal) || $this->containsDynamicBorderRadiusToken($vertical)) {
+            return;
+        }
+
+        foreach ($overrides as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$lastShorthand]['value'] = $this->serializeBorderRadiusCornerLists($horizontal, $vertical);
+    }
+
+    /**
+     * @return array{0:list<string>,1:list<string>}|null
+     */
+    private function parseBorderRadiusShorthandValue(string $value): ?array
+    {
+        $parts = $this->splitTopLevel($value, '/');
+        if ($parts === [] || count($parts) > 2) {
+            return null;
+        }
+
+        $horizontal = $this->expandBorderRadiusSideList($parts[0]);
+        if ($horizontal === null) {
+            return null;
+        }
+
+        $vertical = count($parts) === 2 ? $this->expandBorderRadiusSideList($parts[1]) : $horizontal;
+        if ($vertical === null) {
+            return null;
+        }
+
+        return [$horizontal, $vertical];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function expandBorderRadiusSideList(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === [] || count($tokens) > 4) {
+            return null;
+        }
+
+        $tokens = array_map(fn (string $token): string => $this->minifyLengthToken($token), $tokens);
+
+        return match (count($tokens)) {
+            1 => [$tokens[0], $tokens[0], $tokens[0], $tokens[0]],
+            2 => [$tokens[0], $tokens[1], $tokens[0], $tokens[1]],
+            3 => [$tokens[0], $tokens[1], $tokens[2], $tokens[1]],
+            4 => $tokens,
+        };
+    }
+
+    /**
+     * @param list<string>|array{0:string,1:string} $tokens
+     */
+    private function containsDynamicBorderRadiusToken(array $tokens): bool
+    {
+        foreach ($tokens as $token) {
+            if (str_contains(strtolower($token), 'var(')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

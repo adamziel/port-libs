@@ -101990,3 +101990,24 @@ Support-library/dependency closure: no support-library activation. The patch reu
 Live-service exclusions: none applicable; no live-service provider tests were run.
 
 Files staged: `lanes/difftastic/fixtures/wordpress-plugin-workflow-after.yml`, `lanes/difftastic/fixtures/wordpress-plugin-workflow-before.yml`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated lightningcss - 2026-05-25T04:13:50Z
+
+Ready marker: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T032210Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T032210Z.patch`
+Lane/slice/session: `lightningcss` / `rearmer-20260525T032210Z` / `port-lightningcss`
+Patch sha256: `18d555ae93fb1c577be8d1b4607dbeede83fe6ea747d70ea7440f421dd79f0a2` (matched marker).
+Focused verification: `php -l lanes/lightningcss/src/CssMinifier.php && php -l lanes/lightningcss/src/TransitionPrefixer.php && php -l lanes/lightningcss/tests/CssMinifierTest.php && php -l lanes/lightningcss/tests/TransitionPrefixerTest.php && php -l lanes/lightningcss/examples/wordpress-border-radius-minifier.php && jq empty lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json lanes/lightningcss/lane-status.json && php tools/run-tests.php lanes/lightningcss/tests/CssMinifierTest.php && php tools/run-tests.php lanes/lightningcss/tests/TransitionPrefixerTest.php` plus worker log evidence in `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-lightningcss-20260525T032210Z.log`; all passed in clean worktree.
+Root verification: `php tools/run-tests.php` passed in `/tmp/port-clean-integrator-lightningcss-20260525T032210Z-1484547`.
+Support-library/dependency closure: no new support component activated; accepted as lane-local micro-slice per worker metadata.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/lightningcss/examples/wordpress-border-radius-minifier.php`
+- `lanes/lightningcss/lane-status.json`
+- `lanes/lightningcss/notes/upstream-inventory.md`
+- `lanes/lightningcss/notes/wordpress-scenarios.md`
+- `lanes/lightningcss/src/CssMinifier.php`
+- `lanes/lightningcss/src/TransitionPrefixer.php`
+- `lanes/lightningcss/tests/CssMinifierTest.php`
+- `lanes/lightningcss/tests/TransitionPrefixerTest.php`

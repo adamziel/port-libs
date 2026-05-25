@@ -762,12 +762,16 @@ final class TransitionPrefixer
 
         $changed = false;
         $hasUnprefixed = [];
+        $hasUnprefixedShorthand = false;
         foreach ($entries as $entry) {
             if ($entry['important'] || !str_starts_with($entry['property'], 'border-') || !str_ends_with($entry['property'], '-radius')) {
                 continue;
             }
             if (!str_starts_with($entry['property'], '-webkit-') && !str_starts_with($entry['property'], '-moz-')) {
                 $hasUnprefixed[$entry['property'] . "\0" . $entry['value']] = true;
+                if ($entry['property'] === 'border-radius') {
+                    $hasUnprefixedShorthand = true;
+                }
             }
         }
 
@@ -780,7 +784,7 @@ final class TransitionPrefixer
 
             if (str_starts_with($entry['property'], '-webkit-') || str_starts_with($entry['property'], '-moz-')) {
                 $unprefixed = preg_replace('/^-(?:webkit|moz)-/', '', $entry['property']) ?? $entry['property'];
-                if ($dropLegacy && isset($hasUnprefixed[$unprefixed . "\0" . $entry['value']])) {
+                if ($dropLegacy && ($hasUnprefixedShorthand || isset($hasUnprefixed[$unprefixed . "\0" . $entry['value']]))) {
                     $changed = true;
                     continue;
                 }

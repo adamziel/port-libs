@@ -168,11 +168,11 @@ return [
             $prefixer->prefixForTargets('.foo { border-radius: 10px 20px 10px 20px; }', ['chrome' => 4])
         );
         $t->same(
-            '.foo{-moz-border-radius:10px;border-radius:10px;-moz-border-top-left-radius:20px;border-top-left-radius:20px}',
+            '.foo{-moz-border-radius:20px 10px 10px;border-radius:20px 10px 10px}',
             $prefixer->prefixForTargets('.foo { border-radius: 10px; border-top-left-radius: 20px; }', ['firefox' => 3.6])
         );
         $t->same(
-            '.foo{border-radius:10px 20px;border-top-left-radius:5px}',
+            '.foo{border-radius:5px 20px 10px}',
             $prefixer->prefixForTargets('.foo { -webkit-border-radius: 10px 20px; -moz-border-top-left-radius: 5px; border-radius: 10px 20px; border-top-left-radius: 5px; }', ['chrome' => 95])
         );
     },
