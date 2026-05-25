@@ -133,6 +133,7 @@ final class PdfTextExtractor
             $decoded = match ($filter) {
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
+                'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
                 'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
                 default => $stream,
             };
@@ -350,6 +351,36 @@ final class PdfTextExtractor
         }
 
         return $inflated === false ? null : $inflated;
+    }
+
+    private function decodeRunLengthStream(string $stream): ?string
+    {
+        $out = '';
+        $length = strlen($stream);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $control = ord($stream[$offset]);
+            if ($control === 128) {
+                return $out;
+            }
+
+            if ($control <= 127) {
+                $copyLength = $control + 1;
+                if ($offset + $copyLength >= $length) {
+                    return null;
+                }
+                $out .= substr($stream, $offset + 1, $copyLength);
+                $offset += $copyLength;
+                continue;
+            }
+
+            if ($offset + 1 >= $length) {
+                return null;
+            }
+            $out .= str_repeat($stream[$offset + 1], 257 - $control);
+            $offset++;
+        }
+
+        return null;
     }
 
     /**

@@ -99120,3 +99120,21 @@ Files staged:
 - `lanes/libsqlite/notes/wordpress-scenarios.md`
 - `lanes/libsqlite/src/SQLiteJsonExtract.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+
+## Clean-patch integration - markerpdf - 20260525T003452Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T002528Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T002528Z.patch`
+Lane/slice/session: `markerpdf` / `supervisor-next-20260525T002528Z` / `port-markerpdf`
+Patch sha256: `3ec4059701a1a4d4472080efa72582137939aad8150ad3be2cc55d3ea8b19e88` (verified)
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-markerpdf-supervisor-next-20260525T002528Z-20260525T003452Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/markerpdf/lane-status.json`
+- `lanes/markerpdf/notes/upstream-test-inventory.md`
+- `lanes/markerpdf/notes/wordpress-scenarios.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+- `lanes/markerpdf/tests/PdfTextExtractorTest.php`

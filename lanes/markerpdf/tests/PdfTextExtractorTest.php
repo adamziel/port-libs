@@ -45,6 +45,48 @@ $ascii85Encode = static function (string $bytes): string {
     return $encoded . '~>';
 };
 
+$runLengthEncode = static function (string $bytes): string {
+    $encoded = '';
+    $length = strlen($bytes);
+    for ($offset = 0; $offset < $length;) {
+        $repeatLength = 1;
+        while (
+            $offset + $repeatLength < $length
+            && $bytes[$offset + $repeatLength] === $bytes[$offset]
+            && $repeatLength < 128
+        ) {
+            $repeatLength++;
+        }
+
+        if ($repeatLength >= 4) {
+            $encoded .= chr(257 - $repeatLength) . $bytes[$offset];
+            $offset += $repeatLength;
+            continue;
+        }
+
+        $literalStart = $offset;
+        $literalLength = 0;
+        while ($offset < $length && $literalLength < 128) {
+            $lookaheadRepeat = 1;
+            while (
+                $offset + $lookaheadRepeat < $length
+                && $bytes[$offset + $lookaheadRepeat] === $bytes[$offset]
+                && $lookaheadRepeat < 128
+            ) {
+                $lookaheadRepeat++;
+            }
+            if ($lookaheadRepeat >= 4) {
+                break;
+            }
+            $offset++;
+            $literalLength++;
+        }
+        $encoded .= chr($literalLength - 1) . substr($bytes, $literalStart, $literalLength);
+    }
+
+    return $encoded . chr(128);
+};
+
 return [
     'extracts literal and array text operators from content streams' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT /F1 12 Tf 72 720 Td (Hello \\(WP\\)) Tj [(Data) 120 ( Liberation)] TJ ET";
@@ -88,6 +130,24 @@ return [
         $t->same('A85 Flate Import', $extractor->extractPlainText($stackedPdf));
         $t->same("Zero\0\0\0\0Group", $extractor->extractPlainText($zeroPdf));
         $t->same('', $extractor->extractPlainText("%PDF-1.4\n1 0 obj\n<< /Filter /A85 >>\nstream\n!~>\nendstream\nendobj\n%%EOF"));
+    },
+    'extracts RunLength stream filters before WordPress paragraph rendering' => static function (TestRunner $t) use ($runLengthEncode): void {
+        $content = 'BT /F1 12 Tf 72 720 Td (RunLength Import) Tj T* (Native Blocks) Tj ET';
+        $encoded = $runLengthEncode($content);
+        $pdf = "%PDF-1.4\n1 0 obj\n<< /Filter /RunLengthDecode /Length " . strlen($encoded) . " >>\nstream\n{$encoded}\nendstream\nendobj\n%%EOF";
+
+        $compressed = gzcompress('BT /F1 12 Tf 72 720 Td (RL Flate Import) Tj ET');
+        $stacked = $runLengthEncode($compressed);
+        $stackedPdf = "%PDF-1.4\n1 0 obj\n<< /Filter [ /RL /FlateDecode ] /Length " . strlen($stacked) . " >>\nstream\n{$stacked}\nendstream\nendobj\n%%EOF";
+
+        $repeatedContent = 'BT /F1 12 Tf 72 720 Td (Queue: AAAAAA) Tj ET';
+        $repeatedPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /RL /Length " . strlen($runLengthEncode($repeatedContent)) . " >>\nstream\n" . $runLengthEncode($repeatedContent) . "\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same("RunLength Import\nNative Blocks", $extractor->extractPlainText($pdf));
+        $t->same('RL Flate Import', $extractor->extractPlainText($stackedPdf));
+        $t->same('Queue: AAAAAA', $extractor->extractPlainText($repeatedPdf));
+        $t->same('', $extractor->extractPlainText("%PDF-1.4\n1 0 obj\n<< /Filter /RunLengthDecode >>\nstream\n\x04bad\nendstream\nendobj\n%%EOF"));
     },
     'resolves indirect stream filters and benign DecodeParms for WordPress extraction' => static function (TestRunner $t): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Indirect Filter Import) Tj T* (DecodeParms Predictor One) Tj ET';
