@@ -10,6 +10,15 @@ completed recovery without consuming already queued media events before their
 normal delayed scan window. This reuses the existing watcher scheduler and
 cleanup-status component; no new support component is needed.
 
+The route-registry pending watcher-status slice adds `GET
+/syncthing/db/watch/status` for WordPress REST clients that need to show queued
+media edits before the delayed scan window fires. The route returns the existing
+watch scheduler status map, including pending paths, event types, in-progress
+paths, next scan time, due state, and any watcher restart state, without
+draining queued events or forcing an early scan. Dependency closure: no new
+support component is needed; this reuses the existing bounded watcher scheduler
+and route-registry components.
+
 ## Current Native Slice
 
 Native scanner-style content blocks now match Syncthing's `lib/scanner/blocks_test.go`

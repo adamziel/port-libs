@@ -42,6 +42,7 @@ try {
     ], now: 1000);
     $completed = $queue->runNext(now: 1001);
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 1010);
+    $pendingWatchStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/status', [], now: 1014);
     $watchScheduler->recordWatcherError('wordpress-media', 'watch backend closed after media edit', scanOnWatchError: false, now: 1011);
     $restartStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/restarts', [], now: 1016);
     $restartCompleted = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/watch/restarts/complete', [
@@ -61,6 +62,7 @@ try {
         'registeredRoutes' => $registry->routes(),
         'accepted' => $accepted->toArray(),
         'completed' => $completed?->toArray(),
+        'pendingWatchStatus' => $pendingWatchStatus->toArray(),
         'restartStatus' => $restartStatus->toArray(),
         'restartCompleted' => $restartCompleted->toArray(),
         'delayedWatchScanRevision' => $delayedWatchScan->snapshot('wordpress-media')?->revision,

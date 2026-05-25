@@ -42,6 +42,18 @@ final class FolderScanRouteRegistry
         }
 
         if ($watchScheduler !== null) {
+            $registry->register('GET', '/syncthing/db/watch/status', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
+                return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
+                    'ok' => true,
+                    'status' => 'ok',
+                    'watchers' => $watchScheduler->watchStatuses($now),
+                ]);
+            }, [
+                'upstreamRoute' => 'lib/model/folder.go watchChan pending event status',
+                'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/watch/status'),
+                'queued' => false,
+                'watcherPendingStatus' => true,
+            ]);
             $registry->register('GET', '/syncthing/db/watch/restarts', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
                 return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
                     'ok' => true,

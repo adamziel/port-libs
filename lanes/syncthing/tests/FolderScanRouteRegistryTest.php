@@ -114,6 +114,39 @@ return [
             syncthing_folder_scan_route_rm($root);
         }
     },
+    'route registry exposes pending watcher event status without consuming queued scans' => static function (TestRunner $t): void {
+        $root = syncthing_folder_scan_route_root();
+        try {
+            syncthing_folder_scan_route_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            syncthing_folder_scan_route_write($root, 'wp-content/uploads/2026/05/poster.webp', 'ijklmnop');
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore()));
+            $watchScheduler = new FolderWatchScanScheduler($scheduler, notifyDelaySeconds: 10, notifyTimeoutSeconds: 30, maxFilesPerDir: 1);
+            $registry = FolderScanRouteRegistry::forScanApi(new FolderScanApiCoordinator($scheduler), watchScheduler: $watchScheduler);
+
+            $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 3500);
+            $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 3500);
+
+            $status = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/status', [], now: 3505);
+            $scanBeforeDelay = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 3505);
+            $scanAfterDelay = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 3510);
+            $routes = $registry->routes();
+
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $status->statusCode);
+            $t->same('ok', $status->body['status']);
+            $t->same(['wordpress-media'], array_keys($status->body['watchers']));
+            $t->same(1, $status->body['watchers']['wordpress-media']['pendingEventCount'] ?? null);
+            $t->same(['wp-content/uploads/2026/05'], $status->body['watchers']['wordpress-media']['pendingPaths'] ?? []);
+            $t->same(3510, $status->body['watchers']['wordpress-media']['nextScanAt'] ?? null);
+            $t->same(false, $status->body['watchers']['wordpress-media']['due'] ?? null);
+            $t->same([], $scanBeforeDelay->snapshots());
+            $t->same(1, $scanAfterDelay->snapshot('wordpress-media')?->revision);
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/status', $routes[5]['wordpressRoute']);
+            $t->same(true, $routes[5]['metadata']['watcherPendingStatus'] ?? null);
+        } finally {
+            syncthing_folder_scan_route_rm($root);
+        }
+    },
     'route registry acknowledges all watcher cleanup payloads after retention pruning' => static function (TestRunner $t): void {
         $root = syncthing_folder_scan_route_root();
         try {
