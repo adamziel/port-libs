@@ -2085,3 +2085,12 @@
 - Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo $r["resolvedSchemaConflictSideState"]["table"]."\n"; echo $r["resolvedSchemaConflictSideState"]["resolution"]."\n"; echo count($r["resolvedSchemaConflictSideState"]["remaining_schema_conflicts"])."\n"; echo strpos($r["resolvedSchemaConflictSideState"]["selected_schema"], "idx_meta_review") !== false ? "selected-theirs-index\n" : "missing\n";'` returned `wp_postmeta`, `theirs`, `2`, and `selected-theirs-index`.
 - Root harness: not run - isolated micro-slice.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/schema-conflict projection surface and supplied schema strings, with no shell-outs and no activation of a shared dependency.
+
+## Watchdog Next 2026-05-25 SQL Merge Transaction Conflict Error Slice
+
+- Upstream evidence reused: `go/libraries/doltcore/sqle/dsess/transactions.go` defines distinct unresolved-conflict errors for normal transaction commit versus `@autocommit` rollback, and focused `CALL DOLT_MERGE` autocommit-off tests in `dolt_queries_merge.go` / `dolt_transaction_queries.go` document that unresolved conflicts remain queryable when autocommit is disabled or `@@dolt_allow_commit_conflicts` is enabled. No wider upstream runner was executed in this isolated worktree.
+- Native delta: `MergeStatusTable::mergeTransactionConflictError()` now projects the upstream SQL unresolved-merge-conflict error boundary, returning the `@autocommit transaction rolled back` guidance when autocommit is enabled, the normal transaction rollback guidance when autocommit is disabled, and no error when conflicts are allowed or absent.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 159 assertions, and 0 failures.
+- Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo $r["sqlAutocommitConflictError"]."\n"; echo $r["mergeProcedureRows"]["conflicts"]["message"]."\n";'` returned the upstream `@autocommit transaction rolled back` guidance and `conflicts found`.
+- Root harness: not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status/procedure projection surface and static upstream error text, with no shell-outs and no activation of a shared dependency.

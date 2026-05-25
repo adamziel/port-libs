@@ -351,6 +351,11 @@ return [
     'abortProcedureOptions' => [
         'abort' => true,
     ],
+    'sqlConflictTransaction' => [
+        'hasUnresolvedConflicts' => true,
+        'autocommit' => true,
+        'allowCommitConflicts' => false,
+    ],
     'expectedMergeStatusRow' => [
         'is_merging' => true,
         'source' => 'migration/import-branch',
@@ -653,6 +658,7 @@ return [
         'conflicts' => 0,
         'message' => MergeStatusTable::MERGE_ABORTED_MESSAGE,
     ],
+    'expectedSqlAutocommitConflictError' => MergeStatusTable::UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR,
     'expectedMergeConstraintError' => ConstraintViolationsTable::UNRESOLVED_CONSTRAINT_VIOLATIONS_ERROR
         . ConstraintViolationsTable::CONSTRAINT_VIOLATIONS_LIST_PREFIX
         . "\nType: Foreign Key Constraint Violation\n"

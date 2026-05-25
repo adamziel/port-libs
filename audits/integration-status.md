@@ -122,6 +122,27 @@ Files staged:
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 # Integration Status
 
+## Clean-patch integration - Dolt - 20260525T062218Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T060505Z.ready`
+Patch: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T060505Z.patch`
+Lane/slice/session: `dolt` / `watchdog-next-20260525T060505Z` / `port-dolt`
+Patch sha256: `6c334b91f712ad1c3d2850de08b7700e7f899c1bb2937b93449283a5df34a671` verified with `sha256sum -c`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-dolt-watchdog-next-20260525T060505Z-20260525T062218Z`:
+
+- `php -l` on changed PHP files: passed for source, test, fixture, and example.
+- `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php`: passed, 1 selected test file, 159 assertions, 0 failures.
+- `php -r '$e=require "lanes/dolt/examples/wordpress-merge-status-review.php"; ...' | rg '@autocommit transaction rolled back|Automatic merge failed'`: passed.
+- `jq empty lanes/dolt/UPSTREAM_TEST_MANIFEST.json lanes/dolt/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree, 213 test files, 25596 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this is a lane-local merge-status guidance slice.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`, `lanes/dolt/examples/wordpress-merge-status-review.php`, `lanes/dolt/fixtures/wp-merge-review.php`, `lanes/dolt/lane-status.json`, `lanes/dolt/notes/upstream-runner.md`, `lanes/dolt/notes/wordpress-scenarios.md`, `lanes/dolt/src/MergeStatusTable.php`, `lanes/dolt/tests/MergeStatusTableTest.php`, `audits/integration-status.md`.
+
 ## Clean-patch integration - Esbuild - 20260525T062116Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T060506Z.ready`

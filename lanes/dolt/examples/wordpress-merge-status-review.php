@@ -158,6 +158,11 @@ return [
         'ahead' => $mergeStatus->mergeProcedureRow($fixture['aheadProcedureOptions']),
         'abort' => $mergeStatus->mergeProcedureRow($fixture['abortProcedureOptions']),
     ],
+    'sqlAutocommitConflictError' => $mergeStatus->mergeTransactionConflictError(
+        $fixture['sqlConflictTransaction']['hasUnresolvedConflicts'],
+        $fixture['sqlConflictTransaction']['autocommit'],
+        $fixture['sqlConflictTransaction']['allowCommitConflicts'],
+    ),
     'mergeConstraintError' => $constraintViolations->unresolvedMergeError($fixture['constraintViolationsByTable']),
     'mergeConstraintSummary' => $constraintViolations->mergeViolationSummaryText($fixture['constraintViolationsByTable']),
 ];

@@ -583,6 +583,22 @@ return [
             'commitHash' => 'mergehash0000000000000000000000',
         ]));
     },
+    'sql merge transaction conflict errors follow autocommit and allow-conflict gates' => static function (TestRunner $t): void {
+        $table = new MergeStatusTable();
+
+        $t->same(
+            MergeStatusTable::UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR,
+            $table->mergeTransactionConflictError(true, true)
+        );
+        $t->same(
+            MergeStatusTable::UNRESOLVED_CONFLICTS_TRANSACTION_ERROR,
+            $table->mergeTransactionConflictError(true, false)
+        );
+        $t->same(null, $table->mergeTransactionConflictError(true, true, true));
+        $t->same(null, $table->mergeTransactionConflictError(false, true));
+        $t->contains('dolt_conflicts and dolt_schema_conflicts', $table->mergeTransactionConflictError(true, false));
+        $t->contains('@@dolt_allow_commit_conflicts = 1', $table->mergeTransactionConflictError(true, true));
+    },
     'dolt merge status validates active merge fields and conflict counts' => static function (TestRunner $t): void {
         $table = new MergeStatusTable();
 
@@ -691,6 +707,11 @@ return [
         $upToDateProcedureRow = $table->mergeProcedureRow($fixture['upToDateProcedureOptions']);
         $aheadProcedureRow = $table->mergeProcedureRow($fixture['aheadProcedureOptions']);
         $abortProcedureRow = $table->mergeProcedureRow($fixture['abortProcedureOptions']);
+        $sqlAutocommitConflictError = $table->mergeTransactionConflictError(
+            $fixture['sqlConflictTransaction']['hasUnresolvedConflicts'],
+            $fixture['sqlConflictTransaction']['autocommit'],
+            $fixture['sqlConflictTransaction']['allowCommitConflicts'],
+        );
         $mergeConstraintError = (new ConstraintViolationsTable())->unresolvedMergeError($fixture['constraintViolationsByTable']);
         $example = (static fn (): array => require __DIR__ . '/../examples/wordpress-merge-status-review.php')();
         $examplePreviewConflictRowsWithoutIds = array_map(static function (array $row): array {
@@ -728,6 +749,7 @@ return [
         $t->same($fixture['expectedUpToDateProcedureRow'], $upToDateProcedureRow);
         $t->same($fixture['expectedAheadProcedureRow'], $aheadProcedureRow);
         $t->same($fixture['expectedAbortProcedureRow'], $abortProcedureRow);
+        $t->same($fixture['expectedSqlAutocommitConflictError'], $sqlAutocommitConflictError);
         $t->same($fixture['expectedMergeConstraintError'], $mergeConstraintError);
         $t->same($fixture['expectedPreviewConflictSummaryRows'], $example['previewConflictSummaryRows']);
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $examplePreviewConflictRowsWithoutIds);
@@ -763,6 +785,7 @@ return [
             'ahead' => $fixture['expectedAheadProcedureRow'],
             'abort' => $fixture['expectedAbortProcedureRow'],
         ], $example['mergeProcedureRows']);
+        $t->same($fixture['expectedSqlAutocommitConflictError'], $example['sqlAutocommitConflictError']);
         $t->contains('wp_postmeta', $mergeStatus['unmerged_tables']);
         $t->same(22, strlen((string) $example['previewConflictRows'][0]['dolt_conflict_id']));
         $t->contains('Constraint violations:', $example['mergeConstraintError']);
@@ -780,6 +803,7 @@ return [
         $t->contains('wp_posts | 2 +*', $example['successfulMergeStats']);
         $t->same(1, $example['mergeProcedureRows']['fastForward']['fast_forward']);
         $t->same(1, $example['mergeProcedureRows']['conflicts']['conflicts']);
+        $t->contains('@autocommit transaction rolled back', $example['sqlAutocommitConflictError']);
         $t->true(!in_array('wp_postmeta', array_column($conflictRows, 'table'), true));
     },
 ];

@@ -21,6 +21,8 @@ final class MergeStatusTable
     public const MERGE_ABORTED_MESSAGE = 'merge aborted';
     public const MERGE_AHEAD_MESSAGE = 'cannot fast forward from a to b. a is ahead of b already';
     public const MERGE_COMMIT_NO_COMMIT_ERROR = "cannot define both 'commit' and 'no-commit' flags at the same time";
+    public const UNRESOLVED_CONFLICTS_TRANSACTION_ERROR = 'Merge conflict detected, transaction rolled back. Merge conflicts must be resolved using the dolt_conflicts and dolt_schema_conflicts tables before committing a transaction. To commit transactions with merge conflicts, set @@dolt_allow_commit_conflicts = 1';
+    public const UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR = 'Merge conflict detected, @autocommit transaction rolled back. @autocommit must be disabled so that merge conflicts can be resolved using the dolt_conflicts and dolt_schema_conflicts tables before manually committing the transaction. Alternatively, to commit transactions with merge conflicts, set @@dolt_allow_commit_conflicts = 1';
     public const OPERATION_ADDED = 'added';
     public const OPERATION_DELETED = 'deleted';
     public const OPERATION_MODIFIED = 'modified';
@@ -544,6 +546,25 @@ final class MergeStatusTable
             0,
             $this->procedureMessage($options['message'] ?? self::MERGE_SUCCESS_MESSAGE)
         );
+    }
+
+    /**
+     * Project upstream SQL transaction error text for unresolved merge conflicts.
+     *
+     * @return self::UNRESOLVED_CONFLICTS_TRANSACTION_ERROR|self::UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR|null
+     */
+    public function mergeTransactionConflictError(
+        bool $hasUnresolvedConflicts,
+        bool $autocommit,
+        bool $allowCommitConflicts = false,
+    ): ?string {
+        if (!$hasUnresolvedConflicts || $allowCommitConflicts) {
+            return null;
+        }
+
+        return $autocommit
+            ? self::UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR
+            : self::UNRESOLVED_CONFLICTS_TRANSACTION_ERROR;
     }
 
     /**
