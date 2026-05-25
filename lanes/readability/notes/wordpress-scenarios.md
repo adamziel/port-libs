@@ -312,6 +312,10 @@ The current parse-options slice maps upstream Readability API option boundaries:
 - The focused Medical News Today byline test covers publisher imports where source layout classes contain `site_header` above the article: article-scoped bylines still become post metadata, while source byline and ad/history chrome stay out of paragraph blocks.
 - The focused Independent articleBody test covers Drupal-era publisher exports where the article body is misidentified as sharing chrome by id: articleBody evidence wins, Video.js hidden controls and in-article gallery promos are pruned, and Taboola recommendations do not enter block output.
 - The focused Mozilla social-buttons test covers WordPress-style share widget imports where source sharing controls are adjacent to real article copy: five expected editorial paragraphs become paragraph blocks while Facebook/Twitter/mail share UI stays out of article HTML and block output.
+- The focused definition-list block test covers encyclopedia and technical imports where upstream retained `dl` structures should remain semantically reviewable: standalone definition lists now serialize as WordPress HTML blocks instead of paragraph-wrapped `dl` markup, and the affected copied Wikipedia fixtures record the expected paragraph-to-HTML-block shift.
+- `lanes/readability/examples/wordpress-definition-list-import.php` demonstrates importing a retained definition list with one HTML block, no paragraph-wrapped `dl` markup, and two surrounding paragraph blocks.
+- Verification delta for this isolated micro-slice: syntax checks passed for changed PHP files; `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php` passed 1 selected test file, 151 tests, 1891 assertions, and 0 failures; `php lanes/readability/examples/wordpress-definition-list-import.php` reported `Definition list HTML block: yes`, `Paragraph-wrapped definition list: no`, and `Paragraph blocks: 2`; root harness not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing native DOM post-processing and WordPress block serializer.
 
 ## Next Task
 

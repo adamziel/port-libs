@@ -122,6 +122,28 @@ Files staged:
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 # Integration Status
 
+## Clean-patch integration - Readability - 20260525T062005Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-readability-20260525T060504Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T060504Z.patch`
+Lane/slice/session: `readability` / `watchdog-next-20260525T060504Z` / `port-readability`
+Patch sha256: `c27a295795a967eb1fac32a1983429a075c20d4a82af960d66cf179fbdc6edda` verified with `sha256sum -c`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-readability-watchdog-next-20260525T060504Z-20260525T062005Z`:
+
+- `php -l lanes/readability/src/ArticleExtractor.php`: passed.
+- `php -l lanes/readability/tests/ArticleExtractorTest.php`: passed.
+- `php -l lanes/readability/examples/wordpress-definition-list-import.php`: passed.
+- `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php`: passed, 1 selected test file, 151 tests, 1891 assertions, 0 failures.
+- `php lanes/readability/examples/wordpress-definition-list-import.php`: passed and reported definition-list HTML block coverage.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree, 213 test files, 25581 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this is a lane-local definition-list WordPress serialization slice.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/readability/UPSTREAM_TEST_MANIFEST.json`, `lanes/readability/examples/wordpress-definition-list-import.php`, `lanes/readability/lane-status.json`, `lanes/readability/notes/wordpress-scenarios.md`, `lanes/readability/src/ArticleExtractor.php`, `lanes/readability/tests/ArticleExtractorTest.php`, `audits/integration-status.md`.
+
 ## Clean-patch integration - Syncthing - 20260525T061829Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T060504Z.ready`

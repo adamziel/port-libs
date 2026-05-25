@@ -2369,7 +2369,8 @@ return [
         $t->same(count($attributeValues($expected, '//h3')), count($attributeValues($article->contentHtml, '//h3')));
         $t->same(count($attributeValues($expected, '//table')), count($attributeValues($article->contentHtml, '//table')));
         $t->same([], array_values(array_diff($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'))));
-        $t->same(151, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia country article prose should remain reviewable as paragraph blocks');
+        $t->same(148, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia country prose should remain reviewable as paragraph blocks while definition lists use HTML blocks');
+        $t->same(3, substr_count($blocks, '<!-- wp:html -->'), 'Wikipedia country definition lists should become HTML review blocks');
         $t->same(30, substr_count($blocks, '<!-- wp:heading'), 'Wikipedia country sections should remain reviewable as heading blocks');
         $t->same(4, substr_count($blocks, '<!-- wp:table -->'), 'Wikipedia country infobox and data tables should become WordPress table blocks');
         $t->same(0, substr_count($blocks, '<!-- wp:image -->'), 'Wikipedia table-contained country images should stay in table review output');
@@ -2414,7 +2415,8 @@ return [
         $t->same(count($attributeValues($expected, '//table//tr')), count($attributeValues($article->contentHtml, '//table//tr')));
         $t->same([], array_values(array_diff($attributeValues($expected, '//img/@src'), $attributeValues($article->contentHtml, '//img/@src'))));
         $t->same(62, count($attributeValues($expected, '//img/@src')), 'Mozilla wikipedia-3 expected math/editorial images should be fixture-backed');
-        $t->same(62, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia math prose and formulas should remain paragraph-reviewable');
+        $t->same(44, substr_count($blocks, '<!-- wp:paragraph -->'), 'Wikipedia math prose should remain paragraph-reviewable while definition lists use HTML blocks');
+        $t->same(18, substr_count($blocks, '<!-- wp:html -->'), 'Wikipedia math definition lists should become HTML review blocks');
         $t->same(12, substr_count($blocks, '<!-- wp:heading'), 'Wikipedia article sections should remain reviewable as heading blocks');
         $t->same(1, substr_count($blocks, '<!-- wp:table -->'), 'Wikipedia maintenance expansion table should stay available for review');
         foreach (['From Wikipedia, the free encyclopedia', 'Jump to navigation', 'Jump to search', 'Special:CentralAutoLogin', 'Categories:'] as $fragment) {
@@ -3622,6 +3624,24 @@ return [
         $t->same(1, substr_count($blocks, '<!-- wp:html -->'), 'retained embed figures should become HTML blocks');
         $t->contains('<figure><iframe src="https://www.youtube.com/embed/abc123"></iframe><figcaption>Watch the archived session.</figcaption></figure>', $blocks);
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<figure><iframe"), 'retained embed figures should not be paragraph-wrapped');
+    },
+    'serializes retained definition lists as WordPress HTML blocks' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Definition List Import</title></head><body><article>'
+            . '<h1>Definition List Import</h1>'
+            . '<p>' . str_repeat('Long encyclopedia and technical imports can retain definition lists as meaningful article structure. ', 3) . '</p>'
+            . '<dl><dt>Reader mode</dt><dd>Clean article content extracted from source chrome.</dd><dt>Migration review</dt><dd>Preserved semantic structure before block editing.</dd></dl>'
+            . '<p>' . str_repeat('Follow-up prose should remain ordinary paragraph content after the retained list. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source);
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:html -->'), 'standalone definition lists should become HTML blocks');
+        $t->contains('Reader mode', $blocks);
+        $t->contains('Preserved semantic structure before block editing.', $blocks);
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<dl>"), 'definition lists should not be paragraph-wrapped');
+        $t->same(2, substr_count($blocks, '<!-- wp:paragraph -->'), 'surrounding prose should remain paragraph blocks');
     },
     'maps Mozilla replace-font-tags fixture to span markup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/replace-font-tags';

@@ -438,7 +438,7 @@ final class ArticleExtractor
             && $this->isWordPressListBlock($element)) {
             $metadata = $tag === 'ol' ? ' {"ordered":true}' : '';
             $blocks[] = '<!-- wp:list' . $metadata . ' -->' . "\n" . $html . "\n" . '<!-- /wp:list -->';
-        } elseif (in_array($tag, ['iframe', 'object', 'embed', 'video', 'audio'], true)) {
+        } elseif (in_array($tag, ['iframe', 'object', 'embed', 'video', 'audio', 'dl'], true)) {
             $blocks[] = '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
         } elseif ($tag === 'table') {
             $blocks[] = '<!-- wp:table -->' . "\n" . '<figure class="wp-block-table">' . $html . '</figure>' . "\n" . '<!-- /wp:table -->';
