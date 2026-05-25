@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-25 22:57:32 UTC",
-    "sourceCommit": "19839676507182f275931a5139d498cbde6b1c83",
-    "sourceCommitShort": "198396765071",
+    "generated": "2026-05-25 23:00:55 UTC",
+    "sourceCommit": "9c85db2635ab0d6504f3447b077306b2ff238e35",
+    "sourceCommitShort": "9c85db2635ab",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "67cfbeb94bd6f62f4ded114e724c3350e17835bf",
-    "dashboardCommitShort": "67cfbeb94bd6",
-    "averageProgressPercent": "85.9",
+    "dashboardCommit": "a937aec1e9b37d8201b35cc2b99f5dfbe253e0e2",
+    "dashboardCommitShort": "a937aec1e9b3",
+    "averageProgressPercent": "86.0",
     "lanes": [
         {
             "library": "difftastic",
@@ -196,18 +196,18 @@
         },
         {
             "library": "syncthing",
-            "progressPercent": "98.0",
+            "progressPercent": "99.0",
             "suite": "verified-cloned-static-test-inventory-plus-focused-runner",
             "benchmark": "verified-cloned-static-test-inventory-plus-focused-runner",
             "denominator": "658",
-            "mapped": "344",
-            "coverage": "344 / 658",
-            "php": "344 pass / 0 fail",
+            "mapped": "345",
+            "coverage": "345 / 658",
+            "php": "345 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "verified cloned static upstream test inventory plus bou...",
             "audit": "audited 2026-05-25",
-            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` now accepts a watcher scheduler and regist...",
-            "nextTarget": "Map the next Syncthing route/status edge: add a bounded watcher route for due restart sta...",
+            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` registers WordPress/local watcher restart...",
+            "nextTarget": "Map the next Syncthing closure edge: either audit the remaining route/status surfaces for...",
             "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused route-r...",
             "commit": "55605cb"
         }
