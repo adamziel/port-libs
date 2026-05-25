@@ -1,4 +1,59 @@
 
+## Integration accepted - rclone OneDrive cleanup type-error guard - 2026-05-25 09:12 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-finisher-20260525T085548Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-finisher-20260525T085548Z.patch`.
+
+Lane/slice/session: `rclone` / `priority-finisher-20260525T085548Z` /
+`port-rclone-finisher`. Patch sha256 verified as
+`e431d4e93fdda22eca3f0e6333857f644c18d50dadfa2a98471bc4c48f971c14`.
+
+First acceptance attempt was rooted cleanly on
+`be0f11039afa45832894f5cd64e9bcdd481c2bbc`, but `main` advanced to
+`d88c00008a99d81514bb99e91e99ea1b3da24e12` before the atomic update-ref. The
+marker was retried once from the new head in clean worktree
+`/tmp/port-clean-integrator-rclone-priority-finisher-20260525T085548Z-retry`.
+
+Apply result on retry: plain `git apply --check` failed on rclone metadata
+drift; bounded `git apply --3way` applied the test hunk cleanly and left
+`lanes/rclone/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/rclone/lane-status.json`, and
+`lanes/rclone/notes/upstream-inventory.md` in conflict. Current accepted
+metadata already had stronger disabled no-versions evidence, so resolution kept
+that wording and added only the new masked-feature-before-type-error boundary
+and rerun counts.
+
+Focused verification in the retry worktree:
+`php -l lanes/rclone/src/OneDriveCleanupCommand.php`,
+`php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php`, and
+`php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`
+all passed. `php tools/run-tests.php
+lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed with `1 test files,
+68 assertions, 0 failures`. `php tools/run-tests.php lanes/rclone/tests`
+passed with `35 test files, 4025 assertions, 0 failures`. `jq empty
+lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json`
+passed. `git diff --check` passed.
+
+Root verification: after checking the resource gate and confirming
+`pgrep -af '^php tools/run-tests\.php$'` was empty, `php tools/run-tests.php`
+passed in the same retry worktree with `214 test files, 25978 assertions, 0
+failures`.
+
+Support-library/dependency closure: no new support-library activation. This
+reuses the existing bounded native OneDrive cleanup/version-cleanup model.
+Live-service exclusions: no live OneDrive/OAuth/Graph/provider, FUSE/mount, or
+external provider tests were run; the slice is credential-free and did not read
+secret-bearing inputs.
+
+Files staged:
+`lanes/rclone/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/rclone/lane-status.json`,
+`lanes/rclone/notes/upstream-inventory.md`,
+`lanes/rclone/tests/OneDriveCleanupCommandTest.php`, and
+`audits/integration-status.md`.
+
 ## Superseded isolated marker - rclone - 2026-05-25 08:40 UTC
 
 Marker: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T083258Z.ready`.

@@ -188,6 +188,23 @@ return [
         $t->same([], $flow['deletedVersions']);
         $t->same(false, $flow['providerCalled']);
     },
+    'onedrive cleanup command checks masked feature before type errors' => static function (TestRunner $t): void {
+        $flow = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports',
+                'type' => 'directory',
+                'versions' => [],
+            ],
+        ], [
+            'featureAvailable' => false,
+        ]);
+
+        $t->same('cleanup unsupported', $flow['error']);
+        $t->same(0, $flow['walkedObjects']);
+        $t->same(0, $flow['versionRequests']);
+        $t->same([], $flow['logs']);
+        $t->same(false, $flow['providerCalled']);
+    },
     'wordpress onedrive cleanup command preflight removes stale wxr versions only' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-cleanup-command-preflight.php';
 
