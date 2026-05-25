@@ -298,7 +298,7 @@
             },
             "focusedSmartHttpPostRedirectPreservation": {
                 "selectedSourceAndTestPaths": 2,
-                "nativeReceivePackTransportAssertions": 286,
+                "nativeReceivePackTransportAssertions": 291,
                 "upstreamEvidence": "static gix-transport HTTP redirect safety inventory; live provider or network runner not executed",
                 "latestMappedBehavior": "follow receive-pack POST redirects only for method-preserving 307/308 statuses and reject rewriting redirects before replaying generated pack request bodies"
             }

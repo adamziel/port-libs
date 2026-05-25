@@ -108829,3 +108829,30 @@ Files staged:
 - `lanes/gitoxide/lane-status.json`
 - `lanes/gitoxide/notes/upstream-inventory.md`
 - `audits/integration-status.md`
+
+## Integration accepted - gitoxide rework - 20260525T081726Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T081310Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T081310Z.patch`
+Lane/slice/session: `gitoxide` / `priority-rework-20260525T081310Z` / `port-gitoxide-rework`
+Old head: `940b46cc741b04f9377a5219a4b2f199c7540283`
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-gitoxide-priority-rework-20260525T081310Z-20260525T081726Z`:
+- `sha256sum /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T081310Z.patch`: matched `03d580d66f3e47d0a687aa22a001f5fe8a01f4a28ed9332a3a0fe0a3da86e508`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T081310Z.patch`: passed.
+- `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php`: passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed.
+- `php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`: passed.
+- `php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`: 1 test files, 291 assertions, 0 failures.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: exited 0.
+- JSON decode for `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` and `lanes/gitoxide/lane-status.json`: json ok.
+- `git diff --check`: passed.
+
+Root verification:
+- Pre-root exact no-argument harness gate: empty.
+- `php tools/run-tests.php`: 214 test files, 25910 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component activated; this is a lane-local manifest assertion-count correction for existing smart HTTP receive-pack redirect evidence.
+Live-service exclusions: no live provider or network tests; no full cargo workspace runner.
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `audits/integration-status.md`.
