@@ -519,6 +519,17 @@ return [
                 'stdout' => '',
                 'stderr' => "quadb error: unknown proof format\n",
             ], QuadbStore::exportProofCommandOutput($sourceDir, ['wp_options:siteurl'], 'Bad', true));
+            $dumpWithBadFormat = QuadbStore::exportProofCommandOutput(
+                $sourceDir,
+                ['wp_options:siteurl'],
+                'Bad',
+                false,
+                true
+            );
+            $t->same(0, $dumpWithBadFormat['exitCode']);
+            $t->contains('ITEMS (1):', $dumpWithBadFormat['stdout']);
+            $t->contains('wp_options:siteurl', $dumpWithBadFormat['stdout']);
+            $t->same('', $dumpWithBadFormat['stderr']);
             $t->same([
                 'exitCode' => 0,
                 'stdout' => $proofHex,

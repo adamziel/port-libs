@@ -1,5 +1,49 @@
 # Integration Status
 
+## Integration accepted - isolated quadrable proof dump precedence - 2026-05-25 03:32 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T032256Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T032256Z.patch`.
+
+Lane/slice/session: `quadrable` / `rearmer-20260525T032255Z` /
+`port-quadrable`. Patch sha256 verified:
+`d63e61de45d51ee4a9d63c55fe8eb56ba956172319b3226dc9ba2abadcca8327`.
+Base in marker was `860d144f1154a483cee284759aaeebdfcdaf489b`; applied to
+clean `main` `fe28b63ee21c3f8f0298c73f1903f5faba724683` with bounded
+three-way metadata rebase. Source/test/example hunks applied cleanly; conflicts
+were limited to Quadrable manifest/status/scenario text and were resolved to the
+new marker's proof dump-before-invalid-format metadata.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-quadrable-rearmer-20260525T032256Z-20260525T032805Z`:
+`php -l lanes/quadrable/tests/QuadbStoreTest.php` passed; `php -l
+lanes/quadrable/examples/wordpress-quadb-proof-input-guard.php` passed; `php
+tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passed with 1
+test file, 939 assertions, 0 failures; `php tools/run-tests.php
+lanes/quadrable/tests` passed with 10 test files, 3128 assertions, 0 failures;
+`php lanes/quadrable/examples/wordpress-quadb-proof-input-guard.php` passed;
+JSON parse checks for `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json` and
+`lanes/quadrable/lane-status.json` passed; `git diff --check` passed.
+
+Root verification: pre-root exact no-argument gate `pgrep -af '^php
+tools/run-tests\.php$'` was empty. `php tools/run-tests.php` ran in the clean
+worktree and passed with 212 test files, 24970 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; the slice
+reuses the existing bounded proof export/dump encoding and file-backed
+`QuadbStore` command wrapper components.
+
+Live-service exclusions: none for Quadrable.
+
+Files staged: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/quadrable/examples/wordpress-quadb-proof-input-guard.php`,
+`lanes/quadrable/lane-status.json`,
+`lanes/quadrable/notes/wordpress-scenarios.md`,
+`lanes/quadrable/tests/QuadbStoreTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - isolated quadrable integer command smoke - 2026-05-25 03:24 UTC
 
 Accepted ready marker:
