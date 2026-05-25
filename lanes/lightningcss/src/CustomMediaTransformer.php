@@ -824,6 +824,14 @@ final class CustomMediaTransformer
 
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+            } elseif ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $end = strpos($value, '*/', $i + 2);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('Media query contains an unbalanced comment');
+                }
+                $parts[array_key_last($parts)] .= substr($value, $i, $end - $i + 2);
+                $i = $end + 1;
+                continue;
             } elseif ($char === '(') {
                 $parenDepth++;
             } elseif ($char === ')') {

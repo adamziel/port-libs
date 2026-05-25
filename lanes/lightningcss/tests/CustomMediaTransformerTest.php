@@ -151,6 +151,25 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer ignores comment commas while splitting media lists' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --wide (min-width: 782px);
+@custom-media --motion (prefers-reduced-motion: no-preference);
+
+@import "./blocks/cards.css" screen and (min-width: 480px /* stale, (--missing-import) */) and (--wide), print and (--motion);
+
+@media (min-width: 480px /* stale, (--missing-media) */) and (--wide), print and (--motion) {
+  .wp-block-group {
+    color: yellow;
+  }
+}
+CSS;
+
+        $t->same(
+            '@import "./blocks/cards.css" screen and (width>=480px) and (width>=782px),print and (prefers-reduced-motion:no-preference);@media (width>=480px) and (width>=782px),print and (prefers-reduced-motion:no-preference){.wp-block-group{color:#ff0}}',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer maps upstream negated range aliases' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --not-width not (min-width: 300px);

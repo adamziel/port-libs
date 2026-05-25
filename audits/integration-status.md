@@ -110762,3 +110762,41 @@ Root verification:
 Decision: accepted. This slice maps C# keyword/operator/type highlighting
 through the existing Difftastic syntax-highlight display path without adding a
 support-library dependency.
+## Clean-patch accepted - LightningCSS media-list comment commas - 2026-05-25 23:05 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-lightningcss-20260525T224833Z.ready`.
+
+Published commit: `Integrate LightningCSS media list comments`.
+The accepted patch was verified from a detached clean worktree at source
+`b546d20e2d0f` and is limited to
+`lanes/lightningcss`. Patch sha256 matched the ready marker:
+`b7c50fd2b6b0f534de26219efcd1ef6f805105c45ceb36c6834cd5b6e55e407e`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/lightningcss/src/CustomMediaTransformer.php` passed.
+- `php -l lanes/lightningcss/tests/CustomMediaTransformerTest.php` passed.
+- `php -l lanes/lightningcss/examples/wordpress-custom-media-transformer.php`
+  passed.
+- `php tools/run-tests.php lanes/lightningcss/tests/CustomMediaTransformerTest.php`
+  passed: `1 test files, 36 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/lightningcss/tests` passed:
+  `9 test files, 1086 assertions, 0 failures`.
+- `php lanes/lightningcss/examples/wordpress-custom-media-transformer.php`
+  passed.
+- LightningCSS manifest/status JSON validation passed.
+- `git diff --check -- lanes/lightningcss` passed.
+
+Root verification:
+- Pre-root gate reported `df_free=107673304` KiB and `load1=2.87`;
+  no exact no-argument root harness was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26471 assertions, 0 failures`.
+
+Cleanup:
+- Pending until the commit is safely on `main`: remove the accepted ready
+  marker, patch, metadata file, referenced worker log, inactive source
+  worktree, and temporary verification worktree.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted LightningCSS commit.
