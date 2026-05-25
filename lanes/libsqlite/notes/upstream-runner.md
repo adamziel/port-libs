@@ -5085,6 +5085,55 @@ Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON5, JSONB, canonical JSON, JSON subtype, and BLOB
 wrapper components; it counts no shared support-library progress.
 
+## Focused Native Mapping: `json_error_position()` SQL Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQLite SQL function-name dispatch
+boundary for `json_error_position(X)`. Native
+`SQLiteJsonErrorPosition::jsonErrorPositionSqlFunction()` validates the
+function name, preserves SQL NULL propagation, and delegates text, JSON5,
+cast-text BLOB, and SQLite JSONB position behavior to the existing lane-local
+error-position engine. It does not broaden malformed escape/depth offset
+coverage or add table-valued JSON behavior.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused upstream JSON diagnostic evidence for
+the same behavior cluster:
+
+```sh
+json101.test json501.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonErrorPosition.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported matching direct
+and SQL-dispatch `json_error_position()` offsets for JSON5 text, malformed
+copied text, cast-text BLOB, JSONB, superficial-only JSONB, and SQL NULL
+inputs, focused PHP passed 1 selected test file, 1952 assertions, and
+0 failures, and `git diff --check -- lanes/libsqlite` passed. This worker did
+not start the root aggregate harness because root verification was not
+assigned.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON5 parser, JSONB error-position checks, cast-text BLOB
+fallback, and SQL NULL handling; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json_type()`/`json_array_length()` SQL Dispatch
 
 Date: 2026-05-25

@@ -103050,3 +103050,25 @@ Root verification: `php tools/run-tests.php` passed in the clean worktree with z
 Support-library/dependency closure: no new support-library activation; this reuses existing lane-local analyzer/resolver/graph/metafile/output components. The deferred `js-package-resolution-core` row remains inactive. Live service tests were not applicable and no secrets were read.
 
 Files staged: `lanes/esbuild/src/BundlerOutput.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/upstream-inventory.md`, `lanes/esbuild/notes/wordpress-scenarios.md`, `audits/integration-status.md`.
+
+## Clean-patch integration - libsqlite json_error_position SQL dispatch - 20260525T053019Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T052403Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T052403Z.patch`.
+Lane/slice/session: `libsqlite` / `watchdog-next-20260525T052403Z` / `port-libsqlite`.
+Patch sha256 verified: `929abfc2fe2c52aa85d3a98ff0cc6b59230885263b30d288a993caa1bdddf7c3`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-libsqlite-watchdog-next-20260525T052403Z-20260525T052900Z`:
+- `php -l lanes/libsqlite/src/SQLiteJsonErrorPosition.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-error-position-preflight.php`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-error-position-preflight.php`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, 1 file / 1952 assertions / 0 failures.
+- `git diff --check`: passed.
+
+Root gate: an existing no-argument `php tools/run-tests.php` process was active initially; waited until it cleared, then ran root verification.
+Root verification: `php tools/run-tests.php` passed in the clean worktree with zero failures.
+
+Support-library/dependency closure: no new support-library activation; this reuses lane-local JSON5 parsing, JSONB error-position handling, cast-text BLOB fallback, and SQL NULL behavior. No live-service tests were applicable and no secrets were read.
+
+Files staged: `lanes/libsqlite/src/SQLiteJsonErrorPosition.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, `lanes/libsqlite/examples/wordpress-json-error-position-preflight.php`, `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, `audits/integration-status.md`.

@@ -1403,3 +1403,13 @@ boundary for `json_valid(X[,FLAGS])`. The updated
 expect, including strict JSON, JSON5, cast text BLOBs, JSONB blobs, SQL NULL
 input, nullable `FLAGS`, and combined flag checks without requiring the SQLite
 extension.
+
+## `json_error_position()` Diagnostic Dispatch Scenario
+
+Native JSON diagnostics now include a bounded SQLite SQL function dispatch
+boundary for `json_error_position(X)`. The updated
+`examples/wordpress-json-error-position-preflight.php` script can preflight
+copied `wp_options` option values using the same function-name dispatch SQL
+callers expect, including JSON5 text, malformed copied text, cast text BLOBs,
+JSONB blobs, superficial-only JSONB blobs, and SQL NULL input without
+requiring the SQLite extension.

@@ -56,10 +56,11 @@ foreach ($inputs as $name => $value) {
         'name' => $name,
         ...$describeValue($value),
         'jsonErrorPosition' => SQLiteJsonErrorPosition::jsonErrorPosition($value),
+        'sqlDispatchJsonErrorPosition' => SQLiteJsonErrorPosition::jsonErrorPositionSqlFunction('json_error_position', $value),
     ];
 }
 
 echo json_encode([
     'checks' => $checks,
-    'wordpressUse' => 'Local-only wp_options option_value diagnostics that report SQLite json_error_position() style offsets for JSON5 text, copied text BLOBs, JSONB blobs, and SQL NULL before migration or repair tooling trusts plugin settings.',
+    'wordpressUse' => 'Local-only wp_options option_value diagnostics that report SQLite json_error_position() style offsets and SQL function-name dispatch for JSON5 text, copied text BLOBs, JSONB blobs, and SQL NULL before migration or repair tooling trusts plugin settings.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
