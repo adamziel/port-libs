@@ -1655,6 +1655,11 @@ return [
                 'stdout' => '',
                 'stderr' => "quadb error: stoi\n",
             ], QuadbStore::exportProofCommandOutput($dir, ["\0+2"], integerKeys: true));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofCommandOutput($dir, ['+', '-'], integerKeys: true));
             $maxIntegerProof = QuadbStore::exportProofCommandOutput(
                 $dir,
                 ['0002147483647suffix', '+0000000002'],

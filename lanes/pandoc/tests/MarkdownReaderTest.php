@@ -2282,6 +2282,22 @@ MD;
         $t->same("iv. roman checkpoint\nv.  publish handoff", $writer->write($roman));
         $t->same("1.  Autonumber.\n2.  More.\n  1.  Nested.", $writer->write($reader->read(" #.  Autonumber.\n #.  More.\n     #.  Nested.")));
     },
+    'maps upstream markdown writer roman list marker overflow' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('ordered_list', ['start' => 3999, 'style' => 'upper_roman'], [
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'last supported upper roman'])]),
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'overflow upper roman'])]),
+            ]),
+            new AstNode('ordered_list', ['start' => 4000, 'style' => 'lower_roman', 'delimiter' => 'one_paren'], [
+                new AstNode('list_item', [], [new AstNode('text', ['text' => 'overflow lower roman'])]),
+            ]),
+        ]);
+
+        $t->same(implode("\n\n", [
+            "MMMCMXCIX. last supported upper roman\n?.  overflow upper roman",
+            '?)  overflow lower roman',
+        ]), (new MarkdownWriter())->write($document));
+    },
     'maps upstream markdown writer note and reference placement' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [

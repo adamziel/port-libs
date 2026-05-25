@@ -147,6 +147,11 @@ try {
         ["\0+2"],
         integerKeys: true
     );
+    $signOnlyProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['+', '-'],
+        integerKeys: true
+    );
     $maxIntegerProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['0002147483647suffix', '+0000000002'],
@@ -236,6 +241,8 @@ try {
         'carriageReturnWhitespaceIntegerProofMatchesNumericPrefix' => $carriageReturnWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'nulPrefixedIntegerProofFailsStoi' => $nulPrefixedProofCommand['exitCode'] === 1
             && $nulPrefixedProofCommand['stderr'] === "quadb error: stoi\n",
+        'signOnlyIntegerProofFailsStoi' => $signOnlyProofCommand['exitCode'] === 1
+            && $signOnlyProofCommand['stderr'] === "quadb error: stoi\n",
         'maxIntegerExportProofExitCode' => $maxIntegerProofCommand['exitCode'],
         'maxIntegerBinaryProofBytes' => strlen($maxIntegerProofCommand['stdout']),
         'signedZeroIntegerExportProofExitCode' => $signedZeroProofCommand['exitCode'],

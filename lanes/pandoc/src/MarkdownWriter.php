@@ -276,6 +276,10 @@ final class MarkdownWriter
     private function romanNumeral(int $number): string
     {
         $number = max(1, $number);
+        if ($number >= 4000) {
+            return '?';
+        }
+
         $map = [
             1000 => 'M',
             900 => 'CM',

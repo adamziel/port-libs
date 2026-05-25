@@ -291,6 +291,14 @@ $document = new AstNode('document', $document->attrs, [
             ]),
         ]),
     ]),
+    new AstNode('ordered_list', ['start' => 3999, 'style' => 'upper_roman'], [
+        new AstNode('list_item', [], [
+            new AstNode('text', ['text' => 'Final Roman reviewer packet before overflow']),
+        ]),
+        new AstNode('list_item', [], [
+            new AstNode('text', ['text' => 'Overflow reviewer packet keeps Pandoc marker semantics']),
+        ]),
+    ]),
     new AstNode('raw_block', [
         'format' => 'markdown',
         'text' => '> Raw reviewer block: keep this migration note with the handoff.',
