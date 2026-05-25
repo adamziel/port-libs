@@ -4984,3 +4984,54 @@ The current-head rebase-prep marker carries the original isolated JSON aggregate
 The native PHP slice adds `SQLiteJsonAggregate::jsonGroupArray()` and `SQLiteJsonAggregate::jsonGroupObject()` for ordered aggregate rows, SQL NULLs, booleans as SQLite JSON `1`/`0`, JSON subtype passthrough, JSONB BLOB passthrough, empty groups, malformed raw BLOB rejection, text labels, and aggregate row-shape errors. It intentionally does not claim SQL planner features such as `DISTINCT`, `FILTER`, or aggregate `ORDER BY`.
 
 Dependency closure: no new support component is needed. This slice reuses existing bounded lane-local JSON constructor, JSON subtype, JSONB, and BLOB wrapper components; it counts no shared support-library progress.
+
+## Focused Native Mapping: `jsonb_group_array()`/`jsonb_group_object()` SQL Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice extends the existing bounded JSON aggregate row
+boundary to the SQLite SQL result-type dispatch boundary. Native
+`SQLiteJsonAggregate` now exposes `jsonGroupArraySqlFunction()` and
+`jsonGroupObjectSqlFunction()` where `json_group_array()` and
+`json_group_object()` return canonical JSON text, while `jsonb_group_array()`
+and `jsonb_group_object()` return SQLite JSONB blob bytes. Invalid aggregate
+function names are rejected. The slice keeps the prior limits: no general SQL
+aggregate planner, `DISTINCT`, `FILTER`, aggregate `ORDER BY`, or table-valued
+JSON support is claimed.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses the prior focused JSON aggregate/JSONB evidence for
+the same upstream behavior cluster:
+
+```sh
+json101.test json102.test jsonb01.test
+```
+
+Prior result: passed with 0 errors for aggregate JSON constructors, JSONB
+input/output boundaries, JSON subtype passthrough, and malformed JSONB
+rejection. Prior applicable runner evidence remains the complete SQLite
+`veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported JSON text
+aggregate output plus decoded/hex JSONB aggregate output, focused PHP passed
+1 selected test file, 1904 assertions, and 0 failures, and
+`git diff --check -- lanes/libsqlite` passed. This worker did not start the
+root aggregate harness because root verification was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON aggregate, JSON constructor, JSON subtype, JSONB, and
+BLOB wrapper components; it counts no shared support-library progress.

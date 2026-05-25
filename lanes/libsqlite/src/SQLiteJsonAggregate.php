@@ -9,6 +9,38 @@ final class SQLiteJsonAggregate
     /**
      * @param iterable<mixed> $values
      */
+    public static function jsonGroupArraySqlFunction(string $function, iterable $values): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupArray($values);
+        if ($function === 'json_group_array') {
+            return $json;
+        }
+        if ($function !== 'jsonb_group_array') {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_array or jsonb_group_array');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed}> $pairs
+     */
+    public static function jsonGroupObjectSqlFunction(string $function, iterable $pairs): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupObject($pairs);
+        if ($function === 'json_group_object') {
+            return $json;
+        }
+        if ($function !== 'jsonb_group_object') {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_object or jsonb_group_object');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     */
     public static function jsonGroupArray(iterable $values): string
     {
         $items = [];
@@ -33,5 +65,14 @@ final class SQLiteJsonAggregate
         }
 
         return '{' . implode(',', $members) . '}';
+    }
+
+    private static function decodeAggregateJson(string $json): mixed
+    {
+        try {
+            return json_decode($json, false, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate output could not be encoded as JSONB', 0, $exception);
+        }
     }
 }

@@ -2957,6 +2957,39 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([[null, 5]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([['a']]));
     },
+    'dispatches sqlite json aggregate functions to text or jsonb results' => static function (TestRunner $t): void {
+        $jsonRules = new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]');
+        $jsonbSummary = new SQLiteBlobValue(SQLiteJsonB::encode(['count' => 2, 'autoload' => true]));
+
+        $textArray = SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group_array', ['siteurl', null, $jsonRules, $jsonbSummary]);
+        $jsonbArray = SQLiteJsonAggregate::jsonGroupArraySqlFunction('jsonb_group_array', ['siteurl', null, $jsonRules, $jsonbSummary]);
+        $textObject = SQLiteJsonAggregate::jsonGroupObjectSqlFunction('json_group_object', [
+            ['siteurl', 'https://example.test'],
+            ['rules', $jsonRules],
+            ['summary', $jsonbSummary],
+        ]);
+        $jsonbObject = SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group_object', [
+            ['siteurl', 'https://example.test'],
+            ['rules', $jsonRules],
+            ['summary', $jsonbSummary],
+        ]);
+
+        $t->same('["siteurl",null,[{"name":"seo"},{"name":"cache"}],{"count":2,"autoload":true}]', $textArray);
+        $t->true($jsonbArray instanceof SQLiteBlobValue);
+        $t->same(['siteurl', null, [['name' => 'seo'], ['name' => 'cache']], ['count' => 2, 'autoload' => true]], SQLiteJsonB::decode($jsonbArray->bytes));
+        $t->same('{"siteurl":"https://example.test","rules":[{"name":"seo"},{"name":"cache"}],"summary":{"count":2,"autoload":true}}', $textObject);
+        $t->true($jsonbObject instanceof SQLiteBlobValue);
+        $t->same([
+            'siteurl' => 'https://example.test',
+            'rules' => [['name' => 'seo'], ['name' => 'cache']],
+            'summary' => ['count' => 2, 'autoload' => true],
+        ], SQLiteJsonB::decode($jsonbObject->bytes));
+        $t->true(SQLiteJsonAggregate::jsonGroupArraySqlFunction('jsonb_group_array', []) instanceof SQLiteBlobValue);
+        $t->same([], SQLiteJsonB::decode(SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group_object', [])->bytes));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group', []));
+    },
     'canonicalizes sqlite json text json5 blob and null option values' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode(['a' => 35, 'b' => [1, 2]]);
         $controlCharacterSettings = '{label:"abc' . chr(1) . 'xyz"}';

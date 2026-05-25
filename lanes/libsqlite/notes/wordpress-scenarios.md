@@ -1350,3 +1350,15 @@ journaling, and WAL behavior beyond page-image preflight.
 ## Current-Base Rebase-Prep: `json_group_array()`/`json_group_object()` Option Summary Scenario
 
 Native JSON aggregation now includes a bounded SQLite `json_group_array(X)`/`json_group_object(NAME,VALUE)` row boundary for ordered input rows, SQL NULLs, booleans, JSON subtype fragments, JSONB BLOB values, empty groups, text labels, and malformed raw BLOB rejection. The example `examples/wordpress-json-aggregate-option-summary.php` checks copied `wp_options` rows and produces local-only aggregate JSON summaries that can be reviewed before import without requiring the SQLite extension.
+
+## `jsonb_group_array()`/`jsonb_group_object()` Option Summary Scenario
+
+Native JSON aggregation now also includes a bounded SQLite
+`jsonb_group_array(X)`/`jsonb_group_object(NAME,VALUE)` SQL result-type
+dispatch boundary. The example
+`examples/wordpress-json-aggregate-option-summary.php` checks copied
+`wp_options` rows and reports text JSON aggregate summaries plus decoded/hex
+JSONB aggregate outputs for copied option values, JSON subtype fragments,
+JSONB option blobs, booleans, and NULLs. This gives WordPress import and
+repair tooling a local-only way to preserve JSONB fixture typing for aggregate
+diagnostics without requiring the SQLite extension.

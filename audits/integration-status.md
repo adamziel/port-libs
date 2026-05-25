@@ -100825,3 +100825,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/examples/wordpress-receive-pack-transport.php lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php lanes/gitoxide/lane-status.json lanes/gitoxide/notes/upstream-inventory.md lanes/gitoxide/notes/wordpress-scenarios.md lanes/gitoxide/src/GitDaemonReceivePackTransport.php lanes/gitoxide/tests/ReceivePackTransportTest.php `
 
+
+## Clean-patch integration accepted - libsqlite - 2026-05-25 02:49 UTC
+
+Ready marker: `port-libsqlite-20260525T023853Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T023853Z.patch`
+Lane/slice/session: `libsqlite` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `2495d179a3b541f30d2a018c05a484202aca9afc`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/libsqlite/tests`: exit 0; PASS sqlite record parser rejects reserved serial types  1 test files, 1904 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24812 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php lanes/libsqlite/lane-status.json lanes/libsqlite/notes/upstream-runner.md lanes/libsqlite/notes/wordpress-scenarios.md lanes/libsqlite/src/SQLiteJsonAggregate.php lanes/libsqlite/tests/SQLiteHeaderTest.php `
+
