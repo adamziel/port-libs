@@ -3568,7 +3568,8 @@ return [
         $t->same(39, count($attributeValues($article->contentHtml, '//p')));
         $t->same(6, count($attributeValues($article->contentHtml, '//img')));
         $t->contains('Reuse content', $blocks);
-        $t->same(32, substr_count($blocks, '<!-- wp:paragraph -->'), 'Independent article copy and retained reuse link should serialize without recommendation blocks');
+        $t->same(31, substr_count($blocks, '<!-- wp:paragraph -->'), 'Independent article copy and retained reuse link should serialize without recommendation blocks');
+        $t->same(1, substr_count($blocks, '<!-- wp:html -->'), 'retained publisher video wrappers should become HTML review blocks');
         foreach (['Taboola', '1,000,000 are using this app', 'Business news in pictures', 'US election'] as $fragment) {
             $t->same(false, str_contains($article->text, $fragment), 'publisher recommendation/gallery chrome should not enter article text: ' . $fragment);
             $t->same(false, str_contains($blocks, $fragment), 'publisher recommendation/gallery chrome should not enter WordPress blocks: ' . $fragment);
@@ -3624,6 +3625,23 @@ return [
         $t->same(1, substr_count($blocks, '<!-- wp:html -->'), 'retained embed figures should become HTML blocks');
         $t->contains('<figure><iframe src="https://www.youtube.com/embed/abc123"></iframe><figcaption>Watch the archived session.</figcaption></figure>', $blocks);
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<figure><iframe"), 'retained embed figures should not be paragraph-wrapped');
+    },
+    'serializes retained captioned embed wrappers as WordPress HTML blocks' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Captioned Embed Import</title></head><body><article>'
+            . '<h1>Captioned Embed Import</h1>'
+            . '<p>' . str_repeat('Legacy migrations often preserve provider embed wrappers that are not valid figure elements. ', 3) . '</p>'
+            . '<div class="video-embed caption"><iframe src="https://www.youtube.com/embed/wrapped-session"></iframe><p>Archived session video.</p></div>'
+            . '<p>' . str_repeat('The importer should keep the provider wrapper and caption together for review. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://example.test/posts/captioned-embed.html');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:html -->'), 'captioned embed wrappers should become one HTML block');
+        $t->contains('<div><iframe src="https://www.youtube.com/embed/wrapped-session"></iframe><p>Archived session video.</p></div>', $blocks);
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<div><iframe"), 'captioned embed wrappers should not be paragraph-wrapped');
+        $t->same(2, substr_count($blocks, '<!-- wp:paragraph -->'), 'surrounding prose should remain paragraph blocks');
     },
     'serializes retained definition lists as WordPress HTML blocks' => static function (TestRunner $t): void {
         $source = '<html><head><title>Definition List Import</title></head><body><article>'

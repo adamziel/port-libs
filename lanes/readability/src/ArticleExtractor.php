@@ -396,7 +396,7 @@ final class ArticleExtractor
      */
     private function appendWordPressBlock(\DOMDocument $dom, \DOMElement $element, array &$blocks): void
     {
-        if ($this->canFlattenBlockContainer($element)) {
+        if (!$this->isMediaEmbedWrapper($element) && $this->canFlattenBlockContainer($element)) {
             foreach ($element->childNodes as $child) {
                 if ($child instanceof \DOMElement) {
                     $this->appendWordPressBlock($dom, $child, $blocks);
@@ -434,6 +434,8 @@ final class ArticleExtractor
             $blocks[] = '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
         } elseif ($tag === 'blockquote') {
             $blocks[] = '<!-- wp:quote -->' . "\n" . $html . "\n" . '<!-- /wp:quote -->';
+        } elseif ($this->isMediaEmbedWrapper($element)) {
+            $blocks[] = '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
         } elseif (($tag === 'ul' || $tag === 'ol')
             && $this->isWordPressListBlock($element)) {
             $metadata = $tag === 'ol' ? ' {"ordered":true}' : '';
@@ -515,6 +517,33 @@ final class ArticleExtractor
                 || $element->getElementsByTagName('embed')->length > 0
                 || $element->getElementsByTagName('video')->length > 0
                 || $element->getElementsByTagName('audio')->length > 0);
+    }
+
+    private function isMediaEmbedWrapper(\DOMElement $element): bool
+    {
+        if (!in_array(strtolower($element->tagName), ['div', 'section'], true)
+            || $this->hasInteractiveListChrome($element)) {
+            return false;
+        }
+
+        $hasDirectMedia = false;
+        foreach ($this->elementChildren($element) as $child) {
+            if (in_array(strtolower($child->tagName), ['iframe', 'object', 'embed', 'video', 'audio'], true)) {
+                $hasDirectMedia = true;
+                break;
+            }
+        }
+
+        if (!$hasDirectMedia) {
+            return false;
+        }
+
+        $text = $this->normalizeWhitespace($element->textContent);
+        if ($text === '') {
+            return true;
+        }
+
+        return mb_strlen($text) <= 240;
     }
 
     private function isMediaOnlyList(\DOMElement $element): bool
