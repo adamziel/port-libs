@@ -1762,3 +1762,14 @@ dispatch boundary for `json_valid(X[,FLAGS])`. The updated
 JSON text, JSON5 text, cast text BLOBs, copied JSONB blobs, SQL NULL input,
 nullable `FLAGS` rejection, and combined JSON5-or-superficial-JSONB flag
 checks without requiring the SQLite extension.
+
+## JSON Constructor Argument-Vector Dispatch Scenario
+
+Native JSON constructor diagnostics now include SQL-style vector dispatch for
+`json_array()`, `jsonb_array()`, `json_object()`, and `jsonb_object()`. The
+updated `examples/wordpress-json-constructor-option-diagnostics.php` script
+exercises uppercase `JSON_ARRAY`, `JSON_OBJECT`, `JSONB_ARRAY`, and
+`JSONB_OBJECT` dispatch over copied `wp_options` migration diagnostics,
+including JSON subtype passthrough, JSONB queue blobs, SQL NULL array members,
+JSONB result decoding, and raw BLOB rejection without requiring the SQLite
+extension.

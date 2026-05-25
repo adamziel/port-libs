@@ -5735,6 +5735,44 @@ Result: recorded in `lane-status.json` after focused verification. Root aggregat
 
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.
 
+## Focused Native Mapping: JSON Constructor Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated refill adds bounded SQL-style argument-vector dispatch for
+`json_array()`, `jsonb_array()`, `json_object()`, and `jsonb_object()`.
+Function-name validation is now case-insensitive for these constructor helpers,
+while text JSON versus JSONB result typing, JSON subtype passthrough, JSONB
+BLOB passthrough, raw BLOB rejection, invalid function-name rejection, and odd
+`json_object()` arity rejection remain preserved.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON constructor evidence over
+`json101.test` and `subtype1.test`, previously passing 305 tests with 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonConstructor.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php
+php lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress constructor smoke reported
+uppercase argument-vector dispatch for JSON and JSONB constructors, focused PHP
+passed 1 selected test file, 2178 assertions, and 0 failures. Root aggregate
+harness was not assigned for this isolated micro-slice.
+
+Dependency closure: no new support component is needed. The slice reuses
+existing lane-local JSONB, JSON subtype, BLOB wrapper, constructor value
+coercion, and SQL NULL handling; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json_error_position()` Argument-Vector Dispatch
 
 Date: 2026-05-25

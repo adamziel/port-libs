@@ -110148,3 +110148,46 @@ Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
 `lanes/libsqlite/src/SQLiteJsonQuote.php`,
 `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
 `audits/integration-status.md`.
+## Clean-patch integration accepted - libsqlite - 2026-05-25 16:00 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T155200Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T155200Z.patch`.
+
+Lane/slice/session: `libsqlite` / `priority-refill-20260525T155200Z` /
+`port-libsqlite-rework`. Patch sha256 verified:
+`03b97b81d93d7bede20ace419eb5cbeb68f77ef4469c0ca518b697dd32ff4563`.
+Applied cleanly to accepted `main` head
+`5a075654dc4c84092aa0ca018cdde04b8b4ce0f5` in detached clean worktree
+`/tmp/port-clean-integrator-libsqlite-priority-refill-20260525T155200Z`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonConstructor.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed,
+  `1 test files, 2178 assertions, 0 failures`.
+- `php -r 'json_decode(...)'` for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+  and `lanes/libsqlite/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification: after confirming `/` had at least `86000000` KiB free,
+load was below `25`, and no exact no-argument `php tools/run-tests.php` was
+active, ran `php tools/run-tests.php` in the clean worktree under
+`.tmux-team/tmp/clean-integrator-run.lock`. Result: passed,
+`214 test files, 26265 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The slice
+reuses existing lane-local JSON constructor, JSONB, subtype, BLOB wrapper, SQL
+NULL, and value coercion behavior.
+
+Live-service exclusions: none needed; no live-service provider tests were run.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/examples/wordpress-json-constructor-option-diagnostics.php`,
+`lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/src/SQLiteJsonConstructor.php`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.

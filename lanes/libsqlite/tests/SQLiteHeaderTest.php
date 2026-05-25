@@ -2972,21 +2972,46 @@ return [
             '[1,{"mode":"seo"},["cache","media"],null]',
             SQLiteJsonConstructor::jsonArraySqlFunction('json_array', 1, $jsonSubtype, $jsonbArray, null),
         );
+        $t->same(
+            '[1,{"mode":"seo"},["cache","media"],null]',
+            SQLiteJsonConstructor::jsonArraySqlFunction('JSON_ARRAY', 1, $jsonSubtype, $jsonbArray, null),
+        );
+        $t->same(
+            '["queue",["cache","media"],0]',
+            SQLiteJsonConstructor::jsonArraySqlFunctionArguments('JSON_ARRAY', ['queue', $jsonbArray, false]),
+        );
         $jsonbConstructedArray = SQLiteJsonConstructor::jsonArraySqlFunction('jsonb_array', 'queue', $jsonbArray);
         $t->true($jsonbConstructedArray instanceof SQLiteBlobValue);
         $t->same(['queue', ['cache', 'media']], SQLiteJsonB::decode($jsonbConstructedArray->bytes));
+        $jsonbVectorArray = SQLiteJsonConstructor::jsonArraySqlFunctionArguments('JSONB_ARRAY', ['queue', $jsonSubtype, null]);
+        $t->true($jsonbVectorArray instanceof SQLiteBlobValue);
+        $t->same(['queue', ['mode' => 'seo'], null], SQLiteJsonB::decode($jsonbVectorArray->bytes));
 
         $t->same(
             '{"option_name":"plugin_settings","payload":{"mode":"seo"}}',
             SQLiteJsonConstructor::jsonObjectSqlFunction('json_object', 'option_name', 'plugin_settings', 'payload', $jsonSubtype),
         );
+        $t->same(
+            '{"option_name":"plugin_settings","payload":{"mode":"seo"}}',
+            SQLiteJsonConstructor::jsonObjectSqlFunction('JSON_OBJECT', 'option_name', 'plugin_settings', 'payload', $jsonSubtype),
+        );
+        $t->same(
+            '{"option_name":"plugin_settings","enabled":1}',
+            SQLiteJsonConstructor::jsonObjectSqlFunctionArguments('JSON_OBJECT', ['option_name', 'plugin_settings', 'enabled', true]),
+        );
         $jsonbConstructedObject = SQLiteJsonConstructor::jsonObjectSqlFunction('jsonb_object', 'queue', $jsonbArray, 'enabled', true);
         $t->true($jsonbConstructedObject instanceof SQLiteBlobValue);
         $t->same(['queue' => ['cache', 'media'], 'enabled' => 1], SQLiteJsonB::decode($jsonbConstructedObject->bytes));
+        $jsonbVectorObject = SQLiteJsonConstructor::jsonObjectSqlFunctionArguments('JSONB_OBJECT', ['queue', $jsonbArray, 'payload', $jsonSubtype]);
+        $t->true($jsonbVectorObject instanceof SQLiteBlobValue);
+        $t->same(['queue' => ['cache', 'media'], 'payload' => ['mode' => 'seo']], SQLiteJsonB::decode($jsonbVectorObject->bytes));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonArraySqlFunction('json_insert', 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonArraySqlFunctionArguments('json_insert', [1]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObjectSqlFunction('json_array', 'a', 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObjectSqlFunctionArguments('json_array', ['a', 1]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObjectSqlFunction('jsonb_object', 'a'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObjectSqlFunctionArguments('JSONB_OBJECT', ['a']));
     },
     'rejects sqlite json object argument and blob label errors' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonConstructor::jsonObject('a', 1, 'b'));

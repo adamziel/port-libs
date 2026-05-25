@@ -8,26 +8,44 @@ final class SQLiteJsonConstructor
 {
     public static function jsonArraySqlFunction(string $function, mixed ...$values): string|SQLiteBlobValue
     {
-        $json = match ($function) {
+        $normalized = strtolower($function);
+        $json = match ($normalized) {
             'json_array', 'jsonb_array' => self::jsonArray(...$values),
             default => throw new \InvalidArgumentException('SQLite JSON array constructor function must be json_array or jsonb_array'),
         };
 
-        return $function === 'jsonb_array'
+        return $normalized === 'jsonb_array'
             ? new SQLiteBlobValue(SQLiteJsonB::encode(SQLiteJson5Parser::decode($json)))
             : $json;
     }
 
+    /**
+     * @param list<mixed> $arguments
+     */
+    public static function jsonArraySqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue
+    {
+        return self::jsonArraySqlFunction($function, ...$arguments);
+    }
+
     public static function jsonObjectSqlFunction(string $function, mixed ...$pairs): string|SQLiteBlobValue
     {
-        $json = match ($function) {
+        $normalized = strtolower($function);
+        $json = match ($normalized) {
             'json_object', 'jsonb_object' => self::jsonObject(...$pairs),
             default => throw new \InvalidArgumentException('SQLite JSON object constructor function must be json_object or jsonb_object'),
         };
 
-        return $function === 'jsonb_object'
+        return $normalized === 'jsonb_object'
             ? new SQLiteBlobValue(SQLiteJsonB::encode(SQLiteJson5Parser::decode($json)))
             : $json;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    public static function jsonObjectSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue
+    {
+        return self::jsonObjectSqlFunction($function, ...$arguments);
     }
 
     public static function jsonArray(mixed ...$values): string
