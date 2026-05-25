@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Esbuild\BundlerGraphBuilder;
 use PortLibs\Esbuild\BundlerMetafile;
+use PortLibs\Esbuild\BundlerOutput;
 use PortLibs\Esbuild\PackageResolver;
 
 $fixtureRoot = dirname(__DIR__) . '/fixtures/wordpress-package-assets';
@@ -117,5 +118,35 @@ return [
         $externalImports = array_values(array_filter($entryImports, static fn (array $import): bool => $import['external']));
         $t->same(['path', 'node:crypto'], array_map(static fn (array $import): string => $import['path'], $externalImports));
         $t->same(['default', 'dynamic'], array_map(static fn (array $import): string => $import['kind'], $externalImports));
+    },
+    'builds a bounded JavaScript output summary from already resolved graph modules' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $graph = (new BundlerGraphBuilder())->build($fixtureRoot . '/src/loader-entry.js');
+        $output = (new BundlerOutput())->build($graph, $fixtureRoot, 'block-view.js');
+
+        $t->same('src/loader-entry.js', $output['entry']);
+        $t->same('block-view.js', $output['output']['path']);
+        $t->same(true, str_contains($output['output']['contents'], "// src/loader-entry.js\n"));
+        $t->same(true, str_contains($output['output']['contents'], "// src/local-preview.js\n"));
+        $t->same(true, str_contains($output['output']['contents'], "export const preview = 'card-preview';"));
+        $t->same(false, str_contains($output['output']['contents'], 'front-end stylesheet fixture'));
+        $t->same(true, $output['output']['bytes'] > $output['inputs']['src/loader-entry.js']['bytes']);
+        $t->same(true, isset($output['inputs']['src/local-preview.js']));
+        $t->same(false, isset($output['inputs']['src/block.css']));
+        $t->same(false, isset($output['inputs']['src/block.json']));
+        $t->same([], $output['diagnostics']['missing']);
+        $t->same([], $output['diagnostics']['unsupported']);
+    },
+    'preserves output diagnostics for external and unsupported graph edges' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $nodeGraph = (new BundlerGraphBuilder(new PackageResolver('node')))->build($fixtureRoot . '/src/node-entry.js');
+        $nodeOutput = (new BundlerOutput())->build($nodeGraph, $fixtureRoot);
+        $unsupportedGraph = (new BundlerGraphBuilder())->build($fixtureRoot . '/src/unsupported-loader-entry.js');
+        $unsupportedOutput = (new BundlerOutput())->build($unsupportedGraph, $fixtureRoot);
+
+        $t->same(['path', 'node:crypto'], array_map(static fn (array $diagnostic): string => $diagnostic['path'], $nodeOutput['diagnostics']['external']));
+        $t->same(true, str_contains($nodeOutput['output']['contents'], "// src/node-entry.js\n"));
+        $t->same(true, str_contains($nodeOutput['output']['contents'], "// src/local-preview.js\n"));
+        $t->same(['./asset.bin'], array_map(static fn (array $diagnostic): string => $diagnostic['path'], $unsupportedOutput['diagnostics']['unsupported']));
+        $t->same(false, isset($unsupportedOutput['inputs']['src/asset.bin']));
+        $t->same(true, isset($unsupportedOutput['inputs']['src/local-preview.js']));
     },
 ];

@@ -1,5 +1,53 @@
 # Integration Status
 
+## Clean-patch integration accepted - esbuild - 2026-05-25 04:58 UTC
+
+Accepted isolated marker
+`.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T045348Z.ready`
+with patch
+`.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T045348Z.patch`.
+
+Lane/slice/session: `esbuild` /
+`watchdog-next-20260525T045348Z` / `port-esbuild`. Patch SHA-256 verified:
+`6b0f1f859c8b30860136963935b888fc8bf6e4e50cf2452ef34c3252dae613f6`.
+Clean worktree:
+`/tmp/port-clean-integrator-esbuild-watchdog-next-20260525T045348Z` from
+old head `12505f4936f06046b8a268386253af7c5e3ade97`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/esbuild/src/BundlerOutput.php`: passed.
+- `php -l lanes/esbuild/tests/BundlerGraphBuilderTest.php`: passed.
+- `php -l lanes/esbuild/examples/wordpress-asset-preflight.php`: passed.
+- `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php`:
+  passed, 1 selected test file, 67 assertions, 0 failures.
+- `php tools/run-tests.php lanes/esbuild/tests`: passed, 7 selected test
+  files, 1,911 assertions, 0 failures.
+- `php lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'WordPress (graph metafile diagnostics|bounded JS output bytes)'`:
+  passed with both selected checks reporting `yes`.
+- `jq empty lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/lane-status.json`:
+  passed.
+- `git diff --check`: passed.
+
+Root verification: exact no-argument gate
+`pgrep -af '^php tools/run-tests\.php$'` was empty before the run.
+`php tools/run-tests.php` passed in the clean worktree with 212 test files,
+25,167 assertions, and 0 failures.
+
+Support-library/dependency closure: no support-library activation. The patch
+adds bounded lane-local `BundlerOutput` over existing analyzer, resolver,
+graph, and metafile objects; `js-package-resolution-core` remains deferred.
+Live-service exclusions: none needed; no live provider tests were run.
+
+Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/esbuild/examples/wordpress-asset-preflight.php`,
+`lanes/esbuild/lane-status.json`,
+`lanes/esbuild/notes/upstream-inventory.md`,
+`lanes/esbuild/notes/wordpress-scenarios.md`,
+`lanes/esbuild/src/BundlerOutput.php`,
+`lanes/esbuild/tests/BundlerGraphBuilderTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration deferred - newest non-rework isolated markers need lane rebase - 2026-05-25 04:52 UTC
 
 No source was accepted from the current non-rework ready marker set in this

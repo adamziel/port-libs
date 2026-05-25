@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Esbuild\BundlerGraphBuilder;
 use PortLibs\Esbuild\BundlerMetafile;
+use PortLibs\Esbuild\BundlerOutput;
 use PortLibs\Esbuild\GlobImportResolver;
 use PortLibs\Esbuild\JsLexer;
 use PortLibs\Esbuild\JsModuleAnalyzer;
@@ -152,6 +153,8 @@ $loaderGraphEdges = array_combine(
 );
 $unsupportedLoaderGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/unsupported-loader-entry.js');
 $unsupportedLoaderMetafile = (new BundlerMetafile())->summarize($unsupportedLoaderGraph, $packageFixtureDir);
+$loaderBundlerOutput = (new BundlerOutput())->build($loaderBundlerGraph, $packageFixtureDir, 'block-view.js');
+$unsupportedLoaderOutput = (new BundlerOutput())->build($unsupportedLoaderGraph, $packageFixtureDir, 'block-view.js');
 $unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $normalizePackageFixturePath = static function (string $path) use ($packageFixtureDir): string {
@@ -592,6 +595,16 @@ printf("WordPress graph metafile diagnostics: %s\n", (
     && !isset($unsupportedLoaderMetafile['inputs']['src/asset.bin'])
     && ($unsupportedLoaderMetafile['diagnostics']['unsupported'][0]['path'] ?? null) === './asset.bin'
     && ($unsupportedLoaderMetafile['diagnostics']['unsupported'][0]['resolved'] ?? null) === 'src/asset.bin'
+) ? 'yes' : 'no');
+printf("WordPress bounded JS output bytes: %s\n", (
+    $loaderBundlerOutput['entry'] === 'src/loader-entry.js'
+    && $loaderBundlerOutput['output']['path'] === 'block-view.js'
+    && $loaderBundlerOutput['output']['bytes'] > 0
+    && str_contains($loaderBundlerOutput['output']['contents'], "// src/loader-entry.js\n")
+    && str_contains($loaderBundlerOutput['output']['contents'], "// src/local-preview.js\n")
+    && isset($loaderBundlerOutput['inputs']['src/local-preview.js'])
+    && !isset($loaderBundlerOutput['inputs']['src/block.css'])
+    && ($unsupportedLoaderOutput['diagnostics']['unsupported'][0]['path'] ?? null) === './asset.bin'
 ) ? 'yes' : 'no');
 printf("WordPress tsconfig paths aliases: %s\n", (
     array_combine(
