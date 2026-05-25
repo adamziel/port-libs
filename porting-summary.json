@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 16:34:42 UTC",
-    "sourceCommit": "ef96a451a573a2fdac1ca4eef8f6a2c40571969a",
-    "sourceCommitShort": "ef96a451a573",
+    "generated": "2026-05-25 16:44:57 UTC",
+    "sourceCommit": "12a83ba87c9e0bd62f2c9a79f407ea421c58d926",
+    "sourceCommitShort": "12a83ba87c9e",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "f7e6d721916a5f9189e78b18d72fe4c0c9565b7d",
-    "dashboardCommitShort": "f7e6d721916a",
+    "dashboardCommit": "1a19b79a82fe5acbed42b14d1d5508ab868e30be",
+    "dashboardCommitShort": "1a19b79a82fe",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -66,7 +66,7 @@
             "denominator": "2883",
             "mapped": "1477",
             "coverage": "1477 / 2883",
-            "php": "2818 pass / 0 fail",
+            "php": "2823 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
             "audit": "isolated micro-slice 2026-05-25 priority-...",
