@@ -1412,3 +1412,22 @@ focused file now contains 210 behavior tests.
 
 Root verification was not run for the 2026-05-24 inline mark emission slice
 because the assigned work was an isolated micro-slice.
+
+`src/Text/Pandoc/Writers/Markdown/Inline.hs` was inspected again for the
+bounded `Quoted` emission branch. The PHP Markdown writer now maps one focused
+check from that boundary: double and single `quoted` inlines emit Pandoc smart
+quotation characters while preserving nested quoted content, code spans, and
+links.
+
+Focused local verification on 2026-05-25 after the Markdown writer quoted
+inline emission slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Reviewer quoted source|wp_insert_post|edit"` emitted smart quoted reviewer
+source text around nested `wp_insert_post` code and an edit link; `php
+tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test
+file, 2,279 assertions, and 0 failures. `git diff --check -- lanes/pandoc`
+passed. The focused file now contains 211 behavior tests.
+
+Root verification was not run for the 2026-05-25 quoted inline emission slice
+because the assigned work was an isolated micro-slice.

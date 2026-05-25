@@ -323,6 +323,7 @@ final class MarkdownWriter
             'subscript' => $this->delimitScriptContent('~', $this->renderInlines($node->children)),
             'small_caps' => $this->renderSmallCaps($node),
             'span' => $this->renderSpan($node),
+            'quoted' => $this->renderQuoted($node),
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
             'citation' => (string) $node->attr('text', $this->renderInlines($node->children)),
@@ -423,6 +424,15 @@ final class MarkdownWriter
         array_unshift($attrs['classes'], 'smallcaps');
 
         return '[' . $this->renderInlines($node->children) . ']' . $this->renderAttributesTuple($attrs);
+    }
+
+    private function renderQuoted(AstNode $node): string
+    {
+        if ((string) $node->attr('kind', 'double') === 'single') {
+            return "\u{2018}" . $this->renderInlines($node->children) . "\u{2019}";
+        }
+
+        return "\u{201C}" . $this->renderInlines($node->children) . "\u{201D}";
     }
 
     /**
@@ -1025,6 +1035,7 @@ final class MarkdownWriter
             'subscript',
             'small_caps',
             'span',
+            'quoted',
             'softbreak',
             'linebreak',
             'code',

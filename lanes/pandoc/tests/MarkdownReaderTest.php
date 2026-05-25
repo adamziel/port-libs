@@ -2727,6 +2727,32 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer quoted inline emission' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Reviewer quotes: '),
+                new AstNode('quoted', ['kind' => 'double'], [
+                    $text('source says '),
+                    new AstNode('quoted', ['kind' => 'single'], [$text('keep')]),
+                ]),
+                $text(' and '),
+                new AstNode('quoted', ['kind' => 'single'], [
+                    new AstNode('code', ['text' => 'wp_insert_post']),
+                ]),
+                $text(' before '),
+                new AstNode('quoted', ['kind' => 'double'], [
+                    new AstNode('link', ['url' => '/wp-admin/post.php?post=42&action=edit'], [$text('edit')]),
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        $t->same(
+            'Reviewer quotes: “source says ‘keep’” and ‘`wp_insert_post`’ before “[edit](/wp-admin/post.php?post=42&action=edit)”.',
+            (new MarkdownWriter())->write($document)
+        );
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

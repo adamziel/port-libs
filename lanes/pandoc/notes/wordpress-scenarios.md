@@ -831,6 +831,10 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
   example writes `[source glossary]{.smallcaps}`, `~~legacy caption~~`,
   `revision^draft\ 2^`, and `H~2~O`, keeping editorial source marks portable
   through Markdown review packets without using raw inline HTML.
+- Native Markdown reviewer handoff exports now emit Pandoc smart quoted
+  inlines. The reviewer handoff example writes a quoted source excerpt with a
+  nested `wp_insert_post` code token and WordPress edit link, preserving the
+  editorial quote boundary without using raw inline HTML.
 - `examples/wordpress-literate-haskell.php` demonstrates source-documentation
   imports that opt into Pandoc's literate Haskell extension. Bird-track and
   inverse-bird-track snippets become WordPress code blocks with Haskell
@@ -841,13 +845,12 @@ table head/body/foot sections remain distinct, and WordPress table output keeps
 ## Next Task
 
 Map another bounded Markdown writer inline branch from
-`Text.Pandoc.Writers.Markdown.Inline`, such as quoted inline writer emission
-or raw inline format-specific escaping if not already covered on the Markdown
+`Text.Pandoc.Writers.Markdown.Inline`, such as raw inline format-specific
+escaping or math/raw TeX writer output if not already covered on the Markdown
 writer path.
 
 ## Dependency Closure
 
 No new support component is needed for this slice. The existing bounded
-Markdown inline writer and attribute-tuple helper are reused for small-caps,
-strikeout, superscript, and subscript emission; evidence is the focused lane
-test plus the WordPress reviewer handoff example smoke.
+Markdown inline writer is reused for quoted inline emission; evidence is the
+focused lane test plus the WordPress reviewer handoff example smoke.

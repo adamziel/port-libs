@@ -1,5 +1,60 @@
 # Integration Status
 
+## Integration accepted - Pandoc quoted inline writer slice - 2026-05-25 00:20 UTC
+
+Accepted isolated ready marker
+`.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T001212Z.ready`
+with patch
+`.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T001212Z.patch`.
+
+Lane/slice/session: `pandoc` /
+`watchdog-next-20260525T001212Z` / `port-pandoc`. Patch sha256 was
+verified as
+`d88928eaf94dd9a2d4cc27916f8381e0815b4ca02f7010ecaf19c7ea1cfee599`.
+The first clean acceptance attempt from
+`5b0db1cad2888e10e90444ae102d9cad3fcbeae0` passed focused and root
+verification, but `main` moved before `update-ref`. This retry applied the
+same patch cleanly to detached clean worktree
+`/tmp/port-clean-integrator-pandoc-watchdog-next-20260525T001212Z-retry-20260525T001836`
+created from `93cab51998b620636521493c792aa7f127dd0413`; no three-way rebase
+or conflict repair was needed.
+
+Focused verification repeated in the retry clean worktree:
+
+- `php -l lanes/pandoc/src/MarkdownWriter.php`: passed, no syntax errors.
+- `php -l lanes/pandoc/tests/MarkdownReaderTest.php`: passed, no syntax
+  errors.
+- `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php`:
+  passed, no syntax errors.
+- `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+  "Reviewer quoted source|wp_insert_post|edit"`: passed, emitted the reviewer
+  quoted-source line with `wp_insert_post` and the edit link.
+- `jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json
+  lanes/pandoc/lane-status.json`: passed.
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php`:
+  passed with 1 selected test file, 2,279 assertions, and 0 failures.
+- `git diff --check`: passed.
+
+Root verification: pre-root exact process gate
+`pgrep -af '^php tools/run-tests\.php$'` returned no active harness.
+`php tools/run-tests.php` then passed in the same retry clean worktree with
+208 test files, 24,347 assertions, and 0 failures. The earlier superseded
+first attempt also passed the same root result, but is not the accepted commit.
+
+Support-library/dependency-closure decision: no new support component was
+activated. The accepted slice reuses the existing bounded Pandoc Markdown
+inline writer path for `quoted` AST nodes. Live-service exclusions: no
+live-service provider tests were run.
+
+Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/pandoc/examples/wordpress-markdown-review-handoff.php`,
+`lanes/pandoc/lane-status.json`,
+`lanes/pandoc/notes/upstream-inventory.md`,
+`lanes/pandoc/notes/wordpress-scenarios.md`,
+`lanes/pandoc/src/MarkdownWriter.php`,
+`lanes/pandoc/tests/MarkdownReaderTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration handoff rejection - Readability - 2026-05-24 22:50 UTC
 
 No Readability lane output was integrated in this pass.

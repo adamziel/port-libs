@@ -118,6 +118,22 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => 'O.']),
     ]),
     new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer quoted source: ']),
+        new AstNode('quoted', ['kind' => 'double'], [
+            new AstNode('text', ['text' => 'source says ']),
+            new AstNode('quoted', ['kind' => 'single'], [
+                new AstNode('code', ['text' => 'wp_insert_post']),
+            ]),
+            new AstNode('text', ['text' => ' before ']),
+            new AstNode('link', [
+                'url' => '/wp-admin/post.php?post=42&action=edit',
+            ], [
+                new AstNode('text', ['text' => 'edit']),
+            ]),
+        ]),
+        new AstNode('text', ['text' => '.']),
+    ]),
+    new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
 ]);
