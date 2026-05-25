@@ -17,6 +17,8 @@ $renewer = new OneDriveTokenRenewer(
 );
 $provider = new OneDriveProviderLifecycle($renewer);
 
+$provider->startChangeNotify(true);
+$maskedChangeNotifyRunning = $provider->isChangeNotifyRunning();
 $provider->startChangeNotify();
 $renewer->startUpload();
 $firstShutdown = $provider->shutdown();
@@ -29,6 +31,7 @@ return [
     'firstShutdown' => $firstShutdown,
     'secondShutdown' => $secondShutdown,
     'expiryAfterShutdownRefreshed' => $expiryAfterShutdown['refreshed'],
+    'maskedChangeNotifyRunning' => $maskedChangeNotifyRunning,
     'changeNotifyRunningAfterShutdown' => $provider->isChangeNotifyRunning(),
     'providerEvents' => $provider->events(),
     'renewerEvents' => $renewer->events(),

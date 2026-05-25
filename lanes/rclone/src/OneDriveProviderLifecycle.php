@@ -25,8 +25,13 @@ final class OneDriveProviderLifecycle
     ) {
     }
 
-    public function startChangeNotify(): void
+    public function startChangeNotify(bool $featureMasked = false): void
     {
+        if ($featureMasked) {
+            $this->events[] = 'change-notify-masked';
+            return;
+        }
+
         if (!$this->changeNotifySupported) {
             $this->events[] = 'change-notify-unsupported';
             return;

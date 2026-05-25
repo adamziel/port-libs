@@ -1,5 +1,11 @@
 # rclone WordPress Scenario
 
+## 2026-05-25 OneDrive Provider Feature Mask
+
+- Updated `examples/wordpress-onedrive-provider-shutdown-preflight.php` to model a feature-masked ChangeNotify start before a WordPress WXR upload shutdown.
+- The scenario now records that masked ChangeNotify does not start notification state, ordinary provider shutdown still stops the later unmasked notification runner and token renewer, repeated shutdown stays idempotent, and `secretInputsRead: false`.
+- Dependency closure: no new support component is needed; this reuses the deterministic OneDrive token-renewer/change-notify lifecycle model without live OAuth state, credential stores, timers, or provider requests.
+
 ## 2026-05-25 OneDrive Upload Bracketing
 
 - Updated `examples/wordpress-onedrive-token-renewer-preflight.php` to model a WordPress WXR upload wrapped by OneDrive token-renewer Start/Stop accounting.

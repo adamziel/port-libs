@@ -108350,6 +108350,58 @@ Root gate: before focused/root checks, / available KiB was >= 86000000, first lo
 
 Dependency closure: no new support component; reuses bounded SyncFuzzer, tracked-node-store persistence, and WordPress watchdog example components.
 Live-service exclusions: none; no live-service provider tests were run.
+## Integration accepted - rclone OneDrive provider feature-mask lifecycle - 2026-05-25 07:31 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T072351Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T072351Z.patch`.
+
+Lane/slice/session: `rclone` / `watchdog-next-20260525T0725Z` /
+`port-rclone`. Base accepted head recorded by marker:
+`954d27f074822532f66f8cccf3fafb166a307e24`; clean integration base:
+`e52ffbcf5e12cb9ee68826e022ba13dea3da221a`.
+
+Patch hash verification: `sha256sum` matched
+`85b734311de0105e761c7538272fb5145ffa483a688d9ff160dfb7a61c10c7f7`.
+Apply mode: direct `git apply --check` and `git apply`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-rclone-watchdog-next-20260525T0725Z-20260525T072351Z`:
+
+- `php -l lanes/rclone/src/OneDriveProviderLifecycle.php`: passed, no syntax errors.
+- `php -l lanes/rclone/tests/OneDriveProviderLifecycleTest.php`: passed, no syntax errors.
+- `php -l lanes/rclone/examples/wordpress-onedrive-provider-shutdown-preflight.php`: passed, no syntax errors.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveProviderLifecycleTest.php`: passed, 1 test file, 29 assertions, 0 failures.
+- `php tools/run-tests.php lanes/rclone/tests`: passed, 34 test files, 3957 assertions, 0 failures.
+- `php -r '$example = require "lanes/rclone/examples/wordpress-onedrive-provider-shutdown-preflight.php"; ...'`: passed; confirmed `maskedChangeNotifyRunning`, `secretInputsRead`, and `changeNotifyRunningAfterShutdown` were all `false`.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification:
+
+- `php tools/run-tests.php`: passed, 213 test files, 25814 assertions, 0 failures.
+
+Support-library/dependency-closure decision: no new support-library activation.
+The slice reuses the existing bounded OneDrive token-renewer and change-notify
+lifecycle models. It deliberately avoids live Graph calls, timers, token
+stores, process environments, OAuth browser state, cloud remotes, and provider
+credentials.
+
+Live-service exclusions: live OneDrive/provider integration, FUSE/mount,
+Docker-backed serve coverage, and `fstest/test_all` remotes were not run.
+
+Files staged:
+
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/examples/wordpress-onedrive-provider-shutdown-preflight.php`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/upstream-inventory.md`
+- `lanes/rclone/notes/wordpress-scenarios.md`
+- `lanes/rclone/src/OneDriveProviderLifecycle.php`
+- `lanes/rclone/tests/OneDriveProviderLifecycleTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - Syncthing watcher recent-cleanup acknowledgement - 2026-05-25 07:26 UTC
 
 Accepted isolated ready marker:

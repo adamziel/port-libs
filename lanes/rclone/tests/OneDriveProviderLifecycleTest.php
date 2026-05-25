@@ -62,6 +62,33 @@ return [
             'provider-shutdown',
         ], $provider->events());
     },
+    'onedrive provider feature mask suppresses change notification without shutdown' => static function (TestRunner $t): void {
+        $reads = 0;
+        $renewer = new OneDriveTokenRenewer('onedrive:test', static function () use (&$reads): void {
+            ++$reads;
+        });
+        $provider = new OneDriveProviderLifecycle($renewer);
+
+        $provider->startChangeNotify(true);
+        $renewer->startUpload();
+        $expiry = $renewer->expire();
+        $provider->startChangeNotify();
+
+        $t->same(false, $provider->isShutdown());
+        $t->same(true, $provider->isChangeNotifyRunning());
+        $t->same(true, $expiry['refreshed']);
+        $t->same(1, $reads);
+        $t->same([
+            'change-notify-masked',
+            'change-notify-started',
+        ], $provider->events());
+        $t->same([
+            'upload-started',
+            'expiry-refresh-started',
+            'expiry-refresh-ok',
+            'expiry-rearmed',
+        ], $renewer->events());
+    },
     'onedrive provider ignores change notification starts after shutdown' => static function (TestRunner $t): void {
         $renewer = new OneDriveTokenRenewer('onedrive:test', static function (): void {
         });
@@ -90,6 +117,7 @@ return [
         $t->same(true, $example['firstShutdown']['changeNotifyStopped']);
         $t->same(true, $example['secondShutdown']['alreadyShutdown']);
         $t->same(false, $example['expiryAfterShutdownRefreshed']);
+        $t->same(false, $example['maskedChangeNotifyRunning']);
         $t->same(false, $example['changeNotifyRunningAfterShutdown']);
         $t->same(0, $example['metadataReads']);
         $t->same(false, $example['secretInputsRead']);
