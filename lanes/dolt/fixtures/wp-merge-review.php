@@ -370,6 +370,21 @@ return [
         'autocommit' => false,
         'allowCommitConflicts' => false,
     ],
+    'constraintOnlyViolationTables' => ['wp_postmeta', 'wp_import_audit'],
+    'constraintOnlyRollbackOptions' => [
+        'source' => 'migration/import-branch',
+        'sourceCommit' => 'b2274926e0dcd84aab000ee242df5b5e75689eef',
+        'target' => 'refs/heads/main',
+        'autocommit' => true,
+        'allowCommitConflicts' => false,
+    ],
+    'constraintOnlyQueryableOptions' => [
+        'source' => 'migration/import-branch',
+        'sourceCommit' => 'b2274926e0dcd84aab000ee242df5b5e75689eef',
+        'target' => 'refs/heads/main',
+        'autocommit' => false,
+        'allowCommitConflicts' => false,
+    ],
     'expectedMergeStatusRow' => [
         'is_merging' => true,
         'source' => 'migration/import-branch',
@@ -722,6 +737,48 @@ return [
         'merge_failure_summary' => "Automatic merge failed; 4 table(s) are unmerged.\n"
             . "Fix conflicts and constraint violations and then commit the result.\n"
             . "Use 'dolt conflicts' to investigate and resolve conflicts.",
+    ],
+    'expectedConstraintOnlyRollbackState' => [
+        'error' => MergeStatusTable::UNRESOLVED_CONFLICTS_AUTOCOMMIT_ERROR,
+        'rolled_back' => true,
+        'merge_status' => [
+            'is_merging' => false,
+            'source' => null,
+            'source_commit' => null,
+            'target' => null,
+            'unmerged_tables' => null,
+        ],
+        'conflict_rows' => [],
+        'status_guidance' => null,
+        'commit_guidance' => null,
+        'merge_failure_summary' => null,
+    ],
+    'expectedConstraintOnlyQueryableState' => [
+        'error' => MergeStatusTable::UNRESOLVED_CONFLICTS_TRANSACTION_ERROR,
+        'rolled_back' => false,
+        'merge_status' => [
+            'is_merging' => true,
+            'source' => 'migration/import-branch',
+            'source_commit' => 'b2274926e0dcd84aab000ee242df5b5e75689eef',
+            'target' => 'refs/heads/main',
+            'unmerged_tables' => 'wp_postmeta, wp_import_audit',
+        ],
+        'conflict_rows' => [],
+        'status_guidance' => "You have unmerged tables.\n"
+            . "  (fix constraint violations and run \"dolt commit\")\n"
+            . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
+            . "Unmerged paths:\n"
+            . "  (use \"dolt add <table>...\" to mark resolution)\n"
+            . "\tmodified          wp_import_audit\n"
+            . "\tmodified          wp_postmeta",
+        'commit_guidance' => "Unmerged paths:\n"
+            . "  (use \"dolt add <table>...\" to mark resolution)\n"
+            . "\tmodified          wp_import_audit\n"
+            . "\tmodified          wp_postmeta",
+        'merge_failure_summary' => "Automatic merge failed; 2 table(s) are unmerged.\n"
+            . "Fix constraint violations and then commit the result.\n"
+            . "Constraint violations for the working set may be viewed using the 'dolt_constraint_violations' system table.\n"
+            . "They may be queried and removed per-table using the 'dolt_constraint_violations_TABLENAME' system table.",
     ],
     'expectedMergeConstraintError' => ConstraintViolationsTable::UNRESOLVED_CONSTRAINT_VIOLATIONS_ERROR
         . ConstraintViolationsTable::CONSTRAINT_VIOLATIONS_LIST_PREFIX

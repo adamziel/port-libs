@@ -109504,3 +109504,47 @@ provider tests were run.
 Files staged: `lanes/libsqlite/tests/SQLiteHeaderTest.php`,
 `lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`, and
 `audits/integration-status.md`.
+## Integration accepted - Dolt constraint-only rollback visibility - 2026-05-25 12:00 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-dolt-20260525T115414Z.ready`.
+Patch path:
+`.tmux-team/tmp/handoff-candidates/port-dolt-20260525T115414Z.patch`.
+
+Lane/slice/session: `dolt` / `priority-keeper-20260525T115413Z` /
+`port-dolt`. Base and old main were both
+`4ec8facfb5df6a09fd8f6b20c96c8d2073873523`. Patch SHA-256 matched
+`fba7b12b8f4fcb317e1bc526dd72fb520b50e21040704efcf4b0643b14efbc65`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-dolt-priority-keeper-20260525T115413Z-2320267`:
+
+- `php -l lanes/dolt/tests/MergeStatusTableTest.php` passed with no syntax errors.
+- `php -l lanes/dolt/fixtures/wp-merge-review.php` passed with no syntax errors.
+- `php -l lanes/dolt/examples/wordpress-merge-status-review.php` passed with no syntax errors.
+- `php -r 'json_decode(file_get_contents("lanes/dolt/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/dolt/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'` passed.
+- `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed: 1 test file, 200 assertions, 0 failures.
+- `php lanes/dolt/examples/wordpress-merge-status-review.php >/tmp/dolt-example-115414.out` exited 0.
+- Example smoke returned `rolled_back=true`, `queryable_conflict_rows=0`, `unmerged=wp_postmeta, wp_import_audit`, and `constraint_guidance=yes`.
+- `git diff --check` passed.
+
+Root verification gate was open before the serialized run: `/` had
+`133458256` KiB available, load average first field was `6.89`, and
+`pgrep -af '^php tools/run-tests\.php$'` was empty. Root command ran under
+`.tmux-team/tmp/clean-integrator-run.lock` with the lock held only for:
+`php tools/run-tests.php`. Exact result: 214 test files, 26117 assertions,
+0 failures.
+
+Support-library/dependency-closure decision: no new support component was
+activated. The slice reuses the existing bounded Dolt PHP merge/status rollback
+projection and static upstream transaction/constraint guidance; no shell-outs
+and no live-service/provider tests were used.
+
+Files staged:
+`lanes/dolt/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/dolt/examples/wordpress-merge-status-review.php`,
+`lanes/dolt/fixtures/wp-merge-review.php`,
+`lanes/dolt/lane-status.json`,
+`lanes/dolt/notes/wordpress-scenarios.md`,
+`lanes/dolt/tests/MergeStatusTableTest.php`, and
+`audits/integration-status.md`.

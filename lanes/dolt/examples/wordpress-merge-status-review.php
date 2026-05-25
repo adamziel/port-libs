@@ -177,6 +177,20 @@ return [
         $fixture['rootObjectConflicts'],
         $fixture['sqlQueryableConflictOptions'],
     ),
+    'constraintOnlyRollbackState' => $mergeStatus->mergeRollbackState(
+        [],
+        [],
+        $fixture['constraintOnlyViolationTables'],
+        [],
+        $fixture['constraintOnlyRollbackOptions'],
+    ),
+    'constraintOnlyQueryableState' => $mergeStatus->mergeRollbackState(
+        [],
+        [],
+        $fixture['constraintOnlyViolationTables'],
+        [],
+        $fixture['constraintOnlyQueryableOptions'],
+    ),
     'mergeConstraintError' => $constraintViolations->unresolvedMergeError($fixture['constraintViolationsByTable']),
     'mergeConstraintSummary' => $constraintViolations->mergeViolationSummaryText($fixture['constraintViolationsByTable']),
 ];
