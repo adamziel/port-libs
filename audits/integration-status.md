@@ -108576,3 +108576,29 @@ Root verification:
 Support-library/dependency closure: no new support component activated; the slice reuses existing smart HTTP receive-pack redirect handling and native status validation.
 Live-service exclusions: no live network/provider tests were run.
 Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, `audits/integration-status.md`.
+
+## Integration accepted - rclone OneDrive cleanup command rework - 20260525T074803Z
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T073305Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T073305Z.patch`.
+Metadata: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T073305Z.md`.
+Worker log: `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-rclone-rework-20260525T073305Z.log`.
+Lane/slice/session: `rclone` / `priority-rework-20260525T073305Z` / `port-rclone-rework`.
+Old head: `e1b6b46f00730707404ead5a6b819443dcdcb3f4`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-rclone-priority-rework-20260525T073305Z-20260525T074617Z`:
+- `php -l lanes/rclone/src/OneDriveCleanupCommand.php`: passed.
+- `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php`: passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`: passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php`: passed, 1 test file, 32 assertions, 0 failures.
+- `php tools/run-tests.php lanes/rclone/tests`: passed, 35 test files, 3,982 assertions, 0 failures.
+- credential/secret guard for `wordpress-onedrive-cleanup-command-preflight.php`: passed with `secretInputsRead=false`.
+- JSON validation for manifest/status: passed.
+- `git diff --check`: passed.
+
+Root verification:
+- `php tools/run-tests.php`: passed from the same clean worktree.
+
+Support-library/dependency closure: no new support component activated; this reuses the bounded native OneDrive version-cleanup model.
+Live-service exclusions: no live Graph, OAuth, token-store, cloud remote, provider credential, environment-secret, or live-service tests were run.
+Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, `lanes/rclone/notes/wordpress-scenarios.md`, `lanes/rclone/src/OneDriveCleanupCommand.php`, `lanes/rclone/tests/OneDriveCleanupCommandTest.php`, `audits/integration-status.md`.
