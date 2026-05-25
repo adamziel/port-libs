@@ -109055,3 +109055,14 @@ Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples
 - JSON validation: `json ok`
 - Diff check: `git diff --check` passed
 - Root verification: `PASS maps upstream iteration with remove and wait PASS manages wordpress folder services without dropping retained state PASS propagates service map callback errors like upstream each errors PASS sqlite checkpoint store persists snapshots across connections with FileInfo metadata PASS sqlite checkpoint store rejects stale revisions and expires rows before reuse PASS sqlite checkpoint store merges results and lists unexpired folders in stable order PASS folder scan service resumes through a sqlite checkpoint store PASS sqlite checkpoint store rejects unsafe table names and malformed payload rows PASS maps upstream version update ordering semantics PASS merges counters using upstream max-by-device rules PASS compares version vectors including concurrent orderings PASS detects concurrent wordpress edits before merge PASS rejects invalid vector counters PASS wordpress option store persists checkpoint payloads with FileInfo metadata PASS wordpress option store rejects stale revisions and compare-and-swap conflicts PASS wordpress option store expires snapshots and deletes stale options before reuse PASS folder scan service resumes through a wordpress option checkpoint store PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads 214 test files, 25925 assertions, 0 failures `
+
+## Priority clean integrator rclone acceptance - 2026-05-25T083826Z
+
+- Lane: rclone
+- Marker: .tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T082956Z.md
+- Patch sha256: aed2e06eac48551f2b6b6a544f143d9bde9089ccdc2f30e087348a86852e52aa
+- Applied to main: 47e33b5e41613fc523ba16156d09f4111cbc6f07
+- Focused verification: php -l rclone OneDrive source/test/example passed; php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php passed (1 file, 50 assertions); php tools/run-tests.php lanes/rclone/tests passed (35 files, 4007 assertions); local example smoke passed; jq empty rclone JSON passed.
+- Diff check: git diff --check passed.
+- Root verification: php tools/run-tests.php passed.
+- Scope: local/bounded rclone only; no live-service provider tests run.

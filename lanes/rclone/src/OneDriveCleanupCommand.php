@@ -30,19 +30,19 @@ final class OneDriveCleanupCommand
             'providerCalled' => false,
         ];
 
-        $walkError = self::optionalString($options['walkError'] ?? null);
-        if ($walkError !== null && $walkError !== '') {
-            $flow['error'] = $walkError;
-
-            return $flow;
-        }
-
         if (!(bool) ($options['noVersions'] ?? true)) {
             return $flow;
         }
 
         if (!(bool) ($options['featureAvailable'] ?? true)) {
             $flow['error'] = 'cleanup unsupported';
+
+            return $flow;
+        }
+
+        $walkError = self::optionalString($options['walkError'] ?? null);
+        if ($walkError !== null && $walkError !== '') {
+            $flow['error'] = $walkError;
 
             return $flow;
         }
