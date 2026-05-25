@@ -3334,7 +3334,7 @@ return [
     },
     'json display renderer maps upstream javascript builtin variables as keyword highlights' => static function (TestRunner $t): void {
         $before = "export { save } from './save';\n";
-        $after = "window.wp.hooks.addAction('acme.card', () => document.body);\nconsole.log(module.hot, arguments.length);\nrequire('./view');\nexport { save } from './save';\n";
+        $after = "window.wp.hooks.addAction('acme.card', () => document.body);\nconsole.log(module.hot, arguments.length);\nclass BlockPreview extends HTMLElement { connectedCallback() { this.dataset.ready = document.readyState; super.connectedCallback?.(); } }\nrequire('./view');\nexport { save } from './save';\n";
         $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
             $before,
             $after,
@@ -3359,6 +3359,8 @@ return [
         $t->contains('console:keyword', $encoded);
         $t->contains('module:keyword', $encoded);
         $t->contains('arguments:keyword', $encoded);
+        $t->contains('this:keyword', $encoded);
+        $t->contains('super:keyword', $encoded);
         $t->contains('wp:normal', $encoded);
         $t->contains('require:normal', $encoded);
     },

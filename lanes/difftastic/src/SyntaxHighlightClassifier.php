@@ -233,7 +233,7 @@ final class SyntaxHighlightClassifier
 
     private function isJavaScriptBuiltinVariable(string $text): bool
     {
-        return in_array($text, ['arguments', 'module', 'console', 'window', 'document'], true);
+        return in_array($text, ['arguments', 'module', 'console', 'window', 'document', 'this', 'super'], true);
     }
 
     private function isPythonBuiltinFunctionCall(string $source, Token $token): bool

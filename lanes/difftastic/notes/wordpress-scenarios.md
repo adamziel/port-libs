@@ -258,7 +258,7 @@ TypeScript syntax highlighting now also maps upstream constructor/type captures 
 
 JavaScript and TypeScript syntax highlighting now maps upstream uppercase identifier capture priority from difftastic's parser query dependencies. The WordPress block registry display example emits inserted `BlockRegistry` as a `type` span outside a type annotation and `WP_BLOCK_API_VERSION` as a `keyword` span, matching upstream's constructor/type and constant bucket ordering for editor review data.
 
-JavaScript and TypeScript syntax highlighting now also maps upstream `variable.builtin` captures from the exact tree-sitter JavaScript query used by difftastic. The WordPress browser-globals example emits `window`, `document`, `console`, `module`, and `arguments` as `keyword` spans while leaving `wp` and `require` normal, so block review UIs can distinguish host globals from ordinary plugin namespaces without a browser-side parser.
+JavaScript and TypeScript syntax highlighting now also maps upstream `variable.builtin` captures from the exact tree-sitter JavaScript query used by difftastic. The WordPress browser-globals example emits `window`, `document`, `console`, `module`, `arguments`, `this`, and `super` as `keyword` spans while leaving `wp` and `require` normal, so block review UIs can distinguish host globals from ordinary plugin namespaces without a browser-side parser.
 
 Python syntax highlighting now maps the upstream constructor/decorator capture edge. The WordPress Python decorator example emits `CacheWarmup` and `MigrationRunner` as `type` spans while keeping `staticmethod` normal, so migration tooling review data can style imported helper classes without incorrectly promoting builtin function decorators.
 

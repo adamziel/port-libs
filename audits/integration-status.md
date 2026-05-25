@@ -1,5 +1,51 @@
 # Integration Status
 
+## Clean-patch integration accepted - Difftastic - 2026-05-25 UTC
+
+Accepted source from corrected processing of isolated marker
+`.tmux-team/tmp/handoff-candidates/port-difftastic-current-rebase-20260525T013638Z-3fdbe6a1.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-current-rebase-20260525T013638Z-3fdbe6a1.patch`.
+Lane/slice/session: `difftastic` /
+`current-rebase-20260525T013638Z-3fdbe6a1` /
+`current-rebase-prep-style-bundle`.
+
+Patch SHA-256 verification passed:
+`3fdbe6a18c52bc1ec147e736732815512d45323b9dcd28bfd2eb9dd339f6f58d`.
+Apply result: `git apply --check` passed against
+`7e870ee1f54b04fed4517768729ecdc9ddab31f7`, then `git apply` applied the
+patch cleanly. This corrects the immediately preceding audit-only supersession
+entry, where `git apply --check` had been treated too strongly.
+
+Focused commands: `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`,
+`php -l lanes/difftastic/tests/TokenDifferTest.php`, and `php -l
+lanes/difftastic/examples/wordpress-browser-globals-highlight-display.php` all
+reported no syntax errors; `php tools/run-tests.php
+lanes/difftastic/tests/TokenDifferTest.php` passed with `1 test files, 1421
+assertions, 0 failures`; `php
+lanes/difftastic/examples/wordpress-browser-globals-highlight-display.php
+>/tmp/difftastic-example-correction.json` passed and the JSON decode check
+found the expected `this` and `super` browser globals; `jq empty
+lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json`
+passed.
+
+Root command: `php tools/run-tests.php` passed in the clean worktree with `209
+test files, 24588 assertions, 0 failures`. Diff hygiene: `git diff --check`
+passed.
+
+Support-library/dependency-closure decision: no support-library activation; the
+slice is lane-local syntax highlight classifier/display coverage. Live-service
+exclusions: no live-service, provider, credentialed, network, Node/npm, Cargo,
+or secret-bearing tests were run. Files staged:
+`lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/difftastic/fixtures/wordpress-browser-globals-after.js`,
+`lanes/difftastic/lane-status.json`,
+`lanes/difftastic/notes/upstream-inventory.md`,
+`lanes/difftastic/notes/wordpress-scenarios.md`,
+`lanes/difftastic/src/SyntaxHighlightClassifier.php`,
+`lanes/difftastic/tests/TokenDifferTest.php`, and
+`audits/integration-status.md`.
+
 ## Clean-patch supersession - LightningCSS - 2026-05-25 UTC
 
 Superseded marker:
