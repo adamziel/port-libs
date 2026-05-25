@@ -62,6 +62,10 @@ final class SyntaxHighlightClassifier
             return 'type';
         }
 
+        if ($this->isMarkupLanguage($language) && $this->isMarkupDoctypeKeyword($source, $token)) {
+            return 'keyword';
+        }
+
         if ($this->isCssLanguage($language) && $this->isCssKeywordContext($source, $token->start)) {
             return 'keyword';
         }
@@ -242,6 +246,22 @@ final class SyntaxHighlightClassifier
         return $previous === '/'
             && $start >= 2
             && ($source[$start - 2] ?? '') === '<';
+    }
+
+    private function isMarkupDoctypeKeyword(string $source, Token $token): bool
+    {
+        if (strtolower($token->text) !== 'doctype' || $token->start < 2) {
+            return false;
+        }
+
+        $previous = $this->previousNonWhitespaceCharacterPosition($source, $token->start);
+        if ($previous === null || ($source[$previous] ?? '') !== '!') {
+            return false;
+        }
+
+        $beforeBang = $this->previousNonWhitespaceCharacterPosition($source, $previous);
+
+        return $beforeBang !== null && ($source[$beforeBang] ?? '') === '<';
     }
 
     private function isCssKeywordContext(string $source, int $start): bool

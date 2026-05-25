@@ -148,6 +148,8 @@ The WordPress compound migration fixture applies that to a migration helper wher
 
 HTML and XML modes add upstream-style angle-bracket delimiters without changing default code tokenization, where `<` and `>` remain punctuation/operators. This lets block markup, saved post content, and XML export diffs report tag-list changes such as class mutations, inserted `id` attributes, newly inserted inline tags, and namespaced metadata tags while still escaping the rendered review HTML.
 
+HTML display highlighting now maps doctype identifiers as upstream keyword-style spans. The WordPress full-page template example compares a theme `front-page.html` wrapper and emits compact JSON with `DOCTYPE`/`doctype` highlighted as keywords while keeping ordinary landing copy normal, which helps reviewers distinguish document-prolog changes from block content edits.
+
 JSON mode aligns object items by their string property key before comparing values. This maps the upstream `sample_files/json_*.json` pair and keeps WordPress `block.json`/`theme.json` metadata reviews focused on changed values and nested arrays instead of whole-object churn.
 
 Emacs Lisp mode now keeps reader quotes and semicolon comments distinct from strings, and splits flat quoted string/comment lists as individual items. This maps a targeted upstream `strings_*.el` excerpt so large keyword-list changes stay item-focused while preserving the existing Lisp outer-wrapper behavior used to validate WordPress template-wrapper diffs.

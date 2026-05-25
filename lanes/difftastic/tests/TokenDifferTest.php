@@ -3773,6 +3773,18 @@ return [
         $t->true(in_array(['start' => 1, 'end' => 8, 'style' => '1'], $htmlSpans, true), 'HTML tag names should follow upstream tag-as-type capture handling.');
         $t->true(in_array(['start' => 27, 'end' => 29, 'style' => '1'], $htmlSpans, true), 'Nested HTML tag names should also be styled as type captures.');
     },
+    'ansi highlighter maps upstream html doctype keyword capture' => static function (TestRunner $t): void {
+        $line = '<!doctype html><html><body>Block</body></html>';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'html']);
+
+        $doctypeStart = strpos($line, 'doctype');
+        $t->true($doctypeStart !== false, 'Fixture should contain doctype.');
+        $t->true(in_array(['start' => $doctypeStart, 'end' => $doctypeStart + strlen('doctype'), 'style' => '1'], $spans, true), 'HTML doctype captures should follow upstream keyword-style handling.');
+
+        $htmlStart = strpos($line, 'html', 2);
+        $t->true($htmlStart !== false, 'Fixture should contain the document html tag.');
+        $t->true(!in_array(['start' => $htmlStart, 'end' => $htmlStart + strlen('html'), 'style' => '1'], $spans, true), 'The doctype payload should not be promoted as a keyword.');
+    },
     'ansi highlighter maps upstream keywordish constants and operators' => static function (TestRunner $t): void {
         $line = 'const enabled = true && false || null;';
         $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'typescript']);
@@ -4586,6 +4598,29 @@ return [
         $t->contains('true:keyword', $encoded);
         $t->contains('false:keyword', $encoded);
         $t->contains('"Modern card":string', $encoded);
+    },
+    'wordpress html doctype display follows upstream keyword boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-html-doctype-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (['lhs', 'rhs'] as $side) {
+                    foreach (($line[$side]['changes'] ?? []) as $change) {
+                        $changes[] = $change['content'] . ':' . $change['highlight'];
+                    }
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/themes/acme/templates/front-page.html', $decoded['path']);
+        $t->contains('doctype:keyword', $encoded);
+        $t->contains('DOCTYPE:keyword', $encoded);
+        $t->contains('block:normal', $encoded);
     },
     'wordpress block editor json display can expose parser error spans when fallback budget allows' => static function (TestRunner $t): void {
         $before = "wp.blocks.registerBlockType('acme/card', { title: 'Card' });\n";

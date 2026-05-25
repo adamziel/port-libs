@@ -1,5 +1,63 @@
 # Integration Status
 
+## Integration accepted - isolated Difftastic HTML doctype highlight - 2026-05-25 03:55 UTC
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T031309Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T031309Z.patch`.
+Lane/slice/session: `difftastic` / `supervisor-rearm-20260525T031309Z` /
+`port-difftastic`.
+
+Patch SHA-256 verified cleanly:
+`befa98fd210d1061c61a1e327d89175d0812c040f04671440e3aa092a567e355`.
+Direct full-patch apply failed on stale lane manifest/status/inventory context;
+bounded three-way showed conflicts only in
+`lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/difftastic/lane-status.json`, and
+`lanes/difftastic/notes/upstream-inventory.md`. I did not hand-rewrite those
+stale counters. Accepted source was limited to the cleanly applicable behavior
+files plus the WordPress scenario note:
+`lanes/difftastic/src/SyntaxHighlightClassifier.php`,
+`lanes/difftastic/tests/TokenDifferTest.php`,
+`lanes/difftastic/examples/wordpress-html-doctype-highlight-display.php`, and
+`lanes/difftastic/notes/wordpress-scenarios.md`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-difftastic-031309-src`:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-html-doctype-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-html-doctype-highlight-display.php >/tmp/difftastic-html-doctype-example.json
+php -r 'json_decode(file_get_contents("/tmp/difftastic-html-doctype-example.json"), true, 512, JSON_THROW_ON_ERROR); echo "example json ok\n";'
+git diff --check
+```
+
+Results: syntax checks passed; focused Difftastic test passed with `1 test
+files, 1520 assertions, 0 failures`; the WordPress example emitted valid JSON;
+`git diff --check` passed.
+
+Root gate: waited for pre-existing no-argument root PID `1376162` to clear,
+then ran `php tools/run-tests.php` in the same clean worktree. Result:
+`212 test files, 25054 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The slice
+reuses the existing lane-local syntax highlighter/rendering path; no live
+service provider tests were run.
+
+Files staged:
+
+```text
+audits/integration-status.md
+lanes/difftastic/examples/wordpress-html-doctype-highlight-display.php
+lanes/difftastic/notes/wordpress-scenarios.md
+lanes/difftastic/src/SyntaxHighlightClassifier.php
+lanes/difftastic/tests/TokenDifferTest.php
+```
+
 ## Integration accepted - isolated libsqlite JSON inspection dispatch slice - 2026-05-25 03:35 UTC
 
 Accepted isolated ready marker:
