@@ -99191,3 +99191,17 @@ Files staged:
 - `lanes/rclone/notes/upstream-inventory.md`
 - `lanes/rclone/src/OneDriveDeltaCursor.php`
 - `lanes/rclone/tests/OneDriveDeltaCursorTest.php`
+
+## Clean-patch integration repair - rclone missing fixture - 20260525T003953Z
+
+Repair for accepted marker: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T002424Z.ready`
+Patch: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T002424Z.patch`
+Lane/slice/session: `rclone` / `supervisor-next-20260525T002424Z` / `port-rclone`
+Decision: bounded missing fixture inclusion after root found `lanes/rclone/tests/OneDriveDeltaCursorTest.php` requiring absent `lanes/rclone/examples/wordpress-onedrive-change-notify-media-watch.php`.
+Focused verification: `php -l lanes/rclone/examples/wordpress-onedrive-change-notify-media-watch.php` passed; `php tools/run-tests.php lanes/rclone/tests/OneDriveDeltaCursorTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-rclone-missing-fixture-20260525T003953Z`.
+Support-library/dependency closure: no new support-library activation; fixture-only closure for already accepted rclone slice.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/rclone/examples/wordpress-onedrive-change-notify-media-watch.php`
+- `audits/integration-status.md`
