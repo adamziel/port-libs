@@ -99770,3 +99770,13 @@ Root verification: `php tools/run-tests.php` passed with 208 test files, 24529 a
 Support-library/dependency closure: no new support-library activation; this reuses the lane-local `PackageResolver` and adds a lane-local `ImportRecord` DTO only. `js-package-resolution-core` remains deferred.
 Live-service exclusions: none; no live-service provider tests were run.
 Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/ImportRecord.php`, `lanes/esbuild/src/PackageResolver.php`, `lanes/esbuild/tests/PackageResolverTest.php`, `audits/integration-status.md`.
+
+## Integration accepted - quadrable current rebase int read/write guard - 2026-05-25 01:35 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-current-rebase-20260525T013410Z-8c6a81a328af.ready`. Patch: `.tmux-team/tmp/handoff-candidates/port-quadrable-current-rebase-20260525T013410Z-8c6a81a328af.patch`. Lane/slice/session: `quadrable` / `current-rebase-20260525T013410Z-8c6a81a328af` / `current-head-rebase-prep-storage-data`. Patch sha256 verified: `441c1de7c34ca01ad0e6c308465f0bbab99faa5f66faf5029ee43bca2eeacf83`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-quadrable-current-rebase-20260525T013410Z-013432`: `php -l lanes/quadrable/src/QuadbStore.php` PASS; `php -l lanes/quadrable/tests/QuadbStoreTest.php` PASS; `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json` PASS; `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` PASS (1 test file, 908 assertions, 0 failures); `php tools/run-tests.php lanes/quadrable/tests` PASS (10 test files, 3097 assertions, 0 failures); `git diff --check` PASS.
+
+Root verification: no exact no-argument root harness was active before launch; `php tools/run-tests.php` PASS (209 test files, 24579 assertions, 0 failures).
+
+Support-library/dependency closure: no new support component activated; this slice extends the existing bounded QuadbStore integer read/write guard and metadata evidence only. Live-service exclusions: no provider, credentialed, network, or upstream C++ runner tests were run. Files staged: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/lane-status.json`, `lanes/quadrable/notes/wordpress-scenarios.md`, `lanes/quadrable/src/QuadbStore.php`, `lanes/quadrable/tests/QuadbStoreTest.php`, and `audits/integration-status.md`.

@@ -156,6 +156,89 @@ return [
             quadrableQuadbRemoveDir($storeDir);
         }
     },
+    'native quadb store maps get put and del int command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $missingPut = QuadbStore::putIntegerCommandOutput(
+                $missingDir,
+                '1',
+                'wp_options:siteurl=https://example.test'
+            );
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingPut);
+            $t->true(!is_dir($missingDir), 'missing put --int command should not create the database directory');
+
+            $missingGet = QuadbStore::getIntegerCommandOutput($missingDir, '1');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingGet);
+            $t->true(!is_dir($missingDir), 'missing get --int command should not create the database directory');
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::putIntegerCommandOutput($storeDir, 'abc', 'ignored'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: int range exceeded\n",
+            ], QuadbStore::getIntegerCommandOutput($storeDir, '-1'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::deleteIntegerCommandOutput($storeDir, '2147483648'));
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::putIntegerCommandOutput(
+                $storeDir,
+                '1x',
+                'wp_options:siteurl=https://example.test'
+            ));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "wp_options:siteurl=https://example.test\n",
+                'stderr' => '',
+            ], QuadbStore::getIntegerCommandOutput($storeDir, '1'));
+
+            $rootBeforeMissingDelete = QuadbStore::open($storeDir)->rootText();
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::deleteIntegerCommandOutput($storeDir, '2'));
+            $t->same($rootBeforeMissingDelete, QuadbStore::open($storeDir)->rootText());
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::deleteIntegerCommandOutput($storeDir, '1'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: key not found in db\n",
+            ], QuadbStore::getIntegerCommandOutput($storeDir, '1'));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
     'native quadb store maps mineHash and length command output' => static function (TestRunner $t): void {
         $missingDir = quadrableQuadbTempDir();
         $storeDir = quadrableQuadbTempDir();

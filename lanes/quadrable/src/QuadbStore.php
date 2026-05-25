@@ -532,6 +532,29 @@ USAGE;
     }
 
     /**
+     * Native stdout/stderr/exit-code shape for `quadb get --int <key>`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function getIntegerCommandOutput(string $directory, string $key, bool $trackKeys = true): array
+    {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)
+                    ->getInteger(self::parseQuadbCliIntegerKey($key)) . "\n",
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
      * Native stdout/stderr/exit-code shape for `quadb checkout [<head>]`.
      *
      * @return array{exitCode: int, stdout: string, stderr: string}
@@ -615,6 +638,37 @@ USAGE;
     }
 
     /**
+     * Native stdout/stderr/exit-code shape for `quadb put --int <key> <val>`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function putIntegerCommandOutput(
+        string $directory,
+        string $key,
+        string $value,
+        bool $trackKeys = true
+    ): array {
+        try {
+            self::openForCommand($directory, $trackKeys)->putInteger(
+                self::parseQuadbCliIntegerKey($key),
+                $value
+            );
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
      * Native stdout/stderr/exit-code shape for `quadb del <key>`.
      *
      * @return array{exitCode: int, stdout: string, stderr: string}
@@ -623,6 +677,30 @@ USAGE;
     {
         try {
             self::openForCommand($directory, $trackKeys)->delete($key);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
+     * Native stdout/stderr/exit-code shape for `quadb del --int <key>`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function deleteIntegerCommandOutput(string $directory, string $key, bool $trackKeys = true): array
+    {
+        try {
+            self::openForCommand($directory, $trackKeys)->deleteInteger(self::parseQuadbCliIntegerKey($key));
 
             return [
                 'exitCode' => 0,
