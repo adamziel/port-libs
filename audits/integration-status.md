@@ -100720,3 +100720,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T023734Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch rejection - syncthing - 2026-05-25 02:45 UTC
+
+Ready marker: `port-syncthing-20260525T024024Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T024024Z.patch`
+Lane/slice/session: `syncthing` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `02a075c01e8511cfd774250ecff82429224f7064`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-syncthing-20260525T024535Z/lanes/syncthing/tests/FolderWatchScanSchedulerTest.php 
+- `php tools/run-tests.php lanes/syncthing/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-syncthing-20260525T024535Z/lanes/syncthing/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T024024Z.patch`, then fix the failing focused command above without broadening the slice.
+
