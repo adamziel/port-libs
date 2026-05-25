@@ -29,4 +29,9 @@ $article = $extractor->extractWithOptions($source, [
     'keepClasses' => true,
 ]);
 
-echo $extractor->toWordPressBlocks($article) . PHP_EOL;
+$blocks = $extractor->toWordPressBlocks($article);
+
+echo 'HTML embed blocks: ' . substr_count($blocks, '<!-- wp:html -->') . "\n";
+echo 'Trusted video retained: ' . (str_contains($blocks, 'https://video.example.test/embed/123') ? 'yes' : 'no') . "\n";
+echo 'Widget iframe removed: ' . (str_contains($blocks, 'widgets.example.test') ? 'no' : 'yes') . "\n";
+echo 'Paragraph-wrapped iframes: ' . (str_contains($blocks, "<!-- wp:paragraph -->\n<iframe") ? 'yes' : 'no') . "\n";

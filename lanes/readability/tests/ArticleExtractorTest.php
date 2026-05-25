@@ -2713,6 +2713,10 @@ return [
         $t->contains('At root', $fixtureText($article->contentHtml));
         $t->contains('In a paragraph', $fixtureText($article->contentHtml));
         $t->contains('In a div', $fixtureText($article->contentHtml));
+
+        $blocks = $extractor->toWordPressBlocks($article);
+        $t->same(3, substr_count($blocks, '<!-- wp:html -->'), 'standalone upstream video iframes should become raw HTML blocks for review');
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<iframe"), 'standalone retained iframes should not be paragraph-wrapped');
     },
     'maps Mozilla videos-2 JSON-LD metadata and video article body' => static function (TestRunner $t) use ($fixtureText, $iframeSources, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/videos-2';
@@ -2769,6 +2773,10 @@ return [
         $t->same(false, str_contains($default->contentHtml, '<iframe'), 'default video whitelist should remove unknown iframe hosts');
         $t->contains('https://video.example.test/embed/123', $custom->contentHtml);
         $t->same(false, str_contains($custom->contentHtml, 'widgets.example.test'), 'custom regex should not keep unrelated widgets');
+
+        $blocks = $extractor->toWordPressBlocks($custom);
+        $t->same(1, substr_count($blocks, '<!-- wp:html -->'), 'trusted custom video iframes should serialize as reviewable HTML blocks');
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<iframe"), 'trusted custom video iframes should not be paragraph-wrapped');
     },
     'honors upstream maxElemsToParse extraction option' => static function (TestRunner $t): void {
         $extractor = new ArticleExtractor();

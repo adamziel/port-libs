@@ -423,6 +423,8 @@ final class ArticleExtractor
             && $this->isWordPressListBlock($element)) {
             $metadata = $tag === 'ol' ? ' {"ordered":true}' : '';
             $blocks[] = '<!-- wp:list' . $metadata . ' -->' . "\n" . $html . "\n" . '<!-- /wp:list -->';
+        } elseif (in_array($tag, ['iframe', 'object', 'embed'], true)) {
+            $blocks[] = '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
         } elseif ($tag === 'table') {
             $blocks[] = '<!-- wp:table -->' . "\n" . '<figure class="wp-block-table">' . $html . '</figure>' . "\n" . '<!-- /wp:table -->';
         } else {
@@ -655,7 +657,7 @@ final class ArticleExtractor
     private function isWordPressBlockElement(\DOMElement $element): bool
     {
         return preg_match('/^h[1-6]$/', strtolower($element->tagName)) === 1
-            || in_array(strtolower($element->tagName), ['article', 'blockquote', 'div', 'figure', 'header', 'hr', 'img', 'ol', 'p', 'pre', 'section', 'table', 'ul'], true);
+            || in_array(strtolower($element->tagName), ['article', 'blockquote', 'div', 'embed', 'figure', 'header', 'hr', 'iframe', 'img', 'object', 'ol', 'p', 'pre', 'section', 'table', 'ul'], true);
     }
 
     /**

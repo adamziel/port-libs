@@ -1,5 +1,19 @@
 # Integration Status
 
+## Integration accepted - isolated Readability standalone video HTML block slice - 2026-05-25 01:54 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-readability-current-rebase-20260525T013417Z-1a30c081.ready` with patch `.tmux-team/tmp/handoff-candidates/port-readability-current-rebase-20260525T013417Z-1a30c081.patch`.
+
+Lane/slice/session: `readability` / `rearmer-current-rebase-20260525T013417Z` / `port-readability-current-rebase-prep`. Patch sha256 `1a30c0812c3b988f2e373e34e46d1178d73cee5e91389da4e2d86738e7ce17eb` matched before application. Applied cleanly in detached clean worktree `/tmp/port-clean-integrator-readability-current-rebase-20260525T013417Z-015241` from old head `bdd57f0a98e41716852d84214c74e7101c8133c6`.
+
+Focused verification repeated in the clean worktree: `php -l lanes/readability/src/ArticleExtractor.php`, `php -l lanes/readability/tests/ArticleExtractorTest.php`, and `php -l lanes/readability/examples/wordpress-custom-video-embed-preservation.php` all passed. `jq empty lanes/readability/UPSTREAM_TEST_MANIFEST.json lanes/readability/lane-status.json` passed. `php tools/run-tests.php lanes/readability/tests` passed with 1 selected test file, 1849 assertions, 0 failures. `php lanes/readability/examples/wordpress-custom-video-embed-preservation.php >/tmp/readability-example-integrator.txt` passed. `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` ran in the same clean worktree and passed with 209 test files, 24620 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. This is a lane-local serializer cleanup using the existing bounded DOM cleanup and WordPress block serializer. Live-service exclusions: no upstream npm oracle rerun, live-service, provider, credentialed, network, or browser tests were run.
+
+Files staged: `lanes/readability/UPSTREAM_TEST_MANIFEST.json`, `lanes/readability/examples/wordpress-custom-video-embed-preservation.php`, `lanes/readability/lane-status.json`, `lanes/readability/notes/upstream-inventory.md`, `lanes/readability/notes/wordpress-scenarios.md`, `lanes/readability/src/ArticleExtractor.php`, `lanes/readability/tests/ArticleExtractorTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - isolated Syncthing watcher pause restart slice - 2026-05-25 01:52 UTC
 
 Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-syncthing-current-rebase-20260525T013424Z-0b8f5b.ready` with patch `.tmux-team/tmp/handoff-candidates/port-syncthing-current-rebase-20260525T013424Z-0b8f5b.patch`.
