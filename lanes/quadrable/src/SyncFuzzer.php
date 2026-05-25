@@ -124,7 +124,8 @@ final class SyncFuzzer
      *     maxShadowNodeId: int,
      *     maxSnapshotBytes: int,
      *     maxTrackedSharedNodes: int,
-     *     rootDigest: ?string
+     *     rootDigest: ?string,
+     *     trialDigest: ?string
      * }
      */
     public static function summarizeResults(array $results): array
@@ -148,8 +149,10 @@ final class SyncFuzzer
             'maxSnapshotBytes' => 0,
             'maxTrackedSharedNodes' => 0,
             'rootDigest' => null,
+            'trialDigest' => null,
         ];
         $rootDigestContext = hash_init('sha256');
+        $trialDigestContext = hash_init('sha256');
 
         foreach ($results as $result) {
             $summary['maxRoundTrips'] = max($summary['maxRoundTrips'], $result['roundTrips']);
@@ -166,9 +169,25 @@ final class SyncFuzzer
             $summary['maxTrackedSharedNodes'] = max($summary['maxTrackedSharedNodes'], $result['trackedSharedNodeCount'] ?? 0);
             hash_update($rootDigestContext, pack('N', $result['trial']));
             hash_update($rootDigestContext, hex2bin($result['rootHash']));
+            hash_update($trialDigestContext, pack(
+                'N*',
+                $result['trial'],
+                $result['numElems'],
+                $result['numAlterations'],
+                $result['roundTrips'],
+                $result['requests'],
+                $result['responses'],
+                $result['diffCount'],
+                $result['scanDiffCount']
+            ));
+            hash_update($trialDigestContext, self::packUint64($result['maxShadowNodeId'] ?? 0));
+            hash_update($trialDigestContext, self::packUint64($result['snapshotBytes'] ?? 0));
+            hash_update($trialDigestContext, self::packUint64($result['trackedSharedNodeCount'] ?? 0));
+            hash_update($trialDigestContext, hex2bin($result['rootHash']));
         }
         if ($results !== []) {
             $summary['rootDigest'] = hash_final($rootDigestContext);
+            $summary['trialDigest'] = hash_final($trialDigestContext);
         }
 
         return $summary;
@@ -589,5 +608,14 @@ final class SyncFuzzer
         usort($signature, static fn (int $a, int $b): int => $a <=> $b);
 
         return $signature;
+    }
+
+    private static function packUint64(int $value): string
+    {
+        if ($value < 0) {
+            throw new \InvalidArgumentException('watchdog counter cannot be negative');
+        }
+
+        return pack('N2', intdiv($value, 0x100000000), $value & 0xFFFFFFFF);
     }
 }

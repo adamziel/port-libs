@@ -1,4 +1,42 @@
 
+## Clean-patch integration accepted - Quadrable trial digest - 2026-05-25
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T054606Z.ready`
+with patch
+`.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T054606Z.patch`.
+Lane/slice/session: `quadrable` /
+`watchdog-next-20260525T054606Z` / `port-quadrable`.
+
+Patch SHA-256 was verified:
+`59cfe5f9c4e626d8ec32e163054ba5d7b153e404d80fcf0924a8d1d73f247b9b`.
+Direct `git apply --check` failed on stale lane manifest/status/notes context;
+bounded `git apply --3way` applied the behavioral files cleanly. Stale
+coordination conflicts were resolved by keeping current accepted
+manifest/status/notes text, so no status-counter merge was accepted from the
+stale patch.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-quadrable-watchdog-next-20260525T054606Z-2414207`:
+`php -l lanes/quadrable/src/SyncFuzzer.php` passed;
+`php -l lanes/quadrable/tests/SyncTest.php` passed;
+`php tools/run-tests.php lanes/quadrable/tests/SyncTest.php` passed with
+`1 test files, 269 assertions, 0 failures`;
+`php lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php 2 0` passed and
+emitted matching root digests with distinct in-memory/persisted
+`trialDigest` values; `git diff --check` passed.
+
+Root verification: exact no-argument root gate was empty before launch, then
+`php tools/run-tests.php` passed in the same clean worktree with
+`213 test files, 25642 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The patch
+uses the existing lane-local `SyncFuzzer`, tracked snapshot persistence, and
+WordPress watchdog example surface only. No live-service tests were involved.
+
+Files staged: `lanes/quadrable/src/SyncFuzzer.php`,
+`lanes/quadrable/tests/SyncTest.php`, and `audits/integration-status.md`.
+
 ## Clean-patch integration - LightningCSS - 20260525T0630Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T060503Z.ready`

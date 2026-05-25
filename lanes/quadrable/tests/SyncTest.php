@@ -500,10 +500,13 @@ return [
         $t->same(0, $summary['maxSnapshotBytes']);
         $t->same(0, $summary['maxTrackedSharedNodes']);
         $t->same(64, strlen((string) $summary['rootDigest']));
+        $t->same(64, strlen((string) $summary['trialDigest']));
         $t->same($summary['rootDigest'], SyncFuzzer::summarizeResults($results)['rootDigest']);
+        $t->same($summary['trialDigest'], SyncFuzzer::summarizeResults($results)['trialDigest']);
 
         $persistedResults = $fuzzer->runWithPersistedTrackedSnapshots(2, 0);
         $persistedSummary = SyncFuzzer::summarizeResults($persistedResults);
+        $matchingInMemorySummary = SyncFuzzer::summarizeResults($fuzzer->run(2, 0));
 
         $t->same(2, $persistedSummary['trials']);
         $t->same($persistedResults[0]['rootHash'], $persistedSummary['firstRoot']);
@@ -514,6 +517,9 @@ return [
         $t->true($persistedSummary['maxSnapshotBytes'] > 0, 'persisted watchdog summary should expose snapshot bytes');
         $t->true($persistedSummary['maxTrackedSharedNodes'] > 0, 'persisted watchdog summary should expose shared tracked nodes');
         $t->same(64, strlen((string) $persistedSummary['rootDigest']));
+        $t->same(64, strlen((string) $persistedSummary['trialDigest']));
+        $t->same($matchingInMemorySummary['rootDigest'], $persistedSummary['rootDigest']);
+        $t->true($matchingInMemorySummary['trialDigest'] !== $persistedSummary['trialDigest'], 'trial digest should include persisted watchdog counters');
 
         $emptySummary = SyncFuzzer::summarizeResults([]);
         $t->same(0, $emptySummary['trials']);
@@ -524,6 +530,7 @@ return [
         $t->same(0, $emptySummary['maxSnapshotBytes']);
         $t->same(0, $emptySummary['maxTrackedSharedNodes']);
         $t->same(null, $emptySummary['rootDigest']);
+        $t->same(null, $emptySummary['trialDigest']);
     },
     'sync fuzzer watchdog report flags budget overruns deterministically' => static function (TestRunner $t): void {
         $fuzzer = new SyncFuzzer(maxRoundTrips: 200);
