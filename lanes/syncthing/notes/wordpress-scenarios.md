@@ -2,6 +2,14 @@
 
 Resumable media/content synchronization for local-first WordPress and Playground folders.
 
+The route-registry watcher recovery slice now exposes bounded WordPress/local
+REST routes for due filesystem watcher restarts. `GET
+/syncthing/db/watch/restarts` returns only restarts whose backoff has elapsed,
+and `POST /syncthing/db/watch/restarts/complete` acknowledges one folder's
+completed recovery without consuming already queued media events before their
+normal delayed scan window. This reuses the existing watcher scheduler and
+cleanup-status component; no new support component is needed.
+
 ## Current Native Slice
 
 Native scanner-style content blocks now match Syncthing's `lib/scanner/blocks_test.go`

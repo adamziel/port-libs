@@ -42,6 +42,44 @@ final class FolderScanRouteRegistry
         }
 
         if ($watchScheduler !== null) {
+            $registry->register('GET', '/syncthing/db/watch/restarts', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
+                return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
+                    'ok' => true,
+                    'status' => 'ok',
+                    'restarts' => $watchScheduler->dueWatcherRestarts($now),
+                ]);
+            }, [
+                'upstreamRoute' => 'lib/model/folder.go restartWatchChan due watcher restart status',
+                'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/watch/restarts'),
+                'queued' => false,
+                'watcherRestartStatus' => true,
+            ]);
+            $registry->register('POST', '/syncthing/db/watch/restarts/complete', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
+                $folder = isset($payload['folder']) ? trim((string) $payload['folder']) : '';
+                if ($folder === '') {
+                    return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_BAD_REQUEST, [
+                        'ok' => false,
+                        'status' => 'error',
+                        'error' => 'missing_folder',
+                        'message' => 'watcher restart completion requires a folder',
+                    ]);
+                }
+
+                $completed = $watchScheduler->completeDueWatcherRestart($folder, $now);
+
+                return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
+                    'ok' => true,
+                    'status' => $completed === null ? 'not_due' : 'completed',
+                    'folder' => $folder,
+                    'completed' => $completed,
+                    'restarts' => $watchScheduler->dueWatcherRestarts($now),
+                ]);
+            }, [
+                'upstreamRoute' => 'lib/model/folder.go restartWatchChan watcher restart completion',
+                'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/watch/restarts/complete'),
+                'queued' => false,
+                'watcherRestartComplete' => true,
+            ]);
             $registry->register('GET', '/syncthing/db/watch/cleanups', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
                 return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
                     'ok' => true,

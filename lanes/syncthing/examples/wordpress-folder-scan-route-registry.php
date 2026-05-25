@@ -26,7 +26,12 @@ try {
 
     $coordinator = new FolderScanApiCoordinator($scheduler);
     $queue = new FolderScanApiRequestQueue($coordinator);
-    $watchScheduler = new FolderWatchScanScheduler($scheduler, notifyDelaySeconds: 5, recentCleanupTtlSeconds: 20);
+    $watchScheduler = new FolderWatchScanScheduler(
+        $scheduler,
+        notifyDelaySeconds: 5,
+        watchRestartInitialDelaySeconds: 5,
+        recentCleanupTtlSeconds: 20,
+    );
     $registry = FolderScanRouteRegistry::forScanApi($coordinator, $queue, $watchScheduler);
 
     $accepted = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/scan/queue', [
@@ -37,17 +42,28 @@ try {
     ], now: 1000);
     $completed = $queue->runNext(now: 1001);
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 1010);
+    $watchScheduler->recordWatcherError('wordpress-media', 'watch backend closed after media edit', scanOnWatchError: false, now: 1011);
+    $restartStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/restarts', [], now: 1016);
+    $restartCompleted = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/watch/restarts/complete', [
+        'folder' => 'wordpress-media',
+    ], now: 1016);
+    $delayedWatchScan = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1020);
+
+    $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 1030);
     $scheduler->removeFolder('wordpress-media');
-    $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1015);
-    $cleanupStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/cleanups', [], now: 1015);
+    $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1035);
+    $cleanupStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/cleanups', [], now: 1035);
     $cleanupAcknowledged = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/watch/cleanups/ack', [
         'folder' => 'wordpress-media',
-    ], now: 1015);
+    ], now: 1035);
 
     echo json_encode([
         'registeredRoutes' => $registry->routes(),
         'accepted' => $accepted->toArray(),
         'completed' => $completed?->toArray(),
+        'restartStatus' => $restartStatus->toArray(),
+        'restartCompleted' => $restartCompleted->toArray(),
+        'delayedWatchScanRevision' => $delayedWatchScan->snapshot('wordpress-media')?->revision,
         'cleanupStatus' => $cleanupStatus->toArray(),
         'cleanupAcknowledged' => $cleanupAcknowledged->toArray(),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

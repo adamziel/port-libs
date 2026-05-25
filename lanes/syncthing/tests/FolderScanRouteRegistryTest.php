@@ -147,6 +147,53 @@ return [
             syncthing_folder_scan_route_rm($root);
         }
     },
+    'route registry exposes due watcher restart status and completion without consuming queued events' => static function (TestRunner $t): void {
+        $root = syncthing_folder_scan_route_root();
+        try {
+            syncthing_folder_scan_route_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore()));
+            $watchScheduler = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+            $registry = FolderScanRouteRegistry::forScanApi(new FolderScanApiCoordinator($scheduler), watchScheduler: $watchScheduler);
+
+            $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 4000);
+            $watchScheduler->recordWatcherError('wordpress-media', 'watch backend closed after event', scanOnWatchError: false, now: 4001);
+
+            $notDue = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/restarts', [], now: 4004);
+            $missingFolder = $registry->dispatch('POST', '/syncthing/db/watch/restarts/complete', [], now: 4005);
+            $due = $registry->dispatch('GET', '/syncthing/db/watch/restarts', [], now: 4006);
+            $completed = $registry->dispatch('POST', '/syncthing/db/watch/restarts/complete', [
+                'folder' => 'wordpress-media',
+            ], now: 4006);
+            $afterComplete = $watchScheduler->watchStatus('wordpress-media', 4006);
+            $scanAfterDelay = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 4010);
+            $routes = $registry->routes();
+
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $notDue->statusCode);
+            $t->same([], $notDue->body['restarts']);
+            $t->same(FolderScanApiCoordinator::HTTP_BAD_REQUEST, $missingFolder->statusCode);
+            $t->same('missing_folder', $missingFolder->body['error']);
+            $t->same(['wordpress-media'], array_keys($due->body['restarts']));
+            $t->same('watch backend closed after event', $due->body['restarts']['wordpress-media']['lastError'] ?? null);
+            $t->same(true, $due->body['restarts']['wordpress-media']['due'] ?? null);
+            $t->same('completed', $completed->body['status']);
+            $t->same(1, $completed->body['completed']['restartAttempt'] ?? null);
+            $t->same([], $completed->body['restarts']);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $afterComplete['pendingPaths'] ?? []);
+            $t->same(4010, $afterComplete['nextScanAt'] ?? null);
+            $t->same(1, $scanAfterDelay->snapshot('wordpress-media')?->revision);
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/restarts', $routes[3]['wordpressRoute']);
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/restarts/complete', $routes[4]['wordpressRoute']);
+        } finally {
+            syncthing_folder_scan_route_rm($root);
+        }
+    },
 ];
 
 function syncthing_folder_scan_route_root(): string

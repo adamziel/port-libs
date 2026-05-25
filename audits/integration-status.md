@@ -1,4 +1,30 @@
 
+## Clean-patch accepted - Syncthing watcher restart routes - 2026-05-25 23:00 UTC
+
+Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-dev-syncthing-20260525T225209Z.ready`.
+
+Decision evidence:
+- Current clean base: `19839676507182f275931a5139d498cbde6b1c83`.
+- Patch sha256 matched marker: `785a0f8deb02e9af6577db5ba85826dcfa7c5777f78afe4e66c8d3243d554813`.
+- The marker contained required `lane=syncthing`, `patch=...`, and `metadata=...` fields and had no stale rework marker.
+- The accepted patch is lane-scoped to `lanes/syncthing/**` and adds WordPress/local watcher restart status and completion routes around existing `FolderWatchScanScheduler` primitives.
+
+Focused verification from detached clean worktree:
+- `php -l lanes/syncthing/src/FolderScanRouteRegistry.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` passed.
+- JSON validation passed for `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json` and `lanes/syncthing/lane-status.json`.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` passed and emitted registered watcher restart routes, completed restart acknowledgement, delayed watch scan revision `2`, and cleanup acknowledgement.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed: `1 test files, 50 assertions, 0 failures`.
+- `git diff --check -- lanes/syncthing` passed.
+
+Serialized root verification:
+- Initial pre-root gate was deferred because exact no-argument root PID `1426748` was active; the integrator waited outside the lock and rechecked.
+- Runtime gate before root: `/` above `86000000` KiB available, load below `25`, and no exact no-argument root harness was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed from the exact clean candidate snapshot: `214 test files, 26486 assertions, 0 failures`.
+
+Accepted slice: exposes bounded Syncthing watcher restart status/completion through the WordPress route registry while preserving queued media events until their delayed scan window. No support-library row was activated.
+
 ## Clean-patch accepted - Quadrable CRLF stdin FullKeys proofs - 2026-05-25 22:45 UTC
 
 Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-quadrable-closure-20260525T173854Z.ready`.
