@@ -109407,3 +109407,25 @@ Root verification:
 Support-library/dependency closure: no support-library activation; lane-local libsqlite JSON pretty scalar dispatch retry only.
 Live-service exclusions: none; no live-service provider tests run.
 Files staged: libsqlite lane files touched by the patch plus `audits/integration-status.md`.
+
+## Integration accepted - libsqlite priority keeper true scalar - 2026-05-25 10:05 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T095811Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T095811Z.patch`.
+Lane/slice/session: `libsqlite` / `priority-keeper-rework-20260525T095811Z` / `port-libsqlite-rework`.
+Patch sha256 verified: `0e5a7f0ab49d431c76bdd0ab5a0108a1a5976e45838fbc428fc9f8bf7d27cbdf`.
+Clean worktree: `/tmp/port-clean-integrator-libsqlite-priority-keeper-20260525T095811Z-169358` from old main `fcf9904d3550fb443193e37cc57858aa92844701`.
+
+Focused verification in the clean worktree:
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, 1 file / 2054 assertions / 0 failures.
+- `git diff --check`: passed.
+
+Root verification:
+- `php tools/run-tests.php`: passed, no failures. Summary captured in `/tmp/libsqlite-root-095811.out`.
+
+Support-library/dependency closure: no new support-library activation; this micro-slice reuses lane-local JSON canonicalization, JSON5, JSONB, BLOB, subtype, and pretty-format support only.
+Live-service exclusions: none applicable; no live-service provider tests were run.
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `audits/integration-status.md`.

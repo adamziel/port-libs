@@ -31,6 +31,8 @@ pretty formatter support and counts no shared support-library progress.
 Priority-keeper refresh 2026-05-25T09:23Z keeps the same behavior cluster and
 adds focused malformed JSON propagation coverage through the argument-vector
 SQL-dispatch path, preserving the already accepted manifest/status evidence.
+Priority-keeper refresh 2026-05-25T09:58Z adds the missing direct-dispatch
+`true` scalar assertion without changing the WordPress smoke surface.
 
 ## `json_each()` Option-Value Expansion Scenario
 

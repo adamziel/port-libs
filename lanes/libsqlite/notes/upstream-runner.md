@@ -37,6 +37,10 @@ Native PHP evidence after rework is recorded in `lane-status.json`.
 The latest additive direct-dispatch and argument-vector boolean false scalar
 checks passed the WordPress smoke and focused `SQLiteHeaderTest.php` with 2053
 assertions and 0 failures in the clean integrator worktree.
+Priority-keeper refresh 2026-05-25T09:58Z adds the missing direct-dispatch
+`true` scalar assertion so the native evidence covers both boolean SQL scalar
+values through direct and argument-vector dispatch. Focused PHP verification
+passed with 1 selected file, 2054 assertions, and 0 failures.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
