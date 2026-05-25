@@ -65,6 +65,25 @@ return [
         $t->same(['exports/site.wxr: Failed to remove versions: Graph delete denied'], $flow['logs']);
         $t->same(null, $flow['error']);
     },
+    'onedrive cleanup command logs per object list errors and continues' => static function (TestRunner $t): void {
+        $flow = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+                'listError' => 'Graph versions list denied',
+            ],
+            [
+                'remote' => 'uploads/image.jpg',
+                'versions' => ['current-image', 'old-image'],
+            ],
+        ]);
+
+        $t->same(2, $flow['walkedObjects']);
+        $t->same(2, $flow['versionRequests']);
+        $t->same(['uploads/image.jpg#old-image'], $flow['deletedVersions']);
+        $t->same(['exports/site.wxr: Failed to remove versions: Graph versions list denied'], $flow['logs']);
+        $t->same(null, $flow['error']);
+    },
     'onedrive cleanup command fails traversal and type errors before version cleanup completes' => static function (TestRunner $t): void {
         $walk = OneDriveCleanupCommand::run([], [
             'walkError' => 'failed to list root',
@@ -106,6 +125,8 @@ return [
         $t->same(['exports/site.wxr#old-review', 'exports/site.wxr#pre-import'], $example['dryRunSkippedVersions']);
         $t->same(['uploads/2026/05/import.jpg#superseded'], $example['continuedAfterErrorDeletedVersions']);
         $t->same(['exports/site.wxr: Failed to remove versions: Graph delete denied'], $example['continuedAfterErrorLogs']);
+        $t->same(['uploads/2026/05/import.jpg#superseded'], $example['continuedAfterListErrorDeletedVersions']);
+        $t->same(['exports/site.wxr: Failed to remove versions: Graph versions list denied'], $example['continuedAfterListErrorLogs']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];

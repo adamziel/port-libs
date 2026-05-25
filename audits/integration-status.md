@@ -108666,3 +108666,20 @@ Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/exam
   - `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` passed.
   - `git diff --check` passed.
 - Root verification: `php tools/run-tests.php` passed under resource gate.
+
+### 2026-05-25 rclone priority rework accepted
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T075234Z.ready`
+- Patch SHA256: `2ce686dab7c65aa1432eb81ddcb3701ff42ffe0cb6dba6508ca0223d09da3b42`
+- Base accepted HEAD before attempt: `189a0e1cab0f3e9e985545887b41e6b85ddd08dd`
+- Scope: credential-free local OneDrive cleanup command behavior; no live provider tests or secret-bearing inputs used.
+- Focused verification in detached worktree `.tmux-team/tmp/clean-integrator-rclone-20260525T0802Z`:
+  - `php -l lanes/rclone/src/OneDriveCleanupCommand.php` passed.
+  - `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed.
+  - `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` passed.
+  - `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json` passed.
+  - `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed.
+  - `php tools/run-tests.php lanes/rclone/tests` passed.
+  - `php lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` passed.
+  - `git diff --check` passed.
+- Root verification: `php tools/run-tests.php` passed under resource gate.

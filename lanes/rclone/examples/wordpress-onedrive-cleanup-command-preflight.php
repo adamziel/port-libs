@@ -31,6 +31,17 @@ $continuedAfterError = OneDriveCleanupCommand::run([
         'versions' => ['current-media', 'superseded'],
     ],
 ]);
+$continuedAfterListError = OneDriveCleanupCommand::run([
+    [
+        'remote' => 'exports/site.wxr',
+        'versions' => ['current', 'old-review'],
+        'listError' => 'Graph versions list denied',
+    ],
+    [
+        'remote' => 'uploads/2026/05/import.jpg',
+        'versions' => ['current-media', 'superseded'],
+    ],
+]);
 
 return [
     'source' => 'onedrive-cleanup-command-preflight',
@@ -38,5 +49,7 @@ return [
     'dryRunSkippedVersions' => $dryRun['skippedVersions'],
     'continuedAfterErrorDeletedVersions' => $continuedAfterError['deletedVersions'],
     'continuedAfterErrorLogs' => $continuedAfterError['logs'],
+    'continuedAfterListErrorDeletedVersions' => $continuedAfterListError['deletedVersions'],
+    'continuedAfterListErrorLogs' => $continuedAfterListError['logs'],
     'secretInputsRead' => false,
 ];
