@@ -108882,3 +108882,26 @@ Root verification:
 Support-library/dependency closure: no new support component activated; this rework reuses existing Markdown inline renderer, blockquote renderer, delimiter helpers, and block writer newline handling.
 Live-service exclusions: no live provider tests; no full upstream Pandoc runner.
 Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/notes/upstream-inventory.md`, `audits/integration-status.md`.
+
+## Integration accepted - rclone OneDrive cleanup feature mask rework - 2026-05-25 08:20 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T081310Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T081310Z.patch` (`sha256 442ac61180accc23f950c68ad6da5a242accc50f6ce85df5271dfa798dcb4025`, verified).
+Lane/slice/session: `rclone` / `priority-rework-20260525T081310Z` / `port-rclone-rework`.
+Base accepted HEAD in marker: `48912aa98580a6780820f885f32a273c9c6e5c4a`; applied cleanly to current main `17c152d417ca8e6024149cd154d30e026305799e`.
+
+Focused verification in clean detached worktree `.tmux-team/tmp/integrator-port-rclone-rework-20260525T081310Z`:
+- `php -l lanes/rclone/src/OneDriveCleanupCommand.php` passed.
+- `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed: 1 test files, 45 assertions, 0 failures.
+- `php tools/run-tests.php lanes/rclone/tests` passed: 35 test files, 4002 assertions, 0 failures.
+- `php lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` exited 0.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json` passed.
+- `git diff --check -- lanes/rclone` passed.
+
+Root gate: an exact no-argument root harness was active at the first focused-check gate (`2958660 php tools/run-tests.php`), so this attempt waited. Disk/load/root-PHP gates passed before focused checks (`/` available 118666528 KiB, load 6.50, no exact root harness) and before root verification (`/` available 118611756 KiB, load 6.38, no exact root harness). Root verification from this clean worktree: `php tools/run-tests.php` passed: 214 test files, 25916 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component activated; this is bounded rclone OneDrive cleanup modeling using the existing local provider/test harness.
+Live-service exclusions: no live-service provider tests, cloud remotes, OAuth flows, token stores, process environments, or provider config were read or executed.
+Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, `lanes/rclone/notes/wordpress-scenarios.md`, `lanes/rclone/src/OneDriveCleanupCommand.php`, `lanes/rclone/tests/OneDriveCleanupCommandTest.php`, `audits/integration-status.md`.

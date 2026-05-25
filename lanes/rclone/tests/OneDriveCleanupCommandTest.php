@@ -117,6 +117,23 @@ return [
         $t->same([], $flow['deletedVersions']);
         $t->same(false, $flow['providerCalled']);
     },
+    'onedrive cleanup command fails masked cleanup feature before dry run' => static function (TestRunner $t): void {
+        $flow = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'dryRun' => true,
+            'featureAvailable' => false,
+        ]);
+
+        $t->same('cleanup unsupported', $flow['error']);
+        $t->same(0, $flow['walkedObjects']);
+        $t->same(0, $flow['versionRequests']);
+        $t->same([], $flow['skippedVersions']);
+        $t->same(false, $flow['providerCalled']);
+    },
     'wordpress onedrive cleanup command preflight removes stale wxr versions only' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-cleanup-command-preflight.php';
 
@@ -127,6 +144,7 @@ return [
         $t->same(['exports/site.wxr: Failed to remove versions: Graph delete denied'], $example['continuedAfterErrorLogs']);
         $t->same(['uploads/2026/05/import.jpg#superseded'], $example['continuedAfterListErrorDeletedVersions']);
         $t->same(['exports/site.wxr: Failed to remove versions: Graph versions list denied'], $example['continuedAfterListErrorLogs']);
+        $t->same('cleanup unsupported', $example['featureMaskedError']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];

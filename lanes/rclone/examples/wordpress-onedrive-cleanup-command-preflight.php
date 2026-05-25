@@ -42,6 +42,10 @@ $continuedAfterListError = OneDriveCleanupCommand::run([
         'versions' => ['current-media', 'superseded'],
     ],
 ]);
+$featureMasked = OneDriveCleanupCommand::run($objects, [
+    'dryRun' => true,
+    'featureAvailable' => false,
+]);
 
 return [
     'source' => 'onedrive-cleanup-command-preflight',
@@ -51,5 +55,6 @@ return [
     'continuedAfterErrorLogs' => $continuedAfterError['logs'],
     'continuedAfterListErrorDeletedVersions' => $continuedAfterListError['deletedVersions'],
     'continuedAfterListErrorLogs' => $continuedAfterListError['logs'],
+    'featureMaskedError' => $featureMasked['error'],
     'secretInputsRead' => false,
 ];
