@@ -5542,6 +5542,52 @@ Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON5, JSONB, cast-text BLOB, and validity flag
 components; it counts no shared support-library progress.
 
+## Focused Native Mapping: `json_valid()` Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice rebases the JSON validity dispatch behavior on top
+of the accepted JSON scalar/path stack. Native
+`SQLiteJsonValidity::jsonValidSqlFunction()` now accepts SQLite-style
+case-insensitive function spelling, and
+`SQLiteJsonValidity::jsonValidSqlFunctionArguments()` validates one-or-two
+argument SQL vectors for `json_valid(X[,FLAGS])`. It preserves strict JSON
+text, JSON5 flag acceptance, cast text BLOB fallback, superficial and strict
+JSONB flag behavior, SQL NULL input propagation, NULL `FLAGS` rejection, and
+invalid function-name rejection.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON validity and JSONB evidence for
+the same upstream behavior cluster:
+
+```sh
+json101.test json501.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonValidity.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-validity-preflight.php
+php lanes/libsqlite/examples/wordpress-json-validity-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: recorded in `lane-status.json` after focused verification. Root
+aggregate harness was not assigned for this isolated micro-slice.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON5, JSONB, cast-text BLOB, and validity flag
+components; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json_array_insert()`/`jsonb_array_insert()` SQL Dispatch
 
 Date: 2026-05-25

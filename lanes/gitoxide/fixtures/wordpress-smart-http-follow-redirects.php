@@ -75,6 +75,59 @@ $session->createOrUpdate('refs/heads/main', $blob->oid());
 $request = $session->buildRequest([$blob]);
 $response = $client->send($request);
 
+$plainRedirectRequests = [];
+$plainRedirectRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$plainRedirectRequests, $packet, $flush, $advertisement, $responseBytes): array {
+    $plainRedirectRequests[] = [
+        'method' => $method,
+        'url' => $url,
+        'headers' => $headers,
+        'body' => $body,
+    ];
+
+    if ($method === 'GET') {
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+        ];
+    }
+
+    if (count($plainRedirectRequests) === 2) {
+        return [
+            'status' => 307,
+            'headers' => [
+                'Location' => 'http://git.example.test/redirected.git/git-receive-pack',
+                'Set-Cookie' => [
+                    'plain_gate=opened; Path=/',
+                    'secure_gate=closed; Path=/; Secure',
+                ],
+            ],
+            'body' => '',
+        ];
+    }
+
+    return [
+        'status' => 200,
+        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+        'body' => $responseBytes,
+    ];
+};
+
+$plainRedirectClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'http://git.example.test/wp-content.git',
+        $plainRedirectRequester,
+        ['version=1'],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-redirects/1'],
+        ['followRedirects' => true],
+    ),
+    'port-libs/wordpress',
+);
+$plainRedirectSession = $plainRedirectClient->handshake();
+$plainRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+$plainRedirectResponse = $plainRedirectClient->send($plainRedirectSession->buildRequest([$blob]));
+
 $rewritingRequests = [];
 $rewritingRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$rewritingRequests, $packet, $flush, $advertisement): array {
     $rewritingRequests[] = [
@@ -391,6 +444,9 @@ return [
     'maxAgeRedirectCookieRetained' => str_contains($requests[2]['headers']['Cookie'] ?? '', 'legacy_gate=opened'),
     'pathScopedRedirectCookieOmitted' => !str_contains($requests[2]['headers']['Cookie'] ?? '', 'admin_gate='),
     'foreignDomainRedirectCookieOmitted' => !str_contains($requests[2]['headers']['Cookie'] ?? '', 'foreign_gate='),
+    'secureCookiePlainRedirectOmitted' => $plainRedirectResponse->isSuccessful()
+        && str_contains($plainRedirectRequests[2]['headers']['Cookie'] ?? '', 'plain_gate=opened')
+        && !str_contains($plainRedirectRequests[2]['headers']['Cookie'] ?? '', 'secure_gate='),
     'postBodyPreserved' => ($requests[2]['body'] ?? null) === $request->requestBytes(),
     'rewritingPostRedirectRejected' => $rewritingRedirectRejected,
     'rewritingRequestMethods' => array_map(static fn (array $request): string => $request['method'], $rewritingRequests),
@@ -407,5 +463,5 @@ return [
     'missingLocationPostRedirectRejected' => $missingLocationRedirectRejected,
     'missingLocationRequestMethods' => array_map(static fn (array $request): string => $request['method'], $missingLocationRequests),
     'responseSuccessful' => $response->isSuccessful(),
-    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body and redirect-issued session cookie, honoring redirect-issued cookie expiration and Domain/Path scope including Max-Age precedence, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
+    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body and redirect-issued session cookie, honoring redirect-issued cookie expiration, Domain/Path/Secure scope including Max-Age precedence, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
 ];

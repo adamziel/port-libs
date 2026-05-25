@@ -14,6 +14,7 @@ return [
     'maxAgeRedirectCookieRetained' => $fixture['maxAgeRedirectCookieRetained'],
     'pathScopedRedirectCookieOmitted' => $fixture['pathScopedRedirectCookieOmitted'],
     'foreignDomainRedirectCookieOmitted' => $fixture['foreignDomainRedirectCookieOmitted'],
+    'secureCookiePlainRedirectOmitted' => $fixture['secureCookiePlainRedirectOmitted'],
     'postBodyPreserved' => $fixture['postBodyPreserved'],
     'rewritingPostRedirectRejected' => $fixture['rewritingPostRedirectRejected'],
     'rewritingRequestMethods' => $fixture['rewritingRequestMethods'],

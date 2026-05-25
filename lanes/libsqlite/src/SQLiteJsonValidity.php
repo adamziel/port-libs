@@ -16,7 +16,7 @@ final class SQLiteJsonValidity
         string|SQLiteBlobValue|null $value,
         ?int $flags = self::FLAG_STRICT_TEXT,
     ): ?bool {
-        if ($function !== 'json_valid') {
+        if (strcasecmp($function, 'json_valid') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON validity function must be json_valid');
         }
         if ($flags === null) {
@@ -24,6 +24,24 @@ final class SQLiteJsonValidity
         }
 
         return self::jsonValid($value, $flags);
+    }
+
+    /**
+     * @param list<string|SQLiteBlobValue|int|null> $arguments
+     */
+    public static function jsonValidSqlFunctionArguments(string $function, array $arguments): ?bool
+    {
+        $count = count($arguments);
+        if ($count < 1 || $count > 2) {
+            throw new \InvalidArgumentException('SQLite json_valid() expects one or two arguments');
+        }
+
+        $flags = array_key_exists(1, $arguments) ? $arguments[1] : self::FLAG_STRICT_TEXT;
+        if ($flags !== null && !is_int($flags)) {
+            throw new \InvalidArgumentException('FLAGS parameter to json_valid() must be an integer between 1 and 15');
+        }
+
+        return self::jsonValidSqlFunction($function, $arguments[0], $flags);
     }
 
     public static function jsonValid(string|SQLiteBlobValue|null $value, int $flags = self::FLAG_STRICT_TEXT): ?bool

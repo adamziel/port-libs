@@ -1733,3 +1733,13 @@ uppercase `JSON_ERROR_POSITION` dispatch over copied `wp_options` option
 values, including JSON5 text, malformed copied settings, cast text BLOBs,
 JSONB blobs, superficial-only JSONB blobs, and SQL NULL input without
 requiring the SQLite extension.
+
+## `json_valid()` Argument-Vector Dispatch Scenario
+
+Native JSON validity now includes the one-or-two argument SQL-style vector
+dispatch boundary for `json_valid(X[,FLAGS])`. The updated
+`examples/wordpress-json-validity-preflight.php` script exercises uppercase
+`JSON_VALID` dispatch over copied `wp_options` option values, including strict
+JSON text, JSON5 text, cast text BLOBs, copied JSONB blobs, SQL NULL input,
+nullable `FLAGS` rejection, and combined JSON5-or-superficial-JSONB flag
+checks without requiring the SQLite extension.

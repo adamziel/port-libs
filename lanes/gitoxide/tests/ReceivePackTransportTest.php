@@ -846,6 +846,64 @@ return [
         $t->same(false, str_contains($maxAgePrecedenceRequests[2]['headers']['Cookie'], 'foreign_gate='));
         $t->same($maxAgePrecedenceRequest->requestBytes(), $maxAgePrecedenceRequests[2]['body']);
 
+        $secureCookieDowngradeRequests = [];
+        $secureCookieDowngradeClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'http://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$secureCookieDowngradeRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $secureCookieDowngradeRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    if (count($secureCookieDowngradeRequests) === 2) {
+                        return [
+                            'status' => 307,
+                            'headers' => [
+                                'Location' => 'http://git.example.test/redirected.git/git-receive-pack',
+                                'Set-Cookie' => [
+                                    'plain_redirect_gate=opened; Path=/',
+                                    'secure_redirect_gate=closed; Path=/; Secure',
+                                ],
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                7.0,
+                [],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $secureCookieDowngradeSession = $secureCookieDowngradeClient->handshake();
+        $secureCookieDowngradeSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $secureCookieDowngradeRequest = $secureCookieDowngradeSession->buildRequest([$blob]);
+
+        $secureCookieDowngradeResponse = $secureCookieDowngradeClient->send($secureCookieDowngradeRequest);
+
+        $t->same(true, $secureCookieDowngradeResponse->isSuccessful());
+        $t->same('plain_redirect_gate=opened', $secureCookieDowngradeRequests[2]['headers']['Cookie']);
+        $t->same(false, str_contains($secureCookieDowngradeRequests[2]['headers']['Cookie'], 'secure_redirect_gate='));
+        $t->same($secureCookieDowngradeRequest->requestBytes(), $secureCookieDowngradeRequests[2]['body']);
+
         $relativePermanentRedirectRequests = [];
         $relativePermanentRedirectClient = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
@@ -1032,6 +1090,7 @@ return [
         $t->same(true, $redirectExample['maxAgeRedirectCookieRetained']);
         $t->same(true, $redirectExample['pathScopedRedirectCookieOmitted']);
         $t->same(true, $redirectExample['foreignDomainRedirectCookieOmitted']);
+        $t->same(true, $redirectExample['secureCookiePlainRedirectOmitted']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);
