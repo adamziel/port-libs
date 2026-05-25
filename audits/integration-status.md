@@ -1,5 +1,54 @@
 # Integration Status
 
+## Integration deferred - isolated Esbuild bounded metafile marker - 2026-05-25 04:00 UTC
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T031737Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T031737Z.patch`.
+Lane/slice/session: `esbuild` / `rearmer-20260525T031736Z` /
+`port-esbuild`.
+
+Patch SHA-256 verified:
+`530e40625d7762607bd4098d901bdcdb51a86e4d571180aacfc8eb0f855da56d`.
+
+Exact failing commands from clean accepted head
+`b036f5f4cd7d42d766284694ebdbc66a789ca112`:
+
+```text
+git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T031737Z.patch
+git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T031737Z.patch
+```
+
+Direct apply failed, including `lanes/esbuild/src/BundlerMetafile.php: already
+exists in working directory`. Bounded three-way left conflicts in behavior,
+test, example, and status files:
+
+```text
+lanes/esbuild/UPSTREAM_TEST_MANIFEST.json
+lanes/esbuild/examples/wordpress-asset-preflight.php
+lanes/esbuild/lane-status.json
+lanes/esbuild/notes/wordpress-scenarios.md
+lanes/esbuild/src/BundlerMetafile.php
+lanes/esbuild/tests/BundlerGraphBuilderTest.php
+```
+
+Decision: deferred for lane rework, not integrated. This is not a trivial
+stale counter merge because the core source and focused test conflict with
+already accepted Esbuild metafile work. Focused/root verification was not run.
+Repair command for the lane: rebase the intended bounded-metafile slice onto
+`b036f5f4cd7d42d766284694ebdbc66a789ca112`, drop behavior already accepted in
+`0b567db3`, and re-emit only the remaining source/test/example/status delta.
+Then verify with:
+
+```text
+php -l lanes/esbuild/src/BundlerMetafile.php
+php -l lanes/esbuild/tests/BundlerGraphBuilderTest.php
+php -l lanes/esbuild/examples/wordpress-asset-preflight.php
+php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php
+git diff --check -- lanes/esbuild
+```
+
 ## Integration deferred - isolated Dolt merge status root-object conflict marker - 2026-05-25 03:58 UTC
 
 Ready marker:
