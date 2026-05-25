@@ -201,41 +201,66 @@ final class FolderWatchScanScheduler
 
     public function stopWatchingFolder(string $folderId, bool $discardPendingEvents = false): bool
     {
-        self::assertFolderId($folderId);
-
-        $hadState = isset($this->watchRestarts[$folderId]) || isset($this->aggregators[$folderId]);
-        unset($this->watchRestarts[$folderId], $this->lastDispatchedBatches[$folderId]);
-
-        if ($discardPendingEvents) {
-            unset($this->aggregators[$folderId]);
-
-            return $hadState;
-        }
-
-        if (isset($this->aggregators[$folderId])) {
-            $this->aggregators[$folderId]->clearInProgress();
-        }
-
-        return $hadState;
+        return $this->cleanupWatchingFolder($folderId, $discardPendingEvents)['hadState'];
     }
 
     public function pauseWatchingFolder(string $folderId): bool
     {
-        self::assertFolderId($folderId);
-
-        $hadState = isset($this->watchRestarts[$folderId]) || isset($this->aggregators[$folderId]);
-        unset($this->lastDispatchedBatches[$folderId]);
-
-        if (isset($this->aggregators[$folderId])) {
-            $this->aggregators[$folderId]->clearInProgress();
-        }
-
-        return $hadState;
+        return $this->cleanupWatchingFolder($folderId, discardPendingEvents: false, preserveRestart: true)['hadState'];
     }
 
     public function removeWatchingFolder(string $folderId): bool
     {
         return $this->stopWatchingFolder($folderId, discardPendingEvents: true);
+    }
+
+    /**
+     * @return array{folder:string, hadState:bool, folderExists:bool, folderPaused:bool, discardedPendingEvents:bool, preservedPendingEvents:bool, clearedRestart:bool, clearedInProgress:bool, pendingEventCountBefore:int, pendingEventCountAfter:int, pendingPathsBefore:list<string>, pendingPathsAfter:list<string>, statusAfter:?array<string, mixed>}
+     */
+    public function cleanupWatchingFolder(
+        string $folderId,
+        bool $discardPendingEvents = false,
+        bool $preserveRestart = false,
+        ?int $now = null,
+    ): array {
+        self::assertFolderId($folderId);
+        $now = self::clock($now);
+        $before = $this->watchStatus($folderId, $now);
+        $hadRestart = isset($this->watchRestarts[$folderId]);
+        $hadAggregator = isset($this->aggregators[$folderId]);
+        $hadState = $hadRestart || $hadAggregator;
+        $pendingCountBefore = (int) ($before['pendingEventCount'] ?? 0);
+        $pendingPathsBefore = array_values($before['pendingPaths'] ?? []);
+        $clearedInProgress = $hadAggregator && (($before['inProgressPaths'] ?? []) !== []);
+
+        if (!$preserveRestart) {
+            unset($this->watchRestarts[$folderId]);
+        }
+        unset($this->lastDispatchedBatches[$folderId]);
+
+        if ($discardPendingEvents) {
+            unset($this->aggregators[$folderId]);
+        } elseif (isset($this->aggregators[$folderId])) {
+            $this->aggregators[$folderId]->clearInProgress();
+        }
+
+        $after = $this->watchStatus($folderId, $now);
+
+        return [
+            'folder' => $folderId,
+            'hadState' => $hadState,
+            'folderExists' => $this->folderExists($folderId),
+            'folderPaused' => $this->folderExists($folderId) && $this->scheduler->isPaused($folderId),
+            'discardedPendingEvents' => $discardPendingEvents && $pendingCountBefore > 0,
+            'preservedPendingEvents' => !$discardPendingEvents && (($after['pendingEventCount'] ?? 0) > 0),
+            'clearedRestart' => $hadRestart && !$preserveRestart,
+            'clearedInProgress' => $clearedInProgress,
+            'pendingEventCountBefore' => $pendingCountBefore,
+            'pendingEventCountAfter' => (int) ($after['pendingEventCount'] ?? 0),
+            'pendingPathsBefore' => $pendingPathsBefore,
+            'pendingPathsAfter' => array_values($after['pendingPaths'] ?? []),
+            'statusAfter' => $after,
+        ];
     }
 
     /**

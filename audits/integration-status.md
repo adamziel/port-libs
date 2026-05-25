@@ -1,3 +1,37 @@
+
+## Clean-patch integration - Syncthing - 2026-05-25 05:22 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T050516Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T050516Z.patch`.
+
+Lane/slice/session: `syncthing` / `watchdog-next-20260525T050516Z` / `port-syncthing`.
+Base before clean worktree: `6559edcafb82d0396c663cbe0e2582a850b0920f`.
+Patch SHA-256 verified: `8387e0e96dfabe6b74acbdbd415f4a29bd66752bbd4ea806d36e80a78241a4b5`.
+Apply mode: clean `git apply --check`, then `git apply` in detached clean worktree `/tmp/port-clean-integrator-syncthing-watchdog-next-20260525T050516Z-20260525T051846Z`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` - passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` - passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` - passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` - passed, `1 test files, 189 assertions, 0 failures`.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` - passed smoke; worker-reported paused-preserved and removed-discarded cleanup payloads remained present.
+- `php -r 'foreach (["lanes/syncthing/lane-status.json", "lanes/syncthing/UPSTREAM_TEST_MANIFEST.json"] as $f) { json_decode(file_get_contents($f), true, 512, JSON_THROW_ON_ERROR); } echo "json ok\n";'` - passed.
+- `git diff --check` - passed.
+
+Root verification: pre-root exact gate initially found PID `2051052` (`php tools/run-tests.php`), waited until clear, then ran `php tools/run-tests.php` in the clean worktree. Result: passed, `212 test files, 25328 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The patch is bounded to the existing Syncthing lane-local watcher scheduler, event aggregator, folder scan scheduler, scan service, and checkpoint store. No live-service/provider tests were run.
+
+Files staged:
+
+- `audits/integration-status.md`
+- `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+- `lanes/syncthing/lane-status.json`
+- `lanes/syncthing/notes/wordpress-scenarios.md`
+- `lanes/syncthing/src/FolderWatchScanScheduler.php`
+- `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 # Integration Status
 
 ## Clean-patch integration accepted - Syncthing - 2026-05-25 05:01 UTC

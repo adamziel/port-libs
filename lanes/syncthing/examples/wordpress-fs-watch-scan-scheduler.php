@@ -55,7 +55,7 @@ try {
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 1030);
     $watchScheduler->recordWatcherError('wordpress-media', 'watch backend paused before restart', scanOnWatchError: false, now: 1032);
     $scheduler->pauseFolder('wordpress-media');
-    $watchScheduler->pauseWatchingFolder('wordpress-media');
+    $pausedCleanup = $watchScheduler->cleanupWatchingFolder('wordpress-media', preserveRestart: true, now: 1032);
     $watchScheduler->recordWatcherError('wordpress-media', 'watch backend closed while paused', now: 1033);
     $watchScheduler->recordWatcherError('wordpress-media', 'watch backend overflow while paused', scanOnWatchError: false, now: 1034);
     $pausedIgnoredEvent = $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/gallery.jpg', now: 1035);
@@ -78,11 +78,12 @@ try {
     $legacyPendingAfterRestart = $watchScheduler->watchStatus('wordpress-media', 1086);
     $legacyScanBeforeDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1086);
     $legacyScanAfterDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1090);
+    $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/gallery.jpg', now: 1090);
     $watchScheduler->recordWatcherError('wordpress-media', 'legacy watcher closed during unshare', scanOnWatchError: false, now: 1091);
     $scheduler->removeFolder('wordpress-media');
+    $removedWatchState = $watchScheduler->cleanupWatchingFolder('wordpress-media', discardPendingEvents: true, now: 1105);
     $removedLegacyRestartAcknowledged = $watchScheduler->markWatcherRestarted('wordpress-media');
     $removedStatusAfterAcknowledgement = $watchScheduler->watchStatus('wordpress-media', 1105);
-    $removedWatchState = $watchScheduler->removeWatchingFolder('wordpress-media');
     $removedStatus = $watchScheduler->watchStatus('wordpress-media', 1110);
     $scheduler->addFolder('wordpress-media-removed-during-dispatch', $service);
     $watchScheduler->recordEvent('wordpress-media-removed-during-dispatch', 'wp-content/uploads/2026/05/gallery.jpg', now: 1120);
@@ -109,6 +110,7 @@ try {
         'restartDue' => $restartDue,
         'completedRestart' => $completedRestart,
         'pausedIgnoredEvent' => $pausedIgnoredEvent,
+        'pausedCleanup' => $pausedCleanup,
         'pausedStatusAfterCleanup' => $pausedStatus,
         'pausedRestartDue' => $pausedRestartDue,
         'pausedScanResult' => $pausedScan->toRestStatus(),
@@ -125,7 +127,7 @@ try {
         'legacyScanAfterDue' => $legacyScanAfterDue->toRestStatus(),
         'removedStatusAfterAcknowledgement' => $removedStatusAfterAcknowledgement,
         'removedLegacyRestartAcknowledged' => $removedLegacyRestartAcknowledged,
-        'removedWatchState' => $removedWatchState,
+        'removedCleanup' => $removedWatchState,
         'removedStatus' => $removedStatus,
         'removedDuringDispatchScan' => $removedDuringDispatchScan->toRestStatus(),
         'removedDuringDispatchStatus' => $removedDuringDispatchStatus,
