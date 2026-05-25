@@ -109429,3 +109429,47 @@ Root verification:
 Support-library/dependency closure: no new support-library activation; this micro-slice reuses lane-local JSON canonicalization, JSON5, JSONB, BLOB, subtype, and pretty-format support only.
 Live-service exclusions: none applicable; no live-service provider tests were run.
 Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `audits/integration-status.md`.
+## Integration accepted - libsqlite json_pretty whole-REAL indent - 2026-05-25 11:34 UTC
+
+Accepted isolated ready marker
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T111714Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T111714Z.patch`.
+
+Lane/slice/session: `libsqlite` /
+`priority-keeper-20260525T111714Z` / `port-libsqlite`. Patch sha256 verified:
+`b714d6b3a021e0da106408f69da9791b8229aa119443508f583d7ce504cf4d56`.
+
+Apply/rebase decision: first clean acceptance from
+`56fdf787e0f35a20cf02f4034340defc13d9cf8a` produced commit `308e5b61`, but
+`main` moved before the atomic update. Retried once from
+`old_head=336a23ab51f7df8cafdddeb48144ed5ccacb2b58`. Direct patch context had
+metadata drift from adjacent accepted JSONB indentation evidence, so I applied
+only the still-missing submitted behavior: whole-REAL `3.0` as the custom
+`json_pretty(JSON, INDENT)` argument in direct and argument-vector dispatch,
+plus the matching WordPress smoke row.
+
+Focused verification in clean retry worktree
+`/tmp/port-clean-integrator-libsqlite-priority-keeper-20260525T111714Z-retry`:
+`php -l lanes/libsqlite/src/SQLiteJsonPretty.php`, `php -l
+lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `php -l
+lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` all passed.
+`jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json
+lanes/libsqlite/lane-status.json` passed. `php
+lanes/libsqlite/examples/wordpress-json-pretty-option-review.php` passed.
+`php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+`1 test files, 2075 assertions, 0 failures`. `git diff --check` passed.
+
+Root verification: after the gate reported `/` available above `86000000` KiB,
+load below `25`, and no exact `php tools/run-tests.php` process, ran `php
+tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` in the
+retry worktree. Result: `214 test files, 26093 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support component activated. This
+slice reuses existing lane-local JSON canonicalization, JSON5, JSONB,
+BLOB/subtype, scalar coercion, and pretty-format support. No live-service
+provider tests were run.
+
+Files staged: `lanes/libsqlite/tests/SQLiteHeaderTest.php`,
+`lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`, and
+`audits/integration-status.md`.
