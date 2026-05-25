@@ -104797,3 +104797,21 @@ Files staged:
 - `lanes/syncthing/notes/wordpress-scenarios.md`
 - `lanes/syncthing/src/FolderWatchScanScheduler.php`
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+
+## Integration accepted - Gitoxide receive-pack watchdog timeout handling - 2026-05-25 07:21 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T071346Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T071346Z.patch` (sha256 `39a26502279889de57f0fbd7557d4fa406041dec7e22f2400be81e7febb847d5`, verified).
+Lane: `gitoxide`.
+
+Focused verification in clean detached worktree `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-port-gitoxide-20260525T071346Z`:
+- PHP lint on changed PHP files: passed.
+- JSON validation with `jq empty` on changed JSON files: passed where applicable.
+- Example/smoke: php lanes/gitoxide/examples/wordpress-receive-pack-transport.php passed.
+- Focused command: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+- `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree.
+
+Live-service exclusions: no live-service provider tests were run. For rclone, verification was limited to local bounded token-renewer lifecycle tests and example smoke with no credentials or live remotes.
+

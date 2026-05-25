@@ -289,6 +289,59 @@ return [
         $t->contains('refs/heads/main', $streamBytes($write));
         $t->contains('PACK', $streamBytes($write));
     },
+    'stream receive-pack transport reports watchdog timeout while reading packet length' => static function (TestRunner $t): void {
+        if (!function_exists('stream_socket_pair')) {
+            throw new RuntimeException('stream_socket_pair is required for stream timeout watchdog tests');
+        }
+
+        $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        if ($pair === false) {
+            throw new RuntimeException('Unable to create stream socket pair');
+        }
+
+        [$read, $write] = $pair;
+        stream_set_timeout($read, 0, 10_000);
+        $transport = new StreamReceivePackTransport($read, $write);
+
+        try {
+            try {
+                $transport->readAdvertisement();
+                throw new RuntimeException('Expected stream timeout watchdog exception');
+            } catch (RuntimeException $exception) {
+                $t->contains('timed out while reading advertisement packet length', $exception->getMessage());
+            }
+        } finally {
+            fclose($read);
+            fclose($write);
+        }
+    },
+    'stream receive-pack transport reports watchdog timeout while reading packet payload' => static function (TestRunner $t): void {
+        if (!function_exists('stream_socket_pair')) {
+            throw new RuntimeException('stream_socket_pair is required for stream timeout watchdog tests');
+        }
+
+        $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        if ($pair === false) {
+            throw new RuntimeException('Unable to create stream socket pair');
+        }
+
+        [$read, $write] = $pair;
+        fwrite($write, '0008ab');
+        stream_set_timeout($read, 0, 10_000);
+        $transport = new StreamReceivePackTransport($read, $write);
+
+        try {
+            try {
+                $transport->readAdvertisement();
+                throw new RuntimeException('Expected stream timeout watchdog exception');
+            } catch (RuntimeException $exception) {
+                $t->contains('timed out while reading advertisement packet payload', $exception->getMessage());
+            }
+        } finally {
+            fclose($read);
+            fclose($write);
+        }
+    },
     'git-daemon receive-pack transport sends service request and delegates client flow' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress git-daemon transport payload');

@@ -101,9 +101,19 @@ final class StreamReceivePackTransport implements ReceivePackTransport
         while (strlen($bytes) < $length) {
             $chunk = fread($stream, $length - strlen($bytes));
             if ($chunk === false) {
+                $metadata = stream_get_meta_data($stream);
+                if (!empty($metadata['timed_out'])) {
+                    throw new \RuntimeException("receive-pack transport timed out while reading {$label}");
+                }
+
                 throw new \RuntimeException("receive-pack transport failed while reading {$label}");
             }
             if ($chunk === '') {
+                $metadata = stream_get_meta_data($stream);
+                if (!empty($metadata['timed_out'])) {
+                    throw new \RuntimeException("receive-pack transport timed out while reading {$label}");
+                }
+
                 throw new \RuntimeException("receive-pack transport ended while reading {$label}");
             }
             $bytes .= $chunk;

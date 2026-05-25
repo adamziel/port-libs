@@ -252,6 +252,33 @@ return [
 
         return false;
     })(),
+    'streamWatchdogTimeoutReported' => (static function (): bool {
+        if (!function_exists('stream_socket_pair')) {
+            return false;
+        }
+
+        $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+        if ($pair === false) {
+            return false;
+        }
+
+        [$read, $write] = $pair;
+        stream_set_timeout($read, 0, 10_000);
+        $transport = new StreamReceivePackTransport($read, $write);
+        try {
+            $transport->readAdvertisement();
+        } catch (RuntimeException $exception) {
+            fclose($read);
+            fclose($write);
+
+            return str_contains($exception->getMessage(), 'timed out while reading advertisement packet length');
+        }
+
+        fclose($read);
+        fclose($write);
+
+        return false;
+    })(),
     'unsafeSshTargetRejected' => (static function (): bool {
         try {
             SshReceivePackTransport::parseRepositoryUrl('git.example.test: -upload-pack=/tmp/helper');
