@@ -481,6 +481,7 @@ return [
             $expected = (string) file_get_contents($fixture . '/expected.html');
             $metadata = json_decode((string) file_get_contents($fixture . '/expected-metadata.json'), true, 512, JSON_THROW_ON_ERROR);
             $article = $extractor->extract($source, 'http://fakehost/test/page.html');
+            $blocks = $extractor->toWordPressBlocks($article);
 
             $t->same($metadata['title'], $article->title);
             $t->same($metadata['byline'], $article->byline);
@@ -498,6 +499,18 @@ return [
                 array_map($normalizedText, $attributeValues($article->contentHtml, '//h2')),
             );
             $t->same([], $attributeValues($article->contentHtml, '//script|//style'));
+            $t->same(false, str_contains($blocks, '<script'), $name . ' should not emit script tags into WordPress blocks');
+            $t->same(false, str_contains($blocks, '<style'), $name . ' should not emit style tags into WordPress blocks');
+            $t->same(
+                count($attributeValues($expected, '//p')),
+                substr_count($blocks, '<!-- wp:paragraph -->'),
+                $name . ' paragraph block count should match upstream retained paragraphs',
+            );
+            $t->same(
+                count($attributeValues($expected, '//h2')),
+                substr_count($blocks, '<!-- wp:heading {"level":2} -->'),
+                $name . ' heading block count should match upstream retained h2 headings',
+            );
         }
     },
     'maps Mozilla comment-inside-script parser fixture without leaking script text' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
