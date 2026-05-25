@@ -812,6 +812,8 @@ return [
                                 'Set-Cookie' => [
                                     'legacy_gate=opened; Max-Age=60; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure',
                                     'expired_gate=closed; Max-Age=0; Expires=Wed, 31 Dec 2099 23:59:59 GMT; Path=/; Secure',
+                                    'admin_gate=closed; Path=/wp-admin; Secure',
+                                    'foreign_gate=closed; Domain=example.org; Path=/; Secure',
                                 ],
                             ],
                             'body' => '',
@@ -840,6 +842,8 @@ return [
         $t->same(true, $maxAgePrecedenceResponse->isSuccessful());
         $t->same('legacy_gate=opened', $maxAgePrecedenceRequests[2]['headers']['Cookie']);
         $t->same(false, str_contains($maxAgePrecedenceRequests[2]['headers']['Cookie'], 'expired_gate='));
+        $t->same(false, str_contains($maxAgePrecedenceRequests[2]['headers']['Cookie'], 'admin_gate='));
+        $t->same(false, str_contains($maxAgePrecedenceRequests[2]['headers']['Cookie'], 'foreign_gate='));
         $t->same($maxAgePrecedenceRequest->requestBytes(), $maxAgePrecedenceRequests[2]['body']);
 
         $relativePermanentRedirectRequests = [];
@@ -1026,6 +1030,8 @@ return [
         $t->contains('deploy_gate=opened', $redirectExample['redirectCookieHeader']);
         $t->same(true, $redirectExample['expiredRedirectCookieOmitted']);
         $t->same(true, $redirectExample['maxAgeRedirectCookieRetained']);
+        $t->same(true, $redirectExample['pathScopedRedirectCookieOmitted']);
+        $t->same(true, $redirectExample['foreignDomainRedirectCookieOmitted']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);

@@ -1703,3 +1703,13 @@ Focused verification is recorded in `lane-status.json`. Dependency closure:
 no new support component is needed; this reuses existing lane-local JSON path,
 JSON5, JSONB, BLOB, canonical encoding, and table-valued row support and
 counts no shared support-library progress.
+
+## `json_error_position()` Argument-Vector Dispatch Scenario
+
+Native JSON diagnostics now include the one-argument SQL-style vector dispatch
+boundary for `json_error_position(X)`. The updated
+`examples/wordpress-json-error-position-preflight.php` script exercises
+uppercase `JSON_ERROR_POSITION` dispatch over copied `wp_options` option
+values, including JSON5 text, malformed copied settings, cast text BLOBs,
+JSONB blobs, superficial-only JSONB blobs, and SQL NULL input without
+requiring the SQLite extension.

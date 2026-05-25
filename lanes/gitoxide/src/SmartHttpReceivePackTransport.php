@@ -16,7 +16,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private ?string $effectiveRepositoryUrl = null;
     private readonly ?string $authorizationHeader;
     private readonly mixed $requester;
-    /** @var array<string, string> */
+    /** @var array<string, array{value: string, domain: string, path: string, secure: bool, hostOnly: bool}> */
     private array $cookies = [];
     /** @var array<string, string> */
     private readonly array $extraHeaders;
@@ -82,7 +82,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         $response = $this->request('GET', self::infoRefsUrl($this->repositoryUrl), $this->advertisementHeaders(), null, true);
         self::assertStatus($response, [200, 304], 'smart HTTP receive-pack advertisement');
         self::assertContentType($response, 'application/x-git-receive-pack-advertisement', 'smart HTTP receive-pack advertisement');
-        $this->rememberCookies($response['headers']);
+        $this->rememberCookies(
+            $response['headers'],
+            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::infoRefsUrl($this->repositoryUrl))
+        );
 
         return self::stripServiceAdvertisement($response['body']);
     }
@@ -119,7 +122,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         );
         self::assertStatus($response, [200], 'smart HTTP receive-pack result');
         self::assertContentType($response, 'application/x-git-receive-pack-result', 'smart HTTP receive-pack result');
-        $this->rememberCookies($response['headers']);
+        $this->rememberCookies(
+            $response['headers'],
+            self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::receivePackUrl($this->repositoryUrl))
+        );
 
         return $response['body'];
     }
@@ -141,7 +147,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if ($this->extraParameters !== []) {
             self::setHeader($headers, 'Git-Protocol', implode(':', $this->extraParameters));
         }
-        $cookieHeader = self::cookieHeader($this->cookies, self::headerValue($headers, 'cookie'));
+        $cookieHeader = self::cookieHeader($this->cookies, self::infoRefsUrl($this->repositoryUrl), self::headerValue($headers, 'cookie'));
         if ($cookieHeader !== null) {
             self::setHeader($headers, 'Cookie', $cookieHeader);
         }
@@ -168,7 +174,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         if ($this->extraParameters !== []) {
             self::setHeader($headers, 'Git-Protocol', implode(':', $this->extraParameters));
         }
-        $cookieHeader = self::cookieHeader($this->cookies, self::headerValue($headers, 'cookie'));
+        $cookieUrl = self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, self::receivePackUrl($this->repositoryUrl));
+        $cookieHeader = self::cookieHeader($this->cookies, $cookieUrl, self::headerValue($headers, 'cookie'));
         if ($cookieHeader !== null) {
             self::setHeader($headers, 'Cookie', $cookieHeader);
         }
@@ -251,12 +258,12 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
                 throw new \RuntimeException("smart HTTP receive-pack {$method} redirect missing Location header");
             }
 
-            $this->rememberCookies($response['headers']);
-            $cookieHeader = self::cookieHeader($this->cookies, self::headerValue($headers, 'cookie'));
+            $redirectUrl = self::resolveRedirectUrl($location, $effectiveUrl);
+            $this->rememberCookies($response['headers'], $effectiveUrl);
+            $cookieHeader = self::cookieHeader($this->cookies, $redirectUrl, self::headerValue($headers, 'cookie'));
             if ($cookieHeader !== null) {
                 self::setHeader($headers, 'Cookie', $cookieHeader);
             }
-            $redirectUrl = self::resolveRedirectUrl($location, $effectiveUrl);
             $this->effectiveRepositoryUrl = self::redirectedBaseUrl($redirectUrl, $this->repositoryUrl, $url);
             $redirectsRemaining--;
         }
@@ -1012,18 +1019,23 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     /**
      * @param array<string, string|list<string>> $headers
      */
-    private function rememberCookies(array $headers): void
+    private function rememberCookies(array $headers, string $url): void
     {
         foreach (self::headerValues($headers, 'set-cookie') as $setCookie) {
-            $this->rememberCookie($setCookie);
+            $this->rememberCookie($setCookie, $url);
         }
     }
 
-    private function rememberCookie(string $setCookie): void
+    private function rememberCookie(string $setCookie, string $url): void
     {
         [$pair, $attributes] = array_pad(explode(';', $setCookie, 2), 2, '');
         [$name, $value] = array_pad(explode('=', trim($pair), 2), 2, null);
         if ($value === null || !self::isCookieName($name) || !self::isCookieValue($value)) {
+            return;
+        }
+
+        $scope = self::cookieScope($attributes, $url);
+        if ($scope === null) {
             return;
         }
 
@@ -1033,7 +1045,73 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             return;
         }
 
-        $this->cookies[$name] = $value;
+        $this->cookies[$name] = [
+            'value' => $value,
+            'domain' => $scope['domain'],
+            'path' => $scope['path'],
+            'secure' => $scope['secure'],
+            'hostOnly' => $scope['hostOnly'],
+        ];
+    }
+
+    /**
+     * @return null|array{domain: string, path: string, secure: bool, hostOnly: bool}
+     */
+    private static function cookieScope(string $attributes, string $url): ?array
+    {
+        $request = self::httpUrlParts($url, 'smart HTTP receive-pack cookie URL');
+        $domain = strtolower($request['host']);
+        $path = '/';
+        $secure = false;
+        $hostOnly = true;
+
+        foreach (explode(';', $attributes) as $attribute) {
+            $attribute = trim($attribute);
+            if ($attribute === '') {
+                continue;
+            }
+
+            [$name, $value] = array_pad(explode('=', $attribute, 2), 2, '');
+            $name = strtolower(trim($name));
+            $value = trim($value);
+            if ($name === 'secure') {
+                $secure = true;
+                continue;
+            }
+            if ($name === 'domain') {
+                $candidate = strtolower(ltrim($value, '.'));
+                if ($candidate === '' || self::containsControlByte($candidate) || preg_match('/[\s\/\\\\]/', $candidate) === 1) {
+                    return null;
+                }
+                if (!self::domainMatches($domain, $candidate)) {
+                    return null;
+                }
+                $domain = $candidate;
+                $hostOnly = false;
+                continue;
+            }
+            if ($name === 'path' && $value !== '' && str_starts_with($value, '/') && !self::containsControlByte($value)) {
+                $path = $value;
+            }
+        }
+
+        return [
+            'domain' => $domain,
+            'path' => $path,
+            'secure' => $secure,
+            'hostOnly' => $hostOnly,
+        ];
+    }
+
+    private static function domainMatches(string $host, string $domain): bool
+    {
+        return $host === $domain || str_ends_with($host, '.' . $domain);
+    }
+
+    private static function pathMatches(string $requestPath, string $cookiePath): bool
+    {
+        return $requestPath === $cookiePath
+            || str_starts_with($requestPath, rtrim($cookiePath, '/') . '/');
     }
 
     private static function expiresCookie(string $attributes): bool
@@ -1086,16 +1164,28 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     }
 
     /**
-     * @param array<string, string> $cookies
+     * @param array<string, array{value: string, domain: string, path: string, secure: bool, hostOnly: bool}> $cookies
      */
-    private static function cookieHeader(array $cookies, ?string $base = null): ?string
+    private static function cookieHeader(array $cookies, string $url, ?string $base = null): ?string
     {
         $parts = [];
         if ($base !== null && $base !== '') {
             $parts[] = $base;
         }
-        foreach ($cookies as $name => $value) {
-            $parts[] = "{$name}={$value}";
+        $request = self::httpUrlParts($url, 'smart HTTP receive-pack cookie request URL');
+        $requestHost = strtolower($request['host']);
+        $requestPath = $request['path'] ?? '/';
+        foreach ($cookies as $name => $cookie) {
+            $domainMatch = $cookie['hostOnly']
+                ? $requestHost === $cookie['domain']
+                : self::domainMatches($requestHost, $cookie['domain']);
+            if (!$domainMatch || !self::pathMatches($requestPath, $cookie['path'])) {
+                continue;
+            }
+            if ($cookie['secure'] && $request['scheme'] !== 'https') {
+                continue;
+            }
+            $parts[] = "{$name}={$cookie['value']}";
         }
 
         return $parts === [] ? null : implode('; ', $parts);

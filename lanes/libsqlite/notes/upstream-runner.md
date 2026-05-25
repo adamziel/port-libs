@@ -5622,6 +5622,50 @@ Result: recorded in `lane-status.json` after focused verification. Root aggregat
 
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.
 
+## Focused Native Mapping: `json_error_position()` Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice extends the accepted `json_error_position(X)` SQL
+dispatch boundary with one-argument SQL-style vector dispatch and
+case-insensitive function-name matching. Native
+`SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments()` validates
+arity, delegates the same TEXT, JSON5, cast-text BLOB, JSONB, superficial-only
+JSONB, and SQL NULL behavior as direct dispatch, and preserves invalid
+function-name rejection.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON diagnostic evidence for the same
+upstream behavior cluster:
+
+```sh
+json101.test json102.test json501.test json502.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonErrorPosition.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php lanes/libsqlite/examples/wordpress-json-error-position-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: recorded in `lane-status.json` after focused verification. Root
+aggregate harness was not assigned for this isolated micro-slice.
+
+Dependency closure: no new support component is needed. The slice reuses
+existing lane-local JSON5 parser, JSONB error-position checks, cast-text BLOB
+fallback, and SQL NULL handling; it counts no shared support-library progress.
+
 ## Focused Native Mapping: Table-Valued JSON Argument-Vector Dispatch
 
 Date: 2026-05-25

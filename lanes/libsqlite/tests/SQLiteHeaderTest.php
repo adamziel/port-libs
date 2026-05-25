@@ -3233,7 +3233,13 @@ return [
         $t->same(0, SQLiteJsonErrorPosition::jsonErrorPositionSqlFunction('json_error_position', new SQLiteBlobValue($validJsonb)));
         $t->same(2, SQLiteJsonErrorPosition::jsonErrorPositionSqlFunction('json_error_position', new SQLiteBlobValue($superficialOnlyJsonb)));
         $t->same(null, SQLiteJsonErrorPosition::jsonErrorPositionSqlFunction('json_error_position', null));
+        $t->same(15, SQLiteJsonErrorPosition::jsonErrorPositionSqlFunction('JSON_ERROR_POSITION', '{enabled:true,,}'));
+        $t->same(15, SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments('JSON_ERROR_POSITION', ['{enabled:true,,}']));
+        $t->same(0, SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments('json_error_position', [new SQLiteBlobValue($validJsonb)]));
+        $t->same(null, SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments('json_error_position', [null]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonErrorPosition::jsonErrorPositionSqlFunction('json_valid', '{"a":1}'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments('json_error_position', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments('json_error_position', ['{"a":1}', '{"b":2}']));
     },
     'inspects sqlite json_type and json_array_length for text json5 blob and null option values' => static function (TestRunner $t): void {
         $settings = '{"a":[2,3.5,true,false,null,"x"],"mode":"dark","empty":[]}';
