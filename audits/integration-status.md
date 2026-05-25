@@ -108781,3 +108781,28 @@ Files staged:
 - `lanes/libsqlite/src/SQLiteJsonPretty.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - Gitoxide smart HTTP redirect evidence rework - 2026-05-25 08:15 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T080306Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T080306Z.patch` (`sha256 87ba25ccc95cb09d40e47ee00850214f257bb036653fc794d462f71018f62393`, verified).
+Lane/slice/session: `gitoxide` / `priority-rework-20260525T080340Z` / `port-gitoxide-rework`.
+Base accepted HEAD in marker: `3cd14b1aec9111fe765bd51d923cd52dc13a32ca`; applied cleanly to current main `48912aa98580a6780820f885f32a273c9c6e5c4a`.
+
+Focused verification in clean worktree:
+- Syntax checks passed for `SmartHttpReceivePackTransport.php`, `ReceivePackTransportTest.php`, the smart HTTP fixture, and the WordPress follow-redirects example.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed: 1 test files, 291 assertions, 0 failures.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` passed.
+- JSON validity check for `lanes/gitoxide/lane-status.json` and `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` passed.
+- `git diff --check` passed.
+
+Root gate: disk/load/root-PHP gates passed immediately before focused checks and immediately before root verification. Root verification from this clean worktree: `php tools/run-tests.php` passed: 214 test files, 25910 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The slice preserves accepted stream watchdog timeout and advertisement ERR packet evidence while keeping smart HTTP receive-pack POST redirect preservation additive.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `audits/integration-status.md`

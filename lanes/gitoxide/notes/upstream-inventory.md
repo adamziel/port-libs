@@ -671,6 +671,7 @@ Focused smart HTTP receive-pack POST redirect preservation inspected on 2026-05-
 - Dependency closure for the smart HTTP POST redirect preservation slice: no new support component is needed. The slice reuses existing bounded smart HTTP receive-pack redirect handling and native status validation; no shared support-library row or activation gate is proposed.
 - Focused Gitoxide PHP verification after the POST redirect preservation rework slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 291 assertions, and 0 failures. Syntax checks passed for changed test and fixture PHP files. `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
 - Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+- Priority rework `priority-rework-20260525T080340Z` reran the same focused evidence on top of accepted HEAD `3cd14b1aec9111fe765bd51d923cd52dc13a32ca` and preserved the accepted stream watchdog timeout plus advertisement ERR packet accounting while keeping the POST redirect evidence additive.
 
 Focused smart HTTP receive-pack URL credential safety inventory inspected on 2026-05-25:
 
