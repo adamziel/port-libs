@@ -12,6 +12,7 @@ $sourceDir = sys_get_temp_dir() . '/quadrable-wp-proof-source-' . bin2hex(random
 $targetDir = sys_get_temp_dir() . '/quadrable-wp-proof-target-' . bin2hex(random_bytes(6));
 $uppercaseRootDir = sys_get_temp_dir() . '/quadrable-wp-proof-uppercase-root-' . bin2hex(random_bytes(6));
 $emptyRootDir = sys_get_temp_dir() . '/quadrable-wp-proof-empty-root-' . bin2hex(random_bytes(6));
+$hexDumpDir = sys_get_temp_dir() . '/quadrable-wp-proof-hex-dump-' . bin2hex(random_bytes(6));
 $binaryDumpDir = sys_get_temp_dir() . '/quadrable-wp-proof-binary-dump-' . bin2hex(random_bytes(6));
 $binaryTrustedDir = sys_get_temp_dir() . '/quadrable-wp-proof-binary-trusted-' . bin2hex(random_bytes(6));
 $binaryMergeDir = sys_get_temp_dir() . '/quadrable-wp-proof-binary-merge-' . bin2hex(random_bytes(6));
@@ -79,6 +80,16 @@ try {
     );
     $shortRoot = QuadbStore::importProofHexCommandOutput($targetDir, $proofHex, '0x00');
 
+    if (!mkdir($hexDumpDir, 0755, true) && !is_dir($hexDumpDir)) {
+        throw new RuntimeException('unable to create WordPress hex-dump proof target directory');
+    }
+    $hexDumpWithInvalidRoot = QuadbStore::importProofHexCommandOutput(
+        $hexDumpDir,
+        $proofHex,
+        '0X' . $trustedRoot,
+        true
+    );
+
     if (!mkdir($uppercaseRootDir, 0755, true) && !is_dir($uppercaseRootDir)) {
         throw new RuntimeException('unable to create WordPress uppercase-root proof target directory');
     }
@@ -138,6 +149,10 @@ try {
         'emptyProofStderr' => rtrim($emptyProof['stderr'], "\r\n"),
         'uppercaseRootPrefixStderr' => rtrim($uppercaseRootPrefix['stderr'], "\r\n"),
         'shortRootStderr' => rtrim($shortRoot['stderr'], "\r\n"),
+        'hexDumpIgnoresInvalidRoot' => $hexDumpWithInvalidRoot['exitCode'] === 0
+            && str_starts_with($hexDumpWithInvalidRoot['stdout'], 'ITEMS (')
+            && str_contains($hexDumpWithInvalidRoot['stdout'], 'wp_options:siteurl')
+            && $hexDumpWithInvalidRoot['stderr'] === '',
         'uppercaseRootImportExitCode' => $uppercaseRoot['exitCode'],
         'emptyRootImportHasNoWarning' => $emptyRoot['stdout'] === '' && $emptyRoot['stderr'] === '',
         'binaryDumpIgnoresInvalidRoot' => $binaryDumpWithInvalidRoot['exitCode'] === 0
@@ -156,6 +171,7 @@ try {
     $cleanup($targetDir);
     $cleanup($uppercaseRootDir);
     $cleanup($emptyRootDir);
+    $cleanup($hexDumpDir);
     $cleanup($binaryDumpDir);
     $cleanup($binaryTrustedDir);
     $cleanup($binaryMergeDir);

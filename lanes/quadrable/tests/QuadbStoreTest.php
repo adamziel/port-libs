@@ -500,6 +500,7 @@ return [
         $uppercaseRootDir = quadrableQuadbTempDir();
         $emptyRootDir = quadrableQuadbTempDir();
         $emptyPrefixedRootDir = quadrableQuadbTempDir();
+        $hexDumpDir = quadrableQuadbTempDir();
 
         try {
             $missingImport = QuadbStore::importProofHexCommandOutput($missingDir, 'zz');
@@ -581,6 +582,21 @@ return [
             ], QuadbStore::importProofHexCommandOutput($targetDir, '0001', '0x00'));
             $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($targetDir)->rootText());
 
+            if (!mkdir($hexDumpDir, 0755, true) && !is_dir($hexDumpDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+            $hexDumpWithInvalidRoot = QuadbStore::importProofHexCommandOutput(
+                $hexDumpDir,
+                $proofHex,
+                '0X' . $source->tree()->rootHash(),
+                true
+            );
+            $t->same(0, $hexDumpWithInvalidRoot['exitCode']);
+            $t->contains('ITEMS (1):', $hexDumpWithInvalidRoot['stdout']);
+            $t->contains('wp_options:siteurl', $hexDumpWithInvalidRoot['stdout']);
+            $t->same('', $hexDumpWithInvalidRoot['stderr']);
+            $t->same('0x' . HashTree::EMPTY_HASH . "\n", QuadbStore::open($hexDumpDir)->rootText());
+
             if (!mkdir($uppercaseRootDir, 0755, true) && !is_dir($uppercaseRootDir)) {
                 throw new RuntimeException('unable to create quadrable temp directory');
             }
@@ -624,6 +640,7 @@ return [
             quadrableQuadbRemoveDir($uppercaseRootDir);
             quadrableQuadbRemoveDir($emptyRootDir);
             quadrableQuadbRemoveDir($emptyPrefixedRootDir);
+            quadrableQuadbRemoveDir($hexDumpDir);
         }
     },
     'native quadb store maps binary importProof command root and dump precedence' => static function (TestRunner $t): void {

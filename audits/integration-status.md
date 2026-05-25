@@ -108683,3 +108683,17 @@ Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/exam
   - `php lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` passed.
   - `git diff --check` passed.
 - Root verification: `php tools/run-tests.php` passed under resource gate.
+
+### 2026-05-25 quadrable priority rework accepted
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-rework-20260525T075743Z.ready`
+- Patch SHA256: `d6721e66bec23338978d6c73c08ca4f6cafd88d83e289627cdedb0fc4f931677`
+- Base accepted HEAD before attempt: `3cd14b1aec9111fe765bd51d923cd52dc13a32ca`
+- Focused verification in detached worktree `.tmux-team/tmp/clean-integrator-quadrable-20260525T0803Z`:
+  - `php -l lanes/quadrable/tests/QuadbStoreTest.php` passed.
+  - `php -l lanes/quadrable/examples/wordpress-quadb-proof-input-guard.php` passed.
+  - `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json` passed.
+  - `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passed.
+  - `php lanes/quadrable/examples/wordpress-quadb-proof-input-guard.php` passed.
+  - `git diff --check` passed.
+- Root verification: `php tools/run-tests.php` passed under resource gate.
