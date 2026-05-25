@@ -1,5 +1,42 @@
 # Integration Status
 
+## Integration accepted - esbuild exports array/custom-condition slice - 2026-05-25 UTC
+
+Accepted isolated clean-patch marker:
+`.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T010040Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T010040Z.patch`.
+Lane/slice/session: `esbuild` / `supervisor-next-20260525T010040Z` /
+`port-esbuild`.
+
+Patch hash verification: `sha256sum -c` passed for
+`f2553b97cd3c7625989f391d82d178fc084b5f08f30412c41871d87fb511e573`.
+Applied cleanly to detached worktree from `54115731`.
+
+Focused verification in the clean worktree: `php -l
+lanes/esbuild/tests/PackageResolverTest.php` and `php -l
+lanes/esbuild/examples/wordpress-asset-preflight.php` passed. `jq empty
+lanes/esbuild/lane-status.json lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`
+passed. `php tools/run-tests.php lanes/esbuild/tests/PackageResolverTest.php`
+passed 1 test file, 84 assertions, 0 failures. `php tools/run-tests.php
+lanes/esbuild/tests` passed 6 test files, 1833 assertions, 0 failures. `php
+lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'package
+exports|package resolver'` passed. `git diff --check` passed.
+
+Root verification in the clean worktree: `php tools/run-tests.php` passed 208
+test files, 24480 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The
+slice reuses the bounded lane-local `PackageResolver`;
+`js-package-resolution-core` remains deferred for a later accepted cross-lane
+resolver gate. Live-service exclusions: no live service/provider tests were
+run.
+
+Files staged: esbuild package resolver fixture files, esbuild focused example,
+`lanes/esbuild/tests/PackageResolverTest.php`,
+`lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/lane-status.json`,
+`lanes/esbuild/notes/wordpress-scenarios.md`, and this audit file.
+
 ## Integration accepted - isolated lightningcss supervisor-next-20260525T005555Z - 2026-05-25 UTC
 
 Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T005555Z.ready`. Patch: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T005555Z.patch`. Lane/slice/session: `lightningcss` / `supervisor-next-20260525T005555Z` / `port-lightningcss`.
