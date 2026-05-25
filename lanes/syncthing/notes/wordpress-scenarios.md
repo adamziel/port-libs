@@ -2269,3 +2269,47 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: legacy watcher restart
 acknowledgement via `markWatcherRestarted()` should preserve queued events just
 like due restart completion.
+
+## 2026-05-25 Legacy Watcher Restart Acknowledgement Preserves Queued Events
+
+This isolated micro-slice maps the legacy acknowledgement side of the upstream
+filesystem watcher restart boundary from `lib/model/folder.go`: an adapter can
+mark a restarted watch source healthy without routing through the due-restart
+helper, but already coalesced filesystem events still remain governed by the
+normal `FSWatcherDelay` window.
+
+Native PHP already held the correct state boundary in
+`FolderWatchScanScheduler::markWatcherRestarted()` by clearing only
+`watchRestarts`; this batch adds focused regression coverage and WordPress
+smoke output for that legacy path. `wordpress-fs-watch-scan-scheduler.php` now
+reports `legacyRestartAcknowledged: true`, pending upload status after the
+acknowledgement, a before-due no-op scan, and a later due scan that consumes the
+queued media event.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan
+scheduler, scan service, and checkpoint store. The activation gate is wiring
+`markWatcherRestarted()` from a WordPress/local watcher adapter after it
+recreates a native watch subscription through a legacy callback path; the
+evidence plan is the focused watcher tests plus the local WordPress example
+smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 130 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported legacy restart acknowledgement, pending upload
+  status after acknowledgement, a before-due no-op scan, and the later due
+  scan.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: watcher restart acknowledgement
+should be ignored after folder removal and must not recreate watcher state for
+unshared folders.

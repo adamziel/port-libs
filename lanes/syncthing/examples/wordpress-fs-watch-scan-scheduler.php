@@ -72,6 +72,12 @@ try {
     $queuedPendingAfterRestart = $watchScheduler->watchStatus('wordpress-media', 1066);
     $queuedScanBeforeDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1066);
     $queuedScanAfterDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1070);
+    $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/gallery.jpg', now: 1080);
+    $watchScheduler->recordWatcherError('wordpress-media', 'legacy watcher closed with queued event', scanOnWatchError: false, now: 1081);
+    $legacyRestartAcknowledged = $watchScheduler->markWatcherRestarted('wordpress-media');
+    $legacyPendingAfterRestart = $watchScheduler->watchStatus('wordpress-media', 1086);
+    $legacyScanBeforeDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1086);
+    $legacyScanAfterDue = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1090);
     $scheduler->removeFolder('wordpress-media');
     $removedWatchState = $watchScheduler->removeWatchingFolder('wordpress-media');
     $removedStatus = $watchScheduler->watchStatus('wordpress-media', 1050);
@@ -99,6 +105,10 @@ try {
         'queuedPendingAfterRestart' => $queuedPendingAfterRestart,
         'queuedScanBeforeDue' => $queuedScanBeforeDue->toRestStatus(),
         'queuedScanAfterDue' => $queuedScanAfterDue->toRestStatus(),
+        'legacyRestartAcknowledged' => $legacyRestartAcknowledged,
+        'legacyPendingAfterRestart' => $legacyPendingAfterRestart,
+        'legacyScanBeforeDue' => $legacyScanBeforeDue->toRestStatus(),
+        'legacyScanAfterDue' => $legacyScanAfterDue->toRestStatus(),
         'removedWatchState' => $removedWatchState,
         'removedStatus' => $removedStatus,
         'checkpointRevision' => $service->checkpoint(1021)?->revision,
