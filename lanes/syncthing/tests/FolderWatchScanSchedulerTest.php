@@ -213,8 +213,12 @@ return [
             $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 5000);
             $watch->recordWatcherError('wordpress-media', 'watcher closed during unshare', scanOnWatchError: false, now: 5001);
             $t->same(true, $scheduler->removeFolder('wordpress-media'));
+            $t->same(false, $watch->markWatcherRestarted('wordpress-media'));
+            $t->same(null, $watch->watchStatus('wordpress-media', 5002));
+            $t->same([], $watch->watchStatuses(5002));
+            $t->same([], $watch->dueWatcherRestarts(5006));
 
-            $t->same(true, $watch->removeWatchingFolder('wordpress-media'));
+            $t->same(false, $watch->removeWatchingFolder('wordpress-media'));
             $t->same(null, $watch->watchStatus('wordpress-media', 5010));
             $t->same([], $watch->watchStatuses(5010));
             $t->same([], $watch->lastDispatchedBatches());

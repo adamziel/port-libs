@@ -147,7 +147,7 @@ final class FolderWatchScanScheduler
     {
         self::assertFolderId($folderId);
         if (!$this->folderExists($folderId)) {
-            unset($this->watchRestarts[$folderId]);
+            unset($this->watchRestarts[$folderId], $this->aggregators[$folderId], $this->lastDispatchedBatches[$folderId]);
 
             return false;
         }

@@ -1,5 +1,51 @@
 # Integration Status
 
+## Integration accepted - isolated Syncthing removed-folder watcher restart slice - 2026-05-25 04:42 UTC
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.patch`.
+
+Lane/slice/session: `syncthing` /
+`supervisor-rearm-20260525T031809Z` / `port-syncthing`.
+Patch sha256 verified:
+`a4871a141ddc23e17048ad56bc9a4e12a6bc72559f339c2434bf7db7cf572fd7`.
+
+Application notes: straight `git apply --check` failed on accepted drift in
+Syncthing manifest/status/notes plus adjacent watcher lifecycle output. Bounded
+`git apply --3way` was used in a detached clean worktree from
+`52b91096f05d8e28e160aaf4291ee9fabc839d2a`. Resolution kept current accepted
+metadata and integrated only the submitted `markWatcherRestarted()` removed
+folder cleanup, focused test, and WordPress example output.
+
+Focused commands and results:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `jq empty lanes/syncthing/lane-status.json lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed: 1 selected test file, 143 assertions, 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed and reported `removedLegacyRestartAcknowledged=false` and
+  `removedStatus=null`.
+
+Support-library/dependency closure: no support-library activation. The slice
+uses the existing lane-local watcher scheduler, folder scan scheduler, scan
+service, and checkpoint surfaces only. No live-service provider tests were run.
+
+Root command/result: `php tools/run-tests.php` passed in this clean worktree:
+212 test files, 25149 assertions, 0 failures. `git diff --check` also passed.
+
+Files staged:
+`lanes/syncthing/src/FolderWatchScanScheduler.php`,
+`lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`,
+`lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - isolated Difftastic Go highlight slice - 2026-05-25 04:38 UTC
 
 Ready marker:
