@@ -245,9 +245,13 @@ final class Commit
     public function storageBytes(): string
     {
         self::validateWritableObjectId($this->tree, 'tree');
+        $hashLength = strlen($this->tree);
         $out = "tree {$this->tree}\n";
         foreach ($this->parents as $parent) {
             self::validateWritableObjectId($parent, 'parent');
+            if (strlen($parent) !== $hashLength) {
+                throw new \InvalidArgumentException('Commit parent object id must use the same hash length as the tree object id');
+            }
             $out .= "parent {$parent}\n";
         }
 

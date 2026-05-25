@@ -118,6 +118,33 @@ return [
         $t->same([], $flow['deletedVersions']);
         $t->same(false, $flow['providerCalled']);
     },
+    'onedrive cleanup command validates command remote arguments before cleanup work' => static function (TestRunner $t): void {
+        $missing = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'remoteArgs' => [],
+            'featureAvailable' => false,
+            'walkError' => 'would not be reached',
+        ]);
+        $extra = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'remoteArgs' => ['onedrive:', 'extra:'],
+        ]);
+
+        $t->same('cleanup command expects exactly one remote argument', $missing['error']);
+        $t->same(0, $missing['walkedObjects']);
+        $t->same(0, $missing['versionRequests']);
+        $t->same(false, $missing['providerCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $extra['error']);
+        $t->same(false, $extra['providerCalled']);
+    },
     'onedrive cleanup command disabled no versions path does not require cleanup feature' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([
             [
@@ -239,6 +266,8 @@ return [
         $t->same(null, $example['disabledNoVersionsTypeError']);
         $t->same('internal error: not a onedrive object', $example['enabledTypeError']);
         $t->same(false, $example['enabledTypeErrorProviderCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $example['missingRemoteArgError']);
+        $t->same(false, $example['missingRemoteArgProviderCalled']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];

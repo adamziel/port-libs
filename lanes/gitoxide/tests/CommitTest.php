@@ -270,6 +270,16 @@ return [
             [],
         );
         $t->throws(InvalidArgumentException::class, static fn () => $badParent->object());
+
+        $mixedHashParents = new Commit(
+            '0123456789abcdef0123456789abcdef01234567',
+            ['1111111111111111111111111111111111111111111111111111111111111111'],
+            'Ada <ada@example.test> 1700000000 +0000',
+            'CI <ci@example.test> 1700000001 +0000',
+            'message',
+            [],
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $mixedHashParents->storageBytes());
     },
     'extra header lookup follows gitoxide first all and position semantics' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
@@ -574,6 +584,7 @@ return [
         $t->same('UTF-8', $summary['lateStandardHeaderEncodingExtra']);
         $t->same(true, $summary['misorderedHeaderRejected']);
         $t->same($fixture['expectedWriterObjectIdGuard'], $summary['writerObjectIdGuard']);
+        $t->same($fixture['expectedMixedHashGuard'], $summary['mixedHashGuard']);
         $t->same($fixture['expectedOddTimestampAuthorTime'], $summary['oddTimestampAuthorTime']);
         $t->same($fixture['expectedOddTimestampCommitterTime'], $summary['oddTimestampCommitterTime']);
         $t->same($fixture['expectedOddTimestampCommitterRawTime'], $summary['oddTimestampCommitterRawTime']);

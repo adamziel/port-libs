@@ -114,6 +114,17 @@ try {
         ['-0suffix', '+0'],
         integerKeys: true
     );
+    $emptyIntegerProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        [],
+        integerKeys: true
+    );
+    $emptyIntegerHexProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        [],
+        hex: true,
+        integerKeys: true
+    );
     $badIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
         $integerDir,
         "2\nnot-an-int\n",
@@ -150,6 +161,8 @@ try {
         'spacedPlusIntegerProofMatchesNumericPrefix' => $spacedPlusProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'signedZeroIntegerExportProofExitCode' => $signedZeroProofCommand['exitCode'],
         'signedZeroIntegerBinaryProofBytes' => strlen($signedZeroProofCommand['stdout']),
+        'emptyIntegerExportProofExitCode' => $emptyIntegerProofCommand['exitCode'],
+        'emptyIntegerHexProofHasPrefix' => str_starts_with($emptyIntegerHexProofCommand['stdout'], '0x'),
         'badIntegerProofStdin' => $badIntegerProofCommand,
         'negativeIntegerProofDirect' => $negativeIntegerProofCommand,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

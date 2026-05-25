@@ -82,6 +82,7 @@ return [
     'expectedStorageSha1' => '0e4e540a8e8df5ad417aa01f23446ff1499375dc',
     'expectedObjectSha1' => 'b67d8527fb3f0ba50e607772acfd618c9a13cd89',
     'expectedSize' => 925,
+    'expectedMixedHashGuard' => true,
     'expectedSignatureHeaderPosition' => 0,
     'expectedMergeTagCount' => 1,
     'expectedMergeTagName' => 'wp-release-2026.05',

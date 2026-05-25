@@ -852,3 +852,12 @@ Focused commit writer object-id guard inspected on 2026-05-25:
 - Dependency closure for the commit writer object-id guard slice: no new support component is needed. The slice reuses existing bounded commit writer/parser behavior and native PHP regex validation; no shared support-library row or activation gate is proposed.
 - Focused Gitoxide PHP verification after the object-id guard slice is green: `php tools/run-tests.php lanes/gitoxide/tests/CommitTest.php` reported 1 test file, 207 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-commit-signature.php` exited 0.
 - Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
+Focused commit writer mixed-hash object-format guard inspected on 2026-05-25:
+
+- Reused the existing static `gix-object` commit write/storage inventory and native `Commit::storageBytes()` writer path. No full cargo workspace runner was executed for this isolated micro-slice.
+- The PHP slice rejects constructed commits whose parent object IDs use a different hash length than the tree object ID before object wrapping or oid calculation. This mirrors the parser's single-algorithm boundary for manually constructed writable commits and prevents mixed sha1/sha256 WordPress deployment commits from being stored as native Git objects.
+- The WordPress commit-signature fixture/example now records mixed-hash deployment parent rejection alongside the malformed deployment tree rejection and existing import actor, signature, trailer, mergetag, and storage/object hash evidence.
+- Dependency closure for the commit writer mixed-hash object-format guard slice: no new support component is needed. The slice reuses existing bounded commit writer/parser behavior and native PHP string-length validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the mixed-hash object-format guard slice is green: `php tools/run-tests.php lanes/gitoxide/tests/CommitTest.php` reported 1 test file, 209 assertions, and 0 failures. Syntax checks passed for changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-commit-signature.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.

@@ -43,6 +43,19 @@ try {
 } catch (InvalidArgumentException) {
     $writerObjectIdGuard = true;
 }
+$mixedHashGuard = false;
+try {
+    (new Commit(
+        '0123456789abcdef0123456789abcdef01234567',
+        ['1111111111111111111111111111111111111111111111111111111111111111'],
+        'WordPress Importer <importer@example.test> 1710000000 -0230',
+        'WordPress Deploy Bot <deploy@example.test> 1710003600 +0000',
+        "Mixed object-format deploy parent\n",
+        [],
+    ))->storageBytes();
+} catch (InvalidArgumentException) {
+    $mixedHashGuard = true;
+}
 
 return [
     'tree' => $commit->tree,
@@ -105,6 +118,7 @@ return [
     'lateStandardHeaderEncodingExtra' => $lateStandardHeaderCommit->extraHeader('encoding'),
     'misorderedHeaderRejected' => $misorderedHeaderRejected,
     'writerObjectIdGuard' => $writerObjectIdGuard,
+    'mixedHashGuard' => $mixedHashGuard,
     'oddTimestampAuthorTime' => $oddTimestampAuthor->time(),
     'oddTimestampCommitterTime' => $oddTimestampCommitter->time(),
     'oddTimestampCommitterRawTime' => $oddTimestampCommitter->time,

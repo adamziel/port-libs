@@ -67,6 +67,11 @@ $enabledTypeError = OneDriveCleanupCommand::run([
         'versions' => ['current', 'old-review'],
     ],
 ]);
+$missingRemoteArg = OneDriveCleanupCommand::run($objects, [
+    'remoteArgs' => [],
+    'featureAvailable' => false,
+    'walkError' => 'would not be reached',
+]);
 
 return [
     'source' => 'onedrive-cleanup-command-preflight',
@@ -82,5 +87,7 @@ return [
     'disabledNoVersionsTypeError' => $disabledNoVersionsType['error'],
     'enabledTypeError' => $enabledTypeError['error'],
     'enabledTypeErrorProviderCalled' => $enabledTypeError['providerCalled'],
+    'missingRemoteArgError' => $missingRemoteArg['error'],
+    'missingRemoteArgProviderCalled' => $missingRemoteArg['providerCalled'],
     'secretInputsRead' => false,
 ];

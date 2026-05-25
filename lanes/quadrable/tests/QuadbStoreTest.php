@@ -1608,6 +1608,16 @@ return [
             $t->same(0, $signedZeroProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([0]), $signedZeroProof['stdout']);
             $t->same('', $signedZeroProof['stderr']);
+            $emptyIntegerProof = QuadbStore::exportProofCommandOutput($dir, [], integerKeys: true);
+            $t->same(0, $emptyIntegerProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([]), $emptyIntegerProof['stdout']);
+            $t->same('', $emptyIntegerProof['stderr']);
+            $emptyIntegerHexProof = QuadbStore::exportProofCommandOutput($dir, [], hex: true, integerKeys: true);
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $repo->exportIntegerProofHex([]),
+                'stderr' => '',
+            ], $emptyIntegerHexProof);
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',
