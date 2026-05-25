@@ -100573,3 +100573,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T023853Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch rejection - libsqlite - 2026-05-25 02:45 UTC
+
+Ready marker: `port-libsqlite-20260525T023853Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T023853Z.patch`
+Lane/slice/session: `libsqlite` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `63d6efd46dfed8d6af4b984b4109361d5afca14c`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-libsqlite-20260525T024528Z/lanes/libsqlite/tests/SQLiteHeaderTest.php 
+- `php tools/run-tests.php lanes/libsqlite/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-libsqlite-20260525T024528Z/lanes/libsqlite/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T023853Z.patch`, then fix the failing focused command above without broadening the slice.
+
