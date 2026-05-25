@@ -104815,3 +104815,21 @@ Root verification: `php tools/run-tests.php` passed in the same clean worktree.
 
 Live-service exclusions: no live-service provider tests were run. For rclone, verification was limited to local bounded token-renewer lifecycle tests and example smoke with no credentials or live remotes.
 
+
+## Integration accepted - Rclone OneDrive token-renewer closed watchdog lifecycle - 2026-05-25 07:22 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T071048Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T071048Z.patch` (sha256 `f2af45e111198a432d7a4d32e990d29cefb2b9bfc6996b53aac081ec4c3eadf9`, verified).
+Lane: `rclone`.
+
+Focused verification in clean detached worktree `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-port-rclone-20260525T071048Z`:
+- PHP lint on changed PHP files: passed.
+- JSON validation with `jq empty` on changed JSON files: passed where applicable.
+- Example/smoke: php lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php >/dev/null passed.
+- Focused command: `php tools/run-tests.php lanes/rclone/tests/OneDriveTokenRenewerTest.php && php tools/run-tests.php lanes/rclone/tests` passed.
+- `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree.
+
+Live-service exclusions: no live-service provider tests were run. For rclone, verification was limited to local bounded token-renewer lifecycle tests and example smoke with no credentials or live remotes.
+

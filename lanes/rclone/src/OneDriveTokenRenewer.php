@@ -170,6 +170,11 @@ final class OneDriveTokenRenewer
         return $this->armedForNextExpiry;
     }
 
+    public function isShutdown(): bool
+    {
+        return $this->shutdown;
+    }
+
     /**
      * @return list<string>
      */

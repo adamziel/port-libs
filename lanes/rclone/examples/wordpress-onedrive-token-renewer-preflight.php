@@ -69,6 +69,17 @@ $underflowRenewer = new OneDriveTokenRenewer(
 $underflowRenewer->stopUpload();
 $watchdogUnderflow = $underflowRenewer->watchdogCycle();
 
+$closedDuringUpload = new OneDriveTokenRenewer(
+    'wordpress-watchdog-closed-during-upload',
+    static function () use (&$metadataReads): void {
+        $metadataReads[] = 'unexpected-closed-during-upload-read';
+    },
+);
+$watchdogClosedDuringUpload = $closedDuringUpload->duringUpload(static function () use ($closedDuringUpload): array {
+    return $closedDuringUpload->watchdogCycle(false);
+});
+$watchdogClosedDuringUploadActiveUploadsAfterStop = $closedDuringUpload->activeUploads();
+
 return [
     'source' => 'onedrive-token-renewer-preflight',
     'renewerName' => $renewer->name(),
@@ -90,9 +101,13 @@ return [
     'watchdogNoExpirySourceRunning' => $watchdogNoExpirySource['running'],
     'watchdogUnderflowRefreshed' => $watchdogUnderflow['refreshed'],
     'watchdogUnderflowActiveUploads' => $watchdogUnderflow['activeUploads'],
+    'watchdogClosedDuringUploadRunning' => $watchdogClosedDuringUpload['running'],
+    'watchdogClosedDuringUploadActiveUploads' => $watchdogClosedDuringUpload['activeUploads'],
+    'watchdogClosedDuringUploadActiveUploadsAfterStop' => $watchdogClosedDuringUploadActiveUploadsAfterStop,
     'watchdogEvents' => $watchdogRenewer->events(),
     'noExpirySourceEvents' => $noExpirySource->events(),
     'underflowEvents' => $underflowRenewer->events(),
+    'closedDuringUploadEvents' => $closedDuringUpload->events(),
     'events' => $renewer->events(),
     'secretInputsRead' => false,
 ];

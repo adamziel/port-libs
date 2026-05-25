@@ -255,6 +255,34 @@ return [
             'expiry-ignored-after-shutdown',
         ], $renewer->events());
     },
+    'onedrive token renewer closed watchdog still allows deferred upload stop' => static function (TestRunner $t): void {
+        $reads = 0;
+        $renewer = new OneDriveTokenRenewer('onedrive:test', static function () use (&$reads): void {
+            ++$reads;
+        });
+
+        $closed = $renewer->duringUpload(static function () use ($renewer): array {
+            return $renewer->watchdogCycle(false);
+        });
+        $afterClosed = $renewer->watchdogCycle();
+        $renewer->startUpload();
+
+        $t->same(false, $closed['refreshed']);
+        $t->same(false, $closed['running']);
+        $t->same(1, $closed['activeUploads']);
+        $t->same(false, $afterClosed['running']);
+        $t->same(0, $reads);
+        $t->same(0, $renewer->activeUploads());
+        $t->same(true, $renewer->isShutdown());
+        $t->same(false, $renewer->isArmedForNextExpiry());
+        $t->same([
+            'upload-started',
+            'watchdog-expiry-channel-closed',
+            'upload-stopped',
+            'expiry-ignored-after-shutdown',
+            'start-ignored-after-shutdown',
+        ], $renewer->events());
+    },
     'wordpress onedrive token renewer preflight exposes refresh lifecycle' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-token-renewer-preflight.php';
 
@@ -276,6 +304,8 @@ return [
         $t->same(false, $example['watchdogNoExpirySourceRunning']);
         $t->same(false, $example['watchdogUnderflowRefreshed']);
         $t->same(-1, $example['watchdogUnderflowActiveUploads']);
+        $t->same(false, $example['watchdogClosedDuringUploadRunning']);
+        $t->same(0, $example['watchdogClosedDuringUploadActiveUploadsAfterStop']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];
