@@ -109504,6 +109504,53 @@ provider tests were run.
 Files staged: `lanes/libsqlite/tests/SQLiteHeaderTest.php`,
 `lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`, and
 `audits/integration-status.md`.
+## Integration accepted - Quadrable exportProof int parser edges - 2026-05-25 12:05 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-finisher-20260525T115722Z.ready`.
+Patch path:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-finisher-20260525T115722Z.patch`.
+
+Lane/slice/session: `quadrable` / `priority-refill-20260525T115722Z` /
+`port-quadrable-finisher`. Worker base was
+`4ec8facfb5df6a09fd8f6b20c96c8d2073873523`; clean integration base was
+`135993d6b43bd1e4fe27b0391f92b9d5891c2590` after the Dolt acceptance.
+Patch SHA-256 matched
+`2219bbbfabf14dc81fc7a0f63cdf49c7310d1d2437d40600c605068fed66c75e`.
+Plain `git apply --check` and apply succeeded on the clean integration base.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-quadrable-priority-refill-20260525T115722Z-2384668`:
+
+- `php -l lanes/quadrable/tests/QuadbStoreTest.php` passed with no syntax errors.
+- `php -l lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php` passed with no syntax errors.
+- `php -r 'json_decode(file_get_contents("lanes/quadrable/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/quadrable/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'` passed.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passed: 1 test file, 995 assertions, 0 failures.
+- `php lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php >/tmp/quadrable-example-115722.out` exited 0.
+- Example smoke returned `plusOverflowIntegerProofFailsStoi=true` and `minSignedIntegerProofFailsRange=true`.
+- `git diff --check` passed.
+
+Root verification gate was open before the serialized run: `/` had
+`132627216` KiB available, load average first field was `9.42`, and
+`pgrep -af '^php tools/run-tests\.php$'` was empty. Root command ran under
+`.tmux-team/tmp/clean-integrator-run.lock` with the lock held only for:
+`php tools/run-tests.php`. Exact result: 214 test files, 26119 assertions,
+0 failures.
+
+Support-library/dependency-closure decision: no new support component was
+activated. The slice reuses Quadrable's bounded proof transport,
+command-level CLI integer parser, `QuadbStore` command wrappers, and WordPress
+proof stdin/binary example; no shell-outs and no live-service/provider tests
+were used.
+
+Files staged:
+`lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php`,
+`lanes/quadrable/lane-status.json`,
+`lanes/quadrable/notes/upstream-inventory.md`,
+`lanes/quadrable/tests/QuadbStoreTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - Dolt constraint-only rollback visibility - 2026-05-25 12:00 UTC
 
 Accepted isolated ready marker:

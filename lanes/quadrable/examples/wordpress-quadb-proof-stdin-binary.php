@@ -173,6 +173,16 @@ try {
         ['-1'],
         integerKeys: true
     );
+    $plusOverflowIntegerProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['+2147483648suffix'],
+        integerKeys: true
+    );
+    $minSignedIntegerProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['-2147483648'],
+        integerKeys: true
+    );
 
     echo json_encode([
         'scenario' => 'quadb exportProof --stdin binary proof input for delegated WordPress preview reads',
@@ -213,6 +223,10 @@ try {
         'emptyIntegerHexProofHasPrefix' => str_starts_with($emptyIntegerHexProofCommand['stdout'], '0x'),
         'badIntegerProofStdin' => $badIntegerProofCommand,
         'negativeIntegerProofDirect' => $negativeIntegerProofCommand,
+        'plusOverflowIntegerProofFailsStoi' => $plusOverflowIntegerProofCommand['exitCode'] === 1
+            && $plusOverflowIntegerProofCommand['stderr'] === "quadb error: stoi\n",
+        'minSignedIntegerProofFailsRange' => $minSignedIntegerProofCommand['exitCode'] === 1
+            && $minSignedIntegerProofCommand['stderr'] === "quadb error: int range exceeded\n",
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($sourceDir);
