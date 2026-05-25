@@ -101139,3 +101139,15 @@ Support-library/dependency-closure decision: no activation accepted.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `audits/integration-status.md` only.
 Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
+
+## Clean-patch rejection - quadrable - 2026-05-25 03:00 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T025125Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T025125Z.patch`
+Decision: rejected/deferred after focused verification.
+Focused commands: `php -l <changed PHP files>` exit 1; `php tools/run-tests.php lanes/quadrable/tests` exit 255 (PASS maps upstream update proof multiple leaf updates and split leaf insert PASS maps upstream update proof witness leaf upgrade and split behavior PASS maps upstream update proof deletion bubbling and witness bubble guard PASS wordpress proof-backed post update can be verified from a narrow raw-key proof PHP Parse error:  syntax error, unexpected token "<<", expecting "]" in /tmp/port-clean-integrator-quadrable-safe-20260525T030009Z/lanes/quadrable/tests/QuadbStoreTest.php on line 1569 ); `git diff --check` exit 2.
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `audits/integration-status.md` only.
+Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
