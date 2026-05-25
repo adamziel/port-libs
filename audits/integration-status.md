@@ -1,5 +1,37 @@
 # Integration Status
 
+## Integration accepted - rclone OneDrive token renewer rearm slice - 2026-05-25 03:07 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T023032Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T023032Z.patch`.
+Lane/slice/session: `rclone` / `rearmer-20260525T023031Z` / `port-rclone`.
+
+Patch sha256 verified: `65e67d7b25397aceec63f955c1452e26da0decc99baaf36b6d5c1eabf6b287e9`.
+Clean worktree: `/tmp/port-clean-integrator-rclone-rearmer-20260525T023032Z`.
+Base accepted HEAD: `931e9bc0`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/rclone/src/OneDriveTokenRenewer.php`: no syntax errors.
+- `php -l lanes/rclone/tests/OneDriveTokenRenewerTest.php`: no syntax errors.
+- `php -l lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`: no syntax errors.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json`: exited 0.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveTokenRenewerTest.php`: 1 test file, 43 assertions, 0 failures.
+- `php tools/run-tests.php lanes/rclone/tests`: 32 test files, 3844 assertions, 0 failures.
+- `php lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`: exited 0.
+- `git diff --check`: exited 0.
+
+Root verification:
+
+- Pre-root `pgrep -af '^php tools/run-tests\.php$'`: no active no-argument root harness.
+- `php tools/run-tests.php`: 211 test files, 24765 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The slice reuses the existing bounded OneDrive/OAuth lifecycle model and deliberately avoids timers, token-source internals, process environments, OAuth browser state, cloud remotes, and provider credentials.
+
+Live-service exclusions: live OneDrive OAuth/provider tests, mount/FUSE packages, Docker-backed serve coverage, and provider-remotes integration were not run.
+
+Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, `lanes/rclone/notes/wordpress-scenarios.md`, `lanes/rclone/src/OneDriveTokenRenewer.php`, `lanes/rclone/tests/OneDriveTokenRenewerTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - Syncthing queued watcher restart slice - 2026-05-25 03:04 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023248Z.ready`.

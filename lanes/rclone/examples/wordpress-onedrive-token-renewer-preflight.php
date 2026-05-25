@@ -31,6 +31,8 @@ return [
     'postUploadExpiryRefreshed' => $postUploadExpiry['refreshed'],
     'shutdownExpiryRefreshed' => $shutdownExpiry['refreshed'],
     'activeUploadsAfterStop' => $renewer->activeUploads(),
+    'expirySignals' => $renewer->expirySignals(),
+    'armedForNextExpiry' => $renewer->isArmedForNextExpiry(),
     'events' => $renewer->events(),
     'secretInputsRead' => false,
 ];

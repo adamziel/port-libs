@@ -16,6 +16,8 @@ final class OneDriveTokenRenewer
 {
     private int $activeUploads = 0;
     private bool $shutdown = false;
+    private int $expirySignals = 0;
+    private bool $armedForNextExpiry = true;
 
     /** @var list<string> */
     private array $events = [];
@@ -59,8 +61,10 @@ final class OneDriveTokenRenewer
             return $this->result(false);
         }
 
+        ++$this->expirySignals;
         if ($this->activeUploads === 0) {
             $this->events[] = 'expiry-no-active-upload';
+            $this->events[] = 'expiry-rearmed';
             return $this->result(false);
         }
 
@@ -68,9 +72,11 @@ final class OneDriveTokenRenewer
         try {
             ($this->refreshRootMetadata)();
             $this->events[] = 'expiry-refresh-ok';
+            $this->events[] = 'expiry-rearmed';
             return $this->result(true);
         } catch (\Throwable $exception) {
             $this->events[] = 'expiry-refresh-error';
+            $this->events[] = 'expiry-rearmed';
             return $this->result(true, $exception->getMessage());
         }
     }
@@ -82,6 +88,7 @@ final class OneDriveTokenRenewer
         }
 
         $this->shutdown = true;
+        $this->armedForNextExpiry = false;
         $this->events[] = 'shutdown';
     }
 
@@ -93,6 +100,16 @@ final class OneDriveTokenRenewer
     public function name(): string
     {
         return $this->name;
+    }
+
+    public function expirySignals(): int
+    {
+        return $this->expirySignals;
+    }
+
+    public function isArmedForNextExpiry(): bool
+    {
+        return $this->armedForNextExpiry;
     }
 
     /**
