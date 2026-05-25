@@ -101035,3 +101035,25 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json lanes/dolt/examples/wordpress-merge-status-review.php lanes/dolt/fixtures/wp-merge-review.php lanes/dolt/lane-status.json lanes/dolt/notes/wordpress-scenarios.md lanes/dolt/src/MergeStatusTable.php lanes/dolt/tests/MergeStatusTableTest.php `
 
+
+## Clean-patch defer - esbuild - 2026-05-25 02:57 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T024543Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T024543Z.patch`
+Lane/slice/session: `esbuild` / `supervisor-rearm-20260525T024542Z` / isolated worker
+
+Decision: deferred, not integrated. Patch hash had been verified, but after newer accepted work the current esbuild marker no longer applies cleanly and three-way application leaves non-trivial conflicts.
+
+Exact failing commands and results:
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T024543Z.patch`: error: patch failed: lanes/esbuild/UPSTREAM_TEST_MANIFEST.json:12 error: lanes/esbuild/UPSTREAM_TEST_MANIFEST.json: patch does not apply error: patch failed: lanes/esbuild/examples/wordpress-asset-preflight.php:143 error: lanes/esbuild/examples/wordpress-asset-preflight.php: patch does not apply error: lanes/esbuild/fixtures/wordpress-package-assets/src/block.json: already exists in working directory error: lanes/esbuild/fixtures/wordpress-package-assets/src/loader-entry.js: already exists in working directory error: patch failed: lanes/esbuild/lane-status.json:2 error: lanes/esbuild/lane-stat
+- `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T024543Z.patch`: Applied patch to 'lanes/esbuild/UPSTREAM_TEST_MANIFEST.json' with conflicts. Applied patch to 'lanes/esbuild/examples/wordpress-asset-preflight.php' cleanly. Performing three-way merge... Applied patch to 'lanes/esbuild/fixtures/wordpress-package-assets/src/block.json' with conflicts. Performing three-way merge... Applied patch to 'lanes/esbuild/fixtures/wordpress-package-assets/src/loader-entry.js' with conflicts. Falling back to direct application... Applied patch to 'lanes/esbuild/lane-status.json' with conflicts. Applied patch to 'lanes/esbuild/notes/upstream-inventory.md' cleanly. Applied
+
+Affected files: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/fixtures/wordpress-package-assets/src/block.json lanes/esbuild/fixtures/wordpress-package-assets/src/loader-entry.js lanes/esbuild/lane-status.json lanes/esbuild/notes/wordpress-scenarios.md lanes/esbuild/src/BundlerGraphBuilder.php lanes/esbuild/tests/BundlerGraphBuilderTest.php `
+
+Focused commands: not run because the patch could not be applied without conflicts.
+Root command: not run because source was not accepted.
+Support-library/dependency-closure decision: no support-library activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `audits/integration-status.md` only.
+
+Repair command: rebase the esbuild slice onto current `refs/heads/main`, resolving only `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/fixtures/wordpress-package-assets/src/block.json lanes/esbuild/fixtures/wordpress-package-assets/src/loader-entry.js lanes/esbuild/lane-status.json lanes/esbuild/notes/wordpress-scenarios.md lanes/esbuild/src/BundlerGraphBuilder.php lanes/esbuild/tests/BundlerGraphBuilderTest.php `, then rerun `php tools/run-tests.php lanes/esbuild/tests`, `git diff --check`, and `php tools/run-tests.php` from the clean rebased snapshot.
