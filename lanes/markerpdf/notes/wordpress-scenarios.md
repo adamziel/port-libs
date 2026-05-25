@@ -24,6 +24,8 @@ The 2026-05-24 23:37 UTC ASCII85 stream-filter slice decodes `/ASCII85Decode` an
 
 The 2026-05-25 00:25 UTC RunLength stream-filter slice decodes `/RunLengthDecode` and `/RL` content streams before native text-token parsing, including literal runs, repeated-byte runs, EOD termination, malformed truncation rejection, and a stacked RunLength-to-Flate path. `examples/wordpress-pdf-runlength-filter-import.php` demonstrates the WordPress import effect by emitting `RunLength PDF Import` and `Block Ready Content` as Gutenberg paragraphs without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+The 2026-05-25 01:02 UTC Flate predictor slice applies `/FlateDecode` `/DecodeParms` predictors after inflation, including TIFF Predictor 2 horizontal differencing and PNG Predictor 10-15 row filters before native text-token parsing. `examples/wordpress-pdf-flate-predictor-import.php` demonstrates the WordPress import effect by emitting `Predictor PDF Import` and `Block Ready Content` as Gutenberg paragraphs without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 The lane now also maps the upstream `pdftext` dictionary boundary from `marker/pdf/extract_text.py::pdftext_format_to_blocks`. `PdfTextBlockConverter` converts supplied pdftext page dictionaries into Marker's native Page/Block/Line/Span arrays, including font flag suffixes, span IDs, rotation-aware page bboxes, and pdftext hyphen/newline cleanup before later layout annotation.
 
 The lane now also maps the supplied-data boundary of `marker/pdf/extract_text.py::get_text_blocks`. `PdfTextDocumentExtractor` applies upstream `start_page`/`max_pages` page-range semantics to supplied pdftext dictionaries, restarts span IDs relative to the selected range, preserves original PDF page numbers, and carries PDF TOC metadata for partial WordPress imports.
@@ -212,4 +214,4 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 ## Next Task
 
-Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of the accepted ASCII85 stream-filter slice.
+Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of the accepted Flate predictor slice.

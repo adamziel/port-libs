@@ -126,7 +126,8 @@ final class PdfTextExtractor
         $filters = $this->streamFilters($dict, $objects);
         $decodeParms = $this->streamDecodeParms($dict, $objects);
         foreach ($filters as $index => $filter) {
-            if (!$this->canApplyDecodeParms($decodeParms[$index] ?? null)) {
+            $filterDecodeParms = $decodeParms[$index] ?? null;
+            if (!$this->canApplyDecodeParms($filter, $filterDecodeParms)) {
                 return null;
             }
 
@@ -134,7 +135,7 @@ final class PdfTextExtractor
                 'ASCIIHexDecode', 'AHx' => $this->decodeAsciiHexStream($stream),
                 'ASCII85Decode', 'A85' => $this->decodeAscii85Stream($stream),
                 'RunLengthDecode', 'RL' => $this->decodeRunLengthStream($stream),
-                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream),
+                'FlateDecode', 'Fl' => $this->decodeFlateStream($stream, $filterDecodeParms),
                 default => $stream,
             };
 
@@ -234,13 +235,17 @@ final class PdfTextExtractor
         return $value;
     }
 
-    private function canApplyDecodeParms(?string $decodeParms): bool
+    private function canApplyDecodeParms(string $filter, ?string $decodeParms): bool
     {
         if ($decodeParms === null || trim($decodeParms) === '') {
             return true;
         }
 
-        if (preg_match('/\/Predictor\s+(\d+)/', $decodeParms, $match) === 1 && (int) $match[1] !== 1) {
+        if (
+            preg_match('/\/Predictor\s+(\d+)/', $decodeParms, $match) === 1
+            && (int) $match[1] !== 1
+            && !in_array($filter, ['FlateDecode', 'Fl'], true)
+        ) {
             return false;
         }
 
@@ -340,7 +345,7 @@ final class PdfTextExtractor
         return substr($bytes, 0, $bytesToReturn);
     }
 
-    private function decodeFlateStream(string $stream): ?string
+    private function decodeFlateStream(string $stream, ?string $decodeParms = null): ?string
     {
         $inflated = @gzuncompress($stream);
         if ($inflated === false) {
@@ -350,7 +355,121 @@ final class PdfTextExtractor
             $inflated = @gzdecode($stream);
         }
 
-        return $inflated === false ? null : $inflated;
+        if ($inflated === false) {
+            return null;
+        }
+
+        return $this->applyFlatePredictor($inflated, $decodeParms);
+    }
+
+    private function applyFlatePredictor(string $bytes, ?string $decodeParms): ?string
+    {
+        $predictor = $this->decodeParmsInt($decodeParms, 'Predictor') ?? 1;
+        if ($predictor === 1) {
+            return $bytes;
+        }
+
+        $colors = max(1, $this->decodeParmsInt($decodeParms, 'Colors') ?? 1);
+        $bitsPerComponent = max(1, $this->decodeParmsInt($decodeParms, 'BitsPerComponent') ?? 8);
+        $columns = max(1, $this->decodeParmsInt($decodeParms, 'Columns') ?? 1);
+        $rowLength = intdiv(($colors * $columns * $bitsPerComponent) + 7, 8);
+        $bytesPerPixel = max(1, intdiv(($colors * $bitsPerComponent) + 7, 8));
+
+        if ($predictor === 2) {
+            return $this->applyTiffPredictor($bytes, $rowLength, $bytesPerPixel);
+        }
+
+        if ($predictor < 10 || $predictor > 15) {
+            return null;
+        }
+
+        return $this->applyPngPredictor($bytes, $rowLength, $bytesPerPixel);
+    }
+
+    private function decodeParmsInt(?string $decodeParms, string $name): ?int
+    {
+        if ($decodeParms === null || preg_match('/\/' . preg_quote($name, '/') . '\s+(-?\d+)/', $decodeParms, $match) !== 1) {
+            return null;
+        }
+
+        return (int) $match[1];
+    }
+
+    private function applyTiffPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
+    {
+        if ($rowLength < 1 || strlen($bytes) % $rowLength !== 0) {
+            return null;
+        }
+
+        $out = '';
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $rowLength) {
+            $row = substr($bytes, $offset, $rowLength);
+            for ($index = $bytesPerPixel; $index < $rowLength; $index++) {
+                $row[$index] = chr((ord($row[$index]) + ord($row[$index - $bytesPerPixel])) & 0xff);
+            }
+            $out .= $row;
+        }
+
+        return $out;
+    }
+
+    private function applyPngPredictor(string $bytes, int $rowLength, int $bytesPerPixel): ?string
+    {
+        $stride = $rowLength + 1;
+        if ($rowLength < 1 || strlen($bytes) % $stride !== 0) {
+            return null;
+        }
+
+        $out = '';
+        $previous = str_repeat("\0", $rowLength);
+        for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $stride) {
+            $filter = ord($bytes[$offset]);
+            $row = substr($bytes, $offset + 1, $rowLength);
+            if ($filter > 4) {
+                return null;
+            }
+
+            for ($index = 0; $index < $rowLength; $index++) {
+                $left = $index >= $bytesPerPixel ? ord($row[$index - $bytesPerPixel]) : 0;
+                $up = ord($previous[$index]);
+                $upperLeft = $index >= $bytesPerPixel ? ord($previous[$index - $bytesPerPixel]) : 0;
+                $encoded = ord($row[$index]);
+                $row[$index] = chr(($encoded + $this->pngPredictorValue($filter, $left, $up, $upperLeft)) & 0xff);
+            }
+
+            $out .= $row;
+            $previous = $row;
+        }
+
+        return $out;
+    }
+
+    private function pngPredictorValue(int $filter, int $left, int $up, int $upperLeft): int
+    {
+        return match ($filter) {
+            0 => 0,
+            1 => $left,
+            2 => $up,
+            3 => intdiv($left + $up, 2),
+            4 => $this->paethPredictor($left, $up, $upperLeft),
+        };
+    }
+
+    private function paethPredictor(int $left, int $up, int $upperLeft): int
+    {
+        $estimate = $left + $up - $upperLeft;
+        $leftDistance = abs($estimate - $left);
+        $upDistance = abs($estimate - $up);
+        $upperLeftDistance = abs($estimate - $upperLeft);
+
+        if ($leftDistance <= $upDistance && $leftDistance <= $upperLeftDistance) {
+            return $left;
+        }
+        if ($upDistance <= $upperLeftDistance) {
+            return $up;
+        }
+
+        return $upperLeft;
     }
 
     private function decodeRunLengthStream(string $stream): ?string

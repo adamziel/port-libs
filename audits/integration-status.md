@@ -1,5 +1,60 @@
 # Integration Status
 
+## Clean-patch integration accepted - markerPDF - 2026-05-25 01:20 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T010228Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T010228Z.patch`.
+
+Lane/slice/session: `markerpdf` /
+`supervisor-next-20260525T010228Z` / `port-markerpdf`.
+Patch sha256 verified:
+`a62212226e5fdab6a3b818761b7f6d0624bdb4f0addb5688106f112562ff8bd1`.
+Straight `git apply --check` failed against current `main` because of normal
+manifest/status drift and an existing example path; bounded `git apply --3way`
+applied cleanly with no conflicts.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-markerpdf-supervisor-next-20260525T010228Z-1779671775`:
+
+- `php -l lanes/markerpdf/src/PdfTextExtractor.php`: passed.
+- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`: passed.
+- `php -l lanes/markerpdf/examples/wordpress-pdf-flate-predictor-import.php`:
+  passed.
+- JSON validation for `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/markerpdf/lane-status.json`: passed.
+- `php lanes/markerpdf/examples/wordpress-pdf-flate-predictor-import.php`:
+  passed, exit 0, emitted block-ready predictor import output.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`:
+  passed, 1 selected test file, 43 assertions, 0 failures.
+- `php tools/run-tests.php lanes/markerpdf/tests`: passed, 47 selected test
+  files, 976 assertions, 0 failures.
+- `git diff --check`: passed.
+
+Root verification: after waiting for an existing no-argument root harness to
+clear, `php tools/run-tests.php` ran in the same clean worktree and passed with
+208 test files, 24499 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component or activation gate
+is accepted. This slice reuses the existing bounded native `PdfTextExtractor`
+stream-filter chain. Broader searchable PDF dictionary work remains gated to
+the inactive `pdf-text-dictionary-core` row.
+
+Live-service exclusions: no Python models, external PDF tools, live services, or
+provider tests were run.
+
+Files staged:
+
+- `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/markerpdf/examples/wordpress-pdf-flate-predictor-import.php`
+- `lanes/markerpdf/lane-status.json`
+- `lanes/markerpdf/notes/upstream-test-inventory.md`
+- `lanes/markerpdf/notes/wordpress-scenarios.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+- `lanes/markerpdf/tests/PdfTextExtractorTest.php`
+- `audits/integration-status.md`
+
 ## Clean-patch integration accepted - libsqlite - 2026-05-25 01:16 UTC
 
 Accepted isolated ready marker:

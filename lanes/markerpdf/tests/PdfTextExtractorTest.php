@@ -87,6 +87,42 @@ $runLengthEncode = static function (string $bytes): string {
     return $encoded . chr(128);
 };
 
+$pngPredictorEncode = static function (string $bytes, int $columns): string {
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
+        $row = substr($bytes, $offset, $columns);
+        if (strlen($row) !== $columns) {
+            throw new RuntimeException('Test predictor rows must be fixed-width.');
+        }
+
+        $encoded .= "\x01";
+        for ($index = 0; $index < $columns; $index++) {
+            $left = $index > 0 ? ord($row[$index - 1]) : 0;
+            $encoded .= chr((ord($row[$index]) - $left) & 0xff);
+        }
+    }
+
+    return $encoded;
+};
+
+$tiffPredictorEncode = static function (string $bytes, int $columns): string {
+    $encoded = '';
+    for ($offset = 0, $length = strlen($bytes); $offset < $length; $offset += $columns) {
+        $row = substr($bytes, $offset, $columns);
+        if (strlen($row) !== $columns) {
+            throw new RuntimeException('Test predictor rows must be fixed-width.');
+        }
+
+        $raw = $row;
+        for ($index = 1; $index < $columns; $index++) {
+            $row[$index] = chr((ord($raw[$index]) - ord($raw[$index - 1])) & 0xff);
+        }
+        $encoded .= $row;
+    }
+
+    return $encoded;
+};
+
 return [
     'extracts literal and array text operators from content streams' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT /F1 12 Tf 72 720 Td (Hello \\(WP\\)) Tj [(Data) 120 ( Liberation)] TJ ET";
@@ -175,6 +211,33 @@ return [
         $t->same("Indirect Filter Import\nDecodeParms Predictor One", $extractor->extractPlainText($pdf));
         $t->same('Indirect Filter Array', $extractor->extractPlainText($stackedPdf));
         $t->same('', $extractor->extractPlainText($unsupportedPdf));
+    },
+    'applies Flate DecodeParms predictors before WordPress paragraph rendering' => static function (TestRunner $t) use ($pngPredictorEncode, $tiffPredictorEncode): void {
+        $rowOne = 'BT /F1 12 Tf 72 720 Td (Predictor Import) Tj T* ';
+        $rowTwo = '(Block Ready Content) Tj ET                     ';
+        $content = $rowOne . $rowTwo;
+        $pngEncoded = $pngPredictorEncode($content, strlen($rowOne));
+        $pngCompressed = gzcompress($pngEncoded);
+        $pngPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns " . strlen($rowOne) . " >> /Length " . strlen($pngCompressed) . " >>\n"
+            . "stream\n{$pngCompressed}\nendstream\nendobj\n%%EOF";
+
+        $tiffContent = 'BT /F1 12 Tf 72 720 Td (TIFF Predictor Import) Tj ET';
+        $tiffEncoded = $tiffPredictorEncode($tiffContent, strlen($tiffContent));
+        $tiffCompressed = gzcompress($tiffEncoded);
+        $tiffPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 2 /Columns " . strlen($tiffContent) . " >> /Length " . strlen($tiffCompressed) . " >>\n"
+            . "stream\n{$tiffCompressed}\nendstream\nendobj\n%%EOF";
+
+        $badCompressed = gzcompress("\x09" . $rowOne);
+        $badPdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Filter /FlateDecode /DecodeParms << /Predictor 12 /Columns " . strlen($rowOne) . " >> /Length " . strlen($badCompressed) . " >>\n"
+            . "stream\n{$badCompressed}\nendstream\nendobj\n%%EOF";
+
+        $extractor = new PdfTextExtractor();
+        $t->same("Predictor Import\nBlock Ready Content", $extractor->extractPlainText($pngPdf));
+        $t->same('TIFF Predictor Import', $extractor->extractPlainText($tiffPdf));
+        $t->same('', $extractor->extractPlainText($badPdf));
     },
     'uses ToUnicode CMap codespacerange widths for variable-length WordPress text' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <8141208142> Tj ET';
