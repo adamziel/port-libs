@@ -101174,3 +101174,15 @@ Support-library/dependency-closure decision: no activation accepted.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `audits/integration-status.md` only.
 Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
+
+## Clean-patch rejection - syncthing - 2026-05-25 03:01 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T025233Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T025233Z.patch`
+Decision: rejected/deferred after focused verification.
+Focused commands: `php -l <changed PHP files>` exit 1; `php tools/run-tests.php lanes/syncthing/tests` exit 255 (PASS scan service detects concurrent checkpoint updates before publishing scan result PASS checkpoint store merges scan results when revision matches latest snapshot PASS watch aggregator rolls crowded directories and root overflows into parent scans PASS watch aggregator delays non-removes, ignores in-progress items, and orders remove batches last PHP Parse error:  syntax error, unexpected token "<<", expecting "]" in /tmp/port-clean-integrator-syncthing-safe-20260525T030105Z/lanes/syncthing/te); `git diff --check` exit 2.
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `audits/integration-status.md` only.
+Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
