@@ -28,7 +28,7 @@ $inputs = [
 
 $reports = [];
 foreach ($inputs as $name => $value) {
-    $rootRows = SQLiteJsonTree::jsonTreeSqlFunction('json_tree', $value);
+    $rootRows = SQLiteJsonTree::jsonTreeSqlFunction('JSON_TREE', $value);
     $pluginRows = SQLiteJsonTree::jsonTree($value, '$.plugin');
     $rulesRows = SQLiteJsonTree::jsonTree($value, '$.plugin.rules');
     $reports[] = [
@@ -39,6 +39,10 @@ foreach ($inputs as $name => $value) {
         'hiddenColumns' => [
             'jsonColumnType' => $pluginRows === [] ? null : ($pluginRows[0]['json'] instanceof SQLiteBlobValue ? 'blob' : 'text'),
             'rootColumn' => $pluginRows[0]['root'] ?? null,
+        ],
+        'dispatch' => [
+            'sqlFunction' => 'JSON_TREE',
+            'caseInsensitive' => true,
         ],
     ];
 }

@@ -3326,7 +3326,7 @@ return [
         $t->same($settings, $rootRows[0]['json']);
         $t->same('$', $rootRows[0]['root']);
 
-        $pluginRows = SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $json5, '$.plugin');
+        $pluginRows = SQLiteJsonEach::jsonEachSqlFunction('Json_EaCh', $json5, '$.plugin');
         $t->same(['enabled', 'title', 'rules'], array_column($pluginRows, 'key'));
         $t->same(['false', 'text', 'array'], array_column($pluginRows, 'type'));
         $t->same(0, $pluginRows[0]['value']);
@@ -3395,7 +3395,7 @@ return [
         $t->same($settings, $rootRows[8]['json']);
         $t->same('$', $rootRows[8]['root']);
 
-        $pluginRows = SQLiteJsonTree::jsonTreeSqlFunction('JSON_TREE', $json5, '$.plugin');
+        $pluginRows = SQLiteJsonTree::jsonTreeSqlFunction('Json_TrEe', $json5, '$.plugin');
         $t->same([null, 'enabled', 'title', 'rules', 0, 1], array_column($pluginRows, 'key'));
         $t->same(['object', 'false', 'text', 'array', 'text', 'text'], array_column($pluginRows, 'type'));
         $t->same([null, 0, 0, 0, 3, 3], array_column($pluginRows, 'parent'));

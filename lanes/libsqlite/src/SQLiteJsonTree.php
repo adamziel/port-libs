@@ -11,7 +11,7 @@ final class SQLiteJsonTree
      */
     public static function jsonTreeSqlFunction(string $function, string|SQLiteBlobValue|null $value, string $path = '$'): array
     {
-        if (strtolower($function) !== 'json_tree') {
+        if (strcasecmp($function, 'json_tree') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON table-valued function must be json_tree');
         }
 

@@ -5621,3 +5621,35 @@ git diff --check -- lanes/libsqlite
 Result: recorded in `lane-status.json` after focused verification. Root aggregate harness was not assigned for this isolated micro-slice.
 
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.
+
+## Focused Native Mapping: Table-Valued JSON Case-Insensitive Dispatch
+
+Date: 2026-05-25
+
+This isolated rework makes the accepted `json_each()` and `json_tree()` table-valued SQL function-name dispatch explicitly case-insensitive via `strcasecmp()`. It preserves invalid-function rejection and the accepted hidden `json`/`root` virtual-table columns while adding mixed-case native assertions for both helpers and an uppercase `JSON_TREE` WordPress smoke path.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated `.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was started. This slice reuses prior focused JSON1/JSONB table-valued evidence for the same upstream behavior cluster:
+
+```sh
+json101.test json102.test json501.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonEach.php
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: recorded in `lane-status.json` after focused verification. Root aggregate harness was not assigned for this isolated micro-slice.
+
+Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.

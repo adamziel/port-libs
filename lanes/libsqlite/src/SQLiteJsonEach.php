@@ -11,7 +11,7 @@ final class SQLiteJsonEach
      */
     public static function jsonEachSqlFunction(string $function, string|SQLiteBlobValue|null $value, string $path = '$'): array
     {
-        if (strtolower($function) !== 'json_each') {
+        if (strcasecmp($function, 'json_each') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON table-valued function must be json_each');
         }
 

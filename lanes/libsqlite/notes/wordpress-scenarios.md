@@ -1679,3 +1679,11 @@ git diff --check -- lanes/libsqlite
 Result: recorded in `lane-status.json` after focused verification. Root aggregate harness was not assigned for this isolated micro-slice.
 
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.
+
+## Focused Native Mapping: Table-Valued JSON Case-Insensitive Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice updates the local wp_options recursive JSON expansion smoke to exercise uppercase `JSON_TREE` SQL dispatch and tightens both table-valued dispatch helpers to explicit case-insensitive comparison. That keeps plugin settings review paths aligned with SQLite's case-insensitive function-name behavior while preserving accepted `json_each()`/`json_tree()` rows, hidden `json`/`root` values, strict JSON, JSON5 text, JSONB blob, SQL NULL, and invalid-function coverage.
+
+Focused verification is recorded in `lane-status.json`. Dependency closure: no new support component is needed; this reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support and counts no shared support-library progress.
