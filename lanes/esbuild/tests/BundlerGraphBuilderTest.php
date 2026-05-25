@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Esbuild\BundlerGraphBuilder;
+use PortLibs\Esbuild\BundlerMetafile;
 use PortLibs\Esbuild\PackageResolver;
 
 $fixtureRoot = dirname(__DIR__) . '/fixtures/wordpress-package-assets';
@@ -87,5 +88,34 @@ return [
         $t->same([], $graph->missingEdges);
         $t->same(false, isset($graph->modules[(string) realpath($fixtureRoot . '/src/asset.bin')]));
         $t->same(true, isset($graph->modules[(string) realpath($fixtureRoot . '/src/local-preview.js')]));
+    },
+    'summarizes graph inputs and diagnostics for a bounded metafile surface' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $graph = (new BundlerGraphBuilder())->build($fixtureRoot . '/src/unsupported-loader-entry.js');
+        $metafile = (new BundlerMetafile())->summarize($graph, $fixtureRoot);
+
+        $t->same('src/unsupported-loader-entry.js', $metafile['entry']);
+        $t->same(true, isset($metafile['inputs']['src/unsupported-loader-entry.js']));
+        $t->same(true, isset($metafile['inputs']['src/local-preview.js']));
+        $t->same(false, isset($metafile['inputs']['src/asset.bin']));
+        $t->same(['./asset.bin'], array_map(static fn (array $diagnostic): string => $diagnostic['path'], $metafile['diagnostics']['unsupported']));
+        $t->same('src/asset.bin', $metafile['diagnostics']['unsupported'][0]['resolved']);
+        $t->same([], $metafile['diagnostics']['missing']);
+
+        $importsByPath = array_combine(
+            array_map(static fn (array $import): string => $import['path'], $metafile['inputs']['src/unsupported-loader-entry.js']['imports']),
+            $metafile['inputs']['src/unsupported-loader-entry.js']['imports'],
+        );
+        $t->same(true, $importsByPath['src/asset.bin']['unsupported']);
+        $t->same('js', $importsByPath['src/local-preview.js']['loader']);
+    },
+    'summarizes node builtin externals in the bounded metafile surface' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $graph = (new BundlerGraphBuilder(new PackageResolver('node')))->build($fixtureRoot . '/src/node-entry.js');
+        $metafile = (new BundlerMetafile())->summarize($graph, $fixtureRoot);
+
+        $t->same(['path', 'node:crypto'], array_map(static fn (array $diagnostic): string => $diagnostic['path'], $metafile['diagnostics']['external']));
+        $entryImports = $metafile['inputs']['src/node-entry.js']['imports'];
+        $externalImports = array_values(array_filter($entryImports, static fn (array $import): bool => $import['external']));
+        $t->same(['path', 'node:crypto'], array_map(static fn (array $import): string => $import['path'], $externalImports));
+        $t->same(['default', 'dynamic'], array_map(static fn (array $import): string => $import['kind'], $externalImports));
     },
 ];

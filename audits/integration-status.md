@@ -101692,3 +101692,31 @@ Support-library/dependency closure: no support-library activation. The patch reu
 Live-service exclusions: none applicable; no live-service provider tests were run.
 
 Files staged: `lanes/quadrable/examples/wordpress-quadb-patch.php`, `lanes/quadrable/tests/QuadbStoreTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated esbuild bounded metafile patch - 2026-05-25 04:00 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T032125Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T032125Z.patch`.
+
+Lane/slice/session: `esbuild` / `rearmer-20260525T032124Z` / `port-esbuild`. Patch SHA-256 verified as `33e48b5bd08f17436c0f1bb4f33b5334d34d7c0fbf6375b31d3f40435d194165`. Applied cleanly to clean detached worktree from `c3463f9d5c9edd71fdbe9648646de77541ec6d51`.
+
+Focused verification in clean worktree:
+
+- `php -l lanes/esbuild/src/BundlerMetafile.php`: passed.
+- `php -l lanes/esbuild/tests/BundlerGraphBuilderTest.php`: passed.
+- `php -l lanes/esbuild/examples/wordpress-asset-preflight.php`: passed.
+- `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php`: passed, `1 test files, 49 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/esbuild/tests`: passed, `7 test files, 1893 assertions, 0 failures`.
+- `php lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'WordPress (unsupported loader diagnostics|graph metafile diagnostics)'`: passed, both lines present.
+- JSON decode for `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json` and `lanes/esbuild/lane-status.json`: passed, `json ok`.
+- `git diff --check`: passed.
+
+Root verification:
+
+- Pre-root exact no-argument process gate `pgrep -af '^php tools/run-tests\.php$'`: empty.
+- `php tools/run-tests.php`: passed, `212 test files, 25015 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The patch adds a lane-local bounded `BundlerMetafile` summary over existing esbuild graph/resolver objects; `js-package-resolution-core` remains deferred.
+
+Live-service exclusions: no live-service provider tests were run.
+
+Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/BundlerMetafile.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, and `audits/integration-status.md`.

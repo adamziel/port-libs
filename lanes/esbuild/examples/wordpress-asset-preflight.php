@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Esbuild\BundlerGraphBuilder;
+use PortLibs\Esbuild\BundlerMetafile;
 use PortLibs\Esbuild\GlobImportResolver;
 use PortLibs\Esbuild\JsLexer;
 use PortLibs\Esbuild\JsModuleAnalyzer;
@@ -150,6 +151,7 @@ $loaderGraphEdges = array_combine(
     $loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/loader-entry.js')]->edges,
 );
 $unsupportedLoaderGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/unsupported-loader-entry.js');
+$unsupportedLoaderMetafile = (new BundlerMetafile())->summarize($unsupportedLoaderGraph, $packageFixtureDir);
 $unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $normalizePackageFixturePath = static function (string $path) use ($packageFixtureDir): string {
@@ -582,6 +584,14 @@ printf("WordPress unsupported loader diagnostics: %s\n", (
     && $unsupportedLoaderGraph->unsupportedEdges[0]->loader === null
     && isset($unsupportedLoaderGraph->modules[(string) realpath($packageEntryDir . '/local-preview.js')])
     && !isset($unsupportedLoaderGraph->modules[(string) realpath($packageEntryDir . '/asset.bin')])
+) ? 'yes' : 'no');
+printf("WordPress graph metafile diagnostics: %s\n", (
+    $unsupportedLoaderMetafile['entry'] === 'src/unsupported-loader-entry.js'
+    && isset($unsupportedLoaderMetafile['inputs']['src/unsupported-loader-entry.js'])
+    && isset($unsupportedLoaderMetafile['inputs']['src/local-preview.js'])
+    && !isset($unsupportedLoaderMetafile['inputs']['src/asset.bin'])
+    && ($unsupportedLoaderMetafile['diagnostics']['unsupported'][0]['path'] ?? null) === './asset.bin'
+    && ($unsupportedLoaderMetafile['diagnostics']['unsupported'][0]['resolved'] ?? null) === 'src/asset.bin'
 ) ? 'yes' : 'no');
 printf("WordPress tsconfig paths aliases: %s\n", (
     array_combine(
