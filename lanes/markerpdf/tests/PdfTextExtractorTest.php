@@ -423,6 +423,18 @@ return [
         $lines = (new PdfTextExtractor())->extractTextLines($pdfWithContent($content));
         $t->same(['WordPress import', 'Data Liberation'], $lines);
     },
+    'decodes UTF-16 BOM literal strings before WordPress paragraph rendering' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $utf16Be = hex2bin('FEFF0057006F0072006400500072006500730073');
+        $utf16Le = hex2bin('FFFE42006C006F0063006B007300');
+        $t->true(is_string($utf16Be), 'UTF-16BE literal fixture should decode from hex.');
+        $t->true(is_string($utf16Le), 'UTF-16LE literal fixture should decode from hex.');
+
+        $content = "BT /F1 12 Tf 72 720 Td ({$utf16Be}) Tj T* ({$utf16Le}) Tj ET";
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['WordPress', 'Blocks'], $extractor->extractTextLines($pdfWithContent($content)));
+        $t->same("WordPress\nBlocks", $extractor->extractPlainText($pdfWithContent($content)));
+    },
     'decodes PDF literal escapes in Tj and TJ WordPress text' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = "BT (Editor\\'s \\(PDF\\) import\\040notes) Tj T* [(Clean\\053blocks) 120 ( keep nested \\(review\\) text)] TJ T* (Line\\\r\ncontinued and slash\\qkept) Tj ET";
         $extractor = new PdfTextExtractor();

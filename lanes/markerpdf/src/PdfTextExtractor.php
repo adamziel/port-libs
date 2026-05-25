@@ -1802,7 +1802,7 @@ final class PdfTextExtractor
 
     private function decodePdfStringBytes(string $bytes): string
     {
-        $prefix = bin2hex(substr($bytes, 0, 2));
+        $prefix = strtolower(bin2hex(substr($bytes, 0, 2)));
         if ($prefix === 'feff') {
             $decoded = iconv('UTF-16BE', 'UTF-8//IGNORE', substr($bytes, 2));
             return $decoded === false ? '' : $decoded;

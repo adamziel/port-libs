@@ -103347,3 +103347,31 @@ Support-library/dependency closure: no new support component activated; the patc
 Live-service exclusions: no live provider or network tests were run.
 
 Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated markerPDF UTF-16 literal string slice - 2026-05-25 05:52 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.patch`.
+Lane/slice/session: `markerpdf` / `watchdog-next-20260525T051029Z` / `port-markerpdf`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-markerpdf-utf16-20260525T055133Z`:
+
+- `php -l lanes/markerpdf/src/PdfTextExtractor.php`: passed.
+- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`: passed.
+- `php -l lanes/markerpdf/examples/wordpress-pdf-utf16-literal-import.php`: passed.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`: passed, 1 test file, 56 assertions, 0 failures.
+- `php tools/run-tests.php lanes/markerpdf/tests`: passed, 47 test files, 989 assertions, 0 failures.
+- `php lanes/markerpdf/examples/wordpress-pdf-utf16-literal-import.php`: passed.
+- `git diff --check`: passed.
+
+Root verification:
+
+- `php tools/run-tests.php`: passed, 212 test files, 25433 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component activated; the patch reuses the existing bounded native PdfTextExtractor PDF string decoder. Broader searchable PDF dictionary extraction remains gated to inactive `pdf-text-dictionary-core` if needed later.
+
+Live-service exclusions: no live-service provider tests were run; Poetry/Python/pdftext/pypdfium/Surya/Torch/tabled/Texify/runtime paths were excluded as out of scope.
+
+Bounded rebase note: three-way application conflicted in markerPDF source plus stale manifest/status/notes counters. The source conflict was trivial drift around the existing `decodePdfStringBytes()` helper and was resolved by preserving the current helper with the patch's lower-case BOM prefix. Stale metadata conflicts were resolved in favor of current accepted head to avoid rewriting lane counters from an older marker.
+
+Files staged: `lanes/markerpdf/examples/wordpress-pdf-utf16-literal-import.php`, `lanes/markerpdf/src/PdfTextExtractor.php`, `lanes/markerpdf/tests/PdfTextExtractorTest.php`, and `audits/integration-status.md`.
