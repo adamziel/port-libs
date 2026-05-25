@@ -441,6 +441,15 @@ return [
         ], $runs);
         $t->true(!str_contains($extractor->extractPlainText($pdfWithContent($content)), '\\q'));
     },
+    'decodes UTF-16 BOM PDF literal strings before WordPress paragraph rendering' => static function (TestRunner $t) use ($pdfWithContent): void {
+        $utf16Be = "\xfe\xff\x00W\x00P\x00 \x00I\x00m\x00p\x00o\x00r\x00t";
+        $utf16Le = "\xff\xfeB\x00l\x00o\x00c\x00k\x00s\x00";
+        $content = 'BT /F1 12 Tf 72 720 Td (' . $utf16Be . ') Tj T* (' . $utf16Le . ') Tj ET';
+        $extractor = new PdfTextExtractor();
+
+        $t->same(['WP Import', 'Blocks'], $extractor->extractTextLines($pdfWithContent($content)));
+        $t->same("WP Import\nBlocks", $extractor->extractPlainText($pdfWithContent($content)));
+    },
     'extracts block-ready lines from a WordPress import fixture' => static function (TestRunner $t): void {
         $fixture = file_get_contents(__DIR__ . '/../fixtures/wordpress-import-content.pdf');
         $t->true(is_string($fixture), 'Fixture should be readable');

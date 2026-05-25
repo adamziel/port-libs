@@ -218,6 +218,8 @@ The lane now also ports a narrow slice of `marker/postprocessors/markdown.py`: h
 
 `examples/wordpress-filetype-preflight.php` maps Marker's upstream filetype detection into a WordPress upload preflight. It accepts a real PDF fixture by magic bytes and rejects a ZIP-like `.pdf` payload before heavier conversion steps run.
 
+`examples/wordpress-pdf-literal-utf16-import.php` maps a native PDF text extraction edge into a WordPress import path. It decodes UTF-16BE and UTF-16LE BOM literal strings after PDF literal escape handling and emits Gutenberg paragraphs without loading pdftext, pypdfium, Python models, or external PDF tools.
+
 ## Next Task
 
-Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of the accepted ToUnicode bfrange-array slice.
+Choose the next bounded markerPDF text extraction gap, or activate/reuse the existing `pdf-text-dictionary-core` gate only if broader searchable PDF dictionary output becomes the accepted next rich behavior. Keep OCR/model, table geometry, image extraction, outlines/metadata, object stream/xref, benchmark/archive, and runtime preflight work out of the accepted PDF literal UTF-16 BOM slice.

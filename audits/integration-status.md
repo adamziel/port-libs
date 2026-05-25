@@ -102738,3 +102738,26 @@ Files staged:
 - `lanes/lightningcss/notes/wordpress-scenarios.md`
 - `lanes/lightningcss/src/CustomMediaTransformer.php`
 - `lanes/lightningcss/tests/CustomMediaTransformerTest.php`
+
+## Integration accepted - isolated markerpdf watchdog-next-20260525T045844Z - 2026-05-25T05:11:38Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T045844Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T045844Z.patch`
+Lane/slice/session: `markerpdf` / `watchdog-next-20260525T045844Z` / `port-markerpdf`
+Patch sha256: `2a6d637bba1c7a64cd9f0c6d97500d10ea706d822cce360b46ecb526994c4710` verified. Applied with bounded three-way rebase from `bf437c91ddea68fb0b2805b6f099420e9026b685`.
+Focused commands:
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php => exit 0; 1 test files, 52 assertions, 0 failures`
+- `php tools/run-tests.php lanes/markerpdf/tests => exit 0; 47 test files, 985 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25261 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/markerpdf/lane-status.json`
+- `lanes/markerpdf/notes/upstream-test-inventory.md`
+- `lanes/markerpdf/notes/wordpress-scenarios.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+- `lanes/markerpdf/tests/PdfTextExtractorTest.php`
+- `lanes/markerpdf/examples/wordpress-pdf-literal-utf16-import.php`
