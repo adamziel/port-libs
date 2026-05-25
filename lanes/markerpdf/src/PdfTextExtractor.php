@@ -515,16 +515,17 @@ final class PdfTextExtractor
             if (!str_contains($body, '/Type /Font') && !str_contains($body, '/Type/Font')) {
                 continue;
             }
-            if (!preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
-                continue;
+
+            $cmap = null;
+            if (preg_match('/\/ToUnicode\s+(\d+)\s+\d+\s+R\b/', $body, $match)) {
+                $cmapObjectNumber = (int) $match[1];
+                if (isset($objects[$cmapObjectNumber])) {
+                    $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects, $namedCMapBodies);
+                }
+            } elseif (preg_match('/\/Differences\s*\[(.*?)\]/s', $body, $match)) {
+                $cmap = $this->encodingDifferencesMap($match[1]);
             }
 
-            $cmapObjectNumber = (int) $match[1];
-            if (!isset($objects[$cmapObjectNumber])) {
-                continue;
-            }
-
-            $cmap = $this->toUnicodeMapFromObject($objects[$cmapObjectNumber], $objects, $namedCMapBodies);
             if ($cmap !== null && ($cmap['map'] !== [] || $cmap['codeSpaceRanges'] !== [])) {
                 $fontObjectMaps[$objectNumber] = $cmap;
             }
@@ -560,6 +561,128 @@ final class PdfTextExtractor
         }
 
         return [];
+    }
+
+    /**
+     * @return array{map: array<string, string>, codeSpaceRanges: list<array{start: int, end: int, width: int}>}
+     */
+    private function encodingDifferencesMap(string $differences): array
+    {
+        preg_match_all('/\/[^\s\[\]()<>{}\/%]+|[+-]?\d+/', $differences, $matches);
+        $map = [];
+        $code = null;
+
+        foreach ($matches[0] ?? [] as $token) {
+            if (preg_match('/^[+-]?\d+$/', $token) === 1) {
+                $code = max(0, min(255, (int) $token));
+                continue;
+            }
+
+            if ($code === null || !str_starts_with($token, '/')) {
+                continue;
+            }
+
+            $glyph = $this->glyphNameToUnicode($this->decodePdfName(substr($token, 1)));
+            if ($glyph !== '') {
+                $map[str_pad(strtolower(dechex($code)), 2, '0', STR_PAD_LEFT)] = $glyph;
+            }
+            $code++;
+        }
+
+        return [
+            'map' => $map,
+            'codeSpaceRanges' => [
+                ['start' => 0, 'end' => 255, 'width' => 2],
+            ],
+        ];
+    }
+
+    private function glyphNameToUnicode(string $glyphName): string
+    {
+        $baseName = explode('.', $glyphName, 2)[0];
+        if ($baseName === '') {
+            return '';
+        }
+
+        if (preg_match('/^uni([\da-fA-F]{4})(?:[\da-fA-F]{4})*$/', $baseName) === 1) {
+            $hex = substr($baseName, 3);
+            return $this->decodeCMapUnicodeHex($hex);
+        }
+
+        if (preg_match('/^u([\da-fA-F]{4,6})$/', $baseName, $match) === 1) {
+            $codepoint = hexdec($match[1]);
+            if ($codepoint <= 0x10ffff) {
+                $decoded = iconv('UTF-32BE', 'UTF-8//IGNORE', pack('N', $codepoint));
+                return $decoded === false ? '' : $decoded;
+            }
+        }
+
+        $names = [
+            'space' => ' ',
+            'hyphen' => '-',
+            'minus' => '-',
+            'period' => '.',
+            'comma' => ',',
+            'colon' => ':',
+            'semicolon' => ';',
+            'parenleft' => '(',
+            'parenright' => ')',
+            'slash' => '/',
+            'A' => 'A',
+            'B' => 'B',
+            'C' => 'C',
+            'D' => 'D',
+            'E' => 'E',
+            'F' => 'F',
+            'G' => 'G',
+            'H' => 'H',
+            'I' => 'I',
+            'J' => 'J',
+            'K' => 'K',
+            'L' => 'L',
+            'M' => 'M',
+            'N' => 'N',
+            'O' => 'O',
+            'P' => 'P',
+            'Q' => 'Q',
+            'R' => 'R',
+            'S' => 'S',
+            'T' => 'T',
+            'U' => 'U',
+            'V' => 'V',
+            'W' => 'W',
+            'X' => 'X',
+            'Y' => 'Y',
+            'Z' => 'Z',
+            'a' => 'a',
+            'b' => 'b',
+            'c' => 'c',
+            'd' => 'd',
+            'e' => 'e',
+            'f' => 'f',
+            'g' => 'g',
+            'h' => 'h',
+            'i' => 'i',
+            'j' => 'j',
+            'k' => 'k',
+            'l' => 'l',
+            'm' => 'm',
+            'n' => 'n',
+            'o' => 'o',
+            'p' => 'p',
+            'q' => 'q',
+            'r' => 'r',
+            's' => 's',
+            't' => 't',
+            'u' => 'u',
+            'v' => 'v',
+            'w' => 'w',
+            'x' => 'x',
+            'y' => 'y',
+            'z' => 'z',
+        ];
+
+        return $names[$baseName] ?? '';
     }
 
     /**

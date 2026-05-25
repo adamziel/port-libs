@@ -110574,3 +110574,40 @@ Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
 `lanes/libsqlite/src/SQLiteJsonConstructor.php`,
 `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
 `audits/integration-status.md`.
+## Clean-patch accepted - markerPDF Encoding Differences - 2026-05-25 22:25 UTC
+
+Accepted one isolated marker: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T173912Z.ready`.
+
+Decision: accepted. The marker was processable (`lane=markerpdf`, detached
+`patch=...`, and `metadata=...` present), had no matching stale rework note,
+and its patch was lane-scoped to `lanes/markerpdf/**`. The patch applied
+cleanly to current `main` at `a02832175192f3b4a59130ce8cf71f9cd1a23d90` in a
+detached clean worktree.
+
+Slice summary: `PdfTextExtractor` now decodes simple-font
+`/Encoding /Differences` glyph names when no `/ToUnicode` CMap is available, so
+custom single-byte PDF text streams can produce Gutenberg paragraph text without
+Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
+Focused verification from the clean candidate snapshot:
+
+- `php -l lanes/markerpdf/src/PdfTextExtractor.php`: passed.
+- `php -l lanes/markerpdf/tests/PdfTextExtractorTest.php`: passed.
+- `php -l lanes/markerpdf/examples/wordpress-pdf-encoding-differences-import.php`: passed.
+- `php lanes/markerpdf/examples/wordpress-pdf-encoding-differences-import.php`: emitted the expected `WP Import Blocks` Gutenberg paragraph smoke.
+- `php -r` JSON validation for `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json` and `lanes/markerpdf/lane-status.json`: passed.
+- `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`: passed with `1 test files, 61 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/markerpdf/tests`: passed with `47 test files, 994 assertions, 0 failures`.
+- `git diff --check`: passed.
+
+Serialized root verification from the same accepted snapshot:
+
+- Pre-root gates were open: `/` free space was above `86000000` KiB, load was
+  below `25`, and no exact no-argument root harness was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`:
+  passed with `214 test files, 26377 assertions, 0 failures`.
+
+Dependency closure: no new support component was activated. The slice reuses
+the existing native `PdfTextExtractor` content-stream path and adds a bounded
+local glyph-name map. Broader searchable PDF dictionary extraction remains
+gated behind the existing inactive `pdf-text-dictionary-core` support row.

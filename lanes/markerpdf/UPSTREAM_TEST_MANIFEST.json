@@ -13,7 +13,7 @@
         "status": "cloned-static-inventory",
         "total": 78,
         "inventorySummary": "78 tracked upstream repository paths inventoried from the cloned repository, with 78 targeted upstream lane-relevant paths inspected (workflows, benchmark/scoring scripts, committed example outputs, cleaner/postprocessor/layout/OCR/image/PDF-image-render/equation/table/output/settings/schema/debug/source/model utility modules, marker_app.py preview helpers, marker/logger.py logging setup, run_marker_app.py Streamlit runtime launcher, marker_server.py API/upload helpers, top-level batch, single-document, and chunk conversion scripts, and support scripts), plus the locked tabled-pdf 0.1.4 table-detection/recognition/assignment/heuristic-column/formatting helper source for merge and supplied table-recognition semantics, 6 README benchmark document identifiers, and 2 actual CI benchmark PDF/reference pairs from benchmark_data_short.zip; 0 committed Python unit test files found",
-        "mapped": 175,
+        "mapped": 176,
         "mappedBenchmarkPairs": 2,
         "mappedBenchmarkSurrogatePairs": 4,
         "mappedBenchmarkSuppliedDocumentExcerpts": 4,
@@ -193,7 +193,9 @@
             "pdfToUnicodeCodespaceFallbackBehaviors": 1,
             "mappedPdfToUnicodeCodespaceFallbackBehaviors": 1,
             "pdfTextLiteralUtf16BomBehaviors": 1,
-            "mappedPdfTextLiteralUtf16BomBehaviors": 1
+            "mappedPdfTextLiteralUtf16BomBehaviors": 1,
+            "pdfSimpleFontEncodingDifferencesBehaviors": 1,
+            "mappedPdfSimpleFontEncodingDifferencesBehaviors": 1
         },
         "benchmarkDocuments": [
             "multicolcnn.pdf",
@@ -242,19 +244,19 @@
         "runnerStatus": "not-executed",
         "runnerBlocker": "The upstream CI benchmark archive was downloaded and inspected for static evidence, and native BenchmarkRunner can replay benchmarks/overall.py-style folder/reference/method/report behavior over supplied callbacks. The full upstream runner still requires Poetry plus heavy Python dependencies including torch, surya-ocr, pdftext, pypdfium2, tabled-pdf, Texify, Nougat for comparison mode, and model downloads. The defensible local denominator is the cloned source inventory plus the two hash-identified benchmark_data_short.zip PDF/reference pairs; full conversion cannot execute locally under the modest network/CPU constraint without installing and running the ML/PDF model stack.",
         "latestReducedHandoff": {
-            "timestampUtc": "2026-05-25 06:05",
-            "pdfToUnicodeCodespaceFallbackSlice": "PdfTextExtractor now chooses source-code widths from ToUnicode begincodespacerange before applying mappings, so an unmapped two-byte CID is not split by an unrelated one-byte mapping before Gutenberg paragraph rendering.",
+            "timestampUtc": "2026-05-25 17:39",
+            "pdfSimpleFontEncodingDifferencesSlice": "PdfTextExtractor now decodes simple-font Encoding Differences glyph names when no ToUnicode CMap is present, so single-byte PDF text streams can render custom encoded glyphs as Gutenberg paragraphs.",
             "nativeEvidence": [
                 "php -l lanes/markerpdf/src/PdfTextExtractor.php",
                 "php -l lanes/markerpdf/tests/PdfTextExtractorTest.php",
-                "php -l lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-fallback-import.php",
-                "php lanes/markerpdf/examples/wordpress-pdf-cmap-codespace-fallback-import.php: emitted a Gutenberg paragraph for A with executes_python_or_models=false and executes_external_pdf_tools=false",
-                "php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php: 1 test file, 59 assertions, 0 failures",
-                "php tools/run-tests.php lanes/markerpdf/tests: 47 test files, 992 assertions, 0 failures",
+                "php -l lanes/markerpdf/examples/wordpress-pdf-encoding-differences-import.php",
+                "php lanes/markerpdf/examples/wordpress-pdf-encoding-differences-import.php: emitted a Gutenberg paragraph for WP Import Blocks with executes_python_or_models=false and executes_external_pdf_tools=false",
+                "php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php: 1 test file, 61 assertions, 0 failures",
+                "php tools/run-tests.php lanes/markerpdf/tests: 47 test files, 994 assertions, 0 failures",
                 "git diff --check -- lanes/markerpdf: passed"
             ],
             "upstreamRunnerStatus": "not executed; upstream has no committed Python unit tests and full benchmark/app parity still requires Poetry plus heavy PDF/model/runtime dependencies.",
-            "dependencyClosure": "No new support component is needed; this reuses the existing bounded native PdfTextExtractor content-stream parser and ToUnicode CMap lookup. Broader searchable PDF dictionary extraction remains gated to the existing inactive pdf-text-dictionary-core row if that future rich slice is accepted."
+            "dependencyClosure": "No new support component is needed; this reuses the existing bounded native PdfTextExtractor content-stream parser and adds only a local simple-font Encoding Differences glyph-name map. Broader searchable PDF dictionary extraction remains gated to the existing inactive pdf-text-dictionary-core row if that future rich slice is accepted."
         },
         "mappedSemantics": [
             "PDF content stream text operators feed Marker-style Markdown conversion.",
@@ -276,6 +278,7 @@
             "PdfTextExtractor resolves named ToUnicode usecmap inheritance before local CMap entries so derived CMaps can reuse base glyph mappings before WordPress paragraph rendering.",
             "PdfTextExtractor honors ToUnicode begincodespacerange source-code widths before unmapped CID fallback so one-byte mappings do not split two-byte source codes before WordPress paragraph rendering.",
             "PdfTextExtractor decodes UTF-16BE and UTF-16LE BOM PDF literal strings after literal escape handling so WordPress paragraphs receive Unicode text instead of raw PDF string bytes.",
+            "PdfTextExtractor decodes simple-font Encoding Differences glyph names when a PDF font lacks ToUnicode, so single-byte custom encoded streams can still produce WordPress paragraphs.",
             "PdfTextExtractor scopes font size, leading, character spacing, word spacing, and horizontal scaling through q/Q graphics-state save and restore so a scoped PDF text-state change does not leak into later WordPress paragraph spacing.",
             "PdfTextExtractor applies TJ array numeric positioning adjustments to the native end-X estimate before same-line Tm gap decisions, preserving WordPress words such as Import Profiles while still inserting readable gaps such as SiteMap Index.",
             "PdfTextExtractor applies non-identity Tm horizontal scaling to the native end-X estimate before same-line Tm gap decisions, preserving WordPress words such as Import Profiles while still inserting readable gaps such as SiteMap Index.",

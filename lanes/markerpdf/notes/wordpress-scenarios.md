@@ -34,6 +34,8 @@ The 2026-05-25 03:19 UTC ToUnicode usecmap slice resolves named base CMap inheri
 
 The 2026-05-25 06:05 UTC ToUnicode codespacerange fallback slice chooses CMap source-code widths before applying mappings or fallback decoding. `examples/wordpress-pdf-cmap-codespace-fallback-import.php` demonstrates the WordPress import effect by emitting `A` as a Gutenberg paragraph from an unmapped two-byte CID without letting an unrelated one-byte mapping split the source bytes, and without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
 
+The 2026-05-25 17:39 UTC simple-font Encoding Differences slice decodes `/Encoding << /Differences [...] >>` glyph names when a PDF font lacks a `/ToUnicode` CMap. `examples/wordpress-pdf-encoding-differences-import.php` demonstrates the WordPress import effect by emitting `WP Import Blocks` as a Gutenberg paragraph from custom single-byte glyph codes without Python, pdftext, pypdfium, Poppler, Ghostscript, or external PDF tools.
+
 The lane now also maps the upstream `pdftext` dictionary boundary from `marker/pdf/extract_text.py::pdftext_format_to_blocks`. `PdfTextBlockConverter` converts supplied pdftext page dictionaries into Marker's native Page/Block/Line/Span arrays, including font flag suffixes, span IDs, rotation-aware page bboxes, and pdftext hyphen/newline cleanup before later layout annotation.
 
 The lane now also maps the supplied-data boundary of `marker/pdf/extract_text.py::get_text_blocks`. `PdfTextDocumentExtractor` applies upstream `start_page`/`max_pages` page-range semantics to supplied pdftext dictionaries, restarts span IDs relative to the selected range, preserves original PDF page numbers, and carries PDF TOC metadata for partial WordPress imports.

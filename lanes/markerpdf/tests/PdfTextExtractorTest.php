@@ -292,6 +292,17 @@ return [
         $t->same(['A'], $extractor->extractTextRuns($pdf));
         $t->true(!str_contains($extractor->extractPlainText($pdf), 'XA'));
     },
+    'decodes simple font Encoding Differences before WordPress paragraph rendering' => static function (TestRunner $t): void {
+        $content = 'BT /Fdiff 12 Tf 72 720 Td <202122232425262728292A2B2C2D2E2F> Tj ET';
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /Fdiff 2 0 R >> >> /Contents 3 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /CustomSubset /Encoding << /Type /Encoding /Differences [32 /W /P /space /I /m /p /o /r /t /space /B /l /o /c /k /s] >> >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('WP Import Blocks', $extractor->extractPlainText($pdf));
+        $t->same(['WP Import Blocks'], $extractor->extractTextRuns($pdf));
+    },
     'uses ToUnicode bfrange arrays for WordPress text extraction' => static function (TestRunner $t): void {
         $content = 'BT /Fcid 12 Tf 72 720 Td <202122> Tj ET';
         $cmap = "/CIDInit /ProcSet findresource begin\n"
