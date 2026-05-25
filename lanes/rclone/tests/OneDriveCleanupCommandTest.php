@@ -155,6 +155,23 @@ return [
         $t->same([], $flow['skippedVersions']);
         $t->same(false, $flow['providerCalled']);
     },
+    'onedrive cleanup command disabled no versions path ignores object type checks' => static function (TestRunner $t): void {
+        $flow = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports',
+                'type' => 'directory',
+                'versions' => [],
+            ],
+        ], [
+            'noVersions' => false,
+        ]);
+
+        $t->same(null, $flow['error']);
+        $t->same(0, $flow['walkedObjects']);
+        $t->same(0, $flow['versionRequests']);
+        $t->same([], $flow['logs']);
+        $t->same(false, $flow['providerCalled']);
+    },
     'onedrive cleanup command fails masked cleanup feature before dry run' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([
             [
@@ -219,6 +236,7 @@ return [
         $t->same('cleanup unsupported', $example['featureMaskedError']);
         $t->same(null, $example['disabledNoVersionsError']);
         $t->same(false, $example['disabledNoVersionsProviderCalled']);
+        $t->same(null, $example['disabledNoVersionsTypeError']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];
