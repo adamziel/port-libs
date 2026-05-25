@@ -1863,6 +1863,20 @@ return [
                 'FullKeys',
                 hex: false
             ));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $source->exportProofBytes([
+                    "wp_options:siteurl\r",
+                    "wp_posts:1\r",
+                    "wp_posts:404\r",
+                ], Proof::ENCODING_FULL_KEYS),
+                'stderr' => '',
+            ], QuadbStore::exportProofStdinCommandOutput(
+                $sourceDir,
+                "wp_options:siteurl\r\nwp_posts:1\r\nwp_posts:404\r\n",
+                'FullKeys',
+                hex: false
+            ));
             $t->same(
                 $source->exportProofFromKeyLines($keyInput)->dumpText(),
                 QuadbStore::exportProofStdinCommandOutput(

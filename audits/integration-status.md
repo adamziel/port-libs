@@ -1,4 +1,28 @@
 
+## Clean-patch accepted - Quadrable CRLF stdin FullKeys proofs - 2026-05-25 22:45 UTC
+
+Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-quadrable-closure-20260525T173854Z.ready`.
+
+Decision evidence:
+- Current clean base: `c27ee7cbdf8c3b27233252b105cd7d3b1d65929b`.
+- Patch sha256 matched marker: `e2efcf50ac3ad5b58e37857f8e36211854223c7bf4ba3108bcbc2334e8da3094`.
+- The marker contained required `lane=quadrable`, `patch=...`, and `metadata=...` fields.
+- Earlier sampled queued `port-libsqlite-20260525T173844Z.ready` was stale against current `main`; current `main` already contains `mutateSqlFunctionArguments()` and mutation argument-vector tests, and newer libsqlite status has moved on to JSON remove dispatch.
+
+Focused verification from detached clean worktree:
+- `php -l lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php` passed.
+- `php -l lanes/quadrable/tests/QuadbStoreTest.php` passed.
+- `php lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php` passed and emitted `crlfStringProofPreservesCarriageReturnKeys: true` plus `crlfStringProofDiffersFromLf: true`.
+- `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json` passed.
+- `git diff --check -- lanes/quadrable` passed.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passed: `1 test files, 1015 assertions, 0 failures`.
+
+Serialized root verification:
+- Runtime gate before root: `/` above `86000000` KiB available, load below `25`, and no exact no-argument root harness was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed from the exact clean candidate snapshot: `214 test files, 26388 assertions, 0 failures`.
+
+Accepted slice: adds Quadrable `exportProof --stdin` FullKeys coverage proving CRLF stdin preserves carriage returns in string keys, matching C++ `std::getline` behavior instead of normalizing Windows line endings. No support-library row was activated.
+
 ## Clean-patch accepted - LightningCSS custom media comment parentheses - 2026-05-25 22:34 UTC
 
 Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T173840Z.ready`.

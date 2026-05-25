@@ -59,6 +59,12 @@ try {
         'FullKeys',
         hex: false
     );
+    $crlfProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $sourceDir,
+        "wp_options:siteurl\r\nwp_posts:1\r\nwp_posts:404\r\n",
+        'FullKeys',
+        hex: false
+    );
     $homeProofBytes = $source->exportProofBytesFromKeyLines("wp_options:home\n", Proof::ENCODING_FULL_KEYS);
 
     $target = QuadbStore::init($targetDir);
@@ -258,6 +264,14 @@ try {
         'binaryProofBytes' => strlen($proofBytes),
         'eofFinalKeyProofMatchesLf' => $eofProofCommand['exitCode'] === 0
             && $eofProofCommand['stdout'] === $proofBytes,
+        'crlfStringProofPreservesCarriageReturnKeys' => $crlfProofCommand['exitCode'] === 0
+            && $crlfProofCommand['stdout'] === $source->exportProofBytes([
+                "wp_options:siteurl\r",
+                "wp_posts:1\r",
+                "wp_posts:404\r",
+            ], Proof::ENCODING_FULL_KEYS),
+        'crlfStringProofDiffersFromLf' => $crlfProofCommand['exitCode'] === 0
+            && $crlfProofCommand['stdout'] !== $proofBytes,
         'encodingType' => ord($proofBytes[0]),
         'siteUrl' => $target->get('wp_options:siteurl'),
         'post' => $target->get('wp_posts:1'),
