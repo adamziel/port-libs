@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 22:04:21 UTC",
-    "sourceCommit": "c7fbd1a591b84ce64901f5cbbd1ee69dcd48aa31",
-    "sourceCommitShort": "c7fbd1a591b8",
+    "generated": "2026-05-25 22:15:04 UTC",
+    "sourceCommit": "a02832175192f3b4a59130ce8cf71f9cd1a23d90",
+    "sourceCommitShort": "a02832175192",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "45354a2f14376801d3d0680e8c647b268480f253",
-    "dashboardCommitShort": "45354a2f1437",
+    "dashboardCommit": "2dacb27f83f543310fd0982bac26dd4980b6fb15",
+    "dashboardCommitShort": "2dacb27f83f5",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -183,9 +183,9 @@
             "suite": "cloned-static-inventory-plus-runner-evidence-and-ninety...",
             "benchmark": "cloned-static-inventory-plus-runner-evidence-and-ninety...",
             "denominator": "1984",
-            "mapped": "1577",
-            "coverage": "1577 / 1984",
-            "php": "152 pass / 0 fail",
+            "mapped": "1578",
+            "coverage": "1578 / 1984",
+            "php": "153 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream npm runner eviden...",
             "audit": "verified 2026-05-25 isolated micro-slice:...",
