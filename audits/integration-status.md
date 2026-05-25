@@ -1,5 +1,53 @@
 # Integration Status
 
+## Integration accepted - isolated quadrable integer command smoke - 2026-05-25 03:24 UTC
+
+Accepted ready marker:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T031435Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T031435Z.patch`.
+
+Lane/slice/session: `quadrable` / `rearmer-20260525T031434Z` /
+`port-quadrable`. Patch sha256 verified:
+`e2a4034bc13307a332cbf6a88fc7a89b4f98314815a8419cfb3d095506c1ee26`.
+
+Apply/rebase decision: direct `git apply --check` failed only on
+`lanes/quadrable/UPSTREAM_TEST_MANIFEST.json` and
+`lanes/quadrable/lane-status.json`. `git apply --3way` produced conflicts in
+those same metadata files. I resolved the stale latest-evidence/status drift by
+keeping the newer integer `get/put/del --int` smoke wording from the patch while
+preserving the already-accepted broader Quadrable history in the manifest.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-quadrable-031435-20260525T032355Z`:
+
+- `php -l lanes/quadrable/examples/wordpress-quadb-int-read-write-guard.php` - passed.
+- `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json` - passed.
+- `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` - passed, `1 test files, 935 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/quadrable/tests` - passed, `10 test files, 3124 assertions, 0 failures`.
+- `php lanes/quadrable/examples/wordpress-quadb-int-read-write-guard.php` - passed.
+- `git diff --cached --check` - passed.
+
+Root verification: exact no-argument root gate
+`pgrep -af '^php tools/run-tests\.php$'` was empty before the run.
+`php tools/run-tests.php` passed in the clean worktree with
+`212 test files, 24966 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support component is activated.
+This reuses the existing bounded integer parser, command-output wrapper, and
+file-backed `QuadbStore` components.
+
+Live-service exclusions: none; no live services were relevant or run.
+
+Files staged:
+
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/examples/wordpress-quadb-int-read-write-guard.php`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/upstream-inventory.md`
+- `lanes/quadrable/notes/wordpress-scenarios.md`
+- `audits/integration-status.md`
+
 ## Integration accepted - isolated rclone OneDrive no-versions cleanup - 2026-05-25 03:22 UTC
 
 Accepted ready marker:
