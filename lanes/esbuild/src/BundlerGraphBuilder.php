@@ -68,7 +68,7 @@ final class BundlerGraphBuilder
         if ($import->isRelative()) {
             $resolved = $this->resolveRelative($import->source, $sourceDir);
 
-            return new BundlerEdge($import->kind, $import->source, $resolved, false, $resolved === null);
+            return new BundlerEdge($import->kind, $import->source, $resolved, false, $resolved === null, null, $this->loaderForPath($resolved));
         }
 
         $resolution = $this->packageResolver->resolveImport($import, $sourceDir);
@@ -83,6 +83,7 @@ final class BundlerGraphBuilder
             $resolution->external,
             false,
             $resolution->mainField,
+            $this->loaderForPath($resolution->path),
         );
     }
 
@@ -155,5 +156,21 @@ final class BundlerGraphBuilder
     private function canAnalyze(string $path): bool
     {
         return preg_match('/\.(?:mjs|cjs|js|jsx|ts|tsx)$/', $path) === 1;
+    }
+
+    private function loaderForPath(?string $path): ?string
+    {
+        if ($path === null || $path === '') {
+            return null;
+        }
+
+        return match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'css' => 'css',
+            'json' => 'json',
+            'jsx' => 'jsx',
+            'ts' => 'ts',
+            'tsx' => 'tsx',
+            default => 'js',
+        };
     }
 }

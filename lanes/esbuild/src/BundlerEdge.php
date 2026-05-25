@@ -13,6 +13,7 @@ final class BundlerEdge
         public readonly bool $external,
         public readonly bool $missing,
         public readonly ?string $mainField = null,
+        public readonly ?string $loader = null,
     ) {
     }
 }

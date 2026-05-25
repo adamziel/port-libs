@@ -100783,3 +100783,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json lanes/dolt/fixtures/wp-merge-review.php lanes/dolt/lane-status.json lanes/dolt/notes/wordpress-scenarios.md lanes/dolt/src/PreviewMergeConflictsTable.php lanes/dolt/tests/PreviewMergeConflictsTableTest.php `
 
+
+## Clean-patch integration accepted - esbuild - 2026-05-25 02:47 UTC
+
+Ready marker: `port-esbuild-20260525T023451Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T023451Z.patch`
+Lane/slice/session: `esbuild` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `eb29e2081ae19f91a14c1307824473864ed1dec6`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/esbuild/tests`: exit 0; PASS lowers wordpress namespace async disposable preview without node  7 test files, 1873 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24798 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/examples/wordpress-asset-preflight.php lanes/esbuild/lane-status.json lanes/esbuild/notes/wordpress-scenarios.md lanes/esbuild/src/BundlerEdge.php lanes/esbuild/src/BundlerGraphBuilder.php lanes/esbuild/tests/BundlerGraphBuilderTest.php `
+

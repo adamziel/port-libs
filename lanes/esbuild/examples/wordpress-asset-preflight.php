@@ -144,6 +144,11 @@ JS);
 $nodeImportRecords = (new PackageResolver('node'))->importRecords($nodeImportRecordAnalysis, $packageEntryDir);
 $browserBundlerGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/entry.js');
 $nodeBundlerGraph = (new BundlerGraphBuilder(new PackageResolver('node')))->build($packageEntryDir . '/node-entry.js');
+$loaderBundlerGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/loader-entry.js');
+$loaderGraphEdges = array_combine(
+    array_map(static fn ($edge): string => $edge->source, $loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/loader-entry.js')]->edges),
+    $loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/loader-entry.js')]->edges,
+);
 $unshimmedBrowserNodePrefixResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $unshimmedNeutralNodePrefixResolution = (new PackageResolver('neutral'))->resolveImport(new ModuleImport('named', 'node:path', [], 0), $packageEntryDir);
 $normalizePackageFixturePath = static function (string $path) use ($packageFixtureDir): string {
@@ -563,6 +568,13 @@ printf("WordPress browser bundler graph assembly: %s\n", (
 printf("WordPress node bundler graph externals: %s\n", (
     array_map(static fn ($edge): string => $edge->source, $nodeBundlerGraph->externalEdges) === ['path', 'node:crypto']
     && isset($nodeBundlerGraph->modules[(string) realpath($packageEntryDir . '/local-preview.js')])
+) ? 'yes' : 'no');
+printf("WordPress loader-aware graph assets: %s\n", (
+    $loaderGraphEdges['./block.css']->loader === 'css'
+    && $loaderGraphEdges['./block.json']->loader === 'json'
+    && isset($loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/local-preview.js')])
+    && !isset($loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/block.css')])
+    && !isset($loaderBundlerGraph->modules[(string) realpath($packageEntryDir . '/block.json')])
 ) ? 'yes' : 'no');
 printf("WordPress tsconfig paths aliases: %s\n", (
     array_combine(

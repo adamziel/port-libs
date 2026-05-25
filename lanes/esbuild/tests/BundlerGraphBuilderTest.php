@@ -57,4 +57,22 @@ return [
         $t->same([true, true], array_map(static fn ($edge): bool => $edge->missing, $graph->missingEdges));
         $t->same(false, $graph->missingEdges[0]->external);
     },
+    'records loader metadata for terminal css and json graph edges' => static function (TestRunner $t) use ($fixtureRoot, $normalizeFixturePath): void {
+        $entry = $fixtureRoot . '/src/loader-entry.js';
+        $graph = (new BundlerGraphBuilder())->build($entry);
+        $entryModule = $graph->modules[(string) realpath($entry)];
+        $edgesBySource = array_combine(
+            array_map(static fn ($edge): string => $edge->source, $entryModule->edges),
+            $entryModule->edges,
+        );
+
+        $t->same('css', $edgesBySource['./block.css']->loader);
+        $t->same('json', $edgesBySource['./block.json']->loader);
+        $t->same('js', $edgesBySource['./local-preview.js']->loader);
+        $t->same('src/block.css', $normalizeFixturePath($edgesBySource['./block.css']->path));
+        $t->same('src/block.json', $normalizeFixturePath($edgesBySource['./block.json']->path));
+        $t->same(false, isset($graph->modules[(string) realpath($fixtureRoot . '/src/block.css')]));
+        $t->same(false, isset($graph->modules[(string) realpath($fixtureRoot . '/src/block.json')]));
+        $t->same(true, isset($graph->modules[(string) realpath($fixtureRoot . '/src/local-preview.js')]));
+    },
 ];
