@@ -29,8 +29,15 @@ final class CssFormatter
             }
 
             $prelude = trim(substr($css, $cursor, $open - $cursor));
+            if (preg_match('/^@counter-style\s+([_a-zA-Z-][_a-zA-Z0-9-]*)$/', $prelude) === 1) {
+                $close = $this->findMatchingBrace($css, $open);
+                $rules[] = $this->formatCounterStyleRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $cursor = $close + 1;
+                continue;
+            }
+
             if (!preg_match('/^@page(?:\s|:|$)/i', $prelude)) {
-                throw new \InvalidArgumentException('CssFormatter currently supports @page rules only');
+                throw new \InvalidArgumentException('CssFormatter currently supports @page and @counter-style rules only');
             }
 
             $close = $this->findMatchingBrace($css, $open);
@@ -134,6 +141,24 @@ final class CssFormatter
             . $this->indent($indentLevel) . '}';
     }
 
+    private function formatCounterStyleRule(string $prelude, string $body, int $indentLevel): string
+    {
+        $nestedAt = $this->findNextTopLevelAtKeyword($body, 0);
+        if ($nestedAt !== null) {
+            throw new \InvalidArgumentException('@counter-style rules only allow declarations');
+        }
+
+        $indent = $this->indent($indentLevel);
+        $body = trim($body);
+        if ($body === '') {
+            return $indent . $this->normalizeCounterStylePrelude($prelude) . ' {}';
+        }
+
+        return $indent . $this->normalizeCounterStylePrelude($prelude) . " {\n"
+            . $this->formatDeclarations($body, $indentLevel + 1) . "\n"
+            . $indent . '}';
+    }
+
     private function formatDeclarations(string $body, int $indentLevel): string
     {
         $lines = [];
@@ -179,6 +204,13 @@ final class CssFormatter
         $prelude = preg_replace('/^@page\s+:/i', '@page :', $prelude) ?? $prelude;
 
         return $prelude;
+    }
+
+    private function normalizeCounterStylePrelude(string $prelude): string
+    {
+        $prelude = trim(preg_replace('/\s+/', ' ', $prelude) ?? $prelude);
+
+        return preg_replace('/^@counter-style\s+/i', '@counter-style ', $prelude) ?? $prelude;
     }
 
     private function formatDeclarationValue(string $value): string

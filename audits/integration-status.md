@@ -98692,3 +98692,22 @@ Root verification: PASS php tools/run-tests.php (208 test files, 24320 assertion
 Support-library/dependency closure: lane-local only; no provider/live-service or shared dependency row activated.
 Live-service exclusions: no live-service/network-provider/credentialed tests run; no secrets read or printed.
 Files staged: lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/examples/wordpress-onedrive-permission-refresh-dir-metadata.php lanes/rclone/lane-status.json lanes/rclone/notes/upstream-inventory.md lanes/rclone/notes/wordpress-scenarios.md lanes/rclone/src/OneDrivePermissionPlanner.php lanes/rclone/tests/OneDrivePermissionPlannerTest.php  audits/integration-status.md
+
+## Clean-patch integration - lightningcss - 2026-05-25T00:01:47Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260524T233033Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260524T233033Z.patch`
+Lane/slice/session: `lightningcss` / `watchdog-next-20260524T233033Z` / `port-lightningcss`
+Patch SHA-256: `74eac846e4e21f652b773a13f2631e7b10be9a37bcb76e08376e930b30c72b74` verified.
+Apply mode: `check` against old head `1ab5ad5f54af7343e0c05049fd5309975899f488`.
+Focused commands: `php -l` on changed PHP files; `php tools/run-tests.php lanes/lightningcss/tests/CssFormatterTest.php `; changed PHP examples; JSON validation for changed lane status/manifests. Result: pass.
+Root command: `php tools/run-tests.php`. Result: pass.
+Support-library/dependency closure: lane-local only; no support-library activation accepted.
+Live-service exclusions: no live-service provider or credentialed tests run.
+Files staged:
+- `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/lightningcss/lane-status.json`
+- `lanes/lightningcss/notes/upstream-inventory.md`
+- `lanes/lightningcss/notes/wordpress-scenarios.md`
+- `lanes/lightningcss/src/CssFormatter.php`
+- `lanes/lightningcss/tests/CssFormatterTest.php`

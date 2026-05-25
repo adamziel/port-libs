@@ -66,6 +66,32 @@ CSS));
 }
 CSS));
     },
+    'css formatter maps upstream counter-style printer case' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+@counter-style circled-alpha {
+  system: fixed;
+  symbols: Ⓐ Ⓑ Ⓒ;
+  suffix: " ";
+}
+
+CSS, $formatter->format(<<<'CSS'
+@counter-style circled-alpha {
+  system: fixed;
+  symbols: Ⓐ Ⓑ Ⓒ;
+  suffix: " ";
+}
+CSS));
+
+        $t->throws(InvalidArgumentException::class, static fn () => $formatter->format(<<<'CSS'
+@counter-style circled-alpha {
+  @media print {
+    system: fixed;
+  }
+}
+CSS));
+    },
     'wordpress print export page rules format without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @page chapter:right {
@@ -86,6 +112,20 @@ CSS;
   @bottom-right-corner {
     content: counter(page);
   }
+}
+
+CSS, (new CssFormatter())->format($css));
+    },
+    'wordpress custom list marker counter style formats without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@counter-style wp-step-marker { system: fixed; symbols: "①" "②" "③"; suffix: " "; }
+CSS;
+
+        $t->same(<<<'CSS'
+@counter-style wp-step-marker {
+  system: fixed;
+  symbols: "①" "②" "③";
+  suffix: " ";
 }
 
 CSS, (new CssFormatter())->format($css));
