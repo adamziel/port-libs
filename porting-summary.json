@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 12:15:01 UTC",
-    "sourceCommit": "9ffacee572b49b6f9fced1e46612b89b3ae95db5",
-    "sourceCommitShort": "9ffacee572b4",
+    "generated": "2026-05-25 12:24:43 UTC",
+    "sourceCommit": "db5bdd8e4250f8521401888aaf85f61ca875905f",
+    "sourceCommitShort": "db5bdd8e4250",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "127c16e055038f42a8a3c73340a22f05887d09c0",
-    "dashboardCommitShort": "127c16e05503",
+    "dashboardCommit": "e22917cc2b49ba1301c8e26ee602a55bce210e8b",
+    "dashboardCommitShort": "e22917cc2b49",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -81,9 +81,9 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "253",
-            "coverage": "253 / 1589",
-            "php": "255 pass / 0 fail",
+            "mapped": "254",
+            "coverage": "254 / 1589",
+            "php": "256 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
             "audit": "isolated rework micro-slice 2026-05-25: p...",
