@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 23:26:13 UTC",
-    "sourceCommit": "9a748b71a6e0d32984721388a58b01d33f6d9101",
-    "sourceCommitShort": "9a748b71a6e0",
+    "generated": "2026-05-25 23:29:22 UTC",
+    "sourceCommit": "e1d22b9e4ff5ffbc723122aa5fd19f7a97ae3105",
+    "sourceCommitShort": "e1d22b9e4ff5",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "f37a40dbd7b4e99ab276ba612397b01ed6d3d876",
-    "dashboardCommitShort": "f37a40dbd7b4",
+    "dashboardCommit": "b459a48969cde76fbb7e20c9cfd88b6ba8db191c",
+    "dashboardCommitShort": "b459a48969cd",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -200,13 +200,13 @@
             "suite": "verified-cloned-static-test-inventory-plus-focused-runner",
             "benchmark": "verified-cloned-static-test-inventory-plus-focused-runner",
             "denominator": "658",
-            "mapped": "346",
-            "coverage": "346 / 658",
-            "php": "346 pass / 0 fail",
+            "mapped": "347",
+            "coverage": "347 / 658",
+            "php": "347 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "verified cloned static upstream test inventory plus bou...",
             "audit": "audited 2026-05-25",
-            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` registers a WordPress/local pending watche...",
+            "currentWork": "Native `FolderScanRouteRegistry::forScanApi()` accepts a `folder` payload on watcher stat...",
             "nextTarget": "Map the next Syncthing closure edge: audit remaining route/status surfaces for acceptance...",
             "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused route-r...",
             "commit": "55605cb"
