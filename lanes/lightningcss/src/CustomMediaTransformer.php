@@ -175,7 +175,7 @@ final class CustomMediaTransformer
 
     private function importMediaTailOffset(string $rest): ?int
     {
-        $offset = $this->skipWhitespace($rest, 0);
+        $offset = $this->skipWhitespaceAndComments($rest, 0);
         if ($this->startsFunction($rest, $offset, 'url')) {
             $offset = $this->findMatchingDelimiter($rest, $offset + strlen('url'), '(', ')') + 1;
         } elseif (($rest[$offset] ?? '') === '"' || ($rest[$offset] ?? '') === "'") {
@@ -185,7 +185,7 @@ final class CustomMediaTransformer
         }
 
         while (true) {
-            $offset = $this->skipWhitespace($rest, $offset);
+            $offset = $this->skipWhitespaceAndComments($rest, $offset);
             if ($this->startsFunction($rest, $offset, 'supports') || $this->startsFunction($rest, $offset, 'layer')) {
                 $open = $offset + strlen($this->readIdentifier($rest, $offset));
                 $offset = $this->findMatchingDelimiter($rest, $open, '(', ')') + 1;
@@ -206,10 +206,25 @@ final class CustomMediaTransformer
         return $offset;
     }
 
-    private function skipWhitespace(string $value, int $offset): int
+    private function skipWhitespaceAndComments(string $value, int $offset): int
     {
-        while (isset($value[$offset]) && ctype_space($value[$offset])) {
-            $offset++;
+        $length = strlen($value);
+        while ($offset < $length) {
+            if (ctype_space($value[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($value[$offset] === '/' && ($value[$offset + 1] ?? '') === '*') {
+                $end = strpos($value, '*/', $offset + 2);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('Import rule contains an unbalanced comment');
+                }
+                $offset = $end + 2;
+                continue;
+            }
+
+            break;
         }
 
         return $offset;

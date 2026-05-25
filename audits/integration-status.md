@@ -1,4 +1,30 @@
 
+## Clean-patch integration - LightningCSS - 20260525T0630Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T060503Z.ready`
+Patch: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T060503Z.patch`
+Lane/slice/session: `lightningcss` / `watchdog-next-20260525T060503Z` / `port-lightningcss`
+Base before clean worktree: `a92a6b98dc4e65c2f18dce15806c551ef5f124bc`
+Patch sha256: `886ac5f869949a7571a092f55bc09ad9e025772fe326e8ff539dc6a443c3319c` verified with `sha256sum -c`.
+Apply mode: clean `git apply --check`, then `git apply` in detached clean worktree `/tmp/port-clean-integrator-secondary-lightningcss-20260525T0630Z`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/lightningcss/examples/wordpress-custom-media-transformer.php`: passed.
+- `php -l lanes/lightningcss/src/CustomMediaTransformer.php`: passed.
+- `php -l lanes/lightningcss/tests/CustomMediaTransformerTest.php`: passed.
+- `php -r 'foreach (["lanes/lightningcss/lane-status.json", "lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json"] as $f) { json_decode(file_get_contents($f), true, 512, JSON_THROW_ON_ERROR); } echo "json ok\n";'`: passed.
+- `php tools/run-tests.php lanes/lightningcss/tests/CustomMediaTransformerTest.php`: passed, 1 test file, 33 assertions, 0 failures.
+- `php tools/run-tests.php lanes/lightningcss/tests`: passed, 9 test files, 1083 assertions, 0 failures.
+- `php lanes/lightningcss/examples/wordpress-custom-media-transformer.php`: passed and emitted the layered custom-media-backed import output.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree, 213 test files, 25625 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this is a lane-local custom-media import-tail parser slice reusing the existing `CustomMediaTransformer`.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-custom-media-transformer.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, `lanes/lightningcss/src/CustomMediaTransformer.php`, `lanes/lightningcss/tests/CustomMediaTransformerTest.php`, `audits/integration-status.md`.
+
 ## Clean-patch integration defer - markerPDF - 2026-05-25 05:23 UTC
 
 Deferred ready marker: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.ready`.

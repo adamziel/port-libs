@@ -100,6 +100,20 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer resolves import media tails after layer modifiers and comments' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --wide (min-width: 782px);
+@custom-media --motion (prefers-reduced-motion: no-preference);
+
+@import url(./blocks/cards.css) /* wp block layer */ layer(theme.blocks) screen and (--wide);
+@import "./blocks/animations.css" layer supports((animation-name: fade)) (--motion);
+CSS;
+
+        $t->same(
+            '@import "./blocks/cards.css" layer(theme.blocks) screen and (width>=782px);@import "./blocks/animations.css" layer supports((animation-name:fade))(prefers-reduced-motion:no-preference);',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer maps upstream negated range aliases' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --not-width not (min-width: 300px);

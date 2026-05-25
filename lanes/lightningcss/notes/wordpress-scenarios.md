@@ -42,7 +42,7 @@ This run extends focused upstream `border-radius` minification for rounded cover
 
 This run completes the focused upstream `border-radius` helper cluster for rounded block/card styles: concrete partial physical corner overrides after a shorthand now fold into the shortest updated shorthand, while variable-backed partial overrides remain separate so theme tokens are not over-composed. `examples/wordpress-border-radius-minifier.php` now models a media-text soft-corner override that ships compact modern plus legacy WebKit CSS without Node. Dependency closure: no new support component is needed; the slice reuses `CssMinifier`'s bounded declaration-entry composer, shorthand reset tracking, border-radius side-list helpers, and conservative `var()` guard.
 
-This run extends the focused custom-media WordPress path for build-free theme delivery: aliases now resolve inside `@import` media query tails after `supports()` modifiers, so block stylesheet imports and ordinary `@media` rules can share the same breakpoint tokens. `examples/wordpress-custom-media-transformer.php` now models a responsive query-card stylesheet import guarded by a custom-media breakpoint alias without Node. Dependency closure: no new support component is needed; the slice reuses `CustomMediaTransformer`'s bounded alias collector, media-query resolver, at-rule scanner, and source-location mapper.
+This run extends the focused custom-media WordPress path for build-free theme delivery: aliases now resolve inside `@import` media query tails after CSS comments, `layer`/`layer(...)`, and `supports()` modifiers, so layered block stylesheet imports and ordinary `@media` rules can share the same breakpoint tokens. `examples/wordpress-custom-media-transformer.php` now models a responsive query-card stylesheet import assigned to a theme block layer and guarded by a custom-media breakpoint alias without Node. Dependency closure: no new support component is needed; the slice reuses `CustomMediaTransformer`'s bounded alias collector, media-query resolver, at-rule scanner, source-location mapper, and comment-aware top-level scanner.
 
 This run adds focused upstream `color-scheme` minification for editor/theme dark-mode handoff: `dark light` canonicalizes to `light dark`, `only light` and `only dark` serialize as `light only` and `dark only`, and invalid mixed lists stay in authored order. `examples/wordpress-color-scheme-minifier.php` models editor stylesheet dark/light color-scheme tokens without Node.
 
@@ -68,4 +68,4 @@ This run adds focused upstream-aligned `@scope` rule minification for block-boun
 
 ## Next Task
 
-Continue custom-media transformer parity around remaining import/layer edge cases, or move to broader prefixing transformer semantics.
+Continue custom-media transformer parity around remaining custom media diagnostics/preserve-mode edges, or move to broader prefixing transformer semantics.
