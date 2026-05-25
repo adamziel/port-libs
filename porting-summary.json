@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 22:24:46 UTC",
-    "sourceCommit": "f487be92a9cb3c087105c139cca3919a2a366064",
-    "sourceCommitShort": "f487be92a9cb",
+    "generated": "2026-05-25 22:31:53 UTC",
+    "sourceCommit": "f24089b62e7cadab3a8361fdf2180edab8c0f242",
+    "sourceCommitShort": "f24089b62e7c",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "bf83a09496b621b9bc76513341ce57eec2437b95",
-    "dashboardCommitShort": "bf83a09496b6",
+    "dashboardCommit": "d6870d64a059afe8930f3feed2dfca662f6f22f0",
+    "dashboardCommitShort": "d6870d64a059",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -47,13 +47,13 @@
             "suite": "cloned-static-inventory-plus-make-test-runner-evidence",
             "benchmark": "cloned-static-inventory-plus-make-test-runner-evidence",
             "denominator": "2567",
-            "mapped": "257",
-            "coverage": "257 / 2567",
-            "php": "257 pass / 0 fail",
+            "mapped": "258",
+            "coverage": "258 / 2567",
+            "php": "258 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus upstream make-test runner...",
             "audit": "verified 2026-05-25 isolated micro-slice...",
-            "currentWork": "Added bounded node-platform external import preservation/accounting in `BundlerOutput` an...",
+            "currentWork": "Reworked the previous static bundled-JS import elision conflict as an additive current-ba...",
             "nextTarget": "After integrator/root acceptance, the next best lane task is a tiny bounded output-format...",
             "blocker": "Release-extra upstream `make test-all` coverage remains static-only.",
             "commit": "6cb369f"
