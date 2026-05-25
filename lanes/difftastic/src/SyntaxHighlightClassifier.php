@@ -66,6 +66,10 @@ final class SyntaxHighlightClassifier
             return 'keyword';
         }
 
+        if ($this->isCLikeLanguage($language) && $this->isCPreprocessorDirective($source, $token->start)) {
+            return 'keyword';
+        }
+
         if ($this->isRustLanguage($language) && $this->isRustLifetimeLabel($source, $token->start)) {
             return 'type';
         }
@@ -172,6 +176,11 @@ final class SyntaxHighlightClassifier
         return in_array($language, ['css', 'scss'], true);
     }
 
+    private function isCLikeLanguage(string $language): bool
+    {
+        return in_array($language, ['c', 'cc', 'cpp', 'c++', 'h', 'hpp', 'objc', 'objective-c'], true);
+    }
+
     private function isRustLanguage(string $language): bool
     {
         return in_array($language, ['rs', 'rust'], true);
@@ -218,6 +227,18 @@ final class SyntaxHighlightClassifier
         $previous = $this->previousNonWhitespaceCharacter($source, $start);
 
         return $previous === '@' || $previous === '!';
+    }
+
+    private function isCPreprocessorDirective(string $source, int $start): bool
+    {
+        $lineStart = max(strrpos(substr($source, 0, $start), "\n") ?: 0, 0);
+        if ($lineStart > 0) {
+            $lineStart++;
+        }
+
+        $prefix = substr($source, $lineStart, $start - $lineStart);
+
+        return preg_match('/^\s*#\s*$/', $prefix) === 1;
     }
 
     private function isRustLifetimeLabel(string $source, int $start): bool
@@ -547,6 +568,14 @@ final class SyntaxHighlightClassifier
     private function languageKeywords(string $language): array
     {
         return match ($language) {
+            'c', 'cc', 'cpp', 'c++', 'h', 'hpp', 'objc', 'objective-c' => [
+                'auto', 'break', 'case', 'catch', 'class', 'const', 'constexpr',
+                'continue', 'default', 'delete', 'do', 'else', 'enum', 'extern',
+                'for', 'goto', 'if', 'namespace', 'new', 'private', 'protected',
+                'public', 'return', 'sizeof', 'static', 'struct', 'switch',
+                'template', 'throw', 'try', 'typedef', 'typename', 'union',
+                'using', 'while',
+            ],
             'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx' => [
                 'as', 'assert', 'async', 'await', 'break', 'case', 'catch', 'class',
                 'const', 'default', 'delete', 'do', 'else', 'export', 'extends',
@@ -596,6 +625,11 @@ final class SyntaxHighlightClassifier
     private function languageTypes(string $language): array
     {
         return match ($language) {
+            'c', 'cc', 'cpp', 'c++', 'h', 'hpp', 'objc', 'objective-c' => [
+                'bool', 'char', 'double', 'float', 'int', 'int16_t', 'int32_t',
+                'int64_t', 'int8_t', 'long', 'short', 'size_t', 'uint16_t',
+                'uint32_t', 'uint64_t', 'uint8_t', 'void',
+            ],
             'javascript', 'js', 'jsx', 'typescript', 'ts', 'tsx' => [
                 'any', 'array', 'bigint', 'boolean', 'never', 'number', 'object',
                 'promise', 'record', 'string', 'symbol', 'unknown', 'void',

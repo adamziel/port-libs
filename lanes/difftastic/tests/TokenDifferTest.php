@@ -3391,6 +3391,34 @@ return [
         $t->contains('plugin_dir_path:normal', $encoded);
         $t->contains('require_once:keyword', $encoded);
     },
+    'json display renderer maps upstream c preprocessor and primitive type highlights' => static function (TestRunner $t): void {
+        $before = "int acme_block_flags(void) { return 0; }\n";
+        $after = "#include <stdint.h>\n#define ACME_BLOCK_FLAG_DYNAMIC 1\nstatic uint32_t acme_block_flags(uint8_t enabled) { return enabled ? ACME_BLOCK_FLAG_DYNAMIC : 0; }\n";
+        $decoded = json_decode((new JsonDiffRenderer())->renderFileDiff(
+            $before,
+            $after,
+            'sample_files/c_preprocessor_highlight.c',
+            'C',
+            ['language' => 'c'],
+        ), true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('C', $decoded['language']);
+        $t->contains('include:keyword', $encoded);
+        $t->contains('define:keyword', $encoded);
+        $t->contains('uint32_t:type', $encoded);
+        $t->contains('uint8_t:type', $encoded);
+        $t->contains('acme_block_flags:normal', $encoded);
+    },
     'json display renderer maps upstream tag captures as type highlights' => static function (TestRunner $t): void {
         $before = "export const Edit = () => null;\n";
         $after = "export const Edit = () => <PanelBody title=\"Modern\" />;\n";
@@ -3740,6 +3768,20 @@ return [
         $functionStart = strpos($line, 'plugin_dir_path');
         $t->true($functionStart !== false, 'Fixture should contain plugin_dir_path.');
         $t->true(!in_array(['start' => $functionStart, 'end' => $functionStart + strlen('plugin_dir_path'), 'style' => '1'], $spans, true), 'Ordinary PHP function identifiers should remain normal.');
+    },
+    'ansi highlighter maps upstream c preprocessor and primitive type captures' => static function (TestRunner $t): void {
+        $line = '#include <stdint.h> static uint32_t acme_block_flags(uint8_t enabled) { return enabled ? 1 : 0; }';
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'c']);
+
+        foreach (['include', 'static', 'uint32_t', 'uint8_t', 'return'] as $keyword) {
+            $start = strpos($line, $keyword);
+            $t->true($start !== false, "Fixture should contain {$keyword}.");
+            $t->true(in_array(['start' => $start, 'end' => $start + strlen($keyword), 'style' => '1'], $spans, true), "{$keyword} should follow upstream keyword/type display styling.");
+        }
+
+        $functionStart = strpos($line, 'acme_block_flags');
+        $t->true($functionStart !== false, 'Fixture should contain acme_block_flags.');
+        $t->true(!in_array(['start' => $functionStart, 'end' => $functionStart + strlen('acme_block_flags'), 'style' => '1'], $spans, true), 'Ordinary C function identifiers should remain normal.');
     },
     'ansi highlighter maps upstream rust label captures as type highlights' => static function (TestRunner $t): void {
         $line = "fn render<'block>(title: &'block str) -> &'block str { title }";
@@ -4244,6 +4286,29 @@ return [
         $t->contains('__FILE__:keyword', $encoded);
         $t->contains('plugin_dir_path:normal', $encoded);
         $t->contains('Acme_Card:normal', $encoded);
+    },
+    'wordpress c preprocessor display follows upstream keyword and primitive type boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-c-preprocessor-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+
+        $t->same('wp-content/plugins/acme-card/native/block-support.c', $decoded['path']);
+        $t->contains('include:keyword', $encoded);
+        $t->contains('define:keyword', $encoded);
+        $t->contains('uint32_t:type', $encoded);
+        $t->contains('uint8_t:type', $encoded);
+        $t->contains('acme_block_flags:normal', $encoded);
     },
     'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
         ob_start();

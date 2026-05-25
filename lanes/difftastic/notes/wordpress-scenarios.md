@@ -387,6 +387,10 @@ The same WordPress Python multiline annotation example now covers quoted custom 
 
 Dependency closure: no new support component is needed for the PHP magic-constant slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a separate native PHP parser support component would only be justified behind an accepted gate for broader PHP AST or syntax-list parity beyond keyword/constant display captures.
 
+The WordPress C native-module display example covers optional plugin support code under `wp-content/plugins/acme-card/native/block-support.c`. Native JSON display highlights `#include` and `#define` directive names as keyword-style spans and fixed-width primitive types such as `uint32_t` and `uint8_t` as type spans, while leaving ordinary helper identifiers such as `acme_block_flags` normal.
+
+Dependency closure: no new support component is needed for the C/C++ preprocessor/type highlight slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a native C parser support component would only be proposed behind an accepted gate for broader C/C++ structural AST parity beyond keyword/type display captures.
+
 ## Next Task
 
-Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, and the already mapped Python/Ruby clusters, while keeping unsupported function and property captures normal unless the upstream display enum promotes them.
+Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, C/C++ preprocessor/type captures, and the already mapped Python/Ruby clusters, while keeping unsupported function and property captures normal unless the upstream display enum promotes them.

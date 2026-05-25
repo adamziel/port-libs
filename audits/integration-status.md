@@ -100741,3 +100741,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T024024Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch integration accepted - difftastic - 2026-05-25 02:46 UTC
+
+Ready marker: `port-difftastic-20260525T023604Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T023604Z.patch`
+Lane/slice/session: `difftastic` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `16d53903afff09bb70a5233b23ece5abb0f39d41`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/difftastic/tests`: exit 0; PASS wordpress plugin workflow step diff reports yaml block sequence changes  1 test files, 1467 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24789 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json lanes/difftastic/notes/upstream-inventory.md lanes/difftastic/notes/wordpress-scenarios.md lanes/difftastic/src/SyntaxHighlightClassifier.php lanes/difftastic/tests/TokenDifferTest.php `
+

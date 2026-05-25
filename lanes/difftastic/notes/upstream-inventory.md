@@ -540,4 +540,21 @@ Dependency closure: no new support component is needed for this slice. It reuses
 
 ## Next Task
 
-Expand the next upstream-query-backed syntax highlighting boundary outside the already mapped JavaScript, PHP, Python, and Ruby clusters, without promoting function/property captures that upstream leaves outside the display highlight enum.
+Expand the next upstream-query-backed syntax highlighting boundary outside the already mapped JavaScript, PHP, Python, Ruby, and C/C++ clusters, without promoting function/property captures that upstream leaves outside the display highlight enum.
+
+For this C/C++ preprocessor and primitive type highlight slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`. The mapped upstream boundary is difftastic's `tree_highlights` promotion of keyword and type captures: preprocessor directive identifiers such as `include` and `define` are promoted only in `#...` directive context, fixed-width primitive identifiers such as `uint32_t` and `uint8_t` are promoted as type spans, and ordinary function identifiers such as `acme_block_flags` remain normal.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-c-preprocessor-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-c-preprocessor-highlight-display.php >/tmp/difftastic-c-preprocessor-example.json && php -r 'json_decode(file_get_contents("/tmp/difftastic-c-preprocessor-example.json"), true, 512, JSON_THROW_ON_ERROR); echo "example json ok\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test expectation is 249 named tests, 1467 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/JSON renderer path; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.
