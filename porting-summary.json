@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-25 02:31:11 UTC",
-    "sourceCommit": "06ddd937b9d4f7fbcb97d6a783bd6da5695a1ae4",
-    "sourceCommitShort": "06ddd937b9d4",
-    "sourceBranch": "dashboard-publish-20260525T023034Z",
-    "dashboardCommit": "16d2a6f21d857ee9b1cf5c0af7f9b1920bb45169",
-    "dashboardCommitShort": "16d2a6f21d85",
-    "averageProgressPercent": "85.6",
+    "generated": "2026-05-25 02:34:18 UTC",
+    "sourceCommit": "96c451e722aa188d6daec21aae7a637bc1b781da",
+    "sourceCommitShort": "96c451e722aa",
+    "sourceBranch": "dashboard-publish-20260525T023406Z",
+    "dashboardCommit": "f6525d0e7c7ba246441e75c64867b9f8fb77f3eb",
+    "dashboardCommitShort": "f6525d0e7c7b",
+    "averageProgressPercent": "85.7",
     "lanes": [
         {
             "library": "difftastic",
@@ -26,20 +26,20 @@
         },
         {
             "library": "dolt",
-            "progressPercent": "64.0",
+            "progressPercent": "65.0",
             "suite": "cloned-static-inventory-plus-bounded-upstream-runner",
             "benchmark": "cloned-static-inventory-plus-bounded-upstream-runner",
             "denominator": "613",
-            "mapped": "304",
-            "coverage": "304 / 613",
-            "php": "207 pass / 0 fail",
+            "mapped": "305",
+            "coverage": "305 / 613",
+            "php": "208 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static upstream inventory + bounded diff/schema/...",
-            "audit": "updated 2026-05-24 watchdog-next micro-sl...",
+            "audit": "updated 2026-05-25 supervisor-rearm micro...",
             "currentWork": "Native table diff classification, Dolt-style DOLT_DIFF_* rows, schema/tag/index/foreign-k...",
-            "nextTarget": "Implementation worker: extend preview merge conflict parity to schema-conflict descriptio...",
+            "nextTarget": "Implementation worker: extend schema-conflict description parity to duplicate-index-colum...",
             "blocker": "upstream runner parity unavailable",
-            "commit": "951fc89"
+            "commit": "pending"
         },
         {
             "library": "esbuild",
