@@ -102487,3 +102487,37 @@ Selected markers and repair commands:
 - `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.ready` (`lane=syncthing`, `slice=supervisor-rearm-20260525T031809Z`, patch `port-syncthing-20260525T031809Z.patch`, sha256 `a4871a141ddc23e17048ad56bc9a4e12a6bc72559f339c2434bf7db7cf572fd7`): `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.patch` applies the scheduler test cleanly but conflicts in `FolderWatchScanScheduler.php`, example, manifest/status, and scenarios. Repair by rebasing the repeated paused watcher error behavior onto current `main`.
 
 Older ready markers for the same lanes remain in the directory; this pass intentionally preferred newer/repaired markers and did not spend root-verification slots on stale queue entries.
+
+## Clean-patch isolated queue pass - 2026-05-25 04:32 UTC
+
+No source output was integrated in this pass.
+
+Runtime queue state:
+- Initial live queue sample contained 326 complete isolated ready markers with `lane=`, `patch=`, and `metadata=` fields.
+- Newest per-lane hashes were verified successfully for the sampled latest markers: Pandoc `port-pandoc-20260525T031901Z.ready`, Esbuild `port-esbuild-20260525T031737Z.ready`, libsqlite `port-libsqlite-20260525T031605Z.ready`, LightningCSS `port-lightningcss-20260525T031605Z.ready`, Syncthing `port-syncthing-20260525T031431Z.ready`, Dolt `port-dolt-20260525T031408Z.ready`, Gitoxide `port-gitoxide-20260525T031337Z.ready`, markerPDF `port-markerpdf-20260525T031337Z.ready`, rclone `port-rclone-20260525T030915Z.ready`, Readability `port-readability-20260525T030830Z.ready`, Quadrable `port-quadrable-20260525T030642Z.ready`, and Difftastic `port-difftastic-20260525T030009Z.ready`.
+- Worker logs for those sampled latest markers contained focused lane evidence and explicitly did not claim root harness completion.
+- During processing, the top-level live ready queue was drained by another queue maintenance process. A re-read of `.tmux-team/tmp/handoff-candidates/*.ready` returned `0` markers, while `.tmux-team/tmp/handoff-candidates/stale/*.needs-lane-rework.md` contained `305` stale rework records. Per clean-patch integrator rules, those stale records are already assigned for lane rework and should not consume root verification slots.
+
+Attempted marker:
+- Ready marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T031901Z.ready`.
+- Patch: `.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T031901Z.patch` (`sha256 e6a81bab7568f7439d93ab8de03219a5aee3fffef64741585803d51ed47d6cc3`, verified before the marker was moved stale).
+- Lane/slice/session: `pandoc` / `supervisor-rearm-20260525T031901Z` / `port-pandoc`.
+- Clean worktree: `/tmp/port-clean-integrator-pandoc-20260525T031901Z-1906160` from old head `4cbc7059`.
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T031901Z.patch` failed.
+- Bounded rebase command `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T031901Z.patch` left conflicts in `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/src/MarkdownWriter.php`, and `lanes/pandoc/tests/MarkdownReaderTest.php`.
+- The code conflict overlapped an already-present `renderFencedCodeBlock()` helper and a same-name Markdown writer test with different accepted assertions, so resolving it would require a lane-owned test/status merge rather than a trivial stale counter or missing fixture inclusion.
+
+Focused/root verification:
+- No focused command was repeated after the Pandoc conflict because the patch was not in a buildable state.
+- No `php tools/run-tests.php` root harness was run because no source patch reached an accepted clean snapshot.
+- `git diff --check` was not run on an accepted source snapshot for the same reason.
+
+Support-library/dependency closure:
+- No support-library row was activated.
+- No live-service provider tests were run and no secret-bearing provider configuration was inspected.
+
+Deferred/rework command:
+- For the Pandoc marker, the exact failing repair reproduction is: `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/stale/port-pandoc-20260525T031901Z.patch` followed by `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/stale/port-pandoc-20260525T031901Z.patch` from current `refs/heads/main`, then resolve only `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/src/MarkdownWriter.php`, and `lanes/pandoc/tests/MarkdownReaderTest.php` by preserving the accepted helper and adding any genuinely new fenced-code assertion as a distinct test/status update.
+
+Files staged:
+- `audits/integration-status.md`
