@@ -100552,3 +100552,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T023451Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch rejection - gitoxide - 2026-05-25 02:45 UTC
+
+Ready marker: `port-gitoxide-20260525T023853Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T023853Z.patch`
+Lane/slice/session: `gitoxide` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `9e01606e4179b136d9a5a07306a938b5ce049255`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-gitoxide-20260525T024527Z/lanes/gitoxide/tests/ReceivePackTransportTest.php 
+- `php tools/run-tests.php lanes/gitoxide/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-gitoxide-20260525T024527Z/lanes/gitoxide/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T023853Z.patch`, then fix the failing focused command above without broadening the slice.
+
