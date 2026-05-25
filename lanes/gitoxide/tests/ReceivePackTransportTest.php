@@ -784,6 +784,64 @@ return [
         $t->same('post_redirect_gate=opened', $postRedirectRequests[2]['headers']['Cookie']);
         $t->same($postRedirectRequest->requestBytes(), $postRedirectRequests[2]['body']);
 
+        $callerCookieRedirectRequests = [];
+        $callerCookieRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$callerCookieRedirectRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $callerCookieRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    if (count($callerCookieRedirectRequests) === 2) {
+                        return [
+                            'status' => 307,
+                            'headers' => [
+                                'Location' => 'https://git.example.test/redirected.git/git-receive-pack',
+                                'Set-Cookie' => 'redirect_gate=opened; Path=/; Secure',
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                7.0,
+                ['Cookie' => 'wp_logged_in=editor; wp_nonce=abc'],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $callerCookieRedirectSession = $callerCookieRedirectClient->handshake();
+        $callerCookieRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $callerCookieRedirectRequest = $callerCookieRedirectSession->buildRequest([$blob]);
+
+        $callerCookieRedirectResponse = $callerCookieRedirectClient->send($callerCookieRedirectRequest);
+
+        $t->same(true, $callerCookieRedirectResponse->isSuccessful());
+        $t->same('wp_logged_in=editor; wp_nonce=abc', $callerCookieRedirectRequests[1]['headers']['Cookie']);
+        $t->same(
+            'wp_logged_in=editor; wp_nonce=abc; redirect_gate=opened',
+            $callerCookieRedirectRequests[2]['headers']['Cookie']
+        );
+        $t->same($callerCookieRedirectRequest->requestBytes(), $callerCookieRedirectRequests[2]['body']);
+
         $maxAgePrecedenceRequests = [];
         $maxAgePrecedenceClient = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
@@ -1275,6 +1333,7 @@ return [
         $t->same(true, $redirectExample['defaultPathRedirectCookieOmitted']);
         $t->same(true, $redirectExample['sameNameScopedRedirectCookieRetained']);
         $t->same(true, $redirectExample['sameScopeRedirectCookieReplaced']);
+        $t->same(true, $redirectExample['callerCookieHeaderPreserved']);
         $t->same(true, $redirectExample['pathSpecificRedirectCookiesFirst']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);

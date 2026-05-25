@@ -1,3 +1,35 @@
+## Clean-patch accepted - Gitoxide smart HTTP redirect cookies - 2026-05-25 23:11 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-gitoxide-20260525T225824Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`901ebba50fcc60d7b574eed6f684b99fb0d3501ae685af8a93c25db9fd576877`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`35f291ae` (`Integrate Syncthing pending watcher status route`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+- `php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed:
+  `1 test files, 358 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` passed.
+- `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` passed.
+- `git diff --check -- lanes/gitoxide` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=105258648` KiB and `load1=2.53`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26513 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker artifacts and temporary worktrees should be removed after the
+  commit is safely on `main`.
+
+Dashboard publication should run next after the accepted commit lands.
+
 ## Clean-patch accepted - Syncthing pending watcher status route - 2026-05-25 23:08 UTC
 
 Accepted one isolated marker:
