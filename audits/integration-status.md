@@ -1,4 +1,29 @@
 
+## Clean-patch accepted - esbuild static output import elision - 2026-05-25 22:30 UTC
+
+Accepted isolated marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T173942Z.ready`.
+
+Decision evidence:
+- Current clean base: `f487be92a9cb3c087105c139cca3919a2a366064`.
+- Patch sha256 matched marker: `d2de960bbfeaf332f981681b61f083b5772b42771a9958d2e7f2fcc1be308330`.
+- The marker contained required `lane=esbuild`, `patch=...`, and `metadata=...` fields and had no stale rework marker.
+- Earlier sampled queued `port-libsqlite-20260525T173844Z.ready` was stale against `f487be92` and was not accepted in this pass.
+
+Focused verification from detached clean worktree:
+- `php -l lanes/esbuild/tests/BundlerGraphBuilderTest.php` passed.
+- `php -l lanes/esbuild/examples/wordpress-asset-preflight.php` passed.
+- `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php` passed: `1 test files, 107 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/esbuild/tests` passed: `7 test files, 1951 assertions, 0 failures`.
+- `php lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'WordPress (bounded JS output bytes|terminal import path rewrites|static output import elision|node output external imports|metafile output bytes)'` reported all five checks as `yes`.
+- `jq empty lanes/esbuild/UPSTREAM_TEST_MANIFEST.json lanes/esbuild/lane-status.json` passed.
+- `git diff --check` passed.
+
+Serialized root verification:
+- Runtime gate before root: `/` above `86000000` KiB available, load below `25`, and no exact no-argument root harness was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed from the exact clean candidate snapshot: `214 test files, 26386 assertions, 0 failures`.
+
+Accepted slice: adds a current-base regression fixture for already-bundled static JavaScript import elision in bounded esbuild output previews while retaining and rewriting terminal CSS/JSON asset imports for nested output paths. No support-library row was activated; `js-package-resolution-core` remains deferred.
+
 ## Clean-patch accepted - readability nested embed wrapper blocks - 2026-05-25 22:11 UTC
 
 Ready marker:

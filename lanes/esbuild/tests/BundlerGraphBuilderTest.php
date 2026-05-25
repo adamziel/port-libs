@@ -209,4 +209,21 @@ return [
             ['from' => './block.json', 'to' => '../src/block.json', 'kind' => 'default'],
         ], $output['inputs']['src/loader-entry.js']['rewrites']);
     },
+    'removes multiple static JavaScript imports while retaining terminal asset imports' => static function (TestRunner $t) use ($fixtureRoot): void {
+        $graph = (new BundlerGraphBuilder())->build($fixtureRoot . '/src/output-static-entry.js');
+        $output = (new BundlerOutput())->build($graph, $fixtureRoot, 'build/output-static.js');
+
+        $t->same(true, str_contains($output['output']['contents'], "// src/output-static-entry.js\n"));
+        $t->same(true, str_contains($output['output']['contents'], "// src/local-preview.js\n"));
+        $t->same(false, str_contains($output['output']['contents'], "import './local-preview.js';"));
+        $t->same(false, str_contains($output['output']['contents'], "import { preview } from './local-preview.js';"));
+        $t->same(true, str_contains($output['output']['contents'], "import '../src/block.css';"));
+        $t->same(true, str_contains($output['output']['contents'], "import metadata from '../src/block.json' with { type: 'json' };"));
+        $t->same(2, $output['inputs']['src/output-static-entry.js']['importsRemoved']);
+        $t->same(2, $output['inputs']['src/output-static-entry.js']['importsRewritten']);
+        $t->same([
+            ['from' => './block.css', 'to' => '../src/block.css', 'kind' => 'side-effect'],
+            ['from' => './block.json', 'to' => '../src/block.json', 'kind' => 'default'],
+        ], $output['inputs']['src/output-static-entry.js']['rewrites']);
+    },
 ];

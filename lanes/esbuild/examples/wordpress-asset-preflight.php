@@ -155,6 +155,8 @@ $unsupportedLoaderGraph = (new BundlerGraphBuilder())->build($packageEntryDir . 
 $unsupportedLoaderMetafile = (new BundlerMetafile())->summarize($unsupportedLoaderGraph, $packageFixtureDir);
 $loaderBundlerOutput = (new BundlerOutput())->build($loaderBundlerGraph, $packageFixtureDir, 'block-view.js');
 $loaderOutputMetafile = (new BundlerMetafile())->summarize($loaderBundlerGraph, $packageFixtureDir, $loaderBundlerOutput);
+$staticImportOutputGraph = (new BundlerGraphBuilder())->build($packageEntryDir . '/output-static-entry.js');
+$staticImportOutput = (new BundlerOutput())->build($staticImportOutputGraph, $packageFixtureDir, 'build/output-static.js');
 $nodeBundlerOutput = (new BundlerOutput())->build($nodeBundlerGraph, $packageFixtureDir, 'node-block-view.js');
 $nodeOutputMetafile = (new BundlerMetafile())->summarize($nodeBundlerGraph, $packageFixtureDir, $nodeBundlerOutput);
 $unsupportedLoaderOutput = (new BundlerOutput())->build($unsupportedLoaderGraph, $packageFixtureDir, 'block-view.js');
@@ -617,6 +619,14 @@ printf("WordPress terminal import path rewrites: %s\n", (
     && ($loaderBundlerOutput['inputs']['src/loader-entry.js']['rewrites'][0]['to'] ?? null) === './src/block.css'
     && ($loaderBundlerOutput['inputs']['src/loader-entry.js']['rewrites'][1]['to'] ?? null) === './src/block.json'
     && str_contains($loaderBundlerOutput['output']['contents'], "import metadata from './src/block.json' with { type: 'json' };")
+) ? 'yes' : 'no');
+printf("WordPress static output import elision: %s\n", (
+    ($staticImportOutput['inputs']['src/output-static-entry.js']['importsRemoved'] ?? null) === 2
+    && ($staticImportOutput['inputs']['src/output-static-entry.js']['importsRewritten'] ?? null) === 2
+    && !str_contains($staticImportOutput['output']['contents'], "import './local-preview.js';")
+    && !str_contains($staticImportOutput['output']['contents'], "import { preview } from './local-preview.js';")
+    && str_contains($staticImportOutput['output']['contents'], "import '../src/block.css';")
+    && str_contains($staticImportOutput['output']['contents'], "import metadata from '../src/block.json' with { type: 'json' };")
 ) ? 'yes' : 'no');
 printf("WordPress node output external imports: %s\n", (
     ($nodeBundlerOutput['inputs']['src/node-entry.js']['importsExternal'] ?? null) === 2
