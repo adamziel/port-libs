@@ -13,7 +13,7 @@ final class AnsiSyntaxHighlighter
     }
 
     /**
-     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style?:string}>} $options
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style?:string}>, source?: string, lineStartOffset?: int} $options
      * @return list<array{start:int, end:int, style:string}>
      */
     public function spansForLine(string $line, array $options = []): array
@@ -50,7 +50,7 @@ final class AnsiSyntaxHighlighter
     }
 
     /**
-     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style?:string}>} $options
+     * @param array{language?: string, backgroundColor?: string, syntaxHighlight?: bool, treeSitterErrorSpans?: list<array{start:int, end:int, style?:string}>, source?: string, lineStartOffset?: int} $options
      */
     public function highlightLine(string $line, int $tabWidth, array $options = []): string
     {
@@ -208,12 +208,23 @@ final class AnsiSyntaxHighlighter
     }
 
     /**
-     * @param array{language?: string} $options
+     * @param array{language?: string, source?: string, lineStartOffset?: int} $options
      */
     private function styleForToken(string $line, Token $token, string $background, array $options): ?string
     {
+        $source = (string) ($options['source'] ?? $line);
+        $lineStartOffset = (int) ($options['lineStartOffset'] ?? 0);
+        $sourceToken = new Token(
+            $token->kind,
+            $token->text,
+            $token->delimiterRole,
+            $token->depth,
+            $lineStartOffset + $token->start,
+            $lineStartOffset + $token->end,
+        );
+
         return $this->highlightClassifier->ansiStyleForHighlight(
-            $this->highlightClassifier->highlightForToken($line, $token, $options),
+            $this->highlightClassifier->highlightForToken($source, $sourceToken, $options),
             $background,
         );
     }

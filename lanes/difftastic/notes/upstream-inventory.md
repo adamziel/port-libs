@@ -497,6 +497,22 @@ git diff --check -- lanes/difftastic
 
 The focused test expectation is 241 named tests, 1346 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
 
+For this Python multiline annotation highlight slice, the lane reused the existing native PHP tokenizer and ANSI syntax highlighter. `AnsiSyntaxHighlighter` now accepts a full-source context plus per-line byte offset so line rendering can classify tokens against their original source position; `SyntaxHighlightClassifier` uses that context to keep builtin Python type names highlighted through multiline `dict[...]`, `list[...]`, `tuple[...]`, and PEP 604 `|` annotation continuations while preventing closed annotation regions from leaking into runtime `list` expressions.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/AnsiSyntaxHighlighter.php
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php | php -r '$json = stream_get_contents(STDIN); $decoded = json_decode($json, true, 512, JSON_THROW_ON_ERROR); echo $decoded["path"] . " " . $decoded["language"] . " " . count($decoded["lines"]) . "\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test expectation is 245 named tests, 1388 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
 ## Next Task
 
-Tighten Python type-annotation context for builtin type names.
+Tighten Python `typing` alias and stringized annotation edge cases without promoting runtime expressions.

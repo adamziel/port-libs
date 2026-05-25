@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+require dirname(__DIR__, 3) . '/tools/bootstrap.php';
+
+use PortLibs\Difftastic\AnsiSyntaxHighlighter;
+
+$source = "def normalize_posts(\n"
+    . "    posts: list[\n"
+    . "        dict[str | bytes, int | list[str]],\n"
+    . "    ],\n"
+    . ") -> tuple[\n"
+    . "    int,\n"
+    . "    list[str],\n"
+    . "]:\n"
+    . "    list = []\n"
+    . "    return (len(posts), list)\n";
+
+$highlighter = new AnsiSyntaxHighlighter();
+$lines = [];
+$offset = 0;
+foreach (explode("\n", rtrim($source, "\n")) as $line) {
+    $lines[] = $highlighter->highlightLine($line, 8, [
+        'language' => 'python',
+        'source' => $source,
+        'lineStartOffset' => $offset,
+    ]);
+    $offset += strlen($line) + 1;
+}
+
+echo json_encode([
+    'path' => 'wp-content/plugins/acme-migrator/tools/normalize_posts.py',
+    'language' => 'Python',
+    'lines' => $lines,
+], JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT) . "\n";

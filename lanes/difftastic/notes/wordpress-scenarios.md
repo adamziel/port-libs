@@ -364,13 +364,16 @@ php lanes/difftastic/examples/wordpress-block-controller-highlight-display.php
 php lanes/difftastic/examples/wordpress-block-registry-highlight-display.php
 php lanes/difftastic/examples/wordpress-python-decorator-highlight-display.php
 php lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php
+php lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php
 php lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php
 ```
 
 The WordPress Ruby migration helper now also exercises method-level Ruby block delimiter paths. The added `self.count` method in `wp-content/plugins/acme-migrator/tools/import_posts.rb` is emitted as a focused `def...end` insertion while the existing `records.each do ... end` body stays nested under its method path, making importer utility diffs reviewable without replacing the whole class.
 
-Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for multi-line annotations, `typing` aliases, and PEP 604 unions.
+The WordPress Python multiline annotation example now exercises migration helper signatures that wrap builtin type names across nested `dict[...]`, `list[...]`, `tuple[...]`, and PEP 604 `|` continuations. Type names inside the annotation are bold-highlighted while runtime locals named `list` stay normal, matching the upstream tree-sitter-python type-capture boundary without over-styling ordinary expressions.
+
+Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for `typing` aliases beyond builtin generics and deeper syntax-list-level annotation parsing.
 
 ## Next Task
 
-Tighten Python `typing`/PEP 604 union annotation edge cases and avoid over-styling runtime expressions in multi-line annotations.
+Tighten Python `typing` alias and `from __future__ import annotations` stringized annotation edge cases without promoting runtime expressions.

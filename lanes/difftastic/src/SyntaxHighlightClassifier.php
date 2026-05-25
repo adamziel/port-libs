@@ -248,7 +248,8 @@ final class SyntaxHighlightClassifier
         }
 
         if ($previous === '[' || $previous === ',' || $previous === '|') {
-            return $this->pythonLinePrefixHasAnnotationMarker($source, $token->start);
+            return $this->pythonLinePrefixHasAnnotationMarker($source, $token->start)
+                || $this->pythonPreviousContinuationHasAnnotationMarker($source, $token->start);
         }
 
         if ($previous !== '>') {
@@ -292,6 +293,29 @@ final class SyntaxHighlightClassifier
         $prefix = substr($source, $lineStart, $start - $lineStart);
 
         return str_contains($prefix, ':') || str_contains($prefix, '->');
+    }
+
+    private function pythonPreviousContinuationHasAnnotationMarker(string $source, int $start): bool
+    {
+        $prefix = substr($source, max(0, $start - 500), $start - max(0, $start - 500));
+        $openSquare = strrpos($prefix, '[');
+        if ($openSquare === false) {
+            return false;
+        }
+
+        $continuation = substr($prefix, $openSquare);
+        if (str_contains($continuation, "]:\n")) {
+            return false;
+        }
+
+        $beforeOpen = substr($prefix, 0, $openSquare);
+        $lastStatementBreak = max(
+            strrpos($beforeOpen, "\n\n") ?: -1,
+            strrpos($beforeOpen, ';') ?: -1,
+        );
+        $region = substr($beforeOpen, $lastStatementBreak + 1);
+
+        return str_contains($region, ':') || str_contains($region, '->');
     }
 
     private function previousNonWhitespaceCharacter(string $source, int $start): ?string

@@ -99050,3 +99050,16 @@ in place as repair inputs.
 - `.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T233443Z.ready`:
   deferred. Repair command:
   `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T233443Z.patch`, then drop if superseded by accepted Syncthing watcher cleanup commits or re-emit only missing watcher stop semantics.
+
+## Integration accepted - isolated difftastic Python multiline annotation slice - 2026-05-25 00:52 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T002052Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T002052Z.patch`.
+
+- Lane/slice/session: `difftastic` / `supervisor-next-20260525T002052Z` / `port-difftastic`.
+- Patch sha256: `a9b0adc96d3daf0a24618e7b95aa04ca52284d0ba148b6621c0e47add4c12935` verified with `sha256sum`.
+- Focused verification in clean worktree: `php -l lanes/difftastic/src/AnsiSyntaxHighlighter.php`, `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`, `php -l lanes/difftastic/tests/TokenDifferTest.php`, and `php -l lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php` all passed; `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed with `1 test files, 1388 assertions, 0 failures`; the WordPress example JSON smoke command passed with `example ok`.
+- Root verification in clean worktree: `php tools/run-tests.php` passed with `208 test files, 24364 assertions, 0 failures`.
+- Whitespace verification: `git diff --check` passed.
+- Support-library/dependency closure: no support-library activation; this reuses the lane-local tokenizer/highlighter and existing tree-sitter-python query evidence.
+- Live-service exclusions: none; no live provider tests were run.
+- Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/notes/wordpress-scenarios.md`, `lanes/difftastic/src/AnsiSyntaxHighlighter.php`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, and `audits/integration-status.md`.

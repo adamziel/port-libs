@@ -3748,6 +3748,38 @@ return [
         $t->true($localListStart !== false && $localListStart !== $returnListStart, 'Fixture should contain local list identifier.');
         $t->true(!in_array(['start' => $localListStart, 'end' => $localListStart + strlen('list'), 'style' => '1'], $spans, true), 'Local identifiers named like builtin types should remain normal outside annotation context.');
     },
+    'ansi highlighter maps upstream python multiline annotation builtin types' => static function (TestRunner $t): void {
+        $source = "def migrate(\n"
+            . "    post: dict[\n"
+            . "        str | bytes,\n"
+            . "        int | list[\n"
+            . "            str,\n"
+            . "        ],\n"
+            . "    ],\n"
+            . ") -> tuple[\n"
+            . "    int,\n"
+            . "    list[str],\n"
+            . "]:\n"
+            . "    list = []\n";
+        $highlighter = new AnsiSyntaxHighlighter();
+
+        $offset = 0;
+        foreach (explode("\n", rtrim($source, "\n")) as $line) {
+            $renderedLines[] = $highlighter->highlightLine($line, 8, [
+                'language' => 'python',
+                'source' => $source,
+                'lineStartOffset' => $offset,
+            ]);
+            $offset += strlen($line) + 1;
+        }
+        $rendered = implode("\n", $renderedLines ?? []);
+
+        foreach (['dict', 'str', 'bytes', 'int', 'list', 'tuple'] as $type) {
+            $t->contains("\033[1m{$type}\033[0m", $rendered);
+        }
+        $t->contains("    list \033[1m=\033[0m []", $rendered);
+        $t->true(!str_contains($rendered, "    \033[1mlist\033[0m = []"), 'Runtime identifiers named like builtin types should remain normal outside multiline annotations.');
+    },
     'ansi highlighter maps upstream ruby keywords constants and constructors' => static function (TestRunner $t): void {
         $line = "class ImportRunner; DEFAULT_LIMIT = nil; def call; end; require 'json'";
         $spans = (new AnsiSyntaxHighlighter())->spansForLine($line, ['language' => 'ruby']);
@@ -4148,6 +4180,20 @@ return [
             $t->contains("{$type}:type", $encoded);
         }
         $t->contains('list:normal', $encoded);
+    },
+    'wordpress python multiline annotation display follows upstream type boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-python-multiline-annotation-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+        $rendered = implode("\n", $decoded['lines']);
+
+        $t->same('wp-content/plugins/acme-migrator/tools/normalize_posts.py', $decoded['path']);
+        foreach (['dict', 'str', 'bytes', 'int', 'list', 'tuple'] as $type) {
+            $t->contains("\033[1m{$type}\033[0m", $rendered);
+        }
+        $t->contains("    list \033[1m=\033[0m []", $rendered);
+        $t->true(!str_contains($rendered, "    \033[1mlist\033[0m = []"), 'Runtime identifiers named like builtin types should remain normal outside multiline annotations.');
     },
     'wordpress ruby migration helper display follows upstream keyword boundary' => static function (TestRunner $t): void {
         ob_start();
