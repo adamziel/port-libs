@@ -259,7 +259,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             }
 
             $redirectUrl = self::resolveRedirectUrl($location, $effectiveUrl);
-            $this->rememberCookies($response['headers'], $effectiveUrl);
+            $this->rememberCookies($response['headers'], $effectiveUrl, true);
             $cookieHeader = self::cookieHeader($this->cookies, $redirectUrl, self::headerValue($headers, 'cookie'));
             if ($cookieHeader !== null) {
                 self::setHeader($headers, 'Cookie', $cookieHeader);
@@ -1019,14 +1019,14 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     /**
      * @param array<string, string|list<string>> $headers
      */
-    private function rememberCookies(array $headers, string $url): void
+    private function rememberCookies(array $headers, string $url, bool $useDefaultPath = false): void
     {
         foreach (self::headerValues($headers, 'set-cookie') as $setCookie) {
-            $this->rememberCookie($setCookie, $url);
+            $this->rememberCookie($setCookie, $url, $useDefaultPath);
         }
     }
 
-    private function rememberCookie(string $setCookie, string $url): void
+    private function rememberCookie(string $setCookie, string $url, bool $useDefaultPath): void
     {
         [$pair, $attributes] = array_pad(explode(';', $setCookie, 2), 2, '');
         [$name, $value] = array_pad(explode('=', trim($pair), 2), 2, null);
@@ -1034,7 +1034,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             return;
         }
 
-        $scope = self::cookieScope($attributes, $url);
+        $scope = self::cookieScope($attributes, $url, $useDefaultPath);
         if ($scope === null) {
             return;
         }
@@ -1057,11 +1057,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     /**
      * @return null|array{domain: string, path: string, secure: bool, hostOnly: bool}
      */
-    private static function cookieScope(string $attributes, string $url): ?array
+    private static function cookieScope(string $attributes, string $url, bool $useDefaultPath): ?array
     {
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack cookie URL');
         $domain = strtolower($request['host']);
-        $path = '/';
+        $path = $useDefaultPath ? self::defaultCookiePath($request['path'] ?? '/') : '/';
         $secure = false;
         $hostOnly = true;
 
@@ -1106,6 +1106,20 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private static function domainMatches(string $host, string $domain): bool
     {
         return $host === $domain || str_ends_with($host, '.' . $domain);
+    }
+
+    private static function defaultCookiePath(string $requestPath): string
+    {
+        if ($requestPath === '' || $requestPath[0] !== '/') {
+            return '/';
+        }
+
+        $lastSlash = strrpos($requestPath, '/');
+        if ($lastSlash === false || $lastSlash === 0) {
+            return '/';
+        }
+
+        return substr($requestPath, 0, $lastSlash);
     }
 
     private static function pathMatches(string $requestPath, string $cookiePath): bool

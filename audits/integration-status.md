@@ -110075,3 +110075,38 @@ No secret values were read or copied.
 Files staged: `audits/integration-status.md`,
 `lanes/rclone/lane-status.json`, and
 `lanes/rclone/notes/cleanup-command-rework-20260525T143013Z.md`.
+## Clean patch integration accepted - Gitoxide - 2026-05-25 15:39 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T153232Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T153232Z.patch`.
+Lane/slice/session: `gitoxide` / `priority-keeper-rework-20260525T153232Z` / `port-gitoxide-rework`.
+Base accepted HEAD: `e39c91a19674111525ef5d76575d8b279c8c3335`.
+Patch sha256 verified: `3ef94ed6224d9714fd334807eb55baab670a6b7a3877558cbaaf5114c1a85497`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-gitoxide-priority-keeper-rework-20260525T153232Z`:
+
+- `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php && php -l lanes/gitoxide/tests/ReceivePackTransportTest.php && php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php && php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`: passed, no syntax errors.
+- `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json`: passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php`: passed, `1 test files, 342 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`: passed, exit `0`.
+- `git diff --check`: passed.
+
+Root verification: after gate check reported `/` available `107630044` KiB,
+load `12.53`, and no exact `php tools/run-tests.php` process, ran
+`flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+in the clean worktree. Result: passed, `214 test files, 26246 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support-library activation. This is
+a bounded Gitoxide smart HTTP receive-pack redirect cookie scoping refinement
+inside the existing native PHP transport implementation.
+
+Live-service exclusions: no live network/provider service tests were run; the
+transport behavior is covered by injected request callbacks and local examples.
+
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`,
+`lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`,
+`lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`,
+`lanes/gitoxide/src/SmartHttpReceivePackTransport.php`,
+`lanes/gitoxide/tests/ReceivePackTransportTest.php`, and
+`audits/integration-status.md`.
