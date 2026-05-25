@@ -224,6 +224,10 @@ intentional source spaces, soft paragraph line boundaries, and Pandoc hard-break
 markers. The additive rework also covers the same constructors inside nested
 emphasis and strong spans, so reviewer notes do not lose line-boundary semantics
 when migration comments are styled.
+The priority-rework-20260525T080030Z pass adds blockquote coverage for the same
+Markdown writer constructors: quoted reviewer packets preserve explicit spaces,
+soft reviewer line boundaries, and hard break markers while every emitted
+physical line remains inside the quoted handoff context.
 Native Markdown reviewer handoff examples now also cover explicit Pandoc
 `Space`, `SoftBreak`, and `LineBreak` inline writer nodes: direct AST handoff
 packets keep intentional single-word spacing, soft reviewer line boundaries,

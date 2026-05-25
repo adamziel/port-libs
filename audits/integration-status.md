@@ -108717,3 +108717,23 @@ Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/exam
 - Support-library/dependency closure: no new support component; existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty-format support reused.
 - Live-service exclusions: none applicable; no live service/provider tests run.
 - Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `audits/integration-status.md`.
+
+### 2026-05-25 pandoc priority rework accepted
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T080056Z.ready`
+- Patch SHA256: `fc1bbf764331f1a70a0f0611ee03e4c12dea421c1b189d2274d692600141eca3`
+- Patch: `.tmux-team/tmp/handoff-candidates/port-pandoc-rework-20260525T080056Z.patch`
+- Lane/slice/session: `pandoc` / `priority-rework-20260525T080030Z` / `port-pandoc-rework`
+- Base accepted HEAD before attempt: `dcd3e1d9040977db8f216317709b4de347336191`
+- Focused verification in detached worktree `/tmp/port-clean-integrator-pandoc-priority-rework-20260525T080030Z-20260525T080701Z`:
+  - `php -l lanes/pandoc/tests/MarkdownReaderTest.php` passed.
+  - `php -l lanes/pandoc/src/MarkdownWriter.php` passed.
+  - `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php` passed.
+  - `jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/lane-status.json` passed.
+  - `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed: 1 test file, 2291 assertions, 0 failures.
+  - `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n "Reviewer spacing packet|hard boundary follows|next reviewer line"` passed.
+  - `git diff --check` passed.
+- Root verification: `php tools/run-tests.php` passed under resource gate.
+- Support-library/dependency closure: no new support component; existing Markdown inline renderer, blockquote renderer, delimiter helpers, and block writer newline handling reused.
+- Live-service exclusions: none applicable; no live service/provider tests run.
+- Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/notes/upstream-inventory.md`, `lanes/pandoc/notes/wordpress-scenarios.md`, `lanes/pandoc/tests/MarkdownReaderTest.php`, `audits/integration-status.md`.

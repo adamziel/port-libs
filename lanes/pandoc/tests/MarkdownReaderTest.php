@@ -2940,6 +2940,26 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer blockquote space softbreak and hard line break inlines' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('blockquote', [], [
+                new AstNode('paragraph', [], [
+                    new AstNode('text', ['text' => 'Reviewer']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => 'packet']),
+                    new AstNode('softbreak'),
+                    new AstNode('text', ['text' => 'soft boundary']),
+                    new AstNode('linebreak'),
+                    new AstNode('text', ['text' => 'hard boundary']),
+                ]),
+            ]),
+        ]);
+
+        $t->same(
+            "> Reviewer packet\n> soft boundary\\\n> hard boundary",
+            (new MarkdownWriter())->write($document)
+        );
+    },
     'maps upstream markdown writer line block emission' => static function (TestRunner $t): void {
         $nbsp = "\xC2\xA0";
         $document = new AstNode('document', [], [

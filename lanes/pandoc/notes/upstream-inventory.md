@@ -1624,3 +1624,32 @@ Dependency closure: no new support component is needed for this additive rework
 slice. It reuses the existing Markdown inline renderer, delimiter helpers, and
 block writer newline handling; richer layout, package, or document-format
 conversions remain behind the existing inactive Pandoc support gates.
+
+The priority-rework-20260525T080030Z pass keeps the previously conflicted
+Space/SoftBreak/LineBreak handoff additive on top of the accepted Markdown
+writer evidence by adding blockquote coverage. The same explicit inline
+constructors now have focused evidence at top-level paragraph scope, inside
+nested emphasis/strong delimiters, and through blockquote line prefixing:
+`Space` emits one source space, `SoftBreak` remains a physical Markdown newline,
+and `LineBreak` remains Pandoc's backslash-newline hard-break marker while each
+emitted physical line receives the blockquote `>` prefix.
+
+Focused local verification on 2026-05-25 after the blockquote additive
+Space/SoftBreak/LineBreak rework: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Reviewer spacing packet|hard boundary follows|next reviewer line"` emitted the
+explicit-space reviewer packet with a soft newline and hard-break
+backslash-newline marker; `php tools/run-tests.php
+lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test file, 2,291
+assertions, and 0 failures. `git diff --check -- lanes/pandoc` passed.
+
+Root verification was not run for the 2026-05-25 blockquote additive
+Space/SoftBreak/LineBreak rework because the assigned work was an isolated
+micro-slice.
+
+Dependency closure: no new support component is needed for this rework slice.
+It reuses the existing Markdown inline renderer, blockquote renderer, delimiter
+helpers, and block writer newline handling; richer layout, package, or
+document-format conversions remain behind the existing inactive Pandoc support
+gates.
