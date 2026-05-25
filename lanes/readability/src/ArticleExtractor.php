@@ -430,6 +430,8 @@ final class ArticleExtractor
             $blocks[] = '<!-- wp:image -->' . "\n" . '<figure class="wp-block-image">' . $html . '</figure>' . "\n" . '<!-- /wp:image -->';
         } elseif ($tag === 'figure' && $this->isImageFigure($element)) {
             $blocks[] = '<!-- wp:image -->' . "\n" . $html . "\n" . '<!-- /wp:image -->';
+        } elseif ($tag === 'figure' && $this->isMediaFigure($element)) {
+            $blocks[] = '<!-- wp:html -->' . "\n" . $html . "\n" . '<!-- /wp:html -->';
         } elseif ($tag === 'blockquote') {
             $blocks[] = '<!-- wp:quote -->' . "\n" . $html . "\n" . '<!-- /wp:quote -->';
         } elseif (($tag === 'ul' || $tag === 'ol')
@@ -503,6 +505,16 @@ final class ArticleExtractor
         return strtolower($element->tagName) === 'figure'
             && ($element->getElementsByTagName('img')->length > 0
                 || $element->getElementsByTagName('picture')->length > 0);
+    }
+
+    private function isMediaFigure(\DOMElement $element): bool
+    {
+        return strtolower($element->tagName) === 'figure'
+            && ($element->getElementsByTagName('iframe')->length > 0
+                || $element->getElementsByTagName('object')->length > 0
+                || $element->getElementsByTagName('embed')->length > 0
+                || $element->getElementsByTagName('video')->length > 0
+                || $element->getElementsByTagName('audio')->length > 0);
     }
 
     private function isMediaOnlyList(\DOMElement $element): bool

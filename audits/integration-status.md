@@ -102139,3 +102139,34 @@ Deferred newest per-lane markers whose patch hash matched but whose current `mai
 - `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.ready` / `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.patch`: deferred. `git apply --check '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.patch'` failed on current `main`; `git apply --3way '/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.patch'` left conflicts in: lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json lanes/syncthing/notes/wordpress-scenarios.md lanes/syncthing/src/FolderWatchScanScheduler.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php. Repair command: re-emit from a clean worktree at current `main` with only the same lane files, then verify with the focused commands in `.tmux-team/logs/isolated-lane-workers/port-syncthing-20260525T031809Z.log`, `git diff --check`, and `php tools/run-tests.php`.
 
 No live-service provider tests were run. No support-library row was activated by this defer audit.
+
+## Integration accepted - isolated Readability retained media figure slice - 2026-05-25 04:25 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-readability-20260525T031309Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-readability-20260525T031309Z.patch`.
+Lane/slice/session: `readability` / `supervisor-rearm-20260525T031309Z` / `port-readability`.
+
+Patch SHA-256 matched marker value `e40d527df0f3165ec6b4740dc61fef38e95203fa071c671cab2c734384f73940`.
+`git apply --check` failed on stale Readability status/notes drift, then `git apply --3way` applied source, test, and example cleanly with conflicts only in `lane-status.json`, `notes/upstream-inventory.md`, and `notes/wordpress-scenarios.md`. Those bookkeeping files were resolved to the current accepted side so the newer class-weight status was not overwritten; this audit entry carries the retained media-figure evidence.
+
+Focused verification in clean worktree:
+- `php -l lanes/readability/src/ArticleExtractor.php`: pass.
+- `php -l lanes/readability/tests/ArticleExtractorTest.php`: pass.
+- `php -l lanes/readability/examples/wordpress-native-media-element-import.php`: pass.
+- `php tools/run-tests.php lanes/readability/tests`: pass, 1 selected test file, 1884 assertions, 0 failures.
+- `php lanes/readability/examples/wordpress-native-media-element-import.php`: pass; reported 3 HTML media blocks, video retained yes, media figure retained yes, audio retained yes, paragraph-wrapped media no.
+- `jq empty lanes/readability/lane-status.json lanes/readability/UPSTREAM_TEST_MANIFEST.json`: pass.
+- `git diff --check`: pass.
+
+Root verification in the same clean worktree:
+- `php tools/run-tests.php`: pass, 212 test files, 25088 assertions, 0 failures.
+
+Support-library/dependency-closure decision: no new support-library activation. The slice reuses the existing bounded Readability DOM cleanup and WordPress block serializer; no shell-outs, live services, provider credentials, or external oracle execution were used.
+
+Live-service exclusions: none applicable.
+
+Files staged:
+- `lanes/readability/src/ArticleExtractor.php`
+- `lanes/readability/tests/ArticleExtractorTest.php`
+- `lanes/readability/examples/wordpress-native-media-element-import.php`
+- `audits/integration-status.md`

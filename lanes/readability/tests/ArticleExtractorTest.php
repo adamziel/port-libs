@@ -3607,6 +3607,22 @@ return [
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<video"), 'standalone video should not be paragraph-wrapped');
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<audio"), 'standalone audio should not be paragraph-wrapped');
     },
+    'serializes retained media figures as WordPress HTML blocks' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Media Figure Import</title></head><body><article>'
+            . '<h1>Media Figure Import</h1>'
+            . '<p>' . str_repeat('Legacy migrations often wrap retained provider embeds in figure shells with captions. ', 3) . '</p>'
+            . '<figure><iframe src="https://www.youtube.com/embed/abc123"></iframe><figcaption>Watch the archived session.</figcaption></figure>'
+            . '<p>' . str_repeat('The importer should keep the caption with the reviewed embed instead of paragraph-wrapping source figure markup. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://example.test/posts/media-figure.html');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:html -->'), 'retained embed figures should become HTML blocks');
+        $t->contains('<figure><iframe src="https://www.youtube.com/embed/abc123"></iframe><figcaption>Watch the archived session.</figcaption></figure>', $blocks);
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<figure><iframe"), 'retained embed figures should not be paragraph-wrapped');
+    },
     'maps Mozilla replace-font-tags fixture to span markup' => static function (TestRunner $t) use ($attributeValues, $fixtureText, $normalizedText): void {
         $fixture = __DIR__ . '/../fixtures/mozilla/replace-font-tags';
         $source = (string) file_get_contents($fixture . '/source.html');

@@ -18,6 +18,10 @@ $source = <<<'HTML'
     <video controls poster="/media/poster.jpg">
       <source src="/media/session.mp4" type="video/mp4">
     </video>
+    <figure>
+      <iframe src="https://www.youtube.com/embed/archive-session"></iframe>
+      <figcaption>Archived conference video.</figcaption>
+    </figure>
     <audio controls src="/media/interview.mp3"></audio>
     <p>The retained media stays reviewable as HTML blocks before the importer decides whether to convert it.</p>
   </article>
@@ -31,9 +35,11 @@ $blocks = $extractor->toWordPressBlocks($article);
 
 echo 'HTML media blocks: ' . substr_count($blocks, '<!-- wp:html -->') . "\n";
 echo 'Video retained: ' . (str_contains($blocks, 'https://example.test/media/session.mp4') ? 'yes' : 'no') . "\n";
+echo 'Media figure retained: ' . (str_contains($blocks, 'https://www.youtube.com/embed/archive-session') ? 'yes' : 'no') . "\n";
 echo 'Audio retained: ' . (str_contains($blocks, 'https://example.test/media/interview.mp3') ? 'yes' : 'no') . "\n";
 echo 'Paragraph-wrapped media: ' . (
     str_contains($blocks, "<!-- wp:paragraph -->\n<video")
+    || str_contains($blocks, "<!-- wp:paragraph -->\n<figure><iframe")
     || str_contains($blocks, "<!-- wp:paragraph -->\n<audio")
         ? 'yes'
         : 'no'
