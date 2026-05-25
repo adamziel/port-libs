@@ -1878,6 +1878,19 @@ return [
                 'stdout' => '',
                 'stderr' => "quadb error: stoi\n",
             ], QuadbStore::exportProofStdinCommandOutput($integerSourceDir, "2\nnot-an-int\n", integerKeys: true));
+            $stdinNumericPrefixProof = QuadbStore::exportProofStdinCommandOutput(
+                $integerSourceDir,
+                "  +2suffix\n-0suffix\n0000000004ignored\n",
+                integerKeys: true
+            );
+            $t->same(0, $stdinNumericPrefixProof['exitCode']);
+            $t->same($integerSource->exportIntegerProofBytes([2, 0, 4]), $stdinNumericPrefixProof['stdout']);
+            $t->same('', $stdinNumericPrefixProof['stderr']);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofStdinCommandOutput($integerSourceDir, "-2147483649suffix\n", integerKeys: true));
 
             $integerTarget = QuadbStore::init($integerTargetDir);
             $integerTarget->checkout('wp-integer-binary-proof');

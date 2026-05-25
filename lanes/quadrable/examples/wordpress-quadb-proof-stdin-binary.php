@@ -173,6 +173,16 @@ try {
         "2\nnot-an-int\n",
         integerKeys: true
     );
+    $stdinNumericPrefixProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "  +2suffix\n-0suffix\n0000000004ignored\n",
+        integerKeys: true
+    );
+    $stdinNegativeUnderflowProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "-2147483649suffix\n",
+        integerKeys: true
+    );
     $negativeIntegerProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['-1'],
@@ -233,6 +243,11 @@ try {
         'emptyIntegerExportProofExitCode' => $emptyIntegerProofCommand['exitCode'],
         'emptyIntegerHexProofHasPrefix' => str_starts_with($emptyIntegerHexProofCommand['stdout'], '0x'),
         'badIntegerProofStdin' => $badIntegerProofCommand,
+        'stdinNumericPrefixIntegerProofExitCode' => $stdinNumericPrefixProofCommand['exitCode'],
+        'stdinNumericPrefixIntegerProofMatchesDirect' => $stdinNumericPrefixProofCommand['stdout'] === QuadbStore::open($integerDir)
+            ->exportIntegerProofBytes([2, 0, 4]),
+        'stdinNegativeUnderflowIntegerProofFailsStoi' => $stdinNegativeUnderflowProofCommand['exitCode'] === 1
+            && $stdinNegativeUnderflowProofCommand['stderr'] === "quadb error: stoi\n",
         'negativeIntegerProofDirect' => $negativeIntegerProofCommand,
         'plusOverflowIntegerProofFailsStoi' => $plusOverflowIntegerProofCommand['exitCode'] === 1
             && $plusOverflowIntegerProofCommand['stderr'] === "quadb error: stoi\n",
