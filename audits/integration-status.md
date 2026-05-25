@@ -101186,3 +101186,17 @@ Support-library/dependency-closure decision: no activation accepted.
 Live-service exclusions: no live-service provider tests run.
 Files staged: `audits/integration-status.md` only.
 Repair command: apply the patch to current `refs/heads/main` and fix the failing focused command without broadening the slice.
+
+## Isolated clean-patch defer - difftastic Go helper highlight - 2026-05-25 03:14 UTC
+
+Deferred marker `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T025404Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T025404Z.patch`.
+
+Lane/slice/session: `difftastic` / `rearmer-20260525T025404Z` / `port-difftastic`. Patch sha256 matched `e8e26040af4b826d1a8d2e74b9bc8e4961ffff0ef3ce7a7a2b1a5a9f568bbc8c`.
+
+Focused evidence in the worker log was present: syntax checks for changed PHP files passed, `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed with 1 test file, 1499 assertions, 0 failures, the Go helper WordPress example emitted valid JSON, and `git diff --check -- lanes/difftastic` passed in the worker worktree.
+
+Clean integration result: `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T025404Z.patch` failed against current `main`. Bounded `git apply --3way` left conflicts in `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, and `lanes/difftastic/tests/TokenDifferTest.php`. The overlap is not only stale numeric status drift; it collides with a newer accepted Rust function.macro highlight slice in the same manifest/status/test/notes sections, requiring a lane-authored merged patch that preserves both accepted Rust macro evidence and the new Go helper evidence.
+
+Root verification: not run, because no conflict-free source tree existed for this marker. Support-library/dependency closure decision: no support-library activation reviewed or accepted. Live-service exclusions: none.
+
+Exact repair command for the lane: rebase this marker on current `main` and re-emit a narrow patch preserving the existing Rust function.macro highlight status/test/notes while adding only the Go helper source/test/example/manifest/status/notes updates, then run `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`, `php -l lanes/difftastic/tests/TokenDifferTest.php`, `php -l lanes/difftastic/examples/wordpress-go-helper-highlight-display.php`, `jq empty lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json`, `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`, `php lanes/difftastic/examples/wordpress-go-helper-highlight-display.php`, and `git diff --check -- lanes/difftastic`.
