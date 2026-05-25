@@ -108350,6 +108350,62 @@ Root gate: before focused/root checks, / available KiB was >= 86000000, first lo
 
 Dependency closure: no new support component; reuses bounded SyncFuzzer, tracked-node-store persistence, and WordPress watchdog example components.
 Live-service exclusions: none; no live-service provider tests were run.
+## Integration deferred - Syncthing cleanup acknowledgement API overlap - 2026-05-25 07:34 UTC
+
+Deferred isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T073146Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T073146Z.patch`.
+
+Lane/slice/session: `syncthing` /
+`supervisor-rearm-20260525T073145Z` / `port-syncthing`.
+Patch hash verification: `sha256sum` matched
+`cfe3891381c372540232a6ecc2ef49a6b018e7bd863994e0eafbc786c0463ec7`.
+
+Reason: the marker was based on
+`b23ba744c8f657d8eaf862e84e3aef30504dba80`, before the accepted
+`e52ffbcf5e12cb9ee68826e022ba13dea3da221a` Syncthing cleanup
+acknowledgement slice. On current main `6d61a052b99c8b20bbf3ef1778b2b99b74c03d92`,
+`git apply --check` fails, and `git apply --3way` leaves conflicts in:
+
+- `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+- `lanes/syncthing/lane-status.json`
+- `lanes/syncthing/notes/wordpress-scenarios.md`
+- `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+
+`lanes/syncthing/src/FolderWatchScanScheduler.php` applies cleanly, but the
+conflicting files overlap the just-accepted API/evidence/status updates. The
+new marker proposes `acknowledgeRecentCleanupStatus()` returning the consumed
+payload, while the accepted slice added `acknowledgeRecentCleanup()` and
+`acknowledgeRecentCleanups()`. That API shape should be intentionally rebased
+rather than merged implicitly during integration.
+
+Exact repair command:
+
+```bash
+git -C /home/claude/port-libs worktree add --detach /tmp/port-syncthing-repair-20260525T073146Z refs/heads/main
+cd /tmp/port-syncthing-repair-20260525T073146Z
+git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T073146Z.patch
+```
+
+Repair scope: re-emit a new Syncthing patch that keeps the accepted
+`acknowledgeRecentCleanup()` / `acknowledgeRecentCleanups()` behavior and adds
+the payload-returning API only if still needed, with reconciled tests, example
+smoke, manifest/status counts, and notes based on current main. Required
+verification for the repaired marker:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php`
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+- `jq empty lanes/syncthing/lane-status.json lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `git diff --check -- lanes/syncthing`
+
+No focused/root verification slot was spent on this stale-overlap marker. The
+ready marker, patch, metadata, and log were left in place for lane rework.
+
 ## Integration accepted - rclone OneDrive provider feature-mask lifecycle - 2026-05-25 07:31 UTC
 
 Accepted isolated ready marker:
