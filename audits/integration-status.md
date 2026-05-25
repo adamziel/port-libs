@@ -102693,3 +102693,25 @@ Files staged:
 - `lanes/gitoxide/notes/upstream-inventory.md`
 - `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`
 - `lanes/gitoxide/tests/ReceivePackTransportTest.php`
+
+## Integration accepted - isolated libsqlite watchdog-next-20260525T045347Z - 2026-05-25T05:10:22Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T045347Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T045347Z.patch`
+Lane/slice/session: `libsqlite` / `watchdog-next-20260525T045347Z` / `port-libsqlite`
+Patch sha256: `824f7e41a582325030b2ac835ff1af77cd9d2f907d4e194284f30d97645b8204` verified. Applied with bounded three-way rebase from `1880fa83ab4546bad7dcb72257ac9ce0426e18d3`.
+Focused commands:
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php => exit 0; 1 test files, 1946 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25258 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-validity-preflight.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonValidity.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`

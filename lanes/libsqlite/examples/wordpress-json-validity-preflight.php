@@ -49,6 +49,22 @@ $describeValue = static function (string|SQLiteBlobValue|null $value): array {
     ];
 };
 
+$nullableFlagsStatus = static function (string|SQLiteBlobValue|null $value): array {
+    try {
+        return [
+            'ok' => true,
+            'value' => SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $value, null),
+            'error' => null,
+        ];
+    } catch (InvalidArgumentException $exception) {
+        return [
+            'ok' => false,
+            'value' => null,
+            'error' => $exception->getMessage(),
+        ];
+    }
+};
+
 $checks = [];
 foreach ($inputs as $name => $value) {
     $checks[] = [
@@ -60,10 +76,13 @@ foreach ($inputs as $name => $value) {
         'jsonValidFlag4SuperficialJsonb' => SQLiteJsonValidity::jsonValid($value, 4),
         'jsonValidFlag8StrictJsonb' => SQLiteJsonValidity::jsonValid($value, 8),
         'jsonValidFlag6Json5OrSuperficialJsonb' => SQLiteJsonValidity::jsonValid($value, 6),
+        'sqlDispatchDefaultStrictText' => SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $value),
+        'sqlDispatchNullableFlags' => $nullableFlagsStatus($value),
+        'sqlDispatchFlag6Json5OrSuperficialJsonb' => SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $value, 6),
     ];
 }
 
 echo json_encode([
     'checks' => $checks,
-    'wordpressUse' => 'Local-only wp_options option_value preflight for strict JSON text, SQLite JSON5 text, cast text BLOBs, and copied JSONB blobs before migration or repair tooling trusts plugin settings.',
+    'wordpressUse' => 'Local-only wp_options option_value preflight for strict JSON text, SQLite JSON5 text, cast text BLOBs, copied JSONB blobs, and json_valid() SQL-dispatch NULL FLAGS rejection before migration or repair tooling trusts plugin settings.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

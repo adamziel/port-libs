@@ -11,6 +11,21 @@ final class SQLiteJsonValidity
     public const FLAG_SUPERFICIAL_JSONB = 0x04;
     public const FLAG_STRICT_JSONB = 0x08;
 
+    public static function jsonValidSqlFunction(
+        string $function,
+        string|SQLiteBlobValue|null $value,
+        ?int $flags = self::FLAG_STRICT_TEXT,
+    ): ?bool {
+        if ($function !== 'json_valid') {
+            throw new \InvalidArgumentException('SQLite JSON validity function must be json_valid');
+        }
+        if ($flags === null) {
+            throw new \InvalidArgumentException('FLAGS parameter to json_valid() must be between 1 and 15');
+        }
+
+        return self::jsonValid($value, $flags);
+    }
+
     public static function jsonValid(string|SQLiteBlobValue|null $value, int $flags = self::FLAG_STRICT_TEXT): ?bool
     {
         if ($flags < 1 || $flags > 15) {

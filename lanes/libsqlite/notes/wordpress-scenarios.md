@@ -1393,3 +1393,13 @@ boundary for `json_type(X[,P])` and `json_array_length(X[,P])`. The updated
 callers expect, including strict JSON, JSON5, cast text BLOBs, JSONB blobs,
 SQL NULL, missing paths, non-array scalar length `0`, and JSON type-name
 results without requiring the SQLite extension.
+
+## `json_valid()` Validity Dispatch Scenario
+
+Native JSON validity now includes a bounded SQLite SQL function dispatch
+boundary for `json_valid(X[,FLAGS])`. The updated
+`examples/wordpress-json-validity-preflight.php` script can preflight copied
+`wp_options` option values using the same function-name dispatch SQL callers
+expect, including strict JSON, JSON5, cast text BLOBs, JSONB blobs, SQL NULL
+input, nullable `FLAGS`, and combined flag checks without requiring the SQLite
+extension.

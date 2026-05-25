@@ -2868,6 +2868,17 @@ return [
         $t->same(false, SQLiteJsonValidity::jsonValid('not json', 2));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValid($strictJson, 0));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValid($strictJson, 16));
+
+        $t->true(SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $strictJson));
+        $t->same(false, SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $json5, 1));
+        $t->true(SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $json5, 2));
+        $t->true(SQLiteJsonValidity::jsonValidSqlFunction('json_valid', new SQLiteBlobValue($validJsonb), 8));
+        $t->true(SQLiteJsonValidity::jsonValidSqlFunction('json_valid', new SQLiteBlobValue($superficialOnlyJsonb), 4));
+        $t->same(false, SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $castTextJsonBlob, 4));
+        $t->same(null, SQLiteJsonValidity::jsonValidSqlFunction('json_valid', null));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $strictJson, null));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunction('json_error_position', $strictJson));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonValidity::jsonValidSqlFunction('json_valid', $strictJson, 16));
     },
     'quotes sqlite sql values as json values for option preflight' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode(['plugin' => ['enabled' => true, 'count' => 2]]);
