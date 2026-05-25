@@ -1,5 +1,18 @@
 # Integration Status
 
+## Integration superseded - Syncthing duplicate watcher restart marker - 2026-05-25 03:09 UTC
+
+Superseded isolated ready marker `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023636Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023636Z.patch`.
+Lane/slice/session: `syncthing` / `rearmer-20260525T023636Z` / `port-syncthing`.
+
+Patch sha256 verified: `bbacfe91899de95829dbc4cb46e2b15a8b7d04491c9acdc87d354224f363fe44`.
+Against current clean HEAD `5e258c1e`, `git apply --check` failed on Syncthing manifest/status/example/notes drift. A bounded `git apply --3way` left conflicts in `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`, `lanes/syncthing/lane-status.json`, and `lanes/syncthing/notes/wordpress-scenarios.md`; the test hunk applied cleanly but duplicated the accepted queued restart coverage.
+
+Decision: superseded, not integrated as source. The accepted commit `931e9bc0` already added focused coverage for `FolderWatchScanScheduler::completeDueWatcherRestart()` preserving queued events, updated the WordPress smoke output, and recorded the same support-library/dependency closure. Re-applying this stale variant would only duplicate the behavior under older status/manifest wording. No live-service tests were run and no support-library activation changed.
+
+Cleanup after this audit commit: remove only `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023636Z.ready`, `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023636Z.patch`, `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T023636Z.md`, and inactive worktrees for this marker.
+
 ## Integration accepted - rclone OneDrive token renewer rearm slice - 2026-05-25 03:07 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T023032Z.ready`.
