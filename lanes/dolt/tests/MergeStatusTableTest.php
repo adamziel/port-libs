@@ -434,6 +434,9 @@ return [
             $fixture['previewMergeColumns'],
             $fixture['previewMergeRightRootish'],
         );
+        $previewSchemaConflictDescriptionRows = $previewConflicts->schemaConflictRows(
+            $fixture['previewSchemaConflictDescriptions'],
+        );
         $previewConflictRowsWithoutIds = array_map(static function (array $row): array {
             unset($row['dolt_conflict_id']);
             return $row;
@@ -489,6 +492,7 @@ return [
         $t->same($fixture['expectedConflictRows'], $conflictRows);
         $t->same($fixture['expectedPreviewConflictSummaryRows'], $previewConflictSummaryRows);
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $previewConflictRowsWithoutIds);
+        $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $previewSchemaConflictDescriptionRows);
         $t->same($fixture['expectedStatusGuidance'], $statusGuidance);
         $t->same($fixture['expectedCommitGuidance'], $commitGuidance);
         $t->same($fixture['expectedMergeArtifactPrelude'], $mergeArtifactPrelude);
@@ -515,6 +519,7 @@ return [
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $examplePreviewConflictRowsWithoutIds);
         $t->same([], $example['previewSchemaConflictRows']);
         $t->same($fixture['expectedPreviewSchemaConflictError'], $example['previewSchemaConflictError']);
+        $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $example['previewSchemaConflictDescriptionRows']);
         $t->same($fixture['expectedMergeConstraintError'], $example['mergeConstraintError']);
         $t->same($fixture['expectedStatusGuidance'], $example['statusGuidance']);
         $t->same($fixture['expectedCommitGuidance'], $example['commitGuidance']);

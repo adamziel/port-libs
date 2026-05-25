@@ -65,6 +65,9 @@ return [
     ),
     'previewSchemaConflictRows' => $previewSchemaConflictRows,
     'previewSchemaConflictError' => $previewSchemaConflictError,
+    'previewSchemaConflictDescriptionRows' => $previewConflicts->schemaConflictRows(
+        $fixture['previewSchemaConflictDescriptions'],
+    ),
     'statusGuidance' => $mergeStatus->statusGuidance(
         $fixture['isMerging'],
         $fixture['conflictTables'],

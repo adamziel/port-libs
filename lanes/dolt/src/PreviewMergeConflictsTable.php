@@ -135,6 +135,41 @@ final class PreviewMergeConflictsTable
     }
 
     /**
+     * Project rows shaped like upstream `dolt_schema_conflicts`.
+     *
+     * @param list<array<string,mixed>> $conflicts
+     * @return list<array{table_name:string, base_schema:string, our_schema:string, their_schema:string, description:string}>
+     */
+    public function schemaConflictRows(array $conflicts): array
+    {
+        $rows = [];
+        foreach ($conflicts as $conflict) {
+            $tableName = $this->requiredString($conflict, ['table_name', 'table', 'name'], 'schema conflict table name');
+            $baseSchema = $this->schemaText($conflict['base_schema'] ?? $conflict['baseSchema'] ?? null);
+            $ourSchema = $this->schemaText($conflict['our_schema'] ?? $conflict['ourSchema'] ?? null);
+            $theirSchema = $this->schemaText($conflict['their_schema'] ?? $conflict['theirSchema'] ?? null);
+            $description = $conflict['description'] ?? null;
+
+            if ($description === null) {
+                $description = $this->schemaConflictDescription($conflict);
+            }
+            if (!is_string($description) || $description === '') {
+                throw new \InvalidArgumentException("Dolt schema conflict for {$tableName} must include a non-empty description.");
+            }
+
+            $rows[] = [
+                'table_name' => $tableName,
+                'base_schema' => $baseSchema,
+                'our_schema' => $ourSchema,
+                'their_schema' => $theirSchema,
+                'description' => $description,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * Project keyless/cardinality conflicts returned by upstream
      * `dolt_preview_merge_conflicts`.
      *
@@ -251,6 +286,176 @@ final class PreviewMergeConflictsTable
         }
 
         return ['table' => $tableName, 'count' => $count];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<non-empty-string> $keys
+     */
+    private function requiredString(array $row, array $keys, string $label): string
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $row)) {
+                $value = $row[$key];
+                if (is_string($value) && $value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException("Dolt {$label} must be a non-empty string.");
+    }
+
+    private function schemaText(mixed $schema): string
+    {
+        if ($schema === null) {
+            return '<deleted>';
+        }
+        if (!is_string($schema) || $schema === '') {
+            throw new \InvalidArgumentException('Dolt schema conflict schema text must be a non-empty string or null.');
+        }
+
+        return $schema;
+    }
+
+    /**
+     * @param array<string,mixed> $conflict
+     */
+    private function schemaConflictDescription(array $conflict): string
+    {
+        if (($conflict['modify_delete_conflict'] ?? $conflict['modifyDeleteConflict'] ?? false) === true) {
+            return 'table was modified in one branch and deleted in the other';
+        }
+
+        $messages = [];
+        foreach (($conflict['column_conflicts'] ?? $conflict['columnConflicts'] ?? []) as $columnConflict) {
+            if (!is_array($columnConflict)) {
+                throw new \InvalidArgumentException('Dolt column schema conflicts must be arrays.');
+            }
+            $messages[] = $this->columnConflictDescription($columnConflict);
+        }
+        foreach (($conflict['index_conflicts'] ?? $conflict['indexConflicts'] ?? []) as $indexConflict) {
+            if (!is_array($indexConflict)) {
+                throw new \InvalidArgumentException('Dolt index schema conflicts must be arrays.');
+            }
+            $messages[] = $this->indexConflictDescription($indexConflict);
+        }
+        foreach (($conflict['check_conflicts'] ?? $conflict['checkConflicts'] ?? []) as $checkConflict) {
+            if (!is_array($checkConflict)) {
+                throw new \InvalidArgumentException('Dolt check schema conflicts must be arrays.');
+            }
+            $messages[] = $this->checkConflictDescription($checkConflict);
+        }
+
+        $messages = array_values(array_filter($messages, static fn (string $message): bool => $message !== ''));
+        if ($messages === []) {
+            throw new \InvalidArgumentException('Dolt schema conflict description could not be derived from an empty conflict set.');
+        }
+
+        return implode("\n", $messages);
+    }
+
+    /**
+     * @param array<string,mixed> $conflict
+     */
+    private function columnConflictDescription(array $conflict): string
+    {
+        $kind = $conflict['kind'] ?? '';
+        $ours = $conflict['ours'] ?? [];
+        $theirs = $conflict['theirs'] ?? [];
+        if (!is_array($ours) || !is_array($theirs)) {
+            throw new \InvalidArgumentException('Dolt column schema conflict sides must be arrays.');
+        }
+
+        if ($kind === 'name_collision') {
+            $name = $this->requiredString($ours + $theirs, ['name'], 'column conflict name');
+            $ourType = $ours['type'] ?? '';
+            $theirType = $theirs['type'] ?? '';
+            if (!is_string($ourType) || $ourType === '' || !is_string($theirType) || $theirType === '') {
+                throw new \InvalidArgumentException("Dolt column schema conflict for {$name} must include both column types.");
+            }
+
+            return "incompatible column types for column '{$name}': {$ourType} and {$theirType}";
+        }
+        if ($kind === 'tag_collision') {
+            $ourName = $this->requiredString($ours, ['name'], 'our column conflict name');
+            $theirName = $this->requiredString($theirs, ['name'], 'their column conflict name');
+
+            return "different column definitions for our column {$ourName} and their column {$theirName}";
+        }
+
+        throw new \InvalidArgumentException("Unsupported Dolt column schema conflict kind: {$kind}");
+    }
+
+    /**
+     * @param array<string,mixed> $conflict
+     */
+    private function indexConflictDescription(array $conflict): string
+    {
+        $kind = $conflict['kind'] ?? '';
+        if ($kind !== 'duplicate_index_column_set') {
+            throw new \InvalidArgumentException("Unsupported Dolt index schema conflict kind: {$kind}");
+        }
+
+        $ours = $conflict['ours'] ?? [];
+        $theirs = $conflict['theirs'] ?? [];
+        if (!is_array($ours) || !is_array($theirs)) {
+            throw new \InvalidArgumentException('Dolt index schema conflict sides must be arrays.');
+        }
+
+        return sprintf(
+            "multiple indexes covering the same column set cannot be merged: '%s' and '%s'",
+            $this->requiredString($ours, ['name'], 'our index conflict name'),
+            $this->requiredString($theirs, ['name'], 'their index conflict name'),
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $conflict
+     */
+    private function checkConflictDescription(array $conflict): string
+    {
+        $kind = $conflict['kind'] ?? '';
+        $ours = $conflict['ours'] ?? [];
+        $theirs = $conflict['theirs'] ?? [];
+        if (!is_array($ours) || !is_array($theirs)) {
+            throw new \InvalidArgumentException('Dolt check schema conflict sides must be arrays.');
+        }
+
+        if ($kind === 'name_collision') {
+            return sprintf(
+                "two checks with the name '%s' but different definitions",
+                $this->requiredString($ours + $theirs, ['name'], 'check conflict name'),
+            );
+        }
+        if ($kind === 'column_check_collision') {
+            return sprintf(
+                "our check '%s' and their check '%s' both reference the same column(s)",
+                $this->requiredString($ours, ['name'], 'our check conflict name'),
+                $this->requiredString($theirs, ['name'], 'their check conflict name'),
+            );
+        }
+        if ($kind === 'invalid_check_collision') {
+            return sprintf(
+                "check '%s' references a column that will be deleted after merge",
+                $this->requiredString($ours + $theirs, ['name'], 'check conflict name'),
+            );
+        }
+        if ($kind === 'deleted_check_collision') {
+            if ($theirs === []) {
+                return sprintf(
+                    "check '%s' was deleted in theirs but modified in ours",
+                    $this->requiredString($ours, ['name'], 'our check conflict name'),
+                );
+            }
+
+            return sprintf(
+                "check '%s' was deleted in ours but modified in theirs",
+                $this->requiredString($theirs, ['name'], 'their check conflict name'),
+            );
+        }
+
+        throw new \InvalidArgumentException("Unsupported Dolt check schema conflict kind: {$kind}");
     }
 
     /**

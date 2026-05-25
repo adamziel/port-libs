@@ -213,4 +213,66 @@ return [
             [],
         ));
     },
+    'schema conflict rows render upstream description strings' => static function (TestRunner $t): void {
+        $table = new PreviewMergeConflictsTable();
+
+        $baseSchema = "CREATE TABLE `wp_options` (\n  `option_id` bigint NOT NULL,\n  `option_name` varchar(191),\n  `autoload` varchar(20),\n  PRIMARY KEY (`option_id`)\n)";
+        $ourSchema = "CREATE TABLE `wp_options` (\n  `option_id` bigint NOT NULL,\n  `option_name` varchar(191),\n  `autoload` varchar(20) DEFAULT 'yes',\n  PRIMARY KEY (`option_id`)\n)";
+        $theirSchema = "CREATE TABLE `wp_options` (\n  `option_id` bigint NOT NULL,\n  `option_name` varchar(191),\n  `autoload` text,\n  PRIMARY KEY (`option_id`)\n)";
+
+        $rows = $table->schemaConflictRows([
+            [
+                'table' => 'wp_options',
+                'base_schema' => $baseSchema,
+                'our_schema' => $ourSchema,
+                'their_schema' => $theirSchema,
+                'column_conflicts' => [
+                    [
+                        'kind' => 'tag_collision',
+                        'ours' => ['name' => 'autoload', 'type' => 'varchar(20)'],
+                        'theirs' => ['name' => 'autoload', 'type' => 'text'],
+                    ],
+                ],
+                'check_conflicts' => [
+                    [
+                        'kind' => 'name_collision',
+                        'ours' => ['name' => 'wp_options_chk_autoload'],
+                        'theirs' => ['name' => 'wp_options_chk_autoload'],
+                    ],
+                ],
+            ],
+            [
+                'table_name' => 'wp_import_queue',
+                'base_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY)',
+                'our_schema' => null,
+                'their_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY, `status` varchar(20))',
+                'modify_delete_conflict' => true,
+            ],
+        ]);
+
+        $t->same([
+            [
+                'table_name' => 'wp_options',
+                'base_schema' => $baseSchema,
+                'our_schema' => $ourSchema,
+                'their_schema' => $theirSchema,
+                'description' => "different column definitions for our column autoload and their column autoload\n"
+                    . "two checks with the name 'wp_options_chk_autoload' but different definitions",
+            ],
+            [
+                'table_name' => 'wp_import_queue',
+                'base_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY)',
+                'our_schema' => '<deleted>',
+                'their_schema' => 'CREATE TABLE `wp_import_queue` (`id` int PRIMARY KEY, `status` varchar(20))',
+                'description' => 'table was modified in one branch and deleted in the other',
+            ],
+        ], $rows);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $table->schemaConflictRows([[
+            'table' => 'wp_bad',
+            'base_schema' => 'CREATE TABLE `wp_bad` (`id` int)',
+            'our_schema' => 'CREATE TABLE `wp_bad` (`id` int)',
+            'their_schema' => 'CREATE TABLE `wp_bad` (`id` int)',
+        ]]));
+    },
 ];

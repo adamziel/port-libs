@@ -1,5 +1,38 @@
 # Integration Status
 
+## Integration accepted - Dolt schema conflict description slice - 2026-05-25 02:45 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T022019Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T022019Z.patch`.
+Lane/slice/session: `dolt` / `supervisor-rearm-20260525T022019Z` / `port-dolt`.
+
+Patch sha256 verified: `40d5a3dfd4ae321e69d7cca5abfb621eb173566ef503623393ec1b8d8197b08f`.
+Clean worktree: `/tmp/port-clean-integrator-dolt-supervisor-rearm-20260525T022019Z`.
+Base accepted HEAD: `06ddd937`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/dolt/src/PreviewMergeConflictsTable.php`: no syntax errors.
+- `php -l lanes/dolt/tests/PreviewMergeConflictsTableTest.php`: no syntax errors.
+- `php -l lanes/dolt/tests/MergeStatusTableTest.php`: no syntax errors.
+- `php -l lanes/dolt/fixtures/wp-merge-review.php`: no syntax errors.
+- `php -l lanes/dolt/examples/wordpress-merge-status-review.php`: no syntax errors.
+- `php tools/run-tests.php lanes/dolt/tests/PreviewMergeConflictsTableTest.php lanes/dolt/tests/MergeStatusTableTest.php`: 2 test files, 141 assertions, 0 failures.
+- Example smoke for `lanes/dolt/examples/wordpress-merge-status-review.php`: exited 0; returned expected `wp_options` schema-conflict description row.
+- JSON validation for `lanes/dolt/lane-status.json` and `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`: exited 0.
+- `git diff --check`: exited 0.
+
+Root verification:
+
+- Pre-root `pgrep -af '^php tools/run-tests\.php$'`: no active no-argument root harness.
+- `php tools/run-tests.php`: 211 test files, 24737 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. The slice reuses the existing Dolt merge-preview table projection and static schema-description formatting; no new bounded support component is needed.
+
+Live-service exclusions: none needed; no live-service provider tests were run.
+
+Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`, `lanes/dolt/examples/wordpress-merge-status-review.php`, `lanes/dolt/fixtures/wp-merge-review.php`, `lanes/dolt/lane-status.json`, `lanes/dolt/notes/upstream-runner.md`, `lanes/dolt/notes/wordpress-scenarios.md`, `lanes/dolt/src/PreviewMergeConflictsTable.php`, `lanes/dolt/tests/MergeStatusTableTest.php`, `lanes/dolt/tests/PreviewMergeConflictsTableTest.php`, and `audits/integration-status.md`.
+
 ## Integration accepted - Quadrable plain import/export separator slice - 2026-05-25 02:39 UTC
 
 Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T021557Z.ready`.

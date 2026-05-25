@@ -2040,3 +2040,12 @@
 - The cache has build/test artifacts under `.upstream-cache/dolt/.gomodcache`, `.upstream-cache/dolt/.gocache`, and `.upstream-cache/dolt/bats-home`.
 - The pristine upstream `status.bats` helper still fails on fixed-width commit-hash extraction; the runner-local copied `status-local-fixed.bats` file resolves that helper boundary and lets the full local status suite pass, but it is documented as a patched-copy runner aid rather than pristine upstream pass parity.
 - Runner metadata is part of the current Dolt lane batch with the skinny projection, where/limit filtering, summary/stat primary-key warning/error boundaries, dolt_ignore implementation evidence, schema-history/schema-diff evidence, procedure-history/procedure-diff evidence, commit-diff/log/commit-ancestors/has_ancestor/branch evidence, focused branch Go engine evidence, and combined local upstream diff/schema/merge/log/status BATS evidence.
+
+## Supervisor Rearm 2026-05-25 Schema-Conflict Description Slice
+
+- Upstream source inspection: `go/libraries/doltcore/sqle/dtables/schema_conflicts_table.go` exposes `dolt_schema_conflicts` rows with `table_name`, `base_schema`, `our_schema`, `their_schema`, and `description`; `go/libraries/doltcore/merge/merge_schema.go` formats column, check, index, and modify/delete schema conflict descriptions; focused schema merge cases in `dolt_queries_merge.go` cover preview schema-conflict counts and the `schema conflicts found: 1` data-preview error boundary.
+- Native delta: `PreviewMergeConflictsTable::schemaConflictRows()` now projects schema-conflict description rows for WordPress merge review, including CREATE TABLE text, `<deleted>` table sides, column tag-collision text, check name-collision text, and modify/delete text.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/PreviewMergeConflictsTableTest.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 2 files, 141 assertions, and 0 failures.
+- Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo count($r["previewSchemaConflictDescriptionRows"])."\n"; echo $r["previewSchemaConflictDescriptionRows"][0]["description"]."\n";'` returned one row and the expected `wp_options` column/check description text.
+- Root harness: not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge-preview projection surface and static schema description formatting, with no shell-outs and no activation of a shared dependency.

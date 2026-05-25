@@ -101,6 +101,45 @@ return [
     'previewSchemaConflictTables' => [
         ['table' => 'wp_options', 'num_schema_conflicts' => 1],
     ],
+    'previewSchemaConflictDescriptions' => [
+        [
+            'table' => 'wp_options',
+            'base_schema' => "CREATE TABLE `wp_options` (\n"
+                . "  `option_id` bigint NOT NULL,\n"
+                . "  `option_name` varchar(191),\n"
+                . "  `autoload` varchar(20),\n"
+                . "  PRIMARY KEY (`option_id`)\n"
+                . ")",
+            'our_schema' => "CREATE TABLE `wp_options` (\n"
+                . "  `option_id` bigint NOT NULL,\n"
+                . "  `option_name` varchar(191),\n"
+                . "  `autoload` varchar(20) DEFAULT 'yes',\n"
+                . "  CONSTRAINT `wp_options_chk_autoload` CHECK (`autoload` in ('yes','no')),\n"
+                . "  PRIMARY KEY (`option_id`)\n"
+                . ")",
+            'their_schema' => "CREATE TABLE `wp_options` (\n"
+                . "  `option_id` bigint NOT NULL,\n"
+                . "  `option_name` varchar(191),\n"
+                . "  `autoload` text,\n"
+                . "  CONSTRAINT `wp_options_chk_autoload` CHECK (`autoload` <> ''),\n"
+                . "  PRIMARY KEY (`option_id`)\n"
+                . ")",
+            'column_conflicts' => [
+                [
+                    'kind' => 'tag_collision',
+                    'ours' => ['name' => 'autoload', 'type' => 'varchar(20)'],
+                    'theirs' => ['name' => 'autoload', 'type' => 'text'],
+                ],
+            ],
+            'check_conflicts' => [
+                [
+                    'kind' => 'name_collision',
+                    'ours' => ['name' => 'wp_options_chk_autoload'],
+                    'theirs' => ['name' => 'wp_options_chk_autoload'],
+                ],
+            ],
+        ],
+    ],
     'previewMergeBaseRows' => [
         ['ID' => 42, 'post_title' => 'Imported draft', 'post_status' => 'draft'],
     ],
@@ -251,6 +290,33 @@ return [
         ],
     ],
     'expectedPreviewSchemaConflictError' => 'schema conflicts found: 1',
+    'expectedPreviewSchemaConflictDescriptionRows' => [
+        [
+            'table_name' => 'wp_options',
+            'base_schema' => "CREATE TABLE `wp_options` (\n"
+                . "  `option_id` bigint NOT NULL,\n"
+                . "  `option_name` varchar(191),\n"
+                . "  `autoload` varchar(20),\n"
+                . "  PRIMARY KEY (`option_id`)\n"
+                . ")",
+            'our_schema' => "CREATE TABLE `wp_options` (\n"
+                . "  `option_id` bigint NOT NULL,\n"
+                . "  `option_name` varchar(191),\n"
+                . "  `autoload` varchar(20) DEFAULT 'yes',\n"
+                . "  CONSTRAINT `wp_options_chk_autoload` CHECK (`autoload` in ('yes','no')),\n"
+                . "  PRIMARY KEY (`option_id`)\n"
+                . ")",
+            'their_schema' => "CREATE TABLE `wp_options` (\n"
+                . "  `option_id` bigint NOT NULL,\n"
+                . "  `option_name` varchar(191),\n"
+                . "  `autoload` text,\n"
+                . "  CONSTRAINT `wp_options_chk_autoload` CHECK (`autoload` <> ''),\n"
+                . "  PRIMARY KEY (`option_id`)\n"
+                . ")",
+            'description' => "different column definitions for our column autoload and their column autoload\n"
+                . "two checks with the name 'wp_options_chk_autoload' but different definitions",
+        ],
+    ],
     'expectedStatusGuidance' => "You have unmerged tables.\n"
         . "  (fix conflicts and constraint violations and run \"dolt commit\")\n"
         . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
