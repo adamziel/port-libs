@@ -1,5 +1,49 @@
 # Integration Status
 
+## Integration deferred - Pandoc duplicate quoted inline marker - 2026-05-25 00:25 UTC
+
+Deferred isolated ready marker
+`.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T001621Z.ready`
+with patch
+`.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T001621Z.patch`.
+
+Lane/slice/session: `pandoc` /
+`watchdog-next-20260525T001621Z` / `port-pandoc`. Patch sha256 was verified
+as `b656ca422055cee8c448d325e67af22c318355a6f3696bdb4b453997e31a3f64`.
+Worker focused evidence existed, but this marker is a competing duplicate of
+the already accepted Pandoc quoted-inline slice in commit `3f3bc706`.
+
+Clean apply result from current `main` (`3f3bc706f00d`): `git apply --check
+.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T001621Z.patch` failed
+on all touched Pandoc files. Bounded three-way with `git apply --3way` also
+left conflicts in:
+`lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/pandoc/examples/wordpress-markdown-review-handoff.php`,
+`lanes/pandoc/lane-status.json`,
+`lanes/pandoc/notes/upstream-inventory.md`,
+`lanes/pandoc/notes/wordpress-scenarios.md`,
+`lanes/pandoc/src/MarkdownWriter.php`, and
+`lanes/pandoc/tests/MarkdownReaderTest.php`.
+
+Reason: non-trivial semantic conflict, not stale counters or missing fixture
+inclusion. The accepted implementation emits smart quote characters for
+`quoted` nodes; this marker uses ASCII delimiter emission through
+`delimitInlineContent()` and adds different reference-link expectations. The
+integrator did not rewrite behavior beyond the submitted slice.
+
+Exact repair command for the lane:
+`git apply --check .tmux-team/tmp/handoff-candidates/port-pandoc-20260525T001621Z.patch`
+from current `main`, then re-emit either a true follow-up patch on top of
+`3f3bc706` or mark this marker superseded by the accepted smart-quote slice.
+If the lane wants ASCII delimiter semantics instead, it must submit a focused
+behavior-change patch with upstream evidence explaining why the accepted smart
+quote output is wrong, plus focused Pandoc tests and root verification by the
+integrator.
+
+No focused or root verification was run for this marker after the conflict,
+and no support-library row was activated. The ready marker, patch, and metadata
+remain in place for lane rework.
+
 ## Integration accepted - Pandoc quoted inline writer slice - 2026-05-25 00:20 UTC
 
 Accepted isolated ready marker
