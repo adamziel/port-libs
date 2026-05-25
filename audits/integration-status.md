@@ -99702,7 +99702,7 @@ Ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T010817
 Patch: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T010817Z.patch`.
 Lane/slice/session: `difftastic` / `supervisor-next-20260525T010817Z` / `port-difftastic`.
 Focused verification in clean worktree: `php -l` on changed PHP files passed; `jq empty lanes/difftastic/lane-status.json lanes/difftastic/UPSTREAM_TEST_MANIFEST.json` passed; `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed with 1 test file, 1419 assertions, 0 failures; `php lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php | jq empty` passed; `git diff --check` passed.
-Root verification: `php tools/run-tests.php` passed with 100 test files, 25202 assertions, 0 failures in the same clean worktree.
+Root verification: `php tools/run-tests.php` passed with 208 test files, 24515 assertions, 0 failures in the same clean worktree.
 Support-library/dependency closure: no new support-library activation; this reuses the lane-local syntax highlight classifier and renderer path.
 Live-service exclusions: none; no live-service provider tests were run.
 Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/notes/wordpress-scenarios.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, `audits/integration-status.md`.
