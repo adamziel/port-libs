@@ -102826,3 +102826,45 @@ Files staged:
 - `lanes/rclone/notes/wordpress-scenarios.md`
 - `lanes/rclone/src/OneDriveTokenRenewer.php`
 - `lanes/rclone/tests/OneDriveTokenRenewerTest.php`
+
+## Integration deferred - remaining isolated markers - 2026-05-25T05:15:00Z
+
+No source from the following markers was accepted in this pass.
+
+### esbuild `port-esbuild-20260525T045743Z.ready`
+
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T045743Z.patch`.
+Patch sha256 `cd227e48b5b8d40b05253477da2587309a3d0aaf21015ced1229021184c3663c` verified.
+`git apply --check` failed from current `refs/heads/main`. Bounded rebase command `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T045743Z.patch` left conflicts in:
+
+- `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/esbuild/examples/wordpress-asset-preflight.php`
+- `lanes/esbuild/lane-status.json`
+- `lanes/esbuild/notes/upstream-inventory.md`
+- `lanes/esbuild/notes/wordpress-scenarios.md`
+- `lanes/esbuild/tests/BundlerGraphBuilderTest.php`
+
+Focused/root verification was not run because the patch was not in a buildable state. Repair command: from current `refs/heads/main`, rerun `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T045743Z.patch` then `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T045743Z.patch`, resolving only the listed esbuild files against already-accepted output-summary/metafile work.
+
+### syncthing `port-syncthing-20260525T045947Z.ready`
+
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T045947Z.patch`.
+Patch sha256 `ff1f2a11c1f81a5b9aaacede5a40877abb0c7ff492d23986944ae574c2ba55c1` verified.
+`git apply --check` failed from current `refs/heads/main`. Bounded rebase command `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T045947Z.patch` left conflicts in:
+
+- `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/syncthing/lane-status.json`
+- `lanes/syncthing/src/FolderWatchScanScheduler.php`
+- `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+
+Focused/root verification was not run because the patch was not in a buildable state. Repair command: from current `refs/heads/main`, rerun `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T045947Z.patch` then `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T045947Z.patch`, resolving only the listed Syncthing scheduler source/test/status files against the accepted watch cleanup/restart state.
+
+### readability `port-readability-20260525T045741Z.ready`
+
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T045741Z.patch`.
+Patch sha256 `d59f458ded9d1b07b005fb4a0c6655235f40e8a70bb3814defdf499211b84ea4` verified and applied with bounded three-way rebase in `/tmp/port-clean-integrator-readability-watchdog-next-20260525T045741Z-20260525T051336Z`.
+Focused verification passed: `php tools/run-tests.php lanes/readability/tests/NativeMediaWrapperTest.php` reported `1 test files, 3 assertions, 0 failures`; changed PHP syntax checks passed; `git diff --check` passed. Root verification failed: `php tools/run-tests.php` reported `213 test files, 25286 assertions, 1 failures`, with the failure `maps Mozilla bug-1255978 fixture by preserving articleBody despite share-like id (lanes/readability/tests/ArticleExtractorTest.php)`.
+
+No Readability source was accepted because the required no-argument root gate was not clean. Repair command: from current `refs/heads/main`, apply `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T045741Z.patch`, run `php tools/run-tests.php lanes/readability/tests/NativeMediaWrapperTest.php`, then fix or split the unrelated `lanes/readability/tests/ArticleExtractorTest.php` bug-1255978 fixture drift until `php tools/run-tests.php` exits 0.
+
+Support-library/dependency closure for all deferred markers: no support-library row was activated. Live-service exclusions: no live-service/provider tests were run.
