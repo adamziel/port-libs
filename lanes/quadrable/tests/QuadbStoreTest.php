@@ -1599,6 +1599,10 @@ return [
             $t->same(0, $numericPrefixProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([2, 4]), $numericPrefixProof['stdout']);
             $t->same('', $numericPrefixProof['stderr']);
+            $spacedPlusProof = QuadbStore::exportProofCommandOutput($dir, ['  +2suffix', ' +4'], integerKeys: true);
+            $t->same(0, $spacedPlusProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([2, 4]), $spacedPlusProof['stdout']);
+            $t->same('', $spacedPlusProof['stderr']);
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',

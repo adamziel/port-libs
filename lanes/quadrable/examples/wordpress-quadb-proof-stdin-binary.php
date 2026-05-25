@@ -103,6 +103,11 @@ try {
         ['2suffix', '4'],
         integerKeys: true
     );
+    $spacedPlusProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['  +2suffix', ' +4'],
+        integerKeys: true
+    );
     $badIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
         $integerDir,
         "2\nnot-an-int\n",
@@ -135,6 +140,8 @@ try {
             && $directIntegerDumpWithBadFormat['stderr'] === '',
         'numericPrefixIntegerExportProofExitCode' => $numericPrefixProofCommand['exitCode'],
         'numericPrefixIntegerBinaryProofBytes' => strlen($numericPrefixProofCommand['stdout']),
+        'spacedPlusIntegerExportProofExitCode' => $spacedPlusProofCommand['exitCode'],
+        'spacedPlusIntegerProofMatchesNumericPrefix' => $spacedPlusProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'badIntegerProofStdin' => $badIntegerProofCommand,
         'negativeIntegerProofDirect' => $negativeIntegerProofCommand,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

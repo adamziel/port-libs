@@ -10,7 +10,8 @@ The example
 `examples/wordpress-json-pretty-option-review.php` exercises the dispatch
 path for copied `wp_options.option_value` inputs, including strict JSON text,
 SQLite JSON5 text, cast text BLOBs, JSONB blobs, SQL NULL option values,
-scalar SQL option values, malformed settings, and custom indentation. This gives WordPress migration and
+scalar SQL option values including booleans and floats, malformed settings,
+and custom indentation. This gives WordPress migration and
 repair tooling a local-only review path that mirrors SQLite's SQL entry point
 without requiring the SQLite extension.
 
@@ -18,7 +19,7 @@ Status delta 2026-05-25 isolated rework: added `jsonPrettySqlFunction()`,
 kept invalid-name rejection, accepted uppercase SQL spelling through direct
 and argument-vector dispatch, added one-or-two argument-vector dispatch
 coverage, added subtype input and malformed-input dispatch smoke coverage,
-added scalar SQL argument-vector coercion coverage,
+added scalar SQL argument-vector coercion coverage for integer, float, and boolean inputs,
 and updated the existing WordPress smoke to call the SQL-dispatch helper
 through its argument-vector entry point. This preserves
 accepted json_extract/jsonb_extract subtype dispatch and json_each
