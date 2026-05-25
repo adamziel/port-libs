@@ -2294,6 +2294,22 @@ MD;
                 . '| post   | soft one soft two<br />hard follow-up |',
         ]), (new MarkdownWriter(['softBreak' => 'space']))->write($document));
     },
+    'preserves rebased upstream markdown writer space softbreak and linebreak emission' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Source']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'review']),
+                new AstNode('softbreak'),
+                new AstNode('text', ['text' => 'continues']),
+                new AstNode('linebreak'),
+                new AstNode('text', ['text' => 'with hard break']),
+            ]),
+        ]);
+
+        $t->same("Source review\ncontinues\\\nwith hard break", (new MarkdownWriter())->write($document));
+        $t->same("Source review continues\\\nwith hard break", (new MarkdownWriter(['softBreak' => 'space']))->write($document));
+    },
     'maps upstream markdown writer fancy ordered list markers' => static function (TestRunner $t): void {
         $writer = new MarkdownWriter();
         $reader = new MarkdownReader();

@@ -158,6 +158,28 @@ return [
             'featureAvailable' => false,
             'walkError' => 'would not be reached',
         ]);
+        $extraWhileDisabled = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'remoteArgs' => ['onedrive:', 'extra:'],
+            'noVersions' => false,
+            'featureAvailable' => false,
+            'walkError' => 'would not be reached',
+        ]);
+        $emptyWhileDisabled = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'remoteArgs' => [''],
+            'noVersions' => false,
+            'featureAvailable' => false,
+            'walkError' => 'would not be reached',
+        ]);
 
         $t->same('cleanup command expects exactly one remote argument', $missing['error']);
         $t->same(0, $missing['walkedObjects']);
@@ -173,6 +195,14 @@ return [
         $t->same(0, $missingWhileDisabled['walkedObjects']);
         $t->same(0, $missingWhileDisabled['versionRequests']);
         $t->same(false, $missingWhileDisabled['providerCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $extraWhileDisabled['error']);
+        $t->same(0, $extraWhileDisabled['walkedObjects']);
+        $t->same(0, $extraWhileDisabled['versionRequests']);
+        $t->same(false, $extraWhileDisabled['providerCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $emptyWhileDisabled['error']);
+        $t->same(0, $emptyWhileDisabled['walkedObjects']);
+        $t->same(0, $emptyWhileDisabled['versionRequests']);
+        $t->same(false, $emptyWhileDisabled['providerCalled']);
     },
     'onedrive cleanup command disabled no versions path does not require cleanup feature' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([
@@ -365,6 +395,10 @@ return [
         $t->same(false, $example['emptyRemoteArgProviderCalled']);
         $t->same('cleanup command expects exactly one remote argument', $example['missingRemoteArgDisabledError']);
         $t->same(false, $example['missingRemoteArgDisabledProviderCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $example['extraRemoteArgDisabledError']);
+        $t->same(false, $example['extraRemoteArgDisabledProviderCalled']);
+        $t->same('cleanup command expects exactly one remote argument', $example['emptyRemoteArgDisabledError']);
+        $t->same(false, $example['emptyRemoteArgDisabledProviderCalled']);
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsError']);
         $t->same(false, $example['rcMissingFsProviderCalled']);
         $t->same('rc operations/cleanup requires fs', $example['rcMissingFsDisabledError']);
