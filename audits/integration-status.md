@@ -1,3 +1,44 @@
+## Clean-patch accepted - rclone cleanup command stoppedAt diagnostics - 2026-05-25 23:42 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-rclone-20260525T233252Z.ready`.
+
+Published commit: `63e0d576` (`Integrate rclone cleanup stoppedAt diagnostics`).
+Candidate patch sha256 matched the ready marker:
+`e9d83602141aeaf58cd61d2053e8ae0895a64fbc62a134b435774193532176b1`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`79fc62f0` (`Integrate Gitoxide SSH encoded username delimiters`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/rclone/src/OneDriveCleanupCommand.php` passed.
+- `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` passed.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json` passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php`
+  passed: `1 test files, 174 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/rclone/tests` passed:
+  `35 test files, 4131 assertions, 0 failures`.
+- Example smoke via `require` returned
+  `["onedrive-cleanup-command-preflight","complete","command-arity","rc-fs"]`.
+- `git diff --check -- lanes/rclone` passed.
+
+Root verification:
+- First root attempt was released without running because an external exact
+  no-argument root process appeared.
+- Pre-root gate under `.tmux-team/tmp/clean-integrator-run.lock` reported
+  `df_free=101261104` KiB, `load1=2.72`, and no exact no-argument root
+  harness process.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26598 assertions, 0 failures`.
+
+Cleanup:
+- Pending until commit publication: remove the accepted ready marker, patch,
+  metadata file, referenced worker log, inactive source worktree, and temporary
+  verification worktree after the commit is safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted rclone commit.
+
 ## Clean-patch accepted - Gitoxide SSH encoded username delimiters - 2026-05-25 23:35 UTC
 
 Accepted one isolated marker:
