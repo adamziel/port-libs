@@ -101248,3 +101248,15 @@ Root verification: `php tools/run-tests.php` passed in the clean worktree with 2
 Support-library/dependency closure: no support-library activation. The patch reuses the existing lane-local `SyntaxHighlightClassifier`, ANSI highlighter, and JSON diff rendering path for upstream `variable.builtin` capture behavior. Live-service exclusions: none.
 
 Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/examples/wordpress-php-superglobal-highlight-display.php`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, `audits/integration-status.md`.
+
+## Isolated clean-patch defer - esbuild output plan - 2026-05-25 03:49 UTC
+
+Deferred marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T030236Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T030236Z.patch`.
+
+Lane/slice/session: `esbuild` / `supervisor-rearm-20260525T030236Z` / `port-esbuild`. Patch sha256 matched `0e8fe5ab5e323f2c93bf3520c3c3b05cb0dd9425654d18874d27edac10ea2896`.
+
+Clean integration result: `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T030236Z.patch` failed against current `main`. Bounded `git apply --3way` left conflicts in `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/wordpress-scenarios.md`, and `lanes/esbuild/tests/BundlerGraphBuilderTest.php`. The overlap is with newer accepted graph/unsupported-loader diagnostics in the same manifest/status/example/test sections, not a trivial fixture inclusion.
+
+Root verification: not run, because no conflict-free source tree existed for this marker. Support-library/dependency closure decision: no support-library activation reviewed or accepted. Live-service exclusions: none.
+
+Exact repair command for the lane: rebase this marker on current `main` and re-emit a narrow output-plan patch preserving accepted unsupported-loader graph diagnostics while adding only `BundlerOutputPlan`, `BundlerOutputPlanner`, focused `BundlerGraphBuilderTest.php` cases, the asset-preflight output-plan line, and minimal manifest/status/WordPress-scenario updates. Then run `php -l lanes/esbuild/src/BundlerOutputPlan.php`, `php -l lanes/esbuild/src/BundlerOutputPlanner.php`, `php -l lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `php -l lanes/esbuild/examples/wordpress-asset-preflight.php`, `php tools/run-tests.php lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `php tools/run-tests.php lanes/esbuild/tests`, `php lanes/esbuild/examples/wordpress-asset-preflight.php`, `php -r 'json_decode(file_get_contents("lanes/esbuild/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/esbuild/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'`, and `git diff --check -- lanes/esbuild`.
