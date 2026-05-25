@@ -1,5 +1,43 @@
 # Integration Status
 
+## Integration accepted - isolated difftastic supervisor-next-20260525T005555Z - 2026-05-25 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T005555Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T005555Z.patch`.
+Lane/slice/session: `difftastic` / `supervisor-next-20260525T005555Z` / `port-difftastic`.
+
+Patch SHA-256 verified: `6c934c6bfe9552e37933c90b5986e3ef370825cef8e25a2b44a62cb9000874b6`.
+Applied cleanly to detached clean worktree from `6fd671b0`.
+
+Focused verification in the clean worktree:
+
+- `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`: no syntax errors.
+- `php -l lanes/difftastic/tests/TokenDifferTest.php`: no syntax errors.
+- `php -l lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php`: no syntax errors.
+- `php -l lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php`: no syntax errors.
+- `php -l lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php`: no syntax errors.
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`: passed 1 selected test file, 1403 assertions, 0 failures.
+- `git diff --check`: passed.
+
+Root verification in the clean worktree:
+
+- Pre-root exact process gate `pgrep -af '^php tools/run-tests\.php$'`: empty.
+- `php tools/run-tests.php`: passed 208 test files, 24476 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this stays inside the existing difftastic syntax highlighting lane surface.
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+
+- `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php`
+- `lanes/difftastic/lane-status.json`
+- `lanes/difftastic/notes/upstream-inventory.md`
+- `lanes/difftastic/notes/wordpress-scenarios.md`
+- `lanes/difftastic/src/SyntaxHighlightClassifier.php`
+- `lanes/difftastic/tests/TokenDifferTest.php`
+- `audits/integration-status.md`
+
 ## Integration deferred - Difftastic fast-forward race after retry - 2026-05-25 00:34 UTC
 
 Deferred isolated ready marker

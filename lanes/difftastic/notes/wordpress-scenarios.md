@@ -376,8 +376,10 @@ The WordPress Python multiline annotation example now also covers `from __future
 
 The same WordPress Python multiline annotation example now covers qualified `typing.Optional[Payload]` and `typing_extensions.TypeAlias` usage that commonly appears in migration scripts and importer helpers. Only the alias member names and stringized annotation bodies are promoted; `import typing`, `import typing_extensions`, runtime locals, and runtime strings remain normal/string highlighted.
 
-Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for nested string annotation spans, additional qualified alias providers beyond the bounded `typing` / `typing_extensions` surface, and deeper syntax-list-level annotation parsing.
+The same WordPress Python multiline annotation example now covers quoted custom type names inside nested annotation regions. `list["Payload"]` and `typing.Optional["Payload"]` are promoted as type spans, while runtime strings such as `label = "Payload"` remain string-highlighted so migration scripts can use forward references without over-styling ordinary values.
+
+Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for additional qualified alias providers beyond the bounded `typing` / `typing_extensions` surface and deeper syntax-list-level annotation parsing.
 
 ## Next Task
 
-Expand Python annotation highlighting only with upstream-query evidence for nested string annotation spans and qualified aliases beyond the bounded `typing` / `typing_extensions` surface, while keeping runtime strings and ordinary expressions unpromoted.
+Expand Python syntax highlighting with the next upstream-query-backed boundary outside the current annotation cluster, while keeping runtime strings and ordinary expressions unpromoted.

@@ -323,7 +323,10 @@ final class SyntaxHighlightClassifier
             return false;
         }
 
-        if (preg_match('/\b(?:bool|bytes|dict|float|int|list|set|str|tuple|Any|Callable|Dict|Iterable|Iterator|List|Literal|Mapping|MutableMapping|Optional|Sequence|Set|Tuple|TypeAlias|Union)\b/', $inner) !== 1) {
+        if (
+            preg_match('/\b(?:bool|bytes|dict|float|int|list|set|str|tuple|Any|Callable|Dict|Iterable|Iterator|List|Literal|Mapping|MutableMapping|Optional|Sequence|Set|Tuple|TypeAlias|Union)\b/', $inner) !== 1
+            && preg_match('/(?:^|[.\[\|,\s])(?:[A-Z][A-Za-z0-9_]*|typing(?:_extensions)?\.[A-Za-z_][A-Za-z0-9_]*)(?:$|[\]\|,\s])/', $inner) !== 1
+        ) {
             return false;
         }
 

@@ -501,6 +501,8 @@ For this Python multiline annotation highlight slice, the lane reused the existi
 
 For this qualified Python typing alias slice, the lane stayed on the same upstream `tree-sitter-python` query evidence and native highlighter path. `SyntaxHighlightClassifier` now treats bounded `typing.Optional[...]` and `typing_extensions.TypeAlias` member names as type captures only when the qualified expression is in an annotation or likely type-alias assignment region; the module identifiers and ordinary imports remain normal. The WordPress migration example covers future annotations, qualified aliases, stringized `typing.Optional[Payload]`, and runtime guards.
 
+For this nested string annotation slice, the lane reused the same exact `tree-sitter-python` v0.25.0 highlight-query evidence and bounded native highlighter component. `SyntaxHighlightClassifier` now promotes quoted custom type names only when the string token is inside an already-detected Python annotation region, covering `list["Payload"]` and `typing.Optional["Payload"]` while leaving runtime strings such as `label = "Payload"` string-highlighted.
+
 Focused evidence for this slice:
 
 ```text
@@ -513,8 +515,10 @@ php lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-di
 git diff --check -- lanes/difftastic
 ```
 
-The focused test expectation is 245 named tests, 1398 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+The focused test expectation is 245 named tests, 1403 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the existing lane-local syntax highlighter and exact upstream query evidence path; no shared parser, tree-sitter runtime, or generated query component is activated.
 
 ## Next Task
 
-Tighten Python `typing` alias and stringized annotation edge cases without promoting runtime expressions.
+Expand Python syntax highlighting with the next upstream-query-backed boundary outside the current annotation cluster, without promoting runtime expressions.

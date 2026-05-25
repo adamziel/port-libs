@@ -3771,6 +3771,8 @@ return [
             . "]:\n"
             . "    parent: Optional[Payload] = None\n"
             . "    future_parent: typing.Optional[Payload] = None\n"
+            . "    quoted_parent: list[\"Payload\"] = []\n"
+            . "    quoted_future_parent: typing.Optional[\"Payload\"] = None\n"
             . "    encoded: \"dict[str, list[int]]\" = {}\n"
             . "    list = []\n";
         $highlighter = new AnsiSyntaxHighlighter();
@@ -3791,6 +3793,8 @@ return [
         }
         $t->contains("\033[1mOptional\033[0m", $rendered);
         $t->contains("future_parent: typing.\033[1mOptional\033[0m[\033[1mPayload\033[0m] \033[1m=\033[0m \033[1mNone\033[0m", $rendered);
+        $t->contains("quoted_parent: \033[1mlist\033[0m[\033[1m\"Payload\"\033[0m] \033[1m=\033[0m []", $rendered);
+        $t->contains("quoted_future_parent: typing.\033[1mOptional\033[0m[\033[1m\"Payload\"\033[0m] \033[1m=\033[0m \033[1mNone\033[0m", $rendered);
         $t->contains("\033[1mPayload\033[0m: \033[1mTypeAlias\033[0m \033[1m=\033[0m \033[1m\"dict[str, list[int]]\"\033[0m", $rendered);
         $t->contains("\033[1mFuturePayload\033[0m: typing_extensions.\033[1mTypeAlias\033[0m \033[1m=\033[0m \033[1m\"typing.Optional[Payload]\"\033[0m", $rendered);
         $t->contains("    encoded: \033[1m\"dict[str, list[int]]\"\033[0m \033[1m=\033[0m {}", $rendered);
@@ -4214,8 +4218,11 @@ return [
             $t->contains("\033[1m{$type}\033[0m", $rendered);
         }
         $t->contains("future_parent: typing.\033[1mOptional\033[0m[\033[1mPayload\033[0m] \033[1m=\033[0m \033[1mNone\033[0m", $rendered);
+        $t->contains("quoted_parent: \033[1mlist\033[0m[\033[1m\"Payload\"\033[0m] \033[1m=\033[0m []", $rendered);
+        $t->contains("quoted_future_parent: typing.\033[1mOptional\033[0m[\033[1m\"Payload\"\033[0m] \033[1m=\033[0m \033[1mNone\033[0m", $rendered);
         $t->contains("    list \033[1m=\033[0m []", $rendered);
         $t->true(!str_contains($rendered, "    \033[1mlist\033[0m = []"), 'Runtime identifiers named like builtin types should remain normal outside multiline annotations.');
+        $t->true(!str_contains($rendered, "    label \033[1m=\033[0m \033[1m\"Payload\"\033[0m"), 'Runtime strings that look like custom type names should remain string-highlighted.');
     },
     'wordpress ruby migration helper display follows upstream keyword boundary' => static function (TestRunner $t): void {
         ob_start();

@@ -25,8 +25,11 @@ $source = "from __future__ import annotations\n"
     . "]:\n"
     . "    parent: Optional[Payload] = None\n"
     . "    future_parent: typing.Optional[Payload] = None\n"
+    . "    quoted_parent: list[\"Payload\"] = []\n"
+    . "    quoted_future_parent: typing.Optional[\"Payload\"] = None\n"
     . "    encoded: \"dict[str, list[int]]\" = {}\n"
     . "    list = []\n"
+    . "    label = \"Payload\"\n"
     . "    return (len(posts), list)\n";
 
 $highlighter = new AnsiSyntaxHighlighter();
