@@ -7,9 +7,15 @@ use PortLibs\LightningCSS\CssMinifier;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
-@container unknown(foo) {
+@container wp-query-card (width > 30em) and unknown(foo) {
   .wp-block-query {
     gap: 1rem;
+  }
+}
+
+@media screen and unknown(foo) {
+  .wp-block-query {
+    margin-block-start: 2rem;
   }
 }
 

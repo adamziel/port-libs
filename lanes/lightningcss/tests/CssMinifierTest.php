@@ -1387,6 +1387,27 @@ CSS;
             ],
             $media['warnings']
         );
+
+        $compound = $minifier->minifyWithErrorRecovery(
+            '@container card (width > 30em) and unknown(foo) { .bad { color: red; } } @media screen and unknown(foo) { .bad { color: red; } } .ok { color: yellow; }',
+            'compound.css'
+        );
+        $t->same('.ok{color:#ff0}', $compound['code']);
+        $t->same(
+            [
+                [
+                    'message' => 'Unexpected token Function("unknown")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'compound.css', 'line' => 1, 'column' => 35],
+                ],
+                [
+                    'message' => 'Unexpected token Function("unknown")',
+                    'type' => 'UnexpectedToken',
+                    'loc' => ['filename' => 'compound.css', 'line' => 1, 'column' => 91],
+                ],
+            ],
+            $compound['warnings']
+        );
     },
     'css minifier maps upstream transition longhand value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

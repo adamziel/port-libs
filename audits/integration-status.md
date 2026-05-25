@@ -99300,3 +99300,23 @@ Files staged:
 - `lanes/gitoxide/notes/wordpress-scenarios.md`
 - `lanes/gitoxide/src/GitDaemonReceivePackTransport.php`
 - `lanes/gitoxide/tests/ReceivePackTransportTest.php`
+
+## Clean-patch integration - lightningcss - 20260525T004545Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T003543Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T003543Z.patch`
+Lane/slice/session: `lightningcss` / `supervisor-next-20260525T003543Z` / `port-lightningcss`
+Patch sha256: `46f9affe3569e3cb695d198f3a86c00bccc5c04976e5d97deb92c5dce468aa2e` (verified)
+Apply mode: `plain`.
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/lightningcss/tests/CssMinifierTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-lightningcss-supervisor-next-20260525T003543Z-20260525T004545Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/lightningcss/examples/wordpress-container-error-recovery.php`
+- `lanes/lightningcss/lane-status.json`
+- `lanes/lightningcss/notes/upstream-inventory.md`
+- `lanes/lightningcss/notes/wordpress-scenarios.md`
+- `lanes/lightningcss/src/CssMinifier.php`
+- `lanes/lightningcss/tests/CssMinifierTest.php`

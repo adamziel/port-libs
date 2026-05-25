@@ -229,8 +229,8 @@ final class CssMinifier
             return null;
         }
 
-        $function = $this->wholeContainerConditionFunctionName($condition);
-        if ($function === null || in_array($function, ['style', 'scroll-state'], true)) {
+        $functionOffset = $this->findUnsupportedTopLevelConditionFunctionOffset($condition, ['style', 'scroll-state']);
+        if ($functionOffset === null) {
             return null;
         }
 
@@ -239,14 +239,15 @@ final class CssMinifier
             return null;
         }
 
-        return $conditionOffset + (strpos($condition, $function) ?: 0);
+        return $conditionOffset + $functionOffset;
     }
 
     private function recoverableMediaFunctionOffset(string $prelude): ?int
     {
         foreach ($this->splitTopLevel($prelude, ',') as $query) {
             $trimmed = trim($query);
-            if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\(/', $trimmed, $matches) !== 1) {
+            $functionOffset = $this->findUnsupportedTopLevelConditionFunctionOffset($trimmed, []);
+            if ($functionOffset === null) {
                 continue;
             }
 
@@ -255,7 +256,65 @@ final class CssMinifier
                 continue;
             }
 
-            return $queryOffset + (strpos($query, $matches[1]) ?: 0);
+            return $queryOffset + (strpos($query, $trimmed) ?: 0) + $functionOffset;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $allowedFunctions
+     */
+    private function findUnsupportedTopLevelConditionFunctionOffset(string $condition, array $allowedFunctions): ?int
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($condition);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== 0 || !$this->isIdentifierStart($char)) {
+                continue;
+            }
+
+            $identifier = strtolower($this->readIdentifier($condition, $i));
+            $after = $i + strlen($identifier);
+            if (($condition[$after] ?? '') !== '(') {
+                $i = $after - 1;
+                continue;
+            }
+
+            if (!in_array($identifier, $allowedFunctions, true)) {
+                return $i;
+            }
+
+            $i = $after - 1;
         }
 
         return null;
