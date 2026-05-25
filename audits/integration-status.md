@@ -1,5 +1,42 @@
 # Integration Status
 
+## Integration accepted - Readability Kinja annotation rework - 2026-05-25 04:45 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-readability-rework-20260525T043715Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-readability-rework-20260525T043715Z.patch`.
+Lane/slice/session: `readability` / `rework-kinja-annotation-block-cleanup` /
+`port-rework-readability`. Patch SHA-256 matched
+`af0930d7f5838852cc50e8107c377ac7a1a412d6412e04d088e73cb6b2069abd`.
+
+Clean worktree:
+`/tmp/port-clean-integrator-readability-rework-kinja-20260525T044419Z` from
+`refs/heads/main` at `766b50e999bd916729233602cbd4252e4332d6ac`.
+`git apply --check` and `git apply` both succeeded without three-way rebase.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/readability/src/ArticleExtractor.php`: PASS, no syntax errors.
+- `php -l lanes/readability/tests/ArticleExtractorTest.php`: PASS, no syntax errors.
+- `php -l lanes/readability/examples/wordpress-lifehacker-kinja-list-import.php`: PASS, no syntax errors.
+- `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php`: PASS, 1 test file, 1884 assertions, 0 failures.
+- `php lanes/readability/examples/wordpress-lifehacker-kinja-list-import.php`: PASS, reported Lifehacker title/byline/site, 36 paragraph blocks, 8 heading blocks, 4 list blocks, Kinja chrome retained `no`, lists wrapped as paragraphs `no`, source annotation ids retained in article HTML `yes`, source annotation ids retained in blocks `no`.
+- `git diff --check`: PASS.
+
+Root verification: exact no-argument root gate was empty before starting the
+root command. `php tools/run-tests.php`: PASS, 212 test files, 25149
+assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; the patch
+only extends a lane-local smoke example for already-present Readability Kinja
+annotation cleanup behavior. Live-service exclusions: none applicable.
+
+Files staged:
+
+- `lanes/readability/examples/wordpress-lifehacker-kinja-list-import.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - isolated Syncthing removed-folder watcher restart slice - 2026-05-25 04:42 UTC
 
 Ready marker:
