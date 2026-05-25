@@ -664,11 +664,24 @@ final class MarkdownWriter
     private function renderTableCaption(AstNode $node): string
     {
         $captionInlines = $node->attr('captionInlines', []);
+        $caption = '';
         if (is_array($captionInlines) && $captionInlines !== []) {
-            return $this->renderInlines($captionInlines);
+            $caption = $this->renderInlines($captionInlines);
+        } else {
+            $caption = $this->escapeText((string) $node->attr('caption', ''));
         }
 
-        return $this->escapeText((string) $node->attr('caption', ''));
+        $shortCaptionInlines = $node->attr('shortCaptionInlines', []);
+        if (is_array($shortCaptionInlines) && $shortCaptionInlines !== []) {
+            return '[' . $this->renderInlines($shortCaptionInlines) . '] ' . $caption;
+        }
+
+        $shortCaption = (string) $node->attr('shortCaption', '');
+        if ($shortCaption !== '') {
+            return '[' . $this->escapeText($shortCaption) . '] ' . $caption;
+        }
+
+        return $caption;
     }
 
     /**

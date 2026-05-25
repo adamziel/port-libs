@@ -13,6 +13,7 @@ $optionValues = [
     'json5_settings' => "{plugin:{enabled:true,modes:['cache','seo',],}, /* copied option */}",
     'custom_indent_settings' => '{"plugin":{"enabled":true,"modes":["cache","seo"]}}',
     'boolean_indent_settings' => '{"plugin":{"enabled":true,"source":"boolean-indent"}}',
+    'false_indent_settings' => '[1,2]',
     'float_indent_settings' => '{"plugin":{"enabled":true,"source":"float-indent"}}',
     'text_blob_settings' => new SQLiteBlobValue('{"plugin":{"enabled":true,"source":"cast-blob"}}'),
     'jsonb_settings' => new SQLiteBlobValue(SQLiteJsonB::encode([
@@ -36,6 +37,7 @@ foreach ($optionValues as $optionName => $optionValue) {
     $indent = match ($optionName) {
         'custom_indent_settings' => "\t",
         'boolean_indent_settings' => true,
+        'false_indent_settings' => false,
         'float_indent_settings' => 2.5,
         default => null,
     };

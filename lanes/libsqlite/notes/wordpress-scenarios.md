@@ -44,6 +44,9 @@ smoke now reports direct `JSON_PRETTY` output beside argument-vector output.
 Priority-keeper refresh 2026-05-25T10:40Z adds boolean true and fractional
 REAL custom-indent option rows so local review output covers SQLite SQL scalar
 coercion for the second `json_pretty(JSON, INDENT)` argument too.
+Priority-keeper rework 2026-05-25T10:50Z adds the missing boolean false
+custom-indent option row and direct-dispatch assertion so both SQL-dispatch
+entry points cover SQLite's false-to-`0` second-argument coercion.
 
 ## `json_each()` Option-Value Expansion Scenario
 

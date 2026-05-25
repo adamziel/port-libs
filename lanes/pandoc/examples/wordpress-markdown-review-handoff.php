@@ -217,6 +217,11 @@ $document = new AstNode('document', $document->attrs, [
     ]),
     new AstNode('table', [
         'caption' => 'Migration review queue',
+        'shortCaption' => 'Review queue',
+        'shortCaptionInlines' => [
+            new AstNode('text', ['text' => 'Review ']),
+            new AstNode('strong', [], [new AstNode('text', ['text' => 'queue'])]),
+        ],
         'captionInlines' => [
             new AstNode('text', ['text' => 'Migration ']),
             new AstNode('strong', [], [new AstNode('text', ['text' => 'review'])]),

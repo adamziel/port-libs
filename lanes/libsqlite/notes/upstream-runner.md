@@ -60,6 +60,10 @@ Priority-keeper refresh 2026-05-25T10:40Z adds boolean true and fractional
 REAL custom-indent coercion through both direct and argument-vector
 `json_pretty()` SQL dispatch, plus WordPress smoke rows for those option
 review cases. Focused verification is recorded in `lane-status.json`.
+Priority-keeper rework 2026-05-25T10:50Z adds the missing direct-dispatch
+boolean false custom-indent assertion and matching WordPress smoke row while
+preserving the accepted argument-vector false-indent case. Focused
+verification is recorded in `lane-status.json`.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
