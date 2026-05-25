@@ -109275,3 +109275,15 @@ Files staged:
 - `lanes/libsqlite/src/SQLiteJsonPretty.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+
+## Integration superseded - rclone OneDrive cleanup assertion - 2026-05-25 09:23 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-rclone-finisher-20260525T090717Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-finisher-20260525T090717Z.patch`.
+Lane/slice/session: `rclone` / `priority-finisher-20260525T090716Z` / `port-rclone-finisher`.
+Old head: `a3fa3df0175bb39daa4296f083898ddc9f5f4f5a`.
+
+Decision: superseded, not source-integrated. The patch test hunk for `lanes/rclone/tests/OneDriveCleanupCommandTest.php` is already present in current `main`, and current `main` carries newer accepted rclone cleanup evidence: 11 behavior tests with 68 assertions and rclone lane tests with 4025 assertions. Applying this marker with `git apply --3way` conflicted only in `lanes/rclone/lane-status.json` and `lanes/rclone/notes/upstream-inventory.md` because the marker contains older 64/4021 assertion status text. The exact failing command was `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-finisher-20260525T090717Z.patch` from a clean worktree at `a3fa3df0175bb39daa4296f083898ddc9f5f4f5a`.
+
+Focused/root verification: not rerun for this superseded marker; no source changes accepted. Support-library/dependency closure unchanged. Live-service exclusions unchanged: no live Graph/OAuth/provider tests.
+Files staged: `audits/integration-status.md` only.
