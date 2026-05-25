@@ -100699,3 +100699,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T024110Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch rejection - readability - 2026-05-25 02:45 UTC
+
+Ready marker: `port-readability-20260525T023734Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T023734Z.patch`
+Lane/slice/session: `readability` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `1f78efac9dee77e594636deba6c97e3e30f64c30`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-readability-20260525T024534Z/lanes/readability/tests/ArticleExtractorTest.php 
+- `php tools/run-tests.php lanes/readability/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-readability-20260525T024534Z/lanes/readability/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260525T023734Z.patch`, then fix the failing focused command above without broadening the slice.
+
