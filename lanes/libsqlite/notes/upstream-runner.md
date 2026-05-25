@@ -4890,3 +4890,46 @@ still covered by the existing JSONB helper rather than a SQL dispatcher, and
 full SQL expression evaluation, JSON aggregate functions, table-valued
 `json_each`/`json_tree`, broader BLOB ambiguity cases, WAL,
 rollback/savepoint, and b-tree delete/rebalance remain future slices.
+
+## Focused Native Mapping: `json_remove()`/`jsonb_remove()` SQL Dispatch
+
+For this bounded SQL-function dispatch slice, this isolated worktree reused
+prior focused upstream JSON remove evidence because the hydrated
+`.upstream-cache` checkout was absent here:
+
+```sh
+json102.test jsonb01.test
+```
+
+Prior accepted evidence passed 356 upstream tests with 0 errors for adjacent
+`json_remove()`/`jsonb_remove()` path behavior, including object-member
+removal, array removal, reverse array indexes, missing-path no-ops, multiple
+path argument order, root removal to SQL `NULL`, and malformed JSONB
+rejection.
+
+The native PHP slice adds `SQLiteJsonRemove::removeSqlFunction()` for the
+public SQL boundary where `json_remove()` returns canonical JSON text and
+`jsonb_remove()` returns SQLite JSONB blob bytes. It covers strict JSON text,
+supported JSON5 text, cast text BLOBs, SQLite JSONB blobs, SQL NULL input,
+no-path output, multiple path removals in SQLite argument order, and `$` root
+removal to SQL NULL. The focused libsqlite harness passed 229 PHP tests with
+1875 assertions and 0 failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new
+`examples/wordpress-json-remove-sql-dispatch-preflight.php` script lets
+WordPress migration or repair tooling preflight copied `wp_options` JSON
+cleanup while preserving the SQLite result-type distinction between text JSON
+and JSONB blobs, without requiring the SQLite extension.
+
+Dependency closure: no new support component is needed. This slice reuses
+existing bounded lane-local JSON5, JSONB, JSON path, canonical JSON, and BLOB
+wrapper components; it counts no shared support-library progress.
+
+Remaining boundaries: full SQL expression evaluation, broader JSONB BLOB
+ambiguity edge cases, aggregate JSON functions, table-valued
+`json_each`/`json_tree`, WAL, rollback/savepoint, and b-tree delete/rebalance
+remain future slices.

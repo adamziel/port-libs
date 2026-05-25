@@ -52,6 +52,17 @@ settings such as `$.plugin.legacyToken` and stale rule entries before import.
 This gives WordPress import and repair tooling a local-only cleanup path
 without requiring the SQLite extension.
 
+## `json_remove()`/`jsonb_remove()` Result-Type Dispatch Scenario
+
+Native JSON removal now includes a bounded SQL-dispatch helper for the SQLite
+result-type boundary: `json_remove()` returns canonical JSON text, while
+`jsonb_remove()` returns SQLite JSONB blob bytes. The example
+`examples/wordpress-json-remove-sql-dispatch-preflight.php` checks copied
+`wp_options.option_value` plugin settings and can report either decoded JSONB
+plus hex bytes or text JSON after obsolete paths are removed. This gives
+WordPress import and repair tooling a local-only way to preserve JSONB fixture
+typing during cleanup without requiring the SQLite extension.
+
 ## JSON Operator `min()`/`max()` RHS Index Preflight Scenario
 
 Native JSON operator expression-index preflight now folds reduced SQLite

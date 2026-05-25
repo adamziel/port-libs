@@ -6,6 +6,26 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonRemove
 {
+    public static function removeSqlFunction(string $function, string|SQLiteBlobValue|null $value, string ...$paths): string|SQLiteBlobValue|null
+    {
+        if ($function === 'json_remove') {
+            return self::remove($value, ...$paths);
+        }
+        if ($function !== 'jsonb_remove') {
+            throw new \InvalidArgumentException('SQLite JSON remove function must be json_remove or jsonb_remove');
+        }
+        if ($value === null) {
+            return null;
+        }
+
+        $jsonb = self::jsonbBytes($value);
+        $removed = $paths === []
+            ? $jsonb
+            : SQLiteJsonB::remove($jsonb, ...$paths);
+
+        return $removed === null ? null : new SQLiteBlobValue($removed);
+    }
+
     public static function remove(string|SQLiteBlobValue|null $value, string ...$paths): ?string
     {
         if ($value === null) {

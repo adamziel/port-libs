@@ -1,5 +1,57 @@
 # Integration Status
 
+## Clean-patch integration accepted - libsqlite - 2026-05-25 01:16 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T010228Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T010228Z.patch`.
+
+Lane/slice/session: `libsqlite` /
+`supervisor-next-20260525T010228Z` / `port-libsqlite`.
+Patch sha256 verified:
+`5e25a8bf38bf7015dc72a52ce1c2df82ceebed9ec290e6bcc284c184820ef191`.
+Straight `git apply --check` failed against current `main` due to lane
+manifest/status drift; bounded `git apply --3way` applied cleanly with no
+conflicts.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-libsqlite-supervisor-next-20260525T010228Z-1779671685`:
+
+- `php -l lanes/libsqlite/src/SQLiteJsonRemove.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-remove-sql-dispatch-preflight.php`:
+  passed.
+- JSON validation for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-remove-sql-dispatch-preflight.php`:
+  passed, exit 0, emitted JSONB result smoke output.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`:
+  passed, 1 selected test file, 1875 assertions, 0 failures.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` ran in the same clean worktree and
+passed with 208 test files, 24496 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component or activation gate
+is accepted. The slice reuses existing lane-local JSON5, JSONB, JSON path,
+canonical JSON, and BLOB wrapper code.
+
+Live-service exclusions: no live service or provider tests were run. Upstream
+SQLite cache hydration was not performed; prior focused upstream evidence is
+unchanged.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-remove-sql-dispatch-preflight.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonRemove.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
+
 ## Clean-patch integration accepted - Gitoxide - 2026-05-25 01:12 UTC
 
 Accepted isolated ready marker:

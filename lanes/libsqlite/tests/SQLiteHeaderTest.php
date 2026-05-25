@@ -3205,6 +3205,37 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::remove($json, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::remove('{"plugin":,}', '$.plugin'));
     },
+    'dispatches sqlite json remove sql functions with text or jsonb result typing' => static function (TestRunner $t): void {
+        $json = '{"plugin":{"enabled":true,"legacyToken":"secret","rules":[{"name":"seo"},{"name":"cache"}]},"keep":1}';
+        $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => true,
+                'legacyToken' => 'secret',
+                'rules' => [
+                    ['name' => 'seo'],
+                    ['name' => 'cache'],
+                ],
+            ],
+            'keep' => 1,
+        ]));
+
+        $textResult = SQLiteJsonRemove::removeSqlFunction('json_remove', $jsonb, '$.plugin.legacyToken');
+        $t->same('{"plugin":{"enabled":true,"rules":[{"name":"seo"},{"name":"cache"}]},"keep":1}', $textResult);
+
+        $blobResult = SQLiteJsonRemove::removeSqlFunction('jsonb_remove', $json, '$.plugin.legacyToken', '$.plugin.rules[0]');
+        $t->true($blobResult instanceof SQLiteBlobValue);
+        $t->same(
+            ['plugin' => ['enabled' => true, 'rules' => [['name' => 'cache']]], 'keep' => 1],
+            SQLiteJsonB::decode($blobResult->bytes),
+        );
+
+        $unchangedBlob = SQLiteJsonRemove::removeSqlFunction('jsonb_remove', $json);
+        $t->true($unchangedBlob instanceof SQLiteBlobValue);
+        $t->same(['plugin' => ['enabled' => true, 'legacyToken' => 'secret', 'rules' => [['name' => 'seo'], ['name' => 'cache']]], 'keep' => 1], SQLiteJsonB::decode($unchangedBlob->bytes));
+        $t->same(null, SQLiteJsonRemove::removeSqlFunction('jsonb_remove', $json, '$'));
+        $t->same(null, SQLiteJsonRemove::removeSqlFunction('json_remove', null, '$.plugin'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::removeSqlFunction('json_patch', $json, '$.plugin'));
+    },
     'inspects focused sqlite jsonb types at root and paths' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode([
             'object' => ['nested' => 1],
