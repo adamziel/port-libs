@@ -143,6 +143,9 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
         if ($repositoryPath === '' || str_contains($repositoryPath, "\0")) {
             throw new \InvalidArgumentException('git-daemon receive-pack repository path must be non-empty and must not contain NUL bytes');
         }
+        if (!str_starts_with($repositoryPath, '/')) {
+            throw new \InvalidArgumentException('git-daemon receive-pack repository path must be an absolute URL path');
+        }
     }
 
     private static function validateHost(string $host): void

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\SendPackSession;
+use PortLibs\Gitoxide\GitDaemonReceivePackTransport;
 use PortLibs\Gitoxide\SshReceivePackTransport;
 use PortLibs\Gitoxide\StreamReceivePackTransport;
 use PortLibs\Gitoxide\Tree;
@@ -71,6 +72,16 @@ return [
     ),
     'sshTarget' => SshReceivePackTransport::parseRepositoryUrl('deploy@git.example.test:wp-content.git'),
     'sshCommand' => SshReceivePackTransport::receivePackCommand('wp-content.git'),
+    'gitDaemonServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', 9418, ['version=2']),
+    'unsafeGitDaemonPathRejected' => (static function (): bool {
+        try {
+            GitDaemonReceivePackTransport::serviceRequestBytes('wp-content.git', 'git.example.test');
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
     'unsafeSshTargetRejected' => (static function (): bool {
         try {
             SshReceivePackTransport::parseRepositoryUrl('git.example.test: -upload-pack=/tmp/helper');
@@ -80,5 +91,5 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources and preflight SSH targets before handing streams to a caller-approved SSH adapter.',
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, preflight SSH targets before handing streams to a caller-approved SSH adapter, and construct git-daemon service requests only for absolute repository URL paths.',
 ];

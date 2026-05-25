@@ -99279,3 +99279,24 @@ Files staged:
 - `lanes/esbuild/notes/wordpress-scenarios.md`
 - `lanes/esbuild/src/PackageResolver.php`
 - `lanes/esbuild/tests/PackageResolverTest.php`
+
+## Clean-patch integration - gitoxide - 20260525T004509Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T003834Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T003834Z.patch`
+Lane/slice/session: `gitoxide` / `supervisor-next-20260525T003834Z` / `port-gitoxide`
+Patch sha256: `2db917e743c4a125b8ab68b65b0e952181bf31d6950df12bad6c3d362dc8aa66` (verified)
+Apply mode: `plain`.
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-gitoxide-supervisor-next-20260525T003834Z-20260525T004509Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `lanes/gitoxide/notes/wordpress-scenarios.md`
+- `lanes/gitoxide/src/GitDaemonReceivePackTransport.php`
+- `lanes/gitoxide/tests/ReceivePackTransportTest.php`

@@ -15,5 +15,7 @@ return [
     'responseSuccessful' => $fixture['responseSuccessful'],
     'sshTarget' => $fixture['sshTarget'],
     'sshCommand' => $fixture['sshCommand'],
+    'gitDaemonServiceRequestPayload' => substr($fixture['gitDaemonServiceRequest'], 4),
+    'unsafeGitDaemonPathRejected' => $fixture['unsafeGitDaemonPathRejected'],
     'unsafeSshTargetRejected' => $fixture['unsafeSshTargetRejected'],
 ];

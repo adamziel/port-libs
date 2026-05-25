@@ -646,6 +646,15 @@ Runner status:
 - Root PHP verification was not run for the isolated 2026-05-24 micro-slice; root harness status is `not run - isolated micro-slice`.
 - The next inventory slice should materialize only the needed protocol/transport crate paths and try a controlled `cargo test -p gix-protocol --no-run --locked --offline` probe before any live runner attempt, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another smaller Gitoxide text-baseline/regression case beyond the built-in driver selection slice.
 
+Focused git-daemon receive-pack path-safety inventory inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request mapping. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice requires git-daemon receive-pack repository paths to be absolute URL paths before pkt-line service-request construction or stream writes. This keeps caller-built requests aligned with parsed `git://host/path` targets and rejects relative repository names at the native transport boundary.
+- The WordPress receive-pack transport fixture now records a safe git-daemon deploy service request for `/wp-content.git` plus a relative-path rejection check, without opening a network connection.
+- Dependency closure for the git-daemon path-safety slice: no new support component is needed. The slice reuses existing bounded receive-pack transport/pkt-line construction and PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the git-daemon path-safety slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 210 assertions, and 0 failures. The updated WordPress receive-pack transport example exits 0 and demonstrates safe git-daemon service-request payload construction.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
 Current PHP mapping:
 
 - `GitObjectTest.php` maps canonical object header storage, SHA-1/SHA-256 object IDs, loose header encode/decode round trips, upstream `ObjectRef::from_loose()` short-payload rejection and advertised-prefix body parsing, strict exact storage parsing, loose object zlib storage, invalid object headers, and a WordPress block-content loose-object header fixture.
