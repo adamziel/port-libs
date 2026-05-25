@@ -99368,3 +99368,13 @@ Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-2026052
   - `lanes/libsqlite/notes/upstream-runner.md`
   - `lanes/libsqlite/notes/wordpress-scenarios.md`
   - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+
+## Clean integration repair - libsqlite missing JSON remove source - 2026-05-25T00:56:20Z UTC
+
+Repair for accepted marker `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T004606Z.ready`: the source file and WordPress example produced by the isolated patch were untracked in the clean worktree and were missed by the commit, while the accepted test referenced `SQLiteJsonRemove`.
+- Files included: `lanes/libsqlite/src/SQLiteJsonRemove.php`, `lanes/libsqlite/examples/wordpress-json-remove-option-preflight.php`.
+- Focused commands: `php -l` on both PHP files: PASS; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: PASS.
+- Root command: `php tools/run-tests.php`: PASS.
+- `git diff --check`: PASS.
+- Support-library/dependency closure: no new support-library activation.
+- Live-service exclusions: none; no live-service provider tests run.
