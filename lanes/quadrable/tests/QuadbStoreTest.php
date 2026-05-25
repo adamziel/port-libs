@@ -268,6 +268,54 @@ return [
             quadrableQuadbRemoveDir($storeDir);
         }
     },
+    'native quadb store maps export int command output' => static function (TestRunner $t): void {
+        $missingDir = quadrableQuadbTempDir();
+        $storeDir = quadrableQuadbTempDir();
+
+        try {
+            $missingExport = QuadbStore::exportIntegerCommandOutput($missingDir, '|');
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$missingDir}/': No such file or directory\n",
+            ], $missingExport);
+            $t->true(!is_dir($missingDir), 'missing export --int command should not create the database directory');
+
+            if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
+                throw new RuntimeException('unable to create quadrable temp directory');
+            }
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::exportIntegerCommandOutput($storeDir, '|'));
+
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => '',
+                'stderr' => '',
+            ], QuadbStore::importIntegerCommandOutput(
+                $storeDir,
+                "10|wp_options:siteurl=https://example.test\n"
+                . "2|wp_posts:1=Published post\n",
+                '|'
+            ));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => "2|wp_posts:1=Published post\n10|wp_options:siteurl=https://example.test\n",
+                'stderr' => '',
+            ], QuadbStore::exportIntegerCommandOutput($storeDir, '|'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: separator must be non-empty\n",
+            ], QuadbStore::exportIntegerCommandOutput($storeDir, ''));
+        } finally {
+            quadrableQuadbRemoveDir($missingDir);
+            quadrableQuadbRemoveDir($storeDir);
+        }
+    },
     'native quadb store maps plain import and export command output' => static function (TestRunner $t): void {
         $missingDir = quadrableQuadbTempDir();
         $storeDir = quadrableQuadbTempDir();

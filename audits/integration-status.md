@@ -99156,3 +99156,21 @@ Files staged:
 - `lanes/pandoc/notes/upstream-inventory.md`
 - `lanes/pandoc/src/MarkdownWriter.php`
 - `lanes/pandoc/tests/MarkdownReaderTest.php`
+
+## Clean-patch integration - quadrable - 20260525T003632Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T001928Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T001928Z.patch`
+Lane/slice/session: `quadrable` / `watchdog-next-20260525T001928Z` / `port-quadrable`
+Patch sha256: `ff95cc1a68ab0d9985cbab94bf38d74f4f7eacce007d2447ded920ae8b7d1773` (verified)
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-quadrable-watchdog-next-20260525T001928Z-20260525T003632Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/quadrable/examples/wordpress-quadb-import-int-guard.php`
+- `lanes/quadrable/lane-status.json`
+- `lanes/quadrable/notes/wordpress-scenarios.md`
+- `lanes/quadrable/src/QuadbStore.php`
+- `lanes/quadrable/tests/QuadbStoreTest.php`

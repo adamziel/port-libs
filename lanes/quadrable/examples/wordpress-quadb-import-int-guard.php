@@ -33,25 +33,31 @@ try {
         $missingDir,
         "1,wp_options:siteurl=https://example.test\n"
     );
+    $missingExport = QuadbStore::exportIntegerCommandOutput($missingDir);
 
     if (!mkdir($storeDir, 0755, true) && !is_dir($storeDir)) {
         throw new RuntimeException('unable to create WordPress snapshot store directory');
     }
 
+    $emptyExport = QuadbStore::exportIntegerCommandOutput($storeDir);
     $numericPrefixImport = QuadbStore::importIntegerCommandOutput(
         $storeDir,
         "1x,wp_options:siteurl=https://example.test\n"
+        . "20,wp_posts:1=Published post\n"
     );
+    $populatedExport = QuadbStore::exportIntegerCommandOutput($storeDir);
     $nonnumericImport = QuadbStore::importIntegerCommandOutput($storeDir, "abc,value\n");
     $negativeImport = QuadbStore::importIntegerCommandOutput($storeDir, "-1,value\n");
     $tooLargeImport = QuadbStore::importIntegerCommandOutput($storeDir, "2147483648,value\n");
 
     echo json_encode([
-        'scenario' => 'guard WordPress integer snapshot imports with upstream-shaped quadb import --int output',
+        'scenario' => 'guard WordPress integer snapshot import/export with upstream-shaped quadb --int output',
         'missingImportExitCode' => $missingImport['exitCode'],
+        'missingExportExitCode' => $missingExport['exitCode'],
         'missingStoreCreatedDirectory' => is_dir($missingDir),
+        'emptyExportStdout' => $emptyExport['stdout'],
         'numericPrefixImportExitCode' => $numericPrefixImport['exitCode'],
-        'importedIntegerLines' => QuadbStore::open($storeDir)->exportIntegerLines(),
+        'populatedExportStdout' => $populatedExport['stdout'],
         'nonnumericImportStderr' => rtrim($nonnumericImport['stderr'], "\r\n"),
         'negativeImportStderr' => rtrim($negativeImport['stderr'], "\r\n"),
         'tooLargeImportStderr' => rtrim($tooLargeImport['stderr'], "\r\n"),

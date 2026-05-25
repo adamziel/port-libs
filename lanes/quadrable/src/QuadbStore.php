@@ -774,6 +774,31 @@ USAGE;
     }
 
     /**
+     * Native stdout/stderr/exit-code shape for `quadb export --int`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function exportIntegerCommandOutput(
+        string $directory,
+        string $separator = ',',
+        bool $trackKeys = true
+    ): array {
+        try {
+            return [
+                'exitCode' => 0,
+                'stdout' => self::openForCommand($directory, $trackKeys)->exportIntegerLines($separator),
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
      * Native stdout/stderr/exit-code shape for `quadb exportProof`.
      *
      * @param list<string> $keys
