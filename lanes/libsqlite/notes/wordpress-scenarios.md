@@ -1622,7 +1622,10 @@ copied `wp_options` JSON option arrays or postmeta migration queues with text
 JSON results or JSONB blob results, preserving SQLite's array-index,
 reverse-index append, missing-array creation, non-array no-op, and JSON
 subtype/JSONB embedded-fragment boundaries without requiring the SQLite
-extension.
+extension. The latest isolated finisher exercises uppercase SQL-style
+argument-vector dispatch through the same example, preserving the local
+WordPress path while matching SQLite's case-insensitive function-name
+boundary.
 
 ## `json_type()`/`json_array_length()` Inspection Dispatch Scenario
 

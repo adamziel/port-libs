@@ -5747,6 +5747,41 @@ Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON5, JSONB, canonical JSON, JSON subtype, and BLOB
 wrapper components; it counts no shared support-library progress.
 
+## Focused Native Mapping: `json_array_insert()`/`jsonb_array_insert()` Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated finisher rebases the accepted array-insert SQL-dispatch behavior
+on top of the current lane evidence and adds SQLite-style case-insensitive
+function-name dispatch plus SQL argument-vector validation for
+`json_array_insert()` and `jsonb_array_insert()`. Native
+`SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments()` now accepts the
+SQL call shape `[JSON, PATH, VALUE, ...]`, preserves text versus JSONB result
+typing, preserves SQL NULL input propagation, and rejects invalid arity,
+invalid path types, invalid function names, raw BLOB insert values, malformed
+input, and non-array-element paths.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON array-insert and JSONB evidence
+for the same upstream behavior cluster:
+
+```sh
+json109.test json102.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence is recorded in `lane-status.json`. This worker did not
+start the root aggregate harness because root verification was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON path, JSON5, JSONB, canonical JSON, JSON subtype, and
+BLOB wrapper components; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json_each()`/`json_tree()` Hidden Columns
 
 Date: 2026-05-25

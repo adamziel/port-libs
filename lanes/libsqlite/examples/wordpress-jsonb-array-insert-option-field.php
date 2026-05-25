@@ -12,9 +12,10 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $input = $argv[1] ?? null;
 $operation = $argv[2] ?? null;
+$normalizedOperation = is_string($operation) ? strtolower($operation) : null;
 $arguments = array_slice($argv, 3);
 
-if ($input === null || !in_array($operation, ['array_insert', 'json_array_insert', 'jsonb_array_insert'], true) || count($arguments) < 2 || count($arguments) % 2 !== 0) {
+if ($input === null || !in_array($normalizedOperation, ['array_insert', 'json_array_insert', 'jsonb_array_insert'], true) || count($arguments) < 2 || count($arguments) % 2 !== 0) {
     fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php json-or-hex array_insert|json_array_insert|jsonb_array_insert path value [path value...]\n");
     fwrite(STDERR, "Applies SQLite json_array_insert/jsonb_array_insert semantics to option/meta JSON migration arrays and prints text or JSONB SQL-dispatch results.\n");
     exit(1);
@@ -74,13 +75,13 @@ while ($arguments !== []) {
     $extraPairs[] = $extraValue;
 }
 
-$function = $operation === 'json_array_insert' ? 'json_array_insert' : 'jsonb_array_insert';
-$result = SQLiteJsonArrayInsert::arrayInsertSqlFunction($function, new SQLiteBlobValue($jsonb), $path, $value, ...$extraPairs);
+$function = $normalizedOperation === 'json_array_insert' ? 'JSON_ARRAY_INSERT' : 'JSONB_ARRAY_INSERT';
+$result = SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments($function, [new SQLiteBlobValue($jsonb), $path, $value, ...$extraPairs]);
 $mutated = $result instanceof SQLiteBlobValue ? $result->bytes : SQLiteJsonB::encode($decodeJsonInput((string) $result));
 
 echo json_encode([
     'inputKind' => $inputKind,
-    'operation' => $operation,
+    'operation' => $normalizedOperation,
     'sqlFunction' => $function,
     'resultKind' => $result instanceof SQLiteBlobValue ? 'sqlite-jsonb' : 'text-json',
     'decodedBefore' => $decoded,

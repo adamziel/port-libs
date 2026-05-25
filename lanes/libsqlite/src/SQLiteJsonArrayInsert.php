@@ -6,6 +6,24 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonArrayInsert
 {
+    /**
+     * @param list<mixed> $arguments
+     */
+    public static function arrayInsertSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue|null
+    {
+        if (count($arguments) < 3 || count($arguments) % 2 !== 1) {
+            throw new \InvalidArgumentException('SQLite json_array_insert() expects JSON plus path/value pairs');
+        }
+
+        $value = array_shift($arguments);
+        $path = array_shift($arguments);
+        if (!is_string($path)) {
+            throw new \InvalidArgumentException('SQLite JSON array insert path must be a string');
+        }
+
+        return self::arrayInsertSqlFunction($function, $value, $path, array_shift($arguments), ...$arguments);
+    }
+
     public static function arrayInsertSqlFunction(
         string $function,
         string|SQLiteBlobValue|null $value,
@@ -13,7 +31,7 @@ final class SQLiteJsonArrayInsert
         mixed $replacement,
         mixed ...$pathValuePairs,
     ): string|SQLiteBlobValue|null {
-        if ($function !== 'json_array_insert' && $function !== 'jsonb_array_insert') {
+        if (strcasecmp($function, 'json_array_insert') !== 0 && strcasecmp($function, 'jsonb_array_insert') !== 0) {
             throw new \InvalidArgumentException('SQLite JSON array insert function must be json_array_insert or jsonb_array_insert');
         }
         if ($value === null) {
@@ -41,7 +59,7 @@ final class SQLiteJsonArrayInsert
             ...$normalizedPairs,
         );
 
-        if ($function === 'jsonb_array_insert') {
+        if (strcasecmp($function, 'jsonb_array_insert') === 0) {
             return new SQLiteBlobValue($mutated);
         }
 

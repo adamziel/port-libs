@@ -3885,7 +3885,7 @@ return [
         $jsonbFragment = new SQLiteBlobValue(SQLiteJsonB::encode(['rule' => 'cdn']));
 
         $textInsert = SQLiteJsonArrayInsert::arrayInsertSqlFunction(
-            'json_array_insert',
+            'JSON_ARRAY_INSERT',
             $jsonbInput,
             '$.queue[1]',
             $jsonFragment,
@@ -3896,9 +3896,16 @@ return [
             '{"queue":["scan",{"task":"cache","priority":2},"rewrite"],"plugin":{"rules":["seo","literal-rule"]}}',
             $textInsert,
         );
+        $t->same(
+            '{"queue":["scan",{"task":"cache","priority":2},"rewrite"],"plugin":{"rules":["seo","literal-rule"]}}',
+            SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments(
+                'JSON_ARRAY_INSERT',
+                [$jsonbInput, '$.queue[1]', $jsonFragment, '$.plugin.rules[#]', 'literal-rule'],
+            ),
+        );
 
         $blobInsert = SQLiteJsonArrayInsert::arrayInsertSqlFunction(
-            'jsonb_array_insert',
+            'JSONB_ARRAY_INSERT',
             $json,
             '$.plugin.rules[#-0]',
             $jsonbFragment,
@@ -3914,9 +3921,26 @@ return [
             ],
             SQLiteJsonB::decode($blobInsert->bytes),
         );
+        $argumentBlobInsert = SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments(
+            'JSONB_ARRAY_INSERT',
+            [$json, '$.plugin.rules[#-0]', $jsonbFragment, '$.missing[0]', 7],
+        );
+        $t->true($argumentBlobInsert instanceof SQLiteBlobValue);
+        $t->same(
+            [
+                'queue' => ['scan', 'rewrite'],
+                'plugin' => ['rules' => ['seo', ['rule' => 'cdn']]],
+                'missing' => [7],
+            ],
+            SQLiteJsonB::decode($argumentBlobInsert->bytes),
+        );
 
         $t->same(null, SQLiteJsonArrayInsert::arrayInsertSqlFunction('jsonb_array_insert', null, '$.queue[0]', 'scan'));
+        $t->same(null, SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments('JSONB_ARRAY_INSERT', [null, '$.queue[0]', 'scan']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_insert', $json, '$.queue[0]', 'scan'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments('json_insert', [$json, '$.queue[0]', 'scan']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments('json_array_insert', [$json, '$.queue[0]']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments('json_array_insert', [$json, 7, 'scan']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_array_insert', $json, '$.queue[0]', 'scan', '$.queue[1]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_array_insert', $json, '$.queue[0]', 'scan', 7, 'rewrite'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonArrayInsert::arrayInsertSqlFunction('json_array_insert', $json, '$.plugin.raw', new SQLiteBlobValue("not-jsonb")));
