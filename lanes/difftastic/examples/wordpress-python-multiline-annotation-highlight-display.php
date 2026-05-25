@@ -6,7 +6,13 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\Difftastic\AnsiSyntaxHighlighter;
 
-$source = "def normalize_posts(\n"
+$source = "from __future__ import annotations\n"
+    . "from typing import Optional, TypeAlias\n"
+    . "\n"
+    . "Payload: TypeAlias = \"dict[str, list[int]]\"\n"
+    . "label = \"list\"\n"
+    . "\n"
+    . "def normalize_posts(\n"
     . "    posts: list[\n"
     . "        dict[str | bytes, int | list[str]],\n"
     . "    ],\n"
@@ -14,6 +20,8 @@ $source = "def normalize_posts(\n"
     . "    int,\n"
     . "    list[str],\n"
     . "]:\n"
+    . "    parent: Optional[Payload] = None\n"
+    . "    encoded: \"dict[str, list[int]]\" = {}\n"
     . "    list = []\n"
     . "    return (len(posts), list)\n";
 

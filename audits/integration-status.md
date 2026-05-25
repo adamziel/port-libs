@@ -99240,3 +99240,22 @@ Files staged:
 - `lanes/syncthing/notes/wordpress-scenarios.md`
 - `lanes/syncthing/src/FolderWatchScanScheduler.php`
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+
+## Clean-patch integration - difftastic - 20260525T004329Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T003224Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T003224Z.patch`
+Lane/slice/session: `difftastic` / `supervisor-next-20260525T003224Z` / `port-difftastic`
+Patch sha256: `67b4755e1bf8f01c761a0f48d29eda40ea1829c7718a526badcbdf9bf31730f3` (verified)
+Apply mode: `plain`.
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-difftastic-supervisor-next-20260525T003224Z-20260525T004329Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php`
+- `lanes/difftastic/lane-status.json`
+- `lanes/difftastic/notes/wordpress-scenarios.md`
+- `lanes/difftastic/src/SyntaxHighlightClassifier.php`
+- `lanes/difftastic/tests/TokenDifferTest.php`

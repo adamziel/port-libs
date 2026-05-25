@@ -3749,7 +3749,13 @@ return [
         $t->true(!in_array(['start' => $localListStart, 'end' => $localListStart + strlen('list'), 'style' => '1'], $spans, true), 'Local identifiers named like builtin types should remain normal outside annotation context.');
     },
     'ansi highlighter maps upstream python multiline annotation builtin types' => static function (TestRunner $t): void {
-        $source = "def migrate(\n"
+        $source = "from __future__ import annotations\n"
+            . "from typing import Optional, TypeAlias\n"
+            . "\n"
+            . "Payload: TypeAlias = \"dict[str, list[int]]\"\n"
+            . "label = \"list\"\n"
+            . "\n"
+            . "def migrate(\n"
             . "    post: dict[\n"
             . "        str | bytes,\n"
             . "        int | list[\n"
@@ -3760,6 +3766,8 @@ return [
             . "    int,\n"
             . "    list[str],\n"
             . "]:\n"
+            . "    parent: Optional[Payload] = None\n"
+            . "    encoded: \"dict[str, list[int]]\" = {}\n"
             . "    list = []\n";
         $highlighter = new AnsiSyntaxHighlighter();
 
@@ -3777,8 +3785,14 @@ return [
         foreach (['dict', 'str', 'bytes', 'int', 'list', 'tuple'] as $type) {
             $t->contains("\033[1m{$type}\033[0m", $rendered);
         }
+        $t->contains("\033[1mOptional\033[0m", $rendered);
+        $t->contains("\033[1mPayload\033[0m: \033[1mTypeAlias\033[0m \033[1m=\033[0m \033[1m\"dict[str, list[int]]\"\033[0m", $rendered);
+        $t->contains("    encoded: \033[1m\"dict[str, list[int]]\"\033[0m \033[1m=\033[0m {}", $rendered);
+        $t->contains("label \033[1m=\033[0m \033[95m\"list\"\033[0m", $rendered);
         $t->contains("    list \033[1m=\033[0m []", $rendered);
         $t->true(!str_contains($rendered, "    \033[1mlist\033[0m = []"), 'Runtime identifiers named like builtin types should remain normal outside multiline annotations.');
+        $t->true(!str_contains($rendered, "label \033[1m=\033[0m \033[1m\"list\"\033[0m"), 'Runtime strings that look like builtin type names should remain string-highlighted.');
+        $t->true(!str_contains($rendered, "return (len(posts), \033[1mlist\033[0m)"), 'Runtime identifiers after stringized annotations should not inherit stale annotation context.');
     },
     'ansi highlighter maps upstream ruby keywords constants and constructors' => static function (TestRunner $t): void {
         $line = "class ImportRunner; DEFAULT_LIMIT = nil; def call; end; require 'json'";

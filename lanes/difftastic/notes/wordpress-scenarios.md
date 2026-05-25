@@ -372,8 +372,10 @@ The WordPress Ruby migration helper now also exercises method-level Ruby block d
 
 The WordPress Python multiline annotation example now exercises migration helper signatures that wrap builtin type names across nested `dict[...]`, `list[...]`, `tuple[...]`, and PEP 604 `|` continuations. Type names inside the annotation are bold-highlighted while runtime locals named `list` stay normal, matching the upstream tree-sitter-python type-capture boundary without over-styling ordinary expressions.
 
-Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for `typing` aliases beyond builtin generics and deeper syntax-list-level annotation parsing.
+The WordPress Python multiline annotation example now also covers `from __future__ import annotations` plus `typing` aliases used in migration helpers. `Optional`, `TypeAlias`, and stringized `dict[str, list[int]]` annotations are bold-highlighted only in annotation or likely type-alias contexts, while `label = "list"` remains a normal string and runtime locals named `list` remain unpromoted.
+
+Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for qualified `typing.X` aliases, nested string annotation spans, and deeper syntax-list-level annotation parsing.
 
 ## Next Task
 
-Tighten Python `typing` alias and `from __future__ import annotations` stringized annotation edge cases without promoting runtime expressions.
+Expand Python annotation highlighting only with upstream-query evidence for qualified `typing.X` aliases and nested string annotation spans, while keeping runtime strings and ordinary expressions unpromoted.

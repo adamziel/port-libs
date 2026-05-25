@@ -45,6 +45,13 @@ final class SyntaxHighlightClassifier
         if ($token->kind === 'punctuation' && $this->isKeywordishOperator($language, $token->text)) {
             return 'keyword';
         }
+        if (
+            $this->isPythonLanguage($language)
+            && $token->kind === 'string'
+            && $this->isPythonStringizedAnnotationContext($source, $token)
+        ) {
+            return 'type';
+        }
         if ($token->kind !== 'identifier') {
             return null;
         }
@@ -234,7 +241,12 @@ final class SyntaxHighlightClassifier
 
     private function isPythonBuiltinTypeName(string $text): bool
     {
-        return in_array($text, ['bool', 'bytes', 'dict', 'float', 'int', 'list', 'set', 'str', 'tuple'], true);
+        return in_array($text, [
+            'Any', 'Callable', 'Dict', 'Iterable', 'Iterator', 'List', 'Literal',
+            'Mapping', 'MutableMapping', 'Optional', 'Sequence', 'Set', 'Tuple',
+            'TypeAlias', 'Union', 'bool', 'bytes', 'dict', 'float', 'int',
+            'list', 'set', 'str', 'tuple',
+        ], true);
     }
 
     private function isPythonTypeAnnotationContext(string $source, Token $token): bool
@@ -257,6 +269,54 @@ final class SyntaxHighlightClassifier
         }
 
         return $this->previousNonWhitespaceCharacters($source, $token->start, 2) === '->';
+    }
+
+    private function isPythonStringizedAnnotationContext(string $source, Token $token): bool
+    {
+        if (!$this->pythonStringLooksLikeTypeExpression($token->text)) {
+            return false;
+        }
+
+        if ($this->isPythonTypeAnnotationContext($source, $token)) {
+            return true;
+        }
+
+        if (!$this->pythonHasFutureAnnotationsImport($source)) {
+            return false;
+        }
+
+        return $this->isPythonLikelyTypeAliasAssignment($source, $token);
+    }
+
+    private function pythonStringLooksLikeTypeExpression(string $text): bool
+    {
+        $inner = trim($text, "\"'");
+        if ($inner === '') {
+            return false;
+        }
+
+        if (preg_match('/\b(?:bool|bytes|dict|float|int|list|set|str|tuple|Any|Callable|Dict|Iterable|Iterator|List|Literal|Mapping|MutableMapping|Optional|Sequence|Set|Tuple|TypeAlias|Union)\b/', $inner) !== 1) {
+            return false;
+        }
+
+        return preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*(?:\s*(?:\[|\]|\||,|\.|\(|\)|[A-Za-z0-9_]))*$/', $inner) === 1;
+    }
+
+    private function pythonHasFutureAnnotationsImport(string $source): bool
+    {
+        return preg_match('/^\s*from\s+__future__\s+import\s+(?:[A-Za-z_][A-Za-z0-9_]*\s*,\s*)*annotations(?:\s*,|\s|$)/m', $source) === 1;
+    }
+
+    private function isPythonLikelyTypeAliasAssignment(string $source, Token $token): bool
+    {
+        $lineStart = max(strrpos(substr($source, 0, $token->start), "\n") ?: 0, 0);
+        if ($lineStart > 0) {
+            $lineStart++;
+        }
+        $prefix = substr($source, $lineStart, $token->start - $lineStart);
+
+        return preg_match('/^\s*[A-Z][A-Za-z0-9_]*\s*=\s*$/', $prefix) === 1
+            || preg_match('/^\s*[A-Z][A-Za-z0-9_]*\s*:\s*TypeAlias\s*=\s*$/', $prefix) === 1;
     }
 
     /**
@@ -304,6 +364,9 @@ final class SyntaxHighlightClassifier
         }
 
         $continuation = substr($prefix, $openSquare);
+        if ($this->pythonSquareBracketBalance($continuation) <= 0) {
+            return false;
+        }
         if (str_contains($continuation, "]:\n")) {
             return false;
         }
@@ -316,6 +379,42 @@ final class SyntaxHighlightClassifier
         $region = substr($beforeOpen, $lastStatementBreak + 1);
 
         return str_contains($region, ':') || str_contains($region, '->');
+    }
+
+    private function pythonSquareBracketBalance(string $text): int
+    {
+        $balance = 0;
+        $quote = null;
+        $escaped = false;
+        $length = strlen($text);
+        for ($index = 0; $index < $length; $index++) {
+            $character = $text[$index];
+            if ($quote !== null) {
+                if ($escaped) {
+                    $escaped = false;
+                    continue;
+                }
+                if ($character === '\\') {
+                    $escaped = true;
+                    continue;
+                }
+                if ($character === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($character === '"' || $character === "'") {
+                $quote = $character;
+                continue;
+            }
+            if ($character === '[') {
+                $balance++;
+            } elseif ($character === ']') {
+                $balance--;
+            }
+        }
+
+        return $balance;
     }
 
     private function previousNonWhitespaceCharacter(string $source, int $start): ?string
