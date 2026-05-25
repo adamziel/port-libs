@@ -104318,6 +104318,16 @@ Verification:
 
 Root verification: not run for this bounded lane-local micro-slice.
 
+Correction - root verification evidence repaired - 2026-05-25 06:33 UTC:
+markerPDF commit tested was
+`cd7a04a7c474d38f8973f98be769afccac16cd6a`. Clean detached worktree:
+`/tmp/port-libs-markerpdf-root-cd7a04a7-20260525T0633Z`.
+`php tools/run-tests.php` was run there after confirming no active
+`php tools/run-tests.php` process was present; exact result:
+`213 test files, 25628 assertions, 0 failures`. `git diff --check` exact
+result: exit 0 with no output. No live-service provider tests were run. No
+source changes were made for this correction; it is audit-only evidence repair.
+
 Support-library/dependency-closure decision: no shared support-library row was
 activated. The slice reuses the existing native `PdfTextExtractor` parser and
 ToUnicode CMap lookup.
