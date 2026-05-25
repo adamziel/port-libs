@@ -176,17 +176,24 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
 
     private static function hostParameterValue(string $host, ?int $port): string
     {
+        $host = self::bracketIpv6Host($host);
         if ($port === null) {
             return $host;
-        }
-        if (str_contains($host, ':') && !str_starts_with($host, '[')) {
-            return "[{$host}]:{$port}";
         }
 
         return "{$host}:{$port}";
     }
 
     private static function tcpAddress(string $host): string
+    {
+        if (str_contains($host, ':') && !str_starts_with($host, '[')) {
+            return "[{$host}]";
+        }
+
+        return $host;
+    }
+
+    private static function bracketIpv6Host(string $host): string
     {
         if (str_contains($host, ':') && !str_starts_with($host, '[')) {
             return "[{$host}]";

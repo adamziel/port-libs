@@ -73,6 +73,7 @@ return [
     'sshTarget' => SshReceivePackTransport::parseRepositoryUrl('deploy@git.example.test:wp-content.git'),
     'sshCommand' => SshReceivePackTransport::receivePackCommand('wp-content.git'),
     'gitDaemonServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', 9418, ['version=2']),
+    'gitDaemonIpv6ServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', '2001:db8::42', null, ['version=2']),
     'unsafeGitDaemonPathRejected' => (static function (): bool {
         try {
             GitDaemonReceivePackTransport::serviceRequestBytes('wp-content.git', 'git.example.test');
@@ -91,5 +92,5 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, preflight SSH targets before handing streams to a caller-approved SSH adapter, and construct git-daemon service requests only for absolute repository URL paths.',
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, preflight SSH targets before handing streams to a caller-approved SSH adapter, and construct git-daemon service requests only for absolute repository URL paths while preserving bracketed IPv6 virtual-host targets.',
 ];

@@ -99413,3 +99413,26 @@ Repair for accepted marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260
 - `git diff --check`: PASS.
 - Support-library/dependency closure: no new support-library activation.
 - Live-service exclusions: none; no live-service provider tests run.
+
+## Clean isolated integration - gitoxide - 2026-05-25T01:00:31Z UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T004844Z.ready`
+
+- Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T004844Z.patch`
+- Lane/slice/session: `gitoxide` / `supervisor-next-20260525T004844Z` / `port-gitoxide-20260525T004844Z`
+- Metadata: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T004844Z.md`
+- Worker log: `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-gitoxide-20260525T004844Z.log`
+- Patch sha256: `7461ec08759c733629c77e2e0a42573ff50ac9a318ac27bd28b6fa91d265829d` verified.
+- Focused commands: `php -l` on changed PHP files: PASS; `php tools/run-tests.php lanes/gitoxide/tests`: PASS; JSON manifest/status validation: PASS.
+- Root command: `php tools/run-tests.php`: PASS.
+- `git diff --check`: PASS.
+- Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+- Live-service exclusions: no live-service provider tests run.
+- Files staged:
+  - `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+  - `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+  - `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+  - `lanes/gitoxide/lane-status.json`
+  - `lanes/gitoxide/notes/upstream-inventory.md`
+  - `lanes/gitoxide/src/GitDaemonReceivePackTransport.php`
+  - `lanes/gitoxide/tests/ReceivePackTransportTest.php`

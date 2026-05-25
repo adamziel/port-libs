@@ -328,6 +328,12 @@ return [
         $packetWithExtra = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', 9440, ['version=1']);
         $t->same("git-receive-pack /repo.git\0host=example.test:9440\0\0version=1\0", substr($packetWithExtra, 4));
 
+        $ipv6Packet = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', '2001:db8::1', null, ['version=2']);
+        $t->same("git-receive-pack /repo.git\0host=[2001:db8::1]\0\0version=2\0", substr($ipv6Packet, 4));
+
+        $ipv6PortPacket = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', '[2001:db8::1]', 9440);
+        $t->same("git-receive-pack /repo.git\0host=[2001:db8::1]:9440\0", substr($ipv6PortPacket, 4));
+
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::connect('https://example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::connect('git://example.test'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', ''));

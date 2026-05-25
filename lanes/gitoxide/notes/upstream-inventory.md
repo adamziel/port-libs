@@ -655,6 +655,15 @@ Focused git-daemon receive-pack path-safety inventory inspected on 2026-05-25:
 - Focused Gitoxide PHP verification after the git-daemon path-safety slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 210 assertions, and 0 failures. The updated WordPress receive-pack transport example exits 0 and demonstrates safe git-daemon service-request payload construction.
 - Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
 
+Focused git-daemon receive-pack IPv6 host-parameter inventory inspected on 2026-05-25:
+
+- Reused the existing static `gix-transport` git-daemon service-request mapping. No live git-daemon/provider runner was executed for this isolated micro-slice.
+- The PHP slice normalizes unbracketed IPv6 hosts in the git-daemon `host=` virtual-host parameter before pkt-line construction, while preserving already bracketed parsed URL hosts and explicit ports. This keeps caller-built `git://[v6]/repo.git` and direct service-request targets aligned with Git protocol host-parameter syntax without opening network connections.
+- The WordPress receive-pack transport fixture now records an IPv6 git-daemon deploy service request for `/wp-content.git` with `host=[2001:db8::42]`, plus the existing safe DNS deploy request and relative-path rejection check.
+- Dependency closure for the git-daemon IPv6 host-parameter slice: no new support component is needed. The slice reuses existing bounded receive-pack transport/pkt-line construction and PHP string validation; no shared support-library row or activation gate is proposed.
+- Focused Gitoxide PHP verification after the git-daemon IPv6 host-parameter slice is green: `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` reported 1 test file, 212 assertions, and 0 failures. Syntax checks passed for the changed source, test, fixture, and example PHP files. `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0, and `git diff --check -- lanes/gitoxide` exited 0.
+- Root PHP verification was not run for the isolated 2026-05-25 micro-slice; root harness status is `not run - isolated micro-slice`.
+
 Current PHP mapping:
 
 - `GitObjectTest.php` maps canonical object header storage, SHA-1/SHA-256 object IDs, loose header encode/decode round trips, upstream `ObjectRef::from_loose()` short-payload rejection and advertised-prefix body parsing, strict exact storage parsing, loose object zlib storage, invalid object headers, and a WordPress block-content loose-object header fixture.
