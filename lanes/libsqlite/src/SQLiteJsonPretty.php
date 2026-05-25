@@ -28,6 +28,15 @@ final class SQLiteJsonPretty
         return $formatter->format();
     }
 
+    public static function jsonPrettySqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, ?string $indent = null): ?string
+    {
+        if ($function !== 'json_pretty') {
+            throw new \InvalidArgumentException('SQLite JSON pretty function must be json_pretty');
+        }
+
+        return self::jsonPretty($value, $indent);
+    }
+
     private function format(): string
     {
         $pretty = $this->formatValue(0);

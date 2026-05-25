@@ -108602,3 +108602,9 @@ Root verification:
 Support-library/dependency closure: no new support component activated; this reuses the bounded native OneDrive version-cleanup model.
 Live-service exclusions: no live Graph, OAuth, token-store, cloud remote, provider credential, environment-secret, or live-service tests were run.
 Files staged: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, `lanes/rclone/notes/wordpress-scenarios.md`, `lanes/rclone/src/OneDriveCleanupCommand.php`, `lanes/rclone/tests/OneDriveCleanupCommandTest.php`, `audits/integration-status.md`.
+
+### 2026-05-25 priority clean integrator - libsqlite json_pretty SQL dispatch
+
+- Marker: `port-libsqlite-rework-20260525T074351Z.ready`; patch sha256 verified: `ebb582b4250ba08cdbcc2b1ced2af5a5d08571ab2d420f81d020e46118f2cd16`.
+- Focused verification: `php -l` on changed PHP files passed; example smoke passed; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2030 assertions, 0 failures`; `jq empty` passed; `git diff --check` passed.
+- Root verification: `php tools/run-tests.php` passed: `214 test files, 25884 assertions, 0 failures`.

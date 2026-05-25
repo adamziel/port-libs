@@ -1,5 +1,40 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: `json_pretty()` SQL Function Dispatch
+
+Date: 2026-05-25
+
+This isolated rework rebases the deferred `json_pretty` SQL-dispatch behavior
+on top of the accepted `json_extract`/`jsonb_extract` subtype dispatch and
+`json_each` table-valued row slices. Native `SQLiteJsonPretty` now validates
+the SQL function name `json_pretty`, dispatches default and caller-supplied
+indentation through the accepted formatter, preserves SQL NULL propagation,
+and rejects invalid function names without changing the accepted
+`json_pretty(JSON[,INDENT])` formatting boundary.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This rework reuses the prior focused `json_pretty` runner evidence:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite
+./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick \
+  json106.test json108.test
+```
+
+Prior result: passed 2 selected Tcl scripts, 45,007 tests, and 0 errors in
+00:08. Prior applicable runner evidence remains the complete SQLite
+`veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence after rework is recorded in `lane-status.json`.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
+formatter support; it does not activate or count progress against any shared
+support-library component.
+
 ## Focused Native Mapping: JSON Operator Parenthesized Scalar RHS Constants
 
 Date: 2026-05-24
