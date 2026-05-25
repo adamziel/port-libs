@@ -73,6 +73,10 @@ Priority-keeper rework 2026-05-25T11:10Z keeps the accepted SQL-dispatch
 cluster and additively covers JSONB option blobs with caller-supplied
 indentation through both direct and argument-vector `json_pretty()` dispatch.
 Focused verification is recorded in `lane-status.json`.
+Priority-keeper rework 2026-05-25T11:27Z fills the matching default-indent
+JSONB SQL-dispatch assertion gap, covering JSONB blobs through both direct and
+argument-vector `json_pretty()` dispatch when no second SQL argument is
+provided. Focused verification is recorded in `lane-status.json`.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty

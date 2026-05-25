@@ -109393,6 +109393,37 @@ Files staged:
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-retry-deferred-20260525T0952Z.ready`
 Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-retry-deferred-20260525T0952Z.patch`
+## Integration accepted - libsqlite json_pretty JSONB default indent - 2026-05-25 11:42 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T112729Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T112729Z.patch`.
+
+Lane/slice/session: `libsqlite` / `priority-keeper-rework-20260525T112729Z` / `port-libsqlite-rework`.
+Patch sha256 verified: `2b04d2dd32eae3669947fde23c7e75effa01e8cafceba8d53885aa4239d31682`.
+Clean worktree: `/tmp/port-clean-integrator-libsqlite-priority-keeper-rework-20260525T112729Z` from old main `a80e7212b8dac6915b2101b418404513296df07e`.
+
+Focused verification in the clean worktree:
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php && php -l lanes/libsqlite/src/SQLiteJsonPretty.php && php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed; `jsonb_settings` reported matching `json` and `directJson` output.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 2077 assertions, 0 failures`.
+- `git diff --check`: passed.
+
+Root verification: after the gate reported `/` available above `86000000` KiB,
+load below `25`, and no exact `php tools/run-tests.php` process, ran `php
+tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` in the
+clean worktree. Result: `214 test files, 26095 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support component activated. This
+micro-slice reuses existing lane-local JSON canonicalization, JSON5, JSONB,
+BLOB, subtype, SQL-dispatch, and pretty-format support.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.
+
 Lane/slice/session: `libsqlite` / `priority-keeper-rework-20260525T093834Z-retry` / `clean-integrator`
 
 Focused verification in `/tmp/port-clean-integrator-libsqlite-priority-keeper-rework-20260525T093834Z-retry-20260525T095538Z`:

@@ -56,6 +56,10 @@ Priority-keeper rework 2026-05-25T11:10Z additively covers JSONB option blobs
 with custom indentation through both direct and argument-vector SQL dispatch,
 so local review output now exercises the same indentation path for SQLite JSONB
 storage as for text JSON and cast text BLOB inputs.
+Priority-keeper rework 2026-05-25T11:27Z adds the matching focused assertions
+for JSONB option blobs through both SQL-dispatch paths with default
+indentation, aligning the native tests with the existing `jsonb_settings`
+WordPress smoke row.
 
 ## `json_each()` Option-Value Expansion Scenario
 
