@@ -63,6 +63,18 @@ plus hex bytes or text JSON after obsolete paths are removed. This gives
 WordPress import and repair tooling a local-only way to preserve JSONB fixture
 typing during cleanup without requiring the SQLite extension.
 
+## `json_patch()`/`jsonb_patch()` Result-Type Dispatch Scenario
+
+Native JSON merge patching now includes a bounded SQL-dispatch helper for the
+SQLite result-type boundary: `json_patch()` returns canonical JSON text, while
+`jsonb_patch()` returns SQLite JSONB blob bytes. The example
+`examples/wordpress-json-patch-sql-dispatch-preflight.php` checks copied
+`wp_options.option_value` plugin settings and applies RFC-7396 merge patches
+where object-member `null` values delete keys, nested objects merge, and arrays
+replace whole arrays. This gives WordPress import and repair tooling a
+local-only way to preserve JSONB fixture typing while applying plugin setting
+patches before import, without requiring the SQLite extension.
+
 ## JSON Operator `min()`/`max()` RHS Index Preflight Scenario
 
 Native JSON operator expression-index preflight now folds reduced SQLite

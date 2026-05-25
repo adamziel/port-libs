@@ -1,5 +1,20 @@
 # Integration Status
 
+## Integration accepted - libsqlite json_patch SQL dispatch - 2026-05-25 01:31 UTC
+
+Accepted isolated ready marker `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T012149Z.ready`.
+Patch path: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T012149Z.patch`.
+
+- Lane/slice/session: `libsqlite` / `supervisor-next-20260525T012149Z` / `port-libsqlite`.
+- Patch SHA-256: `d46daa436f5689c6800fb116bb3cac184bee958df0552a8b5ce1833d12f4fab2` verified with `sha256sum -c`.
+- Apply result: `git apply --check` passed cleanly against `e764c9980c883896faeb7d0e4355f9cff15880e7`; no three-way rebase or conflict repair was needed.
+- Focused commands: `php -l lanes/libsqlite/src/SQLiteJsonPatch.php`, `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `php -l lanes/libsqlite/examples/wordpress-json-patch-sql-dispatch-preflight.php` all reported no syntax errors; `php lanes/libsqlite/examples/wordpress-json-patch-sql-dispatch-preflight.php json_patch` emitted the expected JSON preflight record; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 1887 assertions, 0 failures`; `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+- Root command: `php tools/run-tests.php` passed in the clean worktree with `208 test files, 24541 assertions, 0 failures`.
+- Diff hygiene: `git diff --check` passed.
+- Support-library/dependency closure: no support-library activation. The slice reuses lane-local JSON5, JSONB, canonical JSON, and SQL-result typing helpers; it does not claim shared dependency progress.
+- Live-service exclusions: none needed; no provider or live-service tests were run.
+- Files staged: `lanes/libsqlite/src/SQLiteJsonPatch.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, `lanes/libsqlite/examples/wordpress-json-patch-sql-dispatch-preflight.php`, `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, and `audits/integration-status.md`.
+
 ## Clean-patch integration accepted - markerPDF - 2026-05-25 01:20 UTC
 
 Accepted isolated ready marker:

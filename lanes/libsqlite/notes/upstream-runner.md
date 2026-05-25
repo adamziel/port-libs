@@ -4933,3 +4933,46 @@ Remaining boundaries: full SQL expression evaluation, broader JSONB BLOB
 ambiguity edge cases, aggregate JSON functions, table-valued
 `json_each`/`json_tree`, WAL, rollback/savepoint, and b-tree delete/rebalance
 remain future slices.
+
+## Focused Native Mapping: `json_patch()`/`jsonb_patch()` SQL Dispatch
+
+For this bounded SQL-function dispatch slice, this isolated worktree reused
+prior focused upstream JSON patch evidence because the hydrated
+`.upstream-cache` checkout was absent here:
+
+```sh
+json104.test json101.test json502.test
+```
+
+Prior accepted evidence passed 325 upstream tests with 0 errors for adjacent
+`json_patch()`/`jsonb_patch()` merge-patch behavior, including RFC-7396 object
+merge examples, object-member deletion with patch `null`, nested object
+stripping, target non-object objectification, array/scalar/null whole-value
+replacement, SQL NULL propagation boundaries, and escaped object-label inputs.
+
+The native PHP slice adds `SQLiteJsonPatch::patchSqlFunction()` for the public
+SQL boundary where `json_patch()` returns canonical JSON text and
+`jsonb_patch()` returns SQLite JSONB blob bytes. It covers strict JSON text,
+supported JSON5 text, cast text BLOBs, SQLite JSONB blobs, SQL NULL input,
+object-member deletion, nested object merge, non-object target objectification,
+array/scalar whole-value replacement, and invalid function rejection. The
+focused libsqlite harness passed 230 PHP tests with 1887 assertions and 0
+failures:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+The new `examples/wordpress-json-patch-sql-dispatch-preflight.php` script lets
+WordPress migration or repair tooling preflight copied `wp_options` JSON
+merge-patch updates while preserving the SQLite result-type distinction
+between text JSON and JSONB blobs, without requiring the SQLite extension.
+
+Dependency closure: no new support component is needed. This slice reuses
+existing bounded lane-local JSON5, JSONB, canonical JSON, and BLOB wrapper
+components; it counts no shared support-library progress.
+
+Remaining boundaries: full SQL expression evaluation, broader JSONB BLOB
+ambiguity edge cases, aggregate JSON functions, table-valued
+`json_each`/`json_tree`, WAL, rollback/savepoint, and b-tree delete/rebalance
+remain future slices.

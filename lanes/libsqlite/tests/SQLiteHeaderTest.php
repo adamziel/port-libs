@@ -25,6 +25,7 @@ use PortLibs\LibSqlite\SQLiteJson5Parser;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
 use PortLibs\LibSqlite\SQLiteJsonPath;
+use PortLibs\LibSqlite\SQLiteJsonPatch;
 use PortLibs\LibSqlite\SQLiteJsonPretty;
 use PortLibs\LibSqlite\SQLiteJsonQuote;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
@@ -3235,6 +3236,47 @@ return [
         $t->same(null, SQLiteJsonRemove::removeSqlFunction('jsonb_remove', $json, '$'));
         $t->same(null, SQLiteJsonRemove::removeSqlFunction('json_remove', null, '$.plugin'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonRemove::removeSqlFunction('json_patch', $json, '$.plugin'));
+    },
+    'dispatches sqlite json patch sql functions with text or jsonb result typing' => static function (TestRunner $t): void {
+        $json = '{"plugin":{"enabled":false,"legacyToken":"secret","rules":["seo","cache"],"nested":{"old":1,"keep":2}},"keep":1}';
+        $patch = '{"plugin":{"enabled":true,"legacyToken":null,"rules":["cache"],"nested":{"old":null,"new":3}}}';
+        $json5Patch = "{plugin:{enabled:true,legacyToken:null,rules:['cache',],nested:{old:null,new:3,},},}";
+        $jsonbTarget = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => false,
+                'legacyToken' => 'secret',
+                'rules' => ['seo', 'cache'],
+                'nested' => ['old' => 1, 'keep' => 2],
+            ],
+            'keep' => 1,
+        ]));
+
+        $t->same(
+            '{"plugin":{"enabled":true,"rules":["cache"],"nested":{"keep":2,"new":3}},"keep":1}',
+            SQLiteJsonPatch::patch($json, $patch),
+        );
+        $t->same(
+            '{"plugin":{"enabled":true,"rules":["cache"],"nested":{"keep":2,"new":3}},"keep":1}',
+            SQLiteJsonPatch::patch($jsonbTarget, $json5Patch),
+        );
+
+        $textResult = SQLiteJsonPatch::patchSqlFunction('json_patch', $jsonbTarget, $patch);
+        $t->same('{"plugin":{"enabled":true,"rules":["cache"],"nested":{"keep":2,"new":3}},"keep":1}', $textResult);
+
+        $blobResult = SQLiteJsonPatch::patchSqlFunction('jsonb_patch', $json, $json5Patch);
+        $t->true($blobResult instanceof SQLiteBlobValue);
+        $t->same(
+            ['plugin' => ['enabled' => true, 'rules' => ['cache'], 'nested' => ['keep' => 2, 'new' => 3]], 'keep' => 1],
+            SQLiteJsonB::decode($blobResult->bytes),
+        );
+
+        $t->same('["replacement"]', SQLiteJsonPatch::patch('{"plugin":1}', '["replacement"]'));
+        $t->same('{"created":1}', SQLiteJsonPatch::patch('[1,2]', '{"created":1}'));
+        $t->same(null, SQLiteJsonPatch::patch(null, $patch));
+        $t->same(null, SQLiteJsonPatch::patch($json, null));
+        $t->same(null, SQLiteJsonPatch::patchSqlFunction('jsonb_patch', null, $patch));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPatch::patchSqlFunction('json_remove', $json, $patch));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPatch::patch('{"plugin":,}', $patch));
     },
     'inspects focused sqlite jsonb types at root and paths' => static function (TestRunner $t): void {
         $jsonb = SQLiteJsonB::encode([
