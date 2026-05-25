@@ -110863,3 +110863,24 @@ Cleanup:
 
 Dashboard publication should run next so `porting.html` and summary artifacts
 can reflect the accepted LightningCSS commit.
+## Integration accepted - rclone cleanup command evidence closure - 2026-05-25 23:06 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-dev-rclone-20260525T225038Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-dev-rclone-20260525T225038Z.patch` (`sha256 5b2736393a95a69eac9f20e161bdf4e6e0fb06a6db062a6256d98f9ae67ba9bd`, verified).
+Lane/slice/session: `rclone` / `continuous-dev-20260525T225038Z` / `port-dev-rclone`.
+
+Focused verification in clean worktree:
+- `php -l lanes/rclone/src/OneDriveCleanupCommand.php` passed.
+- `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed: 1 file, 133 assertions, 0 failures.
+- `php tools/run-tests.php lanes/rclone/tests` passed: 35 files, 4090 assertions, 0 failures.
+- `php lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` passed.
+- `jq empty lanes/rclone/lane-status.json lanes/rclone/UPSTREAM_TEST_MANIFEST.json` passed.
+- `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree: 214 test files, 26497 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. This evidence-only closure reuses the accepted native OneDrive cleanup/version-cleaner simulation and excludes live provider/OAuth tests.
+
+Live-service exclusions: no live OneDrive OAuth, provider config, token stores, cloud remotes, or provider integration tests were read or run.
