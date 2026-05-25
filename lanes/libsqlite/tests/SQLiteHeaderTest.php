@@ -24,6 +24,7 @@ use PortLibs\LibSqlite\SQLiteJsonConstructor;
 use PortLibs\LibSqlite\SQLiteJsonErrorPosition;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJson5Parser;
+use PortLibs\LibSqlite\SQLiteJsonEach;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonExtractIndexExpression;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
@@ -3241,6 +3242,70 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_valid', $settings));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_type', $settings, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonInspection::inspectionSqlFunction('json_array_length', '{"plugin":,}', '$.plugin'));
+    },
+    'iterates sqlite json_each table rows for text json5 and jsonb inputs' => static function (TestRunner $t): void {
+        $settings = '{"plugin":{"enabled":true,"title":"Cache","rules":[{"name":"seo"},{"name":"cache"}],"empty":null},"priority":7}';
+        $json5 = "{plugin:{enabled:false,title:'Cache',rules:['seo','cache',],},priority:+7}";
+        $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode([
+            'plugin' => [
+                'enabled' => true,
+                'title' => 'Cache',
+                'rules' => [
+                    ['name' => 'seo'],
+                    ['name' => 'cache'],
+                ],
+                'dotted.key' => 'quoted',
+            ],
+        ]));
+
+        $rootRows = SQLiteJsonEach::jsonEach($settings);
+        $t->same(['plugin', 'priority'], array_column($rootRows, 'key'));
+        $t->same(['object', 'integer'], array_column($rootRows, 'type'));
+        $t->same('{"enabled":true,"title":"Cache","rules":[{"name":"seo"},{"name":"cache"}],"empty":null}', $rootRows[0]['value']);
+        $t->same(null, $rootRows[0]['atom']);
+        $t->same(7, $rootRows[1]['atom']);
+        $t->same('$.plugin', $rootRows[0]['fullkey']);
+        $t->same('$', $rootRows[0]['path']);
+
+        $pluginRows = SQLiteJsonEach::jsonEachSqlFunction('json_each', $json5, '$.plugin');
+        $t->same(['enabled', 'title', 'rules'], array_column($pluginRows, 'key'));
+        $t->same(['false', 'text', 'array'], array_column($pluginRows, 'type'));
+        $t->same(0, $pluginRows[0]['value']);
+        $t->same(0, $pluginRows[0]['atom']);
+        $t->same('Cache', $pluginRows[1]['atom']);
+        $t->same('["seo","cache"]', $pluginRows[2]['value']);
+        $t->same('$.plugin.rules', $pluginRows[2]['fullkey']);
+        $t->same('$.plugin', $pluginRows[2]['path']);
+
+        $rulesRows = SQLiteJsonEach::jsonEach($jsonb, '$.plugin.rules');
+        $t->same([0, 1], array_column($rulesRows, 'key'));
+        $t->same(['object', 'object'], array_column($rulesRows, 'type'));
+        $t->same('{"name":"seo"}', $rulesRows[0]['value']);
+        $t->same('$.plugin.rules[1]', $rulesRows[1]['fullkey']);
+
+        $quotedRows = SQLiteJsonEach::jsonEach($jsonb, '$.plugin');
+        $t->same('$.plugin."dotted.key"', $quotedRows[3]['fullkey']);
+
+        $scalarRows = SQLiteJsonEach::jsonEach($settings, '$.plugin.title');
+        $t->same([[null, 'Cache', 'text', 'Cache', 1, null, '$.plugin.title', '$.plugin.title']], array_map(
+            static fn (array $row): array => [
+                $row['key'],
+                $row['value'],
+                $row['type'],
+                $row['atom'],
+                $row['id'],
+                $row['parent'],
+                $row['fullkey'],
+                $row['path'],
+            ],
+            $scalarRows,
+        ));
+
+        $t->same([], SQLiteJsonEach::jsonEach(null));
+        $t->same([], SQLiteJsonEach::jsonEach($settings, '$.plugin.missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEachSqlFunction('json_tree', $settings));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEach($settings, '$.plugin[#-]'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEach('{"plugin":,}', '$.plugin'));
     },
     'extracts sqlite json values with SQL result typing for text json5 and jsonb' => static function (TestRunner $t): void {
         $json = '{"plugin":{"enabled":true,"title":"Cache","priority":7,"ratio":1.5,"rules":[{"name":"seo"},{"name":"cache"}],"empty":null}}';

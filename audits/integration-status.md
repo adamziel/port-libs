@@ -108451,3 +108451,12 @@ Files staged:
 - `lanes/syncthing/src/FolderWatchScanScheduler.php`
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 - `audits/integration-status.md`
+
+## 2026-05-25 priority clean integration - libsqlite port-libsqlite-20260525T072800Z
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T072800Z.ready`.
+- Patch SHA-256 verified: `c94361da255f5b35f7dd0a90b0b6e05166203dfe5ab28704b978f520cda94fb9`.
+- Worker evidence inspected: `.tmux-team/logs/isolated-lane-workers/port-libsqlite-20260525T072800Z.log` reported focused lint, example smoke, JSON manifest validation, lane test, and lane diff check passing.
+- Focused verification: `php -l` on changed PHP files passed; `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed (1 test files, 2026 assertions, 0 failures); `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed; `git diff --check -- lanes/libsqlite` passed.
+- Root verification: `php tools/run-tests.php` passed (213 test files, 25840 assertions, 0 failures); `git diff --check` passed.
+- Root gate before focused/root: available KiB `129429868`/`129378992`, load `2.88`/`2.88`, no exact `php tools/run-tests.php` process.
