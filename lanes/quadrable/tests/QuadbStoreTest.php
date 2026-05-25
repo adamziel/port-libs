@@ -1582,6 +1582,11 @@ return [
                 'exitCode' => 0,
                 'stdout' => $proofBytes,
                 'stderr' => '',
+            ], QuadbStore::exportProofStdinCommandOutput($dir, "2\n4\n99", integerKeys: true));
+            $t->same([
+                'exitCode' => 0,
+                'stdout' => $proofBytes,
+                'stderr' => '',
             ], QuadbStore::exportProofStdinCommandOutput($dir, "2\r\n4\r\n99\r\n", integerKeys: true));
             $emptyStdinIntegerProof = QuadbStore::exportProofStdinCommandOutput($dir, '', integerKeys: true);
             $t->same(0, $emptyStdinIntegerProof['exitCode']);

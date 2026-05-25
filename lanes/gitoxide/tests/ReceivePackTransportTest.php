@@ -1021,6 +1021,67 @@ return [
         $t->same(false, str_contains($sameNameScopedRequests[2]['headers']['Cookie'], 'deploy_gate=admin'));
         $t->same($sameNameScopedRequest->requestBytes(), $sameNameScopedRequests[2]['body']);
 
+        $pathSpecificOrderRequests = [];
+        $pathSpecificOrderClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$pathSpecificOrderRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $pathSpecificOrderRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    if (count($pathSpecificOrderRequests) === 2) {
+                        return [
+                            'status' => 307,
+                            'headers' => [
+                                'Location' => 'https://git.example.test/redirected.git/git-receive-pack',
+                                'Set-Cookie' => [
+                                    'deploy_gate=root; Path=/; Secure',
+                                    'deploy_gate=redirect; Path=/redirected.git; Secure',
+                                    'deploy_gate=receive; Path=/redirected.git/git-receive-pack; Secure',
+                                ],
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                7.0,
+                [],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $pathSpecificOrderSession = $pathSpecificOrderClient->handshake();
+        $pathSpecificOrderSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $pathSpecificOrderRequest = $pathSpecificOrderSession->buildRequest([$blob]);
+
+        $pathSpecificOrderResponse = $pathSpecificOrderClient->send($pathSpecificOrderRequest);
+
+        $t->same(true, $pathSpecificOrderResponse->isSuccessful());
+        $t->same(
+            'deploy_gate=receive; deploy_gate=redirect; deploy_gate=root',
+            $pathSpecificOrderRequests[2]['headers']['Cookie']
+        );
+        $t->same($pathSpecificOrderRequest->requestBytes(), $pathSpecificOrderRequests[2]['body']);
+
         $relativePermanentRedirectRequests = [];
         $relativePermanentRedirectClient = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
@@ -1210,6 +1271,7 @@ return [
         $t->same(true, $redirectExample['secureCookiePlainRedirectOmitted']);
         $t->same(true, $redirectExample['defaultPathRedirectCookieOmitted']);
         $t->same(true, $redirectExample['sameNameScopedRedirectCookieRetained']);
+        $t->same(true, $redirectExample['pathSpecificRedirectCookiesFirst']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);

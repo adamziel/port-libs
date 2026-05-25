@@ -81,6 +81,11 @@ try {
         "2\r\n4\r\n99\r\n",
         integerKeys: true
     );
+    $integerEofProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "2\n4\n99",
+        integerKeys: true
+    );
     $emptyStdinIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
         $integerDir,
         '',
@@ -254,6 +259,8 @@ try {
         'integerBinaryProofBytes' => strlen($integerProofBytes),
         'integerCrlfProofMatchesLf' => $integerCrlfProofCommand['stdout'] === $integerProofBytes
             && $integerCrlfProofCommand['exitCode'] === 0,
+        'integerEofProofMatchesLf' => $integerEofProofCommand['stdout'] === $integerProofBytes
+            && $integerEofProofCommand['exitCode'] === 0,
         'emptyStdinIntegerProofMatchesDirectEmpty' => $emptyStdinIntegerProofCommand['exitCode'] === 0
             && $emptyStdinIntegerProofCommand['stdout'] === QuadbStore::open($integerDir)->exportIntegerProofBytes([]),
         'blankLineStdinIntegerProofFailsStoi' => $blankLineStdinIntegerProofCommand['exitCode'] === 1

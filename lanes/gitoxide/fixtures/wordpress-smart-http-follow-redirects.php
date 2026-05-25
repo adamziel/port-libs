@@ -48,6 +48,9 @@ $requester = static function (string $method, string $url, array $headers, ?stri
                     'deploy_gate=opened; Path=/; Secure',
                     'deploy_gate=admin; Path=/wp-admin; Secure',
                     'deploy_gate=; Max-Age=0; Path=/wp-admin; Secure',
+                    'path_order=root; Path=/; Secure',
+                    'path_order=redirect; Path=/redirected.git; Secure',
+                    'path_order=receive; Path=/redirected.git/git-receive-pack; Secure',
                 ],
             ],
             'body' => '',
@@ -76,6 +79,10 @@ $session = $client->handshake();
 $session->createOrUpdate('refs/heads/main', $blob->oid());
 $request = $session->buildRequest([$blob]);
 $response = $client->send($request);
+$redirectCookieHeader = $requests[2]['headers']['Cookie'] ?? '';
+$pathOrderReceivePosition = strpos($redirectCookieHeader, 'path_order=receive');
+$pathOrderRedirectPosition = strpos($redirectCookieHeader, 'path_order=redirect');
+$pathOrderRootPosition = strpos($redirectCookieHeader, 'path_order=root');
 
 $plainRedirectRequests = [];
 $plainRedirectRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$plainRedirectRequests, $packet, $flush, $advertisement, $responseBytes): array {
@@ -494,19 +501,24 @@ try {
 return [
     'requestMethods' => array_map(static fn (array $request): string => $request['method'], $requests),
     'requestUrls' => array_map(static fn (array $request): string => $request['url'], $requests),
-    'redirectCookieHeader' => $requests[2]['headers']['Cookie'] ?? null,
-    'expiredRedirectCookieOmitted' => !str_contains($requests[2]['headers']['Cookie'] ?? '', 'stale_gate='),
-    'maxAgeRedirectCookieRetained' => str_contains($requests[2]['headers']['Cookie'] ?? '', 'legacy_gate=opened'),
-    'pathScopedRedirectCookieOmitted' => !str_contains($requests[2]['headers']['Cookie'] ?? '', 'admin_gate='),
-    'foreignDomainRedirectCookieOmitted' => !str_contains($requests[2]['headers']['Cookie'] ?? '', 'foreign_gate='),
+    'redirectCookieHeader' => $redirectCookieHeader,
+    'expiredRedirectCookieOmitted' => !str_contains($redirectCookieHeader, 'stale_gate='),
+    'maxAgeRedirectCookieRetained' => str_contains($redirectCookieHeader, 'legacy_gate=opened'),
+    'pathScopedRedirectCookieOmitted' => !str_contains($redirectCookieHeader, 'admin_gate='),
+    'foreignDomainRedirectCookieOmitted' => !str_contains($redirectCookieHeader, 'foreign_gate='),
     'secureCookiePlainRedirectOmitted' => $plainRedirectResponse->isSuccessful()
         && str_contains($plainRedirectRequests[2]['headers']['Cookie'] ?? '', 'plain_gate=opened')
         && !str_contains($plainRedirectRequests[2]['headers']['Cookie'] ?? '', 'secure_gate='),
     'defaultPathRedirectCookieOmitted' => $defaultPathResponse->isSuccessful()
         && str_contains($defaultPathRequests[2]['headers']['Cookie'] ?? '', 'redirect_root_gate=opened')
         && !str_contains($defaultPathRequests[2]['headers']['Cookie'] ?? '', 'redirect_default_gate='),
-    'sameNameScopedRedirectCookieRetained' => str_contains($requests[2]['headers']['Cookie'] ?? '', 'deploy_gate=opened')
-        && !str_contains($requests[2]['headers']['Cookie'] ?? '', 'deploy_gate=admin'),
+    'sameNameScopedRedirectCookieRetained' => str_contains($redirectCookieHeader, 'deploy_gate=opened')
+        && !str_contains($redirectCookieHeader, 'deploy_gate=admin'),
+    'pathSpecificRedirectCookiesFirst' => $pathOrderReceivePosition !== false
+        && $pathOrderRedirectPosition !== false
+        && $pathOrderRootPosition !== false
+        && $pathOrderReceivePosition < $pathOrderRedirectPosition
+        && $pathOrderRedirectPosition < $pathOrderRootPosition,
     'postBodyPreserved' => ($requests[2]['body'] ?? null) === $request->requestBytes(),
     'rewritingPostRedirectRejected' => $rewritingRedirectRejected,
     'rewritingRequestMethods' => array_map(static fn (array $request): string => $request['method'], $rewritingRequests),

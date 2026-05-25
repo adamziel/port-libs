@@ -1202,16 +1202,28 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack cookie request URL');
         $requestHost = strtolower($request['host']);
         $requestPath = $request['path'] ?? '/';
+        $matchingCookies = [];
+        $position = 0;
         foreach ($cookies as $cookie) {
             $domainMatch = $cookie['hostOnly']
                 ? $requestHost === $cookie['domain']
                 : self::domainMatches($requestHost, $cookie['domain']);
             if (!$domainMatch || !self::pathMatches($requestPath, $cookie['path'])) {
+                $position++;
                 continue;
             }
             if ($cookie['secure'] && $request['scheme'] !== 'https') {
+                $position++;
                 continue;
             }
+            $matchingCookies[] = [$cookie, $position++];
+        }
+        usort(
+            $matchingCookies,
+            static fn (array $left, array $right): int => strlen($right[0]['path']) <=> strlen($left[0]['path'])
+                ?: $left[1] <=> $right[1]
+        );
+        foreach ($matchingCookies as [$cookie]) {
             $parts[] = "{$cookie['name']}={$cookie['value']}";
         }
 
