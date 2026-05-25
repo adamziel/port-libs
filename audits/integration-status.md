@@ -100531,3 +100531,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T023317Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch rejection - esbuild - 2026-05-25 02:45 UTC
+
+Ready marker: `port-esbuild-20260525T023451Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T023451Z.patch`
+Lane/slice/session: `esbuild` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `cb8882f1099241a63652e5487e3bda3f38dfb237`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-esbuild-20260525T024526Z/lanes/esbuild/tests/BundlerGraphBuilderTest.php 
+- `php tools/run-tests.php lanes/esbuild/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-esbuild-20260525T024526Z/lanes/esbuild/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T023451Z.patch`, then fix the failing focused command above without broadening the slice.
+
