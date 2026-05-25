@@ -33,6 +33,7 @@ return [
     'unsafeSmartHttpEncodedPathControlByteRejected' => $fixture['unsafeSmartHttpEncodedPathControlByteRejected'],
     'unsafeSmartHttpExtraParameterTabRejected' => $fixture['unsafeSmartHttpExtraParameterTabRejected'],
     'unsafeSmartHttpHeaderTabRejected' => $fixture['unsafeSmartHttpHeaderTabRejected'],
+    'unsafeSmartHttpNoProxyDelimiterRejected' => $fixture['unsafeSmartHttpNoProxyDelimiterRejected'],
     'unsafeSshTargetRejected' => $fixture['unsafeSshTargetRejected'],
     'unsafeSshHostDelimiterRejected' => $fixture['unsafeSshHostDelimiterRejected'],
     'unsafeSshUserDelimiterRejected' => $fixture['unsafeSshUserDelimiterRejected'],

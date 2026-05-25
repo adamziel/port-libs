@@ -936,6 +936,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             if (self::containsControlByte($pattern)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack noProxy entries must not contain control bytes');
             }
+            if ($pattern !== '*' && preg_match('/[\s\/\\\\]/', $pattern) === 1) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack noProxy entries must not contain whitespace, slash, or backslash delimiters');
+            }
             $patterns[] = $pattern;
         }
 

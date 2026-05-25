@@ -103557,3 +103557,31 @@ Files staged:
 - `lanes/esbuild/notes/wordpress-scenarios.md`
 - `lanes/esbuild/src/BundlerMetafile.php`
 - `lanes/esbuild/tests/BundlerGraphBuilderTest.php`
+
+## Clean-patch integration accepted - gitoxide - 20260525T060339Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T055533Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T055533Z.patch`
+Lane/slice/session: `gitoxide` / `watchdog-next-20260525T055533Z` / `port-gitoxide`
+Base old_head: `8169b64bdfc458fdd638f01bfc62bd1103fcc0db`
+
+Focused verification:
+- `sha256sum /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T055533Z.patch`: matched `72fd754d6ea6ba7d299c7fcb973b96454107adc31136f4aa2c056ae01d5873d9`.
+- `php -l` on 4 changed PHP file(s): passed.
+- `php tools/run-tests.php lanes/gitoxide/tests`: passed; PASS malformed tree mode is rejected PASS non-tree git object cannot be parsed as tree PASS wordpress fixture exposes deployable content tree entries  32 test files, 2753 assertions, 0 failures 
+- `git diff --check`: passed.
+
+Root verification:
+- Pre-root exact gate `pgrep -af '^php tools/run-tests\.php$'`: clear after 0s wait.
+- `php tools/run-tests.php`: passed; PASS wordpress option store expires snapshots and deletes stale options before reuse PASS folder scan service resumes through a wordpress option checkpoint store PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  212 test files, 25464 assertions, 0 failures 
+
+Support-library/dependency closure: no new support-library activation accepted for this isolated lane-local micro-slice; existing gated dependency backlog remains inactive unless the lane status already records a bounded future gate.
+Live-service exclusions: no live-service provider tests were run.
+Files staged:
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`
+- `lanes/gitoxide/tests/ReceivePackTransportTest.php`
