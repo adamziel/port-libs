@@ -109654,3 +109654,46 @@ Files staged:
 - `lanes/libsqlite/notes/wordpress-scenarios.md`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+## Integration accepted - rclone cleanup-command rework refresh - 2026-05-25 12:55 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T122552Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-20260525T122552Z.patch`.
+
+Lane/slice/session: `rclone` / `priority-refill-20260525T122552Z` /
+`port-rclone`. Patch sha256 verified as
+`55c12d0588e6712965a8526362642cc28928a459c3c971041014c83e7283d892`.
+
+Apply result: clean plain apply on detached clean worktree
+`/tmp/port-clean-integrator-rclone-priority-refill-20260525T122552Z` rooted at
+`db5bdd8e4250f8521401888aaf85f61ca875905f`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/rclone/src/OneDriveCleanupCommand.php`: passed.
+- `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php`: passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`: passed.
+- `jq empty lanes/rclone/UPSTREAM_TEST_MANIFEST.json lanes/rclone/lane-status.json`: passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php`: passed, 1 test file, 93 assertions, 0 failures.
+- `php lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`: passed.
+- `php tools/run-tests.php lanes/rclone/tests`: passed, 35 test files, 4050 assertions, 0 failures.
+- `git diff --check`: passed.
+
+Root verification: after the gate was open (`df -Pk /` available KiB above
+`86000000`, load below `25`, and no exact no-argument root process),
+`php tools/run-tests.php` ran under
+`.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and passed:
+214 test files, 26123 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component was activated.
+This is a metadata-only/additive rework note for the already accepted bounded
+native PHP OneDrive cleanup-command model. Live Graph endpoints, OAuth token
+sources, live provider integration suites, FUSE/mount tests, Docker-backed
+serve coverage, and secret-bearing inputs remain excluded.
+
+Files staged:
+
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/cleanup-command-rework-20260525T122630Z.md`
+- `audits/integration-status.md`
