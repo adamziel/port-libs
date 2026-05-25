@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 08:04:08 UTC",
-    "sourceCommit": "3cd14b1aec9111fe765bd51d923cd52dc13a32ca",
-    "sourceCommitShort": "3cd14b1aec91",
+    "generated": "2026-05-25 08:09:38 UTC",
+    "sourceCommit": "9d1ad84035f093169932c1e9b60137eacfa201ca",
+    "sourceCommitShort": "9d1ad84035f0",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "293f2465622a92af01f69b941a799aa952e589db",
-    "dashboardCommitShort": "293f2465622a",
+    "dashboardCommit": "7e802c6ebec6dcb620e9be06ca9bdf2959b6fa56",
+    "dashboardCommitShort": "7e802c6ebec6",
     "averageProgressPercent": "85.8",
     "lanes": [
         {
@@ -132,15 +132,15 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "632",
-            "coverage": "632 / 2276",
-            "php": "220 pass / 0 fail",
+            "mapped": "633",
+            "coverage": "633 / 2276",
+            "php": "221 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory plus native Markdown/HTML reader and M...",
             "audit": "updated 2026-05-25: pandoc-local PHP lane...",
             "currentWork": "Native MarkdownWriter now maps explicit Pandoc Space/SoftBreak/LineBreak inline nodes on...",
             "nextTarget": "Map another bounded Markdown writer branch after Space/SoftBreak/LineBreak inline emissio...",
-            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 220 test...",
+            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 221 test...",
             "commit": "pending"
         },
         {
@@ -154,9 +154,9 @@
             "php": "137 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream runner pass plus native BLAKE2s/key/sparse-tre...",
-            "audit": "updated 2026-05-25T07:44Z isolated micro-...",
+            "audit": "updated 2026-05-25T08:16Z isolated micro-...",
             "currentWork": "Pure-PHP Quadrable data structures and proof transport plus native file-backed `QuadbStor...",
-            "nextTarget": "If accepted, continue reducing remaining command-surface parity gaps around proof/debug o...",
+            "nextTarget": "If accepted, continue reducing any remaining command-surface parity gaps only where upstr...",
             "blocker": "No current quadrable-specific upstream runner or focused PHP blocker.",
             "commit": "pending"
         },
