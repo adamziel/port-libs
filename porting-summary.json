@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 22:31:53 UTC",
-    "sourceCommit": "f24089b62e7cadab3a8361fdf2180edab8c0f242",
-    "sourceCommitShort": "f24089b62e7c",
+    "generated": "2026-05-25 22:36:39 UTC",
+    "sourceCommit": "c27ee7cb0aa64cb68ed8a59064642a850b3a5eed",
+    "sourceCommitShort": "c27ee7cb0aa6",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "d6870d64a059afe8930f3feed2dfca662f6f22f0",
-    "dashboardCommitShort": "d6870d64a059",
+    "dashboardCommit": "911a5a27cc0f6736ab583773fb143d90f72b21f8",
+    "dashboardCommitShort": "911a5a27cc0f",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -98,13 +98,13 @@
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "923",
-            "coverage": "923 / 3532",
-            "php": "1084 pass / 0 fail",
+            "mapped": "924",
+            "coverage": "924 / 3532",
+            "php": "1085 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
             "audit": "audited 2026-05-25",
-            "currentWork": "Native custom-media transformation now treats CSS comments as inert while collecting and...",
+            "currentWork": "Native custom-media transformation now treats CSS comments as inert while collecting, del...",
             "nextTarget": "Continue custom-media transformer parity around remaining preserve-mode and diagnostic ed...",
             "blocker": "No current LightningCSS implementation blocker for this slice.",
             "commit": "pending"
