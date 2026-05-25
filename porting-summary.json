@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 17:09:26 UTC",
-    "sourceCommit": "4e26f257a7b16bb1e9c9f8a0943e3141350e3410",
-    "sourceCommitShort": "4e26f257a7b1",
+    "generated": "2026-05-25 17:15:25 UTC",
+    "sourceCommit": "6ec23532cd71ddfd4b10246055e0e07e227afa67",
+    "sourceCommitShort": "6ec23532cd71",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "544f85b338df7b41723ed8548ca49f3175610edb",
-    "dashboardCommitShort": "544f85b338df",
+    "dashboardCommit": "5ef004cee95eb050d3f74e5f3d4075585c9d72e5",
+    "dashboardCommitShort": "5ef004cee95e",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -132,15 +132,15 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "655",
-            "coverage": "655 / 2276",
-            "php": "235 pass / 0 fail",
+            "mapped": "656",
+            "coverage": "656 / 2276",
+            "php": "236 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory plus native Markdown/HTML reader and M...",
             "audit": "updated 2026-05-25: priority-refill-20260...",
             "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, under...",
-            "nextTarget": "Map another bounded Markdown writer branch after soft-break option coverage, such as addi...",
-            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 235 test...",
+            "nextTarget": "Map another bounded Markdown writer branch after the rebased Space/SoftBreak/LineBreak co...",
+            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 236 test...",
             "commit": "pending"
         },
         {
