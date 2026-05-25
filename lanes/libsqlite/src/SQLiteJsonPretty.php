@@ -38,7 +38,7 @@ final class SQLiteJsonPretty
     }
 
     /**
-     * @param list<string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null> $arguments
+     * @param list<string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null> $arguments
      */
     public static function jsonPrettySqlFunctionArguments(string $function, array $arguments): ?string
     {
@@ -49,16 +49,43 @@ final class SQLiteJsonPretty
 
         $indent = null;
         if ($argumentCount === 2) {
-            $indentArgument = $arguments[1];
-            $indent = match (true) {
-                $indentArgument === null => null,
-                $indentArgument instanceof SQLiteBlobValue => $indentArgument->bytes,
-                $indentArgument instanceof SQLiteJsonSubtypeValue => $indentArgument->json,
-                default => $indentArgument,
-            };
+            $indent = self::sqlArgumentToText($arguments[1]);
         }
 
-        return self::jsonPrettySqlFunction($function, $arguments[0], $indent);
+        return self::jsonPrettySqlFunction($function, self::sqlArgumentToJsonInput($arguments[0]), $indent);
+    }
+
+    private static function sqlArgumentToJsonInput(string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value): string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null
+    {
+        if ($value instanceof SQLiteBlobValue || $value instanceof SQLiteJsonSubtypeValue || $value === null) {
+            return $value;
+        }
+
+        return self::sqlScalarToText($value);
+    }
+
+    private static function sqlArgumentToText(string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return $value->bytes;
+        }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return $value->json;
+        }
+
+        return self::sqlScalarToText($value);
+    }
+
+    private static function sqlScalarToText(string|int|float|bool $value): string
+    {
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        return (string) $value;
     }
 
     private function format(): string

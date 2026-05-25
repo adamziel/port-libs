@@ -415,6 +415,8 @@ final class MarkdownWriter
         }
 
         $markdown = $hasOnlyInlines ? $this->renderInlines($cell->children) : $this->renderBlockCollection($cell->children);
+        $markdown = str_replace("\\\r\n", "<br />", $markdown);
+        $markdown = str_replace("\\\n", "<br />", $markdown);
 
         return str_replace(["\r\n", "\r", "\n"], [' ', ' ', '<br />'], trim($markdown));
     }

@@ -91,6 +91,13 @@ try {
         hex: true,
         integerKeys: true
     );
+    $directIntegerDumpWithBadFormat = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ['2', '4', '99'],
+        'BadFormat',
+        dump: true,
+        integerKeys: true
+    );
     $numericPrefixProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['2suffix', '4'],
@@ -123,6 +130,9 @@ try {
         'directIntegerExportProofExitCode' => $directIntegerProofCommand['exitCode'],
         'directIntegerBinaryProofMatchesStdin' => $directIntegerProofCommand['stdout'] === $integerProofBytes,
         'directIntegerHexProofMatchesStdin' => $directIntegerHexProofCommand === $integerHexProofCommand,
+        'directIntegerDumpIgnoresBadFormat' => $directIntegerDumpWithBadFormat['exitCode'] === 0
+            && str_contains($directIntegerDumpWithBadFormat['stdout'], 'ITEMS (2):')
+            && $directIntegerDumpWithBadFormat['stderr'] === '',
         'numericPrefixIntegerExportProofExitCode' => $numericPrefixProofCommand['exitCode'],
         'numericPrefixIntegerBinaryProofBytes' => strlen($numericPrefixProofCommand['stdout']),
         'badIntegerProofStdin' => $badIntegerProofCommand,

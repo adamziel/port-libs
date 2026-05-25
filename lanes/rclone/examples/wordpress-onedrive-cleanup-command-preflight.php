@@ -61,6 +61,7 @@ return [
     'continuedAfterListErrorDeletedVersions' => $continuedAfterListError['deletedVersions'],
     'continuedAfterListErrorLogs' => $continuedAfterListError['logs'],
     'featureMaskedError' => $featureMasked['error'],
+    'disabledNoVersionsError' => $disabledNoVersions['error'],
     'disabledNoVersionsProviderCalled' => $disabledNoVersions['providerCalled'],
     'secretInputsRead' => false,
 ];

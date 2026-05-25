@@ -19,6 +19,7 @@ $optionValues = [
             'modes' => ['cache', 'seo'],
         ],
     ])),
+    'scalar_flag_settings' => true,
     'null_settings' => null,
     'malformed_settings' => '{plugin:true,,}',
 ];
@@ -46,5 +47,5 @@ foreach ($optionValues as $optionName => $optionValue) {
 
 echo json_encode([
     'optionJson' => $report,
-    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, JSON5 plugin settings, custom indentation, cast text BLOBs, JSONB option blobs, NULL option values, and malformed settings before import.',
+    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, JSON5 plugin settings, custom indentation, cast text BLOBs, JSONB option blobs, scalar SQL option values, NULL option values, and malformed settings before import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

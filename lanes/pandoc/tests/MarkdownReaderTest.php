@@ -3019,9 +3019,18 @@ MD;
                         new AstNode('table_cell', ['text' => '7'], [new AstNode('text', ['text' => '7'])]),
                         new AstNode('table_cell', ['text' => 'needs-review'], [new AstNode('text', ['text' => 'needs-review'])]),
                         new AstNode('table_cell', [], [
-                            new AstNode('text', ['text' => 'line one']),
+                            new AstNode('text', ['text' => 'soft line one']),
                             new AstNode('softbreak'),
-                            new AstNode('text', ['text' => 'line two']),
+                            new AstNode('text', ['text' => 'soft line two']),
+                        ]),
+                    ]),
+                    new AstNode('table_row', [], [
+                        new AstNode('table_cell', ['text' => '3'], [new AstNode('text', ['text' => '3'])]),
+                        new AstNode('table_cell', ['text' => 'blocked'], [new AstNode('text', ['text' => 'blocked'])]),
+                        new AstNode('table_cell', [], [
+                            new AstNode('text', ['text' => 'hard boundary']),
+                            new AstNode('linebreak'),
+                            new AstNode('text', ['text' => 'follow-up required']),
                         ]),
                     ]),
                 ]),
@@ -3029,10 +3038,11 @@ MD;
         ]);
 
         $t->same(implode("\n", [
-            '|  Posts | Status       |      Review note       |',
-            '|-----:|:-----------|:--------------------:|',
-            '|     42 | ready        |    source \\| audit     |',
-            '|      7 | needs-review | line one<br />line two |',
+            '|  Posts | Status       |              Review note              |',
+            '|-----:|:-----------|:-----------------------------------:|',
+            '|     42 | ready        |            source \\| audit            |',
+            '|      7 | needs-review |   soft line one<br />soft line two    |',
+            '|      3 | blocked      | hard boundary<br />follow-up required |',
             '',
             ': Migration **review** packet',
         ]), (new MarkdownWriter())->write($document));

@@ -1580,6 +1580,16 @@ return [
             $t->same(0, $integerDump['exitCode']);
             $t->contains('ITEMS (2):', $integerDump['stdout']);
             $t->same('', $integerDump['stderr']);
+            $integerDumpWithBadFormat = QuadbStore::exportProofCommandOutput(
+                $dir,
+                ['2', '4', '99'],
+                'BadFormat',
+                dump: true,
+                integerKeys: true
+            );
+            $t->same(0, $integerDumpWithBadFormat['exitCode']);
+            $t->contains('ITEMS (2):', $integerDumpWithBadFormat['stdout']);
+            $t->same('', $integerDumpWithBadFormat['stderr']);
             $t->same([
                 'exitCode' => 1,
                 'stdout' => '',

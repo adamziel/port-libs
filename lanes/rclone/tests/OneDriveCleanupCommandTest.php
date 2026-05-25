@@ -136,6 +136,24 @@ return [
         $t->same([], $flow['logs']);
         $t->same(false, $flow['providerCalled']);
     },
+    'onedrive cleanup command disabled no versions path ignores dry run and traversal state' => static function (TestRunner $t): void {
+        $flow = OneDriveCleanupCommand::run([
+            [
+                'remote' => 'exports/site.wxr',
+                'versions' => ['current', 'old-review'],
+            ],
+        ], [
+            'noVersions' => false,
+            'dryRun' => true,
+            'walkError' => 'would not be reached',
+        ]);
+
+        $t->same(null, $flow['error']);
+        $t->same(0, $flow['walkedObjects']);
+        $t->same(0, $flow['versionRequests']);
+        $t->same([], $flow['skippedVersions']);
+        $t->same(false, $flow['providerCalled']);
+    },
     'onedrive cleanup command fails masked cleanup feature before dry run' => static function (TestRunner $t): void {
         $flow = OneDriveCleanupCommand::run([
             [
@@ -181,6 +199,7 @@ return [
         $t->same(['uploads/2026/05/import.jpg#superseded'], $example['continuedAfterListErrorDeletedVersions']);
         $t->same(['exports/site.wxr: Failed to remove versions: Graph versions list denied'], $example['continuedAfterListErrorLogs']);
         $t->same('cleanup unsupported', $example['featureMaskedError']);
+        $t->same(null, $example['disabledNoVersionsError']);
         $t->same(false, $example['disabledNoVersionsProviderCalled']);
         $t->same(false, $example['secretInputsRead']);
     },
