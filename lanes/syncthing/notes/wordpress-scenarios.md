@@ -250,6 +250,18 @@ state before recalculating global/need metadata, while IndexUpdate messages
 preserve existing remote files and add only the delta. The same example reports
 the local WordPress media files still needed after the peer index and the
 remote device availability for the current global file.
+
+The filesystem watcher lifecycle slice now includes removed-folder delayed
+dispatch cleanup for WordPress media folders: if a folder is removed/unshared
+after filesystem events were queued but before their Syncthing-style watch
+delay expires, native `FolderWatchScanScheduler::scanDueWatchEvents()` drops
+the stale queued paths and restart state instead of scanning or exposing stale
+watch status. Paused folders still preserve queued events for resume. Focused
+verification for this slice passed `FolderWatchScanSchedulerTest.php` with 152
+assertions, and `wordpress-fs-watch-scan-scheduler.php` shows the
+`removedDuringDispatchScan` smoke returning zero folders/errors with null
+removed-folder status. Dependency closure: no new support component is needed;
+the slice reuses the existing bounded watcher scheduler/aggregator components.
 The inbound request-serving slice now maps focused upstream `model.Request`,
 `readOffsetIntoBuf`, `scanner.Validate`, `fs.IsInternal`, `fs.TempName`,
 `fs.IsTemporary`, and `protocol.TestRequestMaxSize`

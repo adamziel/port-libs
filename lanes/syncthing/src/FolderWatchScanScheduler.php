@@ -310,6 +310,11 @@ final class FolderWatchScanScheduler
 
         ksort($this->aggregators, SORT_STRING);
         foreach ($this->aggregators as $folderId => $aggregator) {
+            if (!$this->folderExists($folderId)) {
+                unset($this->aggregators[$folderId], $this->watchRestarts[$folderId], $this->lastDispatchedBatches[$folderId]);
+                continue;
+            }
+
             if (!$this->folderAcceptsWatchEvents($folderId)) {
                 continue;
             }

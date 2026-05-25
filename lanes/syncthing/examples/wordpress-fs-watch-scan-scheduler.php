@@ -84,6 +84,17 @@ try {
     $removedStatusAfterAcknowledgement = $watchScheduler->watchStatus('wordpress-media', 1105);
     $removedWatchState = $watchScheduler->removeWatchingFolder('wordpress-media');
     $removedStatus = $watchScheduler->watchStatus('wordpress-media', 1110);
+    $scheduler->addFolder('wordpress-media-removed-during-dispatch', $service);
+    $watchScheduler->recordEvent('wordpress-media-removed-during-dispatch', 'wp-content/uploads/2026/05/gallery.jpg', now: 1120);
+    $watchScheduler->recordWatcherError(
+        'wordpress-media-removed-during-dispatch',
+        'watch teardown raced with delayed scan',
+        scanOnWatchError: false,
+        now: 1121,
+    );
+    $scheduler->removeFolder('wordpress-media-removed-during-dispatch');
+    $removedDuringDispatchScan = $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1130);
+    $removedDuringDispatchStatus = $watchScheduler->watchStatus('wordpress-media-removed-during-dispatch', 1130);
 
     echo json_encode([
         'watcher' => 'Syncthing FSWatcherDelay-style media scan and restart fallback',
@@ -116,6 +127,8 @@ try {
         'removedLegacyRestartAcknowledged' => $removedLegacyRestartAcknowledged,
         'removedWatchState' => $removedWatchState,
         'removedStatus' => $removedStatus,
+        'removedDuringDispatchScan' => $removedDuringDispatchScan->toRestStatus(),
+        'removedDuringDispatchStatus' => $removedDuringDispatchStatus,
         'checkpointRevision' => $service->checkpoint(1021)?->revision,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } finally {

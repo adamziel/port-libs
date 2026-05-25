@@ -1,5 +1,50 @@
 # Integration Status
 
+## Clean-patch integration accepted - Syncthing - 2026-05-25 05:01 UTC
+
+Accepted isolated marker
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T045348Z.ready`
+with patch
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T045348Z.patch`.
+
+Lane/slice/session: `syncthing` /
+`watchdog-next-20260525T045348Z` / `port-syncthing`. Patch SHA-256 verified:
+`a944abbbd4b9ded6ea9437b7255c29d692723af4f2b35b0d91be23197aedf2cc`.
+Clean worktree:
+`/tmp/port-clean-integrator-syncthing-watchdog-next-20260525T045348Z` from
+old head `f63a74adb1321ce410b0462c2bbfca07b2fdcdbb`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php`: passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`:
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`:
+  passed, 1 selected test file, 152 assertions, 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php | jq -e '.removedDuringDispatchStatus == null and .removedDuringDispatchScan.folderCount == 0 and .removedDuringDispatchScan.errorCount == 0'`:
+  passed.
+- `jq empty lanes/syncthing/UPSTREAM_TEST_MANIFEST.json lanes/syncthing/lane-status.json`:
+  passed.
+- `git diff --check`: passed.
+
+Root verification: exact no-argument gate
+`pgrep -af '^php tools/run-tests\.php$'` was empty before the run.
+`php tools/run-tests.php` passed in the clean worktree with 212 test files,
+25,176 assertions, and 0 failures.
+
+Support-library/dependency closure: no support-library activation. The patch
+reuses the bounded lane-local watcher scheduler and aggregator components.
+Live-service exclusions: none needed; no live provider tests were run.
+
+Files staged: `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`,
+`lanes/syncthing/lane-status.json`,
+`lanes/syncthing/notes/wordpress-scenarios.md`,
+`lanes/syncthing/src/FolderWatchScanScheduler.php`,
+`lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`, and
+`audits/integration-status.md`.
+
 ## Clean-patch integration accepted - esbuild - 2026-05-25 04:58 UTC
 
 Accepted isolated marker
