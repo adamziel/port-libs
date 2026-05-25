@@ -101214,3 +101214,9 @@ Root verification: `php tools/run-tests.php` passed in the clean worktree with z
 Support-library/dependency closure: no support-library activation. The patch reuses the existing lane-local merge/status projection surface and table-name normalization. Live-service exclusions: none.
 
 Files staged: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`, `lanes/dolt/examples/wordpress-merge-status-review.php`, `lanes/dolt/fixtures/wp-merge-review.php`, `lanes/dolt/lane-status.json`, `lanes/dolt/notes/upstream-runner.md`, `lanes/dolt/notes/wordpress-scenarios.md`, `lanes/dolt/src/MergeStatusTable.php`, `lanes/dolt/tests/MergeStatusTableTest.php`, `audits/integration-status.md`.
+
+### Correction - dolt source files applied - 2026-05-25 03:22 UTC
+
+The previous `dolt` integration audit commit `34e42aa86e37a25a2f1e6073a2618ec572147b2b` recorded the accepted marker after a clean focused/root run, but the source patch had only been checked, not applied, before commit. This correction applies `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dolt-20260525T025625Z.patch` on top of that audited head.
+
+Repeated verification after applying source: `php -l` on all changed PHP files passed, `jq empty lanes/dolt/UPSTREAM_TEST_MANIFEST.json lanes/dolt/lane-status.json` passed, `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed, `git diff --check` passed, and `php tools/run-tests.php` passed with 211 test files, 24884 assertions, 0 failures.

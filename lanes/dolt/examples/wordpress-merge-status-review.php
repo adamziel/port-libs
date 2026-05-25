@@ -71,6 +71,10 @@ return [
     'previewSchemaConflictDescriptionRows' => $previewConflicts->schemaConflictRows(
         $fixture['previewSchemaConflictDescriptions'],
     ),
+    'resolvedSchemaConflictState' => $mergeStatus->resolveSchemaConflicts(
+        $fixture['schemaConflictRows'],
+        $fixture['schemaConflictResolutionTables'],
+    ),
     'statusGuidance' => $mergeStatus->statusGuidance(
         $fixture['isMerging'],
         $fixture['conflictTables'],

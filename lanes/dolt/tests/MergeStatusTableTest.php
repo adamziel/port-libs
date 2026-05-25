@@ -53,6 +53,45 @@ return [
             ['table' => 'stored_procedure_conflict', 'num_conflicts' => 2],
         ], $rows);
     },
+    'dolt add schema conflict resolution clears commit-blocking schema paths' => static function (TestRunner $t): void {
+        $table = new MergeStatusTable();
+
+        $partial = $table->resolveSchemaConflicts(
+            [
+                ['name' => 'wp_options'],
+                ['name' => 'wp_postmeta'],
+            ],
+            ['wp_options'],
+        );
+        $t->same([
+            'remaining_schema_conflicts' => [
+                ['table' => 'wp_postmeta', 'num_conflicts' => 0],
+            ],
+            'status_guidance' => "You have unmerged tables.\n"
+                . "  (fix conflicts and run \"dolt commit\")\n"
+                . "  (use \"dolt merge --abort\" to abort the merge)\n\n"
+                . "Unmerged paths:\n"
+                . "  (use \"dolt add <table>...\" to mark resolution)\n"
+                . "\tschema conflict:  wp_postmeta",
+            'commit_guidance' => "Unmerged paths:\n"
+                . "  (use \"dolt add <table>...\" to mark resolution)\n"
+                . "\tschema conflict:  wp_postmeta",
+        ], $partial);
+
+        $resolved = $table->resolveSchemaConflicts(
+            [
+                ['name' => 'wp_options'],
+                ['name' => 'wp_postmeta'],
+            ],
+            ['wp_options', 'wp_postmeta'],
+        );
+        $t->same([
+            'remaining_schema_conflicts' => [],
+            'status_guidance' => MergeStatusTable::ALL_MERGED_HEADER,
+            'commit_guidance' => null,
+        ], $resolved);
+        $t->throws(InvalidArgumentException::class, static fn () => $table->resolveSchemaConflicts(['wp_options'], ['']));
+    },
     'dolt status guidance maps unresolved constraint violation merge text' => static function (TestRunner $t): void {
         $guidance = (new MergeStatusTable())->statusGuidance(
             true,
@@ -445,6 +484,10 @@ return [
         $previewSchemaConflictDescriptionRows = $previewConflicts->schemaConflictRows(
             $fixture['previewSchemaConflictDescriptions'],
         );
+        $resolvedSchemaConflictState = $table->resolveSchemaConflicts(
+            $fixture['schemaConflictRows'],
+            $fixture['schemaConflictResolutionTables'],
+        );
         $previewConflictRowsWithoutIds = array_map(static function (array $row): array {
             unset($row['dolt_conflict_id']);
             return $row;
@@ -502,6 +545,7 @@ return [
         $t->same($fixture['expectedPreviewConflictSummaryRows'], $previewConflictSummaryRows);
         $t->same($fixture['expectedPreviewConflictRowsWithoutIds'], $previewConflictRowsWithoutIds);
         $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $previewSchemaConflictDescriptionRows);
+        $t->same($fixture['expectedResolvedSchemaConflictState'], $resolvedSchemaConflictState);
         $t->same($fixture['expectedStatusGuidance'], $statusGuidance);
         $t->same($fixture['expectedCommitGuidance'], $commitGuidance);
         $t->same($fixture['expectedMergeArtifactPrelude'], $mergeArtifactPrelude);
@@ -530,6 +574,7 @@ return [
         $t->same([], $example['previewSchemaConflictRows']);
         $t->same($fixture['expectedPreviewSchemaConflictError'], $example['previewSchemaConflictError']);
         $t->same($fixture['expectedPreviewSchemaConflictDescriptionRows'], $example['previewSchemaConflictDescriptionRows']);
+        $t->same($fixture['expectedResolvedSchemaConflictState'], $example['resolvedSchemaConflictState']);
         $t->same($fixture['expectedMergeConstraintError'], $example['mergeConstraintError']);
         $t->same($fixture['expectedStatusGuidance'], $example['statusGuidance']);
         $t->same($fixture['expectedCommitGuidance'], $example['commitGuidance']);

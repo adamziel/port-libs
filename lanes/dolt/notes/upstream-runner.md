@@ -2049,3 +2049,12 @@
 - Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo count($r["previewSchemaConflictDescriptionRows"])."\n"; echo $r["previewSchemaConflictDescriptionRows"][0]["description"]."\n";'` returned one row and the expected `wp_options` column/check description text.
 - Root harness: not run - isolated micro-slice.
 - Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge-preview projection surface and static schema description formatting, with no shell-outs and no activation of a shared dependency.
+
+## Supervisor Rearm 2026-05-25 Schema-Conflict Resolution Slice
+
+- Upstream evidence reused: `dolt status` and `dolt commit` expose unresolved schema conflicts as commit-blocking unmerged paths, and upstream guidance tells users to run `dolt add <table>...` to mark resolution. Prior focused merge/status/schema-conflict Go/BATS evidence remains the bounded denominator for this lane slice; no wider upstream runner was executed in this isolated worktree.
+- Native delta: `MergeStatusTable::resolveSchemaConflicts()` now projects the visible state after `dolt add <table>` clears schema-conflict paths, including remaining `dolt_conflicts`-style schema rows, status guidance, and commit guidance. The WordPress fixture marks `wp_options` resolved and returns the all-merged status prompt while preserving the active merge conclusion state.
+- Focused evidence: `php tools/run-tests.php lanes/dolt/tests/MergeStatusTableTest.php` passed with 1 file, 133 assertions, and 0 failures.
+- Example smoke: `php -r '$r=require "lanes/dolt/examples/wordpress-merge-status-review.php"; echo count($r["resolvedSchemaConflictState"]["remaining_schema_conflicts"])."\n"; echo $r["resolvedSchemaConflictState"]["status_guidance"]."\n";'` returned `0` and `All conflicts and constraint violations fixed but you are still merging.` followed by the upstream commit conclusion hint.
+- Root harness: not run - isolated micro-slice.
+- Dependency closure: no new support component is needed; this reuses the existing bounded PHP merge/status projection surface and table-name normalization, with no shell-outs and no activation of a shared dependency.

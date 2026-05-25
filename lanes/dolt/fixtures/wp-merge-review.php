@@ -92,6 +92,7 @@ return [
     'schemaConflictRows' => [
         ['name' => 'wp_options'],
     ],
+    'schemaConflictResolutionTables' => ['wp_options'],
     'rootObjectConflicts' => [
         ['name' => 'wp_import_preview_view', 'numConflicts' => 1],
     ],
@@ -487,6 +488,11 @@ return [
                 . "check 'chk_review_state_present' was deleted in theirs but modified in ours\n"
                 . "check 'chk_review_state_values' was deleted in ours but modified in theirs",
         ],
+    ],
+    'expectedResolvedSchemaConflictState' => [
+        'remaining_schema_conflicts' => [],
+        'status_guidance' => MergeStatusTable::ALL_MERGED_HEADER,
+        'commit_guidance' => null,
     ],
     'expectedStatusGuidance' => "You have unmerged tables.\n"
         . "  (fix conflicts and constraint violations and run \"dolt commit\")\n"

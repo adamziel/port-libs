@@ -153,6 +153,41 @@ final class MergeStatusTable
     }
 
     /**
+     * Project the visible merge state after `dolt add <table>...` marks
+     * schema conflict tables as resolved.
+     *
+     * @param list<string|array{name:string, numConflicts?:int}> $schemaConflictTables
+     * @param list<string> $resolvedTables
+     * @return array{remaining_schema_conflicts:list<array{table:string,num_conflicts:int}>, status_guidance:string|null, commit_guidance:string|null}
+     */
+    public function resolveSchemaConflicts(array $schemaConflictTables, array $resolvedTables): array
+    {
+        $resolved = [];
+        foreach ($this->uniqueTableNames($resolvedTables) as $tableName) {
+            $resolved[$tableName] = true;
+        }
+
+        $remaining = [];
+        foreach ($this->conflictRows([], $schemaConflictTables) as $row) {
+            if (isset($resolved[$row['table']])) {
+                continue;
+            }
+            $remaining[] = $row;
+        }
+
+        $remainingTables = array_map(
+            static fn (array $row): string => $row['table'],
+            $remaining
+        );
+
+        return [
+            'remaining_schema_conflicts' => $remaining,
+            'status_guidance' => $this->statusGuidance(true, [], $remainingTables),
+            'commit_guidance' => $this->commitUnmergedPaths([], $remainingTables),
+        ];
+    }
+
+    /**
      * Render the artifact prelude printed by upstream `dolt merge` before its
      * final failure summary.
      *
