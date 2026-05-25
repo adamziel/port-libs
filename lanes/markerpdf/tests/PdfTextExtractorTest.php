@@ -266,6 +266,37 @@ return [
         $t->same('WordPress Blocks', $extractor->extractPlainText($pdf));
         $t->same(['WordPress Blocks'], $extractor->extractTextRuns($pdf));
     },
+    'decodes escaped PDF resource names before ToUnicode WordPress text lookup' => static function (TestRunner $t): void {
+        $content = 'BT /F#31 12 Tf 72 720 Td <4142> Tj ET';
+        $cmap = "/CIDInit /ProcSet findresource begin\n"
+            . "12 dict begin\n"
+            . "begincmap\n"
+            . "1 begincodespacerange\n"
+            . "<00> <FF>\n"
+            . "endcodespacerange\n"
+            . "2 beginbfchar\n"
+            . "<41> <0049006D0070006F00720074>\n"
+            . "<42> <0042006C006F0063006B0073>\n"
+            . "endbfchar\n"
+            . "endcmap\n"
+            . "CMapName currentdict /CMap defineresource pop\n"
+            . "end\n"
+            . "end\n";
+        $pdf = "%PDF-1.4\n"
+            . "1 0 obj\n<< /Type /Page /Resources << /Font << /F#31 2 0 R >> >> /Contents 4 0 R >>\nendobj\n"
+            . "2 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /EscapedSubset /Encoding /Identity-H /ToUnicode 3 0 R >>\nendobj\n"
+            . "3 0 obj\n<< /Length " . strlen($cmap) . " >>\nstream\n{$cmap}\nendstream\nendobj\n"
+            . "4 0 obj\n<< /Length " . strlen($content) . " >>\nstream\n{$content}\nendstream\nendobj\n%%EOF";
+        $extractor = new PdfTextExtractor();
+
+        $t->same('ImportBlocks', $extractor->extractPlainText($pdf));
+        $t->same(['ImportBlocks'], $extractor->extractTextRuns($pdf));
+
+        $flateContent = 'BT /F1 12 Tf 72 720 Td (Escaped Filter Name) Tj ET';
+        $compressed = gzcompress($flateContent);
+        $filterPdf = "%PDF-1.4\n1 0 obj\n<< /Filter /Fl#61teDecode /Length " . strlen($compressed) . " >>\nstream\n{$compressed}\nendstream\nendobj\n%%EOF";
+        $t->same('Escaped Filter Name', $extractor->extractPlainText($filterPdf));
+    },
     'groups adjacent text operators on the same PDF text line' => static function (TestRunner $t) use ($pdfWithContent): void {
         $content = 'BT /F1 12 Tf 72 720 Td (Heading) Tj T* (First ) Tj (paragraph) Tj 0 -16 Td (Second line) Tj ET';
         $lines = (new PdfTextExtractor())->extractTextLines($pdfWithContent($content));

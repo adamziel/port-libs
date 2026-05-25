@@ -1,5 +1,53 @@
 # Integration Status
 
+## Clean-patch integration accepted - markerPDF - 2026-05-25 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-markerpdf-current-rebase-20260525T013417Z-adc37b7f.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-markerpdf-current-rebase-20260525T013417Z-adc37b7f.patch`.
+Lane/slice/session: `markerpdf` /
+`rearmer-current-rebase-20260525T013417Z` /
+`port-markerpdf-current-rebase-prep`.
+
+Patch SHA-256 verification passed:
+`adc37b7fc09fa6490e6f0dfe616f5f9021f6ab51f097792f0a81f751b4b7006e`.
+Apply result: `git apply --check` passed against
+`b10fe3c4413d34c2aeb19310f5119b91ca514f9c`, then `git apply` applied the
+patch cleanly.
+
+Focused commands: `php -l lanes/markerpdf/src/PdfTextExtractor.php`, `php -l
+lanes/markerpdf/tests/PdfTextExtractorTest.php`, and `php -l
+lanes/markerpdf/examples/wordpress-pdf-escaped-name-import.php` all reported no
+syntax errors; `php lanes/markerpdf/examples/wordpress-pdf-escaped-name-import.php
+>/tmp/markerpdf-example-correction.json` passed and the WordPress markup
+contained `executes_python_or_models` and `executes_external_pdf_tools` false
+flags; `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`
+passed with `1 test files, 46 assertions, 0 failures`; `php tools/run-tests.php
+lanes/markerpdf/tests` passed with `47 test files, 979 assertions, 0 failures`;
+`jq empty lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json
+lanes/markerpdf/lane-status.json` passed.
+
+Root command: `php tools/run-tests.php` passed in the clean worktree with `209
+test files, 24595 assertions, 0 failures`. Diff hygiene: `git diff --check`
+passed.
+
+Support-library/dependency-closure decision: no support-library activation; the
+slice reuses bounded native `PdfTextExtractor` content-stream parsing,
+stream-filter chain, and ToUnicode lookup. Broader searchable PDF dictionary
+work remains gated to inactive `pdf-text-dictionary-core`. Live-service
+exclusions: full upstream markerPDF runner was excluded due to Poetry/heavy
+Python/PDF/model/runtime dependencies; no live-service, provider, credentialed,
+network, or secret-bearing tests were run. Files staged:
+`lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/markerpdf/examples/wordpress-pdf-escaped-name-import.php`,
+`lanes/markerpdf/lane-status.json`,
+`lanes/markerpdf/notes/upstream-test-inventory.md`,
+`lanes/markerpdf/notes/wordpress-scenarios.md`,
+`lanes/markerpdf/src/PdfTextExtractor.php`,
+`lanes/markerpdf/tests/PdfTextExtractorTest.php`, and
+`audits/integration-status.md`.
+
 ## Clean-patch integration accepted - LightningCSS - 2026-05-25 UTC
 
 Accepted source from corrected processing of isolated marker

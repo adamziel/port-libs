@@ -154,7 +154,7 @@ final class PdfTextExtractor
      */
     private function streamFilters(string $dict, array $objects = []): array
     {
-        if (!preg_match('/\/Filter\s*(?:\[(.*?)\]|\/([A-Za-z0-9]+)|(\d+)\s+\d+\s+R\b)/s', $dict, $match)) {
+        if (!preg_match('/\/Filter\s*(?:\[(.*?)\]|\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b)/s', $dict, $match)) {
             return [];
         }
 
@@ -163,7 +163,7 @@ final class PdfTextExtractor
         }
 
         if (($match[2] ?? '') !== '') {
-            return [$match[2]];
+            return [$this->decodePdfName($match[2])];
         }
 
         $objectNumber = isset($match[3]) ? (int) $match[3] : 0;
@@ -178,11 +178,11 @@ final class PdfTextExtractor
      */
     private function filterNamesFromValue(string $value, array $objects): array
     {
-        preg_match_all('/\/([A-Za-z0-9]+)|(\d+)\s+\d+\s+R\b/', $value, $matches, PREG_SET_ORDER);
+        preg_match_all('/\/([^\s\[\]()<>{}\/%]+)|(\d+)\s+\d+\s+R\b/', $value, $matches, PREG_SET_ORDER);
         $filters = [];
         foreach ($matches as $match) {
             if (($match[1] ?? '') !== '') {
-                $filters[] = $match[1];
+                $filters[] = $this->decodePdfName($match[1]);
                 continue;
             }
 
@@ -536,14 +536,14 @@ final class PdfTextExtractor
         $resourceMaps = [];
         if (preg_match_all('/\/Font\s*<<(.*?)>>/s', $pdfBytes, $fontMatches)) {
             foreach ($fontMatches[1] as $fontResourceDictionary) {
-                if (!preg_match_all('/\/([A-Za-z0-9_.-]+)\s+(\d+)\s+\d+\s+R\b/', $fontResourceDictionary, $resourceMatches, PREG_SET_ORDER)) {
+                if (!preg_match_all('/\/([^\s\[\]()<>{}\/%]+)\s+(\d+)\s+\d+\s+R\b/', $fontResourceDictionary, $resourceMatches, PREG_SET_ORDER)) {
                     continue;
                 }
 
                 foreach ($resourceMatches as $resourceMatch) {
                     $fontObjectNumber = (int) $resourceMatch[2];
                     if (isset($fontObjectMaps[$fontObjectNumber])) {
-                        $resourceMaps[$resourceMatch[1]] = $fontObjectMaps[$fontObjectNumber];
+                        $resourceMaps[$this->decodePdfName($resourceMatch[1])] = $fontObjectMaps[$fontObjectNumber];
                     }
                 }
             }
@@ -1140,7 +1140,14 @@ final class PdfTextExtractor
             return null;
         }
 
-        return substr($operand, 1);
+        return $this->decodePdfName(substr($operand, 1));
+    }
+
+    private function decodePdfName(string $name): string
+    {
+        return preg_replace_callback('/#([\da-fA-F]{2})/', static function (array $match): string {
+            return chr(hexdec($match[1]));
+        }, $name) ?? $name;
     }
 
     /**
