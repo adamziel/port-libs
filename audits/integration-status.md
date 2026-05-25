@@ -1,4 +1,30 @@
 
+## Clean-patch integration defer - markerPDF - 2026-05-25 05:23 UTC
+
+Deferred ready marker: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.patch`.
+
+Lane/slice/session: `markerpdf` / `watchdog-next-20260525T051029Z` / `port-markerpdf`.
+Patch SHA-256 verified: `501bbdc145f37cf80c8d4bdbdacf5559cbefcb324b1038da75e50042e4520a1e`.
+Decision: deferred, not integrated.
+
+Exact failing command in clean worktree from `cc79124cf8f02504d648062343dff022262d66a5`:
+
+- `git apply --check /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.patch` failed.
+- Bounded fallback `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T051029Z.patch` left conflicts.
+
+Conflicted files:
+
+- `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/markerpdf/lane-status.json`
+- `lanes/markerpdf/notes/upstream-test-inventory.md`
+- `lanes/markerpdf/notes/wordpress-scenarios.md`
+- `lanes/markerpdf/src/PdfTextExtractor.php`
+
+Repair command for the lane: re-emit the UTF-16 BOM literal-string slice from current `refs/heads/main` with only `PdfTextExtractor.php`, `PdfTextExtractorTest.php`, `wordpress-pdf-utf16-literal-import.php`, and minimal manifest/status/notes updates, then repeat `php -l` on changed PHP files, `php tools/run-tests.php lanes/markerpdf/tests/PdfTextExtractorTest.php`, `php tools/run-tests.php lanes/markerpdf/tests`, `php lanes/markerpdf/examples/wordpress-pdf-utf16-literal-import.php`, JSON validation, and `git diff --check -- lanes/markerpdf`.
+
+No focused/root verification was run for this marker because source conflicts remained. No support-library activation, live-service tests, or dashboard publication were performed.
+
 ## Clean-patch integration defer - LightningCSS - 2026-05-25 05:22 UTC
 
 Deferred ready marker: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T051029Z.ready`.
