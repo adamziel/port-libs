@@ -2753,6 +2753,40 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer math and raw inline emission' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $text('Reviewer formula: '),
+                new AstNode('math', ['text' => 'E = mc^2', 'display' => false]),
+                $text(' and raw cite '),
+                new AstNode('raw_tex', ['tex' => '\cite[22-23]{smith.1899}']),
+                $text(' plus markdown '),
+                new AstNode('raw_inline', ['format' => 'markdown', 'text' => '*kept*']),
+                $text(' and html '),
+                new AstNode('raw_inline', ['format' => 'html', 'text' => '<span>drop</span>']),
+                $text('.'),
+            ]),
+            new AstNode('paragraph', [], [
+                $text('Display formula: '),
+                new AstNode('math', ['text' => '\alpha + \omega \times x^2', 'display' => true]),
+            ]),
+            new AstNode('bullet_list', [], [
+                new AstNode('list_item', [], [
+                    new AstNode('math', ['text' => 'p', 'display' => false]),
+                    $text('-Tree with '),
+                    new AstNode('raw_tex', ['tex' => '\cite{tree}']),
+                ]),
+            ]),
+        ]);
+
+        $t->same(
+            'Reviewer formula: $E = mc^2$ and raw cite \cite[22-23]{smith.1899} plus markdown *kept* and html .'
+                . "\n\n" . 'Display formula: $$\alpha + \omega \times x^2$$'
+                . "\n\n" . '- $p$-Tree with \cite{tree}',
+            (new MarkdownWriter())->write($document)
+        );
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);

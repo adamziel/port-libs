@@ -1431,3 +1431,29 @@ passed. The focused file now contains 211 behavior tests.
 
 Root verification was not run for the 2026-05-25 quoted inline emission slice
 because the assigned work was an isolated micro-slice.
+
+`src/Text/Pandoc/Writers/Markdown/Inline.hs` was inspected for the bounded
+math/raw inline emission branch. The PHP Markdown writer now maps one focused
+check from that boundary: inline math emits `$...$`, display math emits
+`$$...$$`, raw TeX and Markdown-compatible raw inlines are preserved, and
+incompatible raw HTML inline content is suppressed on the Markdown output path.
+The WordPress reviewer handoff example now includes a formula packet with
+inline math, raw TeX citation text, and raw Markdown reviewer markup.
+
+Focused local verification on 2026-05-25 after the Markdown writer math/raw
+inline emission slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Reviewer formula packet|E = mc\\^2|cite|raw markdown"` emitted the reviewer
+formula packet with inline math, raw TeX citation text, and raw Markdown text;
+`php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed 1
+test file, 2,280 assertions, and 0 failures. `git diff --check --
+lanes/pandoc` passed. The focused file now contains 212 behavior tests.
+
+Root verification was not run for the 2026-05-25 math/raw inline emission slice
+because the assigned work was an isolated micro-slice.
+
+Dependency closure: no new support component is needed for this slice. The
+existing Markdown writer inline renderer handles delimiter emission and raw
+format gating locally; future richer math rendering or citation resolution
+should remain behind the existing inactive Pandoc math/citation support gates.

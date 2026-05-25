@@ -326,11 +326,10 @@ final class MarkdownWriter
             'quoted' => $this->renderQuoted($node),
             'link' => $this->renderLink($node, $following),
             'image' => $this->renderImage($node, $following),
+            'math' => $this->renderMath($node),
             'citation' => (string) $node->attr('text', $this->renderInlines($node->children)),
-            'raw_inline', 'raw_markdown', 'raw_html_inline' => (string) $node->attr(
-                'text',
-                $node->attr('markdown', $node->attr('html', ''))
-            ),
+            'raw_tex' => (string) $node->attr('tex', $node->attr('text', '')),
+            'raw_inline', 'raw_markdown', 'raw_html_inline' => $this->renderRawInline($node),
             'note' => $this->renderNoteReference($node),
             default => $this->renderInlines($node->children),
         };
@@ -433,6 +432,30 @@ final class MarkdownWriter
         }
 
         return "\u{201C}" . $this->renderInlines($node->children) . "\u{201D}";
+    }
+
+    private function renderMath(AstNode $node): string
+    {
+        $text = (string) $node->attr('text', '');
+        if ($node->attr('display') === true) {
+            return '$$' . $text . '$$';
+        }
+
+        return '$' . $text . '$';
+    }
+
+    private function renderRawInline(AstNode $node): string
+    {
+        $format = strtolower((string) $node->attr('format', ''));
+        if ($node->type === 'raw_markdown' || in_array($format, ['markdown', 'pandoc', 'commonmark', 'gfm'], true)) {
+            return (string) $node->attr('text', $node->attr('markdown', ''));
+        }
+
+        if (in_array($format, ['tex', 'latex', 'context'], true)) {
+            return (string) $node->attr('text', $node->attr('tex', ''));
+        }
+
+        return '';
     }
 
     /**
@@ -1041,7 +1064,9 @@ final class MarkdownWriter
             'code',
             'link',
             'image',
+            'math',
             'citation',
+            'raw_tex',
             'raw_inline',
             'raw_markdown',
             'raw_html_inline',

@@ -99138,3 +99138,21 @@ Files staged:
 - `lanes/markerpdf/notes/wordpress-scenarios.md`
 - `lanes/markerpdf/src/PdfTextExtractor.php`
 - `lanes/markerpdf/tests/PdfTextExtractorTest.php`
+
+## Clean-patch integration - pandoc - 20260525T003554Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T002133Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T002133Z.patch`
+Lane/slice/session: `pandoc` / `watchdog-next-20260525T002133Z` / `port-pandoc`
+Patch sha256: `e838f989c0d7efac00cc4b97964f1ad9ed544e6abc31aa001400386dbb43dd77` (verified)
+Focused verification: `php -l` on changed PHP files passed; `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed.
+Root verification: `php tools/run-tests.php` passed from clean worktree `/tmp/port-clean-integrator-pandoc-watchdog-next-20260525T002133Z-20260525T003554Z`.
+Support-library/dependency closure: no new support-library activation; lane-local bounded patch only.
+Live-service exclusions: no live-service provider tests run.
+Files staged:
+- `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/pandoc/examples/wordpress-markdown-review-handoff.php`
+- `lanes/pandoc/lane-status.json`
+- `lanes/pandoc/notes/upstream-inventory.md`
+- `lanes/pandoc/src/MarkdownWriter.php`
+- `lanes/pandoc/tests/MarkdownReaderTest.php`

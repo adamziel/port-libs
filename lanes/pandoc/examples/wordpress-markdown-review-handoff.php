@@ -134,6 +134,15 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
+        new AstNode('text', ['text' => 'Reviewer formula packet: ']),
+        new AstNode('math', ['text' => 'E = mc^2', 'display' => false]),
+        new AstNode('text', ['text' => ' cites ']),
+        new AstNode('raw_tex', ['tex' => '\cite[22-23]{smith.1899}']),
+        new AstNode('text', ['text' => ' and keeps ']),
+        new AstNode('raw_inline', ['format' => 'markdown', 'text' => '*raw markdown*']),
+        new AstNode('text', ['text' => '.']),
+    ]),
+    new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
 ]);
