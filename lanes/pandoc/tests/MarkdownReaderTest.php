@@ -2769,6 +2769,33 @@ MD;
             '  [reference packet]: <https://example.test/import packets/source one.html>',
         ]), (new MarkdownWriter(['referenceLinks' => true]))->write($document));
     },
+    'maps upstream markdown writer parenthesized link destinations with angle brackets' => static function (TestRunner $t): void {
+        $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('link', [
+                    'url' => 'https://example.test/import/archive(2026)/source).html',
+                    'title' => 'Archive (source)',
+                ], [$text('archive packet')]),
+                $text(' and '),
+                new AstNode('image', [
+                    'url' => 'https://example.test/uploads/review(frame).jpg',
+                    'alt' => 'Review frame',
+                ], [$text('Review frame')]),
+            ]),
+        ]);
+
+        $t->same(
+            '[archive packet](<https://example.test/import/archive(2026)/source).html> "Archive (source)") and ![Review frame](<https://example.test/uploads/review(frame).jpg>)',
+            (new MarkdownWriter())->write($document)
+        );
+        $t->same(implode("\n", [
+            '[archive packet] and ![Review frame]',
+            '',
+            '  [archive packet]: <https://example.test/import/archive(2026)/source).html> "Archive (source)"',
+            '  [Review frame]: <https://example.test/uploads/review(frame).jpg>',
+        ]), (new MarkdownWriter(['referenceLinks' => true]))->write($document));
+    },
     'maps upstream markdown writer reference definitions with link attributes' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $sourceLink = static fn (string $id, string $source): AstNode => new AstNode('link', [

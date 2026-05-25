@@ -1561,7 +1561,7 @@ final class MarkdownWriter
     private function linkDestinationNeedsAngles(string $url): bool
     {
         return $url === ''
-            || preg_match('/[\s\x00-\x1F\x7F<>]/u', $url) === 1;
+            || preg_match('/[\s\x00-\x1F\x7F<>()]/u', $url) === 1;
     }
 
     /**

@@ -1,3 +1,43 @@
+## Clean-patch accepted - Pandoc parenthesized link destinations - 2026-05-25 23:22 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-pandoc-20260525T231510Z.ready`.
+
+Candidate patch sha256 matched the ready marker:
+`a7028dea0ee71cd889f2ce58809d9c79666427b9167b8a5df9e23e578a61f76e`.
+The patch applied cleanly in a detached worktree at current `HEAD`
+`0203f2ee` (`Integrate Dolt constraint allow-commit review`).
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/pandoc/src/MarkdownWriter.php` passed.
+- `php -l lanes/pandoc/tests/MarkdownReaderTest.php` passed.
+- `php -l lanes/pandoc/examples/wordpress-markdown-review-handoff.php` passed.
+- Pandoc manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed:
+  `1 test files, 2315 assertions, 0 failures`.
+- `php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n "archived packet|source packet|import packets"`
+  found the expected angle-bracket reference definition with spaces and
+  parentheses.
+- `git diff --check -- lanes/pandoc` passed.
+
+Root verification:
+- An initial lock attempt did not run root because an external exact
+  no-argument root harness was active as PID `1570735`; the lock was released
+  and the gate was retried after that process cleared.
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=104126772` KiB and `load1=2.68`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26531 assertions, 0 failures`.
+
+Cleanup:
+- Pending until the commit is safely on `main`: remove the accepted ready
+  marker, patch, metadata file, referenced worker log, inactive source
+  worktree, and temporary verification worktree.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted Pandoc commit.
+
 ## Clean-patch accepted - Dolt constraint-only allow-commit review - 2026-05-25 23:19 UTC
 
 Accepted one isolated marker:

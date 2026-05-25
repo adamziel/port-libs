@@ -65,7 +65,7 @@ $document = new AstNode('document', $document->attrs, [
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => 'Reviewer archived packet: ']),
         new AstNode('link', [
-            'url' => 'https://example.test/import packets/source one.html',
+            'url' => 'https://example.test/import packets/source one(archived).html',
             'title' => 'Packet review',
         ], [
             new AstNode('text', ['text' => 'source packet']),
