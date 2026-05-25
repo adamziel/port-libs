@@ -1546,13 +1546,16 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     private static function basicAuthorization(string $username, string $password, string $label): string
     {
-        if (str_contains($username, "\0") || str_contains($username, "\r") || str_contains($username, "\n")
-            || str_contains($password, "\0") || str_contains($password, "\r") || str_contains($password, "\n")
-        ) {
+        if (self::containsControlByte($username) || self::containsControlByte($password)) {
             throw new \InvalidArgumentException("{$label} must not contain control bytes");
         }
 
         return 'Basic ' . base64_encode($username . ':' . $password);
+    }
+
+    private static function containsControlByte(string $value): bool
+    {
+        return preg_match('/[\x00-\x1f\x7f]/', $value) === 1;
     }
 
     /**

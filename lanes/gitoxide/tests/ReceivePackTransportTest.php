@@ -484,6 +484,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://example.test/repo.git#refs'));
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://bad%0auser@example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://deploy:bad%0dtoken@example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://bad%09user@example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SmartHttpReceivePackTransport::infoRefsUrl('https://deploy:bad%7ftoken@example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, ['bad:param']));
 
         $badType = new SmartHttpReceivePackTransport(
@@ -908,6 +910,19 @@ return [
         $t->throws(RuntimeException::class, static fn () => $failedTransport->readAdvertisement());
         $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'bad-user', 'password' => 'bad-pass']]], $failedErasures);
 
+        $helperControlByteTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => ['status' => 500, 'headers' => [], 'body' => 'should not run'],
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'proxyCredentialHelper' => static fn (): array => ['username' => 'bad-user', 'password' => "bad\tpass"],
+            ]
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $helperControlByteTransport->readAdvertisement());
+
         $socksRequests = [];
         $socksTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
@@ -939,6 +954,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyAuthMethod' => 'bearer']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "bad\nhost"]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentials' => ['username' => "bad\nuser", 'password' => 'secret']]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentials' => ['username' => "bad\tuser", 'password' => 'secret']]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxy' => 'http://proxy-user:bad%7fpass@proxy.example.test:8080']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentialStore' => 'not callable']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslCaInfo' => __DIR__ . '/missing-ca.pem']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslVerify' => 'no']));
@@ -1290,6 +1307,7 @@ return [
         $t->same(true, $fixture['unsafeGitDaemonEncodedControlByteRejected']);
         $t->same(true, $fixture['unsafeGitDaemonEncodedHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeGitDaemonExtraParameterRejected']);
+        $t->same(true, $fixture['unsafeSmartHttpCredentialTabRejected']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
     },

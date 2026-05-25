@@ -140,6 +140,15 @@ return [
 
         return false;
     })(),
+    'unsafeSmartHttpCredentialTabRejected' => (static function (): bool {
+        try {
+            \PortLibs\Gitoxide\SmartHttpReceivePackTransport::infoRefsUrl('https://bad%09deploy:token@git.example.test/wp-content.git');
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
     'unsafeSshTargetRejected' => (static function (): bool {
         try {
             SshReceivePackTransport::parseRepositoryUrl('git.example.test: -upload-pack=/tmp/helper');
