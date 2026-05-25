@@ -1457,3 +1457,27 @@ Dependency closure: no new support component is needed for this slice. The
 existing Markdown writer inline renderer handles delimiter emission and raw
 format gating locally; future richer math rendering or citation resolution
 should remain behind the existing inactive Pandoc math/citation support gates.
+
+`src/Text/Pandoc/Writers/Markdown.hs` was inspected for the bounded raw block
+writer branch following the prior raw inline slice. The PHP Markdown writer now
+maps one focused check from that boundary: raw TeX/LaTeX/ConTeXt blocks and raw
+Markdown-compatible blocks are preserved on Markdown output, while incompatible
+raw HTML `raw_block` nodes are suppressed.
+
+Focused local verification on 2026-05-25 after the Markdown writer raw block
+emission slice: `php -l` passed for `MarkdownWriter.php`,
+`MarkdownReaderTest.php`, and `examples/wordpress-markdown-review-handoff.php`;
+`php lanes/pandoc/examples/wordpress-markdown-review-handoff.php | rg -n
+"Raw reviewer block|internal reviewer note"` emitted the raw Markdown reviewer
+block and did not emit the incompatible raw HTML reviewer note; `php
+tools/run-tests.php lanes/pandoc/tests/MarkdownReaderTest.php` passed 1 test
+file, 2,281 assertions, and 0 failures. `git diff --check -- lanes/pandoc`
+passed. The focused file now contains 213 behavior tests.
+
+Root verification was not run for the 2026-05-25 raw block emission slice
+because the assigned work was an isolated micro-slice.
+
+Dependency closure: no new support component is needed for this slice. The
+existing Markdown writer block renderer now handles raw block format gating
+locally; richer format-aware raw block conversion should stay behind existing
+inactive Pandoc document-format support gates.

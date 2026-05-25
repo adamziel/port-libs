@@ -145,6 +145,14 @@ $document = new AstNode('document', $document->attrs, [
     new AstNode('paragraph', [], [
         new AstNode('text', ['text' => '# Literal audit tokens: * _ ` | ^ ~ $ <review> &ouml; \\macro']),
     ]),
+    new AstNode('raw_block', [
+        'format' => 'markdown',
+        'text' => '> Raw reviewer block: keep this migration note with the handoff.',
+    ]),
+    new AstNode('raw_block', [
+        'format' => 'html',
+        'text' => '<aside>internal reviewer note omitted from Markdown handoff</aside>',
+    ]),
 ]);
 
 echo (new MarkdownWriter([

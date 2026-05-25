@@ -2787,6 +2787,34 @@ MD;
             (new MarkdownWriter())->write($document)
         );
     },
+    'maps upstream markdown writer raw block emission' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Before raw reviewer block.']),
+            ]),
+            new AstNode('raw_tex', ['tex' => '\begin{migration-review}' . "\n" . '\item keep source citation' . "\n" . '\end{migration-review}']),
+            new AstNode('raw_block', ['format' => 'markdown', 'text' => '> Raw Markdown reviewer block' . "\n" . '> with migration note.']),
+            new AstNode('raw_block', ['format' => 'html', 'text' => '<aside>drop from markdown</aside>']),
+            new AstNode('raw_markdown', ['text' => '::: {.review-packet}' . "\n" . 'native raw markdown block' . "\n" . ':::']),
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'After raw reviewer block.']),
+            ]),
+        ]);
+
+        $t->same(
+            'Before raw reviewer block.'
+                . "\n\n" . '\begin{migration-review}'
+                . "\n" . '\item keep source citation'
+                . "\n" . '\end{migration-review}'
+                . "\n\n" . '> Raw Markdown reviewer block'
+                . "\n" . '> with migration note.'
+                . "\n\n" . '::: {.review-packet}'
+                . "\n" . 'native raw markdown block'
+                . "\n" . ':::'
+                . "\n\n" . 'After raw reviewer block.',
+            (new MarkdownWriter())->write($document)
+        );
+    },
     'maps upstream markdown writer top level list code and delimiter spacing' => static function (TestRunner $t): void {
         $text = static fn (string $text): AstNode => new AstNode('text', ['text' => $text]);
         $paragraph = static fn (string $value): AstNode => new AstNode('paragraph', [], [$text($value)]);
