@@ -1,4 +1,63 @@
 
+## Clean-patch accepted - readability nested embed wrapper blocks - 2026-05-25 22:11 UTC
+
+Ready marker:
+`.tmux-team/tmp/handoff-candidates/port-readability-20260525T173649Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-readability-20260525T173649Z.patch`.
+
+Lane/slice/session: `readability` / `coverage-keeper-20260525T173648Z` /
+`port-readability`. Patch sha256 verified as
+`ad0e80ace9514a31f44324f307801a5d765e19761a413656c449a68543b477e7`.
+
+Clean application result: `git apply --check` and `git apply` both succeeded in
+detached clean worktree
+`.tmux-team/tmp/clean-integrator-worktrees/ci-20260525T221045` from current main
+`c7fbd1a5`. The patch is lane-local to `lanes/readability/**` and teaches the
+WordPress block serializer to keep direct or tightly nested retained media
+wrappers as HTML blocks while leaving inline paragraph embeds in paragraph
+content.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/readability/src/ArticleExtractor.php`: passed.
+- `php -l lanes/readability/tests/ArticleExtractorTest.php`: passed.
+- `php -l lanes/readability/examples/wordpress-captioned-embed-wrapper-import.php`:
+  passed.
+- `jq empty lanes/readability/UPSTREAM_TEST_MANIFEST.json lanes/readability/lane-status.json`:
+  passed.
+- `php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php`:
+  passed, `1 test files, 1901 assertions, 0 failures`.
+- `php lanes/readability/examples/wordpress-captioned-embed-wrapper-import.php`:
+  passed, reporting `2` HTML blocks and retained direct, nested, and inline
+  embed boundaries.
+- `git diff --check`: passed.
+
+Root verification: resource/process gate was open immediately before root
+verification (`/` had `108918912` KiB available, load average first field was
+`0.37`, and no exact no-argument root harness was active). `php
+tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` in
+the clean worktree and passed with `214 test files, 26375 assertions, 0
+failures`.
+
+Support-library/dependency closure: no new support component was activated.
+The slice reuses the lane-local DOM cleanup, media preservation, and WordPress
+block serialization paths.
+
+Live-service exclusions: none; this is an offline readability fixture and PHP
+unit-test slice.
+
+Files staged:
+
+- `audits/integration-status.md`
+- `lanes/readability/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/readability/examples/wordpress-captioned-embed-wrapper-import.php`
+- `lanes/readability/lane-status.json`
+- `lanes/readability/notes/upstream-inventory.md`
+- `lanes/readability/notes/wordpress-scenarios.md`
+- `lanes/readability/src/ArticleExtractor.php`
+- `lanes/readability/tests/ArticleExtractorTest.php`
+
 ## Clean-patch accepted - libsqlite JSON remove dispatch - 2026-05-25 17:58 UTC
 
 Ready marker:

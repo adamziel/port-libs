@@ -3643,6 +3643,25 @@ return [
         $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<div><iframe"), 'captioned embed wrappers should not be paragraph-wrapped');
         $t->same(2, substr_count($blocks, '<!-- wp:paragraph -->'), 'surrounding prose should remain paragraph blocks');
     },
+    'serializes retained nested embed wrappers as WordPress HTML blocks' => static function (TestRunner $t): void {
+        $source = '<html><head><title>Nested Embed Import</title></head><body><article>'
+            . '<h1>Nested Embed Import</h1>'
+            . '<p>' . str_repeat('Legacy exports can wrap an oEmbed in provider divs inside a captioned migration container. ', 3) . '</p>'
+            . '<section class="wp-block-embed provider-card"><div class="embed-responsive"><iframe src="https://www.youtube.com/embed/nested-session"></iframe></div><p>Nested provider session.</p></section>'
+            . '<p>Inline context <iframe src="https://www.youtube.com/embed/inline-context"></iframe> should stay paragraph content.</p>'
+            . '<p>' . str_repeat('Follow-up copy after the embeds should remain ordinary paragraph content for editing. ', 3) . '</p>'
+            . '</article></body></html>';
+
+        $extractor = new ArticleExtractor();
+        $article = $extractor->extract($source, 'https://example.test/posts/nested-embed.html');
+        $blocks = $extractor->toWordPressBlocks($article);
+
+        $t->same(1, substr_count($blocks, '<!-- wp:html -->'), 'one nested media wrapper should become one HTML block');
+        $t->contains('<section><p><iframe src="https://www.youtube.com/embed/nested-session"></iframe></p>' . "\n" . '<p>Nested provider session.</p></section>', $blocks);
+        $t->same(false, str_contains($blocks, "<!-- wp:paragraph -->\n<section><p><iframe"), 'nested captioned embed wrappers should not be paragraph-wrapped');
+        $t->contains('<p>Inline context <iframe src="https://www.youtube.com/embed/inline-context"></iframe> should stay paragraph content.</p>', $blocks);
+        $t->same(3, substr_count($blocks, '<!-- wp:paragraph -->'), 'surrounding prose and inline-context embed should remain paragraph blocks');
+    },
     'serializes retained definition lists as WordPress HTML blocks' => static function (TestRunner $t): void {
         $source = '<html><head><title>Definition List Import</title></head><body><article>'
             . '<h1>Definition List Import</h1>'

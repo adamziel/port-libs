@@ -526,15 +526,7 @@ final class ArticleExtractor
             return false;
         }
 
-        $hasDirectMedia = false;
-        foreach ($this->elementChildren($element) as $child) {
-            if (in_array(strtolower($child->tagName), ['iframe', 'object', 'embed', 'video', 'audio'], true)) {
-                $hasDirectMedia = true;
-                break;
-            }
-        }
-
-        if (!$hasDirectMedia) {
+        if (!$this->hasDirectMediaEmbedChild($element) && !$this->hasBoundedMediaEmbedPayload($element)) {
             return false;
         }
 
@@ -544,6 +536,85 @@ final class ArticleExtractor
         }
 
         return mb_strlen($text) <= 240;
+    }
+
+    private function hasDirectMediaEmbedChild(\DOMElement $element): bool
+    {
+        foreach ($this->elementChildren($element) as $child) {
+            if (in_array(strtolower($child->tagName), ['iframe', 'object', 'embed', 'video', 'audio'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasBoundedMediaEmbedPayload(\DOMElement $element): bool
+    {
+        $mediaCount = 0;
+        foreach (['iframe', 'object', 'embed', 'video', 'audio'] as $tagName) {
+            $mediaCount += $element->getElementsByTagName($tagName)->length;
+        }
+
+        if ($mediaCount !== 1) {
+            return false;
+        }
+
+        foreach ($this->elementChildren($element) as $child) {
+            if ($this->containsOnlyMediaEmbedPayload($child)) {
+                continue;
+            }
+
+            $tag = strtolower($child->tagName);
+            if (in_array($tag, ['p', 'figcaption'], true)
+                && $this->normalizeWhitespace($child->textContent) !== ''
+                && ($child->getElementsByTagName('iframe')->length
+                    + $child->getElementsByTagName('object')->length
+                    + $child->getElementsByTagName('embed')->length
+                    + $child->getElementsByTagName('video')->length
+                    + $child->getElementsByTagName('audio')->length) === 0) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+
+    private function containsOnlyMediaEmbedPayload(\DOMElement $element): bool
+    {
+        $tag = strtolower($element->tagName);
+        if (in_array($tag, ['iframe', 'object', 'embed', 'video', 'audio'], true)) {
+            return true;
+        }
+
+        if (!in_array($tag, ['div', 'section', 'figure', 'p'], true)) {
+            return false;
+        }
+
+        $hasMediaPayload = false;
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMText && trim($child->textContent) !== '') {
+                return false;
+            }
+
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            if (strtolower($child->tagName) === 'figcaption') {
+                continue;
+            }
+
+            if (!$this->containsOnlyMediaEmbedPayload($child)) {
+                return false;
+            }
+
+            $hasMediaPayload = true;
+        }
+
+        return $hasMediaPayload;
     }
 
     private function isMediaOnlyList(\DOMElement $element): bool
