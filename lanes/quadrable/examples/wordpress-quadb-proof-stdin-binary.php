@@ -81,6 +81,16 @@ try {
         "2\r\n4\r\n99\r\n",
         integerKeys: true
     );
+    $emptyStdinIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        '',
+        integerKeys: true
+    );
+    $blankLineStdinIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "\n",
+        integerKeys: true
+    );
     $directIntegerProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['2', '4', '99'],
@@ -229,6 +239,10 @@ try {
         'integerBinaryProofBytes' => strlen($integerProofBytes),
         'integerCrlfProofMatchesLf' => $integerCrlfProofCommand['stdout'] === $integerProofBytes
             && $integerCrlfProofCommand['exitCode'] === 0,
+        'emptyStdinIntegerProofMatchesDirectEmpty' => $emptyStdinIntegerProofCommand['exitCode'] === 0
+            && $emptyStdinIntegerProofCommand['stdout'] === QuadbStore::open($integerDir)->exportIntegerProofBytes([]),
+        'blankLineStdinIntegerProofFailsStoi' => $blankLineStdinIntegerProofCommand['exitCode'] === 1
+            && $blankLineStdinIntegerProofCommand['stderr'] === "quadb error: stoi\n",
         'directIntegerExportProofExitCode' => $directIntegerProofCommand['exitCode'],
         'directIntegerBinaryProofMatchesStdin' => $directIntegerProofCommand['stdout'] === $integerProofBytes,
         'directIntegerHexProofMatchesStdin' => $directIntegerHexProofCommand === $integerHexProofCommand,

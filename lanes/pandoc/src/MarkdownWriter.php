@@ -977,7 +977,19 @@ final class MarkdownWriter
 
     private function isMarkdownRawFormat(string $format): bool
     {
+        $baseFormat = str_replace('-', '+', $format);
+        $baseFormat = explode('+', $baseFormat, 2)[0];
+
         return in_array($format, [
+            'markdown',
+            'markdown_strict',
+            'markdown_phpextra',
+            'markdown_mmd',
+            'pandoc',
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+        ], true) || in_array($baseFormat, [
             'markdown',
             'markdown_strict',
             'markdown_phpextra',

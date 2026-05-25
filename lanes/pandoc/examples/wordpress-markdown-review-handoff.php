@@ -169,6 +169,8 @@ $document = new AstNode('document', $document->attrs, [
         new AstNode('raw_tex', ['tex' => '\cite[22-23]{smith.1899}']),
         new AstNode('text', ['text' => ' and keeps ']),
         new AstNode('raw_inline', ['format' => 'markdown', 'text' => '*raw markdown*']),
+        new AstNode('text', ['text' => ' plus ']),
+        new AstNode('raw_inline', ['format' => 'markdown+tex_math_dollars', 'text' => '$raw$']),
         new AstNode('text', ['text' => '.']),
     ]),
     new AstNode('paragraph', [], [
@@ -306,6 +308,10 @@ $document = new AstNode('document', $document->attrs, [
     new AstNode('raw_block', [
         'format' => 'markdown_strict',
         'text' => '> Strict Markdown reviewer block: preserve source-only handoff.',
+    ]),
+    new AstNode('raw_block', [
+        'format' => 'gfm+task_lists',
+        'text' => '- [x] Extension-qualified raw Markdown reviewer task.',
     ]),
     new AstNode('raw_block', [
         'format' => 'html',

@@ -1583,6 +1583,15 @@ return [
                 'stdout' => $proofBytes,
                 'stderr' => '',
             ], QuadbStore::exportProofStdinCommandOutput($dir, "2\r\n4\r\n99\r\n", integerKeys: true));
+            $emptyStdinIntegerProof = QuadbStore::exportProofStdinCommandOutput($dir, '', integerKeys: true);
+            $t->same(0, $emptyStdinIntegerProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([]), $emptyStdinIntegerProof['stdout']);
+            $t->same('', $emptyStdinIntegerProof['stderr']);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofStdinCommandOutput($dir, "\n", integerKeys: true));
             $integerDump = QuadbStore::exportProofCommandOutput($dir, ['2', '4', '99'], dump: true, integerKeys: true);
             $t->same(0, $integerDump['exitCode']);
             $t->contains('ITEMS (2):', $integerDump['stdout']);

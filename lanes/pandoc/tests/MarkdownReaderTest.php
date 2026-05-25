@@ -2890,6 +2890,12 @@ MD;
                 new AstNode('text', ['text' => ', ']),
                 new AstNode('raw_inline', ['format' => 'commonmark_x', 'text' => '~~gfm extension~~']),
                 new AstNode('text', ['text' => ', and ']),
+                new AstNode('raw_inline', ['format' => 'markdown+tex_math_dollars', 'text' => '$raw$']),
+                new AstNode('text', ['text' => ', ']),
+                new AstNode('raw_inline', ['format' => 'commonmark_x-smart', 'text' => 'raw -- dash']),
+                new AstNode('text', ['text' => ', ']),
+                new AstNode('raw_inline', ['format' => 'gfm+pipe_tables', 'text' => '| raw |']),
+                new AstNode('text', ['text' => ', and ']),
                 new AstNode('raw_inline', ['format' => 'html', 'text' => '<span>drop</span>']),
                 new AstNode('text', ['text' => '.']),
             ]),
@@ -2897,17 +2903,24 @@ MD;
             new AstNode('raw_block', ['format' => 'markdown_phpextra', 'text' => '::: {.php-extra-review}' . "\n" . 'extra raw handoff' . "\n" . ':::']),
             new AstNode('raw_block', ['format' => 'markdown_mmd', 'text' => '[source]: https://example.test/source']),
             new AstNode('raw_block', ['format' => 'commonmark_x', 'text' => '~~extension raw handoff~~']),
+            new AstNode('raw_block', ['format' => 'markdown+pipe_tables', 'text' => '| raw | table |' . "\n" . '| --- | --- |']),
+            new AstNode('raw_block', ['format' => 'commonmark_x-smart', 'text' => 'raw -- block']),
+            new AstNode('raw_block', ['format' => 'gfm+task_lists', 'text' => '- [x] raw task']),
             new AstNode('raw_block', ['format' => 'html', 'text' => '<aside>drop</aside>']),
         ]);
 
         $t->same(
-            'Markdown family raw inlines: *strict*, [extra]{.review}, [mmd][source], ~~gfm extension~~, and .'
+            'Markdown family raw inlines: *strict*, [extra]{.review}, [mmd][source], ~~gfm extension~~, and $raw$, raw -- dash, | raw |, and .'
                 . "\n\n" . '> strict raw handoff'
                 . "\n\n" . '::: {.php-extra-review}'
                 . "\n" . 'extra raw handoff'
                 . "\n" . ':::'
                 . "\n\n" . '[source]: https://example.test/source'
-                . "\n\n" . '~~extension raw handoff~~',
+                . "\n\n" . '~~extension raw handoff~~'
+                . "\n\n" . '| raw | table |'
+                . "\n" . '| --- | --- |'
+                . "\n\n" . 'raw -- block'
+                . "\n\n" . '- [x] raw task',
             (new MarkdownWriter())->write($document)
         );
     },
