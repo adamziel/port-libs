@@ -556,15 +556,20 @@ return [
             $t->same(true, $cleanup['clearedInProgress']);
             $t->same(1, $cleanup['pendingEventCountBefore']);
             $t->same(1, $cleanup['pendingEventCountAfter']);
+            $t->same(9406, $cleanup['cleanupAt']);
             $t->same(['wp-content/uploads/2026/05/hero.jpg'], $cleanup['pendingPathsBefore']);
             $t->same(['wp-content/uploads/2026/05/hero.jpg'], $cleanup['pendingPathsAfter']);
             $t->same([], $cleanup['statusAfter']['inProgressPaths'] ?? ['missing']);
             $t->same('watch paused for maintenance', $cleanup['statusAfter']['watcherRestart']['lastError'] ?? null);
             $t->same(true, $cleanup['statusAfter']['watcherRestart']['due'] ?? null);
+            $t->same(['wordpress-media'], array_keys($watch->recentCleanupStatuses()));
+            $t->same(true, $watch->recentCleanupStatuses()['wordpress-media']['preservedPendingEvents'] ?? null);
             $t->same([], $watch->dueWatcherRestarts(9406));
             $t->same([], $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 9410)->snapshots());
 
             $scheduler->resumeFolder('wordpress-media');
+            $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/poster.webp', now: 9407);
+            $t->same([], $watch->recentCleanupStatuses());
             $t->same(['wordpress-media'], array_keys($watch->dueWatcherRestarts(9410)));
             $t->same(1, $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 9410)->snapshot('wordpress-media')?->revision);
         } finally {
@@ -603,16 +608,60 @@ return [
             $t->same(false, $cleanup['clearedInProgress']);
             $t->same(1, $cleanup['pendingEventCountBefore']);
             $t->same(0, $cleanup['pendingEventCountAfter']);
+            $t->same(9506, $cleanup['cleanupAt']);
             $t->same(['wp-content/uploads/2026/05/hero.jpg'], $cleanup['pendingPathsBefore']);
             $t->same([], $cleanup['pendingPathsAfter']);
             $t->same(null, $cleanup['statusAfter']);
             $t->same(null, $watch->watchStatus('wordpress-media', 9506));
+            $t->same(['wordpress-media'], array_keys($watch->recentCleanupStatuses()));
+            $t->same(true, $watch->recentCleanupStatuses()['wordpress-media']['discardedPendingEvents'] ?? null);
             $t->same([], $watch->dueWatcherRestarts(9506));
             $t->same([], $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 9510)->snapshots());
 
             $secondCleanup = $watch->cleanupWatchingFolder('wordpress-media', discardPendingEvents: true, now: 9511);
             $t->same(false, $secondCleanup['hadState']);
             $t->same(false, $secondCleanup['discardedPendingEvents']);
+            $t->same(9511, $watch->recentCleanupStatuses()['wordpress-media']['cleanupAt'] ?? null);
+        } finally {
+            syncthing_folder_watch_scan_rm($root);
+        }
+    },
+    'watch scan scheduler records recent cleanup when removed folder reaches delayed dispatch' => static function (TestRunner $t): void {
+        $root = syncthing_folder_watch_scan_root();
+        try {
+            syncthing_folder_watch_scan_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+
+            $service = new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore());
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', $service);
+            $watch = new FolderWatchScanScheduler(
+                $scheduler,
+                notifyDelaySeconds: 10,
+                notifyTimeoutSeconds: 30,
+                watchRestartInitialDelaySeconds: 5,
+                watchRestartMaxDelaySeconds: 20,
+            );
+
+            $watch->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 9600);
+            $watch->recordWatcherError('wordpress-media', 'watch teardown raced with delayed scan', scanOnWatchError: false, now: 9601);
+            $scheduler->removeFolder('wordpress-media');
+
+            $scan = $watch->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 9610);
+            $cleanups = $watch->recentCleanupStatuses();
+
+            $t->same([], $scan->snapshots());
+            $t->same(null, $watch->watchStatus('wordpress-media', 9610));
+            $t->same(['wordpress-media'], array_keys($cleanups));
+            $t->same(9610, $cleanups['wordpress-media']['cleanupAt'] ?? null);
+            $t->same(true, $cleanups['wordpress-media']['hadState'] ?? null);
+            $t->same(false, $cleanups['wordpress-media']['folderExists'] ?? null);
+            $t->same(true, $cleanups['wordpress-media']['discardedPendingEvents'] ?? null);
+            $t->same(true, $cleanups['wordpress-media']['clearedRestart'] ?? null);
+            $t->same(1, $cleanups['wordpress-media']['pendingEventCountBefore'] ?? null);
+            $t->same(0, $cleanups['wordpress-media']['pendingEventCountAfter'] ?? null);
+            $t->same(['wp-content/uploads/2026/05/hero.jpg'], $cleanups['wordpress-media']['pendingPathsBefore'] ?? []);
+            $t->true(array_key_exists('statusAfter', $cleanups['wordpress-media']));
+            $t->same(null, $cleanups['wordpress-media']['statusAfter']);
         } finally {
             syncthing_folder_watch_scan_rm($root);
         }

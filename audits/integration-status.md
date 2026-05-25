@@ -122,6 +122,28 @@ Files staged:
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 # Integration Status
 
+## Clean-patch integration - Syncthing - 20260525T061829Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T060504Z.ready`
+Patch: `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T060504Z.patch`
+Lane/slice/session: `syncthing` / `watchdog-next-20260525T060504Z` / `port-syncthing`
+Patch sha256: `d4343b8c5672857ab0e5904feffc715ca33bc2aaad6f743329824ef4ed9fc390` verified with `sha256sum -c`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-syncthing-watchdog-next-20260525T060504Z-20260525T061829Z`:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php`: passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`: passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`: passed, 1 test file, 210 assertions, 0 failures.
+- Example smoke: `recentCleanupAfterRemovedDispatch=present`, `removedDispatchDiscarded=true`.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree, 213 test files, 25581 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this is a lane-local watcher cleanup/status payload slice.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`, `lanes/syncthing/lane-status.json`, `lanes/syncthing/notes/wordpress-scenarios.md`, `lanes/syncthing/src/FolderWatchScanScheduler.php`, `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`, `audits/integration-status.md`.
+
 ## Clean-patch integration accepted - Syncthing - 2026-05-25 05:01 UTC
 
 Accepted isolated marker

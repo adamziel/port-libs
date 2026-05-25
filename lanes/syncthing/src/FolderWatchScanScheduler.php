@@ -21,6 +21,11 @@ final class FolderWatchScanScheduler
      */
     private array $watchRestarts = [];
 
+    /**
+     * @var array<string, array{folder:string, cleanupAt:int, hadState:bool, folderExists:bool, folderPaused:bool, discardedPendingEvents:bool, preservedPendingEvents:bool, clearedRestart:bool, clearedInProgress:bool, pendingEventCountBefore:int, pendingEventCountAfter:int, pendingPathsBefore:list<string>, pendingPathsAfter:list<string>, statusAfter:?array<string, mixed>}>
+     */
+    private array $recentCleanups = [];
+
     private int $effectiveNotifyTimeoutSeconds;
 
     public function __construct(
@@ -54,6 +59,7 @@ final class FolderWatchScanScheduler
             return null;
         }
 
+        unset($this->recentCleanups[$folderId]);
         $aggregator = $this->aggregator($folderId);
         $aggregator->recordEvent($path, $eventType, $now);
 
@@ -147,7 +153,11 @@ final class FolderWatchScanScheduler
     {
         self::assertFolderId($folderId);
         if (!$this->folderExists($folderId)) {
-            unset($this->watchRestarts[$folderId], $this->aggregators[$folderId], $this->lastDispatchedBatches[$folderId]);
+            if (isset($this->watchRestarts[$folderId]) || isset($this->aggregators[$folderId])) {
+                $this->cleanupWatchingFolder($folderId, discardPendingEvents: true);
+            } else {
+                unset($this->lastDispatchedBatches[$folderId]);
+            }
 
             return false;
         }
@@ -215,7 +225,7 @@ final class FolderWatchScanScheduler
     }
 
     /**
-     * @return array{folder:string, hadState:bool, folderExists:bool, folderPaused:bool, discardedPendingEvents:bool, preservedPendingEvents:bool, clearedRestart:bool, clearedInProgress:bool, pendingEventCountBefore:int, pendingEventCountAfter:int, pendingPathsBefore:list<string>, pendingPathsAfter:list<string>, statusAfter:?array<string, mixed>}
+     * @return array{folder:string, cleanupAt:int, hadState:bool, folderExists:bool, folderPaused:bool, discardedPendingEvents:bool, preservedPendingEvents:bool, clearedRestart:bool, clearedInProgress:bool, pendingEventCountBefore:int, pendingEventCountAfter:int, pendingPathsBefore:list<string>, pendingPathsAfter:list<string>, statusAfter:?array<string, mixed>}
      */
     public function cleanupWatchingFolder(
         string $folderId,
@@ -246,8 +256,9 @@ final class FolderWatchScanScheduler
 
         $after = $this->watchStatus($folderId, $now);
 
-        return [
+        $cleanup = [
             'folder' => $folderId,
+            'cleanupAt' => $now,
             'hadState' => $hadState,
             'folderExists' => $this->folderExists($folderId),
             'folderPaused' => $this->folderExists($folderId) && $this->scheduler->isPaused($folderId),
@@ -261,6 +272,10 @@ final class FolderWatchScanScheduler
             'pendingPathsAfter' => array_values($after['pendingPaths'] ?? []),
             'statusAfter' => $after,
         ];
+
+        $this->recentCleanups[$folderId] = $cleanup;
+
+        return $cleanup;
     }
 
     /**
@@ -313,6 +328,17 @@ final class FolderWatchScanScheduler
     }
 
     /**
+     * @return array<string, array{folder:string, cleanupAt:int, hadState:bool, folderExists:bool, folderPaused:bool, discardedPendingEvents:bool, preservedPendingEvents:bool, clearedRestart:bool, clearedInProgress:bool, pendingEventCountBefore:int, pendingEventCountAfter:int, pendingPathsBefore:list<string>, pendingPathsAfter:list<string>, statusAfter:?array<string, mixed>}>
+     */
+    public function recentCleanupStatuses(): array
+    {
+        $statuses = $this->recentCleanups;
+        ksort($statuses, SORT_STRING);
+
+        return $statuses;
+    }
+
+    /**
      * @param null|callable(FolderScanProgress): void $progressLogger
      * @param null|callable(string, \Throwable, string): void $errorLogger
      * @param null|callable(?string): bool $shouldCancel
@@ -336,7 +362,7 @@ final class FolderWatchScanScheduler
         ksort($this->aggregators, SORT_STRING);
         foreach ($this->aggregators as $folderId => $aggregator) {
             if (!$this->folderExists($folderId)) {
-                unset($this->aggregators[$folderId], $this->watchRestarts[$folderId], $this->lastDispatchedBatches[$folderId]);
+                $this->cleanupWatchingFolder($folderId, discardPendingEvents: true, now: $now);
                 continue;
             }
 

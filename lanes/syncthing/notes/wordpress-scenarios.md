@@ -2412,3 +2412,49 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: expose recent cleanup payloads
 through a bounded watcher status collection if WordPress REST clients need to
 inspect cleanup outcomes after the live watcher state has been cleared.
+
+## 2026-05-25 Watcher Recent Cleanup Statuses
+
+This isolated micro-slice maps the REST-facing follow-up to watcher cleanup:
+after a WordPress media folder is paused, removed, or discovered removed during
+delayed watch dispatch, clients still need one bounded status payload explaining
+what happened even when `watchStatus()` is already `null`.
+
+Native PHP now adds `FolderWatchScanScheduler::recentCleanupStatuses()`, keeping
+the latest cleanup payload per folder. Explicit cleanup records `cleanupAt`,
+preserved/discarded pending event counts and paths, restart/in-progress cleanup
+flags, and the remaining status when one exists. Delayed dispatch cleanup for a
+removed folder now goes through the same path, so stale queued upload events are
+not silently dropped without an inspectable reason. Recording a new live watch
+event for a folder clears its previous recent cleanup entry.
+
+The WordPress watcher smoke now reports `recentCleanupAfterPause`,
+`recentCleanupAfterRemoval`, and `recentCleanupAfterRemovedDispatch`, including
+a removed media folder whose live status is `null` while the recent cleanup
+payload still shows the discarded queued path.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP watcher scheduler, event aggregator, folder scan scheduler,
+scan service, and checkpoint store. The activation gate is wiring
+`recentCleanupStatuses()` into a WordPress/local REST status surface that polls
+watcher cleanup outcomes after pause/unshare events; the evidence plan is the
+focused watcher tests plus the local WordPress example smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderWatchScanScheduler.php` passed.
+- `php -l lanes/syncthing/tests/FolderWatchScanSchedulerTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
+  passed 1 file, 210 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php` ran
+  successfully and reported recent cleanup payloads after pause, explicit
+  removal cleanup, and removed-folder delayed dispatch cleanup.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing watcher lifecycle edge: bound retention/expiry for recent
+watcher cleanup payloads if multiple removed WordPress media folders accumulate
+between REST polls.
