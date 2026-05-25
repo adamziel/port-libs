@@ -12,5 +12,7 @@ return [
     'postBodyPreserved' => $fixture['postBodyPreserved'],
     'rewritingPostRedirectRejected' => $fixture['rewritingPostRedirectRejected'],
     'rewritingRequestMethods' => $fixture['rewritingRequestMethods'],
+    'seeOtherPostRedirectRejected' => $fixture['seeOtherPostRedirectRejected'],
+    'seeOtherRequestMethods' => $fixture['seeOtherRequestMethods'],
     'responseSuccessful' => $fixture['responseSuccessful'],
 ];

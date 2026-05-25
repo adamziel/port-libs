@@ -1,4 +1,51 @@
 
+## Integration accepted - gitoxide receive-pack 303 redirect guard - 2026-05-25 08:43 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T082739Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T082739Z.patch`.
+
+Lane/slice/session: `gitoxide` /
+`priority-keeper-rework-20260525T082739Z` / `port-gitoxide-rework`.
+Patch SHA-256 verified:
+`c5745c6d2f3dd4a60205d877014dc7da6ba7ac01194ab7227a9a3e1a195d1747`.
+Clean base: `29038ae5`.
+
+Focused verification repeated in clean worktree
+`/tmp/port-clean-integrator-gitoxide-priority-keeper-rework-20260525T082739Z`:
+
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` - passed, no syntax errors.
+- `php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php` - passed, no syntax errors.
+- `php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` - passed, no syntax errors.
+- `jq empty lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json lanes/gitoxide/lane-status.json` - passed.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` - passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` - passed: `1 test files, 295 assertions, 0 failures`.
+- `git diff --check` - passed.
+
+Root verification:
+
+- Pre-root gate satisfied: `/` available KiB was above `86000000`, load was below `25`, and `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- `php tools/run-tests.php` - passed: `214 test files, 25929 assertions, 0 failures`.
+
+Support-library/dependency closure decision: no support-library activation.
+The patch reuses gitoxide lane-local smart HTTP receive-pack redirect handling
+and native status validation; it does not activate a shared HTTP/client support
+row.
+
+Live-service exclusions: no live provider or network tests were run.
+
+Files staged:
+
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`
+- `lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `lanes/gitoxide/notes/wordpress-scenarios.md`
+- `lanes/gitoxide/tests/ReceivePackTransportTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - libsqlite json_pretty subtype dispatch - 2026-05-25 08:36 UTC
 
 Accepted isolated ready marker:
