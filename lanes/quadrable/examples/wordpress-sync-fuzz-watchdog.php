@@ -33,6 +33,6 @@ echo json_encode([
     'requestedTrials' => $trials,
     'upstreamFullProbeTrials' => 500,
     'fastSuiteRunsFullProbe' => false,
-    'inMemoryReport' => SyncFuzzer::watchdogReport($results, $inMemoryBudget, $inMemorySummary['rootDigest']),
-    'persistedTrackedReport' => SyncFuzzer::watchdogReport($persistedResults, $persistedBudget, $persistedSummary['rootDigest']),
+    'inMemoryReport' => SyncFuzzer::watchdogReport($results, $inMemoryBudget, $inMemorySummary['rootDigest'], $inMemorySummary['trialDigest']),
+    'persistedTrackedReport' => SyncFuzzer::watchdogReport($persistedResults, $persistedBudget, $persistedSummary['rootDigest'], $persistedSummary['trialDigest']),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

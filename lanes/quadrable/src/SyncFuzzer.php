@@ -226,10 +226,18 @@ final class SyncFuzzer
      *     failures: list<array{metric:string, actual:int, limit:int}>,
      *     expectedRootDigest: ?string,
      *     rootDigestMatches: bool,
-     *     rootDigestFailure: ?array{actual:?string, expected:string}
+     *     rootDigestFailure: ?array{actual:?string, expected:string},
+     *     expectedTrialDigest: ?string,
+     *     trialDigestMatches: bool,
+     *     trialDigestFailure: ?array{actual:?string, expected:string}
      * }
      */
-    public static function watchdogReport(array $results, array $budget, ?string $expectedRootDigest = null): array
+    public static function watchdogReport(
+        array $results,
+        array $budget,
+        ?string $expectedRootDigest = null,
+        ?string $expectedTrialDigest = null
+    ): array
     {
         $summary = self::summarizeResults($results);
         $metricMap = [
@@ -275,14 +283,29 @@ final class SyncFuzzer
                 ];
             }
         }
+        $trialDigestFailure = null;
+        if ($expectedTrialDigest !== null) {
+            if (!preg_match('/^[0-9a-f]{64}$/', $expectedTrialDigest)) {
+                throw new \InvalidArgumentException('sync fuzzer expected trial digest must be a lowercase sha256 hex string');
+            }
+            if ($summary['trialDigest'] !== $expectedTrialDigest) {
+                $trialDigestFailure = [
+                    'actual' => $summary['trialDigest'],
+                    'expected' => $expectedTrialDigest,
+                ];
+            }
+        }
 
         return [
-            'ok' => $failures === [] && $rootDigestFailure === null,
+            'ok' => $failures === [] && $rootDigestFailure === null && $trialDigestFailure === null,
             'summary' => $summary,
             'failures' => $failures,
             'expectedRootDigest' => $expectedRootDigest,
             'rootDigestMatches' => $rootDigestFailure === null,
             'rootDigestFailure' => $rootDigestFailure,
+            'expectedTrialDigest' => $expectedTrialDigest,
+            'trialDigestMatches' => $trialDigestFailure === null,
+            'trialDigestFailure' => $trialDigestFailure,
         ];
     }
 

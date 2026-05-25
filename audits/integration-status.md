@@ -103287,6 +103287,19 @@ Deferred/rework command:
 Files staged:
 - `audits/integration-status.md`
 
+## Integration accepted - quadrable watchdog-next-20260525T064718Z - 2026-05-25 07:06 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T064718Z.ready`; patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T064718Z.patch`.
+Patch sha256 verified: `79d03223fcc37d3fe53dd1376d45a5600d7977889bfa62369152bf119727c3c1`.
+Lane/slice/session: `quadrable` / `watchdog-next-20260525T064718Z` / `port-quadrable`.
+Focused verification: `php -l` on changed PHP files passed; `jq empty lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/lane-status.json` passed; `php tools/run-tests.php lanes/quadrable/tests/SyncTest.php` passed (1 test files, 278 assertions, 0 failures); `php lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php 2 0` passed with both reports `ok: true`, `rootDigestMatches: true`, and `trialDigestMatches: true`.
+Root verification: `php tools/run-tests.php` passed (213 test files, 25748 assertions, 0 failures).
+Diff check: `git diff --check` passed.
+Support-library/dependency closure: no support-library activation; bounded lane-local slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+
 ## Integration accepted - isolated difftastic watchdog-next-20260525T045845Z - 2026-05-25T05:05:10Z
 
 Ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T045845Z.ready`
