@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 02:03:11 UTC",
-    "sourceCommit": "b4622ee4b06f3282b6ec1bbe50e6e20b009fba10",
-    "sourceCommitShort": "b4622ee4b06f",
-    "sourceBranch": "dashboard-publish-20260525T020257Z",
-    "dashboardCommit": "178d7f0bf9f9a33b83a1435dee73f02a63bd4d90",
-    "dashboardCommitShort": "178d7f0bf9f9",
+    "generated": "2026-05-25 02:07:01 UTC",
+    "sourceCommit": "cedf3ff1387c30cd3ec331ceda18e743d0699116",
+    "sourceCommitShort": "cedf3ff1387c",
+    "sourceBranch": "dashboard-publish-20260525T020647Z",
+    "dashboardCommit": "bdb6753a7026ec592455fee7dc216dc36ef0f919",
+    "dashboardCommitShort": "bdb6753a7026",
     "averageProgressPercent": "85.6",
     "lanes": [
         {
@@ -200,15 +200,15 @@
             "suite": "verified-cloned-static-test-inventory-plus-focused-runner",
             "benchmark": "verified-cloned-static-test-inventory-plus-focused-runner",
             "denominator": "658",
-            "mapped": "330",
-            "coverage": "330 / 658",
-            "php": "330 pass / 0 fail",
+            "mapped": "331",
+            "coverage": "331 / 658",
+            "php": "331 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "verified cloned static upstream test inventory plus bou...",
             "audit": "audited 2026-05-25",
-            "currentWork": "Native `FolderWatchScanScheduler` now exposes `pauseWatchingFolder()` so WordPress/local...",
-            "nextTarget": "Map the next Syncthing watcher lifecycle edge: repeated watcher errors while a folder is...",
-            "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused paused...",
+            "currentWork": "Native `FolderWatchScanScheduler::recordWatcherError()` now records repeated watcher erro...",
+            "nextTarget": "Map the next Syncthing watcher lifecycle edge: watcher restart completion should leave al...",
+            "blocker": "No Syncthing lane-local PHP blocker for this micro-slice: focused repeate...",
             "commit": "55605cb"
         }
     ],
