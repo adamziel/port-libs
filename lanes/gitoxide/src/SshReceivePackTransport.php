@@ -188,12 +188,18 @@ final class SshReceivePackTransport implements ReceivePackTransport
         if ($host === '' || self::hasControlBytes($host)) {
             throw new \InvalidArgumentException('SSH receive-pack host must be non-empty and must not contain control bytes');
         }
+        if (str_starts_with($host, '-')) {
+            throw new \InvalidArgumentException('SSH receive-pack host is ambiguous as an SSH command argument');
+        }
     }
 
     private static function validateUser(?string $user): void
     {
         if ($user !== null && ($user === '' || self::hasControlBytes($user))) {
             throw new \InvalidArgumentException('SSH receive-pack user must be non-empty and must not contain control bytes');
+        }
+        if ($user !== null && str_starts_with($user, '-')) {
+            throw new \InvalidArgumentException('SSH receive-pack user is ambiguous as an SSH command argument');
         }
     }
 
@@ -208,6 +214,9 @@ final class SshReceivePackTransport implements ReceivePackTransport
     {
         if ($repositoryPath === '' || self::hasControlBytes($repositoryPath)) {
             throw new \InvalidArgumentException('SSH receive-pack repository path must be non-empty and must not contain control bytes');
+        }
+        if (str_starts_with(ltrim($repositoryPath), '-')) {
+            throw new \InvalidArgumentException('SSH receive-pack repository path is ambiguous as a git-receive-pack argument');
         }
     }
 

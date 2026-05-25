@@ -99076,3 +99076,16 @@ Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T0
 - Support-library/dependency closure: no support-library activation; shared `js-package-resolution-core` remains inactive.
 - Live-service exclusions: none.
 - Files staged: `lanes/esbuild/**` and `audits/integration-status.md`.
+
+## Integration accepted - isolated gitoxide SSH receive-pack argument guard slice - 2026-05-25 01:04 UTC
+
+Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T001927Z.ready` with patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T001927Z.patch`.
+
+- Lane/slice/session: `gitoxide` / `watchdog-next-20260525T001927Z` / `port-gitoxide`.
+- Patch sha256: `63794340898b5e502ffabbb1f31a552cb5d6adc0470f6d4a652406a23a7d2047` verified with `sha256sum`.
+- Focused verification in clean worktree: `php -l lanes/gitoxide/src/SshReceivePackTransport.php` and `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` passed; `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed; JSON validation for manifest/status passed.
+- Root verification in clean worktree: `php tools/run-tests.php` passed with `208 test files, 24376 assertions, 0 failures`.
+- Whitespace verification: `git diff --check` passed.
+- Support-library/dependency closure: no support-library activation; this is lane-local URL/argument validation.
+- Live-service exclusions: none.
+- Files staged: `lanes/gitoxide/**` and `audits/integration-status.md`.

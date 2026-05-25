@@ -13,4 +13,7 @@ return [
     'progressMessages' => $fixture['progressMessages'],
     'requestByteLength' => strlen($fixture['requestBytes']),
     'responseSuccessful' => $fixture['responseSuccessful'],
+    'sshTarget' => $fixture['sshTarget'],
+    'sshCommand' => $fixture['sshCommand'],
+    'unsafeSshTargetRejected' => $fixture['unsafeSshTargetRejected'],
 ];
