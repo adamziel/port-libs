@@ -132,6 +132,46 @@ Files staged:
 - `lanes/gitoxide/tests/ReceivePackTransportTest.php`
 - `audits/integration-status.md`
 
+## Integration accepted - libsqlite json_pretty direct scalar dispatch - 2026-05-25 09:40 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T092306Z.ready`.
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T092306Z.patch`.
+Lane/slice/session: `libsqlite` / `priority-keeper-rework-20260525T092306Z` / `port-libsqlite-rework`.
+Old head: `5f21ea9c01aa38e54c79de7b6622eb3b7884eb38`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-libsqlite-priority-keeper-rework-20260525T092306Z-20260525T093438Z`:
+
+- `sha256sum`: passed for patch sha256 `c9f44e72310527dccb564c03d9a7bd9674a126448846dbb45381747e1362ed96`.
+- `git apply --check "/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T092306Z.patch"`: failed from accepted-head metadata drift; bounded `git apply --3way` applied source/test/scenario hunks cleanly and left conflicts only in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, and `lanes/libsqlite/notes/upstream-runner.md`.
+- Conflict resolution: preserved the newer direct scalar dispatch evidence and updated focused assertion counts to the exact clean integrator rerun result.
+- JSON validation for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`: passed.
+- `php -l lanes/libsqlite/src/SQLiteJsonPretty.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, 1 test file, 2052 assertions, 0 failures.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php | rg -c '^PASS'`: returned `238`.
+- `git diff --check`: passed.
+
+Root verification:
+
+- Pre-focused and pre-root gates checked: root filesystem available KiB >= 86000000, load < 25, and no exact `php tools/run-tests.php` process.
+- `php tools/run-tests.php`: passed in the same clean worktree, 214 test files, 25994 assertions, 0 failures.
+
+Support-library/dependency closure: no new support component activated; this slice reuses existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, subtype, and pretty-format support.
+
+Live-service exclusions: none; no live provider tests were run. Fresh upstream SQLite `testfixture` was not run because this isolated worktree did not include the hydrated upstream cache and the slice reuses prior focused `json_pretty` evidence.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonPretty.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
+
 ## Integration accepted - libsqlite json_pretty subtype dispatch - 2026-05-25 08:36 UTC
 
 Accepted isolated ready marker:

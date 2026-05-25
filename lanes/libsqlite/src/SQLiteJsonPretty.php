@@ -28,13 +28,13 @@ final class SQLiteJsonPretty
         return $formatter->format();
     }
 
-    public static function jsonPrettySqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, ?string $indent = null): ?string
+    public static function jsonPrettySqlFunction(string $function, string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string|int|float|bool|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $indent = null): ?string
     {
         if (strtolower($function) !== 'json_pretty') {
             throw new \InvalidArgumentException('SQLite JSON pretty function must be json_pretty');
         }
 
-        return self::jsonPretty($value, $indent);
+        return self::jsonPretty(self::sqlArgumentToJsonInput($value), self::sqlArgumentToText($indent));
     }
 
     /**

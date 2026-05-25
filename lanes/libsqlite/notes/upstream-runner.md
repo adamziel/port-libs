@@ -12,6 +12,7 @@ function lookup across direct calls and argument-vector dispatch, dispatches
 default and caller-supplied indentation through the accepted formatter,
 handles one-or-two argument vectors for SQL-style arity validation, accepts
 scalar SQL argument-vector values including integers, floats, and booleans,
+accepts the same scalar SQL values through the direct SQL-dispatch helper,
 accepts JSON subtype input, preserves SQL NULL and malformed input propagation,
 and rejects invalid function names through both direct and argument-vector dispatch without changing the accepted
 `json_pretty(JSON[,INDENT])` formatting boundary.
@@ -33,9 +34,9 @@ Prior result: passed 2 selected Tcl scripts, 45,007 tests, and 0 errors in
 `veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
 
 Native PHP evidence after rework is recorded in `lane-status.json`.
-The latest priority-keeper refresh adds malformed JSON propagation coverage
-through the argument-vector SQL dispatch path and passed the WordPress smoke
-and focused `SQLiteHeaderTest.php` with 2048 assertions and 0 failures.
+The latest additive direct-dispatch scalar check passed the WordPress smoke
+and focused `SQLiteHeaderTest.php` with 2052 assertions and 0 failures in the
+clean integrator worktree.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
