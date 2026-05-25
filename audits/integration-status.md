@@ -98865,3 +98865,53 @@ support-library activation was accepted.
   `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`. Repair: drop this
   older marker if superseded by accepted commits `66c8615c` and descendants, or
   re-emit only any still-missing watcher stop semantics against current source.
+
+## Clean-patch queue cleanup - 2026-05-25T00:20:00Z
+
+Current top-level isolated ready markers were re-sampled against accepted `main`
+`d35bf1dbd9ab62f02beadfbd4d4c4208690f8524`. Patch SHA-256 values matched
+for every marker inspected. No source was accepted, no no-argument root harness
+slot was consumed, no live-service provider tests were run, and no
+support-library activation was accepted.
+
+The active queue entries below are already covered by the accepted deferral
+records in `7b931c65` and `d35bf1db`; this pass moves their `.ready` markers out
+of the active queue to lane-rework notes while leaving patch and metadata files
+in place as repair inputs.
+
+- `.tmux-team/tmp/handoff-candidates/port-difftastic-20260524T233443Z.ready`:
+  deferred in favor of newer Difftastic rework. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-20260524T233443Z.patch`, then rebase only the Python builtin annotation classifier/test/example hunk or drop if the rework marker is accepted.
+- `.tmux-team/tmp/handoff-candidates/port-difftastic-rework-20260524T234104Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-difftastic-rework-20260524T234104Z.patch`, then rebase only the Python annotation/builtin classifier, example, test, and status counters onto current Difftastic state.
+- `.tmux-team/tmp/handoff-candidates/port-esbuild-20260524T233750Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-esbuild-20260524T233750Z.patch`, then re-emit the Node builtin external resolution slice against current accepted package resolver state.
+- `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260524T233033Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260524T233033Z.patch`, then rebase the packed refs snapshot status/manifest lines onto current accepted packed-ref work.
+- `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260524T233033Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260524T233033Z.patch`, then rebase the JSON remove option source/test/example and metadata onto current libsqlite JSON state.
+- `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260524T233544Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260524T233544Z.patch`, then rebase the user-select transition prefixer slice and manifest/status counters onto current LightningCSS state.
+- `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260524T233033Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260524T233033Z.patch`, then rebase only the CMap codespacerange source/test/example and metadata lines.
+- `.tmux-team/tmp/handoff-candidates/port-pandoc-20260524T233033Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-pandoc-20260524T233033Z.patch`, then re-emit the Markdown writer/reader slice against current accepted Pandoc state.
+- `.tmux-team/tmp/handoff-candidates/port-quadrable-20260524T233034Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260524T233034Z.patch`, then rebase Quadb import/export integer guard metadata/status counters and rerun focused `php tools/run-tests.php lanes/quadrable/tests/QuadbStoreTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-rclone-20260524T233034Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260524T233034Z.patch`, then rebase the OneDrive permission refresh slice onto current accepted OneDrive planner state.
+- `.tmux-team/tmp/handoff-candidates/port-readability-20260524T233033Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-readability-20260524T233033Z.patch`, then re-emit the Lifehacker Working fixture slice with whitespace-clean fixture inclusion and coherent manifest/status lines.
+- `.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T233443Z.ready`:
+  deferred. Repair command:
+  `git apply --3way /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-syncthing-20260524T233443Z.patch`, then drop if superseded by accepted Syncthing watcher cleanup commits or re-emit only missing watcher stop semantics.
