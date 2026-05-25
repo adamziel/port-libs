@@ -122,6 +122,27 @@ Files staged:
 - `lanes/syncthing/tests/FolderWatchScanSchedulerTest.php`
 # Integration Status
 
+## Clean-patch integration - libsqlite - 20260525T062607Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T060503Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T060503Z.patch`
+Lane/slice/session: `libsqlite` / `watchdog-next-20260525T060503Z` / `port-libsqlite`
+Patch sha256: `81e745cd0de1ddc10130eed73ffd791c1538e1346c4d07303a562f5693e3a0de` verified with `sha256sum -c`.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-libsqlite-watchdog-next-20260525T060503Z-20260525T062607Z`:
+
+- `php -l` on changed PHP files: passed for `SQLiteJsonCanonical.php`, `SQLiteHeaderTest.php`, and `wordpress-json-canonical-option-preflight.php`.
+- `php lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, 1 selected test file, 1972 assertions, 0 failures.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`: passed.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean worktree, 213 test files, 25613 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation; this is a lane-local JSON canonical dispatch slice.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, `lanes/libsqlite/src/SQLiteJsonCanonical.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, `audits/integration-status.md`.
+
 ## Clean-patch integration - Quadrable - 20260525T062420Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T060504Z.ready`

@@ -5085,6 +5085,55 @@ Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON5, JSONB, canonical JSON, JSON subtype, and BLOB
 wrapper components; it counts no shared support-library progress.
 
+## Focused Native Mapping: `json()`/`jsonb()` Canonical SQL Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQLite SQL result-type dispatch
+boundary for `json()` and `jsonb()`. Native
+`SQLiteJsonCanonical::jsonSqlFunction()` reuses the existing lane-local
+canonicalizer, returning canonical JSON text for `json()` and SQLite JSONB
+blob bytes for `jsonb()`. SQL NULL propagates, strict JSON text and SQLite
+JSON5 text are normalized, cast text BLOBs use the existing text fallback,
+SQLite JSONB BLOB inputs decode and re-encode, and malformed JSON, raw BLOBs,
+and invalid function names are rejected.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON canonicalization and JSONB
+evidence for the same upstream behavior cluster:
+
+```sh
+json101.test json501.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonCanonical.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
+php lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported SQL-dispatch
+`json()` text output plus decoded `jsonb()` output for strict JSON, JSON5,
+cast text BLOB, JSONB, and SQL NULL inputs, focused PHP passed 1 selected test
+file, 1972 assertions, and 0 failures, and
+`git diff --check -- lanes/libsqlite` passed. This worker did not start the
+root aggregate harness because root verification was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON canonicalizer, JSON5 parser, JSONB, and BLOB wrapper
+components; it counts no shared support-library progress.
+
 ## Focused Native Mapping: `json_error_position()` SQL Dispatch
 
 Date: 2026-05-25

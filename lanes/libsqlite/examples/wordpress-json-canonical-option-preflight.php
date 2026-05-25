@@ -25,9 +25,11 @@ $optionValues = [
 $report = [];
 foreach ($optionValues as $optionName => $optionValue) {
     try {
+        $jsonb = SQLiteJsonCanonical::jsonSqlFunction('jsonb', $optionValue);
         $report[$optionName] = [
             'status' => 'canonical',
-            'json' => SQLiteJsonCanonical::json($optionValue),
+            'json' => SQLiteJsonCanonical::jsonSqlFunction('json', $optionValue),
+            'jsonbDecoded' => $jsonb instanceof SQLiteBlobValue ? SQLiteJsonB::decode($jsonb->bytes) : null,
         ];
     } catch (InvalidArgumentException $exception) {
         $report[$optionName] = [
@@ -39,5 +41,5 @@ foreach ($optionValues as $optionName => $optionValue) {
 
 echo json_encode([
     'optionJson' => $report,
-    'wordpressUse' => 'Local-only wp_options JSON canonicalization that mirrors SQLite json(X) for copied strict JSON text, JSON5 plugin settings, cast text BLOBs, JSONB option blobs, NULL option values, and malformed settings before import.',
+    'wordpressUse' => 'Local-only wp_options JSON canonicalization that mirrors SQLite json(X) and jsonb(X) SQL dispatch for copied strict JSON text, JSON5 plugin settings, cast text BLOBs, JSONB option blobs, NULL option values, and malformed settings before import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

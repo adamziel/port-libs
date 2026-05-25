@@ -33,6 +33,19 @@ final class SQLiteJsonCanonical
         return self::canonicalizeText($value);
     }
 
+    public static function jsonSqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value): string|SQLiteBlobValue|null
+    {
+        $json = match ($function) {
+            'json', 'jsonb' => self::json($value),
+            default => throw new \InvalidArgumentException('SQLite JSON canonical function must be json or jsonb'),
+        };
+        if ($json === null || $function === 'json') {
+            return $json;
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(SQLiteJson5Parser::decode($json)));
+    }
+
     public static function canonicalizeText(string $json): string
     {
         $parser = new self($json);

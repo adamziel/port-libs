@@ -1435,3 +1435,26 @@ bounded libsqlite behavior slice with its own evidence. Dependency closure: no
 new support component is needed; the slice reuses existing lane-local JSON
 constructor, JSON subtype, JSONB, and BLOB support and counts no shared
 support-library progress.
+
+## `json()`/`jsonb()` Canonical Dispatch Scenario
+
+Native JSON canonicalization now includes a bounded SQLite SQL result-type
+boundary for `json()` and `jsonb()`. The updated
+`examples/wordpress-json-canonical-option-preflight.php` script can preflight
+copied `wp_options` JSON option values with canonical text JSON or decoded
+JSONB review output, preserving SQLite's distinction between text JSON
+results and JSONB blob results for strict JSON, JSON5, cast text BLOBs, JSONB
+BLOBs, SQL NULL values, malformed JSON, and raw BLOB rejection without
+requiring the SQLite extension.
+
+Status delta 2026-05-25 isolated micro-slice: added canonical json/jsonb
+SQL-dispatch helper, focused tests, and the WordPress smoke update. Focused
+verification is recorded in `lane-status.json` after local checks. Blocker: no
+hydrated upstream cache exists in this isolated worktree, so no fresh SQLite
+testfixture run was performed; this slice reuses prior `json101.test`,
+`json501.test`, `json107.test`, and `jsonb01.test` canonicalization evidence.
+Next task: integrator acceptance, then one additional bounded libsqlite
+behavior slice with its own evidence. Dependency closure: no new support
+component is needed; the slice reuses existing lane-local JSON canonicalizer,
+JSON5 parser, JSONB, and BLOB support and counts no shared support-library
+progress.
