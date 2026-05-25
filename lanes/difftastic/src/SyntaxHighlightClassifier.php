@@ -66,6 +66,10 @@ final class SyntaxHighlightClassifier
             return 'keyword';
         }
 
+        if ($this->isElispLanguage($language) && $this->isElispKeywordOrConstant($token->text)) {
+            return 'keyword';
+        }
+
         if ($this->isCLikeLanguage($language) && $this->isCPreprocessorDirective($source, $token->start)) {
             return 'keyword';
         }
@@ -178,6 +182,11 @@ final class SyntaxHighlightClassifier
     private function isCssLanguage(string $language): bool
     {
         return in_array($language, ['css', 'scss'], true);
+    }
+
+    private function isElispLanguage(string $language): bool
+    {
+        return in_array($language, ['el', 'elisp', 'emacs-lisp'], true);
     }
 
     private function isCLikeLanguage(string $language): bool
@@ -302,6 +311,15 @@ final class SyntaxHighlightClassifier
         return in_array($text, [
             '__CLASS__', '__DIR__', '__FILE__', '__FUNCTION__', '__LINE__',
             '__METHOD__', '__NAMESPACE__', '__TRAIT__',
+        ], true);
+    }
+
+    private function isElispKeywordOrConstant(string $text): bool
+    {
+        return in_array($text, [
+            'and', 'catch', 'cond', 'defconst', 'defmacro', 'defsubst', 'defun',
+            'defvar', 'function', 'if', 'interactive', 'lambda', 'let', 'nil',
+            'or', 'prog1', 'prog2', 'progn', 'quote', 'setq', 't', 'while',
         ], true);
     }
 

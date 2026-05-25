@@ -577,3 +577,20 @@ git diff --check -- lanes/difftastic
 The focused test expectation is 253 named tests, 1483 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
 
 Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.
+
+For this Emacs Lisp special-form and constant highlight slice, the lane reused the existing native PHP tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`. The mapped upstream boundary is difftastic's `EmacsLisp` `TreeSitterConfig`, which loads `vendored_parsers/highlights/elisp.scm`; that query captures special forms such as `defun` and `let` as `@keyword`, captures `nil` and `t` as `@constant.builtin`, and leaves ordinary function symbols such as `message` outside the promoted display highlight enum. The WordPress example applies this to `wp-content/plugins/acme-card/tools/export.el`, a plugin maintenance/export script review path.
+
+Focused evidence for this slice:
+
+```text
+php -l lanes/difftastic/src/SyntaxHighlightClassifier.php
+php -l lanes/difftastic/tests/TokenDifferTest.php
+php -l lanes/difftastic/examples/wordpress-elisp-maintenance-highlight-display.php
+php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
+php lanes/difftastic/examples/wordpress-elisp-maintenance-highlight-display.php >/tmp/difftastic-elisp-example.json && php -r 'json_decode(file_get_contents("/tmp/difftastic-elisp-example.json"), true, 512, JSON_THROW_ON_ERROR); echo "example json ok\n";'
+git diff --check -- lanes/difftastic
+```
+
+The focused test expectation is 256 named tests, 1503 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+
+Dependency closure: no new support component is needed for this slice. It reuses the bounded lane-local tokenizer/classifier/ANSI/JSON renderer path and the existing upstream vendored-query evidence route; no shared parser, tree-sitter runtime, generated query engine, or native support library is activated.

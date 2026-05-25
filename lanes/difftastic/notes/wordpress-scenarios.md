@@ -371,6 +371,7 @@ php lanes/difftastic/examples/wordpress-python-decorator-highlight-display.php
 php lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php
 php lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php
 php lanes/difftastic/examples/wordpress-ruby-migration-highlight-display.php
+php lanes/difftastic/examples/wordpress-elisp-maintenance-highlight-display.php
 ```
 
 The WordPress PHP magic-constant display example now covers plugin bootstrap include-path review in `wp-content/plugins/acme-card/acme-card.php`. Native JSON display highlights `require_once`, `__DIR__`, and `__FILE__` as keyword-style upstream keyword/constant captures while keeping WordPress helper calls such as `plugin_dir_path(...)` and project class identifiers normal, so review UIs can distinguish PHP runtime constants from ordinary plugin APIs.
@@ -391,6 +392,10 @@ The WordPress C native-module display example covers optional plugin support cod
 
 Dependency closure: no new support component is needed for the C/C++ preprocessor/type highlight slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a native C parser support component would only be proposed behind an accepted gate for broader C/C++ structural AST parity beyond keyword/type display captures.
 
+The WordPress Emacs Lisp maintenance example covers plugin-local editor/script tooling under `wp-content/plugins/acme-card/tools/export.el`. Native JSON display highlights upstream special forms such as `defun` and `let` plus the `nil`/`t` constants as keyword-style spans, while ordinary helper symbols such as `message` and unmapped forms such as `when` remain normal.
+
+Dependency closure: no new support component is needed for the Emacs Lisp special-form/constant highlight slice. It reuses the existing bounded lane-local tokenizer, `SyntaxHighlightClassifier`, `AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; a native Emacs Lisp parser support component would only be proposed behind an accepted gate for broader Elisp syntax-list or macro/form semantics beyond keyword/constant display captures.
+
 ## Next Task
 
-Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, C/C++ preprocessor/type captures, and the already mapped Python/Ruby clusters, while keeping unsupported function and property captures normal unless the upstream display enum promotes them.
+Expand the next upstream-query-backed syntax highlight boundary outside PHP magic constants, JavaScript variable.builtin, C/C++ preprocessor/type captures, Emacs Lisp special forms/constants, and the already mapped Python/Ruby clusters, while keeping unsupported function and property captures normal unless the upstream display enum promotes them.

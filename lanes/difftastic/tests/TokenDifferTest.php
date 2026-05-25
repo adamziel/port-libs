@@ -4409,6 +4409,34 @@ return [
         $t->contains('blocks:normal', $encoded);
         $t->contains('len:normal', $encoded);
     },
+    'wordpress elisp maintenance display follows upstream special form and constant boundary' => static function (TestRunner $t): void {
+        ob_start();
+        require dirname(__DIR__) . '/examples/wordpress-elisp-maintenance-highlight-display.php';
+        $output = ob_get_clean();
+        $decoded = json_decode((string) $output, true, 512, JSON_THROW_ON_ERROR);
+
+        $changes = [];
+        foreach ($decoded['chunks'] as $chunk) {
+            foreach ($chunk as $line) {
+                foreach (($line['rhs']['changes'] ?? []) as $change) {
+                    $changes[] = $change['content'] . ':' . $change['highlight'];
+                }
+            }
+        }
+        $encoded = implode("\n", $changes);
+        $spans = (new AnsiSyntaxHighlighter())->spansForLine(
+            '(defun acme-card-export () (let ((enabled nil)) (message "export")))',
+            ['language' => 'elisp'],
+        );
+
+        $t->same('wp-content/plugins/acme-card/tools/export.el', $decoded['path']);
+        $t->true(in_array(['start' => 1, 'end' => 6, 'style' => '1'], $spans, true), 'Emacs Lisp defun should map to upstream keyword styling.');
+        $t->true(in_array(['start' => 28, 'end' => 31, 'style' => '1'], $spans, true), 'Emacs Lisp let should map to upstream keyword styling.');
+        $t->true(in_array(['start' => 42, 'end' => 45, 'style' => '1'], $spans, true), 'Emacs Lisp nil should map to upstream constant/keyword styling.');
+        $t->contains('t:keyword', $encoded);
+        $t->contains('when:normal', $encoded);
+        $t->contains('message:normal', $encoded);
+    },
     'wordpress python decorator display highlights constructor captures only' => static function (TestRunner $t): void {
         ob_start();
         require dirname(__DIR__) . '/examples/wordpress-python-decorator-highlight-display.php';

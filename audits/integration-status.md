@@ -1,5 +1,45 @@
 # Integration Status
 
+## Integration accepted - isolated difftastic Emacs Lisp highlight slice - 2026-05-25 03:31 UTC
+
+Accepted current clean-patch marker
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T032256Z.ready`
+with patch
+`.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T032256Z.patch`.
+
+Lane/slice/session: `difftastic` / `rearmer-20260525T032255Z` /
+`port-difftastic`. Patch SHA-256 verified as
+`fd918762295a74400a7f33a659e540ef3fe1d7c27997858ca6342fd8f55fc36f`.
+The patch applied cleanly to accepted `main` HEAD `4817468a3e22`.
+
+Focused verification in clean worktree:
+`php -l` for the changed PHP files passed; `php tools/run-tests.php
+lanes/difftastic/tests/TokenDifferTest.php` passed with `1 test files, 1503
+assertions, 0 failures`; the WordPress Emacs Lisp example JSON decoded cleanly;
+manifest/status JSON decoded cleanly; `git diff --check` passed.
+
+Root verification: waited for active exact no-argument root PID `560150` to
+clear, then ran `php tools/run-tests.php` in the same clean worktree. Result:
+pass, `212 test files, 24990 assertions, 0 failures`.
+
+Support-library/dependency closure: no new support-library activation. The
+slice reuses the existing lane-local tokenizer, `SyntaxHighlightClassifier`,
+`AnsiSyntaxHighlighter`, and `JsonDiffRenderer`; broader Emacs Lisp parser
+support remains a future gated dependency only if structural AST parity is
+accepted as a later scope.
+
+Live-service exclusions: none needed; this Difftastic slice has no live
+provider tests.
+
+Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/difftastic/examples/wordpress-elisp-maintenance-highlight-display.php`,
+`lanes/difftastic/lane-status.json`,
+`lanes/difftastic/notes/upstream-inventory.md`,
+`lanes/difftastic/notes/wordpress-scenarios.md`,
+`lanes/difftastic/src/SyntaxHighlightClassifier.php`,
+`lanes/difftastic/tests/TokenDifferTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - isolated rclone token-renewer bracketing - 2026-05-25 03:34 UTC
 
 Accepted isolated ready marker:
