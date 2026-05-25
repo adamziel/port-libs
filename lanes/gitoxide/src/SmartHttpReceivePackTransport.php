@@ -293,7 +293,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('smart HTTP receive-pack URL must not include a fragment');
         }
 
-        $authority = self::authority($parts['host'], isset($parts['port']) ? (int) $parts['port'] : null);
+        $host = self::validateAuthorityHost($parts['host'], 'smart HTTP receive-pack URL host');
+        $authority = self::authority($host, isset($parts['port']) ? (int) $parts['port'] : null);
         $url = $scheme . '://' . $authority . ($parts['path'] ?? '');
         if (isset($parts['query'])) {
             $url .= '?' . $parts['query'];
@@ -323,6 +324,19 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $authority;
+    }
+
+    private static function validateAuthorityHost(string $host, string $label): string
+    {
+        $decoded = rawurldecode($host);
+        if ($decoded === '' || self::containsControlByte($decoded)) {
+            throw new \InvalidArgumentException("{$label} must be non-empty and must not contain control bytes");
+        }
+        if (preg_match('/[\s\/\\\\]/', $decoded) === 1) {
+            throw new \InvalidArgumentException("{$label} must not contain whitespace, slash, or backslash delimiters");
+        }
+
+        return $decoded;
     }
 
     private static function isRedirectStatus(int $status): bool
@@ -457,9 +471,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             throw new \RuntimeException("{$label} port must be between 1 and 65535");
         }
 
+        $host = self::validateAuthorityHost($parts['host'], "{$label} host");
         $result = [
             'scheme' => $scheme,
-            'host' => $parts['host'],
+            'host' => $host,
             'port' => $port,
         ];
         foreach (['path', 'query', 'user', 'pass', 'fragment'] as $key) {
@@ -833,8 +848,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('smart HTTP receive-pack proxy must not include a path, query, or fragment');
         }
 
+        $host = self::validateAuthorityHost($parts['host'], 'smart HTTP receive-pack proxy host');
         $port = isset($parts['port']) ? (int) $parts['port'] : self::defaultProxyPort($type);
-        $authority = self::authority($parts['host'], $port);
+        $authority = self::authority($host, $port);
         $authorization = null;
         if (isset($parts['user'])) {
             $authorization = self::basicAuthorization(

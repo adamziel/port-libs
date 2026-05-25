@@ -28,6 +28,8 @@ return [
     'unsafeGitDaemonExtraParameterRejected' => $fixture['unsafeGitDaemonExtraParameterRejected'],
     'unsafeSmartHttpCredentialControlByteRejected' => $fixture['unsafeSmartHttpCredentialControlByteRejected'],
     'unsafeSmartHttpCredentialTabRejected' => $fixture['unsafeSmartHttpCredentialTabRejected'],
+    'unsafeSmartHttpHostDelimiterRejected' => $fixture['unsafeSmartHttpHostDelimiterRejected'],
+    'unsafeSmartHttpProxyHostDelimiterRejected' => $fixture['unsafeSmartHttpProxyHostDelimiterRejected'],
     'unsafeSshTargetRejected' => $fixture['unsafeSshTargetRejected'],
     'unsafeSshHostDelimiterRejected' => $fixture['unsafeSshHostDelimiterRejected'],
     'unsafeSshUserDelimiterRejected' => $fixture['unsafeSshUserDelimiterRejected'],

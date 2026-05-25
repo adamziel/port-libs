@@ -102671,3 +102671,25 @@ Files staged:
 - `lanes/dolt/notes/wordpress-scenarios.md`
 - `lanes/dolt/src/MergeStatusTable.php`
 - `lanes/dolt/tests/MergeStatusTableTest.php`
+
+## Integration accepted - isolated gitoxide watchdog-next-20260525T045740Z - 2026-05-25T05:09:45Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T045740Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T045740Z.patch`
+Lane/slice/session: `gitoxide` / `watchdog-next-20260525T045740Z` / `port-gitoxide`
+Patch sha256: `4d6315d8300f8990bacc22a2a9fa9306c87271244435a06701fcad5a6a4af5b6` verified. Applied with bounded three-way rebase from `22d658b40f19c540aaf4eccbc1872e0ab701e56d`.
+Focused commands:
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php => exit 0; 1 test files, 257 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25248 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`
+- `lanes/gitoxide/lane-status.json`
+- `lanes/gitoxide/notes/upstream-inventory.md`
+- `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`
+- `lanes/gitoxide/tests/ReceivePackTransportTest.php`
