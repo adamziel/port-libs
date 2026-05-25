@@ -109935,3 +109935,49 @@ Files staged:
 - `lanes/libsqlite/src/SQLiteJsonEach.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+## Integration accepted - rclone cleanup-command rework refresh - 2026-05-25 14:18 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T141559Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-rclone-rework-20260525T141559Z.patch`.
+
+Lane/slice/session: `rclone` / `supervisor-refill-20260525T141559Z` /
+`port-rclone-rework`. Patch sha256 verified as
+`eb3301f17449e2b9d62ad004c1173b9b2f067c091173eade33e6aafb31f6fc9e`.
+
+Apply result: plain `git apply --check` and `git apply` both succeeded in clean
+worktree `/tmp/port-clean-integrator-rclone-supervisor-refill-20260525T141559Z`
+from old main `b168fa0a8f5685c217839da8e2570a5487e582f9`. The patch is an
+additive lane-local metadata refresh: `lanes/rclone/lane-status.json` wording
+plus `lanes/rclone/notes/cleanup-command-rework-20260525T141559Z.md`.
+
+Focused verification: `php -l lanes/rclone/src/OneDriveCleanupCommand.php`,
+`php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php`, and
+`php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`
+all passed. `php tools/run-tests.php
+lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed with `1 test files,
+93 assertions, 0 failures`. `php tools/run-tests.php lanes/rclone/tests` passed
+with `35 test files, 4050 assertions, 0 failures`. The cleanup-command WordPress
+example smoke passed with `source=onedrive-cleanup-command-preflight` and
+`secretInputsRead=false`. `jq empty lanes/rclone/lane-status.json
+lanes/rclone/UPSTREAM_TEST_MANIFEST.json` passed. `git diff --check` passed.
+
+Root verification: the first pre-root gate found active root PID `1025607`
+(`php tools/run-tests.php`), so verification waited 60 seconds outside the
+shared lock. The follow-up gate had sufficient disk, load below `25`, and no
+exact no-argument root PID. `php tools/run-tests.php` then ran under
+`.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and passed
+with `214 test files, 26177 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The slice
+reuses existing lane-local OneDrive cleanup/version-cleaner abstractions and
+deterministic in-memory fixtures.
+
+Live-service exclusions: live OneDrive OAuth/provider tests, mount/FUSE
+packages, Docker-backed serve/docker coverage, fstest provider remotes, and any
+credential-bearing provider tests were not run.
+
+Files staged: `lanes/rclone/lane-status.json`,
+`lanes/rclone/notes/cleanup-command-rework-20260525T141559Z.md`, and
+`audits/integration-status.md`.
