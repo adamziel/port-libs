@@ -139,6 +139,13 @@ Focused verification in clean worktree `/tmp/port-clean-integrator-quadrable-wat
 
 Root verification: `php tools/run-tests.php` passed in the same clean worktree, 213 test files, 25605 assertions, 0 failures.
 
+Post-commit audit correction: an initial integrator probe looked for stale
+example keys and printed `ok=false` / `rootDigestMatches=false`. Rechecking the
+accepted commit with `php lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php
+2 0` shows the current JSON keys are `inMemoryReport` and
+`persistedTrackedReport`; both reports have `ok: true`, empty `failures`, and
+`rootDigestMatches: true`.
+
 Support-library/dependency closure: no support-library activation; this is a lane-local sync fuzzer watchdog summary slice.
 Live-service exclusions: none; no live-service provider tests were run.
 Files staged: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/examples/wordpress-sync-fuzz-watchdog.php`, `lanes/quadrable/lane-status.json`, `lanes/quadrable/notes/upstream-inventory.md`, `lanes/quadrable/notes/wordpress-scenarios.md`, `lanes/quadrable/src/SyncFuzzer.php`, `lanes/quadrable/tests/SyncTest.php`, `audits/integration-status.md`.
