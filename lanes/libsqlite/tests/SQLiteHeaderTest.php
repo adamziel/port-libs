@@ -3169,6 +3169,7 @@ return [
         $t->same('0', SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', false));
         $t->same("[\n01,\n02\n]", SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', '[1,2]', 0));
         $t->same(null, SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', null));
+        $t->same(null, SQLiteJsonPretty::jsonPrettySqlFunction('json_pretty', null, '--'));
         $t->same("{\n    \"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', ['{"a":1}']));
         $t->same("{\n    \"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [new SQLiteBlobValue('{"a":1}')]));
         $t->same("{\n    \"a\": 1,\n    \"b\": [\n        2,\n        3\n    ]\n}", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [new SQLiteBlobValue($jsonb)]));
@@ -3191,6 +3192,8 @@ return [
         $t->same('0', SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [false]));
         $t->same("[\n01,\n02\n]", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', ['[1,2]', 0]));
         $t->same("[\n01,\n02\n]", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', ['[1,2]', false]));
+        $t->same(null, SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [null]));
+        $t->same(null, SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [null, '--']));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPretty::jsonPrettySqlFunction('jsonb_pretty', '{"a":1}'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonPretty::jsonPrettySqlFunctionArguments('jsonb_pretty', ['{"a":1}']));

@@ -37,6 +37,7 @@ $optionValues = [
     'scalar_backoff_ratio' => 0.125,
     'scalar_whole_real_settings' => 3.0,
     'null_settings' => null,
+    'null_indent_settings' => null,
     'malformed_settings' => '{plugin:true,,}',
 ];
 
@@ -50,6 +51,7 @@ foreach ($optionValues as $optionName => $optionValue) {
         'whole_real_indent_settings' => 3.0,
         'text_blob_indent_settings' => '..',
         'jsonb_indent_settings' => '--',
+        'null_indent_settings' => '--',
         default => null,
     };
     try {

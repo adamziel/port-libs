@@ -109608,3 +109608,49 @@ with patch `.tmux-team/tmp/handoff-candidates/port-gitoxide-rework-20260525T1203
 - Support-library/dependency closure: no new support-library activation. The patch reuses lane-local smart HTTP receive-pack redirect handling, cookie parsing/header composition, packet/request builders, URL validation, and native status/header validation.
 - Live-service exclusions: no live Git remote, credential helper, SSH, or provider service was contacted; the WordPress follow-redirects smoke uses local deterministic fixtures.
 - Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, and `audits/integration-status.md`.
+## Integration accepted - libsqlite json_pretty NULL custom indent - 2026-05-25 12:20 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T121348Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T121348Z.patch`
+with verified sha256
+`99aaf601521db64ce129893bb0b04dd2106db460a3a69c9cd6efa1889868aa65`.
+
+Lane/slice/session: `libsqlite` /
+`priority-refill-20260525T121348Z` / `port-libsqlite-rework`.
+Clean integration base: `9ffacee572b49b6f9fced1e46612b89b3ae95db5`.
+Clean worktree:
+`/tmp/port-clean-integrator-libsqlite-priority-refill-20260525T121348Z`.
+
+Focused verification repeated in the clean worktree:
+
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`: passed.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`: passed; `null_indent_settings` reported `json: null` and `directJson: null`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 2080 assertions, 0 failures`.
+- `git diff --check`: passed.
+
+Root verification:
+
+- `php tools/run-tests.php` under
+  `.tmux-team/tmp/clean-integrator-run.lock`: passed, `214 test files,
+  26123 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The patch
+reuses existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, subtype,
+and pretty-format support and does not count shared support-library progress.
+
+Live-service exclusions: none; no live providers or external services were
+used.
+
+Files staged:
+
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`

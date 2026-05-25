@@ -60,6 +60,11 @@ Priority-keeper rework 2026-05-25T11:27Z adds the matching focused assertions
 for JSONB option blobs through both SQL-dispatch paths with default
 indentation, aligning the native tests with the existing `jsonb_settings`
 WordPress smoke row.
+Priority-refill rework 2026-05-25T12:13Z adds the matching SQL NULL
+first-argument plus custom-indent second-argument row for copied option values,
+so both direct and argument-vector SQL-dispatch paths return NULL for
+`json_pretty(NULL, '--')` instead of treating the indent as meaningful output.
+Dependency closure remains unchanged: no new support component is needed.
 
 ## `json_each()` Option-Value Expansion Scenario
 

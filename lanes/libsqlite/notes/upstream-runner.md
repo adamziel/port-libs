@@ -77,6 +77,12 @@ Priority-keeper rework 2026-05-25T11:27Z fills the matching default-indent
 JSONB SQL-dispatch assertion gap, covering JSONB blobs through both direct and
 argument-vector `json_pretty()` dispatch when no second SQL argument is
 provided. Focused verification is recorded in `lane-status.json`.
+Priority-refill rework 2026-05-25T12:13Z adds explicit SQL NULL
+first-argument coverage when a custom indent second argument is supplied
+through both direct and argument-vector `json_pretty()` dispatch, plus the
+matching `null_indent_settings` WordPress smoke row. Focused PHP verification
+passed with 1 selected file, 2080 assertions, and 0 failures; the root harness
+was not run for this isolated micro-slice.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty
