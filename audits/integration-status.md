@@ -99320,3 +99320,30 @@ Files staged:
 - `lanes/lightningcss/notes/wordpress-scenarios.md`
 - `lanes/lightningcss/src/CssMinifier.php`
 - `lanes/lightningcss/tests/CssMinifierTest.php`
+
+## Clean isolated integration - difftastic - 2026-05-25T00:51:51Z UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T004436Z.ready`
+
+
+## Clean isolated integration - difftastic - 2026-05-25T00:52:09Z UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T004436Z.ready`
+
+- Patch: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T004436Z.patch`
+- Lane/slice/session: `difftastic` / `supervisor-next-20260525T004436Z` / `port-difftastic-20260525T004436Z`
+- Patch sha256: verified.
+- Focused commands: `php -l` on changed PHP files: PASS; `php tools/run-tests.php lanes/difftastic/tests`: PASS, 1 file, 1398 assertions, 0 failures; JSON manifest/status validation: PASS.
+- Root command: `php tools/run-tests.php`: PASS, 208 test files, 24457 assertions, 0 failures.
+- `git diff --check`: PASS.
+- Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+- Live-service exclusions: no live-service provider tests run.
+- Files staged:
+  - `audits/integration-status.md`
+  - `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`
+  - `lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php`
+  - `lanes/difftastic/lane-status.json`
+  - `lanes/difftastic/notes/upstream-inventory.md`
+  - `lanes/difftastic/notes/wordpress-scenarios.md`
+  - `lanes/difftastic/src/SyntaxHighlightClassifier.php`
+  - `lanes/difftastic/tests/TokenDifferTest.php`

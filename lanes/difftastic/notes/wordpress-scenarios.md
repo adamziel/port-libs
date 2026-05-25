@@ -374,8 +374,10 @@ The WordPress Python multiline annotation example now exercises migration helper
 
 The WordPress Python multiline annotation example now also covers `from __future__ import annotations` plus `typing` aliases used in migration helpers. `Optional`, `TypeAlias`, and stringized `dict[str, list[int]]` annotations are bold-highlighted only in annotation or likely type-alias contexts, while `label = "list"` remains a normal string and runtime locals named `list` remain unpromoted.
 
-Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for qualified `typing.X` aliases, nested string annotation spans, and deeper syntax-list-level annotation parsing.
+The same WordPress Python multiline annotation example now covers qualified `typing.Optional[Payload]` and `typing_extensions.TypeAlias` usage that commonly appears in migration scripts and importer helpers. Only the alias member names and stringized annotation bodies are promoted; `import typing`, `import typing_extensions`, runtime locals, and runtime strings remain normal/string highlighted.
+
+Dependency closure: no new support component is needed. This Python annotation slice reuses the existing lane-local native tokenizer, syntax highlighter, and exact-version tree-sitter-python query evidence; a broader native Python parser component would only be justified behind a separate accepted gate with upstream Python corpus evidence for nested string annotation spans, additional qualified alias providers beyond the bounded `typing` / `typing_extensions` surface, and deeper syntax-list-level annotation parsing.
 
 ## Next Task
 
-Expand Python annotation highlighting only with upstream-query evidence for qualified `typing.X` aliases and nested string annotation spans, while keeping runtime strings and ordinary expressions unpromoted.
+Expand Python annotation highlighting only with upstream-query evidence for nested string annotation spans and qualified aliases beyond the bounded `typing` / `typing_extensions` surface, while keeping runtime strings and ordinary expressions unpromoted.

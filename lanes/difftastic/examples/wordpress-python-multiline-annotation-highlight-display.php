@@ -7,9 +7,12 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\Difftastic\AnsiSyntaxHighlighter;
 
 $source = "from __future__ import annotations\n"
+    . "import typing\n"
+    . "import typing_extensions\n"
     . "from typing import Optional, TypeAlias\n"
     . "\n"
     . "Payload: TypeAlias = \"dict[str, list[int]]\"\n"
+    . "FuturePayload: typing_extensions.TypeAlias = \"typing.Optional[Payload]\"\n"
     . "label = \"list\"\n"
     . "\n"
     . "def normalize_posts(\n"
@@ -21,6 +24,7 @@ $source = "from __future__ import annotations\n"
     . "    list[str],\n"
     . "]:\n"
     . "    parent: Optional[Payload] = None\n"
+    . "    future_parent: typing.Optional[Payload] = None\n"
     . "    encoded: \"dict[str, list[int]]\" = {}\n"
     . "    list = []\n"
     . "    return (len(posts), list)\n";

@@ -499,6 +499,8 @@ The focused test expectation is 241 named tests, 1346 assertions, and 0 failures
 
 For this Python multiline annotation highlight slice, the lane reused the existing native PHP tokenizer and ANSI syntax highlighter. `AnsiSyntaxHighlighter` now accepts a full-source context plus per-line byte offset so line rendering can classify tokens against their original source position; `SyntaxHighlightClassifier` uses that context to keep builtin Python type names highlighted through multiline `dict[...]`, `list[...]`, `tuple[...]`, and PEP 604 `|` annotation continuations while preventing closed annotation regions from leaking into runtime `list` expressions.
 
+For this qualified Python typing alias slice, the lane stayed on the same upstream `tree-sitter-python` query evidence and native highlighter path. `SyntaxHighlightClassifier` now treats bounded `typing.Optional[...]` and `typing_extensions.TypeAlias` member names as type captures only when the qualified expression is in an annotation or likely type-alias assignment region; the module identifiers and ordinary imports remain normal. The WordPress migration example covers future annotations, qualified aliases, stringized `typing.Optional[Payload]`, and runtime guards.
+
 Focused evidence for this slice:
 
 ```text
@@ -511,7 +513,7 @@ php lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-di
 git diff --check -- lanes/difftastic
 ```
 
-The focused test expectation is 245 named tests, 1388 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
+The focused test expectation is 245 named tests, 1398 assertions, and 0 failures. Root harness status for this isolated micro-slice: not run.
 
 ## Next Task
 

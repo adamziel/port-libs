@@ -91,7 +91,10 @@ final class SyntaxHighlightClassifier
                 return 'normal';
             }
             if ($this->isPythonBuiltinTypeName($token->text)) {
-                return $this->isPythonTypeAnnotationContext($source, $token) ? 'type' : 'normal';
+                return $this->isPythonTypeAnnotationContext($source, $token)
+                    || $this->isPythonQualifiedTypeAnnotationContext($source, $token)
+                    ? 'type'
+                    : 'normal';
             }
         }
 
@@ -271,6 +274,31 @@ final class SyntaxHighlightClassifier
         return $this->previousNonWhitespaceCharacters($source, $token->start, 2) === '->';
     }
 
+    private function isPythonQualifiedTypeAnnotationContext(string $source, Token $token): bool
+    {
+        $dot = $this->previousNonWhitespaceCharacterPosition($source, $token->start);
+        if ($dot === null || ($source[$dot] ?? '') !== '.') {
+            return false;
+        }
+
+        $moduleEnd = $dot;
+        $moduleStart = $moduleEnd;
+        while ($moduleStart > 0 && preg_match('/[A-Za-z0-9_]/', $source[$moduleStart - 1]) === 1) {
+            $moduleStart--;
+        }
+
+        $module = substr($source, $moduleStart, $moduleEnd - $moduleStart);
+        if (!in_array($module, ['typing', 'typing_extensions'], true)) {
+            return false;
+        }
+
+        $moduleToken = new Token('identifier', $module, start: $moduleStart, end: $moduleEnd);
+
+        return $this->isPythonTypeAnnotationContext($source, $moduleToken)
+            || $this->pythonLinePrefixHasAnnotationMarker($source, $moduleStart)
+            || $this->pythonPreviousContinuationHasAnnotationMarker($source, $moduleStart);
+    }
+
     private function isPythonStringizedAnnotationContext(string $source, Token $token): bool
     {
         if (!$this->pythonStringLooksLikeTypeExpression($token->text)) {
@@ -316,7 +344,7 @@ final class SyntaxHighlightClassifier
         $prefix = substr($source, $lineStart, $token->start - $lineStart);
 
         return preg_match('/^\s*[A-Z][A-Za-z0-9_]*\s*=\s*$/', $prefix) === 1
-            || preg_match('/^\s*[A-Z][A-Za-z0-9_]*\s*:\s*TypeAlias\s*=\s*$/', $prefix) === 1;
+            || preg_match('/^\s*[A-Z][A-Za-z0-9_]*\s*:\s*(?:[A-Za-z_][A-Za-z0-9_]*\.)?TypeAlias\s*=\s*$/', $prefix) === 1;
     }
 
     /**
