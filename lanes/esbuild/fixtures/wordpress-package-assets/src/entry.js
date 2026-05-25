@@ -4,6 +4,8 @@ import fixtureSelf from 'wordpress-package-assets-fixture';
 import selfExport from 'wordpress-package-assets-fixture/self-export';
 import exportedRuntime from 'exports-map-pkg';
 import featureRuntime from 'exports-map-pkg/features/card';
+import conditionalArrayRuntime from 'conditional-array-pkg';
+import conditionalCustomRuntime from 'conditional-array-pkg/custom';
 import browserMappedRuntime from 'browser-map-pkg';
 import browserMappedFeature from 'browser-map-pkg/feature';
 import containingMappedRuntime from 'containing-browser-map-pkg';
@@ -19,4 +21,4 @@ const previewRuntime = require('exports-map-pkg/preview');
 const legacyTool = require('exports-map-pkg/legacy/admin');
 const requirePreview = require('#require-preview');
 
-export { store, helper, fixtureSelf, selfExport, exportedRuntime, featureRuntime, browserMappedRuntime, browserMappedFeature, containingMappedRuntime, internalView, conditionalRuntime, internalBlock, importedRuntime, runtime, serverRuntime, fallback, previewRuntime, legacyTool, requirePreview };
+export { store, helper, fixtureSelf, selfExport, exportedRuntime, featureRuntime, conditionalArrayRuntime, conditionalCustomRuntime, browserMappedRuntime, browserMappedFeature, containingMappedRuntime, internalView, conditionalRuntime, internalBlock, importedRuntime, runtime, serverRuntime, fallback, previewRuntime, legacyTool, requirePreview };

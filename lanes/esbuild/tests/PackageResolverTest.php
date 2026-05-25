@@ -26,6 +26,8 @@ return [
             'wordpress-package-assets-fixture/self-export' => 'src/self-export.js',
             'exports-map-pkg' => 'node_modules/exports-map-pkg/browser.js',
             'exports-map-pkg/features/card' => 'node_modules/exports-map-pkg/features/card.js',
+            'conditional-array-pkg' => 'node_modules/conditional-array-pkg/browser.js',
+            'conditional-array-pkg/custom' => 'node_modules/conditional-array-pkg/default.js',
             'browser-map-pkg' => 'node_modules/browser-map-pkg/browser-module.js',
             'browser-map-pkg/feature' => 'node_modules/browser-map-pkg/feature-browser.js',
             'containing-browser-map-pkg' => 'node_modules/containing-browser-map-pkg/main.js',
@@ -46,6 +48,8 @@ return [
         $t->same([
             'module',
             null,
+            'exports',
+            'exports',
             'exports',
             'exports',
             'exports',
@@ -80,6 +84,8 @@ return [
             'wordpress-package-assets-fixture/self-export' => 'src/self-export.js',
             'exports-map-pkg' => 'node_modules/exports-map-pkg/node.js',
             'exports-map-pkg/features/card' => 'node_modules/exports-map-pkg/features/card.js',
+            'conditional-array-pkg' => 'node_modules/conditional-array-pkg/default.js',
+            'conditional-array-pkg/custom' => 'node_modules/conditional-array-pkg/default.js',
             'browser-map-pkg' => 'node_modules/browser-map-pkg/main.js',
             'browser-map-pkg/feature' => 'node_modules/browser-map-pkg/feature.js',
             'containing-browser-map-pkg' => 'node_modules/containing-browser-map-pkg/main.js',
@@ -103,6 +109,8 @@ return [
             'wordpress-package-assets-fixture/self-export' => 'src/self-export.js',
             'exports-map-pkg' => 'node_modules/exports-map-pkg/default.js',
             'exports-map-pkg/features/card' => 'node_modules/exports-map-pkg/features/card.js',
+            'conditional-array-pkg' => 'node_modules/conditional-array-pkg/default.js',
+            'conditional-array-pkg/custom' => 'node_modules/conditional-array-pkg/default.js',
             'browser-map-pkg/feature' => 'node_modules/browser-map-pkg/feature.js',
             '#view' => 'src/internal/view.js',
             '#conditional' => 'src/internal/default.js',
@@ -123,6 +131,8 @@ return [
             'wordpress-package-assets-fixture/self-export' => 'src/self-export.js',
             'exports-map-pkg' => 'node_modules/exports-map-pkg/default.js',
             'exports-map-pkg/features/card' => 'node_modules/exports-map-pkg/features/card.js',
+            'conditional-array-pkg' => 'node_modules/conditional-array-pkg/default.js',
+            'conditional-array-pkg/custom' => 'node_modules/conditional-array-pkg/default.js',
             'browser-map-pkg' => 'node_modules/browser-map-pkg/module.js',
             'browser-map-pkg/feature' => 'node_modules/browser-map-pkg/feature.js',
             'containing-browser-map-pkg' => 'node_modules/containing-browser-map-pkg/main.js',
@@ -156,6 +166,22 @@ return [
 
         $t->same('node_modules/exports-map-pkg/features/card.js', $normalizeFixturePath($browser->resolveImport(new ModuleImport('named', 'exports-map-pkg/features/card', [], 0), $entryDir)?->path ?? ''));
         $t->same('node_modules/exports-map-pkg/legacy/admin.js', $normalizeFixturePath($browser->resolveImport(new ModuleImport('named', 'exports-map-pkg/legacy/admin', [], 0), $entryDir)?->path ?? ''));
+    },
+    'maps package exports arrays and custom conditions' => static function (TestRunner $t) use ($entryDir, $normalizeFixturePath): void {
+        $browser = new PackageResolver('browser');
+        $node = new PackageResolver('node');
+        $wordpress = new PackageResolver('browser', null, ['.tsx', '.ts', '.jsx', '.js', '.css', '.json'], ['wordpress']);
+
+        $browserRoot = $browser->resolveImport(new ModuleImport('named', 'conditional-array-pkg', [], 0), $entryDir);
+        $nodeRoot = $node->resolveImport(new ModuleImport('named', 'conditional-array-pkg', [], 0), $entryDir);
+        $customDefault = $browser->resolveImport(new ModuleImport('named', 'conditional-array-pkg/custom', [], 0), $entryDir);
+        $customWordPress = $wordpress->resolveImport(new ModuleImport('named', 'conditional-array-pkg/custom', [], 0), $entryDir);
+
+        $t->same('node_modules/conditional-array-pkg/browser.js', $normalizeFixturePath($browserRoot?->path ?? ''));
+        $t->same('exports', $browserRoot?->mainField);
+        $t->same('node_modules/conditional-array-pkg/default.js', $normalizeFixturePath($nodeRoot?->path ?? ''));
+        $t->same('node_modules/conditional-array-pkg/default.js', $normalizeFixturePath($customDefault?->path ?? ''));
+        $t->same('node_modules/conditional-array-pkg/wordpress.js', $normalizeFixturePath($customWordPress?->path ?? ''));
     },
     'maps upstream package browser object root subpaths and disabled entries' => static function (TestRunner $t) use ($entryDir, $normalizeFixturePath): void {
         $browser = new PackageResolver('browser');

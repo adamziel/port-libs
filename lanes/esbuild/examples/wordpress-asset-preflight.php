@@ -121,6 +121,8 @@ $packageEntryAnalysis = (new JsModuleAnalyzer())->analyze($packageEntrySource);
 $packageBrowserResolutions = (new PackageResolver('browser'))->resolve($packageEntryAnalysis, $packageEntryDir);
 $packageNodeResolutions = (new PackageResolver('node'))->resolve($packageEntryAnalysis, $packageEntryDir);
 $packagePreviewImportResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'exports-map-pkg/preview', [], 0), $packageEntryDir);
+$packageConditionalArrayResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'conditional-array-pkg', [], 0), $packageEntryDir);
+$packageCustomConditionResolution = (new PackageResolver('browser', null, ['.tsx', '.ts', '.jsx', '.js', '.css', '.json'], ['wordpress']))->resolveImport(new ModuleImport('named', 'conditional-array-pkg/custom', [], 0), $packageEntryDir);
 $packageBrowserMapDisabledResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'browser-map-pkg/disabled.js', [], 0), $packageEntryDir);
 $containingBrowserMapDir = $packageFixtureDir . '/node_modules/containing-browser-map-pkg';
 $containingBrowserLocalResolution = (new PackageResolver('browser'))->resolveImport(new ModuleImport('named', 'node-pkg', [], 0), $containingBrowserMapDir);
@@ -427,6 +429,8 @@ printf("WordPress package resolver browser fields: %s\n", (
         'wordpress-package-assets-fixture/self-export' => 'src/self-export.js',
         'exports-map-pkg' => 'node_modules/exports-map-pkg/browser.js',
         'exports-map-pkg/features/card' => 'node_modules/exports-map-pkg/features/card.js',
+        'conditional-array-pkg' => 'node_modules/conditional-array-pkg/browser.js',
+        'conditional-array-pkg/custom' => 'node_modules/conditional-array-pkg/default.js',
         'browser-map-pkg' => 'node_modules/browser-map-pkg/browser-module.js',
         'browser-map-pkg/feature' => 'node_modules/browser-map-pkg/feature-browser.js',
         'containing-browser-map-pkg' => 'node_modules/containing-browser-map-pkg/main.js',
@@ -453,6 +457,8 @@ printf("WordPress package resolver node fields: %s\n", (
         'wordpress-package-assets-fixture/self-export' => 'src/self-export.js',
         'exports-map-pkg' => 'node_modules/exports-map-pkg/node.js',
         'exports-map-pkg/features/card' => 'node_modules/exports-map-pkg/features/card.js',
+        'conditional-array-pkg' => 'node_modules/conditional-array-pkg/default.js',
+        'conditional-array-pkg/custom' => 'node_modules/conditional-array-pkg/default.js',
         'browser-map-pkg' => 'node_modules/browser-map-pkg/main.js',
         'browser-map-pkg/feature' => 'node_modules/browser-map-pkg/feature.js',
         'containing-browser-map-pkg' => 'node_modules/containing-browser-map-pkg/main.js',
@@ -472,6 +478,12 @@ printf("WordPress package exports map resolution: %s\n", (
     $packagePreviewImportResolution !== null
     && $normalizePackageFixturePath($packagePreviewImportResolution->path) === 'node_modules/exports-map-pkg/preview.mjs'
     && $packagePreviewImportResolution->mainField === 'exports'
+) ? 'yes' : 'no');
+printf("WordPress package exports condition arrays: %s\n", (
+    $packageConditionalArrayResolution !== null
+    && $normalizePackageFixturePath($packageConditionalArrayResolution->path) === 'node_modules/conditional-array-pkg/browser.js'
+    && $packageCustomConditionResolution !== null
+    && $normalizePackageFixturePath($packageCustomConditionResolution->path) === 'node_modules/conditional-array-pkg/wordpress.js'
 ) ? 'yes' : 'no');
 printf("WordPress package browser object maps: %s\n", (
     $packageBrowserMapDisabledResolution === null

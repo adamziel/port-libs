@@ -37,6 +37,17 @@ Files staged: esbuild package resolver fixture files, esbuild focused example,
 `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/lane-status.json`,
 `lanes/esbuild/notes/wordpress-scenarios.md`, and this audit file.
 
+Correction: commit `302ec14d` recorded this audit entry before the patch was
+actually applied. The follow-up repair commit applied the same verified patch
+on top of `302ec14d` and reran focused verification. Corrected focused
+results: `php tools/run-tests.php lanes/esbuild/tests/PackageResolverTest.php`
+passed 1 test file, 89 assertions, 0 failures; `php tools/run-tests.php
+lanes/esbuild/tests` passed 6 test files, 1838 assertions, 0 failures; `php
+lanes/esbuild/examples/wordpress-asset-preflight.php | rg 'package
+exports|package resolver'` included `WordPress package exports condition
+arrays: yes`. Corrected root result: `php tools/run-tests.php` passed 208 test
+files, 24485 assertions, 0 failures.
+
 ## Integration accepted - isolated lightningcss supervisor-next-20260525T005555Z - 2026-05-25 UTC
 
 Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T005555Z.ready`. Patch: `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T005555Z.patch`. Lane/slice/session: `lightningcss` / `supervisor-next-20260525T005555Z` / `port-lightningcss`.
