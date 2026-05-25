@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 22:42:44 UTC",
-    "sourceCommit": "ae6a7b757ac6e8fdcd1301daf59c29f48eb8f5fb",
-    "sourceCommitShort": "ae6a7b757ac6",
+    "generated": "2026-05-25 22:45:25 UTC",
+    "sourceCommit": "72cbddd7f1b7bd959e48408e29c69fef46026411",
+    "sourceCommitShort": "72cbddd7f1b7",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "9e52539e3c6cb8255ab397025cdae2093b14a866",
-    "dashboardCommitShort": "9e52539e3c6c",
+    "dashboardCommit": "477307f35b966a8ba73ba076c65825c0e615478e",
+    "dashboardCommitShort": "477307f35b96",
     "averageProgressPercent": "85.9",
     "lanes": [
         {
@@ -132,15 +132,15 @@
             "suite": "cloned-static-inventory",
             "benchmark": "cloned-static-inventory",
             "denominator": "2276",
-            "mapped": "656",
-            "coverage": "656 / 2276",
-            "php": "236 pass / 0 fail",
+            "mapped": "658",
+            "coverage": "658 / 2276",
+            "php": "237 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned inventory plus native Markdown/HTML reader and M...",
-            "audit": "updated 2026-05-25: priority-refill-20260...",
+            "audit": "updated 2026-05-25: priority-keeper-20260...",
             "currentWork": "Native MarkdownWriter keeps the accepted inline line-break, table, definition-list, under...",
-            "nextTarget": "Map another bounded Markdown writer branch after the rebased Space/SoftBreak/LineBreak co...",
-            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 236 test...",
+            "nextTarget": "Map another bounded Markdown writer branch after spaced link destinations, such as additi...",
+            "blocker": "Pandoc-local PHP blocker: none; focused pandoc behavior count is 237 test...",
             "commit": "pending"
         },
         {
