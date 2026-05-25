@@ -102803,3 +102803,26 @@ Files staged:
 - `lanes/quadrable/notes/wordpress-scenarios.md`
 - `lanes/quadrable/src/SyncFuzzer.php`
 - `lanes/quadrable/tests/SyncTest.php`
+
+## Integration accepted - isolated rclone watchdog-next-20260525T045742Z - 2026-05-25T05:13:35Z
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T045742Z.ready`
+Patch path: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-rclone-20260525T045742Z.patch`
+Lane/slice/session: `rclone` / `watchdog-next-20260525T045742Z` / `port-rclone`
+Patch sha256: `06bb58120a033610acf592e78cb02a8ceb14eeb5c48f4f46e324ac637c18b7f8` verified. Applied with bounded three-way rebase from `6c668d1c42a84022557c18fef23c5fe7b5037f97`.
+Focused commands:
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveTokenRenewerTest.php => exit 0; 1 test files, 79 assertions, 0 failures`
+- `php tools/run-tests.php lanes/rclone/tests => exit 0; 33 test files, 3910 assertions, 0 failures`
+- `git diff --check` => exit 0
+Root command: `php tools/run-tests.php` => exit 0; 212 test files, 25291 assertions, 0 failures
+Support-library/dependency closure: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service/provider tests run.
+Files staged:
+- `audits/integration-status.md`
+- `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/rclone/examples/wordpress-onedrive-token-renewer-preflight.php`
+- `lanes/rclone/lane-status.json`
+- `lanes/rclone/notes/upstream-inventory.md`
+- `lanes/rclone/notes/wordpress-scenarios.md`
+- `lanes/rclone/src/OneDriveTokenRenewer.php`
+- `lanes/rclone/tests/OneDriveTokenRenewerTest.php`

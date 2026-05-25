@@ -41,6 +41,25 @@ $activeUploadsAfterFailure = $renewer->activeUploads();
 $renewer->shutdown();
 $shutdownExpiry = $renewer->expire();
 
+$watchdogRenewer = new OneDriveTokenRenewer(
+    'wordpress-watchdog-upload',
+    static function () use (&$metadataReads): void {
+        $metadataReads[] = 'read-root-metadata';
+    },
+);
+$watchdogRenewer->startUpload();
+$watchdogActive = $watchdogRenewer->watchdogCycle();
+$watchdogAfterClosed = $watchdogRenewer->watchdogCycle(false);
+
+$noExpirySource = new OneDriveTokenRenewer(
+    'wordpress-no-expiry-source',
+    static function () use (&$metadataReads): void {
+        $metadataReads[] = 'unexpected-read';
+    },
+    false,
+);
+$watchdogNoExpirySource = $noExpirySource->watchdogCycle();
+
 return [
     'source' => 'onedrive-token-renewer-preflight',
     'renewerName' => $renewer->name(),
@@ -57,6 +76,11 @@ return [
     'expirySignals' => $renewer->expirySignals(),
     'armedForNextExpiry' => $renewer->isArmedForNextExpiry(),
     'wasArmedAfterActiveExpiry' => $wasArmedAfterActiveExpiry,
+    'watchdogActiveRefreshed' => $watchdogActive['refreshed'],
+    'watchdogAfterClosedRunning' => $watchdogAfterClosed['running'],
+    'watchdogNoExpirySourceRunning' => $watchdogNoExpirySource['running'],
+    'watchdogEvents' => $watchdogRenewer->events(),
+    'noExpirySourceEvents' => $noExpirySource->events(),
     'events' => $renewer->events(),
     'secretInputsRead' => false,
 ];

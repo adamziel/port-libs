@@ -28,7 +28,12 @@ final class OneDriveTokenRenewer
     public function __construct(
         private readonly string $name,
         private readonly \Closure $refreshRootMetadata,
+        private readonly bool $hasExpirySource = true,
     ) {
+        if (!$this->hasExpirySource) {
+            $this->armedForNextExpiry = false;
+            $this->events[] = 'watchdog-not-started-no-expiry-source';
+        }
     }
 
     public function startUpload(): void
@@ -38,7 +43,7 @@ final class OneDriveTokenRenewer
             return;
         }
 
-        $this->armedForNextExpiry = true;
+        $this->armedForNextExpiry = $this->hasExpirySource;
         ++$this->activeUploads;
         $this->events[] = 'upload-started';
     }
@@ -77,6 +82,11 @@ final class OneDriveTokenRenewer
      */
     public function expire(): array
     {
+        if (!$this->hasExpirySource) {
+            $this->events[] = 'expiry-ignored-no-expiry-source';
+            return $this->result(false);
+        }
+
         if ($this->shutdown) {
             $this->events[] = 'expiry-ignored-after-shutdown';
             return $this->result(false);
@@ -103,6 +113,30 @@ final class OneDriveTokenRenewer
             $this->events[] = 'expiry-rearmed';
             return $this->result(true, $exception->getMessage());
         }
+    }
+
+    /**
+     * Model one receive from oauthutil.Renew's expiry-channel watcher.
+     *
+     * @return array{refreshed: bool, error: ?string, activeUploads: int, running: bool}
+     */
+    public function watchdogCycle(bool $expiryChannelOpen = true): array
+    {
+        if (!$this->hasExpirySource) {
+            $this->events[] = 'watchdog-not-running-no-expiry-source';
+            return $this->watchdogResult($this->result(false), false);
+        }
+
+        if (!$expiryChannelOpen) {
+            $this->shutdown = true;
+            $this->armedForNextExpiry = false;
+            $this->events[] = 'watchdog-expiry-channel-closed';
+            return $this->watchdogResult($this->result(false), false);
+        }
+
+        $result = $this->expire();
+
+        return $this->watchdogResult($result, !$this->shutdown);
     }
 
     public function shutdown(): void
@@ -154,5 +188,14 @@ final class OneDriveTokenRenewer
             'error' => $error,
             'activeUploads' => $this->activeUploads,
         ];
+    }
+
+    /**
+     * @param array{refreshed: bool, error: ?string, activeUploads: int} $result
+     * @return array{refreshed: bool, error: ?string, activeUploads: int, running: bool}
+     */
+    private function watchdogResult(array $result, bool $running): array
+    {
+        return $result + ['running' => $running];
     }
 }

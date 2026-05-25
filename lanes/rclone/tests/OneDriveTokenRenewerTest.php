@@ -185,11 +185,62 @@ return [
         ], $renewer->events());
         $t->same(false, $renewer->isArmedForNextExpiry());
     },
+    'onedrive token renewer watchdog is not armed without an expiry source' => static function (TestRunner $t): void {
+        $reads = 0;
+        $renewer = new OneDriveTokenRenewer('onedrive:test', static function () use (&$reads): void {
+            ++$reads;
+        }, false);
+
+        $renewer->startUpload();
+        $expiry = $renewer->expire();
+        $cycle = $renewer->watchdogCycle();
+
+        $t->same(false, $expiry['refreshed']);
+        $t->same(false, $cycle['refreshed']);
+        $t->same(false, $cycle['running']);
+        $t->same(0, $reads);
+        $t->same(1, $renewer->activeUploads());
+        $t->same(false, $renewer->isArmedForNextExpiry());
+        $t->same([
+            'watchdog-not-started-no-expiry-source',
+            'upload-started',
+            'expiry-ignored-no-expiry-source',
+            'watchdog-not-running-no-expiry-source',
+        ], $renewer->events());
+    },
+    'onedrive token renewer watchdog stops when expiry channel closes' => static function (TestRunner $t): void {
+        $reads = 0;
+        $renewer = new OneDriveTokenRenewer('onedrive:test', static function () use (&$reads): void {
+            ++$reads;
+        });
+
+        $renewer->startUpload();
+        $active = $renewer->watchdogCycle();
+        $closed = $renewer->watchdogCycle(false);
+        $afterClosed = $renewer->watchdogCycle();
+
+        $t->same(true, $active['refreshed']);
+        $t->same(true, $active['running']);
+        $t->same(false, $closed['refreshed']);
+        $t->same(false, $closed['running']);
+        $t->same(false, $afterClosed['refreshed']);
+        $t->same(false, $afterClosed['running']);
+        $t->same(1, $reads);
+        $t->same(false, $renewer->isArmedForNextExpiry());
+        $t->same([
+            'upload-started',
+            'expiry-refresh-started',
+            'expiry-refresh-ok',
+            'expiry-rearmed',
+            'watchdog-expiry-channel-closed',
+            'expiry-ignored-after-shutdown',
+        ], $renewer->events());
+    },
     'wordpress onedrive token renewer preflight exposes refresh lifecycle' => static function (TestRunner $t): void {
         $example = require __DIR__ . '/../examples/wordpress-onedrive-token-renewer-preflight.php';
 
         $t->same('onedrive-token-renewer-preflight', $example['source']);
-        $t->same(['read-root-metadata', 'read-root-metadata'], $example['metadataReads']);
+        $t->same(['read-root-metadata', 'read-root-metadata', 'read-root-metadata'], $example['metadataReads']);
         $t->same(false, $example['idleExpiryRefreshed']);
         $t->same(true, $example['activeExpiryRefreshed']);
         $t->same(false, $example['postUploadExpiryRefreshed']);
@@ -202,6 +253,8 @@ return [
         $t->same(4, $example['expirySignals']);
         $t->same(false, $example['armedForNextExpiry']);
         $t->same(true, $example['wasArmedAfterActiveExpiry']);
+        $t->same(false, $example['watchdogAfterClosedRunning']);
+        $t->same(false, $example['watchdogNoExpirySourceRunning']);
         $t->same(false, $example['secretInputsRead']);
     },
 ];
