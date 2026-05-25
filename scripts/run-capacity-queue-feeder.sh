@@ -761,19 +761,24 @@ queue_rclone_go_candidate_rows() {
 
   local line_no=0 selected=0
   local kind package selector expected_tests_csv scope_key reason exclusions extra
-  local safe_scope id executor_scope coverage_glob
+  local safe_scope id executor_scope coverage_glob row_hash package_fragment
   while IFS=$'\t' read -r kind package selector expected_tests_csv scope_key reason exclusions extra || [ -n "${kind:-}" ]; do
     line_no=$((line_no + 1))
     if [ "$line_no" -eq 1 ] && [ "$kind" = "kind" ]; then
       continue
     fi
-    if [ "$kind" != "go_test_local" ]; then
+    case "$kind" in
+      go_test_local|rclone_go_exact) ;;
+      *)
       skip_candidate "rclone-go-row-$line_no" "unsupported TSV kind $kind"
       continue
-    fi
-    safe_scope="$(safe_id_fragment "$scope_key")"
+        ;;
+    esac
+    row_hash="$(printf '%s\t%s\t%s' "$package" "$selector" "$expected_tests_csv" | sha256sum | awk '{print substr($1, 1, 12)}')"
+    package_fragment="$(safe_id_fragment "$package")"
+    safe_scope="${package_fragment}-${row_hash}"
     id="capacity-feed-rclone-go-$safe_scope-$HEAD_SHORT"
-    executor_scope="rclone-go-exact:8cb1002a3f76:$scope_key"
+    executor_scope="rclone-go-exact:8cb1002a3f76:$package:$selector"
     coverage_glob="capacity-feed-rclone-go-$safe_scope-*.md"
 
     if rclone_candidate_covered "$id" "$scope_key" "$safe_scope"; then
@@ -884,21 +889,26 @@ queue_dolt_bats_candidate_rows() {
         ;;
     esac
     case "$env_scratch" in
-      .upstream-cache/capacity-selector-dolt-bats-*"/$scope_name") ;;
+      .upstream-cache/capacity-selector-dolt-bats-*"/$scope_name"|\
+      .upstream-cache/capacity-dolt-bats-index-*"/${scope_name#dolt-bats-}") ;;
       *)
         skip_candidate "dolt-bats-row-$line_no" "unexpected selector scratch path $env_scratch"
         continue
         ;;
     esac
     case "$reason" in
-      *"Local engine only"* ) ;;
+      *"Local engine only"*|*"local-engine"* ) ;;
       *)
         skip_candidate "dolt-bats-row-$line_no" "reason does not assert local engine only"
         continue
         ;;
     esac
     case "$status" in
-      ran_count_*_count_rc_0_run_rc_0_*_fail_0*) ;;
+      ran_count_*_count_rc_0_run_rc_0_*_fail_0*|candidate_marker_only_not_enqueued) ;;
+      candidate_marker_only_not_enqueued_manual_review)
+        skip_candidate "dolt-bats-row-$line_no" "manual-review marker row is excluded until a bounded exact BATS selection is provided"
+        continue
+        ;;
       *)
         skip_candidate "dolt-bats-row-$line_no" "status does not prove clean selector run"
         continue
