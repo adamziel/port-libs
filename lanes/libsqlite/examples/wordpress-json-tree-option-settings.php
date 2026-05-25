@@ -29,8 +29,8 @@ $inputs = [
 $reports = [];
 foreach ($inputs as $name => $value) {
     $rootRows = SQLiteJsonTree::jsonTreeSqlFunction('JSON_TREE', $value);
-    $pluginRows = SQLiteJsonTree::jsonTree($value, '$.plugin');
-    $rulesRows = SQLiteJsonTree::jsonTree($value, '$.plugin.rules');
+    $pluginRows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$value, '$.plugin']);
+    $rulesRows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$value, '$.plugin.rules']);
     $reports[] = [
         'name' => $name,
         'rootRows' => normalizeJsonTreeRows($rootRows),
@@ -43,6 +43,7 @@ foreach ($inputs as $name => $value) {
         'dispatch' => [
             'sqlFunction' => 'JSON_TREE',
             'caseInsensitive' => true,
+            'argumentVector' => true,
         ],
     ];
 }

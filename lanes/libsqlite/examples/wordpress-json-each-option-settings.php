@@ -31,11 +31,12 @@ foreach ($inputs as $name => $value) {
     $reports[] = [
         'name' => $name,
         'rootRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $value)),
-        'pluginRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEach($value, '$.plugin')),
-        'rulesRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEach($value, '$.plugin.rules')),
+        'pluginRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$value, '$.plugin'])),
+        'rulesRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$value, '$.plugin.rules'])),
         'dispatch' => [
             'sqlFunction' => 'JSON_EACH',
             'caseInsensitive' => true,
+            'argumentVector' => true,
         ],
     ];
 }

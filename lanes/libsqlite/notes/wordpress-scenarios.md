@@ -1687,3 +1687,19 @@ Date: 2026-05-25
 This isolated micro-slice updates the local wp_options recursive JSON expansion smoke to exercise uppercase `JSON_TREE` SQL dispatch and tightens both table-valued dispatch helpers to explicit case-insensitive comparison. That keeps plugin settings review paths aligned with SQLite's case-insensitive function-name behavior while preserving accepted `json_each()`/`json_tree()` rows, hidden `json`/`root` values, strict JSON, JSON5 text, JSONB blob, SQL NULL, and invalid-function coverage.
 
 Focused verification is recorded in `lane-status.json`. Dependency closure: no new support component is needed; this reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support and counts no shared support-library progress.
+
+## Focused Native Mapping: Table-Valued JSON Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice updates the local wp_options `json_each()` and
+`json_tree()` smokes to exercise uppercase SQL function names through
+one-or-two argument vectors. The smokes now dispatch `$.plugin` and
+`$.plugin.rules` via the SQL-style vector helpers while preserving accepted
+strict JSON, SQLite JSON5, JSONB blob, SQL NULL, hidden `json`/`root`, and
+case-insensitive function-name coverage.
+
+Focused verification is recorded in `lane-status.json`. Dependency closure:
+no new support component is needed; this reuses existing lane-local JSON path,
+JSON5, JSONB, BLOB, canonical encoding, and table-valued row support and
+counts no shared support-library progress.

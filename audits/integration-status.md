@@ -1,4 +1,54 @@
 
+## Integration accepted - libsqlite JSON table argument-vector dispatch - 2026-05-25 14:38 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T143830Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-rework-20260525T143830Z.patch`.
+
+Lane/slice/session: `libsqlite` / `priority-refill-20260525T143830Z` /
+`port-libsqlite-rework`. Patch sha256 verified as
+`097396e1636c9ecd29f08c04ac3f62d32b03141c497855c434d8f6b81fc92306`.
+
+Apply result: plain `git apply --check` and `git apply` both succeeded in clean
+worktree `/tmp/port-clean-integrator-libsqlite-priority-refill-20260525T143830Z`
+from old main `740ee9588b97ef9780909873b03e0dc647b8bfd0`. The patch is
+lane-local to `lanes/libsqlite/**` and adds SQL-style argument-vector dispatch
+helpers for `json_each()` and `json_tree()`.
+
+Focused verification: `php -l lanes/libsqlite/src/SQLiteJsonEach.php`,
+`php -l lanes/libsqlite/src/SQLiteJsonTree.php`,
+`php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`,
+`php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php`, and
+`php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php` all
+passed. `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php`
+and `php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php`
+passed. `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+passed with `1 test files, 2134 assertions, 0 failures`. `git diff --check`
+passed.
+
+Root verification: after checking the resource gate and confirming
+`pgrep -af '^php tools/run-tests\.php$'` was empty, `php tools/run-tests.php`
+ran under `.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and
+passed with `214 test files, 26199 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The slice
+reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding,
+SQL value typing, and table-valued row support.
+
+Live-service exclusions: none applicable; the slice is local SQLite JSON table
+dispatch behavior only.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/examples/wordpress-json-each-option-settings.php`,
+`lanes/libsqlite/examples/wordpress-json-tree-option-settings.php`,
+`lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/src/SQLiteJsonEach.php`,
+`lanes/libsqlite/src/SQLiteJsonTree.php`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - rclone cleanup-command rework refresh - 2026-05-25 13:55 UTC
 
 Accepted isolated ready marker:

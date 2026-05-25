@@ -5622,6 +5622,58 @@ Result: recorded in `lane-status.json` after focused verification. Root aggregat
 
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.
 
+## Focused Native Mapping: Table-Valued JSON Argument-Vector Dispatch
+
+Date: 2026-05-25
+
+This isolated micro-slice rebases the table-valued JSON dispatch rework on top
+of the accepted hidden-column and case-insensitive function-name evidence.
+`SQLiteJsonEach::jsonEachSqlFunctionArguments()` and
+`SQLiteJsonTree::jsonTreeSqlFunctionArguments()` now validate SQLite-style
+one-or-two argument vectors, dispatch the optional root path, preserve SQL
+NULL empty-row behavior, reject invalid arity, reject non-text JSON arguments,
+and reject non-text path arguments. Direct dispatch behavior and invalid
+function-name rejection are unchanged.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused JSON1/JSONB table-valued evidence for
+the same upstream behavior cluster:
+
+```sh
+json101.test json102.test json501.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonEach.php
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, both WordPress examples reported uppercase
+argument-vector dispatch for root/plugin/rules rows, focused PHP passed 1
+selected test file, 2134 assertions, and 0 failures, and final diff/json
+checks are recorded in `lane-status.json`. This worker did not start the root
+aggregate harness because root verification was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses
+existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, SQL
+value typing, and table-valued row support; it counts no shared
+support-library progress.
+
 ## Focused Native Mapping: Table-Valued JSON Case-Insensitive Dispatch
 
 Date: 2026-05-25

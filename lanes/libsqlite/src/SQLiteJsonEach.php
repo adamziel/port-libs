@@ -19,6 +19,29 @@ final class SQLiteJsonEach
     }
 
     /**
+     * @param list<mixed> $arguments
+     * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
+     */
+    public static function jsonEachSqlFunctionArguments(string $function, array $arguments): array
+    {
+        if (count($arguments) < 1 || count($arguments) > 2) {
+            throw new \InvalidArgumentException('SQLite json_each() expects one or two arguments');
+        }
+
+        $value = $arguments[0];
+        if (!$value instanceof SQLiteBlobValue && $value !== null && !is_string($value)) {
+            throw new \InvalidArgumentException('SQLite json_each() JSON argument must be text, BLOB, or NULL');
+        }
+
+        $path = $arguments[1] ?? '$';
+        if (!is_string($path)) {
+            throw new \InvalidArgumentException('SQLite json_each() path argument must be text');
+        }
+
+        return self::jsonEachSqlFunction($function, $value, $path);
+    }
+
+    /**
      * @return list<array{key:int|string|null,value:mixed,type:string,atom:mixed,id:int,parent:null,fullkey:string,path:string,json:string|SQLiteBlobValue,root:string}>
      */
     public static function jsonEach(string|SQLiteBlobValue|null $value, string $path = '$'): array

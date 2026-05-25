@@ -3338,6 +3338,13 @@ return [
         $t->same([$json5, $json5, $json5], array_column($pluginRows, 'json'));
         $t->same(['$.plugin', '$.plugin', '$.plugin'], array_column($pluginRows, 'root'));
 
+        $argumentRows = SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$json5, '$.plugin.rules']);
+        $t->same([0, 1], array_column($argumentRows, 'key'));
+        $t->same(['seo', 'cache'], array_column($argumentRows, 'atom'));
+        $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($argumentRows, 'root'));
+        $t->same(['plugin', 'priority'], array_column(SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$settings]), 'key'));
+        $t->same([], SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [null, '$.plugin']));
+
         $rulesRows = SQLiteJsonEach::jsonEach($jsonb, '$.plugin.rules');
         $t->same([0, 1], array_column($rulesRows, 'key'));
         $t->same(['object', 'object'], array_column($rulesRows, 'type'));
@@ -3367,6 +3374,10 @@ return [
         $t->same([], SQLiteJsonEach::jsonEach(null));
         $t->same([], SQLiteJsonEach::jsonEach($settings, '$.plugin.missing'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEachSqlFunction('json_tree', $settings));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$settings, '$', '$.extra']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [7]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', [$settings, 1]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEach($settings, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonEach::jsonEach('{"plugin":,}', '$.plugin'));
     },
@@ -3404,6 +3415,13 @@ return [
         $t->same([$json5, $json5, $json5, $json5, $json5, $json5], array_column($pluginRows, 'json'));
         $t->same(['$.plugin', '$.plugin', '$.plugin', '$.plugin', '$.plugin', '$.plugin'], array_column($pluginRows, 'root'));
 
+        $argumentRows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$json5, '$.plugin.rules']);
+        $t->same([null, 0, 1], array_column($argumentRows, 'key'));
+        $t->same(['array', 'text', 'text'], array_column($argumentRows, 'type'));
+        $t->same(['$.plugin.rules', '$.plugin.rules', '$.plugin.rules'], array_column($argumentRows, 'root'));
+        $t->same([null, 'plugin', 'enabled'], array_slice(array_column(SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$settings]), 'key'), 0, 3));
+        $t->same([], SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [null, '$.plugin']));
+
         $rulesRows = SQLiteJsonTree::jsonTree($jsonb, '$.plugin.rules');
         $t->same([null, 0, 'name', 1, 'name'], array_column($rulesRows, 'key'));
         $t->same(['array', 'object', 'text', 'object', 'text'], array_column($rulesRows, 'type'));
@@ -3432,6 +3450,10 @@ return [
         $t->same([], SQLiteJsonTree::jsonTree(null));
         $t->same([], SQLiteJsonTree::jsonTree($settings, '$.plugin.missing'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTreeSqlFunction('json_each', $settings));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$settings, '$', '$.extra']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [7]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$settings, 1]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTree($settings, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTree('{"plugin":,}', '$.plugin'));
     },

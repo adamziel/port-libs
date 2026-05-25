@@ -13,8 +13,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
         "total": 1589,
-        "mapped": 259,
-        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 table-valued dispatch refill reuses prior focused upstream JSON1/JSONB evidence because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_each/json_tree case-insensitive SQL function dispatch using explicit ASCII-insensitive comparison while preserving accepted hidden json/root columns, json_tree recursive rows, json_pretty, json_extract/jsonb_extract, and json_each evidence.",
+        "mapped": 261,
+        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 table-valued dispatch refill reuses prior focused upstream JSON1/JSONB evidence because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_each/json_tree case-insensitive SQL function dispatch and SQL-style argument-vector arity validation while preserving accepted hidden json/root columns, json_tree recursive rows, json_pretty, json_extract/jsonb_extract, and json_each evidence.",
         "inventory": {
             "allRepositoryFiles": 2208,
             "hydratedTestInventoryFiles": 2131,
