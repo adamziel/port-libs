@@ -1,5 +1,19 @@
 # Integration Status
 
+## Integration superseded - isolated Difftastic browser globals highlight slice - 2026-05-25 01:56 UTC
+
+Superseded ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-current-rebase-20260525T013421Z-3fdbe6a1.ready` with patch `.tmux-team/tmp/handoff-candidates/port-difftastic-current-rebase-20260525T013421Z-3fdbe6a1.patch`.
+
+Lane/slice/session: `difftastic` / `current-rebase-20260525T013421Z-3fdbe6a1` / `current-rebase-prep-style-bundle`. Patch sha256 `3fdbe6a18c52bc1ec147e736732815512d45323b9dcd28bfd2eb9dd339f6f58d` matched before application. In detached clean worktree `/tmp/port-clean-integrator-difftastic-current-rebase-20260525T013421Z-015407` from old head `d5238f2a42d60aebad42d4f6a85828cfec316e5d`, `git apply --check` failed from lane drift, then bounded `git apply --3way` produced no lane-file diff because the browser-globals highlight behavior was already present in current `main`. No source files were staged.
+
+Focused verification repeated in the clean worktree: `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`, `php -l lanes/difftastic/tests/TokenDifferTest.php`, and `php -l lanes/difftastic/examples/wordpress-browser-globals-highlight-display.php` all passed. `jq empty lanes/difftastic/UPSTREAM_TEST_MANIFEST.json lanes/difftastic/lane-status.json` passed. `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed with 1 selected test file, 1421 assertions, 0 failures. `php lanes/difftastic/examples/wordpress-browser-globals-highlight-display.php >/tmp/difftastic-example-integrator.json` passed, and the JSON smoke check found `this` and `super`. `git diff --check` passed.
+
+Root verification: pre-root gate briefly saw active PID `3480345` (`php tools/run-tests.php`), waited until the exact no-argument root gate cleared, then `php tools/run-tests.php` ran in the same clean worktree and passed with 209 test files, 24620 assertions, 0 failures.
+
+Support-library/dependency closure: no support-library activation. This is lane-local syntax highlight classifier/display coverage using existing Difftastic lane infrastructure. Live-service exclusions: no live-service, provider, credentialed, network, Cargo, or Node/npm tests were run.
+
+Files staged: `audits/integration-status.md` only, to record supersession and permit cleanup of the redundant ready marker.
+
 ## Integration accepted - isolated Readability standalone video HTML block slice - 2026-05-25 01:54 UTC
 
 Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-readability-current-rebase-20260525T013417Z-1a30c081.ready` with patch `.tmux-team/tmp/handoff-candidates/port-readability-current-rebase-20260525T013417Z-1a30c081.patch`.
