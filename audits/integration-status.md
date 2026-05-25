@@ -100615,3 +100615,24 @@ Files staged: none.
 
 Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T023733Z.patch`, then fix the failing focused command above without broadening the slice.
 
+
+## Clean-patch rejection - markerpdf - 2026-05-25 02:45 UTC
+
+Ready marker: `port-markerpdf-20260525T023604Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T023604Z.patch`
+Lane/slice/session: `markerpdf` / unknown / unknown
+
+Decision: rejected/deferred after focused verification on clean head `2f314eafb50a32cc796bc75fab22034dd81be70f`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0; No syntax errors detected in /tmp/port-clean-integrator-markerpdf-20260525T024530Z/lanes/markerpdf/tests/PdfTextExtractorTest.php 
+- `php tools/run-tests.php lanes/markerpdf/tests`: exit 2; Focused path must be repo-relative: /tmp/port-clean-integrator-markerpdf-20260525T024530Z/lanes/markerpdf/tests 
+- `git diff --check`: exit 0; 
+
+Root command: not run because focused verification failed.
+Support-library/dependency-closure decision: no activation accepted.
+Live-service exclusions: no live-service provider tests run.
+Files staged: none.
+
+Repair command: from a clean worktree at current `refs/heads/main`, run `git apply /home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T023604Z.patch`, then fix the failing focused command above without broadening the slice.
+
