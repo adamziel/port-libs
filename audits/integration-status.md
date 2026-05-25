@@ -100145,3 +100145,31 @@ Support-library/dependency-closure decision: no new support-library activation. 
 Live-service exclusions: none needed; no live provider or network service tests were run.
 
 Files staged: `lanes/esbuild/src/BundlerGraphBuilder.php`, `lanes/esbuild/src/BundlerGraph.php`, `lanes/esbuild/src/BundlerModule.php`, `lanes/esbuild/src/BundlerEdge.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`, `lanes/esbuild/fixtures/wordpress-package-assets/src/node-entry.js`, `lanes/esbuild/fixtures/wordpress-package-assets/src/local-preview.js`, `lanes/esbuild/fixtures/wordpress-package-assets/src/missing-entry.js`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/upstream-inventory.md`, `lanes/esbuild/notes/wordpress-scenarios.md`, and `audits/integration-status.md`.
+
+## Integration accepted - isolated gitoxide SSH IPv6 receive-pack slice - 2026-05-25 02:20 UTC
+
+Accepted ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T020226Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T020226Z.patch`.
+Lane/slice/session: `gitoxide` / `supervisor-rearm-20260525T020226Z` / `port-gitoxide`.
+Patch sha256 verified: `222193a665143104863dac89f599529c41f14a24a83068fb843f2b74a51f3d01`.
+
+Rebase note: `git apply --check` failed on stale Gitoxide manifest/status/notes/fixture context from newer accepted receive-pack transport slices. `git apply --3way` applied source/test/example cleanly and conflicted only in Gitoxide metadata/fixture files. Resolution kept current accepted manifest/status/notes text and added the missing lane fixture key needed by the submitted example (`sshIpv6Target`) plus the IPv6 wording. No behavior was rewritten beyond the submitted SSH IPv6 host-normalization slice.
+
+Focused verification in clean worktree `/tmp/port-clean-integrator-gitoxide-rearm-20260525T020226Z`:
+
+- `php -l lanes/gitoxide/src/SshReceivePackTransport.php` passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+- `php -l lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php` passed.
+- `php -l lanes/gitoxide/examples/wordpress-receive-pack-transport.php` passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed: 1 test file, 233 assertions, 0 failures.
+- `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` passed with no warnings after fixture merge.
+- `php -r 'json_decode(file_get_contents("lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/gitoxide/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); echo "json ok\n";'` passed.
+- `git diff --check` passed.
+
+Root verification: exact no-argument root gate was clear before starting; `php tools/run-tests.php` passed in the same clean worktree with 210 test files, 24671 assertions, 0 failures.
+
+Support-library/dependency-closure decision: no new support-library activation. The slice reuses lane-local receive-pack URL parsing, command quoting, and caller-injected stream connector boundaries.
+
+Live-service exclusions: no live SSH, Git daemon, provider, or network service tests were run.
+
+Files staged: `lanes/gitoxide/src/SshReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, and `audits/integration-status.md`.

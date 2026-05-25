@@ -1210,6 +1210,18 @@ return [
             'port' => null,
             'path' => 'wp-content.git',
         ], SshReceivePackTransport::parseRepositoryUrl('deploy@git.example.test:wp-content.git'));
+        $t->same([
+            'host' => '2001:db8::42',
+            'user' => 'deploy',
+            'port' => 2222,
+            'path' => '/srv/wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git'));
+        $t->same([
+            'host' => '2001:db8::42',
+            'user' => 'deploy',
+            'port' => null,
+            'path' => 'wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('deploy@[2001:db8::42]:wp-content.git'));
         $t->same('~/wp-content.git', SshReceivePackTransport::parseRepositoryUrl('ssh://git.example.test/~/wp-content.git')['path']);
         $t->same("git-receive-pack 'wp content/repo'\\''s.git'", SshReceivePackTransport::receivePackCommand("wp content/repo's.git"));
 

@@ -14,6 +14,7 @@ return [
     'requestByteLength' => strlen($fixture['requestBytes']),
     'responseSuccessful' => $fixture['responseSuccessful'],
     'sshTarget' => $fixture['sshTarget'],
+    'sshIpv6Target' => $fixture['sshIpv6Target'],
     'sshCommand' => $fixture['sshCommand'],
     'gitDaemonServiceRequestPayload' => substr($fixture['gitDaemonServiceRequest'], 4),
     'gitDaemonUrlServiceRequestPayload' => substr($fixture['gitDaemonUrlServiceRequest'], 4),

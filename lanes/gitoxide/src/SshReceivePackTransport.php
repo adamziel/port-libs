@@ -115,7 +115,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('SSH receive-pack URL does not support password, query, or fragment components');
         }
 
-        $host = self::decodeComponent($parts['host'], 'host');
+        $host = self::normalizeHost(self::decodeComponent($parts['host'], 'host'));
         $user = isset($parts['user']) ? self::decodeComponent((string) $parts['user'], 'user') : null;
         $path = self::normalizeSshPath(self::decodeComponent($parts['path'], 'repository path'));
         $port = isset($parts['port']) ? (int) $parts['port'] : null;
@@ -142,10 +142,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('SSH receive-pack transport expects an ssh:// URL or scp-like SSH URL');
         }
 
-        $host = self::decodeComponent($matches['host'], 'host');
-        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
-            $host = substr($host, 1, -1);
-        }
+        $host = self::normalizeHost(self::decodeComponent($matches['host'], 'host'));
 
         $user = isset($matches['user']) && $matches['user'] !== ''
             ? self::decodeComponent($matches['user'], 'user')
@@ -171,6 +168,15 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         return $path;
+    }
+
+    private static function normalizeHost(string $host): string
+    {
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            return substr($host, 1, -1);
+        }
+
+        return $host;
     }
 
     private static function decodeComponent(string $value, string $label): string
