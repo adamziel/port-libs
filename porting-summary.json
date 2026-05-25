@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-25 23:29:22 UTC",
-    "sourceCommit": "e1d22b9e4ff5ffbc723122aa5fd19f7a97ae3105",
-    "sourceCommitShort": "e1d22b9e4ff5",
+    "generated": "2026-05-25 23:32:29 UTC",
+    "sourceCommit": "d13a045386786339df87be3b79de52ac0c626cbd",
+    "sourceCommitShort": "d13a04538678",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "b459a48969cde76fbb7e20c9cfd88b6ba8db191c",
-    "dashboardCommitShort": "b459a48969cd",
+    "dashboardCommit": "94631f4751106e7962ad664bde7170755321ab4b",
+    "dashboardCommitShort": "94631f475110",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -166,9 +166,9 @@
             "suite": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "benchmark": "cloned-static-inventory-plus-bounded-go-runner-evidence",
             "denominator": "2553",
-            "mapped": "510",
-            "coverage": "510 / 2553",
-            "php": "510 pass / 0 fail",
+            "mapped": "511",
+            "coverage": "511 / 2553",
+            "php": "511 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus bounded upstream Go runner...",
             "audit": "verified 2026-05-25 isolated closure-refi...",
