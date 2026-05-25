@@ -99058,7 +99058,7 @@ Accepted ready marker `.tmux-team/tmp/handoff-candidates/port-difftastic-2026052
 - Lane/slice/session: `difftastic` / `supervisor-next-20260525T002052Z` / `port-difftastic`.
 - Patch sha256: `a9b0adc96d3daf0a24618e7b95aa04ca52284d0ba148b6621c0e47add4c12935` verified with `sha256sum`.
 - Focused verification in clean worktree: `php -l lanes/difftastic/src/AnsiSyntaxHighlighter.php`, `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`, `php -l lanes/difftastic/tests/TokenDifferTest.php`, and `php -l lanes/difftastic/examples/wordpress-python-multiline-annotation-highlight-display.php` all passed; `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php` passed with `1 test files, 1388 assertions, 0 failures`; the WordPress example JSON smoke command passed with `example ok`.
-- Root verification in clean worktree: `php tools/run-tests.php` passed with `208 test files, 24364 assertions, 0 failures`.
+- Root verification in clean worktree: `php tools/run-tests.php` passed with `208 test files, 24371 assertions, 0 failures`.
 - Whitespace verification: `git diff --check` passed.
 - Support-library/dependency closure: no support-library activation; this reuses the lane-local tokenizer/highlighter and existing tree-sitter-python query evidence.
 - Live-service exclusions: none; no live provider tests were run.
