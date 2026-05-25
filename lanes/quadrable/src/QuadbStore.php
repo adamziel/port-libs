@@ -5370,7 +5370,7 @@ USAGE;
 
     private static function parseQuadbCliIntegerKey(string $text): int
     {
-        $trimmed = ltrim($text);
+        $trimmed = ltrim($text, " \t\n\r\v\f");
         if (!preg_match('/^[+-]?[0-9]+/', $trimmed, $matches)) {
             throw new \InvalidArgumentException('stoi');
         }

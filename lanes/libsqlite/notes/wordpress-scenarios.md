@@ -52,6 +52,10 @@ input review through both direct and argument-vector SQL dispatch, including a
 custom text indentation row in the WordPress smoke. This keeps the slice
 inside the accepted json_pretty SQL-dispatch cluster and preserves existing
 json_extract/jsonb_extract and json_each evidence.
+Priority-keeper rework 2026-05-25T11:10Z additively covers JSONB option blobs
+with custom indentation through both direct and argument-vector SQL dispatch,
+so local review output now exercises the same indentation path for SQLite JSONB
+storage as for text JSON and cast text BLOB inputs.
 
 ## `json_each()` Option-Value Expansion Scenario
 

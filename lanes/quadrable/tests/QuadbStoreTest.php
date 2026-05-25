@@ -1626,6 +1626,19 @@ return [
             $t->same(0, $verticalWhitespaceProof['exitCode']);
             $t->same($repo->exportIntegerProofBytes([2, 4]), $verticalWhitespaceProof['stdout']);
             $t->same('', $verticalWhitespaceProof['stderr']);
+            $formFeedWhitespaceProof = QuadbStore::exportProofCommandOutput(
+                $dir,
+                ["\f+2suffix", "\v4"],
+                integerKeys: true
+            );
+            $t->same(0, $formFeedWhitespaceProof['exitCode']);
+            $t->same($repo->exportIntegerProofBytes([2, 4]), $formFeedWhitespaceProof['stdout']);
+            $t->same('', $formFeedWhitespaceProof['stderr']);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofCommandOutput($dir, ["\0+2"], integerKeys: true));
             $maxIntegerProof = QuadbStore::exportProofCommandOutput(
                 $dir,
                 ['0002147483647suffix', '+0000000002'],

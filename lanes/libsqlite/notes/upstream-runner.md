@@ -69,6 +69,10 @@ SQL-dispatch cluster on the accepted worktree and adds explicit text-BLOB JSON
 input coverage through both direct and argument-vector dispatch, including
 custom indentation from the SQL helper. Focused verification is recorded in
 `lane-status.json`.
+Priority-keeper rework 2026-05-25T11:10Z keeps the accepted SQL-dispatch
+cluster and additively covers JSONB option blobs with caller-supplied
+indentation through both direct and argument-vector `json_pretty()` dispatch.
+Focused verification is recorded in `lane-status.json`.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalization, JSON5, JSONB, BLOB, and pretty

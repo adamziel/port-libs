@@ -23,6 +23,12 @@ $optionValues = [
             'modes' => ['cache', 'seo'],
         ],
     ])),
+    'jsonb_indent_settings' => new SQLiteBlobValue(SQLiteJsonB::encode([
+        'plugin' => [
+            'enabled' => false,
+            'source' => 'jsonb-indent',
+        ],
+    ])),
     'scalar_flag_settings' => true,
     'scalar_disabled_settings' => false,
     'scalar_retry_budget' => -7,
@@ -41,6 +47,7 @@ foreach ($optionValues as $optionName => $optionValue) {
         'false_indent_settings' => false,
         'float_indent_settings' => 2.5,
         'text_blob_indent_settings' => '..',
+        'jsonb_indent_settings' => '--',
         default => null,
     };
     try {
@@ -64,5 +71,5 @@ foreach ($optionValues as $optionName => $optionValue) {
 
 echo json_encode([
     'optionJson' => $report,
-    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, JSON5 plugin settings, custom text/numeric/boolean indentation, cast text BLOBs, JSONB option blobs, scalar SQL option values including whole REAL values, NULL option values, and malformed settings before import.',
+    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, JSON5 plugin settings, custom text/numeric/boolean indentation, cast text BLOBs, JSONB option blobs with default and custom indentation, scalar SQL option values including whole REAL values, NULL option values, and malformed settings before import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

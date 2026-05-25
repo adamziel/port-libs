@@ -127,6 +127,16 @@ try {
         ["\t+2suffix", "\n4"],
         integerKeys: true
     );
+    $formFeedWhitespaceProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ["\f+2suffix", "\v4"],
+        integerKeys: true
+    );
+    $nulPrefixedProofCommand = QuadbStore::exportProofCommandOutput(
+        $integerDir,
+        ["\0+2"],
+        integerKeys: true
+    );
     $maxIntegerProofCommand = QuadbStore::exportProofCommandOutput(
         $integerDir,
         ['0002147483647suffix', '+0000000002'],
@@ -186,6 +196,9 @@ try {
         'spacedPlusIntegerExportProofExitCode' => $spacedPlusProofCommand['exitCode'],
         'spacedPlusIntegerProofMatchesNumericPrefix' => $spacedPlusProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
         'verticalWhitespaceIntegerProofMatchesNumericPrefix' => $verticalWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
+        'formFeedWhitespaceIntegerProofMatchesNumericPrefix' => $formFeedWhitespaceProofCommand['stdout'] === $numericPrefixProofCommand['stdout'],
+        'nulPrefixedIntegerProofFailsStoi' => $nulPrefixedProofCommand['exitCode'] === 1
+            && $nulPrefixedProofCommand['stderr'] === "quadb error: stoi\n",
         'maxIntegerExportProofExitCode' => $maxIntegerProofCommand['exitCode'],
         'maxIntegerBinaryProofBytes' => strlen($maxIntegerProofCommand['stdout']),
         'signedZeroIntegerExportProofExitCode' => $signedZeroProofCommand['exitCode'],
