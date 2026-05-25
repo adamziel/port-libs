@@ -1526,6 +1526,12 @@ return [
             $trustedRoot = $source->tree()->rootHash();
             $keyInput = "wp_options:siteurl\nwp_posts:1\nwp_posts:404\n";
             $proofBytes = $source->exportProofBytesFromKeyLines($keyInput, Proof::ENCODING_FULL_KEYS);
+            $proofCommand = QuadbStore::exportProofStdinCommandOutput(
+                $sourceDir,
+                $keyInput,
+                'FullKeys',
+                hex: false
+            );
 
             $t->same(
                 $source->exportProofBytes([
@@ -1541,8 +1547,34 @@ return [
                     'wp_posts:1',
                     'wp_posts:404',
                 ], Proof::ENCODING_FULL_KEYS),
-                $source->exportProofHexFromKeyLines($keyInput, Proof::ENCODING_FULL_KEYS)
+                QuadbStore::exportProofStdinCommandOutput(
+                    $sourceDir,
+                    $keyInput,
+                    'FullKeys',
+                    hex: true
+                )['stdout']
             );
+            $t->same(0, $proofCommand['exitCode']);
+            $t->same($proofBytes, $proofCommand['stdout']);
+            $t->same('', $proofCommand['stderr']);
+            $t->same(
+                $source->exportProofFromKeyLines($keyInput)->dumpText(),
+                QuadbStore::exportProofStdinCommandOutput(
+                    $sourceDir,
+                    $keyInput,
+                    dump: true
+                )['stdout']
+            );
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: unknown proof format\n",
+            ], QuadbStore::exportProofStdinCommandOutput($sourceDir, $keyInput, 'BadFormat'));
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: Could not access directory '{$sourceDir}-missing/': No such file or directory\n",
+            ], QuadbStore::exportProofStdinCommandOutput($sourceDir . '-missing', $keyInput));
             $t->same(Proof::ENCODING_FULL_KEYS, ord($proofBytes[0]));
 
             $target = QuadbStore::init($targetDir);
@@ -1566,7 +1598,20 @@ return [
             $integerRoot = $integerSource->tree()->rootHash();
             $integerKeyInput = "2\n4\n99";
             $integerProofBytes = $integerSource->exportIntegerProofBytesFromKeyLines($integerKeyInput);
+            $integerProofCommand = QuadbStore::exportProofStdinCommandOutput(
+                $integerSourceDir,
+                $integerKeyInput,
+                integerKeys: true
+            );
             $t->same($integerSource->exportIntegerProofBytes([2, 4, 99]), $integerProofBytes);
+            $t->same(0, $integerProofCommand['exitCode']);
+            $t->same($integerProofBytes, $integerProofCommand['stdout']);
+            $t->same('', $integerProofCommand['stderr']);
+            $t->same([
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => "quadb error: stoi\n",
+            ], QuadbStore::exportProofStdinCommandOutput($integerSourceDir, "2\nnot-an-int\n", integerKeys: true));
 
             $integerTarget = QuadbStore::init($integerTargetDir);
             $integerTarget->checkout('wp-integer-binary-proof');

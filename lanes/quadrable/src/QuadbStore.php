@@ -937,6 +937,60 @@ USAGE;
     }
 
     /**
+     * Native stdout/stderr/exit-code shape for `quadb exportProof --stdin`.
+     *
+     * @return array{exitCode: int, stdout: string, stderr: string}
+     */
+    public static function exportProofStdinCommandOutput(
+        string $directory,
+        string $input,
+        string $format = 'HashedKeys',
+        bool $hex = false,
+        bool $dump = false,
+        bool $integerKeys = false,
+        bool $trackKeys = true
+    ): array {
+        try {
+            $store = self::openForCommand($directory, $trackKeys);
+            if ($integerKeys) {
+                $proof = $store->exportIntegerProofFromKeyLines($input);
+            } else {
+                $proof = $store->exportProofFromKeyLines($input);
+            }
+
+            if ($dump) {
+                return [
+                    'exitCode' => 0,
+                    'stdout' => $proof->dumpText(),
+                    'stderr' => '',
+                ];
+            }
+
+            if ($format === 'HashedKeys') {
+                $encodingType = Proof::ENCODING_HASHED_KEYS;
+            } elseif ($format === 'FullKeys') {
+                $encodingType = Proof::ENCODING_FULL_KEYS;
+            } else {
+                throw new \RuntimeException('unknown proof format');
+            }
+
+            $encodedProof = $proof->encode($encodingType);
+
+            return [
+                'exitCode' => 0,
+                'stdout' => $hex ? '0x' . bin2hex($encodedProof) . "\n" : $encodedProof,
+                'stderr' => '',
+            ];
+        } catch (\Throwable $throwable) {
+            return [
+                'exitCode' => 1,
+                'stdout' => '',
+                'stderr' => 'quadb error: ' . $throwable->getMessage() . "\n",
+            ];
+        }
+    }
+
+    /**
      * Native stdout/stderr/exit-code shape for `quadb importProof --hex`.
      *
      * @return array{exitCode: int, stdout: string, stderr: string}

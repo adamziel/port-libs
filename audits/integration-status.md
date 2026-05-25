@@ -100909,3 +100909,24 @@ Support-library/dependency-closure decision: no new support-library activation; 
 Live-service exclusions: no live-service provider tests run.
 Files staged: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/examples/wordpress-markdown-review-handoff.php lanes/pandoc/lane-status.json lanes/pandoc/notes/upstream-inventory.md lanes/pandoc/notes/wordpress-scenarios.md lanes/pandoc/src/MarkdownWriter.php lanes/pandoc/tests/MarkdownReaderTest.php `
 
+
+## Clean-patch integration accepted - quadrable - 2026-05-25 02:52 UTC
+
+Ready marker: `port-quadrable-20260525T023734Z.ready`
+Patch: `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T023734Z.patch`
+Lane/slice/session: `quadrable` / latest current marker / isolated worker
+
+Patch hash: verified before application. Applied cleanly to old head `b554257f1dbcbd3f5d066f24ec4cf62ff54b919d`.
+
+Focused commands and exact results:
+- `php -l <changed PHP files>`: exit 0
+- `php tools/run-tests.php lanes/quadrable/tests`: exit 0; PASS sync fuzzer summarizes optional watchdog evidence without running slow probes in fast suite  10 test files, 3110 assertions, 0 failures 
+- `git diff --check`: exit 0
+
+Root command and exact result:
+- `php tools/run-tests.php`: exit 0; PASS wordpress option store hashes unsafe folder IDs and rejects malformed payloads  211 test files, 24829 assertions, 0 failures 
+
+Support-library/dependency-closure decision: no new support-library activation; lane-local bounded slice only.
+Live-service exclusions: no live-service provider tests run.
+Files staged: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json lanes/quadrable/examples/wordpress-quadb-proof-stdin-binary.php lanes/quadrable/lane-status.json lanes/quadrable/notes/upstream-inventory.md lanes/quadrable/notes/wordpress-scenarios.md lanes/quadrable/src/QuadbStore.php lanes/quadrable/tests/QuadbStoreTest.php `
+

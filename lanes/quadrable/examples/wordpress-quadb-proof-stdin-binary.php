@@ -43,7 +43,16 @@ try {
 
     $trustedRoot = $source->tree()->rootHash();
     $keyInput = "wp_options:siteurl\nwp_posts:1\nwp_posts:404\n";
-    $proofBytes = $source->exportProofBytesFromKeyLines($keyInput, Proof::ENCODING_FULL_KEYS);
+    $proofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $sourceDir,
+        $keyInput,
+        'FullKeys',
+        hex: false
+    );
+    if ($proofCommand['exitCode'] !== 0) {
+        throw new RuntimeException($proofCommand['stderr']);
+    }
+    $proofBytes = $proofCommand['stdout'];
     $homeProofBytes = $source->exportProofBytesFromKeyLines("wp_options:home\n", Proof::ENCODING_FULL_KEYS);
 
     $target = QuadbStore::init($targetDir);
@@ -56,19 +65,35 @@ try {
         "2,wp_options:home=https://example.test\n"
         . "4,wp_posts:1=Published post\n"
     );
-    $integerProofBytes = $integer->exportIntegerProofBytesFromKeyLines("2\n4\n99\n");
+    $integerProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "2\n4\n99\n",
+        integerKeys: true
+    );
+    if ($integerProofCommand['exitCode'] !== 0) {
+        throw new RuntimeException($integerProofCommand['stderr']);
+    }
+    $integerProofBytes = $integerProofCommand['stdout'];
+    $badIntegerProofCommand = QuadbStore::exportProofStdinCommandOutput(
+        $integerDir,
+        "2\nnot-an-int\n",
+        integerKeys: true
+    );
 
     echo json_encode([
         'scenario' => 'quadb exportProof --stdin binary proof input for delegated WordPress preview reads',
         'trustedRoot' => $trustedRoot,
         'stdinKeys' => explode("\n", rtrim($keyInput, "\n")),
+        'exportProofStdinExitCode' => $proofCommand['exitCode'],
         'binaryProofBytes' => strlen($proofBytes),
         'encodingType' => ord($proofBytes[0]),
         'siteUrl' => $target->get('wp_options:siteurl'),
         'post' => $target->get('wp_posts:1'),
         'mergedHome' => $target->get('wp_options:home'),
         'integerStdinKeys' => [2, 4, 99],
+        'integerExportProofStdinExitCode' => $integerProofCommand['exitCode'],
         'integerBinaryProofBytes' => strlen($integerProofBytes),
+        'badIntegerProofStdin' => $badIntegerProofCommand,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 } finally {
     $cleanup($sourceDir);
