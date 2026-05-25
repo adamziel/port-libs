@@ -1,4 +1,52 @@
 
+## Integration accepted - libsqlite JSON canonical argument-vector dispatch - 2026-05-25 16:13 UTC
+
+Accepted isolated ready marker:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T161326Z.ready`.
+Patch:
+`.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T161326Z.patch`.
+
+Lane/slice/session: `libsqlite` / `priority-refill-20260525T161325Z` /
+`port-libsqlite`. Patch sha256 verified as
+`64467cc4aa9090359ffecacdca401cfb41dcba54042cbc9627f86335c983b965`.
+
+Apply result: plain `git apply --check` and `git apply` both succeeded in clean
+worktree `/tmp/port-clean-integrator-libsqlite-priority-refill-20260525T161326Z`
+from old main `f59259763eb5cfb255298d29bb625f8c953eb251`. The patch is
+lane-local to `lanes/libsqlite/**` and adds case-insensitive `json()`/`jsonb()`
+SQL function dispatch plus one-argument argument-vector dispatch.
+
+Focused verification: `php -l lanes/libsqlite/src/SQLiteJsonCanonical.php`,
+`php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`php -l lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php`
+all passed. `php lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php`
+passed and reported uppercase argument-vector `JSON`/`JSONB` canonicalization
+for strict JSON, JSON5, cast text BLOB, JSONB, SQL NULL, and malformed option
+values. `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+passed with `1 test files, 2187 assertions, 0 failures`. `jq empty
+lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`
+passed. `git diff --check` passed.
+
+Root verification: after checking the resource gate and confirming
+`pgrep -af '^php tools/run-tests\.php$'` was empty, `php tools/run-tests.php`
+ran under `.tmux-team/tmp/clean-integrator-run.lock` in the clean worktree and
+passed with `214 test files, 26287 assertions, 0 failures`.
+
+Support-library/dependency closure: no support-library activation. The slice
+reuses existing lane-local JSON canonicalizer, JSON5 parser, JSONB encoder,
+BLOB wrapper, and SQL NULL handling.
+
+Live-service exclusions: none applicable; the slice is local SQLite JSON
+canonical dispatch behavior only.
+
+Files staged: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/libsqlite/examples/wordpress-json-canonical-option-preflight.php`,
+`lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`,
+`lanes/libsqlite/notes/wordpress-scenarios.md`,
+`lanes/libsqlite/src/SQLiteJsonCanonical.php`,
+`lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+`audits/integration-status.md`.
+
 ## Integration accepted - libsqlite JSON table argument-vector dispatch - 2026-05-25 14:38 UTC
 
 Accepted isolated ready marker:

@@ -35,15 +35,28 @@ final class SQLiteJsonCanonical
 
     public static function jsonSqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value): string|SQLiteBlobValue|null
     {
-        $json = match ($function) {
+        $normalized = strtolower($function);
+        $json = match ($normalized) {
             'json', 'jsonb' => self::json($value),
             default => throw new \InvalidArgumentException('SQLite JSON canonical function must be json or jsonb'),
         };
-        if ($json === null || $function === 'json') {
+        if ($json === null || $normalized === 'json') {
             return $json;
         }
 
         return new SQLiteBlobValue(SQLiteJsonB::encode(SQLiteJson5Parser::decode($json)));
+    }
+
+    /**
+     * @param list<string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null> $arguments
+     */
+    public static function jsonSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue|null
+    {
+        if (count($arguments) !== 1) {
+            throw new \InvalidArgumentException('SQLite json() and jsonb() expect one argument');
+        }
+
+        return self::jsonSqlFunction($function, $arguments[0]);
     }
 
     public static function canonicalizeText(string $json): string

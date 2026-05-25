@@ -1645,16 +1645,19 @@ BLOBs, SQL NULL values, malformed JSON, and raw BLOB rejection without
 requiring the SQLite extension.
 
 Status delta 2026-05-25 isolated micro-slice: added canonical json/jsonb
-SQL-dispatch helper, focused tests, and the WordPress smoke update. Focused
-verification is recorded in `lane-status.json` after local checks. Blocker: no
-hydrated upstream cache exists in this isolated worktree, so no fresh SQLite
-testfixture run was performed; this slice reuses prior `json101.test`,
-`json501.test`, `json107.test`, and `jsonb01.test` canonicalization evidence.
-Next task: integrator acceptance, then one additional bounded libsqlite
-behavior slice with its own evidence. Dependency closure: no new support
-component is needed; the slice reuses existing lane-local JSON canonicalizer,
-JSON5 parser, JSONB, and BLOB support and counts no shared support-library
-progress.
+SQL-dispatch helper, focused tests, and the WordPress smoke update. Latest
+priority-refill 2026-05-25T16:13Z keeps that accepted behavior and adds
+case-insensitive `JSON`/`JSONB` lookup plus one-argument SQL vector dispatch;
+the WordPress smoke now exercises uppercase argument-vector dispatch for
+copied option values. Focused verification is recorded in `lane-status.json`
+after local checks. Blocker: no hydrated upstream cache exists in this
+isolated worktree, so no fresh SQLite testfixture run was performed; this
+slice reuses prior `json101.test`, `json501.test`, `json107.test`, and
+`jsonb01.test` canonicalization evidence. Next task: integrator acceptance,
+then one additional bounded libsqlite behavior slice with its own evidence.
+Dependency closure: no new support component is needed; the slice reuses
+existing lane-local JSON canonicalizer, JSON5 parser, JSONB, and BLOB support
+and counts no shared support-library progress.
 
 ## Focused Native Mapping: `json_each()`/`json_tree()` Hidden Columns
 

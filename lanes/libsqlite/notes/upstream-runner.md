@@ -5394,6 +5394,13 @@ JSON5 text are normalized, cast text BLOBs use the existing text fallback,
 SQLite JSONB BLOB inputs decode and re-encode, and malformed JSON, raw BLOBs,
 and invalid function names are rejected.
 
+Priority-refill 2026-05-25T16:13Z rebases the canonical dispatch behavior on
+top of the accepted JSON constructor evidence and adds SQLite-style
+case-insensitive function lookup plus one-argument SQL vector dispatch for
+`json()` and `jsonb()`. Invalid function names and invalid arities are
+rejected before dispatch. This preserves the older deferred canonical rework
+cluster without replaying stale manifest/status conflicts.
+
 Focused upstream runner:
 
 The detached worktree for this isolated lane did not contain the hydrated
@@ -5419,12 +5426,11 @@ php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
 git diff --check -- lanes/libsqlite
 ```
 
-Result: syntax checks passed, the WordPress example reported SQL-dispatch
-`json()` text output plus decoded `jsonb()` output for strict JSON, JSON5,
-cast text BLOB, JSONB, and SQL NULL inputs, focused PHP passed 1 selected test
-file, 1972 assertions, and 0 failures, and
-`git diff --check -- lanes/libsqlite` passed. This worker did not start the
-root aggregate harness because root verification was not assigned.
+Result: latest focused verification is recorded in `lane-status.json`. The
+WordPress example now reports uppercase argument-vector `JSON()` text output
+plus decoded `JSONB()` output for strict JSON, JSON5, cast text BLOB, JSONB,
+and SQL NULL inputs. This worker did not start the root aggregate harness
+because root verification was not assigned.
 
 Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local JSON canonicalizer, JSON5 parser, JSONB, and BLOB wrapper

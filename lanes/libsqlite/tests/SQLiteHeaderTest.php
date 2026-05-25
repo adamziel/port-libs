@@ -3106,19 +3106,29 @@ return [
         $jsonb = new SQLiteBlobValue(SQLiteJsonB::encode(['plugin' => ['enabled' => true, 'count' => 2]]));
 
         $t->same('{"plugin":{"enabled":true,"modes":["cache","seo"]}}', SQLiteJsonCanonical::jsonSqlFunction('json', $json5));
+        $t->same('{"plugin":{"enabled":true,"modes":["cache","seo"]}}', SQLiteJsonCanonical::jsonSqlFunction('JSON', $json5));
+        $t->same('{"plugin":{"enabled":true,"modes":["cache","seo"]}}', SQLiteJsonCanonical::jsonSqlFunctionArguments('JSON', [$json5]));
         $t->same('{"plugin":{"enabled":true,"count":2}}', SQLiteJsonCanonical::jsonSqlFunction('json', $jsonb));
         $t->same(null, SQLiteJsonCanonical::jsonSqlFunction('json', null));
+        $t->same(null, SQLiteJsonCanonical::jsonSqlFunctionArguments('JSON', [null]));
 
         $jsonbFromText = SQLiteJsonCanonical::jsonSqlFunction('jsonb', $json5);
         $jsonbFromBlob = SQLiteJsonCanonical::jsonSqlFunction('jsonb', $jsonb);
+        $jsonbFromArguments = SQLiteJsonCanonical::jsonSqlFunctionArguments('JSONB', [$json5]);
         $t->true($jsonbFromText instanceof SQLiteBlobValue);
         $t->true($jsonbFromBlob instanceof SQLiteBlobValue);
+        $t->true($jsonbFromArguments instanceof SQLiteBlobValue);
         $t->same(['plugin' => ['enabled' => true, 'modes' => ['cache', 'seo']]], SQLiteJsonB::decode($jsonbFromText->bytes));
         $t->same(['plugin' => ['enabled' => true, 'count' => 2]], SQLiteJsonB::decode($jsonbFromBlob->bytes));
+        $t->same(['plugin' => ['enabled' => true, 'modes' => ['cache', 'seo']]], SQLiteJsonB::decode($jsonbFromArguments->bytes));
         $t->same(null, SQLiteJsonCanonical::jsonSqlFunction('jsonb', null));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::jsonSqlFunction('json_pretty', $json5));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::jsonSqlFunctionArguments('json_pretty', [$json5]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::jsonSqlFunctionArguments('json', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::jsonSqlFunctionArguments('json', [$json5, '$']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::jsonSqlFunction('jsonb', '{enabled:true,,}'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::jsonSqlFunctionArguments('jsonb', ['{enabled:true,,}']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonCanonical::jsonSqlFunction('jsonb', new SQLiteBlobValue("\xab\xcd")));
     },
     'pretty prints sqlite json text json5 blob and null option values' => static function (TestRunner $t): void {
