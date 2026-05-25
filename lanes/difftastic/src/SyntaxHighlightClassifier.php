@@ -105,6 +105,10 @@ final class SyntaxHighlightClassifier
             }
         }
 
+        if ($this->isJavaLanguage($language) && $this->isUppercaseIdentifier($token->text)) {
+            return 'type';
+        }
+
         if ($this->isLuaLanguage($language) && $this->isLuaBuiltinConstant($token->text)) {
             return 'keyword';
         }
@@ -163,7 +167,7 @@ final class SyntaxHighlightClassifier
             return false;
         }
 
-        if (($this->isGoLanguage($language) || $language === 'swift') && $text === ':') {
+        if (($this->isGoLanguage($language) || $this->isJavaLanguage($language) || $language === 'swift') && $text === ':') {
             return true;
         }
 
@@ -182,6 +186,7 @@ final class SyntaxHighlightClassifier
             'bash',
             'go',
             'golang',
+            'java',
             'javascript',
             'js',
             'json',
@@ -262,6 +267,11 @@ final class SyntaxHighlightClassifier
     private function isLuaLanguage(string $language): bool
     {
         return $language === 'lua';
+    }
+
+    private function isJavaLanguage(string $language): bool
+    {
+        return $language === 'java';
     }
 
     private function isPhpLikeLanguage(string $language): bool
@@ -726,6 +736,14 @@ final class SyntaxHighlightClassifier
                 'import', 'interface', 'map', 'package', 'range', 'return',
                 'select', 'struct', 'switch', 'type', 'var',
             ],
+            'java' => [
+                'abstract', 'assert', 'break', 'case', 'catch', 'class',
+                'continue', 'default', 'do', 'else', 'enum', 'extends',
+                'false', 'final', 'finally', 'for', 'if', 'implements',
+                'import', 'instanceof', 'interface', 'new', 'null', 'package',
+                'private', 'protected', 'public', 'return', 'static', 'super',
+                'switch', 'this', 'throw', 'throws', 'true', 'try', 'while',
+            ],
             'php', 'hack', 'hh' => [
                 'case', 'catch', 'class', 'declare', 'default', 'else', 'extends',
                 'false', 'finally', 'for', 'foreach', 'function', 'if', 'implements',
@@ -803,6 +821,10 @@ final class SyntaxHighlightClassifier
                 'error', 'float32', 'float64', 'int', 'int8', 'int16', 'int32',
                 'int64', 'rune', 'string', 'uint', 'uint8', 'uint16', 'uint32',
                 'uint64', 'uintptr',
+            ],
+            'java' => [
+                'boolean', 'byte', 'char', 'double', 'float', 'int', 'long',
+                'short', 'void',
             ],
             'lua' => ['boolean', 'function', 'nil', 'number', 'string', 'table', 'thread', 'userdata'],
             'php', 'hack', 'hh' => [

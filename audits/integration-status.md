@@ -1,4 +1,42 @@
 
+## Integration accepted - isolated difftastic Java highlight patch - 2026-05-25 07:03 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T063336Z.ready`
+with patch `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T063336Z.patch`.
+
+Lane/slice/session: `difftastic` / `watchdog-next-20260525T063336Z` /
+`port-difftastic`. Patch SHA-256 verified:
+`85ac5a9d1512d468fa66311117076c05bf201ab2e1ee03b1eac28269e09f3f83`.
+
+Focused verification in clean worktree
+`/tmp/port-clean-integrator-difftastic-watchdog-next-20260525T063336Z-2451422`:
+
+- `php -l lanes/difftastic/src/SyntaxHighlightClassifier.php`: passed.
+- `php -l lanes/difftastic/tests/TokenDifferTest.php`: passed.
+- `php -l lanes/difftastic/examples/wordpress-java-build-helper-highlight-display.php`: passed.
+- `jq empty lanes/difftastic/lane-status.json lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`: passed.
+- `php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php`: passed, 1 selected test file, 1836 assertions, 0 failures.
+- `php lanes/difftastic/examples/wordpress-java-build-helper-highlight-display.php | php -r ...`: passed with `example-json-ok`.
+- `git diff --check`: passed.
+
+Root verification: `php tools/run-tests.php` passed in the same clean
+worktree with 213 test files, 25717 assertions, 0 failures.
+
+Support-library/dependency closure: no shared support-library activation.
+The patch reuses existing lane-local syntax highlighting and display
+components; no Java parser or external runtime is introduced.
+
+Live-service exclusions: none needed; this is local parser/display behavior.
+
+Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`,
+`lanes/difftastic/lane-status.json`,
+`lanes/difftastic/notes/upstream-inventory.md`,
+`lanes/difftastic/notes/wordpress-scenarios.md`,
+`lanes/difftastic/src/SyntaxHighlightClassifier.php`,
+`lanes/difftastic/tests/TokenDifferTest.php`,
+`lanes/difftastic/examples/wordpress-java-build-helper-highlight-display.php`,
+and `audits/integration-status.md`.
+
 ## Clean-patch integration accepted - LightningCSS custom media comments - 2026-05-25
 
 Ready marker:
