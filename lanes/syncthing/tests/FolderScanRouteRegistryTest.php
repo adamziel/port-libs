@@ -9,6 +9,7 @@ use PortLibs\Syncthing\FolderScanCheckpointStore;
 use PortLibs\Syncthing\FolderScanRouteRegistry;
 use PortLibs\Syncthing\FolderScanScheduler;
 use PortLibs\Syncthing\FolderScanService;
+use PortLibs\Syncthing\FolderWatchScanScheduler;
 
 return [
     'route registry dispatches WordPress scan route to coordinator' => static function (TestRunner $t): void {
@@ -80,6 +81,71 @@ return [
         $t->same(FolderScanApiCoordinator::HTTP_NOT_FOUND, $missingRoute->statusCode);
         $t->same('route_missing', $missingRoute->body['error']);
         $t->throws(InvalidArgumentException::class, static fn () => new FolderScanRouteRegistry('/'));
+    },
+    'route registry exposes watcher cleanup status and one-folder acknowledgement' => static function (TestRunner $t): void {
+        $root = syncthing_folder_scan_route_root();
+        try {
+            syncthing_folder_scan_route_write($root, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', new FolderScanService('wordpress-media', new FileInfoScanner($root), new FolderScanCheckpointStore()));
+            $watchScheduler = new FolderWatchScanScheduler($scheduler, notifyDelaySeconds: 5, recentCleanupTtlSeconds: 20);
+            $registry = FolderScanRouteRegistry::forScanApi(new FolderScanApiCoordinator($scheduler), watchScheduler: $watchScheduler);
+
+            $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 2000);
+            $scheduler->removeFolder('wordpress-media');
+            $watchScheduler->scanDueWatchEvents(now: 2005);
+
+            $status = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/cleanups', [], now: 2005);
+            $ack = $registry->dispatch('POST', '/syncthing/db/watch/cleanups/ack', [
+                'folder' => 'wordpress-media',
+            ], now: 2005);
+            $afterAck = $registry->dispatch('GET', '/syncthing/db/watch/cleanups', [], now: 2005);
+
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $status->statusCode);
+            $t->same('ok', $status->body['status']);
+            $t->same(['wordpress-media'], array_keys($status->body['cleanups']));
+            $t->same(true, $status->body['cleanups']['wordpress-media']['discardedPendingEvents']);
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $ack->statusCode);
+            $t->same('acknowledged', $ack->body['status']);
+            $t->same(1, $ack->body['acknowledged']);
+            $t->same([], $ack->body['cleanups']);
+            $t->same([], $afterAck->body['cleanups']);
+        } finally {
+            syncthing_folder_scan_route_rm($root);
+        }
+    },
+    'route registry acknowledges all watcher cleanup payloads after retention pruning' => static function (TestRunner $t): void {
+        $root = syncthing_folder_scan_route_root();
+        try {
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media-old', new FolderScanService('wordpress-media-old', new FileInfoScanner($root), new FolderScanCheckpointStore()));
+            $scheduler->addFolder('wordpress-media-new', new FolderScanService('wordpress-media-new', new FileInfoScanner($root), new FolderScanCheckpointStore()));
+            $watchScheduler = new FolderWatchScanScheduler($scheduler, notifyDelaySeconds: 5, recentCleanupTtlSeconds: 10);
+            $registry = FolderScanRouteRegistry::forScanApi(new FolderScanApiCoordinator($scheduler), watchScheduler: $watchScheduler);
+
+            $watchScheduler->recordEvent('wordpress-media-old', 'wp-content/uploads/old.jpg', now: 3000);
+            $scheduler->removeFolder('wordpress-media-old');
+            $watchScheduler->scanDueWatchEvents(now: 3005);
+            $watchScheduler->recordEvent('wordpress-media-new', 'wp-content/uploads/new.jpg', now: 3020);
+            $scheduler->removeFolder('wordpress-media-new');
+            $watchScheduler->scanDueWatchEvents(now: 3025);
+
+            $ack = $registry->dispatch('POST', '/syncthing/db/watch/cleanups/ack', [], now: 3025);
+            $missing = $registry->dispatch('POST', '/syncthing/db/watch/cleanups/ack', [
+                'folder' => 'wordpress-media-new',
+            ], now: 3025);
+            $routes = $registry->routes();
+
+            $t->same('acknowledged', $ack->body['status']);
+            $t->same(1, $ack->body['acknowledged']);
+            $t->same([], $ack->body['cleanups']);
+            $t->same('missing', $missing->body['status']);
+            $t->same(0, $missing->body['acknowledged']);
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/cleanups', $routes[1]['wordpressRoute']);
+            $t->same('/wp-json/local-first/v1/syncthing/db/watch/cleanups/ack', $routes[2]['wordpressRoute']);
+        } finally {
+            syncthing_folder_scan_route_rm($root);
+        }
     },
 ];
 

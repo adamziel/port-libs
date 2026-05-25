@@ -110686,3 +110686,42 @@ Dependency closure: no new support component was activated. The slice reuses
 the existing native `PdfTextExtractor` content-stream path and adds a bounded
 local glyph-name map. Broader searchable PDF dictionary extraction remains
 gated behind the existing inactive `pdf-text-dictionary-core` support row.
+## Clean-patch accepted - Syncthing watcher cleanup routes - 2026-05-25 22:41 UTC
+
+Accepted isolated marker
+`.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T173804Z.ready`
+from a detached clean worktree at current source head `0906117a`.
+
+Patch evidence:
+- `lane=syncthing`, `slice=coverage-keeper-20260525T173804Z`.
+- Patch sha256 verified:
+  `3832840f883ad4ecb64b879eadd341fa27c0b3a26bbe7bd1552246c57264845f`.
+- Touched paths were limited to `lanes/syncthing/**`: route registry source,
+  route-registry focused tests, WordPress route-registry example, manifest,
+  lane status, and WordPress scenario notes.
+- No stale marker existed at
+  `.tmux-team/tmp/handoff-candidates/stale/port-syncthing-20260525T173804Z.ready.needs-lane-rework.md`.
+
+Focused verification from the clean candidate worktree:
+- `php -l lanes/syncthing/src/FolderScanRouteRegistry.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-route-registry.php`
+  passed.
+- Syncthing manifest/status JSON decoded with `JSON_THROW_ON_ERROR`.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php`
+  passed: `1 test files, 35 assertions, 0 failures`.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php`
+  passed and emitted cleanup status plus acknowledgement payloads.
+- `git diff --check` passed.
+
+Root verification:
+- First root attempt did not start because the clean worktree had no relative
+  `.tmux-team/tmp/clean-integrator-run.lock` path; `flock` exited before PHP.
+- Retried with absolute lock path
+  `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock`.
+- `php tools/run-tests.php` passed under the clean-integrator lock:
+  `214 test files, 26404 assertions, 0 failures`.
+
+Decision: accepted. This slice exposes retained Syncthing watcher cleanup
+payloads through WordPress-shaped scan routes and adds one-folder/all cleanup
+acknowledgement coverage without adding a support-library dependency.

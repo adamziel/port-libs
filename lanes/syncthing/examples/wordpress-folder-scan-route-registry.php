@@ -9,6 +9,7 @@ use PortLibs\Syncthing\FolderScanCheckpointStore;
 use PortLibs\Syncthing\FolderScanRouteRegistry;
 use PortLibs\Syncthing\FolderScanScheduler;
 use PortLibs\Syncthing\FolderScanService;
+use PortLibs\Syncthing\FolderWatchScanScheduler;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -25,7 +26,8 @@ try {
 
     $coordinator = new FolderScanApiCoordinator($scheduler);
     $queue = new FolderScanApiRequestQueue($coordinator);
-    $registry = FolderScanRouteRegistry::forScanApi($coordinator, $queue);
+    $watchScheduler = new FolderWatchScanScheduler($scheduler, notifyDelaySeconds: 5, recentCleanupTtlSeconds: 20);
+    $registry = FolderScanRouteRegistry::forScanApi($coordinator, $queue, $watchScheduler);
 
     $accepted = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/scan/queue', [
         'folder' => 'wordpress-media',
@@ -34,11 +36,20 @@ try {
         'blockSize' => 4,
     ], now: 1000);
     $completed = $queue->runNext(now: 1001);
+    $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 1010);
+    $scheduler->removeFolder('wordpress-media');
+    $watchScheduler->scanDueWatchEvents(hashBlocks: true, blockSize: 4, now: 1015);
+    $cleanupStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/cleanups', [], now: 1015);
+    $cleanupAcknowledged = $registry->dispatch('POST', '/wp-json/local-first/v1/syncthing/db/watch/cleanups/ack', [
+        'folder' => 'wordpress-media',
+    ], now: 1015);
 
     echo json_encode([
         'registeredRoutes' => $registry->routes(),
         'accepted' => $accepted->toArray(),
         'completed' => $completed?->toArray(),
+        'cleanupStatus' => $cleanupStatus->toArray(),
+        'cleanupAcknowledged' => $cleanupAcknowledged->toArray(),
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 } finally {
     wordpress_scan_route_rm($mediaRoot);

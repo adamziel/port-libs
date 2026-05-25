@@ -2535,3 +2535,44 @@ Verification for this batch:
 Map the next Syncthing watcher lifecycle edge: expose recent cleanup
 acknowledgement through the bounded WordPress route/status registry so REST
 clients can poll and consume watcher cleanup outcomes in one payload.
+
+## 2026-05-25 Watcher Cleanup Route Registry
+
+This isolated micro-slice wires the bounded watcher cleanup status and
+acknowledgement behavior into the WordPress/local route registry.
+`FolderScanRouteRegistry::forScanApi()` now accepts an optional
+`FolderWatchScanScheduler` and registers `GET /syncthing/db/watch/cleanups`
+plus `POST /syncthing/db/watch/cleanups/ack`. The status route returns retained
+cleanup payloads after optional retention pruning; the acknowledgement route
+clears either one folder's consumed payload or all currently retained payloads.
+
+The WordPress route-registry smoke now registers scan, queue, cleanup status,
+and cleanup acknowledgement routes in one REST-style registry. It removes a
+queued media folder before delayed watch dispatch, polls the cleanup route, and
+acknowledges the removed-folder payload through the registry path.
+
+Dependency closure: no new support component is needed. This slice reuses the
+existing bounded PHP route registry, watcher scheduler, event aggregator,
+folder scan scheduler, scan service, and checkpoint store. The activation gate
+for this support is the already accepted watcher cleanup retention and
+acknowledgement behavior; the evidence plan is the focused route-registry tests
+plus the local WordPress route-registry smoke.
+
+Verification for this batch:
+
+- `php -l lanes/syncthing/src/FolderScanRouteRegistry.php` passed.
+- `php -l lanes/syncthing/tests/FolderScanRouteRegistryTest.php` passed.
+- `php -l lanes/syncthing/examples/wordpress-folder-scan-route-registry.php`
+  passed.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php`
+  passed 1 file, 35 assertions, and 0 failures.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` ran
+  successfully and reported cleanup status plus acknowledgement through the
+  registered WordPress routes.
+- Root harness status: not run - isolated micro-slice.
+
+## Next Task
+
+Map the next Syncthing route/status edge: add a bounded watcher route for due
+restart status/completion so WordPress REST clients can report filesystem
+watcher recovery without reaching into the scheduler directly.

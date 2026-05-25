@@ -23,6 +23,7 @@ final class FolderScanRouteRegistry
     public static function forScanApi(
         FolderScanApiCoordinator $coordinator,
         ?FolderScanApiRequestQueue $queue = null,
+        ?FolderWatchScanScheduler $watchScheduler = null,
         string $namespace = 'local-first/v1',
     ): self {
         $registry = new self($namespace);
@@ -37,6 +38,49 @@ final class FolderScanRouteRegistry
                 'upstreamRoute' => '/rest/db/scan',
                 'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/scan/queue'),
                 'queued' => true,
+            ]);
+        }
+
+        if ($watchScheduler !== null) {
+            $registry->register('GET', '/syncthing/db/watch/cleanups', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
+                return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
+                    'ok' => true,
+                    'status' => 'ok',
+                    'cleanups' => $watchScheduler->recentCleanupStatuses($now),
+                ]);
+            }, [
+                'upstreamRoute' => 'lib/model/folder.go watcher lifecycle status',
+                'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/watch/cleanups'),
+                'queued' => false,
+                'watcherCleanupStatus' => true,
+            ]);
+            $registry->register('POST', '/syncthing/db/watch/cleanups/ack', static function (array $payload, ?int $now = null) use ($watchScheduler): FolderScanApiResponse {
+                $folder = isset($payload['folder']) ? trim((string) $payload['folder']) : '';
+                if ($folder !== '') {
+                    $acknowledged = $watchScheduler->acknowledgeRecentCleanup($folder, $now);
+
+                    return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
+                        'ok' => true,
+                        'status' => $acknowledged ? 'acknowledged' : 'missing',
+                        'folder' => $folder,
+                        'acknowledged' => $acknowledged ? 1 : 0,
+                        'cleanups' => $watchScheduler->recentCleanupStatuses($now),
+                    ]);
+                }
+
+                $acknowledged = $watchScheduler->acknowledgeRecentCleanups($now);
+
+                return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
+                    'ok' => true,
+                    'status' => 'acknowledged',
+                    'acknowledged' => $acknowledged,
+                    'cleanups' => $watchScheduler->recentCleanupStatuses($now),
+                ]);
+            }, [
+                'upstreamRoute' => 'lib/model/folder.go watcher lifecycle cleanup consumption',
+                'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/watch/cleanups/ack'),
+                'queued' => false,
+                'watcherCleanupAck' => true,
             ]);
         }
 
