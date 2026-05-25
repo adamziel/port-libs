@@ -1,5 +1,36 @@
 # Integration Status
 
+## Clean-patch isolated queue deferral - 2026-05-25 04:33 UTC
+
+No isolated source patch was accepted in this clean-patch pass. I processed the current runtime contents of `.tmux-team/tmp/handoff-candidates/*.ready` and reduced 328 processable markers to the newest marker per lane. All twelve latest markers had matching `patch_sha256` values, but every patch failed a straight `git apply --check` against `refs/heads/main` at `0ad1c0ff`, and every bounded `git apply --3way` attempt left conflicts. Several conflicts were in behavior or focused test files, not only stale manifest/status counters, so they need lane re-emission rather than integrator invention.
+
+Root verification was not run because there was no conflict-free accepted source snapshot. No support-library rows were activated, no live-service provider tests were run, and no dashboard artifacts were published.
+
+Exact repair command pattern for each lane:
+
+```sh
+git worktree add --detach /tmp/port-clean-integrator-<lane>-retry refs/heads/main
+git -C /tmp/port-clean-integrator-<lane>-retry apply --check <patch>
+git -C /tmp/port-clean-integrator-<lane>-retry apply --3way <patch>
+```
+
+Deferred markers and affected conflict files:
+
+- `.tmux-team/tmp/handoff-candidates/port-difftastic-20260525T030832Z.ready`: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/wordpress-scenarios.md`, `lanes/difftastic/tests/TokenDifferTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-dolt-20260525T031408Z.ready`: `lanes/dolt/UPSTREAM_TEST_MANIFEST.json`, `lanes/dolt/examples/wordpress-merge-status-review.php`, `lanes/dolt/fixtures/wp-merge-review.php`, `lanes/dolt/lane-status.json`, `lanes/dolt/notes/wordpress-scenarios.md`, `lanes/dolt/src/MergeStatusTable.php`, `lanes/dolt/tests/MergeStatusTableTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-esbuild-20260525T031737Z.ready`: `lanes/esbuild/UPSTREAM_TEST_MANIFEST.json`, `lanes/esbuild/examples/wordpress-asset-preflight.php`, `lanes/esbuild/lane-status.json`, `lanes/esbuild/notes/wordpress-scenarios.md`, `lanes/esbuild/src/BundlerMetafile.php`, `lanes/esbuild/tests/BundlerGraphBuilderTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T031337Z.ready`: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/SmartHttpReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-libsqlite-20260525T031605Z.ready`: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/examples/wordpress-jsonb-array-insert-option-field.php`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-lightningcss-20260525T031605Z.ready`: `lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json`, `lanes/lightningcss/examples/wordpress-border-radius-minifier.php`, `lanes/lightningcss/lane-status.json`, `lanes/lightningcss/notes/upstream-inventory.md`, `lanes/lightningcss/notes/wordpress-scenarios.md`, `lanes/lightningcss/src/TransitionPrefixer.php`.
+- `.tmux-team/tmp/handoff-candidates/port-markerpdf-20260525T031337Z.ready`: `lanes/markerpdf/UPSTREAM_TEST_MANIFEST.json`, `lanes/markerpdf/lane-status.json`, `lanes/markerpdf/notes/upstream-test-inventory.md`, `lanes/markerpdf/tests/PdfTextExtractorTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-pandoc-20260525T031901Z.ready`: `lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`, `lanes/pandoc/lane-status.json`, `lanes/pandoc/src/MarkdownWriter.php`, `lanes/pandoc/tests/MarkdownReaderTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-quadrable-20260525T030642Z.ready`: `lanes/quadrable/UPSTREAM_TEST_MANIFEST.json`, `lanes/quadrable/examples/wordpress-quadb-int-read-write-guard.php`, `lanes/quadrable/lane-status.json`, `lanes/quadrable/notes/upstream-inventory.md`, `lanes/quadrable/notes/wordpress-scenarios.md`.
+- `.tmux-team/tmp/handoff-candidates/port-rclone-20260525T030915Z.ready`: `lanes/rclone/UPSTREAM_TEST_MANIFEST.json`, `lanes/rclone/examples/wordpress-onedrive-no-versions-cleanup.php`, `lanes/rclone/lane-status.json`, `lanes/rclone/notes/upstream-inventory.md`, `lanes/rclone/notes/wordpress-scenarios.md`. The example conflict is behavioral: current `main` uses `OneDriveVersionCleaner`, while the patch rewrites the same example to `OneDrivePermissionPlanner::deleteVersionsFlow`.
+- `.tmux-team/tmp/handoff-candidates/port-readability-20260525T030830Z.ready`: `lanes/readability/UPSTREAM_TEST_MANIFEST.json`, `lanes/readability/lane-status.json`, `lanes/readability/notes/upstream-inventory.md`, `lanes/readability/notes/wordpress-scenarios.md`, `lanes/readability/tests/ArticleExtractorTest.php`.
+- `.tmux-team/tmp/handoff-candidates/port-syncthing-20260525T031809Z.ready`: `lanes/syncthing/UPSTREAM_TEST_MANIFEST.json`, `lanes/syncthing/examples/wordpress-fs-watch-scan-scheduler.php`, `lanes/syncthing/lane-status.json`, `lanes/syncthing/notes/wordpress-scenarios.md`, `lanes/syncthing/src/FolderWatchScanScheduler.php`.
+
+Recommended lane repair: rebase each micro-slice on `0ad1c0ff` or newer and re-emit only the behavioral source/test/example hunk plus minimal metadata updates. For markers that now touch an already evolved example or test file, the lane should decide whether to supersede the existing accepted behavior or emit a narrower additive test that does not overwrite the newer accepted slice.
+
 ## Integration accepted - Readability class-weight rearm slice - 2026-05-25 03:25 UTC
 
 Accepted isolated marker:
