@@ -99706,3 +99706,14 @@ Root verification: `php tools/run-tests.php` passed with 208 test files, 24515 a
 Support-library/dependency closure: no new support-library activation; this reuses the lane-local syntax highlight classifier and renderer path.
 Live-service exclusions: none; no live-service provider tests were run.
 Files staged: `lanes/difftastic/UPSTREAM_TEST_MANIFEST.json`, `lanes/difftastic/examples/wordpress-python-keyword-builtin-highlight-display.php`, `lanes/difftastic/lane-status.json`, `lanes/difftastic/notes/upstream-inventory.md`, `lanes/difftastic/notes/wordpress-scenarios.md`, `lanes/difftastic/src/SyntaxHighlightClassifier.php`, `lanes/difftastic/tests/TokenDifferTest.php`, `audits/integration-status.md`.
+
+## Integration accepted - isolated gitoxide supervisor-next-20260525T011458Z - 2026-05-25 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T011459Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-gitoxide-20260525T011459Z.patch`.
+Lane/slice/session: `gitoxide` / `supervisor-next-20260525T011458Z` / `port-gitoxide`.
+Focused verification in clean worktree: `php -l` on changed PHP files passed; `jq empty lanes/gitoxide/lane-status.json lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json` passed; `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed with 1 test file, 222 assertions, 0 failures; `php lanes/gitoxide/examples/wordpress-receive-pack-transport.php` exited 0; `git diff --check` passed.
+Root verification: `php tools/run-tests.php` passed with 208 test files, 24521 assertions, 0 failures in the same clean worktree.
+Support-library/dependency closure: no new support-library activation; this reuses lane-local receive-pack transport URL parsing, pkt-line construction, and native string validation.
+Live-service exclusions: none; no live-service provider tests were run.
+Files staged: `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`, `lanes/gitoxide/examples/wordpress-receive-pack-transport.php`, `lanes/gitoxide/fixtures/wordpress-receive-pack-transport.php`, `lanes/gitoxide/lane-status.json`, `lanes/gitoxide/notes/upstream-inventory.md`, `lanes/gitoxide/src/GitDaemonReceivePackTransport.php`, `lanes/gitoxide/tests/ReceivePackTransportTest.php`, `audits/integration-status.md`.

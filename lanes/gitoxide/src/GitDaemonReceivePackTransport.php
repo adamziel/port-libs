@@ -90,6 +90,16 @@ final class GitDaemonReceivePackTransport implements ReceivePackTransport
         return sprintf('%04x', $length) . $payload;
     }
 
+    /**
+     * @param list<string> $extraParameters
+     */
+    public static function serviceRequestBytesForUrl(string $url, array $extraParameters = []): string
+    {
+        $target = self::parseGitUrl($url);
+
+        return self::serviceRequestBytes($target['path'], $target['host'], $target['port'], $extraParameters);
+    }
+
     public function readAdvertisement(): string
     {
         return $this->streamTransport->readAdvertisement();

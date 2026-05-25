@@ -334,8 +334,18 @@ return [
         $ipv6PortPacket = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', '[2001:db8::1]', 9440);
         $t->same("git-receive-pack /repo.git\0host=[2001:db8::1]:9440\0", substr($ipv6PortPacket, 4));
 
+        $urlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test:9440/repo.git', ['version=2']);
+        $t->same("git-receive-pack /repo.git\0host=example.test:9440\0\0version=2\0", substr($urlPacket, 4));
+
+        $ipv6UrlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://[2001:db8::1]/repo.git');
+        $t->same("git-receive-pack /repo.git\0host=[2001:db8::1]\0", substr($ipv6UrlPacket, 4));
+
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::connect('https://example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::connect('git://example.test'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('https://example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://user@example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/repo.git?service=git-upload-pack'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', ''));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('repo.git', 'example.test'));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes("/bad\0repo", 'example.test'));
