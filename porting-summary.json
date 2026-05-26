@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 17:07:43 UTC",
-    "sourceCommit": "edd0f3b1a3a6c3ebe534541e4e487c9b4dbf2e5a",
-    "sourceCommitShort": "edd0f3b1a3a6",
+    "generated": "2026-05-26 17:14:12 UTC",
+    "sourceCommit": "f7d4b9ef8d52cb21a5b478f223a36ccba9d3af35",
+    "sourceCommitShort": "f7d4b9ef8d52",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "a3a32853cb8b172d3bab46da391790a488cb5065",
-    "dashboardCommitShort": "a3a32853cb8b",
+    "dashboardCommit": "239fccbb148d1a3db8bc2215fec9beaa8c7dccf4",
+    "dashboardCommitShort": "239fccbb148d",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -86,9 +86,9 @@
             "php": "401 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated SQL execution/planner numeric ag...",
-            "currentWork": "Latest SQL execution/planner work maps bounded numeric aggregate behavior for count(*), c...",
-            "nextTarget": "Next SQL execution/planner closure gap: wire accepted scalar/text/numeric aggregate helpe...",
+            "audit": "isolated B-tree delete/rebalance slice 20...",
+            "currentWork": "Latest B-tree delete/rebalance work preserves index-cell local payload length and first-o...",
+            "nextTarget": "Next B-tree closure gap: allocate replacement index overflow pages and free obsolete over...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
         },
