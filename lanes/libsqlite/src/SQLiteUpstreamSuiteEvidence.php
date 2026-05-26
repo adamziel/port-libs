@@ -821,6 +821,83 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function broadSuiteLaunchGate(
+        string $processSnapshot,
+        bool $supervisorApproved = false,
+        int $jobs = 1,
+        ?string $repoRoot = null
+    ): array {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite broad suite launch gate jobs must be at least 1');
+        }
+
+        $commands = $this->fullSuiteCommandManifest($jobs, $repoRoot);
+        $activeGate = $this->activeFullSuiteRunnerGate($processSnapshot);
+        $blockers = [];
+
+        if (!$supervisorApproved) {
+            $blockers[] = [
+                'id' => 'supervisor-approval-required',
+                'evidence' => 'broad all/release/mptest runs require explicit supervisor approval in isolated upstream-suite slices',
+            ];
+        }
+
+        if (($activeGate['status'] ?? null) === 'blocked-active-runner') {
+            $blockers[] = [
+                'id' => 'active-runner-still-running',
+                'evidence' => 'supplied process snapshot already contains a broad SQLite runner',
+                'active_tiers' => $activeGate['active_tiers'] ?? [],
+                'active_count' => $activeGate['active_count'] ?? 0,
+            ];
+        }
+
+        if (($commands['status'] ?? null) !== 'ready') {
+            $blockedCommands = [];
+            foreach ($commands['commands'] ?? [] as $command) {
+                if (!is_array($command) || ($command['runnable'] ?? false) === true) {
+                    continue;
+                }
+
+                $blockedCommands[] = [
+                    'id' => $command['id'] ?? 'unknown',
+                    'status' => $command['status'] ?? 'unknown',
+                    'missing' => is_array($command['missing'] ?? null) ? $command['missing'] : [],
+                ];
+            }
+
+            $blockers[] = [
+                'id' => 'command-manifest-not-ready',
+                'evidence' => 'full-suite command manifest still has blocked release/permutation/make/wildcard gates',
+                'blocked_command_count' => $commands['blocked_command_count'] ?? count($blockedCommands),
+                'blocked_commands' => $blockedCommands,
+            ];
+        }
+
+        $launchAllowed = $blockers === [];
+
+        return [
+            'status' => $launchAllowed ? 'launch-allowed' : 'blocked',
+            'launch_allowed' => $launchAllowed,
+            'supervisor_approved' => $supervisorApproved,
+            'jobs' => $jobs,
+            'active_gate' => $activeGate,
+            'command_manifest_status' => $commands['status'] ?? 'unknown',
+            'command_count' => $commands['command_count'] ?? 0,
+            'runnable_command_count' => $commands['runnable_command_count'] ?? 0,
+            'blocked_command_count' => $commands['blocked_command_count'] ?? 0,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_command' => $launchAllowed ? ($commands['commands'][0]['command'] ?? null) : null,
+            'next_gate' => $launchAllowed
+                ? 'launch one guarded broad SQLite suite runner, then count the artifact only through bounded provenance gates'
+                : 'do not launch a broad SQLite suite until supervisor approval, duplicate-runner, and command-manifest gates are all clear',
+            'dependency_closure' => 'no new support component needed; broad launch gate composes lane-local command readiness and supplied active-runner snapshots only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function activeFullSuiteRunnerGate(string $processSnapshot): array
     {
         $active = [];

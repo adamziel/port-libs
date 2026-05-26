@@ -115287,3 +115287,28 @@ Ready queue evidence:
 Decision: accepted. Publish the clean candidate as a small commit on `refs/heads/main`, then remove the accepted marker, patch, metadata, log, prompt, and inactive marker worktree artifacts.
 
 Dashboard publication should run next because the accepted source head will move beyond the currently live dashboard source.
+## Integration accepted - libsqlite broad suite launch gate - 2026-05-26T13:44:30Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T133321Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `dadab203f7b1fcffdddd5a6c63e59cf376143b81` (`Integrate libsqlite JSON table negative patterns`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `dadab203f7b1fcffdddd5a6c63e59cf376143b81`.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `123167984` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `1.96`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Verification:
+- Detached clean worktree: `.tmux-team/tmp/clean-integrator-suite-20260526T133321Z` at `dadab203f7b1fcffdddd5a6c63e59cf376143b81`.
+- Patch sha256 matched marker metadata: `87cb36b8cb6dd75d5868ec28d82c62ccac1942bace22e84acb4da11962f11ce5`.
+- Focused checks passed: `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`, `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`, `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` (`1 test files, 487 assertions, 0 failures`), manifest/status JSON validation, and `git diff --check -- lanes/libsqlite`.
+- Full clean-candidate diff check passed with `git diff --check`.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 27696 assertions, 0 failures`.
+
+Decision: accepted as commit pending publication at this entry time. The slice adds a lane-local `SQLiteUpstreamSuiteEvidence::broadSuiteLaunchGate()` and tests that block duplicate broad SQLite suite launches unless supervisor approval, active-runner, and command-manifest gates are clear. It did not start a fresh upstream runner and did not add a support-library dependency.
+
+Dashboard publication should run next after the accepted source commit is visible on `main`.

@@ -1,5 +1,41 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Broad Suite Launch Gate
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::broadSuiteLaunchGate()`. The helper composes the
+full-suite command manifest, explicit supervisor approval, and a supplied
+process snapshot so a broad `all`, `release`, `mptest`, or `make test` attempt
+is blocked with exact evidence when another guarded runner is active.
+
+The current process evidence showed an active guarded release runner:
+
+```text
+libsqlite-release-rerun-20260526T131549Z release 2 7200
+./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+```
+
+No new broad upstream `testfixture`, `make test`, `mptest`, `all`, or
+`release` run was started. The next gate is to wait for the active guarded
+artifact/log and count it only through the accepted bounded artifact provenance
+gates; another broad launch remains blocked until supervisor approval,
+duplicate-runner, and command-manifest gates are all clear.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This composes
+lane-local command readiness and supplied active-runner snapshots only.
+
 ## Focused Native Mapping: Release Rerun Decision Gate
 
 Date: 2026-05-26

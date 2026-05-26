@@ -1316,4 +1316,39 @@ MD);
         $t->same('blocked-needs-hydrated-test-dir', $inventory['wildcard_status']);
         $t->contains('resolve every selected or wildcard-expanded .test file', $inventory['next_gate']);
     },
+    'blocks broad upstream suite launch when a guarded release runner is active' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $snapshot = <<<'TXT'
+1447995 580343 17:44 bash bash scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-release-rerun-20260526T131549Z audits/sqlite-release-rerun-20260526T131549Z.md .tmux-team/tmp/sqlite-release-rerun-20260526T131549Z .tmux-team/logs/sqlite-release-rerun-20260526T131549Z.log release 2 7200
+1448035 1448034 17:43 testfixture ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+TXT;
+
+        $gate = $evidence->broadSuiteLaunchGate($snapshot, true, 2, '/tmp/missing-libsqlite-broad-suite-root');
+
+        $t->same('blocked', $gate['status']);
+        $t->same(false, $gate['launch_allowed']);
+        $t->same(true, $gate['supervisor_approved']);
+        $t->same(2, $gate['jobs']);
+        $t->same('blocked-active-runner', $gate['active_gate']['status']);
+        $t->same(['release'], $gate['active_gate']['active_tiers']);
+        $t->same('blocked', $gate['command_manifest_status']);
+        $t->true($gate['blocker_count'] >= 2, 'Expected active runner and command manifest blockers');
+        $t->same([
+            'active-runner-still-running',
+            'command-manifest-not-ready',
+        ], array_column($gate['blockers'], 'id'));
+        $t->same(null, $gate['next_command']);
+        $t->contains('do not launch a broad SQLite suite', $gate['next_gate']);
+        $t->contains('no new support component needed', $gate['dependency_closure']);
+    },
+    'requires supervisor approval before broad upstream suite launch even when duplicate runner gate is clear' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $gate = $evidence->broadSuiteLaunchGate('', false, 1, '/tmp/missing-libsqlite-broad-suite-root');
+
+        $t->same('blocked', $gate['status']);
+        $t->same(false, $gate['launch_allowed']);
+        $t->same('clear', $gate['active_gate']['status']);
+        $t->true(in_array('supervisor-approval-required', array_column($gate['blockers'], 'id'), true), 'Expected explicit approval blocker');
+        $t->true(in_array('command-manifest-not-ready', array_column($gate['blockers'], 'id'), true), 'Expected missing hydrated command manifest blocker');
+    },
 ];
