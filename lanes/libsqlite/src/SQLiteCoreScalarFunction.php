@@ -30,6 +30,11 @@ final class SQLiteCoreScalarFunction
             'trim', 'ltrim', 'rtrim' => self::trim($normalized, $arguments),
             'replace' => self::replace($arguments),
             'instr' => self::instr($arguments),
+            'hex' => self::hex($arguments),
+            'unhex' => self::unhex($arguments),
+            'char' => self::char($arguments),
+            'unicode' => self::unicode($arguments),
+            'octet_length' => self::octetLength($arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
     }
@@ -360,6 +365,106 @@ final class SQLiteCoreScalarFunction
         return $position === false ? 0 : $position + 1;
     }
 
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function hex(array $arguments): ?string
+    {
+        self::assertArity('hex', $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $bytes = $arguments[0] instanceof SQLiteBlobValue
+            ? $arguments[0]->bytes
+            : self::coerceText('hex', $arguments[0], 'first');
+
+        return strtoupper(bin2hex($bytes));
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function unhex(array $arguments): ?SQLiteBlobValue
+    {
+        self::assertArity('unhex', $arguments, 1, 2);
+        if ($arguments[0] === null || (array_key_exists(1, $arguments) && $arguments[1] === null)) {
+            return null;
+        }
+
+        $hex = self::coerceText('unhex', $arguments[0], 'first');
+        if (array_key_exists(1, $arguments)) {
+            $ignored = array_fill_keys(str_split(self::coerceText('unhex', $arguments[1], 'second')), true);
+            $filtered = '';
+            foreach (str_split($hex) as $byte) {
+                if (!isset($ignored[$byte])) {
+                    $filtered .= $byte;
+                }
+            }
+            $hex = $filtered;
+        }
+
+        if (strlen($hex) % 2 !== 0 || preg_match('/\A[0-9A-Fa-f]*\z/', $hex) !== 1) {
+            return null;
+        }
+
+        $bytes = hex2bin($hex);
+        if ($bytes === false) {
+            return null;
+        }
+
+        return new SQLiteBlobValue($bytes);
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function char(array $arguments): string
+    {
+        self::assertArity('char', $arguments, 0, null);
+        $text = '';
+        foreach ($arguments as $argument) {
+            $codepoint = $argument === null ? 0 : self::coerceInteger($argument);
+            $text .= self::utf8Codepoint($codepoint);
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function unicode(array $arguments): ?int
+    {
+        self::assertArity('unicode', $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $value = self::coerceText('unicode', $arguments[0], 'first');
+        if ($value === '') {
+            return null;
+        }
+
+        return self::firstUtf8Codepoint($value);
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function octetLength(array $arguments): ?int
+    {
+        self::assertArity('octet_length', $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+        if ($arguments[0] instanceof SQLiteBlobValue) {
+            return strlen($arguments[0]->bytes);
+        }
+
+        return strlen(self::coerceText('octet_length', $arguments[0], 'first'));
+    }
+
     private static function assertArity(string $functionName, array $arguments, int $minimum, ?int $maximum): void
     {
         $count = count($arguments);
@@ -496,6 +601,52 @@ final class SQLiteCoreScalarFunction
         $formatted = sprintf('%.15G', $value);
 
         return str_contains($formatted, 'E') ? str_replace('E', 'e', $formatted) : $formatted;
+    }
+
+    private static function utf8Codepoint(int $codepoint): string
+    {
+        if ($codepoint < 0 || $codepoint > 0x10ffff || ($codepoint >= 0xd800 && $codepoint <= 0xdfff)) {
+            $codepoint = 0xfffd;
+        }
+        if (function_exists('mb_chr')) {
+            $character = mb_chr($codepoint, 'UTF-8');
+            if ($character !== false) {
+                return $character;
+            }
+        }
+        if ($codepoint <= 0x7f) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7ff) {
+            return chr(0xc0 | ($codepoint >> 6)) . chr(0x80 | ($codepoint & 0x3f));
+        }
+        if ($codepoint <= 0xffff) {
+            return chr(0xe0 | ($codepoint >> 12)) . chr(0x80 | (($codepoint >> 6) & 0x3f)) . chr(0x80 | ($codepoint & 0x3f));
+        }
+
+        return chr(0xf0 | ($codepoint >> 18)) . chr(0x80 | (($codepoint >> 12) & 0x3f)) . chr(0x80 | (($codepoint >> 6) & 0x3f)) . chr(0x80 | ($codepoint & 0x3f));
+    }
+
+    private static function firstUtf8Codepoint(string $value): int
+    {
+        if (function_exists('mb_ord') && function_exists('mb_substr') && function_exists('mb_check_encoding') && mb_check_encoding($value, 'UTF-8')) {
+            $codepoint = mb_ord(mb_substr($value, 0, 1, 'UTF-8'), 'UTF-8');
+            if ($codepoint !== false) {
+                return $codepoint;
+            }
+        }
+
+        $byte = ord($value[0]);
+        if ($byte < 0x80) {
+            return $byte;
+        }
+        $length = $byte >= 0xf0 ? 4 : ($byte >= 0xe0 ? 3 : ($byte >= 0xc0 ? 2 : 1));
+        $codepoint = $byte & ((1 << (8 - $length - 1)) - 1);
+        for ($i = 1; $i < $length && isset($value[$i]); $i++) {
+            $codepoint = ($codepoint << 6) | (ord($value[$i]) & 0x3f);
+        }
+
+        return $codepoint;
     }
 
     /**

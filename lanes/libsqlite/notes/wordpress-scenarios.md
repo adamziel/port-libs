@@ -2589,6 +2589,27 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## Core Encoding Scalar Diagnostics Scenario
+
+Native SQL execution helpers now include `hex()`, `unhex()`, `char()`,
+`unicode()`, and `octet_length()` in the bounded core scalar dispatch surface
+used by local WordPress option diagnostics. The
+`examples/wordpress-core-scalar-option-default.php` smoke reports local-only
+byte/codepoint diagnostics for copied `wp_options` values, including BLOB hex
+round trips, ignored separators in hex text, UTF-8 codepoints, and byte length
+without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added
+SQLite-style SQL NULL propagation, malformed `unhex()` NULL results, invalid
+`char()` codepoint replacement, UTF-8 codepoint construction and inspection,
+byte-length diagnostics, and strict arity/type errors. This is intentionally a
+scalar dispatch helper, not a full SELECT expression evaluator or VDBE
+projection engine.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, UTF-8 helpers when available, and
+existing expression-semantics helpers.
+
 ## JSON Table BETWEEN Residual Scenario
 
 Local-only WordPress option import tooling can now preflight SQL-style

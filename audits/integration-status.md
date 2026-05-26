@@ -1,5 +1,73 @@
 # Integration Status
 
+## Accepted libsqlite scalar encoding helpers - 2026-05-26 11:47 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T113813Z.ready`.
+
+Accepted source before integration:
+`74d72463802e3acce87bcf6a46fe48a25d277ab0`
+(`Integrate libsqlite runner countability gate`).
+
+Dashboard guard override evidence:
+- Override file
+  `.tmux-team/tmp/pages-outage-integration-override-20260526T1144Z.md`
+  existed and did not contain `consumed_at:` before this pass.
+- GitHub `main` (`b8f5f5d33f659972cbf2b26cba9d64a2a2363474`) and
+  `gh-pages` (`d04cb8cd022581dc59dfc448a1c4d4a04f8b26e9`) both contained
+  `porting-summary.json` for source
+  `74d72463802e3acce87bcf6a46fe48a25d277ab0`.
+- Cache-busted live Pages JSON still reported
+  `sourceCommit=2464928fd3673d823de3ec22a6e1c6c4f38b6d85`, behind the accepted
+  source head.
+- Pages remained configured for `gh-pages` `/`; latest Pages build targeted
+  `d04cb8cd022581dc59dfc448a1c4d4a04f8b26e9`, status `building`, created and
+  updated `2026-05-26T11:25:06Z`.
+- GitHub Status reported Actions `major_outage`, Pages
+  `degraded_performance`, and active critical incident "Incident with Actions
+  and Pages".
+
+Patch and scope:
+- Patch SHA-256 matched marker metadata:
+  `36eb380089378803e11be2b704c12cbf9b48de257d6981ccd84e39b5d3ff8083`.
+- Patch applied cleanly in detached clean worktree
+  `.tmux-team/tmp/clean-integrator-worktrees/libsqlite-scalar-20260526T113813Z`
+  from `refs/heads/main`.
+- Scope was lane-local libsqlite scalar SQL helpers: `hex`, `unhex`, `char`,
+  `unicode`, and `octet_length`, with manifest, lane-status, notes, and a
+  WordPress scalar smoke update.
+
+Verification:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php`:
+  passed.
+- Manifest/status JSON validation: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+- Focused `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`:
+  `1 test files, 2751 assertions, 0 failures`.
+- WordPress scalar smoke commands passed:
+  `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php hex wp_options`
+  and
+  `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php unhex 77705f6f7074696f6e73`.
+- Full `git diff --check`: passed.
+- Serialized clean-candidate root `php tools/run-tests.php`: `215 test files,
+  27584 assertions, 0 failures`.
+
+Resource gates:
+- The disk gate briefly closed after lightweight checks, with `/` at
+  `85990800` KiB available, so heavier focused/root checks waited outside the
+  lock.
+- Focused checks resumed when `/` reported `86269552` KiB available and load
+  `1.73`, with no no-argument root harness active.
+- Root started under `.tmux-team/tmp/clean-integrator-run.lock` with `/` at
+  `86268580` KiB available, load `1.54`, and no competing no-argument root
+  harness.
+
+Decision: accepted exactly one current-base libsqlite marker under the temporary
+Pages outage override. Dashboard publication should run next because accepted
+source moved again while live Pages remains behind.
+
 ## Accepted libsqlite bounded runner countability gate - 2026-05-26 10:43 UTC
 
 Accepted marker:
