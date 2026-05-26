@@ -6547,6 +6547,43 @@ test file reaches the new LIKE/GLOB assertions successfully; later root
 acceptance restored the WAL classes that were missing in that isolated worktree.
 Root aggregate harness was not assigned for this isolated micro-slice.
 
+## Focused Native Mapping: `json_tree()` Quoted Selected-Root Labels
+
+This isolated micro-slice closes a bounded JSON table-valued row-shape gap for
+`json_tree(X, root)`. The selected root row now derives `key` and `path` by
+scanning SQLite JSON path segments while respecting quoted object labels, so
+paths like `$.plugin."dotted.key"` and
+`$.plugin."bracket[0]"."nested.label"` are not split on punctuation inside the
+quoted label. The hidden `root` column continues to report the caller-supplied
+root path.
+
+No hydrated upstream cache was present in this isolated worktree, so no new
+SQLite Tcl/testfixture run was performed. The slice reuses the accepted focused
+JSON table inventory and adds native PHP assertions for quoted selected-root
+rows on JSONB input.
+
+Focused local verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, flags: JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, flags: JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, focused PHP passed 1 selected file with 2391
+assertions and 0 failures, the WordPress smoke reported quoted-root rows for
+JSONB option settings, JSON metadata validation passed, and final diff check is
+recorded in `lane-status.json`. Root aggregate harness was not assigned for
+this isolated micro-slice.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+JSON path decoding, JSON5 quoted-label decoding, JSONB decode, and existing
+`json_tree()` row assembly.
+
 Dependency closure: no new support component is needed. The slice reuses
 lane-local UTF-8 text splitting, ASCII case folding, decoded WordPress options,
 and table traversal; it counts no shared support-library progress.

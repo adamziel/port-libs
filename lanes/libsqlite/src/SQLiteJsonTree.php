@@ -185,39 +185,104 @@ final class SQLiteJsonTree
             return ['key' => null, 'path' => '$'];
         }
 
-        $lastDot = strrpos($path, '.');
-        $lastBracket = strrpos($path, '[');
-        if ($lastBracket !== false && ($lastDot === false || $lastBracket > $lastDot)) {
-            $endBracket = strrpos($path, ']');
-            if ($endBracket !== strlen($path) - 1) {
-                return ['key' => null, 'path' => $path];
-            }
-
-            $index = substr($path, $lastBracket + 1, -1);
-            if (ctype_digit($index)) {
-                return ['key' => (int) $index, 'path' => substr($path, 0, $lastBracket)];
-            }
-
-            return ['key' => null, 'path' => $path];
-        }
-
-        if ($lastDot === false) {
+        $segments = self::pathSegments($path);
+        if ($segments === []) {
             return ['key' => null, 'path' => '$'];
         }
 
-        $label = substr($path, $lastDot + 1);
-        $parentPath = substr($path, 0, $lastDot);
-        if ($parentPath === '') {
-            $parentPath = '$';
+        $last = $segments[count($segments) - 1];
+        $parentPath = count($segments) === 1 ? '$' : substr($path, 0, $last['offset']);
+
+        if ($last['type'] === 'index' && ctype_digit($last['token'])) {
+            return ['key' => (int) $last['token'], 'path' => $parentPath];
         }
 
-        if (str_starts_with($label, '"') && str_ends_with($label, '"')) {
-            $decoded = json_decode($label, true);
-            if (is_string($decoded)) {
-                return ['key' => $decoded, 'path' => $parentPath];
+        if ($last['type'] !== 'member') {
+            return ['key' => null, 'path' => $path];
+        }
+
+        return ['key' => $last['label'], 'path' => $parentPath];
+    }
+
+    /**
+     * @return list<array{type:string,offset:int,label?:string,token?:string}>
+     */
+    private static function pathSegments(string $path): array
+    {
+        $segments = [];
+        $offset = 1;
+        $length = strlen($path);
+        while ($offset < $length) {
+            if ($path[$offset] === '.') {
+                $segmentOffset = $offset;
+                $offset++;
+                if ($offset >= $length) {
+                    return [];
+                }
+
+                if ($path[$offset] === '"') {
+                    $end = self::quotedMemberEnd($path, $offset);
+                    if ($end === null) {
+                        return [];
+                    }
+                    $label = SQLiteJson5Parser::decode(substr($path, $offset, $end - $offset + 1));
+                    if (!is_string($label)) {
+                        return [];
+                    }
+                    $segments[] = ['type' => 'member', 'offset' => $segmentOffset, 'label' => $label];
+                    $offset = $end + 1;
+                    continue;
+                }
+
+                $end = $offset;
+                while ($end < $length && $path[$end] !== '.' && $path[$end] !== '[') {
+                    $end++;
+                }
+                if ($end === $offset) {
+                    return [];
+                }
+                $label = SQLiteJsonPath::decodeBareMember(substr($path, $offset, $end - $offset));
+                if ($label === null) {
+                    return [];
+                }
+                $segments[] = ['type' => 'member', 'offset' => $segmentOffset, 'label' => $label];
+                $offset = $end;
+                continue;
+            }
+
+            if ($path[$offset] === '[') {
+                $segmentOffset = $offset;
+                $end = strpos($path, ']', $offset + 1);
+                if ($end === false) {
+                    return [];
+                }
+                $segments[] = ['type' => 'index', 'offset' => $segmentOffset, 'token' => substr($path, $offset + 1, $end - $offset - 1)];
+                $offset = $end + 1;
+                continue;
+            }
+
+            return [];
+        }
+
+        return $segments;
+    }
+
+    private static function quotedMemberEnd(string $path, int $offset): ?int
+    {
+        $length = strlen($path);
+        for ($cursor = $offset + 1; $cursor < $length; $cursor++) {
+            if ($path[$cursor] === '\\') {
+                if ($cursor + 1 >= $length) {
+                    return null;
+                }
+                $cursor++;
+                continue;
+            }
+            if ($path[$cursor] === '"') {
+                return $cursor;
             }
         }
 
-        return ['key' => $label, 'path' => $parentPath];
+        return null;
     }
 }

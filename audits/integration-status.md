@@ -1,5 +1,65 @@
 # Integration Status
 
+## Accepted - libsqlite JSON tree quoted selected roots - 2026-05-26 02:29 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T022353Z.ready`.
+
+Accepted source base: `ad2bdefcb5c870f9a5ddce87ca20879d77e76441`
+(`Integrate libsqlite LIKE GLOB late row scans`).
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=ad2bdefcb5c870f9a5ddce87ca20879d77e76441`, matching current
+  `main`.
+- Live dashboard commit reported
+  `22cb4cf91821f5b2a9a3a94c2ae94a3c3a05da19`, generated
+  `2026-05-26 02:22:08 UTC`.
+
+Resource and process gate evidence:
+- Before focused verification, `df -Pk /` reported `86290424` KiB available,
+  load was `2.25`, and `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- Before serialized root verification, `df -Pk /` reported `86605460` KiB
+  available, load was `2.90`, and the exact no-argument root harness gate was
+  empty.
+- Before the final commit/ref publication step, `df -Pk /` reported
+  `87262872` KiB available and load was `2.31`.
+
+Candidate evidence:
+- The marker contained required `lane=libsqlite`, `patch=`, and `metadata=`
+  fields.
+- Patch sha256 matched the marker:
+  `1807fafb72a3f29e49e9972a5ec6336516b820aca520a6aba70fc4d2ce473bdf`.
+- Worker log showed focused checks completed and root harness intentionally not
+  run by the isolated worker.
+- Patch applied cleanly in detached clean worktree
+  `.tmux-team/tmp/clean-integrator-libsqlite-json-table-20260526T0226CI`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteJsonTree.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2391 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php`
+  passed.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact candidate snapshot with `215 test files, 26846
+  assertions, 0 failures`.
+
+Decision: accepted. The slice extends `json_tree(X, root)` selected-root
+behavior for quoted labels containing dots and bracket-looking text, preserving
+the hidden `json` and `root` column semantics in the WordPress option fixture.
+
+Post-commit cleanup: remove the accepted marker, patch, and metadata after the
+commit is safely on `main`. Dashboard publication should run next because this
+acceptance moves `main` beyond the currently published source commit.
+
 ## Accepted libsqlite LIKE/GLOB late-row option scans - 2026-05-26 02:22 UTC
 
 Accepted isolated marker:

@@ -3673,6 +3673,7 @@ return [
                     ['name' => 'cache'],
                 ],
                 'dotted.key' => 'quoted',
+                'bracket[0]' => ['nested.label' => 'escaped'],
             ],
         ]));
 
@@ -3717,6 +3718,36 @@ return [
         $t->same('$.plugin."dotted.key"', $quotedRows[7]['fullkey']);
         $t->same('plugin', $quotedRows[0]['key']);
         $t->same('$', $quotedRows[0]['path']);
+
+        $quotedRootRows = SQLiteJsonTree::jsonTree($jsonb, '$.plugin."dotted.key"');
+        $t->same([['dotted.key', 'quoted', 'text', 'quoted', 0, null, '$.plugin."dotted.key"', '$.plugin']], array_map(
+            static fn (array $row): array => [
+                $row['key'],
+                $row['value'],
+                $row['type'],
+                $row['atom'],
+                $row['id'],
+                $row['parent'],
+                $row['fullkey'],
+                $row['path'],
+            ],
+            $quotedRootRows,
+        ));
+
+        $bracketLabelRows = SQLiteJsonTree::jsonTree($jsonb, '$.plugin."bracket[0]"."nested.label"');
+        $t->same([['nested.label', 'escaped', 'text', 'escaped', 0, null, '$.plugin."bracket[0]"."nested.label"', '$.plugin."bracket[0]"']], array_map(
+            static fn (array $row): array => [
+                $row['key'],
+                $row['value'],
+                $row['type'],
+                $row['atom'],
+                $row['id'],
+                $row['parent'],
+                $row['fullkey'],
+                $row['path'],
+            ],
+            $bracketLabelRows,
+        ));
 
         $scalarRows = SQLiteJsonTree::jsonTree($settings, '$.plugin.title');
         $t->same([['title', 'Cache', 'text', 'Cache', 0, null, '$.plugin.title', '$.plugin']], array_map(

@@ -1964,6 +1964,36 @@ git diff --check -- lanes/libsqlite
 
 Result: recorded in `lane-status.json` after focused verification. Root aggregate harness was not assigned for this isolated micro-slice.
 
+## Focused Native Mapping: `json_tree()` Quoted Selected-Root Labels
+
+This isolated micro-slice updates the copied `wp_options` JSON tree smoke for
+plugin settings whose option values contain object labels with punctuation.
+`json_tree(X, '$.plugin."dotted.key"')` and
+`json_tree(X, '$.plugin."bracket[0]"."nested.label"')` now report selected-root
+rows with the decoded object label in `key`, the parent path in `path`, and the
+caller root preserved in the hidden `root` column. That keeps local import
+preflight output aligned with SQLite JSON table-valued row shape for plugin
+configuration keys that are not valid bare path labels.
+
+Focused local verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+```
+
+Result: syntax checks passed, focused PHP passed 1 selected file with 2391
+assertions and 0 failures, and the WordPress smoke reported quoted-root rows
+for JSONB settings. Root aggregate harness was not assigned for this isolated
+micro-slice.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+JSON path decoding, JSON5 quoted-label decoding, JSONB decode, and existing
+`json_tree()` row assembly.
+
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.
 
 ## Focused Native Mapping: Table-Valued JSON Case-Insensitive Dispatch
