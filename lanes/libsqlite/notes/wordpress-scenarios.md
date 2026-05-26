@@ -67,6 +67,21 @@ and updated `examples/wordpress-option-name-like-glob.php` with an indexed
 self-test fixture. Dependency closure: no new support component is needed; this
 reuses lane-local index range traversal and the accepted UTF-8 LIKE matcher.
 
+## NOCASE Indexed LIKE Uppercase Prefix Scenario
+
+Copied WordPress option queries can arrive as uppercase LIKE prefixes even when
+the stored `option_name` rows are lowercase. The pattern smoke now reports a
+NOCASE indexed uppercase-prefix probe, showing that `SITE%`-style scans derive
+their range from the ASCII-folded prefix before residual LIKE matching.
+
+Status delta 2026-05-26 isolated encoding/collation slice: fixed
+`wordpressOptionsByIndexedNameLikePrefixRangeNoCase()` so its upper bound is
+derived after SQLite NOCASE ASCII folding, added a focused `SITE%` assertion,
+and updated `examples/wordpress-option-name-like-glob.php` to report
+`indexedNoCaseUpperCaseLikeOptions`. Dependency closure: no new support
+component is needed; this reuses lane-local NOCASE comparison, LIKE matching,
+and index range traversal.
+
 ## UTF-16 Embedded NUL Option Text Scenario
 
 Copied SQLite text fields can legally contain embedded U+0000 codepoints

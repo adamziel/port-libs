@@ -5840,7 +5840,7 @@ final class SQLiteDatabase
         }
 
         $lowerInclusive = self::asciiLower($bounds['lowerInclusive']);
-        $upperBound = $bounds['upperBound'] === null ? null : self::asciiLower($bounds['upperBound']);
+        $upperBound = self::nextBinaryPrefixUpperBound($lowerInclusive);
         $compareNoCase = static fn (string $left, string $right): int => strcmp(self::asciiLower($left), self::asciiLower($right));
 
         $options = [];

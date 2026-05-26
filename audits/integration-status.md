@@ -1,5 +1,40 @@
 # Integration Status
 
+## Integration accepted - libsqlite NOCASE uppercase LIKE prefix bound - 2026-05-26 14:53 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T144856Z.ready`.
+
+Decision: accepted one current-base `libsqlite` marker. The marker declared `lane=libsqlite`, `base_sha=de20df739470abdcb951b421e19d25eeff895308`, patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T144856Z.patch`, metadata `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T144856Z.md`, and log `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-dev-libsqlite-encoding-20260526T144856Z.log`. Patch sha256 matched `dcb55add7a00229b12ac6a8c9c7597969ce14046f511bf40931983e0d4234676`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before this pass was `de20df739470abdcb951b421e19d25eeff895308` (`Integrate libsqlite JSON table REGEXP residuals`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit` `de20df739470abdcb951b421e19d25eeff895308`, so the live dashboard was not behind the current accepted source head.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `111433996` KiB available before focused/root checks, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load stayed below `25`; sampled values included `1.62`, `1.74`, and `2.14`.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before starting the locked root run.
+
+Focused verification in detached clean worktree `.tmux-team/tmp/clean-candidates/libsqlite-encoding-20260526T144856Z`:
+- `git apply --check` and `git apply` passed against detached `de20df739470abdcb951b421e19d25eeff895308`.
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2840 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test` passed and reported `indexedNoCaseUpperCaseLikeOptions_count=3`.
+- `git diff --check` passed.
+
+Serialized root verification:
+- `php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27771 assertions, 0 failures`.
+
+Scope:
+- Fixed `wordpressOptionsByIndexedNameLikePrefixRangeNoCase()` so NOCASE indexed LIKE prefix upper bounds are derived after ASCII folding.
+- Added focused `SITE%` coverage plus WordPress smoke output for uppercase NOCASE indexed LIKE probes.
+- Updated libsqlite manifest, status, and WordPress scenario notes. No broad SQLite upstream `all`, `release`, `make test`, or `mptest` run was launched by this integration.
+
+Post-acceptance note: dashboard publication should run next because the accepted source head moved beyond the live dashboard source.
+
 ## Integration accepted - libsqlite random scalar dispatch - 2026-05-26 14:38 UTC
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T143224Z.ready`.

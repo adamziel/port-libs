@@ -25,14 +25,21 @@ $database = $databasePath === '--self-test'
 
 $likeOptions = $database->wordpressOptionsByNameLike($likePattern, '\\');
 $indexedLikeOptions = $database->wordpressOptionsByIndexedNameLikePrefixRange($likePattern, '\\');
+$upperCaseLikePattern = strtoupper($likePattern);
 $indexedNoCaseLike = null;
+$indexedNoCaseUpperCaseLike = null;
 try {
     $indexedNoCaseLike = array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase($likePattern, '\\'),
     );
+    $indexedNoCaseUpperCaseLike = array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase($upperCaseLikePattern, '\\'),
+    );
 } catch (InvalidArgumentException $exception) {
     $indexedNoCaseLike = ['error' => $exception->getMessage()];
+    $indexedNoCaseUpperCaseLike = ['error' => $exception->getMessage()];
 }
 $globOptions = $database->wordpressOptionsByNameGlob($globPattern);
 $regexp = static function (string $pattern, string $value): bool {
@@ -49,6 +56,7 @@ echo json_encode([
     'path' => $databasePath,
     'likePattern' => $likePattern,
     'likePrefixRange' => SQLiteDatabase::likePrefixRangeBounds($likePattern, '\\'),
+    'upperCaseLikePattern' => $upperCaseLikePattern,
     'globPattern' => $globPattern,
     'regexpPattern' => $regexpPattern,
     'likeOptions' => array_map(
@@ -60,6 +68,7 @@ echo json_encode([
         $indexedLikeOptions,
     ),
     'indexedNoCaseLikeOptions' => $indexedNoCaseLike,
+    'indexedNoCaseUpperCaseLikeOptions' => $indexedNoCaseUpperCaseLike,
     'globOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $globOptions,

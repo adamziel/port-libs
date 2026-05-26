@@ -2425,6 +2425,7 @@ return [
         $likeTransient = $database->wordpressOptionsByNameLike('\_transient\_%', '\\');
         $indexedLikeTransient = $database->wordpressOptionsByIndexedNameLikePrefixRange('\_transient\_%', '\\');
         $indexedNoCaseLikeTransient = $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\');
+        $indexedNoCaseUppercaseSite = $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('SITE%');
         $indexedLikeLiteral = $database->wordpressOptionsByIndexedNameLikePrefixRange('literal\_percent\_\%', '\\');
         $indexedLikeLimited = $database->wordpressOptionsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 1);
         $indexedNoCaseLikeLimited = $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\', 1);
@@ -2465,6 +2466,7 @@ return [
         $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $likeTransient));
         $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedLikeTransient));
         $t->same(['_Transient_API', '_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedNoCaseLikeTransient));
+        $t->same(['siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedNoCaseUppercaseSite));
         $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedLikeLiteral));
         $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedLikeLimited));
         $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedNoCaseLikeLimited));
