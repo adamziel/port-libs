@@ -9100,3 +9100,35 @@ Dependency closure: no new support component is needed. This reuses the
 lane-local upstream runner evidence model and parses supplied process snapshots
 only; it does not inspect secrets, mutate upstream caches, or execute upstream
 tests.
+
+## Focused Native Mapping: Core random()/randomblob() Scalar Dispatch
+
+This isolated SQL execution/planner micro-slice adds `random()` and
+`randomblob()` dispatch to `SQLiteCoreScalarFunction` for bounded
+nondeterministic scalar expression support. Native PHP now returns signed
+64-bit `random()` integers while excluding SQLite's minimum sentinel value, and
+returns `SQLiteBlobValue` output for `randomblob(N)` with SQLite's minimum
+one-byte behavior for non-positive lengths.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused core random scalar evidence row while preserving the current
+accepted static SQLite upstream denominator and runner evidence. This isolated
+worktree did not contain the hydrated upstream cache, so no fresh upstream
+`testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T14:32Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php randomblob 12
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local scalar coercion, `SQLiteBlobValue`, PHP CSPRNG primitives, and
+existing expression-semantics dispatch without activating shared
+support-library work.

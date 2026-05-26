@@ -11534,6 +11534,15 @@ SQL;
         $emptyZeroBlob = SQLiteCoreScalarFunction::sqlFunctionArguments('zeroblob', [-2]);
         $t->true($emptyZeroBlob instanceof SQLiteBlobValue);
         $t->same('', bin2hex($emptyZeroBlob instanceof SQLiteBlobValue ? $emptyZeroBlob->bytes : ''));
+        $random = SQLiteCoreScalarFunction::sqlFunctionArguments('random', []);
+        $t->true(is_int($random));
+        $t->true($random >= PHP_INT_MIN + 1 && $random <= PHP_INT_MAX);
+        $randomBlob = SQLiteCoreScalarFunction::sqlFunctionArguments('randomblob', [6]);
+        $t->true($randomBlob instanceof SQLiteBlobValue);
+        $t->same(6, strlen($randomBlob instanceof SQLiteBlobValue ? $randomBlob->bytes : ''));
+        $minimumRandomBlob = SQLiteCoreScalarFunction::sqlFunctionArguments('randomblob', [0]);
+        $t->true($minimumRandomBlob instanceof SQLiteBlobValue);
+        $t->same(1, strlen($minimumRandomBlob instanceof SQLiteBlobValue ? $minimumRandomBlob->bytes : ''));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('coalesce', [null]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('min', [1]));
@@ -11560,6 +11569,8 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('unicode', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('octet_length', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('zeroblob', [['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('random', [1]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('randomblob', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('missing', [1]));
     },

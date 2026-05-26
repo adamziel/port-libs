@@ -41,6 +41,8 @@ final class SQLiteCoreScalarFunction
             'unicode' => self::unicode($arguments),
             'octet_length' => self::octetLength($arguments),
             'zeroblob' => self::zeroblob($arguments),
+            'random' => self::random($arguments),
+            'randomblob' => self::randomblob($arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
     }
@@ -614,6 +616,27 @@ final class SQLiteCoreScalarFunction
         $length = max(0, self::coerceInteger($arguments[0]));
 
         return new SQLiteBlobValue(str_repeat("\0", $length));
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function random(array $arguments): int
+    {
+        self::assertArity('random', $arguments, 0, 0);
+
+        return random_int(PHP_INT_MIN + 1, PHP_INT_MAX);
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function randomblob(array $arguments): SQLiteBlobValue
+    {
+        self::assertArity('randomblob', $arguments, 1, 1);
+        $length = max(1, self::coerceInteger($arguments[0]));
+
+        return new SQLiteBlobValue(random_bytes($length));
     }
 
     private static function assertArity(string $functionName, array $arguments, int $minimum, ?int $maximum): void

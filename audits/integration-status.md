@@ -1,5 +1,43 @@
 # Integration Status
 
+## Integration accepted - libsqlite random scalar dispatch - 2026-05-26 14:38 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T143224Z.ready`.
+
+Decision: accepted one current-base `libsqlite` marker. The marker declared `lane=libsqlite`, `base_sha=544389d7284df5917853fe291bcfcc7dcbd5648b`, patch `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T143224Z.patch`, metadata `/home/claude/port-libs/.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T143224Z.md`, and log `/home/claude/port-libs/.tmux-team/logs/isolated-lane-workers/port-dev-libsqlite-sql-exec-20260526T143224Z.log`. Patch sha256 matched `6c5a9caab0994009d573a1560c240a6a8ec9ff966a89992e15ac92771129240b`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before this pass was `544389d7284df5917853fe291bcfcc7dcbd5648b` (`Integrate libsqlite planner hint scalars`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit` `544389d7284df5917853fe291bcfcc7dcbd5648b`, so the live dashboard was not behind the current accepted source head.
+- `gh api repos/adamziel/port-libs/pages` reported legacy Pages source `gh-pages` `/` and site status `built`.
+- `gh api repos/adamziel/port-libs/pages/builds/latest` reported latest build commit `dffc56be1645ebc25137f6c7203ec931f4632e44`, status `built`, created `2026-05-26T12:43:35Z`, updated `2026-05-26T12:53:38Z`, with no error message.
+- `git ls-remote origin` reported remote `main` at `41b5d01b70241852b39182ed2a01b637e33c1faf` and remote `gh-pages` at `dffc56be1645ebc25137f6c7203ec931f4632e44`.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `113656956` KiB available before focused/root checks, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `3.81` before focused checks and `3.58` before root, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before starting the locked root run.
+
+Focused verification in detached clean worktree `.tmux-team/tmp/clean-integrator-candidate-sql-exec-20260526T143224Z`:
+- `git apply --check` and `git apply` passed against detached `544389d7284df5917853fe291bcfcc7dcbd5648b`.
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2836 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php randomblob 12` passed and reported `noncePreviewBytes: 12`.
+
+Serialized root verification:
+- First attempted root command used a relative lock path inside the detached worktree and exited before running the harness: `flock: cannot open lock file .tmux-team/tmp/clean-integrator-run.lock: No such file or directory`.
+- Rerun with absolute lock `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27767 assertions, 0 failures`.
+
+Scope:
+- Added native `random()` and `randomblob()` dispatch to `SQLiteCoreScalarFunction`, focused assertions for arity/range/blob length behavior, and WordPress smoke/status/manifest notes for copied `wp_options` diagnostics.
+- No broad SQLite upstream `all`, `release`, `make test`, or `mptest` run was launched by this integration.
+
+Post-acceptance note: dashboard publication should run next because the accepted source head moved beyond the live dashboard source.
+
 ## Integration accepted - libsqlite foreground runner snapshot gate - 2026-05-26 14:15 UTC
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T141056Z.ready`.

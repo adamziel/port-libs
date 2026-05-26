@@ -2621,6 +2621,27 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## Core Random Scalar Scenario
+
+Native SQL execution helpers now include `random()` and `randomblob()` in the
+bounded core scalar dispatch surface used by local WordPress option repair and
+expression planning. The `examples/wordpress-core-scalar-option-default.php`
+smoke reports local-only token and nonce byte diagnostics for copied
+`wp_options` workflows, including SQLite zero-argument `random()` output,
+`randomblob(N)` BLOB allocation, and the one-byte minimum for non-positive
+randomblob lengths without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added
+SQLite-style random/randomblob dispatch with focused assertions for signed
+integer range, minimum-sentinel exclusion, BLOB byte counts, non-positive
+length handling, and strict arity/type errors. This is intentionally a scalar
+dispatch helper, not a full SELECT expression evaluator or VDBE projection
+engine.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, PHP CSPRNG primitives, and
+existing expression-semantics helpers.
+
 ## NOCASE Indexed LIKE Prefix Option-Name Scenario
 
 Default SQLite `LIKE` matching folds ASCII case unless `case_sensitive_like` is

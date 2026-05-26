@@ -13,7 +13,7 @@ if ($functionName === '--self-test') {
     $functionName = 'coalesce';
     $arguments = ['null', 'published'];
 } elseif ($functionName === null) {
-    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php abs|round|sign|typeof|quote|coalesce|ifnull|nullif|min|max|lower|upper|length|substr|substring|trim|ltrim|rtrim|replace|instr|concat|concat_ws|printf|format|likely|unlikely|likelihood|hex|unhex|char|unicode|octet_length|zeroblob arg...\n");
+    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php abs|round|sign|typeof|quote|coalesce|ifnull|nullif|min|max|lower|upper|length|substr|substring|trim|ltrim|rtrim|replace|instr|concat|concat_ws|printf|format|likely|unlikely|likelihood|hex|unhex|char|unicode|octet_length|zeroblob|random|randomblob arg...\n");
     exit(1);
 }
 
@@ -51,7 +51,8 @@ echo json_encode([
         'substring' => SQLiteCoreScalarFunction::sqlFunctionArguments('substr', ['💡éx中', 2, 2]),
         'instr' => SQLiteCoreScalarFunction::sqlFunctionArguments('instr', ['💡éx中', '中']),
     ],
-    'wordpressUse' => 'Preview core SQLite scalar defaulting, quoting, typing, numeric coercion, sign checks, min/max selection, ASCII case folding, UTF-8 character length checks, substr/substring slicing, trim/replace cleanup, instr matching, concat/concat_ws option-key assembly, printf/format status rendering, likely/unlikely/likelihood planner-hint pass-through, hex/unhex/char/unicode/octet_length, and zeroblob diagnostics for copied wp_options values before local import or repair without a hard mbstring dependency.',
+    'wordpressUse' => 'Preview core SQLite scalar defaulting, quoting, typing, numeric coercion, sign checks, min/max selection, ASCII case folding, UTF-8 character length checks, substr/substring slicing, trim/replace cleanup, instr matching, concat/concat_ws option-key assembly, printf/format status rendering, likely/unlikely/likelihood planner-hint pass-through, hex/unhex/char/unicode/octet_length, zeroblob, and random/randomblob diagnostics for copied wp_options values before local import or repair without a hard mbstring dependency.',
     'formattedOptionPreview' => SQLiteCoreScalarFunction::sqlFunctionArguments('format', ['option=%Q autoload=%s rowid=%04d', 'plugin_cache', 'yes', 7]),
     'plannerHintPreview' => SQLiteCoreScalarFunction::sqlFunctionArguments('likelihood', ['autoload = yes', 0.9375]),
+    'noncePreviewBytes' => strlen(SQLiteCoreScalarFunction::sqlFunctionArguments('randomblob', [12])->bytes),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
