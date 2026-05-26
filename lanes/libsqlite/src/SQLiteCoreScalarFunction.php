@@ -16,6 +16,7 @@ final class SQLiteCoreScalarFunction
         return match ($normalized) {
             'abs' => self::abs($arguments),
             'round' => self::round($arguments),
+            'sign' => self::sign($arguments),
             'typeof' => self::typeof($arguments),
             'quote' => self::quote($arguments),
             'coalesce' => self::coalesce($arguments),
@@ -35,6 +36,7 @@ final class SQLiteCoreScalarFunction
             'char' => self::char($arguments),
             'unicode' => self::unicode($arguments),
             'octet_length' => self::octetLength($arguments),
+            'zeroblob' => self::zeroblob($arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
     }
@@ -77,6 +79,24 @@ final class SQLiteCoreScalarFunction
         }
 
         return round((float) self::coerceNumeric($arguments[0]), $precision, PHP_ROUND_HALF_UP);
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function sign(array $arguments): ?int
+    {
+        self::assertArity('sign', $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $number = self::coerceLosslessNumeric($arguments[0]);
+        if ($number === null) {
+            return null;
+        }
+
+        return $number <=> 0;
     }
 
     /**
@@ -452,6 +472,17 @@ final class SQLiteCoreScalarFunction
         return strlen(self::coerceText('octet_length', $arguments[0], 'first'));
     }
 
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function zeroblob(array $arguments): SQLiteBlobValue
+    {
+        self::assertArity('zeroblob', $arguments, 1, 1);
+        $length = max(0, self::coerceInteger($arguments[0]));
+
+        return new SQLiteBlobValue(str_repeat("\0", $length));
+    }
+
     private static function assertArity(string $functionName, array $arguments, int $minimum, ?int $maximum): void
     {
         $count = count($arguments);
@@ -491,6 +522,31 @@ final class SQLiteCoreScalarFunction
         $number = self::coerceNumeric($value);
 
         return (int) $number;
+    }
+
+    private static function coerceLosslessNumeric(mixed $value): int|float|null
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value ? 1 : 0;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value;
+        }
+        if (is_string($value)) {
+            $text = trim($value);
+            if (preg_match('/\A[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?\z/', $text) !== 1) {
+                return null;
+            }
+
+            return str_contains($text, '.') || stripos($text, 'e') !== false
+                ? (float) $text
+                : (int) $text;
+        }
+
+        throw new \InvalidArgumentException('SQLite numeric scalar argument must be scalar, BLOB, or NULL');
     }
 
     private static function sqliteValuesEqual(mixed $left, mixed $right): bool

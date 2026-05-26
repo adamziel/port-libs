@@ -11324,6 +11324,12 @@ SQL;
         $t->same(3.14, SQLiteCoreScalarFunction::sqlFunctionArguments('round', [3.14159, 2]));
         $t->same(3.0, SQLiteCoreScalarFunction::sqlFunctionArguments('round', [3.14159, -2]));
         $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('round', [3.14159, null]));
+        $t->same(-1, SQLiteCoreScalarFunction::sqlFunctionArguments('sign', [-2.5]));
+        $t->same(0, SQLiteCoreScalarFunction::sqlFunctionArguments('sign', [' 0 ']));
+        $t->same(1, SQLiteCoreScalarFunction::sqlFunctionArguments('sign', ['2.5e1']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('sign', [' -3x']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('sign', [new SQLiteBlobValue('12')]));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('sign', [null]));
 
         $t->same('null', SQLiteCoreScalarFunction::sqlFunctionArguments('typeof', [null]));
         $t->same('integer', SQLiteCoreScalarFunction::sqlFunctionArguments('typeof', [1]));
@@ -11411,6 +11417,12 @@ SQL;
         $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('unicode', ['']));
         $t->same(3, SQLiteCoreScalarFunction::sqlFunctionArguments('octet_length', ['éx']));
         $t->same(2, SQLiteCoreScalarFunction::sqlFunctionArguments('octet_length', [new SQLiteBlobValue("\x00\xff")]));
+        $zeroBlob = SQLiteCoreScalarFunction::sqlFunctionArguments('zeroblob', [4]);
+        $t->true($zeroBlob instanceof SQLiteBlobValue);
+        $t->same('00000000', bin2hex($zeroBlob instanceof SQLiteBlobValue ? $zeroBlob->bytes : ''));
+        $emptyZeroBlob = SQLiteCoreScalarFunction::sqlFunctionArguments('zeroblob', [-2]);
+        $t->true($emptyZeroBlob instanceof SQLiteBlobValue);
+        $t->same('', bin2hex($emptyZeroBlob instanceof SQLiteBlobValue ? $emptyZeroBlob->bytes : ''));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('coalesce', [null]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('min', [1]));
@@ -11421,8 +11433,10 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('instr', [['not' => 'scalar'], 'cache']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('hex', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('unhex', [['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('sign', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('unicode', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('octet_length', [['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('zeroblob', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('missing', [1]));
     },

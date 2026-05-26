@@ -8547,6 +8547,38 @@ Dependency closure: no new support component is needed. This reuses lane-local
 scalar coercion, UTF-8 helpers when available, `SQLiteBlobValue`, and existing
 expression-semantics dispatch without activating shared support-library work.
 
+## Focused Native Mapping: Core Sign/Zeroblob Scalar Functions
+
+This isolated SQL execution/planner scalar micro-slice adds `sign()` and
+`zeroblob()` to `SQLiteCoreScalarFunction::sqlFunctionArguments()`. Native PHP
+now returns `-1`, `0`, or `1` for losslessly numeric `sign()` inputs, propagates
+`NULL`, returns `NULL` for non-lossless numeric text and BLOB inputs, and
+creates `SQLiteBlobValue` zero-filled BLOB placeholders for `zeroblob()` with
+negative sizes clamped to an empty BLOB.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused core sign/zeroblob scalar evidence row while preserving the
+current accepted static SQLite upstream denominator. This isolated worktree did
+not contain the hydrated upstream cache, so no fresh upstream `testfixture`,
+`make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T13:02Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php sign -3
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php zeroblob 4
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+scalar coercion and `SQLiteBlobValue` without activating shared
+expression-semantics, binary-buffer, or SQLite-extension support.
+
 ## Focused Native Mapping: Core Encoding Scalar Functions
 
 This isolated SQL execution/planner scalar micro-slice adds the bounded

@@ -1,5 +1,41 @@
 # Integration Status
 
+## Integration accepted - libsqlite scalar sign and zeroblob - 2026-05-26 13:07 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T130228Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Starting `refs/heads/main` was `a0628fc72cabb5811e6c1498424fae0d5b5a787b` (`Integrate libsqlite UTF-8 scalar units`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit` `a0628fc72cabb5811e6c1498424fae0d5b5a787b`, so the live dashboard was current before marker processing.
+- No Pages outage override was used; all known override files were already consumed.
+
+Runtime gate evidence:
+- `df -Pk /` reported `128883400` KiB available before the root check, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.12`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Candidate evidence:
+- The marker was current-base with `base_sha=a0628fc72cabb5811e6c1498424fae0d5b5a787b`, `lane=libsqlite`, complete `patch=`, `metadata=`, and `log=` fields, and patch SHA-256 `3f2dddedbbae3414a59215f53652cc5effdc1675f5191594a5e2cc2cc7faaa6b`.
+- The patch applied cleanly in detached worktree `.tmux-team/tmp/clean-integrator-a0628fc7-scalar-130228` from current `main`.
+- Scope was lane-local: adds native SQLite `sign()` and `zeroblob()` scalar dispatch/coercion, focused scalar tests, WordPress scalar smoke coverage, and libsqlite manifest/status/runner notes.
+
+Focused checks:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- `php -r` JSON validation for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2767 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php sign -3` passed and returned result `-1`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php zeroblob 4` passed and returned result `blob:00000000`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root check:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed from the clean candidate snapshot: `215 test files, 27640 assertions, 0 failures`.
+
+Decision: accepted. Remaining ready-marker count before artifact cleanup was `5299`. Dashboard publication should run next after this commit because accepted source moved beyond the live dashboard source.
+
 ## Integration accepted - libsqlite UTF-8 scalar units - 2026-05-26 12:59 UTC
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T125135Z.ready`.
