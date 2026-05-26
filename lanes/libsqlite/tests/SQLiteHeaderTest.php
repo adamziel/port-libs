@@ -13189,6 +13189,301 @@ SQL;
         $t->throws(LogicException::class, static fn () => $stack->rollbackWithPlan());
         $t->throws(LogicException::class, static fn () => $stack->rollback());
     },
+    'plans sqlite savepoint wal frame rollback boundaries' => static function (TestRunner $t): void {
+        $stack = new SQLiteSavepointStack();
+        $stack->beginTransaction('wp-import');
+        $stack->recordWalFrameWrite(1, 1);
+        $stack->recordWalFrameWrite(2, 2, true);
+        $stack->savepoint('plugin-batch');
+        $stack->recordWalFrameWrite(3, 2);
+        $stack->recordWalFrameWrite(4, 3);
+        $stack->savepoint('option-row');
+        $stack->recordWalFrameWrite(5, 3);
+        $stack->recordWalFrameWrite(6, 4, true);
+
+        $t->same([1, 2, 3, 4, 5, 6], $stack->pendingWalFrameIndexes());
+        $t->same([1, 2, 3, 4], $stack->pendingPageNumbers());
+        $t->same([
+            [
+                'name' => 'wp-import',
+                'transaction' => true,
+                'wal_start_frame' => 0,
+                'wal_frame_indexes' => [1, 2],
+            ],
+            [
+                'name' => 'plugin-batch',
+                'transaction' => false,
+                'wal_start_frame' => 2,
+                'wal_frame_indexes' => [3, 4],
+            ],
+            [
+                'name' => 'option-row',
+                'transaction' => false,
+                'wal_start_frame' => 4,
+                'wal_frame_indexes' => [5, 6],
+            ],
+        ], $stack->walFrameState());
+        $t->same([
+            'savepoint' => 'plugin-batch',
+            'rollback_to_frame' => 2,
+            'discarded_wal_frames' => [
+                [
+                    'frame_index' => 3,
+                    'page_number' => 2,
+                    'commit_frame' => false,
+                    'frame_name' => 'plugin-batch',
+                ],
+                [
+                    'frame_index' => 4,
+                    'page_number' => 3,
+                    'commit_frame' => false,
+                    'frame_name' => 'plugin-batch',
+                ],
+                [
+                    'frame_index' => 5,
+                    'page_number' => 3,
+                    'commit_frame' => false,
+                    'frame_name' => 'option-row',
+                ],
+                [
+                    'frame_index' => 6,
+                    'page_number' => 4,
+                    'commit_frame' => true,
+                    'frame_name' => 'option-row',
+                ],
+            ],
+            'discarded_page_numbers' => [2, 3, 4],
+            'transaction_active_after' => true,
+        ], $stack->walRollbackToPlan('plugin-batch'));
+        $t->same([
+            'savepoint' => 'option-row',
+            'rollback_to_frame' => 4,
+            'discarded_wal_frames' => [
+                [
+                    'frame_index' => 5,
+                    'page_number' => 3,
+                    'commit_frame' => false,
+                    'frame_name' => 'option-row',
+                ],
+                [
+                    'frame_index' => 6,
+                    'page_number' => 4,
+                    'commit_frame' => true,
+                    'frame_name' => 'option-row',
+                ],
+            ],
+            'discarded_page_numbers' => [3, 4],
+            'transaction_active_after' => true,
+        ], $stack->walRollbackToPlan('option-row'));
+        $t->same([
+            'savepoint' => 'wp-import',
+            'rollback_to_frame' => 0,
+            'discarded_wal_frames' => [
+                [
+                    'frame_index' => 1,
+                    'page_number' => 1,
+                    'commit_frame' => false,
+                    'frame_name' => 'wp-import',
+                ],
+                [
+                    'frame_index' => 2,
+                    'page_number' => 2,
+                    'commit_frame' => true,
+                    'frame_name' => 'wp-import',
+                ],
+                [
+                    'frame_index' => 3,
+                    'page_number' => 2,
+                    'commit_frame' => false,
+                    'frame_name' => 'plugin-batch',
+                ],
+                [
+                    'frame_index' => 4,
+                    'page_number' => 3,
+                    'commit_frame' => false,
+                    'frame_name' => 'plugin-batch',
+                ],
+                [
+                    'frame_index' => 5,
+                    'page_number' => 3,
+                    'commit_frame' => false,
+                    'frame_name' => 'option-row',
+                ],
+                [
+                    'frame_index' => 6,
+                    'page_number' => 4,
+                    'commit_frame' => true,
+                    'frame_name' => 'option-row',
+                ],
+            ],
+            'discarded_page_numbers' => [1, 2, 3, 4],
+            'transaction_active_after' => true,
+        ], $stack->walRollbackToPlan('wp-import'));
+        $t->same([
+            'savepoint' => 'plugin-batch',
+            'rollback_to_frame' => 2,
+            'discarded_wal_frames' => [
+                [
+                    'frame_index' => 3,
+                    'page_number' => 2,
+                    'commit_frame' => false,
+                    'frame_name' => 'plugin-batch',
+                ],
+                [
+                    'frame_index' => 4,
+                    'page_number' => 3,
+                    'commit_frame' => false,
+                    'frame_name' => 'plugin-batch',
+                ],
+                [
+                    'frame_index' => 5,
+                    'page_number' => 3,
+                    'commit_frame' => false,
+                    'frame_name' => 'option-row',
+                ],
+                [
+                    'frame_index' => 6,
+                    'page_number' => 4,
+                    'commit_frame' => true,
+                    'frame_name' => 'option-row',
+                ],
+            ],
+            'discarded_page_numbers' => [2, 3, 4],
+            'transaction_active_after' => true,
+        ], $stack->walRollbackToWithPlan('plugin-batch'));
+        $t->same([1, 2], $stack->pendingWalFrameIndexes());
+        $t->same(2, $stack->depth());
+        $t->same(['wp-import', 'plugin-batch'], $stack->names());
+        $t->same([1, 2], $stack->pendingPageNumbers());
+        $t->same([
+            'savepoint' => 'plugin-batch',
+            'rollback_to_frame' => 2,
+            'discarded_wal_frames' => [],
+            'discarded_page_numbers' => [],
+            'transaction_active_after' => true,
+        ], $stack->walRollbackToPlan('plugin-batch'));
+        $t->same([
+            [
+                'name' => 'wp-import',
+                'transaction' => true,
+                'wal_start_frame' => 0,
+                'wal_frame_indexes' => [1, 2],
+            ],
+            [
+                'name' => 'plugin-batch',
+                'transaction' => false,
+                'wal_start_frame' => 2,
+                'wal_frame_indexes' => [],
+            ],
+        ], $stack->walFrameState());
+
+        $stack->recordWalFrameWrite(3, 5);
+        $stack->savepoint('second-row');
+        $stack->recordWalFrameWrite(4, 6, true);
+        $t->same([1, 2, 3, 4], $stack->pendingWalFrameIndexes());
+        $t->same([1, 2, 5, 6], $stack->pendingPageNumbers());
+        $t->same([
+            'savepoint' => 'second-row',
+            'rollback_to_frame' => 3,
+            'discarded_wal_frames' => [
+                [
+                    'frame_index' => 4,
+                    'page_number' => 6,
+                    'commit_frame' => true,
+                    'frame_name' => 'second-row',
+                ],
+            ],
+            'discarded_page_numbers' => [6],
+            'transaction_active_after' => true,
+        ], $stack->walRollbackToWithPlan('second-row'));
+        $t->same([1, 2, 3], $stack->pendingWalFrameIndexes());
+        $t->same(3, $stack->depth());
+        $t->same([1, 2, 5], $stack->pendingPageNumbers());
+        $t->same([
+            'committed_frame_names' => ['wp-import', 'plugin-batch', 'second-row'],
+            'committed_page_numbers' => [1, 2, 5],
+            'released_savepoint_count' => 2,
+            'transaction_active_after' => false,
+        ], $stack->commitPlan());
+
+        $stack->release('plugin-batch');
+        $t->same([1, 2, 3], $stack->pendingWalFrameIndexes());
+        $t->same([1, 2, 5], $stack->pendingPageNumbers());
+        $t->same([
+            [
+                'name' => 'wp-import',
+                'transaction' => true,
+                'wal_start_frame' => 0,
+                'wal_frame_indexes' => [1, 2, 3],
+            ],
+        ], $stack->walFrameState());
+        $t->same([
+            'committed_frame_names' => ['wp-import'],
+            'committed_page_numbers' => [1, 2, 5],
+            'released_savepoint_count' => 0,
+            'transaction_active_after' => false,
+        ], $stack->commitPlan());
+
+        $releaseOuter = $stack->releaseWithPlan('wp-import');
+        $t->same(false, $releaseOuter['transaction_active_after']);
+        $t->same([], $stack->pendingWalFrameIndexes());
+        $t->same(false, $stack->transactionActive());
+        $stack->beginTransaction('after-release');
+        $stack->recordWalFrameWrite(1, 7);
+        $t->same([1], $stack->pendingWalFrameIndexes());
+        $t->same([
+            [
+                'name' => 'after-release',
+                'transaction' => true,
+                'wal_start_frame' => 0,
+                'wal_frame_indexes' => [1],
+            ],
+        ], $stack->walFrameState());
+
+        $implicit = new SQLiteSavepointStack();
+        $implicit->recordWalFrameWrite(1, 9);
+        $t->same(true, $implicit->transactionActive());
+        $t->same(['transaction'], $implicit->names());
+        $t->same([1], $implicit->pendingWalFrameIndexes());
+        $t->same([
+            'committed_frame_names' => ['transaction'],
+            'committed_page_numbers' => [9],
+            'released_savepoint_count' => 0,
+            'transaction_active_after' => false,
+        ], $implicit->commitWithPlan());
+        $t->same([], $implicit->pendingWalFrameIndexes());
+        $implicit->recordWalFrameWrite(1, 10);
+        $t->same([1], $implicit->pendingWalFrameIndexes());
+        $t->same([
+            'rolled_back_frame_names' => ['transaction'],
+            'rollback_page_numbers' => [10],
+            'released_savepoint_count' => 0,
+            'transaction_active_after' => false,
+        ], $implicit->rollbackWithPlan());
+        $t->same([], $implicit->pendingWalFrameIndexes());
+        $implicit->recordWalFrameWrite(1, 11, true);
+        $t->same([
+            'savepoint' => 'transaction',
+            'rollback_to_frame' => 0,
+            'discarded_wal_frames' => [
+                [
+                    'frame_index' => 1,
+                    'page_number' => 11,
+                    'commit_frame' => true,
+                    'frame_name' => 'transaction',
+                ],
+            ],
+            'discarded_page_numbers' => [11],
+            'transaction_active_after' => true,
+        ], $implicit->walRollbackToWithPlan('transaction'));
+        $t->same([], $implicit->pendingWalFrameIndexes());
+
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->recordWalFrameWrite(0, 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->recordWalFrameWrite(4, 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->recordWalFrameWrite(1, 7));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->walRollbackToPlan('missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->walRollbackToWithPlan('missing'));
+    },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 27)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 28)));

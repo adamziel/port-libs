@@ -53,6 +53,24 @@ $fullRollbackStack->recordPageWrite(9);
 $fullRollbackPlan = $fullRollbackStack->rollbackPlan();
 $fullRollbackWithPlan = $fullRollbackStack->rollbackWithPlan();
 
+$walSavepoints = new SQLiteSavepointStack();
+$walSavepoints->beginTransaction('wp_option_wal_import');
+$walSavepoints->recordWalFrameWrite(1, 1);
+$walSavepoints->recordWalFrameWrite(2, 2, true);
+$walSavepoints->savepoint('plugin_settings_wal');
+$walSavepoints->recordWalFrameWrite(3, 2);
+$walSavepoints->recordWalFrameWrite(4, 5);
+$walSavepoints->savepoint('single_option_row_wal');
+$walSavepoints->recordWalFrameWrite(5, 5);
+$walSavepoints->recordWalFrameWrite(6, 8, true);
+$walRollbackPlan = $walSavepoints->walRollbackToPlan('plugin_settings_wal');
+$walRollbackWithPlan = $walSavepoints->walRollbackToWithPlan('plugin_settings_wal');
+$walAfterRollback = $walSavepoints->walFrameState();
+$walSavepoints->recordWalFrameWrite(3, 6, true);
+$walReleasePlan = $walSavepoints->releasePlan('plugin_settings_wal');
+$walReleaseWithPlan = $walSavepoints->releaseWithPlan('plugin_settings_wal');
+$walAfterRelease = $walSavepoints->walFrameState();
+
 echo json_encode([
     'beforeRollbackToPluginSettings' => $beforeRollback,
     'rollbackToPluginSettingsPlan' => $rollbackPlan,
@@ -71,7 +89,33 @@ echo json_encode([
     'fullRollbackPlan' => $fullRollbackPlan,
     'fullRollbackWithPlan' => $fullRollbackWithPlan,
     'fullRollbackTransactionActiveAfter' => $fullRollbackStack->transactionActive(),
+    'walFrameStateBeforeRollback' => [
+        [
+            'name' => 'wp_option_wal_import',
+            'transaction' => true,
+            'wal_start_frame' => 0,
+            'wal_frame_indexes' => [1, 2],
+        ],
+        [
+            'name' => 'plugin_settings_wal',
+            'transaction' => false,
+            'wal_start_frame' => 2,
+            'wal_frame_indexes' => [3, 4],
+        ],
+        [
+            'name' => 'single_option_row_wal',
+            'transaction' => false,
+            'wal_start_frame' => 4,
+            'wal_frame_indexes' => [5, 6],
+        ],
+    ],
+    'walRollbackToPluginSettingsPlan' => $walRollbackPlan,
+    'walRollbackToPluginSettingsWithPlan' => $walRollbackWithPlan,
+    'walFrameStateAfterRollback' => $walAfterRollback,
+    'walReleasePluginSettingsPlan' => $walReleasePlan,
+    'walReleasePluginSettingsWithPlan' => $walReleaseWithPlan,
+    'walFrameStateAfterRelease' => $walAfterRelease,
     'pendingPageNumbers' => $savepoints->pendingPageNumbers(),
     'transactionActive' => $savepoints->transactionActive(),
-    'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans and page-dirty state for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages would roll back, merge upward, or remain pending after a failed option-row import.',
+    'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans, page-dirty state, and WAL frame truncation boundaries for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages and WAL frames would roll back, merge upward, or remain pending after a failed option-row import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

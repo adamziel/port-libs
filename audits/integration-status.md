@@ -117799,3 +117799,37 @@ Root verification:
 - Serialized root command under clean-integrator lock passed with repo-local temp space: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` => `215 test files, 29335 assertions, 0 failures`.
 
 Decision: accepted. Commit pending at note completion time; after commit the dashboard guard should close until live Pages publishes the new source.
+## Integration accepted - libsqlite WAL savepoint frame boundaries - 2026-05-26T23:40:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T232614Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence before candidate verification:
+- Current `refs/heads/main` was `a511802d90cf92af071975bb26611b37005c457c` (`Integrate libsqlite SELECT WHERE predicates`).
+- Cache-busted live Pages reported matching `sourceCommit` `a511802d90cf92af071975bb26611b37005c457c`, generated `2026-05-26 23:35:19 UTC`, dashboard commit `5b3959d2dfecd43136f90a4fea35388ac8834f01`.
+
+Candidate evidence:
+- Marker lane `libsqlite`, base `6d334dabb2bbd4a916dcd46deb58b496e22d3bf0`, patch sha256 `2f0604750dccd4fbeaead1ad3da921ca977ad3f564135956577a187cbe382bf0`.
+- Direct apply failed on moved manifest/status/notes, but implementation, test, and example hunks replayed cleanly over current `a511802d`.
+- Selected over duplicate SQL WHERE predicate work because it is non-overlapping WAL/savepoint behavior with focused assertions and a WordPress smoke.
+- Clean candidate worktree: `.tmux-team/tmp/clean-integrator-candidate-3571143`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSavepointStack.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php` passed.
+- Manifest/status JSON decode passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4245 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php` passed and emitted valid JSON for copied WordPress savepoint/WAL diagnostics.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Runtime gate before root: / had 139539532 KiB available, load average was 1.24, and no exact no-argument root harness was running.
+- Serialized root command under clean-integrator lock passed with repo-local temp space: TMPDIR=$candidate/.tmp-root php tools/run-tests.php => 215 test files, 29379 assertions, 0 failures.
+
+Decision: accepted. Commit pending at note completion time; after commit the dashboard guard should close until live Pages publishes the new source.
+
+Post-commit cleanup note for `a89256adee53d303c77dae254276b0df3be15c17`:
+- Removed accepted marker artifacts: ready marker, patch, metadata, isolated worker prompt, and isolated worker log for `port-dev-libsqlite-wal-20260526T232614Z`.
+- Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T232614Z` because it still contains modified lane files. Cleanup debt: remove or prune only after a later operator confirms no active worker owns it and no dirty work must be preserved.
