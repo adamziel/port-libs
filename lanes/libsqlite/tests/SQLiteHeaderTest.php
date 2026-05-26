@@ -11783,6 +11783,99 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $committedWal->checkpointModePlan($baseDatabase, 'passive', -1));
         $t->throws(InvalidArgumentException::class, static fn () => $committedWal->checkpointModePlan(substr($baseDatabase, 1), 'passive'));
     },
+    'applies sqlite wal checkpoint mode results to bounded database images' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x01020304;
+        $salt2 = 0xa0b0c0d0;
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 13, $salt1, $salt2, 0, 0);
+        $baseDatabase = $makeFirstPage($pageSize, 4)
+            . str_repeat('B', $pageSize)
+            . str_repeat('C', $pageSize)
+            . str_repeat('D', $pageSize);
+        $pageTwoOld = str_repeat('o', $pageSize);
+        $pageTwoNew = str_repeat('n', $pageSize);
+        $pageThree = str_repeat('3', $pageSize);
+        $pageFourTail = str_repeat('t', $pageSize);
+        $wal = SQLiteWal::parse(
+            $walHeader
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $pageTwoOld
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $pageTwoNew
+            . pack('N*', 3, 4, $salt1, $salt2, 0, 0) . $pageThree
+            . pack('N*', 4, 0, $salt1, $salt2, 0, 0) . $pageFourTail
+        );
+
+        $passive = $wal->checkpointModeResult($baseDatabase, 'passive', 2);
+        $t->same('passive', $passive['mode']);
+        $t->same(false, $passive['busy']);
+        $t->same('reader_limited_passive_checkpoint', $passive['reason']);
+        $t->same(2, $passive['reader_end_frame']);
+        $t->same(1, $passive['checkpointed_frame_count']);
+        $t->same(2, $passive['total_committable_frame_count']);
+        $t->same(1, $passive['remaining_committed_frame_count']);
+        $t->same(1, $passive['uncommitted_frame_count']);
+        $t->same(false, $passive['can_reset']);
+        $t->same(false, $passive['can_truncate']);
+        $t->same('preserve_wal', $passive['wal_action']);
+        $t->same([$salt1 + 1, $salt2], $passive['next_wal_header_salt']);
+        $t->same(4, $passive['database_page_count']);
+        $t->same(2048, $passive['final_database_bytes']);
+        $t->same($pageTwoNew, substr($passive['database_bytes'], 512, $pageSize));
+        $t->same(str_repeat('C', $pageSize), substr($passive['database_bytes'], 1024, $pageSize));
+        $t->same(str_repeat('D', $pageSize), substr($passive['database_bytes'], 1536, $pageSize));
+
+        $full = $wal->checkpointModeResult($baseDatabase, 'full', 2);
+        $t->same(true, $full['busy']);
+        $t->same('reader_blocks_checkpoint_completion', $full['reason']);
+        $t->same($passive['database_bytes'], $full['database_bytes']);
+        $t->same('preserve_wal', $full['wal_action']);
+
+        $latest = $wal->checkpointModeResult($baseDatabase, 'passive');
+        $t->same('uncommitted_frames_after_last_commit', $latest['reason']);
+        $t->same(2, $latest['checkpointed_frame_count']);
+        $t->same($pageThree, substr($latest['database_bytes'], 1024, $pageSize));
+        $t->same(str_repeat('D', $pageSize), substr($latest['database_bytes'], 1536, $pageSize));
+        $t->same('preserve_wal', $latest['wal_action']);
+
+        $committedWal = SQLiteWal::parse(
+            $walHeader
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $pageTwoOld
+            . pack('N*', 2, 4, $salt1, $salt2, 0, 0) . $pageTwoNew
+            . pack('N*', 3, 4, $salt1, $salt2, 0, 0) . $pageThree
+        );
+        $restart = $committedWal->checkpointModeResult($baseDatabase, 'restart');
+        $t->same(false, $restart['busy']);
+        $t->same('restart_checkpoint_can_reset_wal', $restart['reason']);
+        $t->same(true, $restart['can_reset']);
+        $t->same(false, $restart['can_truncate']);
+        $t->same('restart_wal', $restart['wal_action']);
+        $t->same($pageTwoNew, substr($restart['database_bytes'], 512, $pageSize));
+        $t->same($pageThree, substr($restart['database_bytes'], 1024, $pageSize));
+
+        $truncate = $committedWal->checkpointModeResult($baseDatabase, 'truncate');
+        $t->same('truncate_checkpoint_can_reset_and_truncate_wal', $truncate['reason']);
+        $t->same(true, $truncate['can_reset']);
+        $t->same(true, $truncate['can_truncate']);
+        $t->same('truncate_wal', $truncate['wal_action']);
+        $t->same($restart['database_bytes'], $truncate['database_bytes']);
+
+        $blockedRestart = $committedWal->checkpointModeResult($baseDatabase, 'restart', 3);
+        $t->same(true, $blockedRestart['busy']);
+        $t->same('reader_blocks_wal_reset', $blockedRestart['reason']);
+        $t->same('preserve_wal', $blockedRestart['wal_action']);
+        $t->same(2, $blockedRestart['checkpointed_frame_count']);
+        $t->same($restart['database_bytes'], $blockedRestart['database_bytes']);
+
+        $emptyWal = SQLiteWal::parse($walHeader);
+        $empty = $emptyWal->checkpointModeResult($baseDatabase, 'truncate');
+        $t->same('wal_has_no_frames', $empty['reason']);
+        $t->same('truncate_wal', $empty['wal_action']);
+        $t->same($baseDatabase, $empty['database_bytes']);
+        $t->same(4, $empty['database_page_count']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $committedWal->checkpointModeResult($baseDatabase, 'bogus'));
+        $t->throws(InvalidArgumentException::class, static fn () => $committedWal->checkpointModeResult($baseDatabase, 'passive', -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $committedWal->checkpointModeResult(substr($baseDatabase, 1), 'passive'));
+    },
     'resolves sqlite wal reader page images through the last committed frame' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $salt1 = 0x33333333;

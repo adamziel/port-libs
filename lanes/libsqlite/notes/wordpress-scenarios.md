@@ -2,6 +2,25 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## WAL Checkpoint Dry-run Scenario
+
+Copied WordPress SQLite databases can now preview checkpoint mode effects
+without writing files or loading the SQLite extension. The WAL frame smoke
+`examples/wordpress-wal-option-frame-diagnostics.php` reports bounded
+checkpoint results for PASSIVE, FULL, RESTART, and TRUNCATE: reader-limited
+PASSIVE/FULL images preserve older base pages, committed RESTART/TRUNCATE
+images include WAL option writes, and the result names the preserve, restart,
+or truncate WAL action.
+
+Status delta 2026-05-26 isolated WAL/rollback/savepoint slice: added
+`SQLiteWal::checkpointModeResult()` with 49 focused assertions for
+reader-limited checkpoint images, busy FULL/RESTART cases, committed
+RESTART/TRUNCATE reset actions, empty WAL behavior, invalid mode/read-frame
+guards, and aligned database-image validation. The focused lane test count
+moved from 3491 to 3540 assertions. Dependency closure: no new support
+component is needed; this reuses lane-local WAL frame parsing, checkpoint
+plans, and pure PHP database image assembly.
+
 ## SELECT Result Preview Scenario
 
 Copied WordPress option import previews can now model the final SELECT result

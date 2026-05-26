@@ -117215,3 +117215,36 @@ Decision: accepted for commit. Dashboard publication should run next after this 
 Cleanup:
 - Accepted marker artifacts may be removed after commit publication.
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T204850Z` remains dirty with the accepted lane files, so it is preserved as cleanup debt instead of being removed.
+## Integration accepted - libsqlite WAL checkpoint mode result planning - 2026-05-26T21:11:45Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T210514Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `39e8a75d14f9babc721c7a09b19924563e310fbc` (`Integrate libsqlite open admission preflight`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `39e8a75d14f9babc721c7a09b19924563e310fbc`, `generated` `2026-05-26 21:01:27 UTC`, and `dashboardCommit` `f5c77bdcfd7c98142a212ec34fc98ef2480f4be9`.
+
+Candidate evidence:
+- Selected current-base WAL marker `port-dev-libsqlite-wal-20260526T210514Z` over recent current-base alternatives because it adds a non-overlapping WAL checkpoint behavior slice with `+49` focused assertions, a WordPress WAL diagnostic smoke update, `phpPass` `715 -> 716`, and mapped coverage `382 -> 383`.
+- Patch sha256 matched marker metadata: `67a6ea171a76866c09da714a12be6dec49c134edaf5bc42b8ce5faf11422422e`.
+- Applied in detached clean candidate worktree `.tmux-team/tmp/clean-candidates/libsqlite-wal-20260526T210514Z` from `39e8a75d14f9babc721c7a09b19924563e310fbc`.
+- Changed files are lane-local plus this audit note: `SQLiteWal.php`, `SQLiteHeaderTest.php`, `wordpress-wal-option-frame-diagnostics.php`, `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and libsqlite notes.
+
+Focused verification:
+- Runtime gate before focused checks: `/` had `86413364` KiB available, load was `1.90`, and no exact no-argument root harness was running.
+- `php -l` passed for changed PHP files.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3540 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed and emitted valid JSON.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gate before root: `/` had `86195812` KiB available, load was `2.28`, and no exact no-argument root harness was running.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the same clean candidate and passed: `215 test files, 28674 assertions, 0 failures`.
+- Final `git diff --check` passed before root.
+
+Cleanup:
+- Commit/ref publication completed as this accepted commit (`Integrate libsqlite WAL checkpoint modes`).
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T210514Z` still contains modified lane files matching the accepted handoff, so it is preserved as cleanup debt rather than removed.
+- Accepted marker artifacts are safe to remove after this commit.

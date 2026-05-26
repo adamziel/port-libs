@@ -86,6 +86,27 @@ $checkpointModes = [
     'restartCommittedWithReaderAtCommit' => $committedWal->checkpointModePlan($baseDatabaseBytes, 'restart', 2),
     'truncateCommittedWithReaderAtCommit' => $committedWal->checkpointModePlan($baseDatabaseBytes, 'truncate', 2),
 ];
+$checkpointResults = [
+    'passiveWithReader' => $wal->checkpointModeResult($baseDatabaseBytes, 'passive', 1),
+    'fullWithReader' => $wal->checkpointModeResult($baseDatabaseBytes, 'full', 1),
+    'restartCommitted' => $committedWal->checkpointModeResult($baseDatabaseBytes, 'restart'),
+    'truncateCommitted' => $committedWal->checkpointModeResult($baseDatabaseBytes, 'truncate'),
+];
+$checkpointResultSummary = [];
+foreach ($checkpointResults as $name => $result) {
+    $checkpointResultSummary[$name] = [
+        'busy' => $result['busy'],
+        'reason' => $result['reason'],
+        'checkpointed_frame_count' => $result['checkpointed_frame_count'],
+        'remaining_committed_frame_count' => $result['remaining_committed_frame_count'],
+        'wal_action' => $result['wal_action'],
+        'database_page_count' => $result['database_page_count'],
+        'final_database_bytes' => $result['final_database_bytes'],
+        'containsWalSiteUrl' => str_contains($result['database_bytes'], 'from-wal'),
+        'containsBaseSiteUrl' => str_contains($result['database_bytes'], 'from-base'),
+        'containsUncommittedTail' => str_contains($result['database_bytes'], 'P'),
+    ];
+}
 
 echo json_encode([
     'wal' => $wal->toArray(),
@@ -94,6 +115,7 @@ echo json_encode([
     'checkpointPlan' => $checkpointPlan,
     'resetPlan' => $resetPlan,
     'checkpointModes' => $checkpointModes,
+    'checkpointResults' => $checkpointResultSummary,
     'readerPageMap' => $readerPageMap,
     'readerOptionPage' => [
         'page_number' => $readerOptionPage['page_number'],
@@ -118,5 +140,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes, checkpoint provenance, checkpoint mode eligibility, and reset/truncate decisions while preserving uncommitted WAL tail frames.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, and reset/truncate decisions while preserving uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

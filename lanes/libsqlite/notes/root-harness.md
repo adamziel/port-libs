@@ -1,5 +1,31 @@
 # libsqlite Root Harness Notes
 
+## Isolated WAL Checkpoint Result Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the WAL checkpoint-result slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused test count moved from 3491 to 3540 assertions, +49. Root
+harness status: not run - isolated micro-slice. The WordPress smoke reported
+reader-limited PASSIVE/FULL checkpoint dry-run images preserving base option
+pages, committed RESTART/TRUNCATE dry-run images containing WAL option writes,
+and preserve/restart/truncate WAL actions.
+
+Dependency closure: no new support component is needed. The implementation
+reuses lane-local WAL frame parsing, checkpoint plans, and pure PHP database
+image assembly.
+
 ## Isolated SQL SELECT Result Slice
 
 Date: 2026-05-26

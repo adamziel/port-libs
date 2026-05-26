@@ -384,6 +384,71 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{mode:string,busy:bool,reason:string,reader_end_frame:int|null,database_bytes:string,database_page_count:int,final_database_bytes:int,checkpointed_frame_count:int,total_committable_frame_count:int,remaining_committed_frame_count:int,uncommitted_frame_count:int,can_reset:bool,can_truncate:bool,wal_action:string,next_wal_header_salt:array{0:int,1:int}}
+     */
+    public function checkpointModeResult(string $databaseBytes, string $mode = 'passive', ?int $readerEndFrame = null): array
+    {
+        $plan = $this->checkpointModePlan($databaseBytes, $mode, $readerEndFrame);
+        $pageSize = $this->header->pageSize;
+        if ($pageSize === 0) {
+            $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
+        }
+
+        $databasePageCount = $plan['last_commit_frame'] === null
+            ? intdiv(strlen($databaseBytes), $pageSize)
+            : $this->frames[$plan['last_commit_frame'] - 1]->databasePageCountAfterCommit;
+        $checkpointBytes = substr($databaseBytes . str_repeat("\0", max(0, ($databasePageCount * $pageSize) - strlen($databaseBytes))), 0, $databasePageCount * $pageSize);
+        $checkpointLimit = $plan['last_commit_frame'];
+        if ($readerEndFrame !== null && $checkpointLimit !== null) {
+            $checkpointLimit = min($checkpointLimit, $readerEndFrame);
+        }
+
+        foreach ($this->checkpointPlan($databaseBytes)['frames'] as $frame) {
+            if ($frame['reason'] !== 'checkpointed_to_database') {
+                continue;
+            }
+            if ($checkpointLimit !== null && $frame['frame_index'] > $checkpointLimit) {
+                continue;
+            }
+
+            $checkpointBytes = substr_replace(
+                $checkpointBytes,
+                $this->frames[$frame['frame_index'] - 1]->pageImage,
+                $frame['database_offset'],
+                $pageSize,
+            );
+        }
+
+        $walAction = 'preserve_wal';
+        if ($plan['can_truncate']) {
+            $walAction = 'truncate_wal';
+        } elseif ($plan['can_reset']) {
+            $walAction = 'restart_wal';
+        }
+
+        return [
+            'mode' => $plan['mode'],
+            'busy' => $plan['busy'],
+            'reason' => $plan['reason'],
+            'reader_end_frame' => $plan['reader_end_frame'],
+            'database_bytes' => $checkpointBytes,
+            'database_page_count' => $databasePageCount,
+            'final_database_bytes' => strlen($checkpointBytes),
+            'checkpointed_frame_count' => $plan['checkpointed_frame_count'],
+            'total_committable_frame_count' => $plan['total_committable_frame_count'],
+            'remaining_committed_frame_count' => $plan['remaining_committed_frame_count'],
+            'uncommitted_frame_count' => $plan['uncommitted_frame_count'],
+            'can_reset' => $plan['can_reset'],
+            'can_truncate' => $plan['can_truncate'],
+            'wal_action' => $walAction,
+            'next_wal_header_salt' => [
+                ($this->header->salt1 + 1) & 0xffffffff,
+                $this->header->salt2,
+            ],
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
