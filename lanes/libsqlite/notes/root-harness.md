@@ -902,6 +902,35 @@ and freed pages `[7,8]`; manifest/status JSON decoded successfully; lane diff
 check passed. The root harness was not run because this was an isolated
 micro-slice.
 
+## WAL Checkpoint Reader Reset Blocker Slice
+
+Focused lane verification for the WAL checkpoint reader reset blocker slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 2869 assertions, and 0 failures. The native behavior now keeps
+WAL checkpoint page-copy progress separate from reset/truncate eligibility:
+`checkpointModePlan()` reports `reader_blocks_wal_reset` with `busy: true` and
+`can_reset`/`can_truncate: false` for RESTART/TRUNCATE while a reader snapshot
+is still open at the last committed frame. The WordPress WAL smoke reports the
+same reader-present restart/truncate diagnostics. Manifest/status JSON decoded
+successfully; lane diff check passed. The root harness was not run because this
+was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local WAL header/frame parser, checkpoint planner, reader snapshot
+diagnostics, and WordPress WAL smoke path without activating shared support
+library work.
+
 ## B-tree Secure-delete Freeblock Payload Report Slice
 
 Focused lane verification for the B-tree secure-delete freeblock payload

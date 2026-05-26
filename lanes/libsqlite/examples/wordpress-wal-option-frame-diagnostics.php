@@ -66,9 +66,11 @@ $appendFrame = static function (string $walBytes, array &$checksumSeed, int $pag
 
 $walBytes = $appendFrame($walBytes, $checksumSeed, 1, 0, $schemaPage);
 $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 2, $optionPage);
+$committedWalBytes = $walBytes;
 $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, str_repeat('P', $pageSize));
 
 $wal = SQLiteWal::parse($walBytes, null, true);
+$committedWal = SQLiteWal::parse($committedWalBytes, null, true);
 $database = SQLiteDatabase::fromBytes($wal->checkpointDatabaseImage($baseDatabaseBytes));
 $readerPageMap = $wal->readerPageMap($baseDatabaseBytes);
 $readerOptionPage = $wal->readerPageImage($baseDatabaseBytes, 2);
@@ -78,7 +80,11 @@ $checkpointModes = [
     'passiveWithReader' => $wal->checkpointModePlan($baseDatabaseBytes, 'passive', 1),
     'fullWithReader' => $wal->checkpointModePlan($baseDatabaseBytes, 'full', 1),
     'restart' => $wal->checkpointModePlan($baseDatabaseBytes, 'restart'),
+    'restartWithReaderAtCommit' => $wal->checkpointModePlan($baseDatabaseBytes, 'restart', 2),
     'truncate' => $wal->checkpointModePlan($baseDatabaseBytes, 'truncate'),
+    'truncateWithReaderAtCommit' => $wal->checkpointModePlan($baseDatabaseBytes, 'truncate', 2),
+    'restartCommittedWithReaderAtCommit' => $committedWal->checkpointModePlan($baseDatabaseBytes, 'restart', 2),
+    'truncateCommittedWithReaderAtCommit' => $committedWal->checkpointModePlan($baseDatabaseBytes, 'truncate', 2),
 ];
 
 echo json_encode([

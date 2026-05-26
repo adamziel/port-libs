@@ -11093,6 +11093,21 @@ SQL;
         ], $committedWal->checkpointModePlan($baseDatabase, 'restart'));
         $t->same(true, $committedWal->checkpointModePlan($baseDatabase, 'truncate')['can_truncate']);
         $t->same('truncate_checkpoint_can_reset_and_truncate_wal', $committedWal->checkpointModePlan($baseDatabase, 'truncate')['reason']);
+        $t->same([
+            'mode' => 'restart',
+            'busy' => true,
+            'reason' => 'reader_blocks_wal_reset',
+            'reader_end_frame' => 3,
+            'last_commit_frame' => 3,
+            'checkpointed_frame_count' => 2,
+            'total_committable_frame_count' => 2,
+            'remaining_committed_frame_count' => 0,
+            'uncommitted_frame_count' => 0,
+            'can_reset' => false,
+            'can_truncate' => false,
+        ], $committedWal->checkpointModePlan($baseDatabase, 'restart', 3));
+        $t->same('reader_blocks_wal_reset', $committedWal->checkpointModePlan($baseDatabase, 'truncate', 3)['reason']);
+        $t->same(false, $committedWal->checkpointModePlan($baseDatabase, 'truncate', 3)['can_truncate']);
 
         $emptyWal = SQLiteWal::parse($walHeader);
         $t->same('wal_has_no_frames', $emptyWal->checkpointModePlan($baseDatabase, 'passive')['reason']);

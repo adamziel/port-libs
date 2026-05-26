@@ -115800,3 +115800,32 @@ Serialized root verification:
 - `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the clean candidate snapshot and passed: `215 test files, 27821 assertions, 0 failures`.
 
 Decision: accepted. After commit publication, remove the accepted ready marker, patch, metadata handoff, and inactive worker/candidate worktrees. Dashboard publication should run next because accepted source moved beyond the live dashboard source.
+
+## Integrated libsqlite WAL checkpoint reader reset blocker - 2026-05-26T15:47:58Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T154242Z.ready`.
+
+Scope: lane-local `libsqlite` WAL checkpoint planning. The slice records `reader_blocks_wal_reset` for RESTART/TRUNCATE checkpoint modes when all committed frames are checkpointed but a reader snapshot is still open at the last committed frame, disabling reset/truncate while preserving existing uncommitted-tail behavior. It updates the focused WAL WordPress diagnostic smoke, libsqlite manifest/status, and root-harness notes. No new support-library dependency was activated.
+
+Guard evidence before processing:
+- Current source head was `156c76a7285294f1e0f23ea045eda57041b92b1a` (`Integrate libsqlite release blocker manifest gate`).
+- Cache-busted live `porting-summary.json` reported matching `sourceCommit` `156c76a7285294f1e0f23ea045eda57041b92b1a`, so the dashboard guard was open.
+- Runtime gates were open: `/` free space was `104237060` KiB before marker selection and `104126248` KiB before the root run; load was `1.65` then `2.34`; no exact no-argument `php tools/run-tests.php` process was running before the serialized root command.
+
+Verification from detached clean candidate worktree `/home/claude/port-libs/.tmux-team/worktrees/clean-integrator-libsqlite-closure-20260526T154242Z`:
+- Patch SHA-256 matched marker: `4094a712c11440244f3f7c4b8955d17257bd9c1b24a63fdda92a2c4016947d72`.
+- `git apply --check` passed against current `HEAD`.
+- `php -l lanes/libsqlite/src/SQLiteWal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed.
+- Manifest/status JSON decode passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2869 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed and emitted `reader_blocks_wal_reset` for committed RESTART/TRUNCATE reader cases.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized root harness under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27834 assertions, 0 failures`.
+
+Stale-marker evidence inspected while choosing: `port-dev-libsqlite-btree-20260526T154135Z.ready` and `port-dev-libsqlite-json-table-20260526T154153Z.ready` declared base `7a7a2218d54f7126c8538c185ad6f1cd4a7ed238`, older than current `HEAD`; they were not processed. Dolt remained parked, and no non-libsqlite marker was considered.
+
+Decision: accepted one marker. Dashboard publication should run next for the new accepted source once the commit is on `main`.
+
+Cleanup note: accepted worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-closure-20260526T154242Z` still contains modified tracked files matching the accepted handoff after the commit landed on `main`; it was preserved and left registered as cleanup debt. The clean integrator candidate worktree was clean and removable.
