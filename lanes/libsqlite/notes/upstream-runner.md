@@ -6413,3 +6413,50 @@ Dependency closure: no new support component is needed. The slice reuses
 lane-local WAL header/frame parsing, SQLite header parsing, page-image
 assembly, `SQLiteDatabase` traversal, and WordPress option decoding; it counts
 no shared support-library progress.
+
+## Focused Native Mapping: Rollback Journal Header and Page Records
+
+Date: 2026-05-26
+
+This isolated dependency-closure micro-slice adds a bounded read-only SQLite
+rollback journal parser. Native `SQLiteRollbackJournalHeader` validates the
+28-byte journal header, magic bytes, sector size, page size, checksum nonce,
+initial database page count, and declared page count. Native
+`SQLiteRollbackJournal` parses page records from the first sector, supports
+the SQLite unknown-page-count sentinel by reading records through EOF,
+validates SQLite-style page checksums on request, exposes saved page images,
+and can preview rollback by applying those saved page images to an aligned
+dirty database image.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice maps against the existing static focused pager/journal
+inventory (`focusedPagerTestScripts`: 8) and records one native
+rollback-journal header/page-record mapping unit. Prior applicable runner
+evidence remains the complete SQLite `veryquick` run: 1235 scripts, 329670
+tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteRollbackJournalHeader.php
+php -l lanes/libsqlite/src/SQLiteRollbackJournalPage.php
+php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the WordPress rollback-journal smoke reported a
+checksums-validated journal, recovered the clean `siteurl` option from the
+journal page image, and produced a 1024-byte rolled-back database preview;
+focused lane tests passed with 1 selected file, 2340 assertions, and 0
+failures.
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local binary parsing, page-image assembly, `SQLiteDatabase` traversal,
+and WordPress option decoding; it counts no shared support-library progress.

@@ -1985,3 +1985,16 @@ for import and recovery previews. The
 base database image, overlays committed WAL frames through the last commit
 frame, ignores an uncommitted tail frame, and reads the committed `siteurl` and
 `blogname` rows without requiring the SQLite extension.
+
+## Rollback Journal Option Diagnostics
+
+Native rollback-journal inspection now includes a read-only recovery preview
+for copied WordPress SQLite databases. The new
+`examples/wordpress-rollback-journal-option-diagnostics.php` smoke starts with
+a dirty `wp_options` database image, parses a checksummed rollback journal,
+restores the pre-transaction option page image, and reads the recovered
+`siteurl` row without requiring the SQLite extension.
+
+This is intentionally not a full pager recovery engine yet. Master-journal
+handling, multi-sector journal edge cases, journal file writing, savepoints,
+and transaction orchestration remain separate slices.

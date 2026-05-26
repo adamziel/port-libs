@@ -13,8 +13,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
         "total": 1589,
-        "mapped": 279,
-        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-26 JSON table selected-root refill reuses the static focused JSON table inventory because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded decoded-row LIKE/GLOB option-name matching plus WAL header/frame parsing, committed page-image extraction through the last commit frame, optional WAL header/frame checksum validation, committed WAL page overlay onto a base database image, accepted JSON aggregate ORDER BY/DISTINCT/state behavior, json_tree selected-root key/path row parity, JSON scalar/path/JSONB inspection and mutation, expression-index lookup, collation, record, B-tree, and WordPress option traversal evidence.",
+        "mapped": 280,
+        "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-26 accepted refills reuse static focused JSON table and pager/journal inventories because isolated worktrees have no hydrated upstream cache. Native PHP now maps bounded decoded-row LIKE/GLOB option-name matching plus WAL header/frame parsing, committed page-image extraction through the last commit frame, optional WAL header/frame checksum validation, committed WAL page overlay onto a base database image, json_tree selected-root key/path row parity, rollback-journal header/page-record parsing with checksum validation and page-image rollback preview, accepted JSON aggregate ORDER BY/DISTINCT/state behavior, JSON scalar/path/JSONB inspection and mutation, expression-index lookup, collation, record, B-tree, and WordPress option traversal evidence.",
         "inventory": {
             "allRepositoryFiles": 2208,
             "hydratedTestInventoryFiles": 2131,
@@ -301,7 +301,8 @@
             "focusedJsonExtractSubtypePropagationSmokeExpressions": 6,
             "focusedJsonExtractJsonArgumentSqlDispatchScripts": 1,
             "focusedLikeGlobPatternScripts": 1,
-            "focusedJsonTreeSelectedRootScripts": 1
+            "focusedJsonTreeSelectedRootScripts": 1,
+            "focusedRollbackJournalHeaderPageScripts": 1
         },
         "runnerStatus": {
             "executed": true,

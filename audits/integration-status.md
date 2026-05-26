@@ -1,5 +1,55 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite rollback journal diagnostics - 2026-05-26 01:21 UTC
+
+Accepted isolated marker
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T011343Z.ready`
+from base `225653cc004e0c23b419bdafaa16c0fa43b53436` after a bounded stale
+metadata merge onto current `main` `79485382`.
+
+Commit: this acceptance entry is included in
+`Integrate libsqlite rollback journal diagnostics`.
+
+Candidate evidence:
+- Ready marker contained required `lane=libsqlite`, `patch=...`, and
+  `metadata=...` fields; patch sha256 matched marker metadata.
+- Full patch failed clean apply on current `main` only in stale libsqlite
+  manifest/status contexts. The substantive code/test/docs portion applied
+  cleanly in a detached worktree after excluding
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json`.
+- Metadata was merged explicitly to preserve accepted WAL/json_tree evidence and
+  add rollback-journal progress, raising libsqlite mapped/php pass counts from
+  `279` to `280`.
+
+Verification:
+- Resource gate before focused checks was open: `df -Pk /` reported at least
+  `87727688` KiB available and load average first field was below `25`.
+- `php -l` passed for
+  `SQLiteRollbackJournalHeader.php`, `SQLiteRollbackJournalPage.php`,
+  `SQLiteRollbackJournal.php`, `SQLiteHeaderTest.php`, and
+  `wordpress-rollback-journal-option-diagnostics.php`.
+- `php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php`
+  passed and reported `checksums_validated=true` plus
+  `rolledBackImageBytes=1024`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2345 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized no-argument root harness under
+  `.tmux-team/tmp/clean-integrator-run.lock` passed with
+  `214 test files, 26765 assertions, 0 failures`.
+
+Dashboard guard:
+- Cache-busted live dashboard summary matched current source before candidate
+  processing: `sourceCommit=794853828514c79f93e999bc36d3e3ae4e22b627`.
+
+Cleanup:
+- Remove accepted marker artifacts and the inactive isolated worker worktree
+  after the commit is safely published on `main`.
+
+Dashboard publication should run next for this accepted libsqlite source after
+the commit lands.
+
 ## Accepted - libsqlite json_tree selected-root rows - 2026-05-26 01:18 UTC
 
 Accepted marker:

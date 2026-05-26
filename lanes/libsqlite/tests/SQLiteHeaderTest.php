@@ -40,6 +40,9 @@ use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
+use PortLibs\LibSqlite\SQLiteRollbackJournal;
+use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
+use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
@@ -9795,5 +9798,89 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse(pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, 0, 0, 1, 2, 3, 4)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse($header . pack('N*', 1, 1, 9, 2, 3, 4) . str_repeat("\0", 512)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse($header . pack('N*', 0, 1, 1, 2, 3, 4) . str_repeat("\0", 512)));
+    },
+    'parses sqlite rollback journals and restores page images' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $sectorSize = 512;
+        $nonce = 0x01020304;
+        $pageOne = $makeFirstPage($pageSize, 2);
+        $pageTwo = str_repeat('J', $pageSize);
+        $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', 2, $nonce, 2, $sectorSize, $pageSize);
+        $journalBytes = str_pad($header, $sectorSize, "\0");
+        foreach ([1 => $pageOne, 2 => $pageTwo] as $pageNumber => $pageImage) {
+            $journalBytes .= pack('N', $pageNumber) . $pageImage . pack('N', SQLiteRollbackJournal::pageChecksum($pageImage, $nonce));
+        }
+
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+
+        $t->same(SQLiteRollbackJournal::class, get_class($journal));
+        $t->same(SQLiteRollbackJournalHeader::class, get_class($journal->header));
+        $t->same(SQLiteRollbackJournalPage::class, get_class($journal->pages[0]));
+        $t->same(true, $journal->checksumsValidated);
+        $t->same(2, $journal->pageCount());
+        $t->same([
+            'page_count' => 2,
+            'checksum_nonce' => $nonce,
+            'initial_database_page_count' => 2,
+            'sector_size' => 512,
+            'page_size' => 512,
+        ], $journal->header->toArray());
+        $t->same([1, 2], array_keys($journal->pageImages()));
+        $t->same($pageOne, $journal->pageImages()[1]);
+        $t->same($pageTwo, $journal->pageImages()[2]);
+
+        $dirtyDatabase = $makeFirstPage($pageSize, 3) . str_repeat('D', $pageSize) . str_repeat('X', $pageSize);
+        $rolledBack = $journal->rollbackDatabaseImage($dirtyDatabase);
+        $t->same($pageSize * 2, strlen($rolledBack));
+        $t->same($pageOne, substr($rolledBack, 0, $pageSize));
+        $t->same($pageTwo, substr($rolledBack, $pageSize, $pageSize));
+        $t->same(false, str_contains($rolledBack, 'X'));
+        $t->same([
+            'header' => $journal->header->toArray(),
+            'page_count' => 2,
+            'checksums_validated' => true,
+            'page_numbers' => [1, 2],
+            'pages' => [
+                [
+                    'index' => 1,
+                    'page_number' => 1,
+                    'checksum' => SQLiteRollbackJournal::pageChecksum($pageOne, $nonce),
+                ],
+                [
+                    'index' => 2,
+                    'page_number' => 2,
+                    'checksum' => SQLiteRollbackJournal::pageChecksum($pageTwo, $nonce),
+                ],
+            ],
+        ], $journal->toArray());
+    },
+    'parses sqlite rollback journals with unknown page counts through eof' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $sectorSize = 512;
+        $nonce = 0x11121314;
+        $page = str_repeat('U', $pageSize);
+        $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', SQLiteRollbackJournalHeader::UNKNOWN_PAGE_COUNT, $nonce, 1, $sectorSize, $pageSize);
+        $journalBytes = str_pad($header, $sectorSize, "\0")
+            . pack('N', 1) . $page . pack('N', SQLiteRollbackJournal::pageChecksum($page, $nonce));
+
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+
+        $t->same(1, $journal->pageCount());
+        $t->same([1], array_keys($journal->pageImages()));
+        $t->same($page, $journal->pageImages()[1]);
+    },
+    'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 27)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 28)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(SQLiteRollbackJournalHeader::MAGIC . pack('N*', 0, 1, 1, 500, 512)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(SQLiteRollbackJournalHeader::MAGIC . pack('N*', 0, 1, 1, 512, 500)));
+
+        $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', 1, 0x01020304, 1, 512, 512);
+        $journalBytes = str_pad($header, 512, "\0") . pack('N', 1) . str_repeat('P', 512) . pack('N', SQLiteRollbackJournal::pageChecksum(str_repeat('P', 512), 0x01020304));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(str_pad($header, 512, "\0") . str_repeat("\0", 12)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(str_pad(SQLiteRollbackJournalHeader::MAGIC . pack('N*', 2, 0x01020304, 1, 512, 512), 512, "\0") . pack('N', 1) . str_repeat('P', 512) . pack('N', 0)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(substr_replace($journalBytes, pack('N', 0), 512, 4)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(substr_replace($journalBytes, pack('N', 0), 512 + 4 + 512, 4), true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse($journalBytes, true)->rollbackDatabaseImage(str_repeat('D', 511)));
     },
 ];
