@@ -56,6 +56,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
+use PortLibs\LibSqlite\SQLiteSelectCompound;
 use PortLibs\LibSqlite\SQLiteSelectProjection;
 use PortLibs\LibSqlite\SQLiteSelectResult;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
@@ -14271,5 +14272,94 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::innerJoin([['option_id' => []]], $metadata, static fn (): bool => true));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::innerJoin([['option_id' => 1]], [['option_id' => 1, 'right.option_id' => 1]], static fn (): bool => true));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::innerJoin([['' => 1]], $metadata, static fn (): bool => true));
+    },
+    'combines sqlite compound select rows with union intersect and except semantics' => static function (TestRunner $t): void {
+        $autoloaded = [
+            ['option_name' => 'siteurl', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('url')],
+            ['option_name' => 'home', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('url')],
+            ['option_name' => 'home', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('url')],
+            ['option_name' => 'blogname', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('text')],
+            ['option_name' => 'maybe-null', 'autoload' => null, 'payload' => null],
+        ];
+        $network = [
+            ['option_name' => 'home', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('url')],
+            ['option_name' => 'network_home', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('url')],
+            ['option_name' => 'maybe-null', 'autoload' => null, 'payload' => null],
+            ['option_name' => 'blob-same-text', 'autoload' => 'yes', 'payload' => 'url'],
+        ];
+
+        $union = SQLiteSelectCompound::union($autoloaded, $network);
+        $t->same(6, count($union));
+        $t->same(['siteurl', 'home', 'blogname', 'maybe-null', 'network_home', 'blob-same-text'], array_column($union, 'option_name'));
+        $t->same(['url', 'url', 'text', null, 'url', 'url'], array_map(
+            static fn (mixed $value): mixed => $value instanceof SQLiteBlobValue ? $value->bytes : $value,
+            array_column($union, 'payload')
+        ));
+        $t->true($union[1]['payload'] instanceof SQLiteBlobValue);
+        $t->same('url', $union[5]['payload']);
+
+        $unionAll = SQLiteSelectCompound::union($autoloaded, $network, true);
+        $t->same(9, count($unionAll));
+        $t->same(['home', 'home', 'network_home'], [$unionAll[1]['option_name'], $unionAll[2]['option_name'], $unionAll[6]['option_name']]);
+
+        $intersect = SQLiteSelectCompound::intersect($autoloaded, $network);
+        $t->same(2, count($intersect));
+        $t->same(['home', 'maybe-null'], array_column($intersect, 'option_name'));
+        $t->same(['yes', null], array_column($intersect, 'autoload'));
+
+        $except = SQLiteSelectCompound::except($autoloaded, $network);
+        $t->same(2, count($except));
+        $t->same(['siteurl', 'blogname'], array_column($except, 'option_name'));
+        $t->same(['url', 'text'], array_map(
+            static fn (mixed $value): mixed => $value instanceof SQLiteBlobValue ? $value->bytes : $value,
+            array_column($except, 'payload')
+        ));
+
+        $orderedUnion = SQLiteSelectCompound::execute(
+            $autoloaded,
+            $network,
+            'union',
+            [
+                ['column' => 'autoload'],
+                ['column' => 'option_name', 'direction' => 'DESC'],
+            ],
+            3,
+            1
+        );
+        $t->same(['siteurl', 'network_home', 'home'], array_column($orderedUnion, 'option_name'));
+        $t->same(['yes', 'yes', 'yes'], array_column($orderedUnion, 'autoload'));
+
+        $orderedExcept = SQLiteSelectCompound::execute(
+            $autoloaded,
+            $network,
+            'EXCEPT',
+            [['column' => 'option_name', 'direction' => 'DESC']]
+        );
+        $t->same(['siteurl', 'blogname'], array_column($orderedExcept, 'option_name'));
+
+        $leftOnly = SQLiteSelectCompound::union($autoloaded, []);
+        $t->same(['siteurl', 'home', 'blogname', 'maybe-null'], array_column($leftOnly, 'option_name'));
+
+        $rightOnly = SQLiteSelectCompound::union([], $network);
+        $t->same(['home', 'network_home', 'maybe-null', 'blob-same-text'], array_column($rightOnly, 'option_name'));
+
+        $boolIntRows = SQLiteSelectCompound::union(
+            [['value' => true], ['value' => 1], ['value' => false], ['value' => 0]],
+            [['value' => 1], ['value' => 0]]
+        );
+        $t->same([true, false], array_column($boolIntRows, 'value'));
+
+        $floatRows = SQLiteSelectCompound::union(
+            [['value' => 1.0], ['value' => 1]],
+            [['value' => 1.00]]
+        );
+        $t->same([1.0], array_column($floatRows, 'value'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::combine([], [], 'UNION'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::combine($autoloaded, $network, 'MINUS'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['option_name' => 'siteurl']], [['different' => 'siteurl']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['option_name' => []]], []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['' => 'bad']], []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::execute($autoloaded, $network, 'UNION', [['column' => 'missing']]));
     },
 ];

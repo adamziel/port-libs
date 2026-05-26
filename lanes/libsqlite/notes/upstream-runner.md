@@ -1,5 +1,40 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Compound SELECT Row Composition
+
+Date: 2026-05-26
+
+This isolated priority SQL execution/planner micro-slice adds bounded native
+compound SELECT row composition for `UNION`, `UNION ALL`, `INTERSECT`, and
+`EXCEPT`. The new `SQLiteSelectCompound` helper composes already produced
+result rows using SQLite-style duplicate keys over the first SELECT arm's
+result columns, including SQL `NULL`, BLOB, text, numeric, and bool/int storage
+classes. It can feed the accepted result helper for final `ORDER BY`, `LIMIT`,
+and `OFFSET`.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedWordPressSelectCompoundScripts: 1`. No fresh
+upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
+started from this isolated worktree.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectCompound.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-compound-select-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-options-compound-select-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Focused assertion delta: 3871 to 3945 assertions, +74.
+
+Dependency closure: no new support component is needed. This slice reuses
+lane-local BLOB wrappers, SQL result ordering/limit helpers, and pure PHP
+row arrays.
+
 ## Focused Native Mapping: SELECT Projection Scalar Expressions
 
 Date: 2026-05-26

@@ -117638,3 +117638,18 @@ Decision:
 - Published commit: this audit entry is included in `Integrate libsqlite JSON table duplicate constraints`.
 - Accepted ready marker, patch, and metadata files will be removed after ref publication.
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T223951Z` still contains the accepted lane diff as dirty state, so it will be preserved and left registered rather than removed.
+## Integration accepted - libsqlite SQL compound SELECT rows - 2026-05-26T23:00:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T224549Z.ready`.
+
+Decision: accepted one bounded-rebased libsqlite behavior marker. Direct apply on current `252d8b7690245db4adf8806601aebc8903b7fd85` failed only in moving `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, tests, WordPress smoke, and notes applied cleanly with those generated status files excluded. The manifest/status updates were reconciled minimally from the current files.
+
+Dashboard guard evidence before candidate work: cache-busted live Pages reported exact current source `252d8b7690245db4adf8806601aebc8903b7fd85`, generated `2026-05-26 22:51:27 UTC`, dashboard commit `c43070eb8833511c86d4e1c400548ce3b69ee60e`.
+
+Accepted delta: adds `SQLiteSelectCompound` for bounded `UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT` row composition over compatible SELECT arms, plus focused coverage and `wordpress-options-compound-select-preview.php`. This is non-overlapping with accepted SELECT projection, join row production, DISTINCT/ORDER/LIMIT/OFFSET, subquery filters, JSON table constraints/residuals, WAL, B-tree, and open/busy slices.
+
+Focused verification in detached worktree `.tmux-team/tmp/clean-integrator-candidate-priority-20260526T224549Z` with repo-local `TMPDIR`: `php -l` on changed PHP files passed; `TMPDIR=$PWD/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3987 assertions, 0 failures`; `TMPDIR=$PWD/.tmp-root php lanes/libsqlite/examples/wordpress-options-compound-select-preview.php` passed and emitted valid JSON; manifest/status JSON decode passed; `git diff --check -- lanes/libsqlite` passed.
+
+Runtime gate evidence before focused checks: `/` available `146376260` KiB, load average `2.13`, and no exact `php tools/run-tests.php` root harness was active.
+
+Root verification under the clean-integrator lock with repo-local `TMPDIR`: `php tools/run-tests.php` passed with `215 test files, 29121 assertions, 0 failures`.

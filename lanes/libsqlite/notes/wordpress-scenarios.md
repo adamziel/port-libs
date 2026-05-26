@@ -2,6 +2,24 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Compound SELECT Option Preview Scenario
+
+Copied WordPress option import previews can now model result rows composed from
+multiple SELECT arms without requiring the SQLite extension. The new smoke
+`examples/wordpress-options-compound-select-preview.php` reports
+`UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT` over copied `wp_options`-style
+rows, including duplicate removal, duplicate preservation, SQL `NULL`
+intersection, BLOB payload identity, and final ordering through the accepted
+result helper.
+
+Status delta 2026-05-26 isolated priority SQL execution/planner slice: added
+`SQLiteSelectCompound` with focused assertions for compound operators, storage
+class keys, column-shape validation, invalid operators, and final
+`ORDER BY`/`LIMIT`/`OFFSET` integration. The focused lane test count moves from
+3871 to 3945 assertions, +74. Manifest mapped coverage moves from 393 to 394.
+Dependency closure: no new support component is needed; this reuses lane-local
+BLOB wrappers, SQL result ordering, and pure PHP row arrays.
+
 ## B-tree Rebalance Summary Scenario
 
 Copied WordPress repair/import tooling can now read a compact native summary of
