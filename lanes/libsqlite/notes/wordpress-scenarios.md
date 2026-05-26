@@ -3473,3 +3473,21 @@ subqueries, NULL left-hand values, NULL values inside `NOT IN` subqueries,
 composition with existing ORDER/LIMIT result semantics, and strict malformed
 column/value guards. Dependency closure: no new support component is needed;
 this reuses lane-local SQL value keys and pure PHP result arrays.
+### 2026-05-26 JSON table malformed JSONB planner diagnostics
+
+Native JSON table planning now has a bounded `validatedPlan()` diagnostic for
+`json_each`/`json_tree` hidden-column constraints. It preserves the accepted
+`plan()` behavior, while allowing WordPress import tooling to classify copied
+`wp_options.option_value` inputs as strict/JSON5 text, text BLOB, JSONB, SQL
+NULL, or malformed JSONB before row expansion.
+
+Focused assertion delta: `SQLiteHeaderTest.php` increased from the accepted
+3688 assertion baseline to 3721 assertions, adding 33 focused assertions for
+valid JSONB, malformed JSONB, malformed text, JSON5 text BLOB, and SQL NULL
+validated planner results. The WordPress `json_each` option-settings smoke now
+includes a malformed JSONB payload that reports `jsonValid=false` and
+`jsonError="malformed JSONB"` without requiring ext/sqlite.
+
+Dependency closure: no new support component is needed; this reuses existing
+lane-local JSONB validation, JSON5/text validity, BLOB wrappers, JSON table
+planning, and WordPress smoke infrastructure.

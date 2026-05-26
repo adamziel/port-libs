@@ -117454,3 +117454,32 @@ Final commit and cleanup:
 - Remaining ready-marker count after cleanup sample: `6572` total ready markers, including `3304` libsqlite ready markers.
 
 Dashboard publication should run next for this final accepted source; clean integration should not accept another source-moving marker until live Pages catches up.
+## Integration accepted - libsqlite JSON malformed JSONB planner diagnostics - 2026-05-26T22:16:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T220058Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate verification was `4a3fb8d8ace6c49c30a946b1751baf9ef4802ea6` (`Integrate libsqlite WAL read-mark diagnostics`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `4a3fb8d8ace6c49c30a946b1751baf9ef4802ea6`, `generated` `2026-05-26 22:08:50 UTC`, and `dashboardCommit` `f6c1635bbf8d1e12d84ee8ad21417fb26e589018`.
+
+Candidate evidence:
+- The direct patch was based on `debadf3190db8fbf914f764452a99626cfd177ba` and conflicted only in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- The implementation, focused test, WordPress smoke, and lane notes hunks applied cleanly over current `main`; manifest/status were reconciled minimally from current accepted files.
+- Effective delta adds `SQLiteJsonTablePlan::validatedPlan()` for hidden `json` constraint validation, focused assertions for valid JSONB, malformed JSONB, malformed text, JSON5 text BLOB, and SQL NULL planning, and malformed JSONB reporting in `wordpress-json-each-option-settings.php`.
+
+Verification:
+- Runtime gates before valid focused verification: `/` available `86302824` KiB, load `1.41`, and no exact no-argument root harness process.
+- `php -l` passed for changed PHP files.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3787 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` emitted valid JSON and confirmed the `malformed_jsonb_settings_blob` validated planner diagnostic.
+- `git diff --check` passed.
+- Serialized no-argument root verification is pending for this exact candidate snapshot.
+
+Ready queue evidence:
+- Remaining ready-marker count near acceptance: `6590` total ready markers, including `3322` libsqlite ready markers.
+- Newer sampled WAL read-mark marker duplicated the already accepted `4a3fb8d8` source. Smaller B-tree/savepoint candidates were deferred behind this stronger JSON behavior marker.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T220058Z` still has lane-local modified files after the accepted patch landed on `main`, so it was preserved and left registered. Accepted marker ready/patch/metadata files were removed after ref publication.
+
+Dashboard publication should run next after this source-moving commit lands.

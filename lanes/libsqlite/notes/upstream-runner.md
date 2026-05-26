@@ -10170,3 +10170,27 @@ git diff --check -- lanes/libsqlite
 
 Dependency closure: no new support component is needed. This slice reuses
 lane-local SQL value keys, BLOB wrappers, and pure PHP result-array dispatch.
+### 2026-05-26 JSON table malformed JSONB planner diagnostic slice
+
+This isolated JSON table/window micro-slice maps one additional focused
+upstream behavior row for malformed JSONB handling at the JSON table hidden
+`json` constraint boundary. No broad upstream runner was launched from this
+worktree.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 388 to 389 by adding
+`focusedJsonTableMalformedJsonbPlanScripts=1`.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+```
+
+Result: focused PHP passed 1 selected test file, 3721 assertions, and 0
+failures. The WordPress smoke passed and includes validated planner diagnostics
+for malformed JSONB payloads.

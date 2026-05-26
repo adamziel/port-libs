@@ -4955,6 +4955,72 @@ return [
         $t->same(20, $plan['estimatedCost']);
         $t->same(10, $plan['estimatedRows']);
 
+        $validJsonb = new SQLiteBlobValue(SQLiteJsonB::encode(['plugin' => ['rules' => [['name' => 'seo']]]]));
+        $validJsonbPlan = SQLiteJsonTablePlan::validatedPlan('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $validJsonb],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+        ]);
+        $t->same(true, $validJsonbPlan['runnable']);
+        $t->same(true, $validJsonbPlan['jsonValid']);
+        $t->same(null, $validJsonbPlan['jsonError']);
+        $t->same('jsonb', $validJsonbPlan['jsonInputKind']);
+        $t->same([$validJsonb, '$.plugin.rules'], $validJsonbPlan['arguments']);
+        $t->same(['type'], array_column($validJsonbPlan['residual'], 'column'));
+        $t->same(20, $validJsonbPlan['estimatedCost']);
+        $t->same(10, $validJsonbPlan['estimatedRows']);
+
+        $malformedJsonb = new SQLiteBlobValue("\x1c\x00");
+        $malformedJsonbPlan = SQLiteJsonTablePlan::validatedPlan('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $malformedJsonb],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+        ]);
+        $t->same(false, $malformedJsonbPlan['runnable']);
+        $t->same(false, $malformedJsonbPlan['jsonValid']);
+        $t->same('malformed JSONB', $malformedJsonbPlan['jsonError']);
+        $t->same('jsonb', $malformedJsonbPlan['jsonInputKind']);
+        $t->same([$malformedJsonb, '$.plugin.rules'], $malformedJsonbPlan['arguments']);
+        $t->same(['type'], array_column($malformedJsonbPlan['residual'], 'column'));
+        $t->same(1000000, $malformedJsonbPlan['estimatedCost']);
+        $t->same(0, $malformedJsonbPlan['estimatedRows']);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $malformedJsonb],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+        ]));
+
+        $malformedTextPlan = SQLiteJsonTablePlan::validatedPlan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => '{"plugin":'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]);
+        $t->same(false, $malformedTextPlan['runnable']);
+        $t->same(false, $malformedTextPlan['jsonValid']);
+        $t->same('malformed JSON text', $malformedTextPlan['jsonError']);
+        $t->same('text', $malformedTextPlan['jsonInputKind']);
+        $t->same(1000000, $malformedTextPlan['estimatedCost']);
+        $t->same(0, $malformedTextPlan['estimatedRows']);
+
+        $textBlobPlan = SQLiteJsonTablePlan::validatedPlan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => new SQLiteBlobValue("{plugin:{rules:['seo',],}}")],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ]);
+        $t->same(true, $textBlobPlan['runnable']);
+        $t->same(true, $textBlobPlan['jsonValid']);
+        $t->same(null, $textBlobPlan['jsonError']);
+        $t->same('text-blob', $textBlobPlan['jsonInputKind']);
+        $t->same(20, $textBlobPlan['estimatedCost']);
+        $t->same(10, $textBlobPlan['estimatedRows']);
+
+        $nullPlan = SQLiteJsonTablePlan::validatedPlan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => null],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ]);
+        $t->same(true, $nullPlan['runnable']);
+        $t->same(null, $nullPlan['jsonValid']);
+        $t->same(null, $nullPlan['jsonError']);
+        $t->same('sql-null', $nullPlan['jsonInputKind']);
+
         $eachRows = SQLiteJsonTablePlan::rows('json_each', $constraints);
         $t->same([0, 1], array_column($eachRows, 'key'));
         $t->same(['$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($eachRows, 'fullkey'));

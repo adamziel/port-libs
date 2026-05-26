@@ -68,6 +68,24 @@ final class SQLiteJsonTablePlan
 
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array{function:string,runnable:bool,arguments:list<mixed>,json:mixed,root:string,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int,jsonValid:bool|null,jsonError:string|null,jsonInputKind:string}
+     */
+    public static function validatedPlan(string $function, array $constraints): array
+    {
+        $plan = self::plan($function, $constraints);
+        $validation = self::validateJsonInput($plan['json']);
+
+        if ($plan['runnable'] && $validation['jsonValid'] === false) {
+            $plan['runnable'] = false;
+            $plan['estimatedCost'] = 1000000;
+            $plan['estimatedRows'] = 0;
+        }
+
+        return $plan + $validation;
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return list<array<string,mixed>>
      */
     public static function rows(string $function, array $constraints): array
@@ -194,6 +212,62 @@ final class SQLiteJsonTablePlan
         }
 
         throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, or NULL');
+    }
+
+    /**
+     * @return array{jsonValid:bool|null,jsonError:string|null,jsonInputKind:string}
+     */
+    private static function validateJsonInput(mixed $value): array
+    {
+        if ($value === null) {
+            return [
+                'jsonValid' => null,
+                'jsonError' => null,
+                'jsonInputKind' => 'sql-null',
+            ];
+        }
+
+        if ($value instanceof SQLiteBlobValue) {
+            if (SQLiteJsonB::isSuperficiallyJsonB($value->bytes)) {
+                return SQLiteJsonB::isStrictlyWellFormed($value->bytes)
+                    ? [
+                        'jsonValid' => true,
+                        'jsonError' => null,
+                        'jsonInputKind' => 'jsonb',
+                    ]
+                    : [
+                        'jsonValid' => false,
+                        'jsonError' => 'malformed JSONB',
+                        'jsonInputKind' => 'jsonb',
+                    ];
+            }
+
+            $validTextBlob = SQLiteJsonValidity::jsonValid(
+                $value,
+                SQLiteJsonValidity::FLAG_STRICT_TEXT | SQLiteJsonValidity::FLAG_JSON5_TEXT,
+            );
+
+            return [
+                'jsonValid' => $validTextBlob,
+                'jsonError' => $validTextBlob ? null : 'malformed JSON text BLOB',
+                'jsonInputKind' => 'text-blob',
+            ];
+        }
+
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, or NULL');
+        }
+
+        $validText = SQLiteJsonValidity::jsonValid(
+            $value,
+            SQLiteJsonValidity::FLAG_STRICT_TEXT | SQLiteJsonValidity::FLAG_JSON5_TEXT,
+        );
+
+        return [
+            'jsonValid' => $validText,
+            'jsonError' => $validText ? null : 'malformed JSON text',
+            'jsonInputKind' => 'text',
+        ];
     }
 
     /**
