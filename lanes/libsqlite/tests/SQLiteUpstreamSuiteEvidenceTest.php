@@ -1632,4 +1632,45 @@ TXT;
         $t->true(in_array('supervisor-approval-required', array_column($gate['blockers'], 'id'), true), 'Expected explicit approval blocker');
         $t->true(in_array('command-manifest-not-ready', array_column($gate['blockers'], 'id'), true), 'Expected missing hydrated command manifest blocker');
     },
+    'does not duplicate the permutation release tier blocker once hydrated suites are parsed' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/libsqlite-permutation-readiness-' . bin2hex(random_bytes(4));
+        $build = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
+        $test = $root . '/.upstream-cache/libsqlite/test';
+        $mptest = $root . '/.upstream-cache/libsqlite/mptest';
+        mkdir($build, 0777, true);
+        mkdir($test, 0777, true);
+        mkdir($mptest, 0777, true);
+        file_put_contents($build . '/testfixture', '#!/bin/sh');
+        file_put_contents($build . '/Makefile', "test:\n\t@true\nmptest:\n\t@true\n");
+        file_put_contents($test . '/testrunner.tcl', '# testrunner fixture');
+
+        $permutations = [];
+        for ($i = 1; $i <= 58; $i++) {
+            $permutations[] = sprintf('test_suite "suite%02d" -description {fixture}', $i);
+        }
+        file_put_contents($test . '/permutations.test', implode("\n", $permutations));
+
+        try {
+            $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+            $readiness = $evidence->fullSuiteReadinessRecord(2, $root);
+
+            $t->same('blocked', $readiness['status']);
+            $t->true($readiness['ready_count'] >= 4, 'Expected release, make, mptest, wildcard, and permutation readiness records to be available');
+            $t->true(in_array('permutation-suite-map', array_column($readiness['ready'], 'id'), true), 'Expected parsed permutation suite map to be ready');
+            $t->same(false, in_array('permutation-suites', array_column($readiness['blocked'], 'id'), true), 'Parsed permutation map should satisfy the release-tier suite-map blocker');
+        } finally {
+            foreach (glob($test . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            foreach (glob($build . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($mptest);
+            @rmdir($test);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($build);
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
 ];

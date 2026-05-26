@@ -685,6 +685,9 @@ final class SQLiteUpstreamSuiteEvidence
             if (!is_array($tier) || in_array($tier['status'] ?? null, ['ready', 'accepted'], true)) {
                 continue;
             }
+            if (($tier['id'] ?? null) === 'permutation-suites' && ($permutations['status'] ?? null) === 'ready') {
+                continue;
+            }
 
             $blocked[] = [
                 'id' => $tier['id'],

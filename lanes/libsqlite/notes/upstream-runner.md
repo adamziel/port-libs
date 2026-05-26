@@ -1,5 +1,36 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Permutation Readiness Gate
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice fixes
+`SQLiteUpstreamSuiteEvidence::fullSuiteReadinessRecord()` so a hydrated,
+parsed `test/permutations.test` suite map satisfies the `permutation-suites`
+release-tier blocker. Before this gate, readiness could report
+`permutation-suite-map` as ready while still carrying a duplicate
+`permutation-suites` blocker, which kept full-suite command handoff
+permanently blocked even after the permutation denominator was mapped.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice. The focused assertion builds a temporary
+hydrated-cache fixture with 58 declared permutation suites and verifies the
+duplicate blocker is absent while unrelated gates remain honest.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This composes
+lane-local readiness records, release-tier gates, and hydrated SQLite
+permutation source parsing only.
+
 ## Focused Native Mapping: Bounded Runner Timeout Artifact Classification
 
 Date: 2026-05-26

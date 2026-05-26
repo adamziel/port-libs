@@ -116210,3 +116210,45 @@ Cleanup:
 - The source worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-scalar-20260526T170850Z` still had modified lane files after publication, so it was preserved and left registered as cleanup debt rather than removed.
 
 Dashboard publication should run next because accepted source moved and live Pages will lag the new commit until the dashboard updater publishes it.
+## Integration accepted - libsqlite permutation suite readiness dedupe - 2026-05-26T17:29:00Z
+
+Priority lane: `libsqlite`.
+
+Accepted marker:
+- `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T172011Z.ready`
+- Lane: `libsqlite`
+- Slice: `closure-libsqlite-upstream-suite-20260526T172011Z`
+- Base accepted HEAD in marker: `b7b1ad7e860762562151dcfd6ec2c7346ff90f7c`
+- Current clean candidate base: `610f805da730a9d57e67290c188b3b967dcf750e`
+- Accepted commit: this commit
+- Patch sha256 matched marker metadata: `a1e426ab9e9e0c514e644416bae5d14e4e0bda01333023d220daddeb61f89166`
+
+Accepted behavior/evidence:
+- `SQLiteUpstreamSuiteEvidence::fullSuiteReadinessRecord()` no longer duplicates the `permutation-suites` release-tier blocker once the hydrated permutation suite map is ready.
+- Added focused test coverage proving a hydrated fixture with all 58 declared permutation suites produces a ready `permutation-suite-map` without a duplicate blocked `permutation-suites` entry.
+- Updated libsqlite manifest/status/notes for the upstream-suite gate evidence without claiming a fresh broad SQLite runner.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `610f805da730a9d57e67290c188b3b967dcf750e` (`Integrate libsqlite core math scalar dispatch`).
+- Cache-busted live Pages `porting-summary.json` reported matching `sourceCommit` `610f805da730a9d57e67290c188b3b967dcf750e` before marker inspection.
+
+Verification:
+- Runtime gates before focused/root checks were open: `/` free space above `86000000` KiB, load below `25`, and no exact no-argument `php tools/run-tests.php` process was active.
+- Focused checks ran with repo-local `TMPDIR` in `.tmp-root`.
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed: `1 test files, 560 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized no-argument root harness with repo-local `TMPDIR` and `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27987 assertions, 0 failures`.
+
+Ready queue evidence:
+- Remaining ready-marker count before cleanup: `5905` total ready markers, including `2637` libsqlite ready markers.
+- Recent behavior markers sampled first had focused assertions but failed raw apply on stale libsqlite status/manifest/notes or example context against current `main`; this upstream-suite blocker marker applied cleanly and directly moved the full-suite readiness gate.
+- Non-libsqlite and Dolt markers were not considered because the libsqlite-only intake priority still applies and Dolt remains parked.
+
+Cleanup:
+- Accepted marker files are eligible for removal after this commit is safely published to local `main`.
+- Worker worktree cleanup must preserve any still-dirty worker worktree; remove only if clean and inactive.
+
+Dashboard publication should run next because accepted source moved and live Pages will lag the new commit until the dashboard updater publishes it.
