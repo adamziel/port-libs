@@ -318,6 +318,94 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, list<string>> $focusedGroups
+     * @return array<string, mixed>
+     */
+    public function upstreamSuiteExecutionPlan(array $focusedGroups = [], int $jobs = 1, ?string $repoRoot = null): array
+    {
+        if ($focusedGroups === []) {
+            $focusedGroups = [
+                'json-table-window' => ['json101.test', 'json102.test', 'json501.test', 'json107.test', 'jsonb01.test'],
+                'wal-rollback-savepoint' => ['wal*.test', 'pager*.test', 'journal*.test', 'savepoint*.test'],
+                'btree-delete-rebalance' => ['delete.test', 'delete2.test', 'delete3.test', 'delete4.test', 'btree01.test'],
+                'encoding-collation' => ['enc.test', 'enc2.test', 'collate1.test', 'collate2.test', 'like.test'],
+            ];
+        }
+
+        $summary = $this->denominatorSummary();
+        $coverage = $this->runnerCoverageAudit();
+        $ledger = $this->focusedResultLedger();
+        $focusedMatrix = $this->focusedSubsetMatrix($focusedGroups, $jobs, $repoRoot);
+
+        $focusedReady = 0;
+        $focusedSkipped = 0;
+        $focusedScripts = 0;
+        foreach ($focusedMatrix as $plan) {
+            $focusedScripts += (int) $plan['script_count'];
+            if (($plan['runnable'] ?? false) === true) {
+                $focusedReady++;
+            } else {
+                $focusedSkipped++;
+            }
+        }
+
+        $fullReleaseCommand = 'cd .upstream-cache/libsqlite-build-port-libsqlite'
+            . ' && ./testfixture ../libsqlite/test/testrunner.tcl --jobs ' . $jobs . ' --stop-on-error all';
+
+        $steps = [
+            [
+                'id' => 'accepted-veryquick-baseline',
+                'status' => $coverage['veryquick']['errors'] === 0 && $coverage['veryquick']['scripts'] > 0 ? 'accepted' : 'missing',
+                'evidence' => $coverage['veryquick'],
+                'command' => null,
+            ],
+            [
+                'id' => 'rerun-focused-closure-subsets',
+                'status' => $focusedSkipped === 0 ? 'ready' : 'blocked-missing-cache',
+                'evidence' => [
+                    'group_count' => count($focusedMatrix),
+                    'ready_groups' => $focusedReady,
+                    'skipped_groups' => $focusedSkipped,
+                    'script_count' => $focusedScripts,
+                    'previous_focused_entries' => $ledger['entry_count'],
+                    'previous_focused_reused_or_skipped' => $ledger['reused_or_skipped_count'],
+                ],
+                'matrix' => $focusedMatrix,
+            ],
+            [
+                'id' => 'expand-wildcard-selections',
+                'status' => $coverage['pattern_script_count'] === 0 ? 'complete' : 'blocked-needs-hydrated-test-dir',
+                'evidence' => [
+                    'pattern_count' => $coverage['pattern_script_count'],
+                    'patterns' => $coverage['pattern_scripts'],
+                ],
+                'command' => 'find .upstream-cache/libsqlite/test -maxdepth 1 -name "*.test" | sort',
+            ],
+            [
+                'id' => 'run-full-release-all',
+                'status' => $coverage['full_release_executed'] ? 'accepted' : 'blocked-not-run',
+                'evidence' => [
+                    'remaining_suite_tiers' => $coverage['remaining_suite_tiers'],
+                    'reason' => $coverage['full_release_reason'],
+                ],
+                'command' => $fullReleaseCommand,
+            ],
+        ];
+
+        return [
+            'status' => $focusedSkipped === 0 && $coverage['full_release_executed'] ? 'ready-for-full-closure-review' : 'blocked-on-upstream-cache-or-full-suite',
+            'denominator_total' => $summary['total'],
+            'denominator_mapped' => $summary['mapped'],
+            'jobs' => $jobs,
+            'steps' => $steps,
+            'next_command' => $focusedSkipped > 0
+                ? 'hydrate .upstream-cache/libsqlite and build .upstream-cache/libsqlite-build-port-libsqlite/testfixture'
+                : $fullReleaseCommand,
+            'dependency_closure' => 'no new support component needed; execution plan reuses lane-local manifest evidence and SQLite testfixture command planning',
+        ];
+    }
+
+    /**
      * @return array{scripts: int, tests: int, errors: int}
      */
     private function parseVeryquickResult(mixed $result): array

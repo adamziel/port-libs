@@ -1,5 +1,46 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Upstream Suite Execution Plan
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds a machine-readable next-run plan
+over the accepted SQLite runner evidence.
+`SQLiteUpstreamSuiteEvidence::upstreamSuiteExecutionPlan()` marks the accepted
+zero-error `veryquick` baseline separately from the remaining focused reruns,
+wildcard `.test` expansion, and full release/all gate. The default focused
+groups cover JSON table/window, WAL/rollback/savepoint, B-tree
+delete/rebalance, and encoding/collation closure clusters.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout or built `testfixture`, so no new upstream
+runner was started. The execution plan reports those focused groups as
+`blocked-missing-cache` and records the cache/testfixture hydration gate instead
+of counting a skipped run as fresh evidence. Prior applicable runner evidence
+remains the complete SQLite `veryquick` run: 1235 scripts, 329670 tests, and 0
+errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused lane tests passed with 1 file, 143
+assertions, and 0 failures; manifest/status JSON validation passed; lane diff
+check passed.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local manifest reader, accepted upstream runner evidence, and
+testfixture command planner; it performs no shell-out and counts no shared
+support-library progress.
+
 ## Focused Native Mapping: Suite Closure Gap Report
 
 Date: 2026-05-26

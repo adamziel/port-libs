@@ -1,5 +1,47 @@
 # Integration Status
 
+## Accepted libsqlite upstream suite execution plan - 2026-05-26 03:56 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T034441Z.ready`
+from current-base libsqlite handoff
+`closure-libsqlite-upstream-suite-20260526T034441Z`.
+
+Current-base and dashboard guard evidence:
+- Candidate `base_sha` was
+  `d185502fba80dff1de5b98689b5bf07feccf181e`, matching current
+  `refs/heads/main` before integration.
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=d185502fba80dff1de5b98689b5bf07feccf181e`, so dashboard
+  publication was current before this source move.
+- Runtime gates before focused/root work were open: `/` had at least
+  `86129916` KiB available, load was below `25`, and no
+  `php tools/run-tests.php` root harness was already running.
+
+Focused verification in detached clean worktree
+`.tmux-team/tmp/clean-integrator-libsqlite-suite-20260526T034837Z`:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 143 assertions, 0 failures`.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`
+  passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 27005 assertions, 0 failures`.
+
+Decision: accepted. The slice adds a machine-readable libsqlite upstream-suite
+execution plan that preserves the accepted zero-error `veryquick` baseline,
+separates focused closure subset reruns, wildcard `.test` expansion, and the
+full `release/all` gate, and honestly reports this snapshot as blocked on a
+hydrated upstream cache/testfixture before fresh upstream execution can be
+claimed. No new support-library component was activated.
+
+Dashboard publication should run next for the accepted source commit.
+
 ## Accepted libsqlite B-tree right-most pointer diagnostics - 2026-05-26 03:43 UTC
 
 Accepted marker:

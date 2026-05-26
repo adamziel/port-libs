@@ -224,4 +224,49 @@ return [
         $t->contains('hydrate upstream cache', $report['blockers'][0]['next_gate']);
         $t->contains('no new support component needed', $report['dependency_closure']);
     },
+    'builds an upstream suite execution plan for the next honest closure run' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $plan = $evidence->upstreamSuiteExecutionPlan([], 2, dirname(__DIR__, 3));
+
+        $t->same('blocked-on-upstream-cache-or-full-suite', $plan['status']);
+        $t->same(1589, $plan['denominator_total']);
+        $t->true($plan['denominator_mapped'] >= 291, 'Expected accepted mapped count to be preserved');
+        $t->same(2, $plan['jobs']);
+        $t->contains('hydrate .upstream-cache/libsqlite', $plan['next_command']);
+        $t->contains('no new support component needed', $plan['dependency_closure']);
+
+        $steps = $plan['steps'];
+        $t->same([
+            'accepted-veryquick-baseline',
+            'rerun-focused-closure-subsets',
+            'expand-wildcard-selections',
+            'run-full-release-all',
+        ], array_column($steps, 'id'));
+
+        $t->same('accepted', $steps[0]['status']);
+        $t->same(1235, $steps[0]['evidence']['scripts']);
+        $t->same(329670, $steps[0]['evidence']['tests']);
+        $t->same(0, $steps[0]['evidence']['errors']);
+
+        $t->same('blocked-missing-cache', $steps[1]['status']);
+        $t->same(4, $steps[1]['evidence']['group_count']);
+        $t->same(0, $steps[1]['evidence']['ready_groups']);
+        $t->same(4, $steps[1]['evidence']['skipped_groups']);
+        $t->same(19, $steps[1]['evidence']['script_count']);
+        $t->true(isset($steps[1]['matrix']['json-table-window']), 'Expected default json-table/window focused group');
+        $t->same(false, $steps[1]['matrix']['wal-rollback-savepoint']['runnable']);
+        $t->contains('upstream cache/testfixture not hydrated', (string) $steps[1]['matrix']['btree-delete-rebalance']['skip_reason']);
+
+        $t->same('blocked-needs-hydrated-test-dir', $steps[2]['status']);
+        $t->true($steps[2]['evidence']['pattern_count'] >= 2, 'Expected wildcard selections to remain visible');
+        $t->true(in_array('pager*.test', $steps[2]['evidence']['patterns'], true), 'Expected pager wildcard pattern');
+
+        $t->same('blocked-not-run', $steps[3]['status']);
+        $t->contains('--stop-on-error all', $steps[3]['command']);
+        $t->same([
+            'full release/all permutations',
+            'multi-configuration make test suites',
+            'long-running stress/permutation tiers beyond veryquick',
+        ], $steps[3]['evidence']['remaining_suite_tiers']);
+    },
 ];
