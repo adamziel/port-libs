@@ -9539,3 +9539,36 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local scalar coercion, `SQLiteBlobValue`, and accepted aggregate
 scheduling patterns without activating shared support-library work.
+
+## Focused Native Mapping: Core Math Scalar Dispatch
+
+This isolated SQL execution/planner scalar micro-slice adds bounded native
+math dispatch to `SQLiteCoreScalarFunction` for copied WordPress `wp_options`
+diagnostics and future expression planning. Native PHP now covers
+`ceil()`/`ceiling()`, `floor()`, `trunc()`, `sqrt()`, `pow()`/`power()`,
+`mod()`, `ln()`, `log()`, `log10()`, `log2()`, `exp()`, `pi()`, `acos()`,
+`asin()`, `atan()`, `atan2()`, `cos()`, `sin()`, and `tan()`, including SQL
+NULL propagation, invalid-domain NULL results, lossless numeric coercion, and
+strict arity/type errors.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused core math scalar evidence row while preserving the current
+accepted static SQLite upstream denominator and veryquick evidence. This
+isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T17:08Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php sqrt 16
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local scalar coercion and PHP runtime math primitives without activating
+shared support-library work.

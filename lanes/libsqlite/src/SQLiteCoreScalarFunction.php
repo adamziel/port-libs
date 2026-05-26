@@ -17,6 +17,9 @@ final class SQLiteCoreScalarFunction
             'abs' => self::abs($arguments),
             'round' => self::round($arguments),
             'sign' => self::sign($arguments),
+            'ceil', 'ceiling', 'floor', 'trunc' => self::roundingMath($normalized, $arguments),
+            'sqrt', 'exp', 'ln', 'log', 'log10', 'log2', 'pow', 'power', 'mod' => self::numericMath($normalized, $arguments),
+            'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi' => self::trigonometricMath($normalized, $arguments),
             'typeof' => self::typeof($arguments),
             'quote' => self::quote($arguments),
             'coalesce' => self::coalesce($arguments),
@@ -107,6 +110,102 @@ final class SQLiteCoreScalarFunction
         }
 
         return $number <=> 0;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function roundingMath(string $functionName, array $arguments): ?float
+    {
+        self::assertArity($functionName, $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $number = self::coerceLosslessNumeric($arguments[0]);
+        if ($number === null) {
+            return null;
+        }
+
+        return match ($functionName) {
+            'ceil', 'ceiling' => ceil((float) $number),
+            'floor' => floor((float) $number),
+            'trunc' => (float) ((int) $number),
+            default => throw new \InvalidArgumentException("Unsupported SQLite math function: {$functionName}"),
+        };
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function numericMath(string $functionName, array $arguments): ?float
+    {
+        $arity = match ($functionName) {
+            'pow', 'power', 'mod' => 2,
+            'log' => null,
+            default => 1,
+        };
+        self::assertArity($functionName, $arguments, $arity ?? 1, $arity ?? 2);
+        foreach ($arguments as $argument) {
+            if ($argument === null) {
+                return null;
+            }
+        }
+
+        $left = self::coerceLosslessNumeric($arguments[0]);
+        $right = array_key_exists(1, $arguments) ? self::coerceLosslessNumeric($arguments[1]) : null;
+        if ($left === null || (array_key_exists(1, $arguments) && $right === null)) {
+            return null;
+        }
+
+        return match ($functionName) {
+            'sqrt' => $left < 0 ? null : sqrt((float) $left),
+            'exp' => exp((float) $left),
+            'ln' => $left <= 0 ? null : log((float) $left),
+            'log' => array_key_exists(1, $arguments)
+                ? (((float) $left) <= 0.0 || ((float) $left) == 1.0 || ((float) $right) <= 0.0 ? null : log((float) $right, (float) $left))
+                : ($left <= 0 ? null : log10((float) $left)),
+            'log10' => $left <= 0 ? null : log10((float) $left),
+            'log2' => $left <= 0 ? null : log((float) $left, 2.0),
+            'pow', 'power' => self::powSql((float) $left, (float) $right),
+            'mod' => ((float) $right) == 0.0 ? null : fmod((float) $left, (float) $right),
+            default => throw new \InvalidArgumentException("Unsupported SQLite math function: {$functionName}"),
+        };
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function trigonometricMath(string $functionName, array $arguments): ?float
+    {
+        $arity = $functionName === 'pi' ? 0 : ($functionName === 'atan2' ? 2 : 1);
+        self::assertArity($functionName, $arguments, $arity, $arity);
+        foreach ($arguments as $argument) {
+            if ($argument === null) {
+                return null;
+            }
+        }
+
+        if ($functionName === 'pi') {
+            return M_PI;
+        }
+
+        $left = self::coerceLosslessNumeric($arguments[0]);
+        $right = array_key_exists(1, $arguments) ? self::coerceLosslessNumeric($arguments[1]) : null;
+        if ($left === null || (array_key_exists(1, $arguments) && $right === null)) {
+            return null;
+        }
+
+        return match ($functionName) {
+            'acos' => ($left < -1 || $left > 1) ? null : acos((float) $left),
+            'asin' => ($left < -1 || $left > 1) ? null : asin((float) $left),
+            'atan' => atan((float) $left),
+            'atan2' => atan2((float) $left, (float) $right),
+            'cos' => cos((float) $left),
+            'sin' => sin((float) $left),
+            'tan' => tan((float) $left),
+            default => throw new \InvalidArgumentException("Unsupported SQLite math function: {$functionName}"),
+        };
     }
 
     /**
@@ -1082,6 +1181,15 @@ final class SQLiteCoreScalarFunction
         $formatted = sprintf('%.15G', $value);
 
         return str_contains($formatted, 'E') ? str_replace('E', 'e', $formatted) : $formatted;
+    }
+
+    private static function powSql(float $base, float $exponent): ?float
+    {
+        if ($base < 0.0 && floor($exponent) !== $exponent) {
+            return null;
+        }
+
+        return $base ** $exponent;
     }
 
     private static function utf8Codepoint(int $codepoint): string

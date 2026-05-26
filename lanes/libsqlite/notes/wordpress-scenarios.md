@@ -3093,6 +3093,25 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
 patterns.
 
+## Core Math Scalar Scenario
+
+Native SQL execution helpers now include bounded math scalar behavior for local
+WordPress option repair and import diagnostics. The
+`examples/wordpress-core-scalar-option-default.php` smoke reports copied
+`wp_options` math previews using SQLite-style numeric coercion, SQL NULL
+propagation, invalid-domain NULL results, and strict arity/type errors for
+`ceil()`/`ceiling()`, `floor()`, `trunc()`, `sqrt()`, `pow()`/`power()`,
+`mod()`, `ln()`, `log()`, `log10()`, `log2()`, `exp()`, `pi()`, `acos()`,
+`asin()`, `atan()`, `atan2()`, `cos()`, `sin()`, and `tan()` without requiring
+the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added 29
+focused assertions for bounded core math scalar dispatch. This is intentionally
+scalar dispatch coverage, not a full SELECT/VDBE executor.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion and PHP runtime math primitives.
+
 ## Numeric Aggregate Option Size Scenario
 
 Native SQL execution helpers now include bounded `count()`, `sum()`, `total()`,

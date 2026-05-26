@@ -116165,3 +116165,48 @@ Ready queue evidence:
 - Non-libsqlite and Dolt markers were not considered because the libsqlite-only intake priority still applies and Dolt remains parked.
 
 Dashboard publication should run next because accepted source moved and live Pages will lag the new commit until the dashboard updater publishes it.
+
+## Accepted - libsqlite core math scalar dispatch - 2026-05-26T17:22:00Z
+
+Accepted marker:
+- `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T170850Z.ready`
+- Lane: `libsqlite`
+- Slice: `closure-libsqlite-sql-exec-planner-scalar-functions-20260526T170850Z`
+- Base accepted HEAD in marker: `edd0f3b1a3a6c3ebe534541e4e487c9b4dbf2e5a`
+- Current clean candidate base: `f7d4b9ef8d52cb21a5b478f223a36ccba9d3af35`
+- Accepted commit: this commit
+- Patch sha256 matched marker metadata: `7ade712f6c6a2e933042cfde8b14518a469c3c213d7d7141cbeef2bb1298b077`
+
+Bounded stale merge:
+- The full marker patch failed `git apply --check` against current `main` only on stale libsqlite status/manifest/notes context after later accepted commits.
+- The code/test/smoke payload applied cleanly with status/manifest/notes excluded, and the status/manifest/notes evidence was manually rebased in the detached candidate.
+
+Accepted behavior:
+- Added bounded core math scalar dispatch for `ceil`/`ceiling`, `floor`, `trunc`, `sqrt`, `pow`/`power`, `mod`, `ln`, `log`, `log10`, `log2`, `exp`, `pi`, `acos`, `asin`, `atan`, `atan2`, `cos`, `sin`, and `tan`.
+- Added focused assertions for numeric coercion, SQL NULL propagation, invalid-domain NULLs, arity/type errors, and WordPress scalar smoke math diagnostics.
+- Updated libsqlite manifest mapped count `357 -> 358` and lane php pass count `401 -> 430`.
+
+Dashboard guard evidence:
+- Cache-busted live Pages `porting-summary.json` reported matching `sourceCommit` `f7d4b9ef8d52cb21a5b478f223a36ccba9d3af35` before marker inspection.
+
+Verification:
+- Runtime gates before focused/root checks were open: `/` free space above `86000000` KiB, load below `25`, and no exact no-argument `php tools/run-tests.php` process was active.
+- Focused checks ran with repo-local `TMPDIR` in `.tmp-root`.
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3007 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php sqrt 16` passed and reported `"result": 4` plus the math preview fields.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized no-argument root harness with repo-local `TMPDIR` and `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27983 assertions, 0 failures`.
+
+Ready queue evidence:
+- Remaining ready-marker count before cleanup: `5887` total ready markers, including `2619` libsqlite ready markers.
+- Non-libsqlite and Dolt markers were not considered because the libsqlite-only intake priority still applies and Dolt remains parked.
+
+Cleanup:
+- Accepted marker files were eligible for removal after this commit was safely published to local `main`.
+- The source worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-scalar-20260526T170850Z` still had modified lane files after publication, so it was preserved and left registered as cleanup debt rather than removed.
+
+Dashboard publication should run next because accepted source moved and live Pages will lag the new commit until the dashboard updater publishes it.
