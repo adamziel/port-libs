@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 02:36:34 UTC",
-    "sourceCommit": "a34a6920bdaa4ed5df8d617151cfbc43bf6700a1",
-    "sourceCommitShort": "a34a6920bdaa",
+    "generated": "2026-05-26 02:42:46 UTC",
+    "sourceCommit": "63abfa0ac5f8055cf913ec3ae9460789f6ab8292",
+    "sourceCommitShort": "63abfa0ac5f8",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "25ce993a3478b48d7a4d13b32c3f9bc05f00edfd",
-    "dashboardCommitShort": "25ce993a3478",
+    "dashboardCommit": "24d193e1dd9a6a595b724738de10e5bbd124ad4e",
+    "dashboardCommitShort": "24d193e1dd9a",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -86,11 +86,11 @@
             "php": "288 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated upstream-suite slice 2026-05-26T...",
-            "currentWork": "Latest isolated upstream-suite slice makes focused upstream subset evidence machine-reada...",
-            "nextTarget": "After integrator acceptance, use focusedSubsetRunRecord() to record actual upstream subse...",
+            "audit": "isolated full-suite slice 2026-05-26T02:3...",
+            "currentWork": "Latest isolated upstream-suite slice adds SQLiteUpstreamSuiteEvidence::runnerCoverageAudi...",
+            "nextTarget": "After integrator acceptance, use focusedSubsetRunRecord() and runnerCoverageAudit() to re...",
             "blocker": "Full SQLite all/release runner parity remains pending; this isolated work...",
-            "commit": "accepte"
+            "commit": "pending"
         },
         {
             "library": "LightningCSS",
