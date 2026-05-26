@@ -1,5 +1,58 @@
 # Integration Status
 
+## Accepted libsqlite WAL checkpoint-mode planning - 2026-05-26 09:52 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T094708Z.ready`.
+
+Decision: accepted stale-base libsqlite marker
+`closure-libsqlite-wal-rollback-savepoint-20260526T094708Z`.
+The marker was based on `852bb868a2d2e4f2f0cd612b504319efc80667b4`, one
+commit behind current `main` `53fd0318c00e3e05f1f9fc9de7e9c67b3dc26fe2`.
+The code/test/example/notes hunks applied cleanly with `git apply --3way`; only
+`UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` needed a bounded evidence
+merge to preserve the already accepted hydrated permutation-suite source-map
+status while adding the WAL checkpoint-mode evidence.
+
+Focused verification from the detached clean candidate snapshot:
+- Resource gates before focused checks: `/` had `86202604` KiB available and
+  load was `2.39`; no no-argument root harness was active.
+- `php -l lanes/libsqlite/src/SQLiteWal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`
+  passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2718 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`
+  passed and emitted PASSIVE/FULL/RESTART/TRUNCATE checkpoint-mode diagnostics.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Resource gates before root: `/` had `86157460` KiB available, load was
+  `3.73`, and no no-argument root harness was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 27497 assertions, 0 failures`.
+
+Dashboard guard evidence before intake:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=53fd0318c00e3e05f1f9fc9de7e9c67b3dc26fe2`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `f978a0d5f9a20fb65a59fa7efccde86183833fd6`.
+
+Queue evidence:
+- The libsqlite priority override was applied; non-libsqlite markers and Dolt
+  markers were not considered for acceptance.
+- Top-level ready-marker count before cleanup: `4833`; libsqlite ready-marker
+  count before cleanup: `1565`.
+- Latest sampled storage-data queue note remained
+  `.tmux-team/tmp/group-integrator-queue/storage-data-20260526T063855Z.txt`
+  and was treated as a stale hint only.
+
+Dashboard publication should run next after this source commit is visible on
+`main`.
+
 ## Accepted libsqlite upstream-runner hydrated permutation source map - 2026-05-26 09:51 UTC
 
 Accepted marker:

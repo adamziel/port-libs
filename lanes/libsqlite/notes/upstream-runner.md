@@ -8186,6 +8186,38 @@ Dependency closure: no new support component is needed. This reuses lane-local
 scalar coercion, UTF-8 helpers when available, `SQLiteBlobValue`, and existing
 expression-semantics dispatch without activating shared support-library work.
 
+## Focused Native Mapping: WAL Checkpoint Mode Plan
+
+This isolated WAL/rollback/savepoint micro-slice extends read-only checkpoint
+diagnostics with SQLite checkpoint-mode planning. Native PHP can now summarize
+`PASSIVE`, `FULL`, `RESTART`, and `TRUNCATE` behavior over parsed WAL frames,
+including active-reader frame limits, busy reporting for blocking modes,
+uncommitted-tail preservation, and reset/truncate eligibility without writing
+database or WAL files.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused WAL checkpoint-mode planning script while preserving the
+current accepted static SQLite upstream denominator and full-suite runner
+evidence. This isolated worktree did not contain the hydrated upstream cache,
+so no fresh upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T09:47Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+WAL parsing, checkpoint/reset planning, SQLite header parsing, and WordPress
+fixture helpers without activating shared pager, WAL-index, lock-manager, or
+filesystem durability support.
+
 ## Focused Native Mapping: WAL Reset Plan
 
 This isolated WAL/rollback/savepoint micro-slice adds bounded WAL reset and

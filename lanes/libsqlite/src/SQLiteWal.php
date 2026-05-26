@@ -308,6 +308,79 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{mode:string,busy:bool,reason:string,reader_end_frame:int|null,last_commit_frame:int|null,checkpointed_frame_count:int,total_committable_frame_count:int,remaining_committed_frame_count:int,uncommitted_frame_count:int,can_reset:bool,can_truncate:bool}
+     */
+    public function checkpointModePlan(string $databaseBytes, string $mode = 'passive', ?int $readerEndFrame = null): array
+    {
+        $mode = strtolower($mode);
+        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL checkpoint mode: {$mode}");
+        }
+        if ($readerEndFrame !== null && $readerEndFrame < 0) {
+            throw new \InvalidArgumentException('SQLite WAL reader end frame must be non-negative');
+        }
+
+        $checkpointPlan = $this->checkpointPlan($databaseBytes);
+        $lastCommitFrame = $this->lastCommitFrame();
+        $lastCommitIndex = $lastCommitFrame?->index;
+        $checkpointLimit = $lastCommitIndex;
+        if ($readerEndFrame !== null && $checkpointLimit !== null) {
+            $checkpointLimit = min($checkpointLimit, $readerEndFrame);
+        }
+
+        $checkpointedFrameCount = 0;
+        $totalCommittableFrameCount = 0;
+        foreach ($checkpointPlan['frames'] as $frame) {
+            if ($frame['reason'] !== 'checkpointed_to_database') {
+                continue;
+            }
+            $totalCommittableFrameCount++;
+            if ($checkpointLimit !== null && $frame['frame_index'] <= $checkpointLimit) {
+                $checkpointedFrameCount++;
+            }
+        }
+
+        $remainingCommittedFrameCount = $totalCommittableFrameCount - $checkpointedFrameCount;
+        $readerBlocksCompletion = $remainingCommittedFrameCount > 0 && $readerEndFrame !== null;
+        $uncommittedFrameCount = $this->uncommittedFrameCount();
+        $allCommittedFramesCheckpointed = $lastCommitFrame !== null
+            && $remainingCommittedFrameCount === 0
+            && $uncommittedFrameCount === 0;
+        $emptyWal = $lastCommitFrame === null && count($this->frames) === 0;
+        $busy = $readerBlocksCompletion && $mode !== 'passive';
+        $canReset = ($mode === 'restart' || $mode === 'truncate') && !$busy && ($allCommittedFramesCheckpointed || $emptyWal);
+
+        if ($lastCommitFrame === null) {
+            $reason = count($this->frames) === 0 ? 'wal_has_no_frames' : 'no_committed_transaction';
+        } elseif ($readerBlocksCompletion) {
+            $reason = $mode === 'passive' ? 'reader_limited_passive_checkpoint' : 'reader_blocks_checkpoint_completion';
+        } elseif ($uncommittedFrameCount > 0) {
+            $reason = 'uncommitted_frames_after_last_commit';
+        } else {
+            $reason = match ($mode) {
+                'passive' => 'passive_checkpoint_complete',
+                'full' => 'full_checkpoint_complete',
+                'restart' => 'restart_checkpoint_can_reset_wal',
+                'truncate' => 'truncate_checkpoint_can_reset_and_truncate_wal',
+            };
+        }
+
+        return [
+            'mode' => $mode,
+            'busy' => $busy,
+            'reason' => $reason,
+            'reader_end_frame' => $readerEndFrame,
+            'last_commit_frame' => $lastCommitIndex,
+            'checkpointed_frame_count' => $checkpointedFrameCount,
+            'total_committable_frame_count' => $totalCommittableFrameCount,
+            'remaining_committed_frame_count' => $remainingCommittedFrameCount,
+            'uncommitted_frame_count' => $uncommittedFrameCount,
+            'can_reset' => $canReset,
+            'can_truncate' => $canReset && $mode === 'truncate',
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

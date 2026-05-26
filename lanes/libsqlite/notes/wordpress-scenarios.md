@@ -2589,6 +2589,27 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## WAL Checkpoint Mode Plan Scenario
+
+Native `wp_options` WAL diagnostics now include checkpoint-mode eligibility for
+future repair/import tooling. The
+`examples/wordpress-wal-option-frame-diagnostics.php` smoke reports
+reader-limited `PASSIVE` progress, `FULL` busy status when an active reader
+blocks completion, and `RESTART`/`TRUNCATE` reset decisions while preserving
+uncommitted WAL tail frames.
+
+Status delta 2026-05-26 isolated WAL/rollback/savepoint slice: added
+`SQLiteWal::checkpointModePlan()` with focused assertions for PASSIVE, FULL,
+RESTART, and TRUNCATE modes, active reader frame limits, blocking-mode busy
+reporting, empty-WAL handling, invalid modes, invalid reader frames, and
+misaligned base-image rejection. This remains read-only diagnostic planning,
+not a WAL-index shared-memory implementation, lock manager, or durable
+filesystem checkpoint writer.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local WAL parsing, checkpoint/reset planning, SQLite header parsing, and
+WordPress fixture helpers.
+
 ## Core Scalar Substring Scenario
 
 Native SQL execution helpers now include `substr()` and `substring()` in the
