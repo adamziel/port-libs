@@ -269,4 +269,56 @@ return [
             'long-running stress/permutation tiers beyond veryquick',
         ], $steps[3]['evidence']['remaining_suite_tiers']);
     },
+    'builds an honest wildcard expansion plan for focused upstream scripts' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $plan = $evidence->wildcardExpansionPlan(dirname(__DIR__, 3));
+
+        $t->same('blocked-needs-hydrated-test-dir', $plan['status']);
+        $t->same('.upstream-cache/libsqlite/test', $plan['test_directory']);
+        $t->same(false, $plan['test_directory_ready']);
+        $t->true($plan['pattern_count'] >= 2, 'Expected accepted wildcard script selections to remain visible');
+        $t->true(in_array('btree*.test', $plan['patterns'], true), 'Expected btree wildcard pattern');
+        $t->true(in_array('pager*.test', $plan['patterns'], true), 'Expected pager wildcard pattern');
+        $t->same(0, $plan['expanded_pattern_count']);
+        $t->same(0, $plan['expanded_script_count']);
+        $t->same([], $plan['expanded']);
+        $t->true(in_array('btree*.test', $plan['missing_patterns'], true), 'Expected missing btree wildcard due to absent cache');
+        $t->same([], $plan['invalid_patterns']);
+        $t->contains('hydrate .upstream-cache/libsqlite/test', $plan['next_gate']);
+        $t->contains('no new support component needed', $plan['dependency_closure']);
+    },
+    'expands wildcard upstream scripts when a hydrated test directory is available' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-upstream-wildcards-' . bin2hex(random_bytes(4));
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        mkdir($testDirectory, 0777, true);
+
+        try {
+            foreach ($evidence->runnerCoverageAudit()['pattern_scripts'] as $pattern) {
+                $filename = str_replace('*', '01', $pattern);
+                file_put_contents($testDirectory . '/' . $filename, '# focused wildcard fixture');
+            }
+            file_put_contents($testDirectory . '/btree02.test', '# focused wildcard fixture');
+
+            $plan = $evidence->wildcardExpansionPlan($root);
+
+            $t->same('ready', $plan['status']);
+            $t->same(true, $plan['test_directory_ready']);
+            $t->same($plan['pattern_count'], $plan['expanded_pattern_count']);
+            $t->true($plan['expanded_script_count'] >= $plan['pattern_count']);
+            $t->true(in_array('btree01.test', $plan['expanded']['btree*.test'] ?? [], true), 'Expected btree01.test expansion');
+            $t->true(in_array('btree02.test', $plan['expanded']['btree*.test'] ?? [], true), 'Expected sorted multi-file btree expansion');
+            $t->same([], $plan['missing_patterns']);
+            $t->same([], $plan['invalid_patterns']);
+            $t->contains('replace wildcard runner notes', $plan['next_gate']);
+        } finally {
+            foreach (glob($testDirectory . '/*.test') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
 ];

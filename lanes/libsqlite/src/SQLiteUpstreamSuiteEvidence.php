@@ -406,6 +406,76 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function wildcardExpansionPlan(?string $repoRoot = null): array
+    {
+        $coverage = $this->runnerCoverageAudit();
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        $patterns = $coverage['pattern_scripts'];
+
+        $expanded = [];
+        $missingPatterns = [];
+        $invalidPatterns = [];
+        $testDirectoryReady = is_dir($testDirectory);
+
+        foreach ($patterns as $pattern) {
+            if (!is_string($pattern) || !preg_match('/^[A-Za-z0-9_.*?-]+\.test$/', $pattern)) {
+                $invalidPatterns[] = (string) $pattern;
+                continue;
+            }
+
+            if (!$testDirectoryReady) {
+                $missingPatterns[] = $pattern;
+                continue;
+            }
+
+            $matches = glob($testDirectory . '/' . $pattern);
+            if ($matches === false || $matches === []) {
+                $missingPatterns[] = $pattern;
+                continue;
+            }
+
+            $scripts = [];
+            foreach ($matches as $match) {
+                $scripts[] = basename($match);
+            }
+
+            sort($scripts);
+            $expanded[$pattern] = $scripts;
+        }
+
+        ksort($expanded);
+
+        $expandedCount = 0;
+        foreach ($expanded as $scripts) {
+            $expandedCount += count($scripts);
+        }
+
+        $blocked = !$testDirectoryReady || $missingPatterns !== [] || $invalidPatterns !== [];
+
+        return [
+            'status' => $patterns === []
+                ? 'complete-no-wildcards'
+                : ($blocked ? 'blocked-needs-hydrated-test-dir' : 'ready'),
+            'test_directory' => '.upstream-cache/libsqlite/test',
+            'test_directory_ready' => $testDirectoryReady,
+            'pattern_count' => count($patterns),
+            'patterns' => $patterns,
+            'expanded_pattern_count' => count($expanded),
+            'expanded_script_count' => $expandedCount,
+            'expanded' => $expanded,
+            'missing_patterns' => $missingPatterns,
+            'invalid_patterns' => $invalidPatterns,
+            'next_gate' => $blocked
+                ? 'hydrate .upstream-cache/libsqlite/test, then expand wildcard selections to concrete .test filenames before counting exact focused coverage'
+                : 'replace wildcard runner notes with concrete selected .test script lists in the manifest evidence',
+            'dependency_closure' => 'no new support component needed; wildcard expansion uses the lane-local manifest and hydrated upstream test directory only',
+        ];
+    }
+
+    /**
      * @return array{scripts: int, tests: int, errors: int}
      */
     private function parseVeryquickResult(mixed $result): array

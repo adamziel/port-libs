@@ -1,5 +1,53 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite upstream wildcard expansion plan - 2026-05-26 04:31 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T042624Z.ready`
+(`closure-libsqlite-upstream-suite-20260526T042624Z`).
+
+Current `refs/heads/main` before integration:
+`433af3da9adff33964197c397b201619d69ae29e`
+(`Integrate libsqlite partial IN-list planner`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=433af3da9adff33964197c397b201619d69ae29e`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `338cd28806b6fc4ca3dc33d9097b871c24c63cab`.
+
+Candidate evidence:
+- Marker fields were complete: `lane=libsqlite`, `patch=...`, and
+  `metadata=...`.
+- Patch sha256 matched
+  `85c6d61d1e80fe616e4a466306c4af72b15043e709899872ce291b62604aa176`.
+- Patch applied cleanly in a detached clean worktree from current `main`.
+- The slice adds a native `SQLiteUpstreamSuiteEvidence::wildcardExpansionPlan()`
+  helper and tests for honest blocked/ready expansion of upstream wildcard
+  runner selections without claiming fresh upstream execution.
+
+Verification:
+- Runtime gate before focused checks: `df -Pk /` reported `86506528` KiB
+  available, `/proc/loadavg` first field was `1.27`, and no no-argument root
+  harness was active.
+- Focused checks passed: `php -l` for
+  `lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` and
+  `lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`; focused
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 165 assertions, 0 failures`; manifest/status JSON
+  validation passed; and `git diff --check -- lanes/libsqlite` passed.
+- Runtime gate before root verification: `df -Pk /` reported `86452104` KiB
+  available, `/proc/loadavg` first field was `1.17`, and no duplicate root
+  harness was active.
+- Serialized root verification passed under
+  `.tmux-team/tmp/clean-integrator-run.lock` with
+  `215 test files, 27044 assertions, 0 failures`.
+
+Decision: accepted. Dashboard publication should run next for the resulting
+source commit before any further clean-patch intake.
+
 ## Clean-patch intake accepted - libsqlite partial IN-list planner subset - 2026-05-26 04:18 UTC
 
 Accepted marker:
