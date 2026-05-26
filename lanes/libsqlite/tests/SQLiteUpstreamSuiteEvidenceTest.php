@@ -141,4 +141,31 @@ return [
         $t->same('failed', $failed['status']);
         $t->same(1, $failed['result_errors']);
     },
+    'builds a machine readable focused result ledger from accepted runner notes' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $ledger = $evidence->focusedResultLedger();
+
+        $t->true($ledger['entry_count'] >= 30, 'Expected accepted focused result notes to be inventoried');
+        $t->true($ledger['passed_count'] >= 14, 'Expected zero-error focused result notes to be counted');
+        $t->same(0, $ledger['failed_count']);
+        $t->true($ledger['reused_or_skipped_count'] >= 10, 'Expected missing-cache/reused-evidence notes to remain explicit');
+        $t->true($ledger['result_tests_total'] >= 50000, 'Expected parsed focused upstream test counts to be accumulated');
+        $t->same(0, $ledger['result_errors_total']);
+        $t->true(in_array('json101.test', $ledger['unique_scripts'], true), 'Expected json101.test to be indexed');
+        $t->true(in_array('jsonb01.test', $ledger['unique_scripts'], true), 'Expected jsonb01.test to be indexed');
+
+        $jsonPretty = $ledger['entries']['focusedJsonPretty'] ?? null;
+        $t->true(is_array($jsonPretty), 'Expected focusedJsonPretty ledger entry');
+        $t->same('passed', $jsonPretty['status']);
+        $t->same(45007, $jsonPretty['result_tests']);
+        $t->same(0, $jsonPretty['result_errors']);
+        $t->same(false, $jsonPretty['uses_cached_or_missing_cache_evidence']);
+        $t->true(in_array('json106.test', $jsonPretty['scripts'], true), 'Expected json106.test in focusedJsonPretty');
+
+        $subsetRunRecords = $ledger['entries']['focusedUpstreamSubsetRunRecords'] ?? null;
+        $t->true(is_array($subsetRunRecords), 'Expected focusedUpstreamSubsetRunRecords ledger entry');
+        $t->same('not-counted', $subsetRunRecords['status']);
+        $t->same(true, $subsetRunRecords['uses_cached_or_missing_cache_evidence']);
+        $t->contains('isolated worktree lacked a hydrated upstream cache', (string) $subsetRunRecords['skip_reason']);
+    },
 ];

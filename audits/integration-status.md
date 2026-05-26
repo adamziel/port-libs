@@ -1,5 +1,52 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite focused result ledger - 2026-05-26 03:01 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T025226Z.ready`
+from lane `libsqlite`.
+
+Candidate evidence:
+- Marker contained required `lane=libsqlite`, `patch=`, and `metadata=`
+  fields.
+- Marker base `fcb7aa76453b4ae598316188f185b03a9d390c00` matched current
+  `main` before candidate work.
+- Worker log reported focused checks passing for syntax,
+  `SQLiteUpstreamSuiteEvidenceTest.php`, manifest/status JSON validation, and
+  `git diff --check -- lanes/libsqlite`.
+- The patch applied cleanly in detached clean worktree
+  `.tmux-team/tmp/clean-integrator-worktree-20260526T025830Z`.
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=fcb7aa76453b4ae598316188f185b03a9d390c00`, matching current
+  `main` before candidate work.
+- Live dashboard commit reported
+  `b3275d1b3ca2eb98211e8bb2de4e974adaeb06f6`.
+
+Focused verification:
+- `php -l` passed for `SQLiteUpstreamSuiteEvidence.php` and
+  `SQLiteUpstreamSuiteEvidenceTest.php`.
+- `php -r` JSON validation passed for
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 85 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates before root were open: `/` had `86008244` KiB available, load
+  was `1.13`, and no exact no-argument root harness was already running.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 26920 assertions, 0 failures`.
+
+Decision: accepted. This commit adds a machine-readable focused upstream result
+ledger for libsqlite suite evidence and updates libsqlite manifest/status
+evidence only. No Dolt marker was considered and non-libsqlite intake remains
+held.
+
+Dashboard publication should run next for the accepted source commit.
+
 ## Clean-patch intake accepted - libsqlite JSON aggregate FILTER dispatch - 2026-05-26 02:49 UTC
 
 Accepted marker:

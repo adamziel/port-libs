@@ -1,5 +1,39 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Focused Result Ledger
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds a machine-readable ledger over
+the accepted focused SQLite runner notes. `SQLiteUpstreamSuiteEvidence` now
+parses `runnerStatus.focusedResults` into entry count, pass/fail/not-counted
+counts, accumulated parsed test/error totals, unique selected `.test` scripts,
+and per-entry cached-evidence or missing-cache skip reasons.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice makes the already accepted focused evidence easier to audit
+without treating reused evidence or missing-cache notes as fresh upstream runs.
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local manifest reader, performs no shell-out, and counts no
+shared support-library progress.
+
 ## Focused Native Mapping: Upstream Runner Coverage Audit
 
 Date: 2026-05-26

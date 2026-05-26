@@ -132,6 +132,79 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function focusedResultLedger(): array
+    {
+        $denominator = $this->manifest['benchmarkDenominator'] ?? [];
+        $runner = is_array($denominator) && is_array($denominator['runnerStatus'] ?? null)
+            ? $denominator['runnerStatus']
+            : [];
+        $focusedResults = is_array($runner['focusedResults'] ?? null) ? $runner['focusedResults'] : [];
+
+        $entries = [];
+        $passed = 0;
+        $failed = 0;
+        $reusedOrSkipped = 0;
+        $resultTests = 0;
+        $resultErrors = 0;
+        $scriptSelections = [];
+
+        foreach ($focusedResults as $name => $description) {
+            if (!is_string($name) || !is_string($description)) {
+                continue;
+            }
+
+            $scripts = $this->extractTestScriptTokens($description);
+            foreach ($scripts as $script) {
+                $scriptSelections[$script] = true;
+            }
+
+            $parsed = $this->parseFocusedResultDescription($description);
+            $status = $parsed['errors'] > 0 ? 'failed' : ($parsed['tests'] > 0 ? 'passed' : 'not-counted');
+            $usesCachedEvidence = $this->descriptionUsesCachedEvidence($description);
+            if ($usesCachedEvidence) {
+                $reusedOrSkipped++;
+            }
+            if ($status === 'passed') {
+                $passed++;
+            } elseif ($status === 'failed') {
+                $failed++;
+            }
+
+            $resultTests += $parsed['tests'];
+            $resultErrors += $parsed['errors'];
+            $entries[$name] = [
+                'status' => $status,
+                'scripts' => $scripts,
+                'script_count' => count($scripts),
+                'result_tests' => $parsed['tests'],
+                'result_errors' => $parsed['errors'],
+                'uses_cached_or_missing_cache_evidence' => $usesCachedEvidence,
+                'skip_reason' => $usesCachedEvidence
+                    ? 'focused result reused accepted evidence or skipped fresh upstream execution because the isolated worktree lacked a hydrated upstream cache'
+                    : null,
+            ];
+        }
+
+        ksort($entries);
+        ksort($scriptSelections);
+
+        return [
+            'entry_count' => count($entries),
+            'passed_count' => $passed,
+            'failed_count' => $failed,
+            'not_counted_count' => count($entries) - $passed - $failed,
+            'reused_or_skipped_count' => $reusedOrSkipped,
+            'result_tests_total' => $resultTests,
+            'result_errors_total' => $resultErrors,
+            'unique_script_count' => count($scriptSelections),
+            'unique_scripts' => array_keys($scriptSelections),
+            'entries' => $entries,
+        ];
+    }
+
+    /**
      * @return array{scripts: int, tests: int, errors: int}
      */
     private function parseVeryquickResult(mixed $result): array
@@ -149,6 +222,40 @@ final class SQLiteUpstreamSuiteEvidence
             'errors' => (int) $matches[2],
             'tests' => (int) $matches[3],
         ];
+    }
+
+    /**
+     * @return array{tests: int, errors: int}
+     */
+    private function parseFocusedResultDescription(string $description): array
+    {
+        if (preg_match('/with\s+(\d+)\s+errors?\s+out\s+of\s+(\d+)\s+tests?/i', $description, $matches) === 1) {
+            return [
+                'tests' => (int) $matches[2],
+                'errors' => (int) $matches[1],
+            ];
+        }
+
+        if (preg_match('/(\d+)\s+errors?\s+out\s+of\s+(\d+)\s+tests?/i', $description, $matches) === 1) {
+            return [
+                'tests' => (int) $matches[2],
+                'errors' => (int) $matches[1],
+            ];
+        }
+
+        return ['tests' => 0, 'errors' => 0];
+    }
+
+    private function descriptionUsesCachedEvidence(string $description): bool
+    {
+        $lower = strtolower($description);
+
+        return str_contains($lower, 'reused')
+            || str_contains($lower, 'did not start upstream testfixture')
+            || str_contains($lower, 'no new upstream runner')
+            || str_contains($lower, 'no fresh upstream runner')
+            || str_contains($lower, 'did not contain the hydrated upstream cache')
+            || str_contains($lower, 'has no hydrated .upstream-cache');
     }
 
     /**
