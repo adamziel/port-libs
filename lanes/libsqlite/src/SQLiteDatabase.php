@@ -400,6 +400,50 @@ final class SQLiteDatabase
         );
     }
 
+    public function planBtreePageAllocation(
+        int $count,
+        ?int $parentPageNumber,
+        bool $allowAppend = true,
+    ): SQLiteFreelistAllocationPlan {
+        if ($parentPageNumber !== null && $parentPageNumber < 2) {
+            throw new \InvalidArgumentException('SQLite b-tree allocation parent page must be null or at page 2 or later');
+        }
+
+        $allocationPlan = $this->planPageAllocation($count, $allowAppend);
+        $updatedPointerMapPages = [];
+        if ($this->isAutoVacuum() && $allocationPlan->allocatedPageNumbers !== []) {
+            $updates = [];
+            foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
+                $updates[$pageNumber] = [
+                    'type' => $parentPageNumber === null
+                        ? SQLitePointerMapEntry::ROOT_PAGE
+                        : SQLitePointerMapEntry::BTREE_PAGE,
+                    'parent_page_number' => $parentPageNumber ?? 0,
+                ];
+            }
+            $updatedPointerMapPages = $this->pointerMapPageImagesForUpdates(
+                $allocationPlan->pageImages(),
+                $updates,
+                $allocationPlan->databasePageCount,
+            );
+            unset($updatedPointerMapPages[1]);
+            foreach (array_keys($allocationPlan->updatedFreelistPages) as $freelistPageNumber) {
+                unset($updatedPointerMapPages[$freelistPageNumber]);
+            }
+        }
+
+        return new SQLiteFreelistAllocationPlan(
+            $allocationPlan->allocatedPageNumbers,
+            $allocationPlan->appendedPageNumbers,
+            $allocationPlan->firstPage,
+            $allocationPlan->updatedFreelistPages,
+            $allocationPlan->databasePageCount,
+            $allocationPlan->firstFreelistTrunkPage,
+            $allocationPlan->freelistPageCount,
+            $updatedPointerMapPages,
+        );
+    }
+
     public function planPageFree(int $pageNumber, bool $secureDelete = false): SQLiteFreelistFreePlan
     {
         return $this->planPageFreeList([$pageNumber], $secureDelete);

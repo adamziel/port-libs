@@ -628,6 +628,110 @@ return [
         $t->same('btree-page', $postAutoDatabase->pointerMapEntryForPage(106)->typeName());
         $t->same(3, $postAutoDatabase->pointerMapEntryForPage(106)->parentPageNumber);
     },
+    'plans auto-vacuum pointer-map ownership while allocating reusable btree pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 8);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 36, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 52, 4);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            $schemaCell([
+                'table',
+                'wp_options',
+                'wp_options',
+                3,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ], 1),
+        ], $pageSize, 100, $firstPage);
+
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            5 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+            6 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+            7 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+            8 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+
+        $database = SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $pointerMapPage
+            . $tableLeafPage([
+                SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            ], $pageSize)
+            . $tableLeafPage([
+                SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+            ], $pageSize)
+            . SQLiteFreelistTrunkPage::assemble(null, [6, 7], $pageSize)
+            . str_repeat("\0", $pageSize)
+            . str_repeat("\0", $pageSize)
+            . $tableLeafPage([
+                SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'blogname', 'Ported SQLite', 'yes'])),
+            ], $pageSize),
+        );
+
+        $plainAllocation = $database->planPageAllocation(2, false);
+        $btreeAllocation = $database->planBtreePageAllocation(2, 3, false);
+        $rootAllocation = $database->planBtreePageAllocation(1, null, false);
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $btreeAllocation->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $pageNumber <= $database->pageCount()
+                ? $database->page($pageNumber)
+                : str_repeat("\0", $pageSize);
+        }
+        foreach ($btreeAllocation->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+
+        $t->same([6, 7], $btreeAllocation->allocatedPageNumbers);
+        $t->same([], $btreeAllocation->appendedPageNumbers);
+        $t->same(8, $btreeAllocation->databasePageCount);
+        $t->same(5, $btreeAllocation->firstFreelistTrunkPage);
+        $t->same(1, $btreeAllocation->freelistPageCount);
+        $t->same([5], array_keys($btreeAllocation->updatedFreelistPages));
+        $t->same([2], array_keys($btreeAllocation->updatedPointerMapPages));
+        $t->same([1, 2, 5], array_keys($btreeAllocation->pageImages()));
+        $t->same([
+            'allocated_page_numbers' => [6, 7],
+            'appended_page_numbers' => [],
+            'database_page_count' => 8,
+            'first_freelist_trunk_page' => 5,
+            'freelist_page_count' => 1,
+            'updated_freelist_page_numbers' => [5],
+            'updated_pointer_map_page_numbers' => [2],
+        ], $btreeAllocation->toArray());
+        $t->same([], $plainAllocation->updatedPointerMapPages);
+        $t->same([1, 5], array_keys($plainAllocation->pageImages()));
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(6)->typeName());
+        $t->same(3, $postDatabase->pointerMapEntryForPage(6)->parentPageNumber);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(7)->typeName());
+        $t->same(3, $postDatabase->pointerMapEntryForPage(7)->parentPageNumber);
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same([5], $postDatabase->freelistPageNumbers());
+        $t->same([5], $postDatabase->freelistAllocationOrder());
+        $t->same([6], $database->freelistAllocationOrder(1));
+        $t->same([6], $rootAllocation->allocatedPageNumbers);
+        $t->same('root-page', SQLiteDatabase::fromBytes(
+            $schemaPage
+            . $rootAllocation->updatedPointerMapPages[2]
+            . $database->page(3)
+            . $database->page(4)
+            . $rootAllocation->updatedFreelistPages[5]
+            . $database->page(6)
+            . $database->page(7)
+            . $database->page(8),
+        )->pointerMapEntryForPage(6)->typeName());
+        $t->throws(InvalidArgumentException::class, static fn () => $database->planBtreePageAllocation(1, 1));
+    },
     'sqlite varints decode one and multi byte values' => static function (TestRunner $t): void {
         $t->same([127, 1], SQLiteVarint::decode("\x7f"));
         $t->same([128, 2], SQLiteVarint::decode("\x81\x00"));

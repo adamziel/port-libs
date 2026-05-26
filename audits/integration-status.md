@@ -117044,3 +117044,38 @@ Decision: accepted. This is not a status-only marker: it adds a lane-local group
 Cleanup:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T201207Z` still has modified and added lane files, so it was preserved and not removed.
 - Accepted ready/patch/metadata handoff artifacts may be removed after commit publication; worker log/prompt are preserved with the dirty originating worktree evidence.
+## Integration accepted - libsqlite auto-vacuum B-tree page reuse - 2026-05-26T20:27:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T201521Z.ready`
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `1a7e7562095e090a68842acb1fea5351051b756a` (`Integrate libsqlite grouped aggregate semantics`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `1a7e7562095e090a68842acb1fea5351051b756a`, `generated` `2026-05-26 20:23:09 UTC`, and `dashboardCommit` `3734880923ed178fff3bdb67385d956e105c349f`.
+
+Candidate decision:
+- Selected the bounded B-tree auto-vacuum page-reuse marker over current-base scalar and suite-evidence markers because it adds non-overlapping native storage behavior, a WordPress repair-preview smoke, and the strongest sampled focused assertion delta.
+- Marker base `33341069efef591393dd53e33effc2d609fed2e9` was one accepted source behind current `main`. Direct apply failed only in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, test, example, and note hunks applied cleanly with those two JSON files reconciled minimally from current `1a7e7562`.
+- Scope: `SQLiteDatabase::planBtreePageAllocation()`, pointer-map page images on allocation plans, focused auto-vacuum assertions for free-page to `btree-page`/`root-page` rewrites, and `wordpress-autovacuum-btree-page-reuse-plan.php`.
+
+Focused verification in detached candidate `.tmux-team/clean-candidates/integrate-libsqlite-btree-20260526T201521Z` with repo-local `TMPDIR=.tmp-root`:
+- Runtime gates before focused checks: `df -Pk /` reported `87947680` KiB available; `/proc/loadavg` one-minute load was `1.63`.
+- `php -l lanes/libsqlite/src/SQLiteFreelistAllocationPlan.php` passed.
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-autovacuum-btree-page-reuse-plan.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3358 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-autovacuum-btree-page-reuse-plan.php` emitted valid JSON.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Runtime gates before root: `df -Pk /` reported `87831776` KiB available; `/proc/loadavg` one-minute load was `1.60`; no exact `php tools/run-tests.php` no-argument root process was already running.
+- Serialized no-argument root run under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=.tmp-root` passed: `215 test files, 28492 assertions, 0 failures`.
+- Root assertion delta versus current accepted source `1a7e7562` evidence (`28466`) is `+26`.
+
+Decision: accepted after focused checks, WordPress smoke, `git diff --check`, and serialized root verification. Dashboard publication should run next after commit because this pass moves source beyond the currently live `1a7e7562` dashboard.
+
+Cleanup:
+- Accepted marker artifacts were removed after commit publication.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T201521Z` still contains modified/added copies of the accepted lane files, so it was preserved as cleanup debt rather than removed.

@@ -1,5 +1,32 @@
 # libsqlite Root Harness Notes
 
+## B-tree Auto-vacuum Page-reuse Pointer-map Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the B-tree auto-vacuum page-reuse pointer-map
+slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteFreelistAllocationPlan.php
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/examples/wordpress-autovacuum-btree-page-reuse-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-autovacuum-btree-page-reuse-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused test count moved from 3301 to 3327 assertions, +26. Root
+harness status: not run - isolated micro-slice. The WordPress smoke reported
+reusable freelist pages `[6,7]` reallocated as B-tree child pages, the first
+freelist trunk left at page 5 with one free page, and auto-vacuum pointer-map
+entries rewritten from `free-page` to `btree-page` with parent page 3.
+
+Dependency closure: no new support component is needed. The implementation
+reuses lane-local freelist allocation, pointer-map update, B-tree page, and
+WordPress option traversal helpers.
+
 ## Isolated SQL Window Function Slice
 
 Date: 2026-05-26
