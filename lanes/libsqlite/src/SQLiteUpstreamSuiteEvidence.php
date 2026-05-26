@@ -911,6 +911,7 @@ final class SQLiteUpstreamSuiteEvidence
 
         $progress = $this->parseRunnerProgress($stdoutText);
         $failures = $this->extractRunnerFailures($auditText . "\n" . $stdoutText);
+        $failureBlockers = $this->classifyRunnerFailureBlockers($failures);
         $activeGate = $processSnapshot === '' ? $this->activeFullSuiteRunnerGate('') : $this->activeFullSuiteRunnerGate($processSnapshot);
 
         $status = 'running-or-incomplete';
@@ -949,6 +950,7 @@ final class SQLiteUpstreamSuiteEvidence
                 'runner_time' => $runnerTime,
                 'failure_count' => count($failures),
                 'failures' => $failures,
+                'failure_blockers' => $failureBlockers,
             ],
             'progress' => $progress,
             'active_gate' => $activeGate,
@@ -1529,6 +1531,42 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return $failures;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $failures
+     * @return list<array<string, mixed>>
+     */
+    private function classifyRunnerFailureBlockers(array $failures): array
+    {
+        $blockers = [];
+        foreach ($failures as $failure) {
+            $diagnostic = is_string($failure['diagnostic'] ?? null) ? $failure['diagnostic'] : '';
+            $script = is_string($failure['script'] ?? null) ? $failure['script'] : null;
+            $case = is_string($failure['case'] ?? null) ? $failure['case'] : null;
+            $kind = is_string($failure['kind'] ?? null) ? $failure['kind'] : null;
+
+            $id = 'upstream-runner-failure';
+            $category = 'upstream-suite-failure';
+            $nextGate = 'keep the release/all artifact uncounted, then rerun only after a focused repro explains whether the failed script is an upstream/runtime issue or a native parity issue';
+            if (str_contains($diagnostic, 'UndefinedBehaviorSanitizer') || str_contains($diagnostic, 'runtime error: applying non-zero offset')) {
+                $id = 'upstream-runtime-sanitizer';
+                $category = 'upstream-runtime-environment';
+                $nextGate = 'record as failed release-runner evidence; rerun release only with a supervisor-approved sanitizer decision or a focused repro for the exact script and case';
+            }
+
+            $blockers[] = [
+                'id' => $id,
+                'category' => $category,
+                'script' => $script,
+                'case' => $case,
+                'kind' => $kind,
+                'diagnostic' => $diagnostic === '' ? null : $diagnostic,
+                'next_gate' => $nextGate,
+            ];
+        }
+
+        return $blockers;
     }
 
     /**

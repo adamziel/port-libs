@@ -891,6 +891,11 @@ MD;
         $t->same('Sanitize', $record['results']['failures'][0]['kind']);
         $t->same('fts5aux-3.1', $record['results']['failures'][0]['case']);
         $t->contains('UndefinedBehaviorSanitizer', $record['results']['failures'][0]['diagnostic']);
+        $t->same('upstream-runtime-sanitizer', $record['results']['failure_blockers'][0]['id']);
+        $t->same('upstream-runtime-environment', $record['results']['failure_blockers'][0]['category']);
+        $t->same('ext/fts5/test/fts5aux.test', $record['results']['failure_blockers'][0]['script']);
+        $t->same('fts5aux-3.1', $record['results']['failure_blockers'][0]['case']);
+        $t->contains('supervisor-approved sanitizer decision', $record['results']['failure_blockers'][0]['next_gate']);
         $t->contains('record the failed upstream runner artifact', $record['next_gate']);
     },
     'keeps missing bounded runner artifact files as a blocked evidence record' => static function (TestRunner $t): void {

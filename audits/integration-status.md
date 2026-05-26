@@ -115006,3 +115006,49 @@ Files staged:
 - `lanes/libsqlite/src/SQLiteDatabase.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+## Integration accepted - libsqlite runner failure blocker classification - 2026-05-26 12:18 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T120725Z.ready`.
+
+Accepted commit: pending at recording time.
+
+Scope:
+- Lane-local `libsqlite` upstream-suite evidence slice.
+- Adds `results.failure_blockers[]` classification to guarded runner artifact parsing.
+- Classifies the completed `libsqlite-release-notty-runner-20260526T102446Z` `ext/fts5/test/fts5aux.test` / `fts5aux-3.1` UndefinedBehaviorSanitizer failure as `upstream-runtime-environment` / `upstream-runtime-sanitizer`.
+- Keeps the failed release artifact uncounted for release/all parity and records the next gate as a supervisor-approved sanitizer decision or focused `fts5aux` repro before another counted broad rerun.
+
+Dashboard outage override evidence:
+- Used `.tmux-team/tmp/pages-outage-integration-override-20260526T1215Z.md`, which existed and had no `consumed_at:` line before this pass.
+- Override target matched the accepted marker exactly.
+- Current accepted source head before integration was `bdf2e383811d37be14d1af4613f3bc5ba8e00361` (`Integrate libsqlite runner failure diagnostics`).
+- GitHub `main` was `b80cd95a0e41a6eccf3a4737e7c71443f98a87bc` and its `porting-summary.json` reported source `bdf2e383811d37be14d1af4613f3bc5ba8e00361`.
+- GitHub legacy `gh-pages` was `afaffbd1649bb7878704e546eb4e709c3c89babd` and its `porting-summary.json` reported source `bdf2e383811d37be14d1af4613f3bc5ba8e00361`.
+- Cache-busted live Pages JSON still reported source `2464928fd3673d823de3ec22a6e1c6c4f38b6d85`.
+- `gh api repos/adamziel/port-libs/pages` reported legacy Pages source `gh-pages` `/` with site status `errored`.
+- `gh api repos/adamziel/port-libs/pages/builds/latest` reported build `1015871289`, status `building`, commit `afaffbd1649bb7878704e546eb4e709c3c89babd`, created and updated `2026-05-26T12:10:29Z`.
+- GitHub Status reported `Partial System Outage`, Actions `major_outage`, Pages `degraded_performance`, and active incident `Incident with Actions and Pages`.
+
+Runtime gate evidence:
+- Before focused checks, `df -Pk /` reported `86072360` KiB available, `/proc/loadavg` one-minute load was `1.98`, and no exact no-argument root harness was active.
+- Before root, `df -Pk /` reported `86070956` KiB available, `/proc/loadavg` one-minute load was `2.23`, and no exact no-argument root harness was active.
+- Inside the serialized root lock, `df -Pk /` reported `86070676` KiB available and `/proc/loadavg` one-minute load was `2.05`.
+
+Verification:
+- Patch SHA-256 matched marker metadata: `0c22de8bac8647904ee4bef7d2d77af1c5f7883523231de4057131b347501dd3`.
+- Detached clean worktree from `refs/heads/main` at `bdf2e383811d37be14d1af4613f3bc5ba8e00361`.
+- `git apply --check` passed.
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed: `1 test files, 429 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- `git diff --check` passed.
+- Serialized clean-candidate root `php tools/run-tests.php` passed: `215 test files, 27600 assertions, 0 failures`.
+
+Ready queue evidence:
+- Remaining ready-marker count before selection was `5179`.
+- Dolt markers were not considered.
+- Non-libsqlite markers were ignored under the active libsqlite-only intake priority.
+
+Dashboard publication should run next because accepted source moved while live Pages still served stale source `2464928fd3673d823de3ec22a6e1c6c4f38b6d85` before acceptance.

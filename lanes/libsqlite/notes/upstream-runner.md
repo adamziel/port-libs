@@ -1,5 +1,45 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Runner Failure Blocker Classification
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds machine-readable blocker
+classification for parsed guarded-runner failures. `boundedRunnerArtifactRecord()`
+now includes `results.failure_blockers[]`, so the completed
+`libsqlite-release-notty-runner-20260526T102446Z` artifact is not just a failed
+release record; its `ext/fts5/test/fts5aux.test` `fts5aux-3.1`
+UndefinedBehaviorSanitizer diagnostic is explicitly categorized as
+`upstream-runtime-environment` / `upstream-runtime-sanitizer`.
+
+The artifact remains failed and uncounted for release/all parity. The next gate
+is a supervisor-approved sanitizer decision or a focused `fts5aux` repro record
+from the accepted integration HEAD before another broad release/all run is
+counted.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused upstream-runner blocker-classification evidence row while
+preserving the accepted static SQLite denominator and veryquick evidence. No
+fresh broad upstream runner was started by this isolated slice.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteUpstreamSuiteEvidenceTest` passed
+with 1 selected test file, 429 assertions, and 0 failures; manifest/status JSON
+validation passed; lane diff check passed.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+guarded-runner artifact parsing only; it does not activate shared process,
+sanitizer, Tcl, or filesystem support.
+
 ## Focused Native Mapping: Guarded Release Failure Diagnostics
 
 Date: 2026-05-26
