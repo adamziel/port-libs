@@ -3112,6 +3112,25 @@ scalar dispatch coverage, not a full SELECT/VDBE executor.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion and PHP runtime math primitives.
 
+## SQLite Capability Preflight Scenario
+
+Native SQL execution helpers now include bounded SQLite introspection scalar
+behavior for local WordPress database compatibility checks. The
+`examples/wordpress-sqlite-capability-preflight.php` smoke reports
+`sqlite_version()`, `sqlite_source_id()`, `sqlite_compileoption_get()`, and
+`sqlite_compileoption_used()` diagnostics for copied databases before import or
+repair without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added 19
+focused assertions for version/source-id introspection, compile-option lookup,
+`SQLITE_` prefix normalization, option-name matching independent of configured
+values, NULL handling, and strict arity/type errors. This is intentionally
+scalar dispatch coverage, not a full PRAGMA or SELECT/VDBE executor.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion and a deterministic lane-local compile-option
+inventory tied to the accepted upstream manifest commit.
+
 ## Numeric Aggregate Option Size Scenario
 
 Native SQL execution helpers now include bounded `count()`, `sum()`, `total()`,

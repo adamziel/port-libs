@@ -13,7 +13,7 @@ if ($functionName === '--self-test') {
     $functionName = 'coalesce';
     $arguments = ['null', 'published'];
 } elseif ($functionName === null) {
-    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php abs|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|mod|ln|log|log10|log2|exp|sin|cos|tan|atan|atan2|acos|asin|pi|typeof|quote|coalesce|ifnull|nullif|min|max|lower|upper|length|substr|substring|trim|ltrim|rtrim|replace|instr|concat|concat_ws|printf|format|like|glob|likely|unlikely|likelihood|iif|if|hex|unhex|char|unicode|octet_length|zeroblob|random|randomblob|date|time|datetime|julianday|unixepoch|strftime|timediff arg...\n");
+    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php abs|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|mod|ln|log|log10|log2|exp|sin|cos|tan|atan|atan2|acos|asin|pi|typeof|quote|coalesce|ifnull|nullif|min|max|lower|upper|length|substr|substring|trim|ltrim|rtrim|replace|instr|concat|concat_ws|printf|format|like|glob|likely|unlikely|likelihood|iif|if|hex|unhex|char|unicode|octet_length|zeroblob|random|randomblob|date|time|datetime|julianday|unixepoch|strftime|timediff|sqlite_version|sqlite_source_id|sqlite_compileoption_get|sqlite_compileoption_used arg...\n");
     exit(1);
 }
 
@@ -75,6 +75,13 @@ echo json_encode([
         'unixepoch' => SQLiteCoreScalarFunction::sqlFunctionArguments('unixepoch', ['2026-05-26 16:12:34']),
         'strftime' => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%Y-%m-%dT%H:%M:%SZ', 1779811954, 'unixepoch']),
         'timediff' => SQLiteCoreScalarFunction::sqlFunctionArguments('timediff', ['2026-05-27 18:42:34', '2026-05-26 16:12:34']),
+    ],
+    'capabilityPreview' => [
+        'version' => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_version', []),
+        'sourceId' => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_source_id', []),
+        'compileOption0' => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_compileoption_get', [0]),
+        'fts5' => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_compileoption_used', ['ENABLE_FTS5']),
+        'jsonOmitted' => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_compileoption_used', ['OMIT_JSON']),
     ],
     'noncePreviewBytes' => strlen(SQLiteCoreScalarFunction::sqlFunctionArguments('randomblob', [12])->bytes),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

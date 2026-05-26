@@ -1139,3 +1139,29 @@ count(DISTINCT X), sum, total, avg, min, max, FILTER-style autoload selection,
 NULL skipping, and rolling totals. Manifest/status JSON decoded successfully;
 lane diff check passed. The root harness was not run because this was an
 isolated micro-slice.
+
+## Core Introspection Scalar Slice
+
+Focused lane verification for the SQL execution/planner introspection scalar
+slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php -l lanes/libsqlite/examples/wordpress-sqlite-capability-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-sqlite-capability-preflight.php
+php -r "json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3026 assertions, and 0 failures, adding 19 focused assertions
+for `sqlite_version()`,
+`sqlite_source_id()`, `sqlite_compileoption_get()`, and
+`sqlite_compileoption_used()`. The WordPress smoke reported SQLite version,
+source-id, compile-option preview, and capability gates for FTS, RTree, math,
+JSON omission, threadsafe, and default page-size metadata. Status JSON decoded
+successfully; lane diff check passed. The root harness was not run because this
+was an isolated micro-slice.

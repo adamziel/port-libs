@@ -6,6 +6,49 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteCoreScalarFunction
 {
+    public const TARGET_SQLITE_VERSION = '3.50.0';
+    public const TARGET_SQLITE_SOURCE_ID = '2026-05-26 8f70ec615f4cd247d36f92a22c99f65ebbcc22a7';
+
+    /**
+     * @var list<string>
+     */
+    private const COMPILE_OPTIONS = [
+        'ATOMIC_INTRINSICS=1',
+        'DEFAULT_AUTOVACUUM',
+        'DEFAULT_CACHE_SIZE=-2000',
+        'DEFAULT_FILE_FORMAT=4',
+        'DEFAULT_PAGE_SIZE=4096',
+        'DEFAULT_RECURSIVE_TRIGGERS',
+        'DEFAULT_SECTOR_SIZE=4096',
+        'DEFAULT_SYNCHRONOUS=2',
+        'DEFAULT_WAL_AUTOCHECKPOINT=1000',
+        'DEFAULT_WAL_SYNCHRONOUS=2',
+        'ENABLE_COLUMN_METADATA',
+        'ENABLE_DBSTAT_VTAB',
+        'ENABLE_FTS3',
+        'ENABLE_FTS4',
+        'ENABLE_FTS5',
+        'ENABLE_GEOPOLY',
+        'ENABLE_MATH_FUNCTIONS',
+        'ENABLE_RTREE',
+        'ENABLE_SESSION',
+        'ENABLE_STAT4',
+        'ENABLE_UNLOCK_NOTIFY',
+        'MAX_ATTACHED=10',
+        'MAX_COLUMN=2000',
+        'MAX_COMPOUND_SELECT=500',
+        'MAX_EXPR_DEPTH=1000',
+        'MAX_FUNCTION_ARG=1000',
+        'MAX_LENGTH=1000000000',
+        'MAX_LIKE_PATTERN_LENGTH=50000',
+        'MAX_PAGE_COUNT=4294967294',
+        'MAX_PAGE_SIZE=65536',
+        'MAX_SQL_LENGTH=1000000000',
+        'MAX_TRIGGER_DEPTH=1000',
+        'MAX_VARIABLE_NUMBER=32766',
+        'THREADSAFE=1',
+    ];
+
     /**
      * @param list<mixed> $arguments
      */
@@ -50,8 +93,102 @@ final class SQLiteCoreScalarFunction
             'random' => self::random($arguments),
             'randomblob' => self::randomblob($arguments),
             'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'timediff' => self::dateTime($normalized, $arguments),
+            'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used' => self::introspection($normalized, $arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function introspection(string $functionName, array $arguments): string|int|null
+    {
+        return match ($functionName) {
+            'sqlite_version' => self::sqliteVersion($arguments),
+            'sqlite_source_id' => self::sqliteSourceId($arguments),
+            'sqlite_compileoption_get' => self::sqliteCompileOptionGet($arguments),
+            'sqlite_compileoption_used' => self::sqliteCompileOptionUsed($arguments),
+            default => throw new \InvalidArgumentException("Unsupported SQLite introspection function: {$functionName}"),
+        };
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function sqliteVersion(array $arguments): string
+    {
+        self::assertArity('sqlite_version', $arguments, 0, 0);
+
+        return self::TARGET_SQLITE_VERSION;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function sqliteSourceId(array $arguments): string
+    {
+        self::assertArity('sqlite_source_id', $arguments, 0, 0);
+
+        return self::TARGET_SQLITE_SOURCE_ID;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function sqliteCompileOptionGet(array $arguments): ?string
+    {
+        self::assertArity('sqlite_compileoption_get', $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $index = self::coerceInteger($arguments[0]);
+
+        return self::COMPILE_OPTIONS[$index] ?? null;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function sqliteCompileOptionUsed(array $arguments): ?int
+    {
+        self::assertArity('sqlite_compileoption_used', $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $requested = self::normalizeCompileOptionName(self::coerceText('sqlite_compileoption_used', $arguments[0], 'first'));
+        if ($requested === '') {
+            return 0;
+        }
+
+        foreach (self::COMPILE_OPTIONS as $option) {
+            if (self::compileOptionMatches($requested, $option)) {
+                return 1;
+            }
+        }
+
+        return 0;
+    }
+
+    private static function compileOptionMatches(string $requested, string $compiled): bool
+    {
+        $compiled = self::normalizeCompileOptionName($compiled);
+        if ($requested === $compiled) {
+            return true;
+        }
+
+        $compiledName = strtok($compiled, '=');
+        $requestedName = strtok($requested, '=');
+
+        return is_string($compiledName) && is_string($requestedName) && $requestedName === $compiledName;
+    }
+
+    private static function normalizeCompileOptionName(string $option): string
+    {
+        $option = strtoupper(trim($option));
+
+        return str_starts_with($option, 'SQLITE_') ? substr($option, 7) : $option;
     }
 
     /**

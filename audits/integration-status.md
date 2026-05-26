@@ -116252,3 +116252,53 @@ Cleanup:
 - Worker worktree cleanup must preserve any still-dirty worker worktree; remove only if clean and inactive.
 
 Dashboard publication should run next because accepted source moved and live Pages will lag the new commit until the dashboard updater publishes it.
+
+## Integration accepted - libsqlite SQLite capability scalars - 2026-05-26T17:36:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T172532Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Candidate evidence:
+- Slice: `priority-libsqlite-full-suite-20260526T172532Z`.
+- Marker base was `610f805da730a9d57e67290c188b3b967dcf750e`; current accepted source before integration was `10297900f4d45e1d49c86a7b62a72bac147ffd18`.
+- Patch sha256 matched marker metadata: `9b3e364f8c30535567fb4656410fdb9c7ea28bfe1984c180b70949f7f573ccfd`.
+- The behavior patch applied cleanly in detached candidate `.tmux-team/tmp/clean-integrator-check-priority-20260526T173106Z` after excluding stale `lanes/libsqlite/lane-status.json`; lane status was merged manually to preserve current accepted permutation-runner evidence while recording this scalar slice.
+- Added bounded native scalar dispatch for `sqlite_version()`, `sqlite_source_id()`, `sqlite_compileoption_get()`, and `sqlite_compileoption_used()` plus a WordPress SQLite capability preflight smoke.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `10297900f4d45e1d49c86a7b62a72bac147ffd18` (`Integrate libsqlite permutation readiness gate`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `10297900f4d45e1d49c86a7b62a72bac147ffd18`; `generatedAt` was absent from the returned JSON shape.
+- Dashboard guard was open before marker inspection.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `118060264` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `1.04`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before focused/root checks.
+- Focused and root checks used repo-local `TMPDIR=$candidate/.tmp-root`.
+
+Focused verification passed in the clean candidate worktree:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-sqlite-capability-preflight.php` passed.
+- `php -r "json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3026 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-sqlite-capability-preflight.php` passed.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php sqlite_compileoption_used ENABLE_FTS5` passed and returned result `1`.
+- `git diff --check -- lanes/libsqlite` and full `git diff --check` passed.
+
+Serialized root result:
+- Command: `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`.
+- Result: passed, `215 test files, 28006 assertions, 0 failures`.
+
+Ready queue evidence:
+- Remaining ready-marker count before cleanup: `5926` total ready markers, including `2658` libsqlite ready markers.
+- No non-libsqlite marker was considered because the libsqlite-only intake priority still applies.
+- Dolt remains parked.
+
+Decision: accepted after focused checks, diff checks, and serialized root passed. Dashboard publication should run next because accepted source moved beyond the currently live dashboard source.
+
+Post-publication cleanup note for the 2026-05-26T17:36Z SQLite capability scalar acceptance:
+- Accepted commit: `9b0231a109169b13e055a147371096740437a5fd` (`Integrate libsqlite SQLite capability scalars`).
+- The accepted worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T172532Z` still contains modified/untracked lane files matching the accepted patch, so it was preserved and left registered instead of removed. Cleanup debt: remove that inactive worktree only after confirming no worker is attached and no additional unaccepted changes were added.
