@@ -3354,3 +3354,23 @@ authorities, empty query names, and invalid mode/cache/boolean values.
 Dependency closure: no new shared support component is needed; this is a
 lane-local SQLite filename parser and does not activate the shared URL or
 percent-encoding backlog.
+
+## Grouped Option Summary Scenario
+
+Native SQL execution helpers now include bounded GROUP BY result summaries for
+copied WordPress option diagnostics. The
+`examples/wordpress-grouped-option-summary.php` smoke reports `wp_options`
+groups by `autoload` with `count()`, `sum()`, `total()`, `avg()`, `min()`,
+`max()`, `group_concat()`, HAVING-style filters, and ORDER BY result ordering
+without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner grouped aggregate
+slice: added 31 focused assertions for scalar and NULL grouping keys,
+count(*) versus count(X), count(DISTINCT X) NULL skipping, numeric aggregate
+reuse per group, stable SQL sort-class ordering, HAVING count/sum filters,
+BLOB group keys, and strict missing-column/type/order errors. This is a
+bounded result-semantics helper, not a full SELECT/VDBE executor.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local numeric/text aggregate helpers, SQLiteBlobValue wrappers, and
+SQL-style comparison/group-key semantics.

@@ -15,6 +15,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistAllocationPlan;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteFileUri;
+use PortLibs\LibSqlite\SQLiteGroupedAggregate;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexColumn;
 use PortLibs\LibSqlite\SQLiteIndexInteriorPage;
@@ -12666,5 +12667,67 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lead([1], 0));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::nthValue([1], 0));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::rank([['bad']]));
+    },
+    'summarizes grouped aggregate result rows with having and order by semantics' => static function (TestRunner $t): void {
+        $rows = [
+            ['autoload' => 'yes', 'name' => 'siteurl', 'bytes' => 20],
+            ['autoload' => 'yes', 'name' => 'home', 'bytes' => 20],
+            ['autoload' => 'yes', 'name' => 'blogname', 'bytes' => 9],
+            ['autoload' => 'no', 'name' => '_transient_feed', 'bytes' => 12],
+            ['autoload' => 'no', 'name' => 'empty_cache_key', 'bytes' => 0],
+            ['autoload' => 'no', 'name' => 'legacy_null', 'bytes' => null],
+            ['autoload' => null, 'name' => 'orphaned', 'bytes' => 3],
+            ['autoload' => null, 'name' => 'orphaned-again', 'bytes' => 7],
+        ];
+
+        $summary = SQLiteGroupedAggregate::summarize($rows, 'autoload', 'bytes');
+        $orderedByGroup = SQLiteGroupedAggregate::orderBy($summary, 'group');
+
+        $t->same(null, $orderedByGroup[0]['group']);
+        $t->same(2, $orderedByGroup[0]['countAll']);
+        $t->same(2, $orderedByGroup[0]['countValue']);
+        $t->same(10, $orderedByGroup[0]['sum']);
+        $t->same(5.0, $orderedByGroup[0]['avg']);
+        $t->same('3|7', $orderedByGroup[0]['groupConcat']);
+
+        $t->same('no', $orderedByGroup[1]['group']);
+        $t->same(3, $orderedByGroup[1]['countAll']);
+        $t->same(2, $orderedByGroup[1]['countValue']);
+        $t->same(2, $orderedByGroup[1]['countDistinct']);
+        $t->same(12, $orderedByGroup[1]['sum']);
+        $t->same(12.0, $orderedByGroup[1]['total']);
+        $t->same(6.0, $orderedByGroup[1]['avg']);
+        $t->same(0, $orderedByGroup[1]['min']);
+        $t->same(12, $orderedByGroup[1]['max']);
+        $t->same('12|0', $orderedByGroup[1]['groupConcat']);
+
+        $t->same('yes', $orderedByGroup[2]['group']);
+        $t->same(3, $orderedByGroup[2]['countAll']);
+        $t->same(49, $orderedByGroup[2]['sum']);
+        $t->same(2, $orderedByGroup[2]['countDistinct']);
+
+        $havingCount = SQLiteGroupedAggregate::havingCountAtLeast($summary, 3);
+        $t->same(['yes', 'no'], array_column($havingCount, 'group'));
+
+        $havingSum = SQLiteGroupedAggregate::havingSumGreaterThan($summary, 12);
+        $t->same(['yes'], array_column($havingSum, 'group'));
+
+        $orderedBySum = SQLiteGroupedAggregate::orderBy($summary, 'sum', 'DESC');
+        $t->same(['yes', 'no', null], array_column($orderedBySum, 'group'));
+        $t->same([49, 12, 10], array_column($orderedBySum, 'sum'));
+
+        $blobSummary = SQLiteGroupedAggregate::summarize([
+            ['bucket' => new SQLiteBlobValue('a'), 'value' => 1],
+            ['bucket' => new SQLiteBlobValue('a'), 'value' => 2],
+            ['bucket' => new SQLiteBlobValue('b'), 'value' => 4],
+        ], 'bucket', 'value');
+        $t->same(2, $blobSummary[0]['countAll']);
+        $t->same(3, $blobSummary[0]['sum']);
+        $t->same(4, $blobSummary[1]['sum']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::summarize([['autoload' => 'yes']], 'autoload', 'bytes'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::summarize([['autoload' => [] , 'bytes' => 1]], 'autoload', 'bytes'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::orderBy($summary, 'missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::orderBy($summary, 'sum', 'SIDEWAYS'));
     },
 ];

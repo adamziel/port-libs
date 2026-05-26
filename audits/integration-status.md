@@ -117015,3 +117015,32 @@ Root result:
 Cleanup:
 - Accepted handoff marker, patch, and metadata may be removed after commit publication.
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T200136Z` still contains modified lane files matching its submitted slice, so it is preserved as cleanup debt rather than removed.
+## Integration accepted - libsqlite grouped aggregate result semantics - 2026-05-26T20:17:28Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T201207Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Candidate evidence:
+- Current `refs/heads/main` at pass start was `33341069efef591393dd53e33effc2d609fed2e9` (`Integrate libsqlite window function helpers`).
+- Cache-busted live dashboard reported matching `sourceCommit` `33341069efef591393dd53e33effc2d609fed2e9`, generated `2026-05-26 20:13:34 UTC`, so the dashboard guard was open.
+- Marker base was current accepted HEAD `33341069efef591393dd53e33effc2d609fed2e9`.
+- Patch applied cleanly in detached candidate worktree `.tmux-team/worktrees/clean-integrator-libsqlite-sql-exec-20260526T201207Z`.
+- Effective files changed: `lanes/libsqlite/src/SQLiteGroupedAggregate.php`, `lanes/libsqlite/examples/wordpress-grouped-option-summary.php`, `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/wordpress-scenarios.md`, and `lanes/libsqlite/tests/SQLiteHeaderTest.php`.
+- Scope: admits bounded SQL execution/planner GROUP BY/HAVING aggregate result helper evidence over already-present lane-local `SQLiteGroupedAggregate` behavior, with focused NULL/scalar/BLOB group keys, count/sum/total/avg/min/max/group_concat, HAVING filters, ORDER BY summaries, strict error checks, and copied `wp_options` smoke evidence.
+
+Verification before root:
+- Runtime gates before focused checks: `df -Pk /` reported `89449396` KiB available; `/proc/loadavg` was `1.35`; no exact `php tools/run-tests.php` root harness was active.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3336 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-grouped-option-summary.php` passed.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Runtime gates before root: `df -Pk /` reported `89393024` KiB available; `/proc/loadavg` was `1.09`; no exact `php tools/run-tests.php` root harness was active.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 28470 assertions, 0 failures`.
+
+Decision: accepted. This is not a status-only marker: it adds a lane-local grouped aggregate helper, a WordPress grouped option smoke, 31 focused assertions, and current SQL result-semantics evidence. Commit/ref publication and marker cleanup are pending below.
+
+Cleanup:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T201207Z` still has modified and added lane files, so it was preserved and not removed.
+- Accepted ready/patch/metadata handoff artifacts may be removed after commit publication; worker log/prompt are preserved with the dirty originating worktree evidence.
