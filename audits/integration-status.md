@@ -1,5 +1,44 @@
 # Integration Status
 
+## Accepted - libsqlite B-tree rebalance diagnostics - 2026-05-26 02:02 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T014832Z.ready`.
+
+Committed a bounded libsqlite closure slice for WordPress option replacement
+B-tree rebalance diagnostics. The full patch was stale against current `main`
+only on accepted `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`
+contexts, so the source/test/example/notes slice was applied in a detached
+clean worktree from `d2218aa9` with those two stale metadata files excluded.
+No newer accepted manifest/status counters were overwritten.
+
+Focused verification in the clean candidate worktree:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php`: passed.
+- `php -l lanes/libsqlite/src/SQLiteWordPressOptionReplacementPlan.php`:
+  passed.
+- `php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php`:
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`:
+  passed with `1 test files, 2362 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php`:
+  passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Serialized root verification under `.tmux-team/tmp/clean-integrator-run.lock`
+passed with `215 test files, 26817 assertions, 0 failures`.
+
+Resource/dashboard gates before acceptance:
+- Live cache-busted `porting-summary.json` matched current source
+  `d2218aa9c456d8e434cafa10e247a2b3a521da29`.
+- `df -Pk /` remained above the required `86000000` KiB before focused and
+  root checks.
+- Load average stayed below `25`.
+- No exact no-argument root harness process was active before starting the
+  serialized root run.
+
+Dashboard publication should run next because this accepted commit advances
+`refs/heads/main` beyond the currently published source.
+
 ## Clean-patch intake accepted - libsqlite rollback journal sector padding - 2026-05-26 01:55 UTC
 
 Accepted isolated libsqlite marker:

@@ -10,6 +10,7 @@ final class SQLiteWordPressOptionReplacementPlan
      * @param list<int> $overflowPageNumbers
      * @param list<int> $obsoleteOverflowPageNumbers
      * @param array<int, string> $pageImages
+     * @param list<array<string, mixed>> $btreeRebalanceActions
      */
     public function __construct(
         public readonly int $tableRootPage,
@@ -22,6 +23,7 @@ final class SQLiteWordPressOptionReplacementPlan
         public readonly int $localPayloadLength,
         public readonly int $databasePageCount,
         private readonly array $pageImages,
+        private readonly array $btreeRebalanceActions = [],
     ) {
     }
 
@@ -31,6 +33,14 @@ final class SQLiteWordPressOptionReplacementPlan
     public function pageImages(): array
     {
         return $this->pageImages;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function btreeRebalanceActions(): array
+    {
+        return $this->btreeRebalanceActions;
     }
 
     /**

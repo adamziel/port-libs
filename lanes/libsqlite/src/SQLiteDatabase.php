@@ -800,7 +800,99 @@ final class SQLiteDatabase
             $replacementLocalPayloadLength,
             $databasePageCount,
             $pageImages,
+            $this->btreeRebalanceActionsForPageImages($pageImages),
         );
+    }
+
+    /**
+     * @param array<int, string> $pageImages
+     * @return list<array<string, mixed>>
+     */
+    private function btreeRebalanceActionsForPageImages(array $pageImages): array
+    {
+        $postDatabase = $this->withPageImages($pageImages);
+        $freelistPages = array_fill_keys($postDatabase->freelistPageNumbers(), true);
+        $actions = [];
+
+        $pageNumbers = array_unique(array_merge(array_keys($pageImages), array_keys($freelistPages)));
+        sort($pageNumbers);
+
+        foreach ($pageNumbers as $pageNumber) {
+            if ($pageNumber === 1) {
+                continue;
+            }
+
+            $before = $pageNumber <= $this->pageCount() ? $this->tryPageHeader($pageNumber) : null;
+            $after = !isset($freelistPages[$pageNumber]) ? $postDatabase->tryPageHeader($pageNumber) : null;
+
+            if (isset($freelistPages[$pageNumber])) {
+                $actions[] = [
+                    'action' => 'free-page',
+                    'page' => $pageNumber,
+                    'before_type' => $before?->pageType,
+                ];
+                continue;
+            }
+
+            if ($before === null || $after === null) {
+                continue;
+            }
+
+            if ($before->pageType !== $after->pageType) {
+                $actions[] = [
+                    'action' => 'page-type-change',
+                    'page' => $pageNumber,
+                    'before_type' => $before->pageType,
+                    'after_type' => $after->pageType,
+                    'before_cells' => $before->cellCount,
+                    'after_cells' => $after->cellCount,
+                ];
+                continue;
+            }
+
+            if ($before->cellCount === $after->cellCount) {
+                continue;
+            }
+
+            $delta = $after->cellCount - $before->cellCount;
+            $actions[] = [
+                'action' => $this->btreeCellDeltaAction($after->pageType, $delta),
+                'page' => $pageNumber,
+                'page_type' => $after->pageType,
+                'before_cells' => $before->cellCount,
+                'after_cells' => $after->cellCount,
+                'delta_cells' => $delta,
+            ];
+        }
+
+        return $actions;
+    }
+
+    private function btreeCellDeltaAction(string $pageType, int $delta): string
+    {
+        if ($pageType === 'index-interior') {
+            return $delta < 0 ? 'index-interior-divider-removal' : 'index-interior-divider-insert';
+        }
+        if ($pageType === 'index-leaf') {
+            return $delta < 0 ? 'index-leaf-entry-removal' : 'index-leaf-entry-merge';
+        }
+        if ($pageType === 'table-interior') {
+            return $delta < 0 ? 'table-interior-divider-removal' : 'table-interior-divider-insert';
+        }
+        if ($pageType === 'table-leaf') {
+            return $delta < 0 ? 'table-leaf-entry-removal' : 'table-leaf-entry-insert';
+        }
+
+        return $delta < 0 ? 'btree-cell-removal' : 'btree-cell-insert';
+    }
+
+    private function tryPageHeader(int $pageNumber): ?SQLiteBTreePageHeader
+    {
+        try {
+            return $this->pageHeader($pageNumber);
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
     }
 
     /**

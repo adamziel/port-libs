@@ -8468,6 +8468,50 @@ return [
         $t->same(3, $postDatabase->pageHeader(6)->cellCount);
         $t->same([7, 8], $postDatabase->freelistPageNumbers());
         $t->same([
+            [
+                'action' => 'index-interior-divider-removal',
+                'page' => 3,
+                'page_type' => 'index-interior',
+                'before_cells' => 2,
+                'after_cells' => 1,
+                'delta_cells' => -1,
+            ],
+            [
+                'action' => 'index-interior-divider-insert',
+                'page' => 4,
+                'page_type' => 'index-interior',
+                'before_cells' => 2,
+                'after_cells' => 3,
+                'delta_cells' => 1,
+            ],
+            [
+                'action' => 'index-leaf-entry-merge',
+                'page' => 5,
+                'page_type' => 'index-leaf',
+                'before_cells' => 1,
+                'after_cells' => 2,
+                'delta_cells' => 1,
+            ],
+            [
+                'action' => 'index-leaf-entry-merge',
+                'page' => 6,
+                'page_type' => 'index-leaf',
+                'before_cells' => 1,
+                'after_cells' => 3,
+                'delta_cells' => 2,
+            ],
+            [
+                'action' => 'free-page',
+                'page' => 7,
+                'before_type' => 'index-leaf',
+            ],
+            [
+                'action' => 'free-page',
+                'page' => 8,
+                'before_type' => 'index-interior',
+            ],
+        ], $plan->btreeRebalanceActions());
+        $t->same([
             ['no', $name('a'), 50],
             ['no', $optionName, 4],
             ['yes', $name('g'), 100],

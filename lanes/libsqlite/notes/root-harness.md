@@ -837,6 +837,24 @@ at page 3 with left child `[4]` and right-most pointer 11, merged lower parent
 page 4 with left children `[5,6,9]`, obsolete pages `[7,8]` on the freelist,
 and a readable rewritten option.
 
+Focused lane verification for the B-tree rebalance diagnostic refill passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/src/SQLiteWordPressOptionReplacementPlan.php
+php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed; the
+WordPress smoke reported `btreeRebalanceActions` for root divider removal,
+interior-parent growth, leaf entry merges, and freed pages `[7,8]`; manifest
+and lane-status JSON decoded successfully; `git diff --check` passed. The root
+harness was not run because this was an isolated micro-slice.
+
 The focused upstream SQLite runner also passed:
 
 ```sh

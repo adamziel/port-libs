@@ -1733,6 +1733,13 @@ WordPress SQLite fallback databases where autoload repair crosses a non-root
 parent underflow boundary but the index still has sibling parent pages that
 can absorb the merge without requiring a full SQL engine.
 
+The same parent-merge scenario now also exposes
+`SQLiteWordPressOptionReplacementPlan::btreeRebalanceActions()`. The diagnostic
+compares pre/post B-tree page images and reports root divider removal, merged
+interior-parent growth, leaf entry merges, and freed obsolete leaf/interior
+pages. This gives WordPress repair tools an auditable explanation of the
+delete-triggered rebalance plan instead of only opaque replacement page images.
+
 ## Next Task
 
 Broaden non-root composite-index parent redistribution when adjacent
