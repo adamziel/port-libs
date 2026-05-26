@@ -11,6 +11,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $optionValues = [
     'strict_settings' => '{"plugin":{"enabled":true,"modes":["cache","seo"],"limits":{"batch":25}}}',
+    'mixed_case_dispatch_settings' => '{"plugin":{"enabled":true,"source":"mixed-case-dispatch"}}',
     'json5_settings' => "{plugin:{enabled:true,modes:['cache','seo',],}, /* copied option */}",
     'custom_indent_settings' => '{"plugin":{"enabled":true,"modes":["cache","seo"]}}',
     'json_subtype_settings' => new SQLiteJsonSubtypeValue('{"plugin":{"enabled":true,"source":"json-subtype"}}'),
@@ -64,8 +65,15 @@ foreach ($optionValues as $optionName => $optionValue) {
 
         $report[$optionName] = [
             'status' => 'pretty',
-            'json' => SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', $arguments),
-            'directJson' => SQLiteJsonPretty::jsonPrettySqlFunction('JSON_PRETTY', $optionValue, $indent),
+            'json' => SQLiteJsonPretty::jsonPrettySqlFunctionArguments(
+                $optionName === 'mixed_case_dispatch_settings' ? 'Json_Pretty' : 'json_pretty',
+                $arguments,
+            ),
+            'directJson' => SQLiteJsonPretty::jsonPrettySqlFunction(
+                $optionName === 'mixed_case_dispatch_settings' ? 'Json_Pretty' : 'JSON_PRETTY',
+                $optionValue,
+                $indent,
+            ),
         ];
     } catch (InvalidArgumentException $exception) {
         $report[$optionName] = [
@@ -77,5 +85,5 @@ foreach ($optionValues as $optionName => $optionValue) {
 
 echo json_encode([
     'optionJson' => $report,
-    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, JSON subtype fragments, JSON5 plugin settings, custom text/numeric/boolean indentation, cast text BLOBs, JSONB option blobs with default and custom indentation, scalar SQL option values including whole REAL values, NULL option values, and malformed settings before import.',
+    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, mixed-case SQL dispatch, JSON subtype fragments, JSON5 plugin settings, custom text/numeric/boolean indentation, cast text BLOBs, JSONB option blobs with default and custom indentation, scalar SQL option values including whole REAL values, NULL option values, and malformed settings before import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

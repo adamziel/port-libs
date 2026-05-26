@@ -632,6 +632,12 @@ Priority-refill rework 2026-05-25T12:13Z adds explicit SQL NULL
 first-argument plus custom-indent second-argument coverage through both direct
 and argument-vector `json_pretty()` SQL dispatch. Focused verification is
 recorded in `lane-status.json`.
+Priority libsqlite rework 2026-05-26T02:10Z keeps the accepted JSON and WAL
+evidence intact and additively tightens the deferred `json_pretty()`
+SQL-dispatch patch with mixed-case `Json_Pretty` direct and argument-vector
+coverage. No fresh upstream `testfixture` run was started because this
+isolated worktree has no hydrated upstream cache; focused PHP evidence is
+recorded in `lane-status.json`.
 
 ## Focused Native Mapping: `json_tree()` Recursive Table-Valued Rows
 

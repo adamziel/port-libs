@@ -283,6 +283,11 @@ adds focused malformed JSON propagation coverage through the argument-vector
 SQL-dispatch path, preserving the already accepted manifest/status evidence.
 Priority-keeper refresh 2026-05-25T09:58Z adds the missing direct-dispatch
 `true` scalar assertion without changing the WordPress smoke surface.
+Priority libsqlite rework 2026-05-26T02:10Z preserves the accepted
+json_pretty SQL-dispatch surface and updates the WordPress smoke to exercise
+mixed-case `Json_Pretty` through both direct and argument-vector dispatch,
+matching SQLite's case-insensitive SQL function lookup without requiring the
+SQLite extension.
 Priority-finisher refresh 2026-05-25T10:13Z preserves whole REAL scalar output
 such as `3.0` through direct and argument-vector SQL dispatch and adds that
 case to the WordPress smoke surface.

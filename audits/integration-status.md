@@ -1,5 +1,61 @@
 # Integration Status
 
+## Accepted - libsqlite json_pretty mixed-case dispatch - 2026-05-26 02:18 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T021010Z.ready`.
+
+Commit: pending during entry creation; final accepted commit recorded in git
+history as `Integrate libsqlite json_pretty mixed-case dispatch`.
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=e736bd669edbe4b1d71dab88c9322e2b9bd77039`, matching current
+  `refs/heads/main` before intake.
+- Live dashboard commit reported
+  `4dfdb025b07f3270fb14acad1d529b1d95d40154`.
+
+Runtime gate evidence before focused checks:
+- `df -Pk /` reported `87706056` KiB available, above the required
+  `86000000` KiB threshold.
+- `/proc/loadavg` first field was `2.02`, below the required `25`.
+
+Runtime gate evidence before serialized root:
+- `df -Pk /` reported `87699548` KiB available, above the required
+  `86000000` KiB threshold.
+- `/proc/loadavg` first field was `2.03`, below the required `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before starting the
+  locked root harness.
+
+Focused verification in detached clean worktree
+`.tmux-team/tmp/clean-integrator-apply-20260526T021317Z`:
+- `php -l lanes/libsqlite/src/SQLiteJsonPretty.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2386 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`
+  passed and reported the mixed-case dispatch option review row.
+- `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` decoded with
+  `JSON_THROW_ON_ERROR`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 26841 assertions, 0 failures`.
+
+Decision: accepted. This is a small libsqlite-only rework on current base
+`e736bd66` that preserves existing JSON/WAL/UTF-16 evidence and adds
+case-insensitive `Json_Pretty` SQL-dispatch coverage through direct,
+argument-vector, and WordPress option-review smoke paths. Dependency closure:
+no new shared support component was needed.
+
+Ready-marker count at acceptance time: `3768`.
+
+Dashboard publication should run next after the accepted source commit is on
+`main`.
+
 ## Accepted - libsqlite malformed UTF-16 record text - 2026-05-26 02:15 UTC
 
 Accepted marker:
