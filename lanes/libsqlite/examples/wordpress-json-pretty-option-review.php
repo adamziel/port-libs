@@ -41,6 +41,8 @@ $optionValues = [
     'scalar_whole_real_settings' => 3.0,
     'null_settings' => null,
     'null_indent_settings' => null,
+    'null_blob_indent_settings' => null,
+    'null_subtype_indent_settings' => null,
     'malformed_settings' => '{plugin:true,,}',
 ];
 
@@ -55,6 +57,8 @@ foreach ($optionValues as $optionName => $optionValue) {
         'text_blob_indent_settings' => '..',
         'jsonb_indent_settings' => '--',
         'null_indent_settings' => '--',
+        'null_blob_indent_settings' => new SQLiteBlobValue('--'),
+        'null_subtype_indent_settings' => new SQLiteJsonSubtypeValue('::'),
         default => null,
     };
     try {
@@ -85,5 +89,5 @@ foreach ($optionValues as $optionName => $optionValue) {
 
 echo json_encode([
     'optionJson' => $report,
-    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, mixed-case SQL dispatch, JSON subtype fragments, JSON5 plugin settings, custom text/numeric/boolean indentation, cast text BLOBs, JSONB option blobs with default and custom indentation, scalar SQL option values including whole REAL values, NULL option values, and malformed settings before import.',
+    'wordpressUse' => 'Local-only wp_options JSON review output that mirrors SQLite json_pretty() for strict JSON text, mixed-case SQL dispatch, JSON subtype fragments, JSON5 plugin settings, custom text/numeric/boolean indentation, cast text BLOBs, JSONB option blobs with default and custom indentation, scalar SQL option values including whole REAL values, NULL option values with text/BLOB/subtype indentation wrappers, and malformed settings before import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

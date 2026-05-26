@@ -1,5 +1,68 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite json_pretty NULL wrapper indentation - 2026-05-26 05:54 UTC
+
+Accepted isolated libsqlite marker
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T054950Z.ready`.
+
+Current `refs/heads/main` before acceptance:
+`7af0c98063b00673f101d5cf04aab7071e827b06`
+(`Integrate libsqlite savepoint rollback previews`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=7af0c98063b00673f101d5cf04aab7071e827b06`, matching current
+  `main`.
+- Live dashboard commit reported
+  `2565e3273699e18b49a06507ec0be98abb92daea`.
+
+Resource and process gate evidence:
+- Initial `df -Pk /` reported `86120704` KiB available, above the required
+  `86000000` KiB threshold; `/proc/loadavg` first field was `1.49`; no exact
+  no-argument root harness was running.
+- Before the root run, the disk gate briefly closed at `85908928` KiB after
+  clean worktree creation. No lock was held. Old uncompressed inactive log
+  files were gzip-compressed to preserve evidence, reopening `/` to
+  `86419524` KiB available.
+- Root-run gate evidence then reported `86417312` KiB available,
+  `/proc/loadavg` first field `2.58`, and no duplicate no-argument root
+  harness.
+
+Candidate evidence:
+- Marker lane `libsqlite`, slice
+  `priority-libsqlite-full-suite-20260526T054950Z`, base
+  `7af0c98063b00673f101d5cf04aab7071e827b06`.
+- Patch SHA-256 matched marker:
+  `76a3aef914349c6659c211876e8c642aa75688433f11c1384b7309387b6b5f1f`.
+- The patch applied cleanly in detached worktree
+  `.tmux-team/tmp/clean-integrator-libsqlite-priority-20260526T054950Z`
+  created from current `main`.
+
+Focused verification passed:
+- `php -l lanes/libsqlite/src/SQLiteJsonPretty.php`
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+  reported `1 test files, 2505 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`
+  reported the new `null_blob_indent_settings` and
+  `null_subtype_indent_settings` rows as SQL `NULL`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification passed under
+`.tmux-team/tmp/clean-integrator-run.lock` with `215 test files, 27126
+assertions, 0 failures`.
+
+Decision: accepted. This is a bounded libsqlite JSON dispatch rework refresh
+that adds `json_pretty()` SQL NULL propagation coverage when BLOB and JSON
+subtype wrappers are supplied as the indentation argument. No new support
+library is required, and no upstream denominator change is claimed.
+
+Dashboard publication should run next because this acceptance will advance
+`refs/heads/main` beyond the live dashboard source commit.
+
 ## Accepted libsqlite savepoint rollback page previews - 2026-05-26 05:53 UTC
 
 Accepted marker:

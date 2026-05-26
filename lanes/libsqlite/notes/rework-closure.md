@@ -46,3 +46,33 @@ Dependency closure: no new support component is needed. This reuses lane-local
 JSON canonicalization, JSON5 parsing, JSONB encoding/decoding, JSON subtype
 wrappers, BLOB value wrappers, and SQL scalar coercion helpers without
 activating shared support-library work.
+
+## 2026-05-26 JSON Pretty NULL Wrapper-Indent Rework Refresh
+
+This isolated priority refresh keeps the same outstanding rework-marker scope
+and adds one bounded guard to the already accepted `json_pretty()` SQL-dispatch
+cluster: when the first SQL argument is NULL, direct dispatch and
+argument-vector dispatch now have focused assertions proving that BLOB and JSON
+subtype indentation wrappers are ignored and the result remains SQL NULL. The
+WordPress option review smoke reports the same NULL-with-wrapper-indent paths.
+
+No new upstream denominator is claimed. The rework remains additive on top of
+the accepted `json`/`jsonb`, `json_pretty`, and `json_extract`/`jsonb_extract`
+dispatch behavior and exists to make the stale May 25 conflict boundary easier
+for the clean integrator to accept without replaying old manifest/status text.
+
+Focused verification for this refresh:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonPretty.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local SQL NULL propagation path plus existing BLOB and JSON subtype wrapper
+coercion for the optional indentation argument.
