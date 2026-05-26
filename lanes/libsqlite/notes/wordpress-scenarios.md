@@ -35,6 +35,22 @@ callback validation and late-row tests, and updated
 Dependency closure: no new support component is needed; REGEXP remains an
 application-defined callback and reuses lane-local decoded row traversal.
 
+## Indexed LIKE Prefix Option-Name Range Scenario
+
+Case-sensitive WordPress option-name scans can now use a leading literal LIKE
+prefix as an `option_name` index range before applying the existing LIKE matcher
+as a residual predicate. The pattern smoke reports `likePrefixRange` and
+`indexedLikeOptions`, showing escaped `_` and `%` literals, binary upper-bound
+derivation, and late indexed rows without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated encoding/collation slice: added
+`SQLiteDatabase::likePrefixRangeBounds()` and
+`wordpressOptionsByIndexedNameLikePrefixRange()`, focused assertions for
+escaped literal prefixes, no-prefix rejection, limits, and residual filtering,
+and updated `examples/wordpress-option-name-like-glob.php` with an indexed
+self-test fixture. Dependency closure: no new support component is needed; this
+reuses lane-local index range traversal and the accepted UTF-8 LIKE matcher.
+
 ## UTF-16 Embedded NUL Option Text Scenario
 
 Copied SQLite text fields can legally contain embedded U+0000 codepoints
@@ -2164,9 +2180,9 @@ and a case-sensitive `GLOB '_Transient_[A-Z][A-Z][A-Z]'` pattern without
 requiring the SQLite extension.
 
 This is intentionally a bounded decoded-row helper, not a full SQL WHERE
-executor. Planner pushdown for `LIKE` prefix ranges, configurable
-`PRAGMA case_sensitive_like`, regexp extension callbacks, and broader SQL
-expression dispatch remain separate slices.
+executor. General SQL LIKE planning, configurable `PRAGMA case_sensitive_like`,
+regexp extension callbacks, and broader SQL expression dispatch remain separate
+slices.
 
 ## WAL Checksum Option Diagnostics
 

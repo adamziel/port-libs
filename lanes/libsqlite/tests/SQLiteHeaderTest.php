@@ -2393,10 +2393,11 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], null, null, 'WPSLUG', $wpslug));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], 'cache-a', 'cache-c', 'WPSLUG', static fn (): string => '0'));
     },
-    'matches sqlite like and glob patterns for wordpress option names' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage): void {
+    'matches sqlite like and glob patterns for wordpress option names' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
-        ], 512, 100, $makeFirstPage(512, 2));
+            $schemaCell(['index', 'wp_options_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_option_name ON wp_options(option_name)'], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
         $page2 = $tableLeafPage([
             $schemaCell([null, '_transient_feed', 'cached feed', 'no'], 1),
             $schemaCell([null, '_Transient_API', 'cached api', 'no'], 2),
@@ -2404,9 +2405,19 @@ return [
             $schemaCell([null, 'literal_percent_%', 'literal percent', 'no'], 4),
             $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 5),
         ]);
-        $database = SQLiteDatabase::fromBytes($page1 . $page2);
+        $page3 = $indexLeafPage([
+            $indexCell(['_Transient_API', 2]),
+            $indexCell(['_transient_feed', 1]),
+            $indexCell(['emoji_é', 3]),
+            $indexCell(['literal_percent_%', 4]),
+            $indexCell(['siteurl', 5]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
 
         $likeTransient = $database->wordpressOptionsByNameLike('\_transient\_%', '\\');
+        $indexedLikeTransient = $database->wordpressOptionsByIndexedNameLikePrefixRange('\_transient\_%', '\\');
+        $indexedLikeLiteral = $database->wordpressOptionsByIndexedNameLikePrefixRange('literal\_percent\_\%', '\\');
+        $indexedLikeLimited = $database->wordpressOptionsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 1);
         $caseSensitiveLike = $database->wordpressOptionsByNameLike('_transient_%', null, null, true);
         $escapedPercent = $database->wordpressOptionsByNameLike('literal\_percent\_\%', '\\');
         $utf8SingleCharacter = $database->wordpressOptionsByNameLike('emoji__');
@@ -2428,7 +2439,11 @@ return [
         $t->true(SQLiteDatabase::likeMatches('emoji_é', 'emoji__'));
         $t->true(SQLiteDatabase::likeMatches("site\0url", "site_url"));
         $t->same(false, SQLiteDatabase::likeMatches("site\0url", 'siteurl'));
+        $t->same(['lowerInclusive' => '_transient_', 'upperBound' => '_transient`'], SQLiteDatabase::likePrefixRangeBounds('\_transient\_%', '\\'));
+        $t->same(['lowerInclusive' => 'literal_percent_%', 'upperBound' => 'literal_percent_&'], SQLiteDatabase::likePrefixRangeBounds('literal\_percent\_\%', '\\'));
+        $t->same(null, SQLiteDatabase::likePrefixRangeBounds('%transient'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::likeMatches('x', 'x', 'xx'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::likePrefixRangeBounds('x%', 'xx'));
         $t->true(SQLiteDatabase::globMatches('_Transient_API', '_Transient_[A-Z][A-Z][A-Z]'));
         $t->same(false, SQLiteDatabase::globMatches('_transient_api', '_Transient_[A-Z][A-Z][A-Z]'));
         $t->true(SQLiteDatabase::globMatches('siteurl[', 'siteurl['));
@@ -2438,6 +2453,9 @@ return [
         $t->same(false, SQLiteDatabase::regexpMatches('siteurl', '^_transient_', $regexp));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::regexpMatches('siteurl', 'site', static fn (): int => 1));
         $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $likeTransient));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedLikeTransient));
+        $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedLikeLiteral));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedLikeLimited));
         $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $caseSensitiveLike));
         $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $escapedPercent));
         $t->same(['emoji_é'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $utf8SingleCharacter));
@@ -2445,6 +2463,9 @@ return [
         $t->same(['emoji_é', 'literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
         $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $regexpOptions));
         $t->same([], $database->wordpressOptionsByNameLike('%', null, 0));
+        $t->same([], $database->wordpressOptionsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLikePrefixRange('%transient'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLikePrefixRange('site%', null, -1));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByNameGlob('*', -1));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByNameRegexp('.*', $regexp, -1));
 

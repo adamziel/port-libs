@@ -5787,6 +5787,41 @@ final class SQLiteDatabase
     /**
      * @return list<SQLiteWordPressOption>
      */
+    public function wordpressOptionsByIndexedNameLikePrefixRange(
+        string $pattern,
+        ?string $escape = null,
+        ?int $limit = null,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed LIKE prefix lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $bounds = self::likePrefixRangeBounds($pattern, $escape);
+        if ($bounds === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed LIKE prefix lookup requires a leading literal prefix');
+        }
+
+        $options = [];
+        foreach ($this->wordpressOptionsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
+            if (!self::likeMatches($option->optionName, $pattern, $escape, true)) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
     public function wordpressOptionsByNameGlob(string $pattern, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
@@ -10253,6 +10288,45 @@ final class SQLiteDatabase
         );
     }
 
+    /**
+     * @return null|array{lowerInclusive:string,upperBound:?string}
+     */
+    public static function likePrefixRangeBounds(string $pattern, ?string $escape = null): ?array
+    {
+        if ($escape !== null && self::sqliteTextLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite LIKE ESCAPE expression must be a single character');
+        }
+
+        $patternCharacters = self::sqlitePatternCharacters($pattern);
+        $escapeCharacters = self::sqlitePatternCharacters($escape ?? '');
+        $prefix = '';
+        $count = count($patternCharacters);
+        for ($offset = 0; $offset < $count; $offset++) {
+            $character = $patternCharacters[$offset];
+            if ($escapeCharacters !== [] && $character === $escapeCharacters[0]) {
+                $offset++;
+                if ($offset >= $count) {
+                    break;
+                }
+                $prefix .= $patternCharacters[$offset];
+                continue;
+            }
+            if ($character === '%' || $character === '_') {
+                break;
+            }
+            $prefix .= $character;
+        }
+
+        if ($prefix === '') {
+            return null;
+        }
+
+        return [
+            'lowerInclusive' => $prefix,
+            'upperBound' => self::nextBinaryPrefixUpperBound($prefix),
+        ];
+    }
+
     public static function globMatches(string $value, string $pattern): bool
     {
         return self::globMatchesAt(
@@ -10500,6 +10574,20 @@ final class SQLiteDatabase
         }
 
         return $bytes;
+    }
+
+    private static function nextBinaryPrefixUpperBound(string $prefix): ?string
+    {
+        for ($offset = strlen($prefix) - 1; $offset >= 0; $offset--) {
+            $byte = ord($prefix[$offset]);
+            if ($byte === 0xff) {
+                continue;
+            }
+
+            return substr($prefix, 0, $offset) . chr($byte + 1);
+        }
+
+        return null;
     }
 
     private static function asciiUpper(string $value): string

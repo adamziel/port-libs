@@ -24,6 +24,7 @@ $database = $databasePath === '--self-test'
     : SQLiteDatabase::fromFile($databasePath);
 
 $likeOptions = $database->wordpressOptionsByNameLike($likePattern, '\\');
+$indexedLikeOptions = $database->wordpressOptionsByIndexedNameLikePrefixRange($likePattern, '\\');
 $globOptions = $database->wordpressOptionsByNameGlob($globPattern);
 $regexp = static function (string $pattern, string $value): bool {
     $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
@@ -38,11 +39,16 @@ $regexpOptions = $database->wordpressOptionsByNameRegexp($regexpPattern, $regexp
 echo json_encode([
     'path' => $databasePath,
     'likePattern' => $likePattern,
+    'likePrefixRange' => SQLiteDatabase::likePrefixRangeBounds($likePattern, '\\'),
     'globPattern' => $globPattern,
     'regexpPattern' => $regexpPattern,
     'likeOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $likeOptions,
+    ),
+    'indexedLikeOptions' => array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $indexedLikeOptions,
     ),
     'globOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
@@ -86,6 +92,11 @@ function exampleWordPressOptionPatternFixture(): string
 
         return $varint(strlen($payload)) . $varint($rowId) . $payload;
     };
+    $indexCell = static function (array $values) use ($varint, $recordPayload): string {
+        $payload = $recordPayload($values);
+
+        return $varint(strlen($payload)) . $payload;
+    };
     $tableLeafPage = static function (array $cells, int $headerOffset = 0, ?string $basePage = null) use ($pageSize): string {
         $page = $basePage ?? str_repeat("\0", $pageSize);
         $offset = $pageSize;
@@ -121,7 +132,9 @@ function exampleWordPressOptionPatternFixture(): string
     $page1 = substr_replace($page1, pack('N', 1), 56, 4);
     $page1 = $tableLeafPage([
         $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        $schemaCell(['index', 'wp_options_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_option_name ON wp_options(option_name)'], 2),
     ], 100, $page1);
+    $page1 = substr_replace($page1, pack('N', 3), 28, 4);
 
     $optionCells = [
         $schemaCell([null, '_transient_feed', 'cached feed', 'no'], 1),
@@ -134,6 +147,13 @@ function exampleWordPressOptionPatternFixture(): string
     $optionCells[] = $schemaCell([null, '_transient_late', 'late cached value', 'no'], 105);
 
     $page2 = $tableLeafPage($optionCells);
+    $page3 = $tableLeafPage([
+        $indexCell(['_Transient_API', 2]),
+        $indexCell(['_transient_feed', 1]),
+        $indexCell(['_transient_late', 105]),
+        $indexCell(['siteurl', 3]),
+    ]);
+    $page3[0] = "\x0a";
 
-    return $page1 . $page2;
+    return $page1 . $page2 . $page3;
 }

@@ -115312,3 +115312,28 @@ Verification:
 Decision: accepted as commit pending publication at this entry time. The slice adds a lane-local `SQLiteUpstreamSuiteEvidence::broadSuiteLaunchGate()` and tests that block duplicate broad SQLite suite launches unless supervisor approval, active-runner, and command-manifest gates are clear. It did not start a fresh upstream runner and did not add a support-library dependency.
 
 Dashboard publication should run next after the accepted source commit is visible on `main`.
+## Integration accepted - libsqlite indexed LIKE prefix range - 2026-05-26T13:47:50Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T134031Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `c54c843c728c9f0a9298eccb783f98914585fce2` (`Integrate libsqlite broad suite launch gate`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `c54c843c728c9f0a9298eccb783f98914585fce2`.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `121965048` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `2.38`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Verification:
+- Detached clean worktree: `.tmux-team/tmp/clean-integrator-encoding-20260526T134031Z` at `c54c843c728c9f0a9298eccb783f98914585fce2`.
+- Patch sha256 matched marker metadata: `902692c4d71f62e44025dfeeadc3e59d3a4ee74544ffd4d5380dc2dfe57c4574`.
+- Focused checks passed: `php -l` for `SQLiteDatabase.php`, `SQLiteHeaderTest.php`, and `wordpress-option-name-like-glob.php`; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` (`1 test files, 2799 assertions, 0 failures`); `php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test`; manifest/status JSON validation; and `git diff --check -- lanes/libsqlite`.
+- Full clean-candidate diff check passed with `git diff --check`.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 27706 assertions, 0 failures`.
+
+Decision: accepted as commit pending final ref update. The slice adds lane-local escaped LIKE literal-prefix range bounds and an indexed WordPress `option_name` LIKE prefix helper with residual LIKE filtering. It does not claim broader SQL planner lowering or a new support-library dependency.
+
+Dashboard publication should run next after the accepted source commit is visible on `main`.
