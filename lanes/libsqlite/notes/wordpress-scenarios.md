@@ -2,6 +2,24 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Date/Time Scalar Timestamp Scenario
+
+Copied WordPress option and migration SQL often formats import timestamps with
+SQLite temporal helpers. The scalar smoke
+`examples/wordpress-core-scalar-option-default.php` now reports
+`timestampPreview`, showing bounded UTC `datetime()`, `unixepoch()`, and
+`strftime()` dispatch for copied `wp_options` diagnostics without requiring the
+SQLite extension.
+
+Status delta 2026-05-26 isolated dependency-suite slice: added bounded
+`SQLiteCoreScalarFunction` dispatch for `date()`, `time()`, `datetime()`,
+`julianday()`, `unixepoch()`, and `strftime()`, focused tests for explicit ISO
+inputs, unixepoch conversion, Julian day output, simple signed modifiers,
+start-of-day handling, NULL propagation, and unsupported modifier/value errors,
+and updated the WordPress scalar diagnostic smoke. Dependency closure: no new
+support component is needed; this reuses lane-local scalar coercion plus PHP
+`DateTimeImmutable` for UTC timestamp handling.
+
 ## Conditional Scalar Default Scenario
 
 Copied WordPress option migration SQL can use SQLite's compact conditional

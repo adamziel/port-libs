@@ -1,5 +1,36 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Core Date/Time Scalar Dispatch
+
+Date: 2026-05-26
+
+This isolated dependency-suite micro-slice adds bounded UTC
+`date()`, `time()`, `datetime()`, `julianday()`, `unixepoch()`, and
+`strftime()` dispatch to `SQLiteCoreScalarFunction`. The native helper covers
+explicit ISO date/time inputs, numeric Julian day inputs, `unixepoch` input,
+`start of day`, and signed day/hour/minute/second modifiers. Unsupported
+timezone/localtime/weekday/month/year modifiers remain future focused work.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice; the isolated worktree did not contain a hydrated
+SQLite upstream checkout.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php datetime '2026-05-26 16:12:34' '+1 day' 'start of day'
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local scalar coercion plus PHP `DateTimeImmutable` for bounded UTC
+timestamp diagnostics.
+
 ## Focused Native Mapping: Persistent Release Manifest Gate
 
 Date: 2026-05-26

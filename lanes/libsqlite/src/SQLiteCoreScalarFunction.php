@@ -46,6 +46,7 @@ final class SQLiteCoreScalarFunction
             'zeroblob' => self::zeroblob($arguments),
             'random' => self::random($arguments),
             'randomblob' => self::randomblob($arguments),
+            'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime' => self::dateTime($normalized, $arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
     }
@@ -698,6 +699,128 @@ final class SQLiteCoreScalarFunction
         $length = max(1, self::coerceInteger($arguments[0]));
 
         return new SQLiteBlobValue(random_bytes($length));
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function dateTime(string $functionName, array $arguments): int|float|string|null
+    {
+        $minimum = $functionName === 'strftime' ? 2 : 0;
+        self::assertArity($functionName, $arguments, $minimum, null);
+        if ($functionName === 'strftime' && $arguments[0] === null) {
+            return null;
+        }
+
+        $timeValueIndex = $functionName === 'strftime' ? 1 : 0;
+        $timeValue = array_key_exists($timeValueIndex, $arguments) ? $arguments[$timeValueIndex] : 'now';
+        if ($timeValue === null) {
+            return null;
+        }
+
+        $modifiers = array_slice($arguments, $timeValueIndex + 1);
+        foreach ($modifiers as $modifier) {
+            if ($modifier === null) {
+                return null;
+            }
+        }
+
+        $instant = self::parseDateTimeValue($timeValue, $modifiers);
+        foreach ($modifiers as $modifier) {
+            $modifierText = strtolower(trim(self::coerceText($functionName, $modifier, 'modifier')));
+            if ($modifierText === 'unixepoch' || $modifierText === 'auto') {
+                continue;
+            }
+            if ($modifierText === 'start of day') {
+                $instant = $instant->setTime(0, 0, 0);
+                continue;
+            }
+            if (preg_match('/\A([+-]?\d+)(?:\.\d+)?\s+(second|seconds|minute|minutes|hour|hours|day|days)\z/', $modifierText, $matches) === 1) {
+                $unit = match ($matches[2]) {
+                    'second', 'seconds' => 'seconds',
+                    'minute', 'minutes' => 'minutes',
+                    'hour', 'hours' => 'hours',
+                    default => 'days',
+                };
+                $instant = $instant->modify(sprintf('%+d %s', (int) $matches[1], $unit));
+                continue;
+            }
+
+            throw new \InvalidArgumentException("Unsupported SQLite date/time modifier: {$modifierText}");
+        }
+
+        return match ($functionName) {
+            'date' => $instant->format('Y-m-d'),
+            'time' => $instant->format('H:i:s'),
+            'datetime' => $instant->format('Y-m-d H:i:s'),
+            'unixepoch' => (int) $instant->format('U'),
+            'julianday' => ((int) $instant->format('U')) / 86400.0 + 2440587.5,
+            'strftime' => self::strftimeSql(self::coerceText('strftime', $arguments[0], 'format'), $instant),
+            default => throw new \InvalidArgumentException("Unsupported SQLite date/time function: {$functionName}"),
+        };
+    }
+
+    /**
+     * @param list<mixed> $modifiers
+     */
+    private static function parseDateTimeValue(mixed $value, array $modifiers): \DateTimeImmutable
+    {
+        $timezone = new \DateTimeZone('UTC');
+        $modifierTexts = array_map(
+            static fn (mixed $modifier): string => strtolower(trim($modifier instanceof SQLiteBlobValue ? $modifier->bytes : (string) $modifier)),
+            $modifiers
+        );
+
+        if (in_array('unixepoch', $modifierTexts, true) || in_array('auto', $modifierTexts, true)) {
+            $epoch = self::coerceNumeric($value);
+
+            return (new \DateTimeImmutable('@' . (string) (int) $epoch))->setTimezone($timezone);
+        }
+        if (is_int($value) || is_float($value)) {
+            $seconds = (int) round((((float) $value) - 2440587.5) * 86400);
+
+            return (new \DateTimeImmutable('@' . (string) $seconds))->setTimezone($timezone);
+        }
+
+        $text = trim(self::coerceText('date/time', $value, 'time-value'));
+        if (strcasecmp($text, 'now') === 0) {
+            return new \DateTimeImmutable('now', $timezone);
+        }
+        if (preg_match('/\A\d{4}-\d{2}-\d{2}\z/', $text) === 1) {
+            return new \DateTimeImmutable($text . ' 00:00:00', $timezone);
+        }
+        if (preg_match('/\A\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2})?(?:Z)?\z/i', $text) === 1) {
+            return new \DateTimeImmutable(str_replace('T', ' ', rtrim($text, 'Zz')), $timezone);
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite date/time value: {$text}");
+    }
+
+    private static function strftimeSql(string $format, \DateTimeImmutable $instant): string
+    {
+        $result = '';
+        $length = strlen($format);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($format[$offset] !== '%' || $offset + 1 >= $length) {
+                $result .= $format[$offset];
+                continue;
+            }
+            $offset++;
+            $result .= match ($format[$offset]) {
+                '%' => '%',
+                'Y' => $instant->format('Y'),
+                'm' => $instant->format('m'),
+                'd' => $instant->format('d'),
+                'H' => $instant->format('H'),
+                'M' => $instant->format('i'),
+                'S' => $instant->format('s'),
+                's' => $instant->format('U'),
+                'J' => sprintf('%.8F', ((int) $instant->format('U')) / 86400.0 + 2440587.5),
+                default => '%' . $format[$offset],
+            };
+        }
+
+        return $result;
     }
 
     private static function assertArity(string $functionName, array $arguments, int $minimum, ?int $maximum): void

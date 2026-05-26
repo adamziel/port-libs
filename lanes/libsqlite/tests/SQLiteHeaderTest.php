@@ -11678,6 +11678,16 @@ SQL;
         $minimumRandomBlob = SQLiteCoreScalarFunction::sqlFunctionArguments('randomblob', [0]);
         $t->true($minimumRandomBlob instanceof SQLiteBlobValue);
         $t->same(1, strlen($minimumRandomBlob instanceof SQLiteBlobValue ? $minimumRandomBlob->bytes : ''));
+        $t->same('2026-05-26', SQLiteCoreScalarFunction::sqlFunctionArguments('date', ['2026-05-26 16:12:34']));
+        $t->same('16:12:34', SQLiteCoreScalarFunction::sqlFunctionArguments('time', ['2026-05-26T16:12:34Z']));
+        $t->same('2026-05-27 18:42:34', SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26 16:12:34', '+1 day', '+2 hours', '+30 minutes']));
+        $t->same('2026-05-26 00:00:00', SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26 16:12:34', 'start of day']));
+        $t->same(1716759154, SQLiteCoreScalarFunction::sqlFunctionArguments('unixepoch', ['2024-05-26 21:32:34']));
+        $t->same('2024-05-26 21:32:34', SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', [1716759154, 'unixepoch']));
+        $t->same('2024/05/26 21:32:34 1716759154', SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%Y/%m/%d %H:%M:%S %s', 1716759154, 'unixepoch']));
+        $t->same(2440587.5, SQLiteCoreScalarFunction::sqlFunctionArguments('julianday', ['1970-01-01 00:00:00']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', [null]));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', [null, '2026-05-26']));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('coalesce', [null]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('min', [1]));
@@ -11711,6 +11721,9 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('zeroblob', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('random', [1]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('randomblob', [['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%Y']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['bad-date']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26', 'weekday 1']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('missing', [1]));
     },
