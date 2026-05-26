@@ -116739,3 +116739,40 @@ Root result:
 Cleanup:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T185740Z` still had modified lane files after acceptance, so it was preserved as cleanup debt rather than removed.
 - Accepted ready/patch/metadata artifacts were removed after the commit was safely published to `refs/heads/main`.
+## Integration accepted - libsqlite unistr scalar helpers - 2026-05-26T19:17:47Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T191032Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before this pass was `9df75bb19e79f64844fb6077545aede7017fedd9` (`Integrate libsqlite rollback hot journal admission`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `9df75bb19e79f64844fb6077545aede7017fedd9`, `generated` `2026-05-26 19:13:34 UTC`, and dashboard commit `339cfba8dfb770723376e1fbd2a395a4ba122752`.
+
+Candidate evidence:
+- Selected the current-base scalar behavior marker over sampled JSON-table and release-blocker alternatives because it added focused SQLite scalar behavior and 19 focused assertions, with dashboard-visible `phpPass` growth rather than status-only movement.
+- Applied in detached clean worktree `.tmux-team/tmp/clean-integrator-scalar-20260526T191032Z` from current `main`.
+- Integrator made a bounded correctness fix before acceptance: SQLite CLI 3.51.2 showed `unistr_quote(char(10))` emits `\u000a` style escapes and unknown `unistr()` escapes are invalid, so the candidate was adjusted to reject invalid escapes and emit `\u0007` through `\u000d` for C0 controls.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php`: passed.
+- Manifest/status JSON decode: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 3181 assertions, 0 failures`.
+- WordPress scalar smoke `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php --self-test`: passed.
+- WordPress scalar smoke for `unistr_quote` returned `unistr('plugin_cache\\u000asite')`.
+- SQLite CLI parity spot-check confirmed native `unistr_quote` emits `unistr('line\\u000aplugin')` for newline text.
+- `git diff --check`: passed.
+
+Runtime gate evidence before focused/root checks:
+- `df -Pk /` reported `100308044` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.39`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before candidate checks.
+
+Root verification and publication:
+- Serialized no-argument root harness under `.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR=$candidate/.tmp-root`: passed, `215 test files, 28253 assertions, 0 failures`.
+- Accepted commit: `f7d4bc5070a238a3d5a060ab1a00a28687f5aa66` (`Integrate libsqlite unistr scalar helpers`).
+- The originating worker worktree still contained lane-local modified files at acceptance time, so it was preserved as cleanup debt rather than removed.
+
+Decision: accepted and published to `refs/heads/main`. Dashboard publication should run next because accepted source moved from `9df75bb19e79f64844fb6077545aede7017fedd9` to `f7d4bc5070a238a3d5a060ab1a00a28687f5aa66`.

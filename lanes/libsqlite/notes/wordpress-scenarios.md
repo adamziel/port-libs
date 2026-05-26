@@ -3229,6 +3229,25 @@ scalar dispatch coverage, not a full SELECT/VDBE executor.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion and PHP runtime math primitives.
 
+## Core Unistr Scalar Scenario
+
+Native SQL execution helpers now include bounded SQLite 3.50 `unistr()` and
+`unistr_quote()` behavior for local WordPress option repair and import
+diagnostics. The `examples/wordpress-core-scalar-option-default.php` smoke now
+reports decoded Unicode escape previews and display-safe SQL literal previews
+for copied `wp_options` text that contains control characters or backslashes,
+without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added 19
+focused assertions for `unistr()` backslash Unicode forms, literal backslash
+escaping, unknown escape preservation, SQL NULL propagation, `unistr_quote()`
+control-character and backslash-safe SQL literals, BLOB fallback quoting, and
+strict arity/type errors. This is intentionally scalar dispatch coverage, not a
+full SELECT/VDBE executor.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQL literal quoting, and UTF-8 codepoint helpers.
+
 ## SQLite Capability Preflight Scenario
 
 Native SQL execution helpers now include bounded SQLite introspection scalar

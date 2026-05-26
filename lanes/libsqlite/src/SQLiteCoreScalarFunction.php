@@ -88,6 +88,8 @@ final class SQLiteCoreScalarFunction
             'unhex' => self::unhex($arguments),
             'char' => self::char($arguments),
             'unicode' => self::unicode($arguments),
+            'unistr' => self::unistr($arguments),
+            'unistr_quote' => self::unistrQuote($arguments),
             'octet_length' => self::octetLength($arguments),
             'zeroblob' => self::zeroblob($arguments),
             'random' => self::random($arguments),
@@ -887,6 +889,114 @@ final class SQLiteCoreScalarFunction
         }
 
         return self::firstUtf8Codepoint($value);
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function unistr(array $arguments): ?string
+    {
+        self::assertArity('unistr', $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $value = self::coerceText('unistr', $arguments[0], 'first');
+        $result = '';
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($value[$offset] !== '\\') {
+                $result .= $value[$offset];
+                continue;
+            }
+            if ($offset + 1 >= $length) {
+                $result .= '\\';
+                continue;
+            }
+
+            $next = $value[$offset + 1];
+            if ($next === '\\') {
+                $result .= '\\';
+                $offset++;
+                continue;
+            }
+
+            $hexLength = match ($next) {
+                'u' => 4,
+                'U' => 8,
+                '+' => 6,
+                default => ctype_xdigit($next) ? 4 : 0,
+            };
+            $hexStart = $next === 'u' || $next === 'U' || $next === '+' ? $offset + 2 : $offset + 1;
+            if ($hexLength > 0 && $hexStart + $hexLength <= $length) {
+                $hex = substr($value, $hexStart, $hexLength);
+                if (preg_match('/\A[0-9A-Fa-f]{' . $hexLength . '}\z/', $hex) === 1) {
+                    $result .= self::utf8Codepoint((int) hexdec($hex));
+                    $offset = $hexStart + $hexLength - 1;
+                    continue;
+                }
+            }
+
+            throw new \InvalidArgumentException('SQLite unistr() invalid Unicode escape');
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function unistrQuote(array $arguments): string
+    {
+        self::assertArity('unistr_quote', $arguments, 1, 1);
+        if ($arguments[0] === null || $arguments[0] instanceof SQLiteBlobValue || !is_string($arguments[0])) {
+            return self::quote($arguments);
+        }
+
+        $value = $arguments[0];
+        if (!self::containsControlCharacterOrBackslash($value)) {
+            return self::quote([$value]);
+        }
+
+        $escaped = '';
+        foreach (self::splitTextUnits($value) as $unit) {
+            $escaped .= self::unistrQuotedUnit($unit);
+        }
+
+        return "unistr('{$escaped}')";
+    }
+
+    private static function containsControlCharacterOrBackslash(string $value): bool
+    {
+        return str_contains($value, '\\') || preg_match('/[\x01-\x1f]/', $value) === 1;
+    }
+
+    private static function unistrQuotedUnit(string $unit): string
+    {
+        return match ($unit) {
+            "'" => "''",
+            '\\' => '\\\\',
+            "\x07" => '\\u0007',
+            "\b" => '\\u0008',
+            "\t" => '\\u0009',
+            "\n" => '\\u000a',
+            "\v" => '\\u000b',
+            "\f" => '\\u000c',
+            "\r" => '\\u000d',
+            default => self::unistrQuotedDefault($unit),
+        };
+    }
+
+    private static function unistrQuotedDefault(string $unit): string
+    {
+        if (strlen($unit) === 1) {
+            $codepoint = ord($unit);
+            if ($codepoint >= 1 && $codepoint <= 0x1f) {
+                return sprintf('\\u%04x', $codepoint);
+            }
+        }
+
+        return $unit;
     }
 
     /**
