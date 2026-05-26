@@ -61,6 +61,8 @@ echo json_encode([
     'conditionalDefaultPreview' => SQLiteCoreScalarFunction::sqlFunctionArguments('iif', [0, 'network-value', 1, 'site-default', 'fallback']),
     'timestampPreview' => [
         'datetime' => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26 16:12:34', '+1 day', 'start of day']),
+        'monthBucket' => SQLiteCoreScalarFunction::sqlFunctionArguments('date', ['2026-05-26 16:12:34', 'start of month']),
+        'nextWeeklyCron' => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26 16:12:34', 'weekday 0', 'start of day']),
         'unixepoch' => SQLiteCoreScalarFunction::sqlFunctionArguments('unixepoch', ['2026-05-26 16:12:34']),
         'strftime' => SQLiteCoreScalarFunction::sqlFunctionArguments('strftime', ['%Y-%m-%dT%H:%M:%SZ', 1779811954, 'unixepoch']),
     ],

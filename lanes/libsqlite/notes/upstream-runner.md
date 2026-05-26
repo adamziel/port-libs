@@ -1,5 +1,36 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Core Date/Time Modifier Dispatch
+
+Date: 2026-05-26
+
+This isolated SQL execution/planner micro-slice extends bounded UTC date/time
+modifier dispatch in `SQLiteCoreScalarFunction`. Native PHP now handles
+`start of month`, `start of year`, signed month/year modifiers, and `weekday N`
+forward scheduling for copied WordPress SQLite timestamp diagnostics. It keeps
+the existing bounded scope: timezone/localtime, weekday names, and full SQLite
+calendar ambiguity policies remain future focused work.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice; the isolated worktree did not contain a hydrated
+SQLite upstream checkout.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php datetime '2026-05-26 16:12:34' 'start of month'
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local scalar coercion plus PHP `DateTimeImmutable` for bounded UTC
+timestamp diagnostics.
+
 ## Focused Native Mapping: Core Date/Time Scalar Dispatch
 
 Date: 2026-05-26

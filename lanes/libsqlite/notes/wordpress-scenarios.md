@@ -11,6 +11,14 @@ SQLite temporal helpers. The scalar smoke
 `strftime()` dispatch for copied `wp_options` diagnostics without requiring the
 SQLite extension.
 
+Status delta 2026-05-26 isolated sql-exec/planner slice: extended bounded
+`SQLiteCoreScalarFunction` date/time modifier dispatch with `start of month`,
+`start of year`, signed month/year modifiers, and `weekday N` forward
+scheduling. The WordPress scalar smoke now reports month-bucket and weekly-cron
+timestamp previews for copied `wp_options` diagnostics. Dependency closure: no
+new support component is needed; this reuses lane-local scalar coercion plus
+PHP `DateTimeImmutable` UTC handling.
+
 Status delta 2026-05-26 isolated dependency-suite slice: added bounded
 `SQLiteCoreScalarFunction` dispatch for `date()`, `time()`, `datetime()`,
 `julianday()`, `unixepoch()`, and `strftime()`, focused tests for explicit ISO

@@ -115942,3 +115942,24 @@ Dashboard publication should run next after this commit because accepting the ma
 Cleanup:
 - Accepted marker files were eligible for removal after `refs/heads/main` advanced.
 - Worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T161216Z` still had modified lane-local files matching the handoff output, so it was preserved as cleanup debt instead of being removed.
+## Accepted libsqlite SQL-exec date/time modifiers - 2026-05-26T16:24:43Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T161915Z.ready`.
+
+Decision: accepted one current-base libsqlite marker from base `3a522456a0db2d58a3791345233b399bf063cb7b` after the live dashboard guard opened. Cache-busted live `porting-summary.json` reported matching `sourceCommit` `3a522456a0db2d58a3791345233b399bf063cb7b`; no Pages-outage override was used.
+
+Scope: bounded `SQLiteCoreScalarFunction` date/time modifier dispatch for `start of month`, `start of year`, signed month/year modifiers, and `weekday N`, plus focused libsqlite manifest/status/notes and WordPress scalar smoke updates.
+
+Focused checks from detached clean candidate worktree `.tmux-team/tmp/clean-candidate-libsqlite-sql-exec-20260526T161915Z`:
+- `php -l` passed for `SQLiteCoreScalarFunction.php`, `SQLiteHeaderTest.php`, and `wordpress-core-scalar-option-default.php`.
+- JSON validation passed for `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php datetime '2026-05-26 16:12:34' 'start of month'` passed.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php --self-test` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2908 assertions, 0 failures`.
+
+Serialized root evidence: after disk/load/root-process gates passed (`98959928` KiB available, load `1.04`, no exact no-argument root harness already running), `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed from the clean candidate snapshot with `215 test files, 27873 assertions, 0 failures`.
+
+Artifact cleanup: accepted marker artifacts may be removed after commit publication. The worker handoff worktree still contains its expected lane-local modified files, so it is preserved rather than forcibly removed; cleanup debt remains to remove the inactive registered worktree only when it is confirmed safe and clean.
+
+Dashboard publication should run next for the new accepted source once the commit is on `main`.

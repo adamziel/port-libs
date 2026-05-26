@@ -731,16 +731,31 @@ final class SQLiteCoreScalarFunction
             if ($modifierText === 'unixepoch' || $modifierText === 'auto') {
                 continue;
             }
-            if ($modifierText === 'start of day') {
-                $instant = $instant->setTime(0, 0, 0);
+            if (preg_match('/\Astart of (day|month|year)\z/', $modifierText, $matches) === 1) {
+                $instant = match ($matches[1]) {
+                    'day' => $instant->setTime(0, 0, 0),
+                    'month' => $instant->setDate((int) $instant->format('Y'), (int) $instant->format('m'), 1)->setTime(0, 0, 0),
+                    'year' => $instant->setDate((int) $instant->format('Y'), 1, 1)->setTime(0, 0, 0),
+                };
                 continue;
             }
-            if (preg_match('/\A([+-]?\d+)(?:\.\d+)?\s+(second|seconds|minute|minutes|hour|hours|day|days)\z/', $modifierText, $matches) === 1) {
+            if (preg_match('/\Aweekday\s+([0-6])\z/', $modifierText, $matches) === 1) {
+                $target = (int) $matches[1];
+                $current = (int) $instant->format('w');
+                $days = ($target - $current + 7) % 7;
+                if ($days > 0) {
+                    $instant = $instant->modify("+{$days} days");
+                }
+                continue;
+            }
+            if (preg_match('/\A([+-]?\d+)(?:\.\d+)?\s+(second|seconds|minute|minutes|hour|hours|day|days|month|months|year|years)\z/', $modifierText, $matches) === 1) {
                 $unit = match ($matches[2]) {
                     'second', 'seconds' => 'seconds',
                     'minute', 'minutes' => 'minutes',
                     'hour', 'hours' => 'hours',
-                    default => 'days',
+                    'day', 'days' => 'days',
+                    'month', 'months' => 'months',
+                    default => 'years',
                 };
                 $instant = $instant->modify(sprintf('%+d %s', (int) $matches[1], $unit));
                 continue;
