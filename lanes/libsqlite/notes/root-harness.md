@@ -1091,3 +1091,26 @@ defragmentation preview that clears the freeblock head while preserving
 free-space accounting. Manifest/status JSON decoded successfully; lane diff
 check passed. The root harness was not run because this was an isolated
 micro-slice.
+
+## Text Aggregate group_concat/string_agg Slice
+
+Focused lane verification for the SQL execution/planner text aggregate slice
+passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteTextAggregate.php
+php -l lanes/libsqlite/src/SQLiteTextAggregateState.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-group-concat-option-summary.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-group-concat-option-summary.php
+php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 2931 assertions, and 0 failures. The WordPress smoke reported
+group_concat option-name summaries with DISTINCT, ORDER BY, FILTER-style
+autoload selection, NULL skipping, and rolling windows. Manifest/status JSON
+decoded successfully; lane diff check passed. The root harness was not run
+because this was an isolated micro-slice.

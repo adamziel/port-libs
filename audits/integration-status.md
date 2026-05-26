@@ -116013,3 +116013,31 @@ Decision: accepted and prepared for publication as a small verified libsqlite sl
 Cleanup:
 - Accepted marker ready/patch/metadata files were eligible for removal after publishing the commit.
 - Worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T163436Z` still contained modified `lanes/libsqlite/**` files after publication, so it was preserved as cleanup debt instead of being removed.
+
+## Integrated libsqlite text aggregate helpers - 2026-05-26T16:48:30Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T163816Z.ready`.
+
+Decision: accepted one bounded libsqlite SQL execution/planner behavior slice. The marker was stale against current `HEAD` (`base_sha=2dd1dc12ac32f77dbdad0dfb09dbc94ea68f3804`, current verified base `fc67215b1e1c4283fd390eafac073ee8b02eec36`), but the behavioral hunks applied cleanly in a detached worktree. Stale manifest/status/upstream-runner hunks were merged manually as a bounded metadata update against current libsqlite status.
+
+Scope:
+- Added `SQLiteTextAggregate` and `SQLiteTextAggregateState` for bounded `group_concat()`/`string_agg()` semantics: NULL row skipping, NULL separator propagation, scalar/BLOB text coercion, DISTINCT, ORDER BY, FILTER-style selection, and ROWS-style rolling windows.
+- Added the WordPress option summary smoke `lanes/libsqlite/examples/wordpress-group-concat-option-summary.php`.
+- Added focused assertions in `SQLiteHeaderTest.php` and updated libsqlite manifest/status/notes without claiming a fresh upstream runner.
+
+Verification:
+- Runtime gates before focused/root checks: `/` free space stayed above `86000000` KiB and load stayed below `25`; no exact no-argument root harness was active before the serialized root run.
+- Syntax checks passed for `SQLiteTextAggregate.php`, `SQLiteTextAggregateState.php`, `SQLiteHeaderTest.php`, and the WordPress smoke.
+- Manifest/status JSON decode passed.
+- Focused `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2937 assertions, 0 failures`.
+- WordPress smoke `php lanes/libsqlite/examples/wordpress-group-concat-option-summary.php` passed and reported DISTINCT/ORDER BY/FILTER-style option summaries plus rolling windows.
+- `git diff --check` passed.
+- Serialized clean-candidate root `php tools/run-tests.php` passed: `215 test files, 27913 assertions, 0 failures`.
+
+Dashboard guard:
+- Before applying the marker, live cache-busted `porting-summary.json` reported `sourceCommit` `fc67215b1e1c4283fd390eafac073ee8b02eec36`, matching current `HEAD`; dashboard guard was open.
+
+Cleanup:
+- Remove accepted marker artifacts only after the commit is safely on `main`. The accepted worker worktree should be removed only if still clean/inactive; otherwise preserve and record cleanup debt.
+
+Dashboard publication should run next after this accepted source move.

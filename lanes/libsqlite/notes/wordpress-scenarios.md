@@ -3063,3 +3063,23 @@ coverage, not a full SELECT/VDBE executor.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion and the existing lane-local LIKE/GLOB pattern
 helpers already accepted for WordPress option-name scans.
+
+## Text Aggregate Option Summary Scenario
+
+Native SQL execution helpers now include bounded `group_concat()`/`string_agg()`
+aggregate behavior for local WordPress option repair and import diagnostics.
+The `examples/wordpress-group-concat-option-summary.php` smoke reports copied
+`wp_options` option-name summaries using SQLite-style NULL row skipping,
+custom separators, DISTINCT de-duplication, ORDER BY scheduling,
+FILTER-style autoload selection, and ROWS-style rolling windows without
+requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner aggregate slice: added
+focused assertions for text aggregate step/final semantics, including BLOB
+byte text coercion, NULL separator propagation, distinct ordered rows, filter
+truthiness, window frame bounds, state summaries, and strict type errors. This
+is intentionally an aggregate helper, not a full SELECT/VDBE executor.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
+patterns.

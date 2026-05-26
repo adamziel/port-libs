@@ -9507,3 +9507,35 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local date/time parsing and scalar dispatch without activating shared
 support-library work.
+
+## Focused Native Mapping: Text Aggregate group_concat/string_agg Helpers
+
+This isolated SQL execution/planner aggregate micro-slice adds bounded native
+`group_concat()`/`string_agg()` helper behavior for copied WordPress
+`wp_options` summary diagnostics. Native PHP now covers NULL row skipping,
+NULL separator propagation, scalar and BLOB text coercion, DISTINCT
+de-duplication, ORDER BY scheduling, combined DISTINCT ORDER BY rows,
+FILTER-style row selection, and ROWS-style rolling windows.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused text aggregate evidence row while preserving the current
+accepted static SQLite upstream denominator and veryquick evidence. This
+isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T16:38Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteTextAggregate.php
+php -l lanes/libsqlite/src/SQLiteTextAggregateState.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-group-concat-option-summary.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-group-concat-option-summary.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local scalar coercion, `SQLiteBlobValue`, and accepted aggregate
+scheduling patterns without activating shared support-library work.

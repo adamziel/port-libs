@@ -54,6 +54,8 @@ use PortLibs\LibSqlite\SQLiteTableInteriorPage;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteTableRow;
+use PortLibs\LibSqlite\SQLiteTextAggregate;
+use PortLibs\LibSqlite\SQLiteTextAggregateState;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
@@ -11754,5 +11756,70 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('datetime', ['2026-05-26', 'weekday 7']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('missing', [1]));
+    },
+    'dispatches sqlite text aggregate group concat semantics' => static function (TestRunner $t): void {
+        $t->same('siteurl,home,blogname', SQLiteTextAggregate::groupConcat(['siteurl', null, 'home', 'blogname']));
+        $t->same('siteurl|home|blogname', SQLiteTextAggregate::groupConcat(['siteurl', null, 'home', 'blogname'], '|'));
+        $t->same(null, SQLiteTextAggregate::groupConcat([null, null]));
+        $t->same(null, SQLiteTextAggregate::groupConcat(['siteurl'], null));
+        $t->same("prefix:\x00A", SQLiteTextAggregate::groupConcat(['prefix:', new SQLiteBlobValue("\x00A")], ''));
+        $t->same('1,1,1.5,text', SQLiteTextAggregate::groupConcat([true, 1, 1.5, 'text']));
+
+        $t->same('siteurl,1', SQLiteTextAggregate::groupConcatDistinct(['siteurl', 'siteurl', 1, true]));
+        $t->same("\x00A", SQLiteTextAggregate::groupConcatDistinct([new SQLiteBlobValue("\x00A"), new SQLiteBlobValue("\x00A")]));
+
+        $t->same('home|siteurl|blogname', SQLiteTextAggregate::groupConcatOrderBy([
+            ['blogname', 30],
+            ['siteurl', 20],
+            ['home', 10],
+        ], '|'));
+        $t->same('numeric|null-text|blob', SQLiteTextAggregate::groupConcatOrderBy([
+            ['blob', new SQLiteBlobValue('z')],
+            ['null-text', 'a'],
+            ['numeric', 2],
+        ], '|'));
+        $t->same('home|siteurl|blogname', SQLiteTextAggregate::groupConcatDistinctOrderBy([
+            ['siteurl', 20],
+            ['blogname', 30],
+            ['siteurl', 40],
+            ['home', 10],
+        ], '|'));
+
+        $t->same('siteurl|blogname', SQLiteTextAggregate::groupConcatFilter([
+            ['siteurl', 1],
+            ['home', 0],
+            ['blogname', '2'],
+            ['transient', null],
+            ['bad-text', 'true'],
+        ], '|'));
+        $t->same(['siteurl', 'siteurl|home', 'home|blogname'], SQLiteTextAggregate::groupConcatWindow(['siteurl', 'home', 'blogname'], 1, 0, '|'));
+
+        $state = new SQLiteTextAggregateState();
+        foreach ([['siteurl', 20, 1], ['home', 10, 1], [null, 30, 1], ['siteurl', 40, 0]] as [$value, $order, $filter]) {
+            $state->step($value);
+            $state->stepDistinct($value);
+            $state->stepOrderBy($value, $order);
+            $state->stepDistinctOrderBy($value, $order);
+            $state->stepFilter($value, $filter);
+            $state->stepWindow($value);
+        }
+        $t->same('siteurl|home|siteurl', $state->finalize('|'));
+        $t->same('siteurl|home', $state->finalizeDistinct('|'));
+        $t->same('home|siteurl|siteurl', $state->finalizeOrdered('|'));
+        $t->same('home|siteurl', $state->finalizeDistinctOrdered('|'));
+        $t->same('siteurl|home', $state->finalizeFiltered('|'));
+        $t->same(['siteurl|home', 'siteurl|home', 'home|siteurl', 'siteurl'], $state->finalizeWindowed(1, 1, '|'));
+        $t->same([
+            'rows' => 4,
+            'distinctRows' => 4,
+            'orderedRows' => 4,
+            'distinctOrderedRows' => 4,
+            'filteredRows' => 4,
+            'windowRows' => 4,
+        ], $state->summary());
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcat([['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcatOrderBy([['siteurl', ['bad']], ['home', 1]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcatWindow(['siteurl'], -1));
     },
 ];
