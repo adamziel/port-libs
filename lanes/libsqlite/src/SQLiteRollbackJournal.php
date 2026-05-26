@@ -25,16 +25,22 @@ final class SQLiteRollbackJournal
 
         $recordSize = 8 + $header->pageSize;
         $recordBytes = strlen($bytes) - $header->sectorSize;
-        if ($recordBytes % $recordSize !== 0) {
-            throw new \InvalidArgumentException('SQLite rollback journal has a truncated page record');
+        if ($header->pageCount === SQLiteRollbackJournalHeader::UNKNOWN_PAGE_COUNT) {
+            if ($recordBytes % $recordSize !== 0) {
+                throw new \InvalidArgumentException('SQLite rollback journal has a truncated page record');
+            }
+            $declaredRecords = intdiv($recordBytes, $recordSize);
+        } else {
+            $declaredRecords = $header->pageCount;
         }
 
-        $availableRecords = intdiv($recordBytes, $recordSize);
-        $declaredRecords = $header->pageCount === SQLiteRollbackJournalHeader::UNKNOWN_PAGE_COUNT
-            ? $availableRecords
-            : $header->pageCount;
-        if ($declaredRecords > $availableRecords) {
+        $declaredRecordBytes = $declaredRecords * $recordSize;
+        if ($declaredRecordBytes > $recordBytes) {
             throw new \InvalidArgumentException('SQLite rollback journal page count exceeds available page records');
+        }
+        $trailingBytes = substr($bytes, $header->sectorSize + $declaredRecordBytes);
+        if ($trailingBytes !== '' && trim($trailingBytes, "\0") !== '') {
+            throw new \InvalidArgumentException('SQLite rollback journal has non-zero trailing bytes after declared page records');
         }
 
         $pages = [];

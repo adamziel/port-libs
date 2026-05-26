@@ -1,5 +1,55 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite rollback journal sector padding - 2026-05-26 01:55 UTC
+
+Accepted isolated libsqlite marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T014416Z.ready`.
+
+Current `refs/heads/main` before acceptance: `d99add31` (`Integrate libsqlite
+upstream focused subset matrix`).
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=d99add316879eaa70aaf4e66e5cc94c766397da7`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `25c36b5f25d74604021bbdc150d40f70aaca2b59`.
+
+Candidate evidence:
+- Libsqlite priority override was applied; non-libsqlite and Dolt markers were
+  not considered for acceptance.
+- Latest storage/data group-integrator hint queued this marker for serialized
+  root, with matching base SHA and patch SHA evidence.
+- Marker contained required `lane=`, `patch=`, and `metadata=` fields.
+- Patch SHA matched marker evidence:
+  `54c7de22de69900a43e44e5376488068c83f144001044f5fe759799344ac8cbd`.
+- The patch applied cleanly in a detached current-main worktree from
+  `d99add316879eaa70aaf4e66e5cc94c766397da7`.
+
+Verification evidence:
+- Runtime gates before focused verification were open: `df -Pk /` reported
+  `87247060` KiB available, load average first field was `7.60`, and no exact
+  no-argument root harness process was active.
+- Focused lint, example smoke, manifest/status JSON validation, and
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- Focused lane test result: `1 test files, 2361 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Runtime gates before serialized root were open: `df -Pk /` reported
+  `87194340` KiB available, load average first field was `8.11`, and no exact
+  no-argument root harness process was active.
+- Serialized no-argument root verification ran under
+  `.tmux-team/tmp/clean-integrator-run.lock` and passed:
+  `215 test files, 26816 assertions, 0 failures`.
+
+Decision: accepted. The slice teaches `SQLiteRollbackJournal::parse()` to honor
+declared page counts, accept NUL-filled sector padding after declared records,
+reject non-zero trailing bytes, and keep unknown-page-count EOF parsing. The
+WordPress rollback journal diagnostics example now reports
+`sectorPaddingBytes`.
+
+Dashboard publication should run next because this pass moves accepted source
+past live dashboard source `d99add316879eaa70aaf4e66e5cc94c766397da7`.
+
 ## Accepted - libsqlite upstream focused subset matrix evidence - 2026-05-26 01:48 UTC
 
 Accepted isolated marker

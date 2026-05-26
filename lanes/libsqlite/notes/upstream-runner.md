@@ -1,5 +1,48 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Rollback Journal Sector Padding
+
+Date: 2026-05-26
+
+This isolated dependency-closure micro-slice aligns a bounded rollback-journal
+format edge. `SQLiteRollbackJournal::parse()` now honors a known journal page
+count before checking the remaining bytes, accepts zero-filled trailing sector
+padding after declared page records, and rejects non-zero trailing bytes. The
+unknown-page-count form still reads records through EOF and continues to reject
+truncated records.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses the accepted pager/journal cluster evidence:
+
+```sh
+wal*.test pager*.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: syntax checks passed; the WordPress smoke reported
+`sectorPaddingBytes`; focused lane tests passed with rollback-journal sector
+padding and non-zero trailing-byte rejection covered.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local rollback journal header/page parser, checksum validator,
+rollback image overlay, and WordPress option decoding; it counts no shared
+support-library progress.
+
 ## Focused Native Mapping: Upstream Subset Matrix Planner
 
 Date: 2026-05-26

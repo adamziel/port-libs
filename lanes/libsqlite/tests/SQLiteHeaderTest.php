@@ -9936,6 +9936,23 @@ return [
         $t->same([1], array_keys($journal->pageImages()));
         $t->same($page, $journal->pageImages()[1]);
     },
+    'parses sqlite rollback journals with sector padding after declared pages' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $sectorSize = 1024;
+        $nonce = 0x21222324;
+        $page = str_repeat('S', $pageSize);
+        $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', 1, $nonce, 1, $sectorSize, $pageSize);
+        $journalBytes = str_pad($header, $sectorSize, "\0")
+            . pack('N', 1) . $page . pack('N', SQLiteRollbackJournal::pageChecksum($page, $nonce))
+            . str_repeat("\0", 504);
+
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+
+        $t->same(1, $journal->pageCount());
+        $t->same([1], array_keys($journal->pageImages()));
+        $t->same($page, $journal->pageImages()[1]);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(substr_replace($journalBytes, 'X', -1), true));
+    },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 27)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 28)));

@@ -59,7 +59,8 @@ $journalHeader = SQLiteRollbackJournalHeader::MAGIC . pack('N*', 1, $nonce, 2, $
 $journalBytes = str_pad($journalHeader, $sectorSize, "\0")
     . pack('N', 2)
     . $cleanOptionPage
-    . pack('N', SQLiteRollbackJournal::pageChecksum($cleanOptionPage, $nonce));
+    . pack('N', SQLiteRollbackJournal::pageChecksum($cleanOptionPage, $nonce))
+    . str_repeat("\0", 128);
 
 $journal = SQLiteRollbackJournal::parse($journalBytes, true);
 $database = SQLiteDatabase::fromBytes($journal->rollbackDatabaseImage($dirtyDatabaseBytes));
@@ -82,5 +83,6 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'rolledBackImageBytes' => strlen($journal->rollbackDatabaseImage($dirtyDatabaseBytes)),
-    'wordpressUse' => 'Preview wp_options page recovery from a SQLite rollback journal without the SQLite extension so import/repair tooling can inspect pre-transaction option values before accepting a copied database.',
+    'sectorPaddingBytes' => 128,
+    'wordpressUse' => 'Preview wp_options page recovery from a sector-padded SQLite rollback journal without the SQLite extension so import/repair tooling can inspect pre-transaction option values before accepting a copied database.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

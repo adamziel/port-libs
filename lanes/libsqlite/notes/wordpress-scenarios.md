@@ -2,6 +2,22 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Rollback Journal Sector-Padded Option Recovery Scenario
+
+Native rollback-journal diagnostics now accept copied rollback journals that
+carry zero-filled sector padding after their declared page records. The example
+`examples/wordpress-rollback-journal-option-diagnostics.php` reports
+`sectorPaddingBytes` while restoring the clean `siteurl` option page over a
+dirty copied database image, so WordPress import and repair tooling can inspect
+pre-transaction option values without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated dependency closure: updated
+`SQLiteRollbackJournal::parse()` to honor declared page counts, accept NUL
+trailing padding, reject non-zero trailing bytes, and preserve unknown-count
+EOF parsing. Dependency closure: no new support component is needed; the slice
+reuses existing lane-local rollback journal header/page parsing, checksum
+validation, rollback image overlay, and WordPress option decoding.
+
 ## WAL Committed Transaction Option Diagnostics Scenario
 
 Native WAL diagnostics now expose committed transaction batches for copied
