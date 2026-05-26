@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 06:38:43 UTC",
-    "sourceCommit": "81c57835874d97a8ffef9c50f3df50e0a6f17bf5",
-    "sourceCommitShort": "81c57835874d",
+    "generated": "2026-05-26 06:44:51 UTC",
+    "sourceCommit": "3dcd5c6fa54036d3380a1631adad33153959cada",
+    "sourceCommitShort": "3dcd5c6fa540",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "cff509800710b6ce542a56a2ac213d068e825421",
-    "dashboardCommitShort": "cff509800710",
+    "dashboardCommit": "cfc05cad97b347defde3a8524001e366ca3f80ae",
+    "dashboardCommitShort": "cfc05cad97b3",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,13 +81,13 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "308",
-            "coverage": "308 / 1589",
+            "mapped": "309",
+            "coverage": "309 / 1589",
             "php": "310 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated SQL execution/planner slice 2026...",
-            "currentWork": "Latest bounded SQL execution/planner integration preserves accepted JSON/WAL/planner/B-tr...",
+            "audit": "isolated json-table/window slice 2026-05-...",
+            "currentWork": "Latest bounded json-table/window integration preserves accepted JSON table residual filte...",
             "nextTarget": "Extend SQL execution/planner closure with multi-column/collation-aware ORDER BY, expressi...",
             "blocker": "Full SQLite all/release runner parity remains pending; this isolated work...",
             "commit": "pending"
