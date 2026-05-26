@@ -3872,6 +3872,35 @@ return [
         $t->same(['rules', 0, 'name', 1, 'name'], array_column($treeRows, 'key'));
         $t->same(['array', 'object', 'text', 'object', 'text'], array_column($treeRows, 'type'));
 
+        $filteredTreeRows = SQLiteJsonTablePlan::filteredRows('Json_TrEe', $constraints);
+        $t->same([0, 1], array_column($filteredTreeRows, 'key'));
+        $t->same(['object', 'object'], array_column($filteredTreeRows, 'type'));
+        $t->same(['$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($filteredTreeRows, 'fullkey'));
+
+        $enabledTreeRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+            ['column' => 'key', 'operator' => '=', 'value' => 'enabled'],
+            ['column' => 'atom', 'operator' => 'IS', 'value' => 1],
+        ]);
+        $t->same(['enabled'], array_column($enabledTreeRows, 'key'));
+        $t->same([1], array_column($enabledTreeRows, 'atom'));
+
+        $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+            ['column' => 'atom', 'operator' => 'IS NOT', 'value' => null],
+            ['column' => 'type', 'operator' => '=', 'value' => 'null'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'missing', 'operator' => '=', 'value' => 'value'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'type', 'operator' => 'LIKE', 'value' => 'object'],
+        ]));
+
         $missingJson = SQLiteJsonTablePlan::plan('json_tree', [
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
         ]);

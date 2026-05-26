@@ -80,6 +80,31 @@ final class SQLiteJsonTablePlan
             : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', $plan['arguments']);
     }
 
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return list<array<string,mixed>>
+     */
+    public static function filteredRows(string $function, array $constraints): array
+    {
+        $plan = self::plan($function, $constraints);
+        if (!$plan['runnable']) {
+            return [];
+        }
+
+        $rows = $plan['function'] === 'json_each'
+            ? SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', $plan['arguments'])
+            : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', $plan['arguments']);
+
+        if ($plan['residual'] === []) {
+            return $rows;
+        }
+
+        return array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => self::rowMatchesResidualConstraints($row, $plan['residual']),
+        ));
+    }
+
     private static function normalizeFunction(string $function): string
     {
         if (strcasecmp($function, 'json_each') === 0) {
@@ -99,5 +124,45 @@ final class SQLiteJsonTablePlan
         }
 
         throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, or NULL');
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<array<string,mixed>> $constraints
+     */
+    private static function rowMatchesResidualConstraints(array $row, array $constraints): bool
+    {
+        foreach ($constraints as $constraint) {
+            $column = strtolower((string) $constraint['column']);
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite JSON table residual column {$column} is not available");
+            }
+
+            if (!self::compareResidualValue($row[$column], strtoupper((string) $constraint['operator']), $constraint['value'] ?? null)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function compareResidualValue(mixed $actual, string $operator, mixed $expected): bool
+    {
+        return match ($operator) {
+            '=' => $actual === $expected,
+            'IS' => self::valuesAreNotDistinct($actual, $expected),
+            '!=', '<>' => $actual !== $expected,
+            'IS NOT' => !self::valuesAreNotDistinct($actual, $expected),
+            default => throw new \InvalidArgumentException("SQLite JSON table residual operator {$operator} is not supported"),
+        };
+    }
+
+    private static function valuesAreNotDistinct(mixed $left, mixed $right): bool
+    {
+        if ($left === null || $right === null) {
+            return $left === null && $right === null;
+        }
+
+        return $left === $right;
     }
 }

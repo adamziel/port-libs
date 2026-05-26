@@ -33,13 +33,20 @@ foreach ($inputs as $name => $value) {
         ['column' => 'json', 'operator' => '=', 'value' => $value],
         ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
     ];
+    $objectRuleConstraints = [
+        ['column' => 'json', 'operator' => '=', 'value' => $value],
+        ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+    ];
     $reports[] = [
         'name' => $name,
         'rootRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $value)),
         'pluginRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$value, '$.plugin'])),
         'rulesRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$value, '$.plugin.rules'])),
         'plannedRulesRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::rows('JSON_EACH', $plannerConstraints)),
+        'filteredObjectRuleRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $objectRuleConstraints)),
         'planner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $plannerConstraints)),
+        'filteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $objectRuleConstraints)),
         'dispatch' => [
             'sqlFunction' => 'JSON_EACH',
             'caseInsensitive' => true,
@@ -50,7 +57,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows and hidden json/root constraint planning for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, and visible type residual filtering for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**

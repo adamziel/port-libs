@@ -2,6 +2,23 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Table Residual Filter Planner Scenario
+
+Native JSON table planning now has a bounded residual-filter execution helper
+for visible `json_each()`/`json_tree()` columns after hidden `json` and `root`
+constraints are planned. `SQLiteJsonTablePlan::filteredRows()` applies
+SQLite-style residual equality, inequality, `IS`, and `IS NOT` checks to the
+native row stream, so copied `wp_options.option_value` plugin settings can
+request rows such as `type = 'object'` or `key = 'enabled' AND atom IS 1`
+without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated sql-exec/planner: added filtered JSON table
+rows, focused residual predicate tests, and updated
+`examples/wordpress-json-each-option-settings.php` to report filtered object
+rule rows plus the residual planner record. Dependency closure: no new support
+component is needed; the slice reuses lane-local JSON table rows, hidden-column
+planning, and scalar comparison semantics.
+
 ## LIKE/GLOB Late-Row Option Scan Scenario
 
 Native WordPress option diagnostics now preserve decoded LIKE/GLOB pattern

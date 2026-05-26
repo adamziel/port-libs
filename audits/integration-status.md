@@ -112647,3 +112647,35 @@ Files staged:
 - `lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`
 - `lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
 - `audits/integration-status.md`
+## Integration accepted - libsqlite JSON table residual filters - 2026-05-26 04:00 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T035332Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T035332Z.patch` (`sha256 e0ec473d5238d32b9e7013c4c390299c8488dad126d60a2bd281d20b5685b261`, verified).
+Lane/slice/session: `libsqlite` / `closure-libsqlite-sql-exec-planner-20260526T035332Z` / `port-dev-libsqlite-sql-exec`.
+Base accepted HEAD: `67283ade3aa4834f7c4397e790eb720b69403903`.
+
+Focused verification in a detached clean worktree:
+- `git apply --check` passed from current `main`.
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: 1 test file, 2450 assertions, 0 failures.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed and emitted filtered JSON table option rows.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates were checked before focused tests and root. Disk briefly closed at `85985644` KiB available before root, so the integrator waited outside the lock until `/` reopened to `86493476` KiB available; load stayed below `25` and no exact no-argument root harness was active.
+- `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the exact clean candidate snapshot and passed with 215 test files, 27013 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. This is bounded lane-local JSON table residual filtering after hidden-column planning and reuses existing JSON row assembly, JSONB wrapping, and scalar comparison semantics.
+
+Files staged:
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-json-each-option-settings.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteJsonTablePlan.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
