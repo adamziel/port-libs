@@ -1131,6 +1131,100 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $failureBlocker
+     * @return array<string, mixed>
+     */
+    public function focusedFailureReproGate(
+        array $failureBlocker,
+        string $acceptedRepositoryHead,
+        ?string $repoRoot = null,
+        string $auditText = '',
+        string $stdoutText = ''
+    ): array {
+        $script = is_string($failureBlocker['script'] ?? null) ? $failureBlocker['script'] : '';
+        if ($script === '') {
+            throw new \InvalidArgumentException('Focused SQLite repro gate requires a failed .test script name');
+        }
+
+        $case = is_string($failureBlocker['case'] ?? null) ? $failureBlocker['case'] : null;
+        $category = is_string($failureBlocker['category'] ?? null) ? $failureBlocker['category'] : 'upstream-suite-failure';
+        $plan = $this->buildFocusedSubsetPlan([$script], 1, $repoRoot);
+
+        $artifact = null;
+        $acceptance = null;
+        $blockers = [];
+        if ($auditText === '' && $stdoutText === '') {
+            $blockers[] = [
+                'id' => 'focused-repro-artifact-missing',
+                'evidence' => 'no focused repro audit/log text was supplied for the failed upstream runner script',
+            ];
+        } else {
+            $artifact = $this->boundedRunnerArtifactRecord($auditText, $stdoutText, '');
+            $acceptance = $this->boundedRunnerAcceptanceGate($artifact, $acceptedRepositoryHead);
+            $artifactFailures = is_array($artifact['results']['failures'] ?? null) ? $artifact['results']['failures'] : [];
+            $matchingFailure = null;
+            foreach ($artifactFailures as $failure) {
+                if (!is_array($failure)) {
+                    continue;
+                }
+                if (($failure['script'] ?? null) !== $script) {
+                    continue;
+                }
+                if ($case !== null && ($failure['case'] ?? null) !== $case) {
+                    continue;
+                }
+                $matchingFailure = $failure;
+                break;
+            }
+
+            if ($matchingFailure === null && (($artifact['status'] ?? null) !== 'passed')) {
+                $blockers[] = [
+                    'id' => 'focused-repro-failure-mismatch',
+                    'evidence' => 'focused repro artifact did not preserve the failed script/case diagnostic from the broad runner',
+                    'expected_script' => $script,
+                    'expected_case' => $case,
+                ];
+            }
+
+            $acceptedBlockers = is_array($acceptance['blockers'] ?? null) ? $acceptance['blockers'] : [];
+            foreach ($acceptedBlockers as $acceptedBlocker) {
+                if (!is_array($acceptedBlocker)) {
+                    continue;
+                }
+                if (($acceptedBlocker['id'] ?? null) === 'artifact-not-passed' && $matchingFailure !== null && $category === 'upstream-runtime-environment') {
+                    continue;
+                }
+                $blockers[] = $acceptedBlocker;
+            }
+        }
+
+        $status = 'blocked';
+        if ($blockers === [] && is_array($artifact)) {
+            $status = ($artifact['status'] ?? null) === 'passed'
+                ? 'focused-repro-passed'
+                : 'focused-repro-preserves-upstream-runtime-blocker';
+        }
+
+        return [
+            'status' => $status,
+            'script' => $script,
+            'case' => $case,
+            'category' => $category,
+            'plan' => $plan,
+            'artifact' => $artifact,
+            'acceptance' => $acceptance,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => $status === 'focused-repro-passed'
+                ? 'supervisor may treat the broad runner failure as transient only after deciding whether release/all should be rerun from this accepted checkout'
+                : ($status === 'focused-repro-preserves-upstream-runtime-blocker'
+                    ? 'record the focused repro as an upstream runtime/environment blocker and do not count release/all parity until the sanitizer decision is made'
+                    : 'run or parse the focused failed-script repro from the accepted checkout before another broad release/all result is counted'),
+            'dependency_closure' => 'no new support component needed; focused repro gate composes existing runner artifact parsing, provenance checks, and selected-script planning',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array
@@ -1384,7 +1478,7 @@ final class SQLiteUpstreamSuiteEvidence
      */
     private function extractTestScriptTokens(string $command): array
     {
-        if (preg_match_all('/(?<![A-Za-z0-9_.\/-])([A-Za-z0-9_.*?-]+\.test)(?![A-Za-z0-9_.-])/', $command, $matches) < 1) {
+        if (preg_match_all('/(?<![A-Za-z0-9_.\/-])([A-Za-z0-9_.*?\/-]+\.test)(?![A-Za-z0-9_.\/-])/', $command, $matches) < 1) {
             return [];
         }
 
@@ -1655,7 +1749,7 @@ final class SQLiteUpstreamSuiteEvidence
         $testrunner = $root . '/.upstream-cache/libsqlite/test/testrunner.tcl';
         $normalizedScripts = [];
         foreach ($scripts as $script) {
-            if (!is_string($script) || !preg_match('/^[A-Za-z0-9_.*?-]+\.test$/', $script)) {
+            if (!is_string($script) || !preg_match('/^[A-Za-z0-9_.*?\/-]+\.test$/', $script)) {
                 throw new \InvalidArgumentException('Focused upstream subset scripts must be SQLite .test names');
             }
             $normalizedScripts[] = $script;

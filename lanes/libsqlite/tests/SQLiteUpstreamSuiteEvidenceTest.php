@@ -898,6 +898,72 @@ MD;
         $t->contains('supervisor-approved sanitizer decision', $record['results']['failure_blockers'][0]['next_gate']);
         $t->contains('record the failed upstream runner artifact', $record['next_gate']);
     },
+    'builds a focused repro gate for the fts5aux sanitizer blocker' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $blocker = [
+            'category' => 'upstream-runtime-environment',
+            'script' => 'ext/fts5/test/fts5aux.test',
+            'case' => 'fts5aux-3.1',
+        ];
+
+        $missing = $evidence->focusedFailureReproGate(
+            $blocker,
+            '008c84e187817c884cd42af0091866e2b8be63af',
+            dirname(__DIR__, 3)
+        );
+
+        $t->same('blocked', $missing['status']);
+        $t->same('ext/fts5/test/fts5aux.test', $missing['script']);
+        $t->same('fts5aux-3.1', $missing['case']);
+        $t->contains('veryquick ext/fts5/test/fts5aux.test', $missing['plan']['command']);
+        $t->same(1, $missing['blocker_count']);
+        $t->same('focused-repro-artifact-missing', $missing['blockers'][0]['id']);
+
+        $audit = <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-fts5aux-repro-20260526T123000Z
+
+- Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- Scratch: `/tmp/sqlite-fts5aux-repro`
+- Log: `/tmp/sqlite-fts5aux-repro.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `600`
+- Patterns: `ext/fts5/test/fts5aux.test`
+- Exit: `1`
+- Elapsed seconds: `7`
+- Parsed summary: ``
+- Parsed errors: `unknown`
+- Parsed tests: `unknown`
+- Runner time: `unknown`
+
+## Tail
+
+```text
+FAILED: Sanitize ext/fts5/test/fts5aux.test (1)
+OUTPUT: fts5aux-1.0... Ok
+fts5aux-3.1.../tmp/src/ext/fts5/fts5_tcl.c:429:59: runtime error: applying non-zero offset 1 to null pointer
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/src/ext/fts5/fts5_tcl.c:429:59
+```
+MD;
+
+        $repro = $evidence->focusedFailureReproGate(
+            $blocker,
+            '008c84e187817c884cd42af0091866e2b8be63af',
+            dirname(__DIR__, 3),
+            $audit
+        );
+
+        $t->same('focused-repro-preserves-upstream-runtime-blocker', $repro['status']);
+        $t->same(0, $repro['blocker_count']);
+        $t->same('failed', $repro['artifact']['status']);
+        $t->same('ext/fts5/test/fts5aux.test', $repro['artifact']['results']['failures'][0]['script']);
+        $t->same('fts5aux-3.1', $repro['artifact']['results']['failures'][0]['case']);
+        $t->contains('record the focused repro as an upstream runtime/environment blocker', $repro['next_gate']);
+        $t->contains('focused repro gate composes existing runner artifact parsing', $repro['dependency_closure']);
+    },
     'keeps missing bounded runner artifact files as a blocked evidence record' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $record = $evidence->boundedRunnerArtifactRecordFromFiles(

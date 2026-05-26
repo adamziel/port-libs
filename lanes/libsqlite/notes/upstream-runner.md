@@ -1,5 +1,43 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Failed-Script Repro Gate
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::focusedFailureReproGate()`. The helper turns a
+parsed guarded-runner failure blocker into an exact focused repro plan, then
+requires accepted repository HEAD provenance, SQLite manifest UUID provenance,
+and the same failed script/case before the result can inform a release/all
+rerun decision.
+
+For the current release-runner blocker, the focused script is:
+
+```text
+ext/fts5/test/fts5aux.test
+case: fts5aux-3.1
+category: upstream-runtime-environment
+```
+
+No new broad upstream `testfixture`, `make test`, `mptest`, `all`, or
+`release` run was started. No accepted focused repro artifact is claimed by
+this slice; matching focused sanitizer artifacts stay blocked as upstream
+runtime/environment evidence and do not count as release/all parity.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This composes existing
+lane-local runner artifact parsing, provenance checks, and selected-script
+planning only.
+
 ## Focused Native Mapping: Runner Failure Blocker Classification
 
 Date: 2026-05-26
