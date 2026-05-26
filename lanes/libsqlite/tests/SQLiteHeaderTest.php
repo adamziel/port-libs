@@ -59,6 +59,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLiteSelectCompound;
+use PortLibs\LibSqlite\SQLiteSelectExpressionIndexPlan;
 use PortLibs\LibSqlite\SQLiteSelectPredicate;
 use PortLibs\LibSqlite\SQLiteSelectProjection;
 use PortLibs\LibSqlite\SQLiteSelectResult;
@@ -15261,5 +15262,121 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['option_name' => []]], []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::union([['' => 'bad']], []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectCompound::execute($autoloaded, $network, 'UNION', [['column' => 'missing']]));
+    },
+    'plans sqlite select where expression index constraints' => static function (TestRunner $t): void {
+        $indexes = [
+            ['name' => 'idx_lower', 'rootPage' => 7, 'sql' => 'CREATE INDEX idx_lower ON wp_options(lower(option_name)) WHERE option_name IS NOT NULL'],
+            ['name' => 'idx_upper', 'rootPage' => 8, 'sql' => 'CREATE INDEX idx_upper ON wp_options(upper(option_name) COLLATE NOCASE DESC) WHERE option_name IS NOT NULL'],
+            ['name' => 'idx_length', 'rootPage' => 9, 'sql' => 'CREATE INDEX idx_length ON wp_options(length(option_name)) WHERE option_name IS NOT NULL'],
+            ['name' => 'idx_int', 'rootPage' => 10, 'sql' => 'CREATE INDEX idx_int ON wp_options(CAST(option_value AS INTEGER)) WHERE option_value IS NOT NULL'],
+        ];
+
+        $lowerPoint = SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => '=',
+            'left' => ['function' => 'lower', 'column' => 'option_name'],
+            'right' => 'siteurl',
+        ]);
+        $t->same(true, $lowerPoint['usable']);
+        $t->same('idx_lower', $lowerPoint['name']);
+        $t->same(7, $lowerPoint['rootPage']);
+        $t->same('lower', $lowerPoint['type']);
+        $t->same('option_name', $lowerPoint['column']);
+        $t->same('point', $lowerPoint['operator']);
+        $t->same('siteurl', $lowerPoint['values']);
+        $t->same('BINARY', $lowerPoint['collation']);
+        $t->same(false, $lowerPoint['descending']);
+        $t->same(true, $lowerPoint['partial']);
+        $t->same(true, $lowerPoint['residualPredicateRequired']);
+
+        $upperRange = SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => 'AND',
+            'terms' => [
+                ['operator' => '>=', 'left' => ['function' => 'upper', 'column' => 'option_name'], 'right' => 'PLUGIN_'],
+                ['operator' => '<', 'left' => ['column' => 'autoload'], 'right' => 'z'],
+            ],
+        ]);
+        $t->same('idx_upper', $upperRange['name']);
+        $t->same(8, $upperRange['rootPage']);
+        $t->same('upper', $upperRange['type']);
+        $t->same('range->=', $upperRange['operator']);
+        $t->same('PLUGIN_', $upperRange['values']);
+        $t->same('NOCASE', $upperRange['collation']);
+        $t->same(true, $upperRange['descending']);
+
+        $lengthIn = SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => 'IN',
+            'left' => ['function' => 'length', 'column' => 'option_name'],
+            'values' => [4, 7, null, 15],
+        ]);
+        $t->same('idx_length', $lengthIn['name']);
+        $t->same(9, $lengthIn['rootPage']);
+        $t->same('length', $lengthIn['type']);
+        $t->same('IN', $lengthIn['operator']);
+        $t->same([4, 7, null, 15], $lengthIn['values']);
+
+        $lengthBetween = SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => 'BETWEEN',
+            'left' => ['function' => 'length', 'column' => 'option_name'],
+            'lower' => 5,
+            'upper' => 20,
+        ]);
+        $t->same('idx_length', $lengthBetween['name']);
+        $t->same('BETWEEN', $lengthBetween['operator']);
+        $t->same(['lower' => 5, 'upper' => 20], $lengthBetween['values']);
+
+        $integerCast = SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => '=',
+            'left' => 58796,
+            'right' => ['function' => 'cast_integer', 'column' => 'option_value'],
+        ]);
+        $t->same('idx_int', $integerCast['name']);
+        $t->same(10, $integerCast['rootPage']);
+        $t->same('integer-cast', $integerCast['type']);
+        $t->same('point', $integerCast['operator']);
+        $t->same(58796, $integerCast['values']);
+
+        $integerRange = SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => '<=',
+            'left' => 60000,
+            'right' => ['function' => 'cast_integer', 'column' => 'option_value'],
+        ]);
+        $t->same('idx_int', $integerRange['name']);
+        $t->same('range->=', $integerRange['operator']);
+        $t->same(60000, $integerRange['values']);
+
+        $t->same(null, SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => '=',
+            'left' => ['function' => 'lower', 'column' => 'option_value'],
+            'right' => 'siteurl',
+        ]));
+        $t->same(null, SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => '=',
+            'left' => ['function' => 'lower', 'column' => 'option_name'],
+            'right' => null,
+        ]));
+        $t->same(null, SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => 'IN',
+            'left' => ['function' => 'length', 'column' => 'option_name'],
+            'values' => ['bad'],
+        ]));
+        $t->same(null, SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => 'LIKE',
+            'left' => ['function' => 'lower', 'column' => 'option_name'],
+            'right' => 'site%',
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectExpressionIndexPlan::choose([['sql' => '']], [
+            'operator' => '=',
+            'left' => ['function' => 'lower', 'column' => 'option_name'],
+            'right' => 'siteurl',
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => 'AND',
+            'terms' => [],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectExpressionIndexPlan::choose($indexes, [
+            'operator' => '=',
+            'left' => ['function' => 'lower', 'column' => 'option_name'],
+            'right' => [],
+        ]));
     },
 ];

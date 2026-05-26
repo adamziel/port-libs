@@ -3619,3 +3619,26 @@ guards. Focused `SQLiteHeaderTest.php` passed at 4067 assertions.
 
 Dependency closure: no new support component is needed; this reuses lane-local
 SELECT projection, scalar dispatch, BLOB wrappers, and pure PHP result arrays.
+
+## SELECT Expression-Index Plan Scenario
+
+Copied WordPress option import previews can now explain bounded SQLite
+expression-index dispatch for SELECT WHERE predicates without requiring the
+SQLite extension. The smoke
+`examples/wordpress-select-expression-index-plan.php` reports which copied
+`wp_options` expression index would serve `lower(option_name) = 'siteurl'`,
+`length(option_name) BETWEEN ...`, or
+`CAST(option_value AS INTEGER) = 58796`, including root page, expression type,
+safe partial-index satisfaction, and residual predicate requirements.
+
+Status delta 2026-05-26 isolated SQL execution/planner slice: added
+`SQLiteSelectExpressionIndexPlan` with 41 focused assertions covering point,
+IN-list, BETWEEN, reversed range operands, lower/upper/length/integer-cast
+expression matching, collation/direction propagation, safe `IS NOT NULL`
+partial-index gating, unsupported-column and NULL-search rejection, and strict
+malformed payload guards. Focused `SQLiteHeaderTest.php` passed at 4242
+assertions, up from the accepted 4201-assertion lane-status baseline.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+CREATE INDEX expression parsing, partial-index predicate metadata, scalar
+values, and BLOB wrappers.

@@ -117761,6 +117761,10 @@ Root verification:
 
 Decision: accepted. Commit pending at note completion time; after commit the dashboard guard should close until live Pages publishes the new source.
 
+Post-commit cleanup note for `722668600cd1a3dd6d00a957c2f96c6ce92af4ae`:
+- Removed accepted marker artifacts: ready marker, patch, metadata, isolated worker prompt, and isolated worker log for `port-dev-libsqlite-sql-exec-20260526T233524Z`.
+- Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T233524Z` because it still contains modified lane files. Cleanup debt: remove or prune only after a later operator confirms no active worker owns it and no dirty work must be preserved.
+
 Post-commit cleanup note for `ba869c1ad4f45d315171ac513362a7bc34241feb`:
 - Removed accepted marker artifacts: ready marker, patch, metadata, isolated worker prompt, and isolated worker log for `port-dev-libsqlite-priority-20260526T231831Z`.
 - Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T231831Z` because it still contains the accepted modified/add files. Cleanup debt: remove or prune only after a later operator confirms no active worker owns it and no dirty work must be preserved.
@@ -117833,3 +117837,32 @@ Decision: accepted. Commit pending at note completion time; after commit the das
 Post-commit cleanup note for `a89256adee53d303c77dae254276b0df3be15c17`:
 - Removed accepted marker artifacts: ready marker, patch, metadata, isolated worker prompt, and isolated worker log for `port-dev-libsqlite-wal-20260526T232614Z`.
 - Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T232614Z` because it still contains modified lane files. Cleanup debt: remove or prune only after a later operator confirms no active worker owns it and no dirty work must be preserved.
+## Integration accepted - libsqlite SELECT expression-index planner - 2026-05-26T23:48:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T233524Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence before candidate verification:
+- Current `refs/heads/main` was `cd44e1cbb8e64f8d02879ec79ad23f54bbf3f0e9` (`Integrate libsqlite WAL savepoint frame boundaries`).
+- Cache-busted live Pages reported matching `sourceCommit` `cd44e1cbb8e64f8d02879ec79ad23f54bbf3f0e9`, generated `2026-05-26 23:42:11 UTC`, dashboard commit `1e95c57605f8a8505b7bbce65b234b53050a4d4e`.
+
+Candidate evidence:
+- Marker lane `libsqlite`, base `a511802d90cf92af071975bb26611b37005c457c`, patch sha256 `c4ab43ed5f8948e8dce1c32fdd69a2cc680283b616ea4991d992bd8f0ee54955`.
+- Direct apply failed on moved manifest/status/notes. Bounded `--3way` replay over current `cd44e1cb` applied implementation, test, example, and notes hunks cleanly; only `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` required current-base counter/status reconciliation.
+- Selected over duplicate WAL savepoint work and lower-value evidence markers because it adds native SQL planner behavior, a focused assertion delta, and a WordPress smoke.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-select-expression-index-plan.php` passed.
+- Manifest/status JSON decode passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4286 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-expression-index-plan.php`, `length-band`, and `db-version` all passed and emitted valid JSON for copied WordPress expression-index planning diagnostics.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Runtime gate before root: `/` had `138547556` KiB available, load average was `1.44`, and no exact no-argument root harness was running.
+- Serialized root command under clean-integrator lock passed with repo-local temp space: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` => `215 test files, 29420 assertions, 0 failures`.
+
+Decision: accepted. Commit pending at note completion time; after commit the dashboard guard should close until live Pages publishes the new source.

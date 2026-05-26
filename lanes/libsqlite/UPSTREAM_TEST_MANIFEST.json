@@ -8,7 +8,9 @@
         "commit": "8f70ec615f4cd247d36f92a22c99f65ebbcc22a7",
         "officialManifestUuid": "9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353",
         "license": "Public domain SQLite blessing",
-        "architecture": "SQLite database file format, b-tree pages, records, varints, journaling, SQL engine, extensions, and TCL/C regression harnesses."
+        "architecture": "SQLite database file format, b-tree pages, records, varints, journaling, SQL engine, extensions, and TCL/C regression harnesses.",
+        "mapped": 1,
+        "source": " The 2026-05-26 clean-integrated SQL expression-index planner slice maps one additional focused SELECT WHERE expression-index planning row for lower/upper/length/integer-cast predicates over copied wp_options previews, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution."
     },
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
@@ -912,7 +914,8 @@
         "focusedJsonTableMalformedJsonbPlan": "The 2026-05-26 JSON table slice adds bounded validatedPlan() diagnostics for JSON table hidden json constraints, replayed over accepted WAL read-mark diagnostics. Native smoke covers valid JSONB, malformed JSONB, malformed text, JSON5 text BLOB, SQL NULL, runnable/cost/row estimates, and copied wp_options malformed payload reporting without requiring ext/sqlite.",
         "focusedSelectCompoundResult": "The 2026-05-26 clean-integrated SQL compound SELECT slice maps one additional focused SELECT compound row-composition evidence row for UNION, UNION ALL, INTERSECT, and EXCEPT over copied wp_options-style rows, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution.",
         "focusedFileHeaderLoader": "The 2026-05-26 dependency/open slice maps one additional focused file/open evidence row for bounded SQLite file-header loading. Native smoke covers copied database header preflight, valid and invalid SQLite headers, short and incomplete first pages, missing files, busy timeout planning, and in-memory database exclusion without requiring ext/sqlite.",
-        "focusedSelectWherePredicate": "The 2026-05-26 clean-integrated SQL execution/planner slice maps one additional focused SELECT WHERE predicate evidence row for residual row-array filtering over copied wp_options-style rows. Native smoke covers nested boolean dispatch, comparison, BETWEEN, IN/NOT IN with NULL propagation, IS/IS NOT BLOB identity, IS NULL, LIKE ESCAPE, GLOB, strict payload validation, and final ORDER BY integration without requiring ext/sqlite."
+        "focusedSelectWherePredicate": "The 2026-05-26 clean-integrated SQL execution/planner slice maps one additional focused SELECT WHERE predicate evidence row for residual row-array filtering over copied wp_options-style rows. Native smoke covers nested boolean dispatch, comparison, BETWEEN, IN/NOT IN with NULL propagation, IS/IS NOT BLOB identity, IS NULL, LIKE ESCAPE, GLOB, strict payload validation, and final ORDER BY integration without requiring ext/sqlite.",
+        "focusedSelectExpressionIndexPlan": "The 2026-05-26 clean-integrated SQL expression-index planner slice maps one additional focused SELECT WHERE expression-index planning row for lower/upper/length/integer-cast predicates over copied wp_options previews, reusing accepted SQL execution/planner evidence without claiming fresh upstream execution."
     },
     "notes": {
         "focusedFullFreelistTrunkFreePlan": "The 2026-05-26 isolated B-tree delete/rebalance slice adds bounded freePage2-style planning for freeing pages when the first freelist trunk is compatibility-full, reusing accepted B-tree/freelist evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers new trunk promotion, secure-delete leaf clearing, auto-vacuum pointer-map updates, freelist allocation order, and WordPress maintenance diagnostics without requiring ext/sqlite.",
@@ -953,13 +956,22 @@
                 "phpFail": 0,
                 "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted SQL execution/planner, LIKE/GLOB, BLOB, and result-ordering evidence while adding native WHERE predicate assertions."
             }
+        },
+        "sqlExecutionPlanner": {
+            "focusedSelectExpressionIndexPlan": {
+                "status": "mapped-focused-native",
+                "upstream": "where.test/index.test expression-index planning subset",
+                "nativeEvidence": "SQLiteSelectExpressionIndexPlan focused PHP coverage plus copied wp_options expression-index planner smoke.",
+                "phpPass": 1
+            }
         }
     },
     "wordpressScenarios": {
         "focusedSelectCaseProjection": "The 2026-05-26 clean-integrated SQL CASE projection slice reports copied wp_options rows bucketed through simple CASE on autoload, searched CASE truthiness over scores and option-name expressions, scalar branch results, ELSE fallback values, and final ordering over projected columns without requiring ext/sqlite.",
         "focusedFileHeaderLoader": "The 2026-05-26 clean-integrated file-header loader smoke reports copied SQLite database open admission followed by bounded header reads, valid/invalid/short/incomplete/missing file diagnostics, busy timeout handling, and in-memory database exclusion without requiring ext/sqlite.",
         "focusedSelectWildcardProjection": "The 2026-05-26 clean-integrated SQL wildcard projection slice reports copied wp_options joined rows expanded through SELECT * and table-star projections while preserving source order, NULL/BLOB values, scalar/CASE composition, duplicate-output guards, and final ordering without requiring ext/sqlite.",
-        "focusedSelectWherePredicate": "The 2026-05-26 clean-integrated SQL WHERE predicate smoke reports copied wp_options rows filtered through nested AND/OR/NOT, comparison, BETWEEN, IN/NOT IN, IS/IS NOT, IS NULL, LIKE ESCAPE, and GLOB predicates before final ordering without requiring ext/sqlite."
+        "focusedSelectWherePredicate": "The 2026-05-26 clean-integrated SQL WHERE predicate smoke reports copied wp_options rows filtered through nested AND/OR/NOT, comparison, BETWEEN, IN/NOT IN, IS/IS NOT, IS NULL, LIKE ESCAPE, and GLOB predicates before final ordering without requiring ext/sqlite.",
+        "focusedSelectExpressionIndexPlan": "The SELECT expression-index plan smoke reports copied wp_options WHERE predicates routed to lower(option_name), length(option_name), and CAST(option_value AS INTEGER) expression indexes, including root pages, expression type, safe partial-index satisfaction, and residual predicate requirements without requiring ext/sqlite."
     },
     "nativeCoverage": {
         "focusedFileHeaderLoader": "The 2026-05-26 clean-integrated dependency/open slice adds bounded SQLite file-header loading after open admission for copied WordPress database preflight diagnostics, reusing accepted file URI, busy-handler, open-plan, and header parsing evidence without claiming a fresh upstream run.",

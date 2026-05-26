@@ -10391,3 +10391,40 @@ bucketed through CASE expressions without requiring ext/sqlite.
 Dependency closure: no new support component is needed. This is lane-local
 SELECT expression dispatch and reuses existing scalar functions, BLOB wrappers,
 and result ordering helpers.
+
+## Focused Native Mapping: SELECT WHERE Expression-Index Planning
+
+Date: 2026-05-26
+
+This isolated SQL execution/planner micro-slice maps one additional focused
+behavior row for bounded SELECT WHERE expression-index planning. The new
+`SQLiteSelectExpressionIndexPlan` helper chooses usable expression indexes for
+`lower(column)`, `upper(column)`, `length(column)`, and
+`CAST(column AS INTEGER)` constraints over point, IN-list, BETWEEN, and simple
+range predicates, while preserving residual predicate checks and safe
+`IS NOT NULL` partial-index gating.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 400 to 401 by adding
+`focusedWordPressSelectExpressionIndexPlanScripts=1`. No fresh upstream
+`testfixture`, `make test`, `mptest`, `all`, or `release` run was launched
+from this isolated worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectExpressionIndexPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-expression-index-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-expression-index-plan.php
+```
+
+Result: focused PHP passed 1 selected test file, 4242 assertions, and 0
+failures, up from the accepted lane-status baseline of 4201 assertions. The
+WordPress expression-index smoke passed and reports copied `wp_options`
+expression-index dispatch without requiring ext/sqlite.
+
+Dependency closure: no new support component is needed. This is lane-local
+planner dispatch and reuses existing CREATE INDEX expression parsing,
+partial-index predicate metadata, and scalar/BLOB value wrappers.
