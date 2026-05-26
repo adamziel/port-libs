@@ -117557,3 +117557,44 @@ Decision:
 - Published commit: this audit entry is included in `Integrate libsqlite SELECT join row production`.
 - Accepted ready marker, patch, and metadata files were removed after ref publication.
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T222308Z` still contains the accepted lane diff as dirty state, so it was preserved and left registered rather than removed.
+
+## Integration accepted - libsqlite B-tree rebalance summaries - 2026-05-26T22:45:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T223103Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `6cae41dd885adc380e49cc5df2afa3092241011f` (`Integrate libsqlite SELECT join row production`).
+- Initial cache-busted live Pages JSON still reported `5a16df20c19a2e73aba5f8826438fedbec94d6be`, so this pass waited outside the clean-integrator lock.
+- Recheck reported exact matching live `sourceCommit` `6cae41dd885adc380e49cc5df2afa3092241011f`, generated `2026-05-26 22:37:20 UTC`, dashboard commit `b4909ae4674dab4008ff5b5e335ba7b35f954d02`.
+- Dashboard guard was open after that recheck; no Pages-outage exception was used.
+
+Runtime gate evidence:
+- `df -Pk /` reported `148815340` KiB available before focused verification, above the `86000000` KiB floor.
+- `/proc/loadavg` reported `2.02`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before focused verification.
+
+Candidate evidence:
+- Marker base was `5a16df20c19a2e73aba5f8826438fedbec94d6be`, older than current `main`; no current-base libsqlite marker was present when sampled.
+- Direct full apply failed only on moved `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` counters. The implementation, test, examples, and notes hunks applied cleanly to a detached current-`main` candidate when stale manifest/status hunks were excluded.
+- SQL join markers in the same sample were duplicates of already-accepted `6cae41dd` join row-production work, so this non-overlapping B-tree marker was selected over lower-yield WAL (`+26`) and JSON table (`+25`) markers.
+- The reconciled candidate increments libsqlite `phpPass` from `728` to `729` and mapped coverage from `392 / 1589` to `393 / 1589`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteWordPressOptionReplacementPlan.php`, `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and both B-tree WordPress example lints passed.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` decoded with `JSON_THROW_ON_ERROR`.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3919 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-index-merge-option-replacement-plan.php` passed and emitted valid JSON.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-index-parent-collapse-option-replacement-plan.php` passed and emitted valid JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Serialized no-argument `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR` set to the candidate-local `.tmp-root` directory.
+- Root passed with `215 test files, 29053 assertions, 0 failures`.
+
+Decision:
+- Accepted for commit as a small source-moving libsqlite behavior/test-growth slice. Dashboard publication should run next after the commit lands on `main`.
+- Published commit: this audit entry is included in `Integrate libsqlite B-tree rebalance summaries`.
+- Accepted ready marker, patch, and metadata files will be removed after ref publication.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T223103Z` still contains the accepted lane diff as dirty state, so it will be preserved and left registered rather than removed.

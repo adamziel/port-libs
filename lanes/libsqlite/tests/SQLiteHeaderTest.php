@@ -10086,6 +10086,51 @@ SQL;
         $t->same(1, SQLiteHeader::parse($plan->pageImages()[1])->freelistPageCount);
         $t->same(1, count($freelistTrunks));
         $t->same(6, $freelistTrunks[0]->pageNumber);
+        $t->same([
+            'action_count' => 5,
+            'action_types' => [
+                'free-page',
+                'index-interior-divider-removal',
+                'index-interior-rightmost-pointer-update',
+                'index-leaf-entry-merge',
+            ],
+            'updated_page_numbers' => [3, 4, 5, 6],
+            'freed_page_numbers' => [6],
+            'merged_page_numbers' => [4, 5],
+            'removed_divider_page_numbers' => [3],
+            'rightmost_pointer_updates' => [
+                [
+                    'page' => 3,
+                    'before' => 6,
+                    'after' => 5,
+                ],
+            ],
+            'total_free_space_delta' => -89,
+        ], $plan->btreeRebalanceSummary());
+        $t->same([
+            'index-interior-rightmost-pointer-update',
+            'index-interior-divider-removal',
+            'index-leaf-entry-merge',
+            'index-leaf-entry-merge',
+            'free-page',
+        ], array_column($plan->btreeRebalanceActions(), 'action'));
+        $t->same([3, 3, 4, 5, 6], array_column($plan->btreeRebalanceActions(), 'page'));
+        $mergeActions = $plan->btreeRebalanceActions();
+        $t->same(6, $mergeActions[0]['before_rightmost_pointer']);
+        $t->same(5, $mergeActions[0]['after_rightmost_pointer']);
+        $t->same(2, $mergeActions[1]['before_cells']);
+        $t->same(1, $mergeActions[1]['after_cells']);
+        $t->same(-1, $mergeActions[1]['delta_cells']);
+        $t->same([4, 5], $mergeActions[1]['before_left_children']);
+        $t->same([4], $mergeActions[1]['after_left_children']);
+        $t->same(1, $mergeActions[2]['before_cells']);
+        $t->same(2, $mergeActions[2]['after_cells']);
+        $t->same(-75, $mergeActions[2]['delta_free_space_bytes']);
+        $t->same(1, $mergeActions[3]['before_cells']);
+        $t->same(3, $mergeActions[3]['after_cells']);
+        $t->same(-94, $mergeActions[3]['delta_free_space_bytes']);
+        $t->same('index-leaf', $mergeActions[4]['before_type']);
+        $t->same(410, $mergeActions[4]['before_free_space_bytes']);
         $t->same('index-interior', $postDatabase->pageHeader(3)->pageType);
         $t->same(1, $postDatabase->pageHeader(3)->cellCount);
         $t->same(2, $postDatabase->pageHeader(4)->cellCount);
@@ -10333,6 +10378,60 @@ SQL;
         $t->same(2, $postDatabase->pageHeader(5)->cellCount);
         $t->same(3, $postDatabase->pageHeader(6)->cellCount);
         $t->same([7, 4, 8], $postDatabase->freelistPageNumbers());
+        $t->same([
+            'action_count' => 7,
+            'action_types' => [
+                'free-page',
+                'index-interior-divider-insert',
+                'index-interior-rightmost-pointer-update',
+                'index-leaf-entry-merge',
+            ],
+            'updated_page_numbers' => [3, 4, 5, 6, 7, 8],
+            'freed_page_numbers' => [4, 7, 8],
+            'merged_page_numbers' => [5, 6],
+            'removed_divider_page_numbers' => [],
+            'rightmost_pointer_updates' => [
+                [
+                    'page' => 3,
+                    'before' => 8,
+                    'after' => 10,
+                ],
+            ],
+            'total_free_space_delta' => -388,
+        ], $plan->btreeRebalanceSummary());
+        $t->same([
+            'index-interior-rightmost-pointer-update',
+            'index-interior-divider-insert',
+            'free-page',
+            'index-leaf-entry-merge',
+            'index-leaf-entry-merge',
+            'free-page',
+            'free-page',
+        ], array_column($plan->btreeRebalanceActions(), 'action'));
+        $t->same([3, 3, 4, 5, 6, 7, 8], array_column($plan->btreeRebalanceActions(), 'page'));
+        $collapseActions = $plan->btreeRebalanceActions();
+        $t->same(8, $collapseActions[0]['before_rightmost_pointer']);
+        $t->same(10, $collapseActions[0]['after_rightmost_pointer']);
+        $t->same(419, $collapseActions[0]['before_free_space_bytes']);
+        $t->same(258, $collapseActions[0]['after_free_space_bytes']);
+        $t->same(1, $collapseActions[1]['before_cells']);
+        $t->same(3, $collapseActions[1]['after_cells']);
+        $t->same(2, $collapseActions[1]['delta_cells']);
+        $t->same(-161, $collapseActions[1]['delta_free_space_bytes']);
+        $t->same([4], $collapseActions[1]['before_left_children']);
+        $t->same([5, 6, 9], $collapseActions[1]['after_left_children']);
+        $t->same('index-interior', $collapseActions[2]['before_type']);
+        $t->same(340, $collapseActions[2]['before_free_space_bytes']);
+        $t->same(1, $collapseActions[3]['before_cells']);
+        $t->same(2, $collapseActions[3]['after_cells']);
+        $t->same(-75, $collapseActions[3]['delta_free_space_bytes']);
+        $t->same(1, $collapseActions[4]['before_cells']);
+        $t->same(3, $collapseActions[4]['after_cells']);
+        $t->same(-152, $collapseActions[4]['delta_free_space_bytes']);
+        $t->same('index-leaf', $collapseActions[5]['before_type']);
+        $t->same(352, $collapseActions[5]['before_free_space_bytes']);
+        $t->same('index-interior', $collapseActions[6]['before_type']);
+        $t->same(419, $collapseActions[6]['before_free_space_bytes']);
         $t->same([
             ['no', $name('a'), 50],
             ['no', $optionName, 4],

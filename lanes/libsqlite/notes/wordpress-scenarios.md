@@ -2,6 +2,25 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## B-tree Rebalance Summary Scenario
+
+Copied WordPress repair/import tooling can now read a compact native summary of
+delete-triggered replacement rebalancing before writing a changed `wp_options`
+database image. The index leaf-merge and parent-collapse smokes report
+rebalance summaries for composite `autoload, option_name` index repairs:
+action type sets, updated pages, freed pages, merged pages, divider removals,
+rightmost pointer rewrites, and aggregate free-space deltas.
+
+Status delta 2026-05-26 isolated B-tree delete/rebalance slice: added
+`SQLiteWordPressOptionReplacementPlan::btreeRebalanceSummary()`, surfaced
+rebalance summaries/actions in the WordPress index merge and parent-collapse
+examples, and added focused assertions for underfilled leaf merge and non-root
+parent-collapse diagnostics. The focused lane test count moves from 3828 to
+3871 assertions, +43. Manifest mapped coverage moves from 391 to 392.
+Dependency closure: no new support component is needed; this reuses lane-local
+B-tree page headers, index-cell parsing, freelist planning, and existing
+replacement-plan rebalance actions.
+
 ## SELECT Projection Scalar Preview Scenario
 
 Copied WordPress option import previews can now model SELECT projection
