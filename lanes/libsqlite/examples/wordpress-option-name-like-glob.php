@@ -25,6 +25,15 @@ $database = $databasePath === '--self-test'
 
 $likeOptions = $database->wordpressOptionsByNameLike($likePattern, '\\');
 $indexedLikeOptions = $database->wordpressOptionsByIndexedNameLikePrefixRange($likePattern, '\\');
+$indexedNoCaseLike = null;
+try {
+    $indexedNoCaseLike = array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase($likePattern, '\\'),
+    );
+} catch (InvalidArgumentException $exception) {
+    $indexedNoCaseLike = ['error' => $exception->getMessage()];
+}
 $globOptions = $database->wordpressOptionsByNameGlob($globPattern);
 $regexp = static function (string $pattern, string $value): bool {
     $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
@@ -50,6 +59,7 @@ echo json_encode([
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $indexedLikeOptions,
     ),
+    'indexedNoCaseLikeOptions' => $indexedNoCaseLike,
     'globOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $globOptions,
@@ -133,8 +143,9 @@ function exampleWordPressOptionPatternFixture(): string
     $page1 = $tableLeafPage([
         $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
         $schemaCell(['index', 'wp_options_option_name', 'wp_options', 3, 'CREATE INDEX wp_options_option_name ON wp_options(option_name)'], 2),
+        $schemaCell(['index', 'wp_options_option_name_nocase', 'wp_options', 4, 'CREATE INDEX wp_options_option_name_nocase ON wp_options(option_name COLLATE NOCASE)'], 3),
     ], 100, $page1);
-    $page1 = substr_replace($page1, pack('N', 3), 28, 4);
+    $page1 = substr_replace($page1, pack('N', 4), 28, 4);
 
     $optionCells = [
         $schemaCell([null, '_transient_feed', 'cached feed', 'no'], 1),
@@ -154,6 +165,13 @@ function exampleWordPressOptionPatternFixture(): string
         $indexCell(['siteurl', 3]),
     ]);
     $page3[0] = "\x0a";
+    $page4 = $tableLeafPage([
+        $indexCell(['_Transient_API', 2]),
+        $indexCell(['_transient_feed', 1]),
+        $indexCell(['_transient_late', 105]),
+        $indexCell(['siteurl', 3]),
+    ]);
+    $page4[0] = "\x0a";
 
-    return $page1 . $page2 . $page3;
+    return $page1 . $page2 . $page3 . $page4;
 }

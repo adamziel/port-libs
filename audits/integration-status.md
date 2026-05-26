@@ -115351,6 +115351,32 @@ Verification:
 Decision: accepted as commit pending publication at this entry time. The slice adds a lane-local `SQLiteUpstreamSuiteEvidence::broadSuiteLaunchGate()` and tests that block duplicate broad SQLite suite launches unless supervisor approval, active-runner, and command-manifest gates are clear. It did not start a fresh upstream runner and did not add a support-library dependency.
 
 Dashboard publication should run next after the accepted source commit is visible on `main`.
+## Integration accepted - libsqlite NOCASE indexed LIKE-prefix range - 2026-05-26T14:22:36Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T141614Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `faa9907b2d641d2a481c7c95d8cd20d6d8d4302a` (`Integrate libsqlite foreground runner snapshot gate`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `faa9907b2d641d2a481c7c95d8cd20d6d8d4302a`; `generatedAt` was absent from the returned JSON shape.
+- No Pages-outage override was used.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `116255244` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `5.13`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Verification:
+- Detached clean worktree: `.tmux-team/tmp/clean-integrator-candidate-20260526T142129Z-encoding` at `faa9907b2d641d2a481c7c95d8cd20d6d8d4302a`.
+- Patch sha256 matched marker metadata: `f5acd0e6064abae451fb9bc940dfa1666a39f9335e461c7c0ffd28c718f9adc0`.
+- Focused checks passed: `php -l lanes/libsqlite/src/SQLiteDatabase.php`, `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php`, manifest/status JSON validation, `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` (`1 test files, 2818 assertions, 0 failures`), WordPress LIKE/GLOB smoke with `indexedNoCaseLikeOptions`, and `git diff --check -- lanes/libsqlite`.
+- Full clean-candidate diff check passed with `git diff --check -- lanes/libsqlite`.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 27749 assertions, 0 failures`.
+
+Decision: accepted. The slice adds lane-local `SQLiteDatabase::wordpressOptionsByIndexedNameLikePrefixRangeNoCase()` so default ASCII-case-insensitive WordPress option-name LIKE prefix scans can use a `COLLATE NOCASE` index before residual LIKE filtering. It did not start a fresh upstream runner and did not add a support-library dependency.
+
+Dashboard publication should run next after the accepted source commit is visible on `main`.
 
 ## Integration accepted - libsqlite make-test duplicate runner gate - 2026-05-26T14:03:44Z
 

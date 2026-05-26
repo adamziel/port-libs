@@ -2605,6 +2605,25 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## NOCASE Indexed LIKE Prefix Option-Name Scenario
+
+Default SQLite `LIKE` matching folds ASCII case unless `case_sensitive_like` is
+enabled. WordPress recovery databases that keep a `COLLATE NOCASE` option-name
+index can now use the leading literal `LIKE` prefix as a NOCASE index range,
+then apply the existing residual LIKE matcher so mixed-case rows such as
+`_Transient_API` and `_transient_feed` are both returned.
+
+Status delta 2026-05-26 isolated encoding/collation slice: added
+`SQLiteDatabase::wordpressOptionsByIndexedNameLikePrefixRangeNoCase()`,
+focused tests for escaped leading prefixes, limit handling, missing-prefix
+errors, negative-limit errors, and mixed-case residual matches, and updated
+`examples/wordpress-option-name-like-glob.php` to report the indexed NOCASE
+path when a matching index is present.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+SQLite index metadata parsing, NOCASE comparison, LIKE prefix bound derivation,
+and the accepted decoded-text LIKE matcher.
+
 ## JSON Table Residual NOT LIKE/NOT GLOB Scenario
 
 Local-only WordPress option import tooling can now preflight negative pattern

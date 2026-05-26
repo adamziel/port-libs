@@ -5822,6 +5822,50 @@ final class SQLiteDatabase
     /**
      * @return list<SQLiteWordPressOption>
      */
+    public function wordpressOptionsByIndexedNameLikePrefixRangeNoCase(
+        string $pattern,
+        ?string $escape = null,
+        ?int $limit = null,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options NOCASE indexed LIKE prefix lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $bounds = self::likePrefixRangeBounds($pattern, $escape);
+        if ($bounds === null) {
+            throw new \InvalidArgumentException('SQLite wp_options NOCASE indexed LIKE prefix lookup requires a leading literal prefix');
+        }
+
+        $lowerInclusive = self::asciiLower($bounds['lowerInclusive']);
+        $upperBound = $bounds['upperBound'] === null ? null : self::asciiLower($bounds['upperBound']);
+        $compareNoCase = static fn (string $left, string $right): int => strcmp(self::asciiLower($left), self::asciiLower($right));
+
+        $options = [];
+        foreach ($this->wordpressOptionsByIndexedNameRangeWithCollation(
+            $lowerInclusive,
+            $upperBound,
+            'NOCASE',
+            $compareNoCase,
+        ) as $option) {
+            if (!self::likeMatches($option->optionName, $pattern, $escape, false)) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
     public function wordpressOptionsByNameGlob(string $pattern, ?int $limit = null): array
     {
         if ($limit !== null && $limit < 0) {
