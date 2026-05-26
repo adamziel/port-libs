@@ -44,6 +44,7 @@ use PortLibs\LibSqlite\SQLiteNumericAggregate;
 use PortLibs\LibSqlite\SQLiteNumericAggregateState;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
+use PortLibs\LibSqlite\SQLitePragmaSnapshot;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
@@ -292,17 +293,65 @@ return [
         $header[18] = "\x01";
         $header[19] = "\x01";
         $header[20] = "\x00";
+        $header = substr_replace($header, pack('N', 123), 24, 4);
         $header = substr_replace($header, pack('N', 2), 28, 4);
+        $header = substr_replace($header, pack('N', 17), 40, 4);
         $header = substr_replace($header, pack('N', 1), 56, 4);
+        $header = substr_replace($header, pack('N', 9), 60, 4);
+        $header = substr_replace($header, pack('N', 0x57503100), 68, 4);
         $parsed = SQLiteHeader::parse($header);
         $t->same(4096, $parsed->pageSize);
         $t->same(1, $parsed->writeVersion);
         $t->same(2, $parsed->databaseSizePages);
         $t->same(0, $parsed->firstFreelistTrunkPage);
         $t->same(0, $parsed->freelistPageCount);
+        $t->same(17, $parsed->schemaCookie);
         $t->same(0, $parsed->largestRootBtreePage);
         $t->same(1, $parsed->textEncoding);
+        $t->same(9, $parsed->userVersion);
         $t->same(0, $parsed->incrementalVacuum);
+        $t->same(0x57503100, $parsed->applicationId);
+        $t->same(123, $parsed->fileChangeCounter);
+    },
+    'reports wordpress copy preflight pragma metadata from sqlite headers' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $firstPage = $makeFirstPage(1024, 4);
+        $firstPage[18] = "\x02";
+        $firstPage[19] = "\x02";
+        $firstPage = substr_replace($firstPage, pack('N', 77), 24, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 36, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 19), 40, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 8), 52, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 2), 56, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 14), 60, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 1), 64, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 0x57505351), 68, 4);
+
+        $snapshot = SQLitePragmaSnapshot::fromDatabase(SQLiteDatabase::fromBytes($firstPage . str_repeat("\0", 1024 * 3)));
+
+        $t->same(1024, $snapshot->value('page_size'));
+        $t->same(4, $snapshot->value('page-count'));
+        $t->same(5, $snapshot->value('freelist_count'));
+        $t->same('UTF-16le', $snapshot->value('encoding'));
+        $t->same('wal', $snapshot->value('journal_mode'));
+        $t->same('incremental', $snapshot->value('auto_vacuum'));
+        $t->same(1, $snapshot->value('incremental_vacuum'));
+        $t->same(0x57505351, $snapshot->value('application_id'));
+        $t->same(14, $snapshot->value('user_version'));
+        $t->same(19, $snapshot->value('schema_version'));
+        $t->same(77, $snapshot->value('data_version'));
+        $t->same(null, $snapshot->value('missing'));
+        $t->same([
+            'page_size' => 1024,
+            'journal_mode' => 'wal',
+            'auto_vacuum' => 'incremental',
+        ], $snapshot->toArray(['page-size', 'journal_mode', 'auto_vacuum', 'missing']));
+
+        $plain = SQLitePragmaSnapshot::fromDatabase(SQLiteDatabase::fromBytes($makeFirstPage(512, 1)));
+        $t->same('delete', $plain->value('journal_mode'));
+        $t->same('none', $plain->value('auto_vacuum'));
+        $t->same('UTF-8', $plain->value('encoding'));
+        $t->same(0, $plain->value('incremental_vacuum'));
     },
     'parses sqlite database freelist header fields' => static function (TestRunner $t): void {
         $header = str_repeat("\0", 100);

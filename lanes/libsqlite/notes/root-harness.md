@@ -1256,3 +1256,29 @@ The WordPress savepoint smoke now reports full transaction rollback page
 numbers, frame names, released savepoint count, and inactive transaction state
 after rollback. Manifest/status JSON decoded successfully; lane diff check
 passed. The root harness was not run because this was an isolated micro-slice.
+## PRAGMA Metadata Preflight Scenario
+
+Focused lane verification for the dependency-suite PRAGMA metadata slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteHeader.php
+php -l lanes/libsqlite/src/SQLitePragmaSnapshot.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-pragma-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-pragma-preflight.php /tmp/libsqlite-pragma-preflight.sqlite
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3227 assertions, and 0 failures, adding 21 focused assertions
+for header-backed PRAGMA metadata snapshots. The WordPress smoke reports
+page_size, page_count, freelist_count, encoding, journal_mode, auto_vacuum,
+application_id, user_version, schema_version, and data_version for copied
+database compatibility checks. The root harness was not run because this was an
+isolated micro-slice.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local header parsing, page counting, freelist counters, and auto-vacuum
+diagnostics.

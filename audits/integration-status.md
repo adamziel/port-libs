@@ -116851,3 +116851,31 @@ Decision: accepted and ready for locked publication to `refs/heads/main`. Dashbo
 Cleanup:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-suite-20260526T192553Z` still has modified lane-local files after acceptance, so it is preserved as cleanup debt rather than removed.
 - Accepted ready/patch/metadata artifacts may be removed after locked publication.
+## Integration accepted - libsqlite PRAGMA preflight snapshot - 2026-05-26T19:39:30Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T192842Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before this pass was `f9b13ba2c15f07f8af7aecea1a31b049095d689f` (`Integrate libsqlite bounded runner artifact sets`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `f9b13ba2c15f07f8af7aecea1a31b049095d689f`, `generated` `2026-05-26 19:35:11 UTC`, and dashboard commit `462a55e1c0d55230642ec97e89dae345f30256bb`.
+
+Candidate evidence:
+- Marker lane was `libsqlite`, with required `patch=`, `metadata=`, and `log=` fields present; `patch_sha256` matched `4df219b8419ccecfa96ab43defc4e72b5ac52574504c663f3390e58a1befc1f7`.
+- Marker base was older accepted source `42c00f04465c2d5c1acc82bcfa172ee1ca28512e`; direct full patch apply failed only on current `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` counters.
+- Bounded replay applied the implementation, tests, WordPress smoke, and notes from the marker while leaving current manifest/status counters unchanged.
+- Scope adds `SQLitePragmaSnapshot`, exposes header-backed `schemaCookie`, `userVersion`, `applicationId`, and `fileChangeCounter`, and adds the WordPress PRAGMA preflight example.
+
+Focused verification:
+- Syntax passed for `lanes/libsqlite/src/SQLiteHeader.php`, `lanes/libsqlite/src/SQLitePragmaSnapshot.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `lanes/libsqlite/examples/wordpress-pragma-preflight.php`.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3227 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-pragma-preflight.php .tmp-root/libsqlite-pragma-preflight.sqlite` passed after creating a minimal repo-local SQLite header fixture.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 28326 assertions, 0 failures`.
+
+Cleanup:
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T192842Z` still contains modified marker files, so it was preserved as cleanup debt rather than removed.
+- Accepted ready, patch, and metadata handoff files were eligible for removal after publishing the commit on `refs/heads/main`; worker log was preserved.

@@ -3306,3 +3306,16 @@ intentionally an aggregate helper, not a full SELECT/VDBE executor.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
 patterns.
+## PRAGMA Metadata Preflight
+
+`examples/wordpress-pragma-preflight.php` reads a copied WordPress SQLite
+database file and reports native header-backed PRAGMA metadata without requiring
+the SQLite extension. The smoke covers `page_size`, `page_count`,
+`freelist_count`, `encoding`, `journal_mode`, `auto_vacuum`,
+`incremental_vacuum`, `application_id`, `user_version`, `schema_version`, and
+`data_version`, giving import/repair tools a bounded compatibility preflight
+before they mutate local database files.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local header parsing, page counting, freelist counters, and auto-vacuum
+diagnostics.
