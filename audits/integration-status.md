@@ -115671,3 +115671,33 @@ Decision: accepted one marker. After the commit is published on `refs/heads/main
 - Runtime gates before focused/root checks: `/` free space stayed above `86000000` KiB, load stayed below `25`, and no exact no-argument root harness was running before the serialized root check.
 - Ready-marker count before cleanup: `5579`.
 - Dashboard publication should run next because this acceptance moves the source head beyond the currently published dashboard source.
+
+## Integration accepted - libsqlite bounded runner stdout summary recovery - 2026-05-26T15:24:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T151111Z.ready`.
+
+Scope:
+- Lane-local `libsqlite` upstream-suite evidence parsing only.
+- `SQLiteUpstreamSuiteEvidence::boundedRunnerArtifactRecord()` now recovers final runner summary counts from stdout lines such as `0 errors out of N tests` when guarded audit parsed tests/errors fields are unknown.
+- Manifest, status, and upstream-runner notes record the additional focused upstream-runner evidence row without claiming fresh broad SQLite release/all execution.
+
+Dashboard guard evidence:
+- Current source before integration: `04564d2dd7e2cd263295596c8bb9fbd6054c551a` (`Record libsqlite current blocker status`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `04564d2dd7e2cd263295596c8bb9fbd6054c551a`; `generatedAt` was absent from the returned JSON shape.
+- Pages-outage override files were already consumed and were not used.
+
+Runtime gate evidence:
+- Before focused checks, `df -Pk /` reported `108388588` KiB available, `/proc/loadavg` one-minute load was `1.41`, and no exact no-argument root harness was running.
+- Before the serialized root check, `df -Pk /` reported `108281444` KiB available, `/proc/loadavg` one-minute load was `1.49`, and no exact no-argument root harness was running.
+
+Verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed with `1 test files, 518 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized clean-candidate `php tools/run-tests.php` passed with `215 test files, 27790 assertions, 0 failures`.
+
+Decision: accepted after a bounded stale-status merge. The marker was based on `e5897b4ac75ee1bf7a45063194c84592ccf26996`; code/test/manifest/notes applied cleanly to current `04564d2dd7e2cd263295596c8bb9fbd6054c551a`, while `lane-status.json` was merged narrowly to preserve the accepted foreground rerun blocker snapshot from `04564d2d` and record the new stdout-summary parser slice.
+
+Dashboard publication should run next for the new accepted source after this commit reaches `main`.

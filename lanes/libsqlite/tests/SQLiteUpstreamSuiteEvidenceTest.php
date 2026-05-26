@@ -894,6 +894,40 @@ MD);
             @rmdir($root);
         }
     },
+    'recovers completed bounded runner result counts from stdout when audit summary fields are missing' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $audit = <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-rerun-foreground-20260526T134619Z
+
+- Repository HEAD: `e5897b4ac75ee1bf7a45063194c84592ccf26996`
+- Scratch: `/tmp/libsqlite-release-rerun-foreground-20260526T134619Z`
+- Log: `/tmp/libsqlite-release-rerun-foreground-20260526T134619Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Elapsed seconds: `614`
+- Parsed summary: ``
+- Parsed errors: `unknown`
+- Parsed tests: `unknown`
+- Runner time: `00:10:14`
+MD;
+        $stdout = "10:13 tcl(21999/22000) r1 ETC 00:01\n0 errors out of 22000 tests in 00:10:14\n";
+
+        $record = $evidence->boundedRunnerArtifactRecord($audit, $stdout);
+
+        $t->same('passed', $record['status']);
+        $t->same(0, $record['results']['exit']);
+        $t->same(22000, $record['results']['tests']);
+        $t->same(0, $record['results']['errors']);
+        $t->same(21999, $record['progress']['completed']);
+        $t->same(22000, $record['progress']['total']);
+        $t->contains('integrator confirms the artifact checkout matches', $record['next_gate']);
+    },
     'extracts failed bounded runner script diagnostics from guarded release artifacts' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $audit = <<<'MD'

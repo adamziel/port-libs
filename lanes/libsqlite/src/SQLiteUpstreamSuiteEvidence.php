@@ -1000,6 +1000,10 @@ final class SQLiteUpstreamSuiteEvidence
             $errors = (int) $matches[1];
             $tests = (int) $matches[2];
         }
+        if (($errors === null || $tests === null) && preg_match('/(\d+)\s+errors?\s+out\s+of\s+(\d+)\s+tests?/i', $stdoutText, $matches) === 1) {
+            $errors = (int) $matches[1];
+            $tests = (int) $matches[2];
+        }
 
         $progress = $this->parseRunnerProgress($stdoutText);
         $failures = $this->extractRunnerFailures($auditText . "\n" . $stdoutText);

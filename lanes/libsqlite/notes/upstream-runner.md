@@ -1,5 +1,36 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Bounded Runner Stdout Summary Recovery
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice strengthens
+`SQLiteUpstreamSuiteEvidence::boundedRunnerArtifactRecord()` so completed
+guarded runner artifacts can recover pass/fail counts from the runner log when
+the audit file has `Parsed tests: unknown` and `Parsed errors: unknown`.
+Final stdout lines such as `0 errors out of 22000 tests` now produce a passed
+artifact record when the guarded exit code is zero, moving the evidence to the
+existing accepted-HEAD and SQLite manifest provenance gates instead of leaving
+it as incomplete.
+
+No new broad upstream `testfixture`, `make test`, `mptest`, `all`, or
+`release` run was started by this slice. The change only parses supplied
+bounded audit/log text.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+guarded-runner audit/log parsing and existing provenance/countability gates
+only.
+
 ## Focused Native Mapping: Core iif()/if() Conditional Scalar Dispatch
 
 This isolated SQL execution/planner micro-slice adds bounded `iif()` and
