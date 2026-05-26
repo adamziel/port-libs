@@ -1,5 +1,38 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: GLOB Reversed Bracket Ranges
+
+Date: 2026-05-26
+
+This isolated encoding/collation micro-slice fixes a bounded SQLite GLOB
+character-class edge used by copied WordPress option-name scans. SQLite treats a
+reversed bracket range such as `[z-a]` as matching the starting byte (`z`) while
+not treating the range hyphen or end byte as literals. The native GLOB matcher
+now mirrors that behavior for byte ranges while preserving existing literal
+`]`, literal `-`, negated class, UTF-8 character, and embedded-NUL behavior.
+
+Focused mapping:
+
+- Upstream behavior: SQLite `GLOB` bracket class parsing for reversed byte
+  ranges, literal `]`, and literal `-` cases from the pattern/collation family.
+- Native assertions added: 10 focused assertions in
+  `matches sqlite like and glob patterns for wordpress option names`.
+- WordPress smoke: `examples/wordpress-option-name-like-glob.php --self-test`
+  now reports `globReversedRangeOptions` for `plugin_[z-a]`, proving that
+  copied `wp_options` scans include `plugin_z` and exclude `plugin_a` and
+  `plugin_-`.
+
+Verification run for this slice:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+```
+
+Dependency closure: no new support component is needed. This slice reuses the
+lane-local decoded text traversal and native SQLite LIKE/GLOB pattern matcher;
+it counts no shared support-library progress.
+
 ## Focused Native Mapping: Full Freelist Trunk Page-Free Planning
 
 Date: 2026-05-26

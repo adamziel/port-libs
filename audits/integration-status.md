@@ -116467,3 +116467,43 @@ Decision:
 - Dolt remains parked.
 
 Dashboard publication should run next because accepted source moved.
+
+## Integration accepted - libsqlite GLOB reversed range parity - 2026-05-26T18:15:33Z
+
+Accepted marker:
+- `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T181015Z.ready`
+- Lane: `libsqlite`
+- Slice: `closure-libsqlite-encoding-collation-20260526T181015Z`
+- Base accepted HEAD: `f1b4aac72e1c4c9219e3df007a9a8dd852018393`
+- Patch sha256 matched marker metadata: `42b4eb870afcb26b4200d4663e99894b5b1567a7d681de4469c7987ca042edbc`
+- Patch applied cleanly in detached clean worktree `.tmux-team/tmp/clean-integrator-check-20260526T181425Z` from `refs/heads/main`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `f1b4aac72e1c4c9219e3df007a9a8dd852018393` (`Integrate libsqlite release exclusion gate`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `f1b4aac72e1c4c9219e3df007a9a8dd852018393`.
+- Dashboard guard was open before marker inspection.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `110465544` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `1.21`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Focused verification passed in the clean candidate worktree with repo-local `TMPDIR`:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3107 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test` passed and reported `globReversedRangeOptions` containing only `plugin_z`.
+- `git diff --check` passed.
+
+Serialized root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR`:
+- `php tools/run-tests.php` passed: `215 test files, 28103 assertions, 0 failures`.
+
+Decision:
+- Accepted one current-base libsqlite encoding/collation behavior marker that fixes native SQLite `GLOB` reversed bracket ranges such as `[z-a]` and adds 10 focused assertions plus a WordPress option-name smoke.
+- Cleanup debt: the originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-encoding-20260526T181015Z` still contains modified lane files relative to its detached base, so it was preserved and left registered rather than removed.
+- No non-libsqlite markers were considered because libsqlite-only intake remains active.
+- Dolt remains parked.
+
+Dashboard publication should run next because accepted source moved.

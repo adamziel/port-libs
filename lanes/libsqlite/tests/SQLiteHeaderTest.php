@@ -2698,6 +2698,16 @@ return [
         $t->true(SQLiteDatabase::globMatches('siteurl[', 'siteurl['));
         $t->true(SQLiteDatabase::globMatches("site\0url", 'site?url'));
         $t->same(false, SQLiteDatabase::globMatches("site\0url", 'siteurl'));
+        $t->true(SQLiteDatabase::globMatches('plugin_z', 'plugin_[z-a]'));
+        $t->same(false, SQLiteDatabase::globMatches('plugin_a', 'plugin_[z-a]'));
+        $t->same(false, SQLiteDatabase::globMatches('plugin_-', 'plugin_[z-a]'));
+        $t->true(SQLiteDatabase::globMatches('plugin_c', 'plugin_[c-a]'));
+        $t->same(false, SQLiteDatabase::globMatches('plugin_b', 'plugin_[c-a]'));
+        $t->true(SQLiteDatabase::globMatches('plugin_]', 'plugin_[]a]'));
+        $t->true(SQLiteDatabase::globMatches('plugin_a', 'plugin_[]a]'));
+        $t->same(false, SQLiteDatabase::globMatches('plugin_b', 'plugin_[]a]'));
+        $t->true(SQLiteDatabase::globMatches('plugin_-', 'plugin_[-]'));
+        $t->same(false, SQLiteDatabase::globMatches('plugin_z', 'plugin_[-]'));
         $t->true(SQLiteDatabase::regexpMatches('_transient_feed', '^_transient_[[:alpha:]]+$', $regexp));
         $t->same(false, SQLiteDatabase::regexpMatches('siteurl', '^_transient_', $regexp));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::regexpMatches('siteurl', 'site', static fn (): int => 1));

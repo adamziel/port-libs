@@ -10590,14 +10590,15 @@ final class SQLiteDatabase
             ) {
                 $start = ord($character);
                 $end = ord($pattern[$index + 2]);
-                if ($start <= $end) {
-                    for ($ord = $start; $ord <= $end; $ord++) {
-                        $characters[] = chr($ord);
-                    }
-                    $index += 3;
-                    $first = false;
-                    continue;
+                for ($ord = $start; $ord <= $end; $ord++) {
+                    $characters[] = chr($ord);
                 }
+                if ($start > $end) {
+                    $characters[] = $character;
+                }
+                $index += 3;
+                $first = false;
+                continue;
             }
 
             $characters[] = $character;

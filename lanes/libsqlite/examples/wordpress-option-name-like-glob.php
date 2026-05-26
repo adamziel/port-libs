@@ -42,6 +42,7 @@ try {
     $indexedNoCaseUpperCaseLike = ['error' => $exception->getMessage()];
 }
 $globOptions = $database->wordpressOptionsByNameGlob($globPattern);
+$globReversedRangeOptions = $database->wordpressOptionsByNameGlob('plugin_[z-a]');
 $regexp = static function (string $pattern, string $value): bool {
     $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
     if ($result === false) {
@@ -72,6 +73,11 @@ echo json_encode([
     'globOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $globOptions,
+    ),
+    'globReversedRangePattern' => 'plugin_[z-a]',
+    'globReversedRangeOptions' => array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $globReversedRangeOptions,
     ),
     'regexpOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
@@ -165,12 +171,18 @@ function exampleWordPressOptionPatternFixture(): string
         $optionCells[] = $schemaCell([null, sprintf('filler_%03d', $rowId), 'skip', 'no'], $rowId);
     }
     $optionCells[] = $schemaCell([null, '_transient_late', 'late cached value', 'no'], 105);
+    $optionCells[] = $schemaCell([null, 'plugin_z', 'reversed range start', 'no'], 106);
+    $optionCells[] = $schemaCell([null, 'plugin_a', 'reversed range end excluded', 'no'], 107);
+    $optionCells[] = $schemaCell([null, 'plugin_-', 'reversed range hyphen excluded', 'no'], 108);
 
     $page2 = $tableLeafPage($optionCells);
     $page3 = $tableLeafPage([
         $indexCell(['_Transient_API', 2]),
         $indexCell(['_transient_feed', 1]),
         $indexCell(['_transient_late', 105]),
+        $indexCell(['plugin_-', 108]),
+        $indexCell(['plugin_a', 107]),
+        $indexCell(['plugin_z', 106]),
         $indexCell(['siteurl', 3]),
     ]);
     $page3[0] = "\x0a";
@@ -178,6 +190,9 @@ function exampleWordPressOptionPatternFixture(): string
         $indexCell(['_Transient_API', 2]),
         $indexCell(['_transient_feed', 1]),
         $indexCell(['_transient_late', 105]),
+        $indexCell(['plugin_-', 108]),
+        $indexCell(['plugin_a', 107]),
+        $indexCell(['plugin_z', 106]),
         $indexCell(['siteurl', 3]),
     ]);
     $page4[0] = "\x0a";
