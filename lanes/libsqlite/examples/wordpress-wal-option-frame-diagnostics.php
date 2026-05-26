@@ -43,9 +43,16 @@ $schemaPayload = SQLiteRecord::encode([
 $schemaCell = SQLiteTableLeafCell::encode(1, $schemaPayload, $pageSize);
 $schemaPage = SQLiteTableLeafPage::assemble([$schemaCell], $pageSize, 100, $makeFirstPage(2));
 
-$optionPayload = SQLiteRecord::encode([1, 'siteurl', 'https://example.test/from-wal', 'yes']);
-$optionCell = SQLiteTableLeafCell::encode(1, $optionPayload, $pageSize);
-$optionPage = SQLiteTableLeafPage::assemble([$optionCell], $pageSize);
+$baseOptionPayload = SQLiteRecord::encode([1, 'siteurl', 'https://example.test/from-base', 'yes']);
+$baseOptionCell = SQLiteTableLeafCell::encode(1, $baseOptionPayload, $pageSize);
+$baseOptionPage = SQLiteTableLeafPage::assemble([$baseOptionCell], $pageSize);
+
+$siteUrlPayload = SQLiteRecord::encode([1, 'siteurl', 'https://example.test/from-wal', 'yes']);
+$blogNamePayload = SQLiteRecord::encode([2, 'blogname', 'WAL imported site', 'yes']);
+$siteUrlCell = SQLiteTableLeafCell::encode(1, $siteUrlPayload, $pageSize);
+$blogNameCell = SQLiteTableLeafCell::encode(2, $blogNamePayload, $pageSize);
+$optionPage = SQLiteTableLeafPage::assemble([$siteUrlCell, $blogNameCell], $pageSize);
+$baseDatabaseBytes = $schemaPage . $baseOptionPage;
 
 $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, $salt1, $salt2);
 $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
@@ -62,7 +69,7 @@ $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 2, $optionPage);
 $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, str_repeat('P', $pageSize));
 
 $wal = SQLiteWal::parse($walBytes, null, true);
-$database = SQLiteDatabase::fromBytes(implode('', $wal->pageImagesThroughLastCommit()));
+$database = SQLiteDatabase::fromBytes($wal->checkpointDatabaseImage($baseDatabaseBytes));
 
 echo json_encode([
     'wal' => $wal->toArray(),
@@ -81,5 +88,6 @@ echo json_encode([
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $database->wordpressOptions(),
     ),
+    'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
     'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect pending WordPress option writes before checkpointing.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

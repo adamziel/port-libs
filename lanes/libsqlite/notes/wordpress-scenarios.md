@@ -1927,12 +1927,13 @@ extension.
 Native WAL inspection now includes a bounded read-only frame parser for
 WordPress recovery/import tooling. The new
 `examples/wordpress-wal-option-frame-diagnostics.php` script builds a WAL
-fixture with committed schema and `wp_options` page images, extracts page
-images through the last commit frame, and reads pending `siteurl`/`blogname`
-options without requiring the SQLite extension.
+fixture with a stale base `wp_options` page plus committed schema and option
+page images, overlays committed WAL frames onto the base database image, and
+reads pending `siteurl`/`blogname` options without requiring the SQLite
+extension. Uncommitted tail frames are intentionally ignored.
 
-This is intentionally not a full checkpoint or recovery engine yet. WAL
-WAL-index/shared-memory state, checkpoint writing, rollback journals, and
+This is intentionally not a full checkpoint writer or recovery engine yet. WAL
+WAL-index/shared-memory state, filesystem checkpointing, rollback journals, and
 savepoint behavior remain separate slices.
 
 ## LIKE/GLOB Option-Name Matching Scenario
@@ -1957,3 +1958,12 @@ caller requests strict parsing. The
 WAL fixture, parses it with checksum validation enabled, extracts page images
 through the last commit frame, and reads the pending `siteurl` option without
 requiring the SQLite extension.
+
+## WAL Checkpoint Image Overlay Scenario
+
+Native WAL inspection now includes a read-only checkpoint-style image overlay
+for import and recovery previews. The
+`examples/wordpress-wal-option-frame-diagnostics.php` smoke starts with a stale
+base database image, overlays committed WAL frames through the last commit
+frame, ignores an uncommitted tail frame, and reads the committed `siteurl` and
+`blogname` rows without requiring the SQLite extension.

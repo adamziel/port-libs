@@ -111768,3 +111768,36 @@ Root verification: `php tools/run-tests.php` passed in the same clean worktree: 
 Support-library/dependency closure: no new support-library activation. This evidence-only closure reuses the accepted native OneDrive cleanup/version-cleaner simulation and excludes live provider/OAuth tests.
 
 Live-service exclusions: no live OneDrive OAuth, provider config, token stores, cloud remotes, or provider integration tests were read or run.
+
+## Integration accepted - libsqlite WAL checkpoint image overlay - 2026-05-26 01:06 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T005732Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T005732Z.patch` (`sha256 392a93bce2ae25b30028878201fa7d7a3d7f4cd3a6c54f5ae761346a3023b718`, verified).
+Lane/slice/session: `libsqlite` / `closure-libsqlite-wal-rollback-savepoint-20260526T005732Z` / `port-dev-libsqlite-wal`.
+
+Apply note: the marker was based on `01a4c17ec4bef6112d752f1ee4eeea025f2c2122` and did not apply directly to current `main` (`2ac765f5b9332a22ec9567c38958f4043ba5c4c0`) after intervening WAL checksum acceptance. The accepted integration is a bounded stale merge of the same WAL checkpoint-image behavior onto the accepted checksum code and status metadata.
+
+Focused verification in clean detached worktree from current `main`:
+- `php -l lanes/libsqlite/src/SQLiteWal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+- `php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed and reported `checksums_validated: true`, `siteurl` from WAL, `blogname`, and `checkpointImageBytes: 1024`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: 1 test file, 2314 assertions, 0 failures.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification: `php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock` in the same clean worktree: 214 test files, 26734 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. The slice reuses lane-local WAL header/frame parsing, checksum validation, SQLite header parsing, page-image assembly, `SQLiteDatabase` traversal, and WordPress option decoding.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteWal.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`

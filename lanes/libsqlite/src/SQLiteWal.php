@@ -132,6 +132,33 @@ final class SQLiteWal
         return $pageImages;
     }
 
+    public function checkpointDatabaseImage(string $databaseBytes): string
+    {
+        $lastCommitFrame = $this->lastCommitFrame();
+        if ($lastCommitFrame === null) {
+            return $databaseBytes;
+        }
+
+        $pageSize = $this->header->pageSize;
+        if ($pageSize === 0) {
+            $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
+        }
+        if ($pageSize < 512 || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint requires a database image aligned to the page size');
+        }
+
+        $databasePageCount = $lastCommitFrame->databasePageCountAfterCommit;
+        $checkpointBytes = substr($databaseBytes . str_repeat("\0", max(0, ($databasePageCount * $pageSize) - strlen($databaseBytes))), 0, $databasePageCount * $pageSize);
+        foreach ($this->pageImagesThroughLastCommit() as $pageNumber => $pageImage) {
+            if ($pageNumber > $databasePageCount) {
+                continue;
+            }
+            $checkpointBytes = substr_replace($checkpointBytes, $pageImage, ($pageNumber - 1) * $pageSize, $pageSize);
+        }
+
+        return $checkpointBytes;
+    }
+
     /**
      * @return array<string, mixed>
      */

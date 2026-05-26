@@ -6330,3 +6330,42 @@ Dependency closure: no new support component is needed. The slice reuses
 lane-local binary parsing, WAL frame assembly/inspection, table/page assembly,
 `SQLiteDatabase` traversal, and WordPress option decoding; it counts no shared
 support-library progress.
+
+## Focused Native Mapping: WAL Checkpoint Database Image Overlay
+
+Date: 2026-05-26
+
+This isolated WAL/rollback/savepoint micro-slice extends the bounded read-only
+WAL parser with a checkpoint-style database image overlay helper. Native
+`SQLiteWal::checkpointDatabaseImage()` now applies page images through the last
+commit frame onto an existing database image, truncates or extends the image to
+the committed database page count, ignores uncommitted tail frames, and rejects
+base images that are not aligned to the WAL/database page size.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice maps against the existing focused WAL inventory
+(`focusedWalTestScripts`: 42) and adds one native checkpoint-image mapping unit.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused PHP passed 1 selected test file, 2314 assertions, and 0
+failures after the bounded stale merge onto the accepted WAL checksum slice.
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local WAL header/frame parsing, SQLite header parsing, page-image
+assembly, `SQLiteDatabase` traversal, and WordPress option decoding; it counts
+no shared support-library progress.

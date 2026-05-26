@@ -9728,6 +9728,12 @@ return [
         $t->same([1, 2], array_keys($wal->pageImagesThroughLastCommit()));
         $t->same($pageOne, $wal->pageImagesThroughLastCommit()[1]);
         $t->same($pageTwo, $wal->pageImagesThroughLastCommit()[2]);
+        $baseDatabase = $makeFirstPage($pageSize, 3) . str_repeat('B', $pageSize) . str_repeat('C', $pageSize);
+        $checkpointDatabase = $wal->checkpointDatabaseImage($baseDatabase);
+        $t->same($pageSize * 2, strlen($checkpointDatabase));
+        $t->same($pageOne, substr($checkpointDatabase, 0, $pageSize));
+        $t->same($pageTwo, substr($checkpointDatabase, $pageSize, $pageSize));
+        $t->same(false, str_contains($checkpointDatabase, 'U'));
         $t->same([
             'header' => $wal->header->toArray(),
             'frame_count' => 3,
