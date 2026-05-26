@@ -117698,3 +117698,36 @@ Serialized root verification with repo-local `TMPDIR` passed under `.tmux-team/t
 Post-root edit note: only this audit result line was appended after the passing root run; lane code, tests, example, manifest, status, and lane notes were unchanged after root.
 
 Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T225759Z` still contains the accepted lane modifications after publication, so it was preserved and not removed. Integration candidate `.tmux-team/integration-candidates/clean-libsqlite-deps-20260526T225759Z` also contains repo-local `.tmp-root` root-run artifacts, so it was preserved for non-forced cleanup rather than removed.
+## Integration accepted - libsqlite SELECT wildcard projection - 2026-05-26T23:14:01Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T230420Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before focused checks remained `e59391b3aceee27dea701a1bc4c52bf304f08230` (`Integrate libsqlite file-header loader preflight`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `e59391b3aceee27dea701a1bc4c52bf304f08230`, `generated` `2026-05-26 23:10:10 UTC`, and `dashboardCommit` `27b11260bd80fa1bef050a7d125668e4fe84c183`.
+- Runtime gates before focused checks were open: `df -Pk /` reported `143616160` KiB available, load average was `1.89`, and no exact `php tools/run-tests.php` root harness was active.
+
+Candidate evidence:
+- The marker was lane-local to `libsqlite` with patch hash `79d1eaa6e22eade23e0fc472b4a1cad1352d85e8db169ec80b3f12bcd8ac7102` and worker log evidence for bounded SELECT wildcard projection.
+- Direct current-base apply in a detached clean worktree conflicted only on stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` counters from the accepted file-header loader commit; implementation, test, example, and notes hunks replayed cleanly.
+- Reconciled manifest/status minimally from current accepted files: libsqlite mapped coverage `397 -> 398`, `phpPass 732 -> 733`, and added native focused wildcard projection evidence without claiming a fresh broad upstream run.
+- Behavior added: `SQLiteSelectProjection` now supports `*` and `table.*` wildcard projections over row arrays, preserves source order, propagates `NULL` and `SQLiteBlobValue` values, composes with scalar/CASE projections and result ordering, and rejects alias, missing-prefix, empty-column, and duplicate-output cases.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSelectProjection.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-select-wildcard-preview.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 4127 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-wildcard-preview.php` passed and emitted valid JSON for copied `wp_options` wildcard projection diagnostics.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the same detached clean candidate and passed with `215 test files, 29261 assertions, 0 failures`.
+
+Cleanup:
+- Remove accepted marker artifacts only after the commit is safely on `main`.
+- Preserve dirty shared-checkout and worker output not part of this marker.
+- Cleanup debt: the originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T230420Z` still contains the same libsqlite modifications after acceptance, so it was preserved instead of removed.

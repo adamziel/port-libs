@@ -21,8 +21,15 @@ final class SQLiteSelectProjection
         foreach ($rows as $row) {
             $projected = [];
             foreach ($expressions as $index => $expression) {
+                if (($expression['type'] ?? null) === 'wildcard') {
+                    foreach (self::wildcardValues($row, $expression) as $alias => $value) {
+                        self::appendProjectedValue($projected, $alias, $value);
+                    }
+                    continue;
+                }
+
                 $alias = self::expressionAlias($expression, $index);
-                $projected[$alias] = self::evaluateExpression($row, $expression);
+                self::appendProjectedValue($projected, $alias, self::evaluateExpression($row, $expression));
             }
             $projectedRows[] = $projected;
         }
@@ -43,8 +50,60 @@ final class SQLiteSelectProjection
             'literal' => $expression['value'] ?? null,
             'function' => self::functionValue($row, $expression),
             'case' => self::caseValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT projection expression type must be column, literal, function, or case'),
+            default => throw new \InvalidArgumentException('SQLite SELECT projection expression type must be column, literal, function, case, or wildcard'),
         };
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     * @return array<string,mixed>
+     */
+    private static function wildcardValues(array $row, array $expression): array
+    {
+        if (array_key_exists('alias', $expression)) {
+            throw new \InvalidArgumentException('SQLite SELECT wildcard projection cannot have an alias');
+        }
+
+        $prefix = null;
+        if (array_key_exists('prefix', $expression)) {
+            $prefix = self::requiredString($expression, 'prefix', 'wildcard expression');
+        }
+
+        $values = [];
+        $matched = false;
+        foreach ($row as $column => $value) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT projection row columns must be non-empty strings');
+            }
+
+            if ($prefix !== null) {
+                $qualifiedPrefix = $prefix . '.';
+                if (!str_starts_with($column, $qualifiedPrefix)) {
+                    continue;
+                }
+                $matched = true;
+                $alias = substr($column, strlen($qualifiedPrefix));
+                if ($alias === '') {
+                    throw new \InvalidArgumentException('SQLite SELECT wildcard projection matched an empty column name');
+                }
+                if (array_key_exists($alias, $values)) {
+                    throw new \InvalidArgumentException("SQLite SELECT wildcard projection has duplicate column {$alias}");
+                }
+                $values[$alias] = $value;
+                continue;
+            }
+
+            $matched = true;
+            $values[$column] = $value;
+        }
+
+        if (!$matched) {
+            $target = $prefix === null ? '*' : $prefix . '.*';
+            throw new \InvalidArgumentException("SQLite SELECT wildcard projection matched no columns for {$target}");
+        }
+
+        return $values;
     }
 
     /**
@@ -186,6 +245,18 @@ final class SQLiteSelectProjection
         }
 
         return $row[$name];
+    }
+
+    /**
+     * @param array<string,mixed> $projected
+     */
+    private static function appendProjectedValue(array &$projected, string $alias, mixed $value): void
+    {
+        if (array_key_exists($alias, $projected)) {
+            throw new \InvalidArgumentException("SQLite SELECT projection produced duplicate column {$alias}");
+        }
+
+        $projected[$alias] = $value;
     }
 
     /**

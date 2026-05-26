@@ -13593,6 +13593,136 @@ SQL;
             ['type' => 'unknown'],
         ]));
     },
+    'expands select wildcard projections over result rows' => static function (TestRunner $t): void {
+        $rows = [
+            [
+                'wp_options.option_id' => 1,
+                'wp_options.option_name' => 'siteurl',
+                'wp_options.option_value' => 'https://example.test',
+                'wp_options.autoload' => 'yes',
+                'meta.option_id' => 1,
+                'meta.visibility' => 'public',
+                'meta.priority' => 10,
+            ],
+            [
+                'wp_options.option_id' => 2,
+                'wp_options.option_name' => 'home',
+                'wp_options.option_value' => null,
+                'wp_options.autoload' => 'yes',
+                'meta.option_id' => 2,
+                'meta.visibility' => 'public',
+                'meta.priority' => 20,
+            ],
+            [
+                'wp_options.option_id' => 3,
+                'wp_options.option_name' => '_transient_api',
+                'wp_options.option_value' => new SQLiteBlobValue('cached'),
+                'wp_options.autoload' => 'no',
+                'meta.option_id' => 3,
+                'meta.visibility' => 'private',
+                'meta.priority' => 30,
+            ],
+        ];
+
+        $all = SQLiteSelectProjection::project($rows, [
+            ['type' => 'wildcard'],
+        ]);
+        $t->same(3, count($all));
+        $t->same([
+            'wp_options.option_id',
+            'wp_options.option_name',
+            'wp_options.option_value',
+            'wp_options.autoload',
+            'meta.option_id',
+            'meta.visibility',
+            'meta.priority',
+        ], array_keys($all[0]));
+        $t->same(1, $all[0]['wp_options.option_id']);
+        $t->same('siteurl', $all[0]['wp_options.option_name']);
+        $t->same('https://example.test', $all[0]['wp_options.option_value']);
+        $t->same('yes', $all[0]['wp_options.autoload']);
+        $t->same(1, $all[0]['meta.option_id']);
+        $t->same('public', $all[0]['meta.visibility']);
+        $t->same(10, $all[0]['meta.priority']);
+        $t->same('home', $all[1]['wp_options.option_name']);
+        $t->same(null, $all[1]['wp_options.option_value']);
+        $t->true($all[2]['wp_options.option_value'] instanceof SQLiteBlobValue);
+        $t->same('cached', $all[2]['wp_options.option_value'] instanceof SQLiteBlobValue ? $all[2]['wp_options.option_value']->bytes : null);
+
+        $optionStar = SQLiteSelectProjection::project($rows, [
+            ['type' => 'wildcard', 'prefix' => 'wp_options'],
+        ]);
+        $t->same(['option_id', 'option_name', 'option_value', 'autoload'], array_keys($optionStar[0]));
+        $t->same([1, 2, 3], array_column($optionStar, 'option_id'));
+        $t->same(['siteurl', 'home', '_transient_api'], array_column($optionStar, 'option_name'));
+        $t->same('cached', $optionStar[2]['option_value'] instanceof SQLiteBlobValue ? $optionStar[2]['option_value']->bytes : null);
+        $t->same(['yes', 'yes', 'no'], array_column($optionStar, 'autoload'));
+
+        $metaStar = SQLiteSelectProjection::project($rows, [
+            ['type' => 'wildcard', 'prefix' => 'meta'],
+        ]);
+        $t->same(['option_id', 'visibility', 'priority'], array_keys($metaStar[0]));
+        $t->same([1, 2, 3], array_column($metaStar, 'option_id'));
+        $t->same(['public', 'public', 'private'], array_column($metaStar, 'visibility'));
+        $t->same([10, 20, 30], array_column($metaStar, 'priority'));
+
+        $mixed = SQLiteSelectProjection::project($rows, [
+            ['type' => 'wildcard', 'prefix' => 'wp_options'],
+            ['type' => 'function', 'name' => 'lower', 'alias' => 'normalized_name', 'arguments' => [
+                ['type' => 'column', 'name' => 'wp_options.option_name'],
+            ]],
+            ['type' => 'case', 'alias' => 'visibility_bucket', 'base' => ['type' => 'column', 'name' => 'meta.visibility'], 'branches' => [
+                ['when' => 'public', 'then' => 'visible'],
+                ['when' => 'private', 'then' => 'hidden'],
+            ], 'else' => 'unknown'],
+        ]);
+        $t->same(['option_id', 'option_name', 'option_value', 'autoload', 'normalized_name', 'visibility_bucket'], array_keys($mixed[0]));
+        $t->same('siteurl', $mixed[0]['normalized_name']);
+        $t->same('visible', $mixed[0]['visibility_bucket']);
+        $t->same('home', $mixed[1]['normalized_name']);
+        $t->same('visible', $mixed[1]['visibility_bucket']);
+        $t->same('_transient_api', $mixed[2]['normalized_name']);
+        $t->same('hidden', $mixed[2]['visibility_bucket']);
+
+        $ordered = SQLiteSelectResult::execute($mixed, null, [
+            ['column' => 'visibility_bucket'],
+            ['column' => 'option_name', 'direction' => 'DESC'],
+        ]);
+        $t->same(['_transient_api', 'siteurl', 'home'], array_column($ordered, 'option_name'));
+        $t->same(['hidden', 'visible', 'visible'], array_column($ordered, 'visibility_bucket'));
+
+        $literalPrefixed = SQLiteSelectProjection::project([
+            ['x.a' => 1, 'x.b' => 2, 'y.a' => 3],
+        ], [
+            ['type' => 'literal', 'alias' => 'source', 'value' => 'wp_options'],
+            ['type' => 'wildcard', 'prefix' => 'x'],
+        ]);
+        $t->same(['source', 'a', 'b'], array_keys($literalPrefixed[0]));
+        $t->same('wp_options', $literalPrefixed[0]['source']);
+        $t->same(1, $literalPrefixed[0]['a']);
+        $t->same(2, $literalPrefixed[0]['b']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'wildcard', 'alias' => 'all'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'wildcard', 'prefix' => 'missing'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'wildcard', 'prefix' => ''],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project([
+            ['x.a' => 1, 'a' => 2],
+        ], [
+            ['type' => 'wildcard', 'prefix' => 'x'],
+            ['type' => 'column', 'name' => 'a'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project([
+            ['' => 1],
+        ], [
+            ['type' => 'wildcard'],
+        ]));
+    },
     'projects select result rows through case expressions' => static function (TestRunner $t): void {
         $rows = [
             ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'score' => 9],

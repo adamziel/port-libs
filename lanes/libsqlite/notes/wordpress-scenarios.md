@@ -3581,3 +3581,21 @@ scalar branch results, BLOB branch values, strict malformed branch guards, and
 composition with existing SELECT result ordering. Dependency closure: no new
 support component is needed; this reuses lane-local SELECT projection and
 scalar dispatch helpers.
+
+## SELECT Wildcard Option Projection Scenario
+
+Copied WordPress option import previews can now model bounded SQLite `*` and
+table-star projection expansion without requiring the SQLite extension. The
+smoke `examples/wordpress-select-wildcard-preview.php` reports copied
+`wp_options` rows projected through table-star expansion after metadata joins,
+then composes scalar and CASE follow-up columns before final ordering.
+
+Status delta 2026-05-26 isolated priority SQL execution/planner slice: added
+`SQLiteSelectProjection` wildcard dispatch with 40 focused assertions covering
+unqualified star expansion, prefixed table-star expansion, source column order,
+BLOB and NULL propagation, joined-row prefix filtering, scalar and CASE
+composition, ORDER BY composition, and strict alias/prefix/duplicate-output
+guards. Focused `SQLiteHeaderTest.php` passed at 4067 assertions.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+SELECT projection, scalar dispatch, BLOB wrappers, and pure PHP result arrays.
