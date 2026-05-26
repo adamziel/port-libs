@@ -11312,7 +11312,15 @@ SQL;
             'result_depth' => 1,
             'transaction_active_after' => true,
         ], $stack->releasePlan('plugin-import'));
-        $stack->release('plugin-import');
+        $t->same([
+            'savepoint' => 'plugin-import',
+            'found_index' => 1,
+            'released_frame_names' => ['plugin-import'],
+            'merged_page_numbers' => [6],
+            'target_is_transaction' => false,
+            'result_depth' => 1,
+            'transaction_active_after' => true,
+        ], $stack->releaseWithPlan('plugin-import'));
         $t->same(1, $stack->depth());
         $t->same([2, 6], $stack->pendingPageNumbers());
         $t->same([
@@ -11332,7 +11340,15 @@ SQL;
             'result_depth' => 0,
             'transaction_active_after' => false,
         ], $stack->releasePlan('outer'));
-        $stack->release('outer');
+        $t->same([
+            'savepoint' => 'outer',
+            'found_index' => 0,
+            'released_frame_names' => ['outer'],
+            'merged_page_numbers' => [2, 6],
+            'target_is_transaction' => true,
+            'result_depth' => 0,
+            'transaction_active_after' => false,
+        ], $stack->releaseWithPlan('outer'));
         $t->same(false, $stack->transactionActive());
         $t->same([], $stack->pendingPageNumbers());
 
@@ -11354,6 +11370,7 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackToPageNumbers('missing'));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackToPlan('missing'));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->releasePlan('missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->releaseWithPlan('missing'));
         $t->throws(LogicException::class, static fn () => $stack->commit());
     },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {

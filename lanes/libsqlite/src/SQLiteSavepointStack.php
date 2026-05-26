@@ -107,6 +107,17 @@ final class SQLiteSavepointStack
     /**
      * @return array{savepoint:string,found_index:int,released_frame_names:list<string>,merged_page_numbers:list<int>,target_is_transaction:bool,result_depth:int,transaction_active_after:bool}
      */
+    public function releaseWithPlan(string $name): array
+    {
+        $plan = $this->releasePlan($name);
+        $this->release($name);
+
+        return $plan;
+    }
+
+    /**
+     * @return array{savepoint:string,found_index:int,released_frame_names:list<string>,merged_page_numbers:list<int>,target_is_transaction:bool,result_depth:int,transaction_active_after:bool}
+     */
     public function releasePlan(string $name): array
     {
         $index = $this->findFrame($name);

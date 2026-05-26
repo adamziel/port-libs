@@ -27,9 +27,10 @@ $afterRollback = $savepoints->toArray();
 
 $savepoints->recordPageWrite(6);
 $releasePlan = $savepoints->releasePlan('plugin_settings');
-$savepoints->release('plugin_settings');
+$releaseWithPlan = $savepoints->releaseWithPlan('plugin_settings');
 $afterRelease = $savepoints->toArray();
 $outerReleasePlan = $savepoints->releasePlan('wp_option_import');
+$outerReleaseWithPlan = $savepoints->releaseWithPlan('wp_option_import');
 
 echo json_encode([
     'beforeRollbackToPluginSettings' => $beforeRollback,
@@ -38,8 +39,10 @@ echo json_encode([
     'rollbackToSingleOptionRowPageNumbers' => $singleOptionRollbackPreview,
     'afterRollbackToPluginSettings' => $afterRollback,
     'releasePluginSettingsPlan' => $releasePlan,
+    'releasePluginSettingsWithPlan' => $releaseWithPlan,
     'afterReleasePluginSettings' => $afterRelease,
     'releaseOuterTransactionPlan' => $outerReleasePlan,
+    'releaseOuterTransactionWithPlan' => $outerReleaseWithPlan,
     'pendingPageNumbers' => $savepoints->pendingPageNumbers(),
     'transactionActive' => $savepoints->transactionActive(),
     'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE plans and page-dirty state for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages would roll back, merge upward, or remain pending after a failed option-row import.',

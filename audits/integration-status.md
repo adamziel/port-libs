@@ -115389,3 +115389,29 @@ Verification:
 Decision: accepted as commit `7d7a03b41f1189cd11286ac492e48a92b6f41744` (`Integrate libsqlite printf format scalars`). The slice adds lane-local `printf()` and `format()` scalar dispatch, including SQLite `%q`, `%Q`, `%w`, numeric, text, character, and literal-percent handling, plus focused WordPress scalar preview evidence. It did not start a fresh upstream runner and did not add a support-library dependency.
 
 Dashboard publication should run next after the accepted source commit is visible on `main`.
+## Integration accepted - libsqlite savepoint release-with-plan - 2026-05-26T14:07:19Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T140243Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `494a61a2caa3f9d9d13e43eacb59afae26ba99d2` (`Integrate libsqlite make-test runner gate`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `494a61a2caa3f9d9d13e43eacb59afae26ba99d2`.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `118934652` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `3.46`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Verification:
+- Detached clean worktree: `.tmux-team/tmp/clean-integrator-libsqlite-closure-20260526T140243Z` at `494a61a2caa3f9d9d13e43eacb59afae26ba99d2`.
+- Patch sha256 matched marker metadata: `52e908a63635b6eba03730e99dc55057eb74252dadeb411f79d5c781fcdf4bb1`.
+- Bounded clean-integrator merge removed one duplicate `focusedSavepointReleaseWithPlan` JSON key from `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`; no behavior beyond the marker scope was changed.
+- Focused checks passed: `php -l lanes/libsqlite/src/SQLiteSavepointStack.php`, `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, `php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`, `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` (`1 test files, 2813 assertions, 0 failures`), WordPress savepoint smoke, manifest/status JSON validation, and `git diff --check -- lanes/libsqlite`.
+- Full clean-candidate diff check passed with `git diff --check`.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 27729 assertions, 0 failures`.
+
+Decision: accepted. The slice adds lane-local `SQLiteSavepointStack::releaseWithPlan()` so WordPress recovery diagnostics can return RELEASE provenance and apply nested or outer savepoint transitions in one call. It did not start a fresh upstream runner and did not add a support-library dependency.
+
+Dashboard publication should run next after the accepted source commit is visible on `main`.
