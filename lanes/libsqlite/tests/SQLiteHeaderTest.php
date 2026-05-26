@@ -16,6 +16,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistAllocationPlan;
 use PortLibs\LibSqlite\SQLiteFreelistTruncatePlan;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
+use PortLibs\LibSqlite\SQLiteFileHeaderLoader;
 use PortLibs\LibSqlite\SQLiteFileUri;
 use PortLibs\LibSqlite\SQLiteGroupedAggregate;
 use PortLibs\LibSqlite\SQLiteIndexCell;
@@ -13983,6 +13984,103 @@ SQL;
         $t->same(false, $nolock['psow']);
         $t->same(null, $nolock['busy']);
         $t->same(['file-uri-parser', 'nolock-open'], $nolock['dependencies']);
+    },
+    'loads bounded sqlite file headers after open admission' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $uriForPath = static fn (string $path): string => 'file:' . str_replace('%2F', '/', rawurlencode($path));
+        $writeTemp = static function (string $prefix, string $bytes): string {
+            $path = tempnam(sys_get_temp_dir(), $prefix);
+            if ($path === false) {
+                throw new RuntimeException('Unable to create temporary SQLite header fixture');
+            }
+            file_put_contents($path, $bytes);
+
+            return $path;
+        };
+
+        $validPath = $writeTemp('wp-sqlite-header-', $makeFirstPage(512, 2) . str_repeat("\0", 512));
+        $valid = SQLiteFileHeaderLoader::inspect($uriForPath($validPath) . '?mode=ro&immutable=1&vfs=unix-none');
+        $t->same('header-ready', $valid['status']);
+        $t->same(true, $valid['can_open']);
+        $t->same(true, $valid['can_read_header']);
+        $t->same($validPath, $valid['path']);
+        $t->same(100, $valid['bytes_read']);
+        $t->same(1024, $valid['file_size']);
+        $t->same(512, $valid['minimum_first_page_bytes']);
+        $t->same(1024, $valid['minimum_declared_bytes']);
+        $t->same(true, $valid['complete_first_page']);
+        $t->same(true, $valid['complete_declared_pages']);
+        $t->true($valid['header'] instanceof SQLiteHeader);
+        $t->same(512, $valid['header']->pageSize);
+        $t->same(2, $valid['header']->databaseSizePages);
+        $t->same('ro', $valid['open']['mode']);
+        $t->same(true, $valid['open']['read_only']);
+        $t->same('unix-none', $valid['open']['vfs']);
+        $t->same(null, $valid['reason']);
+        $t->same(['file-uri-parser', 'vfs-admission', 'immutable-readonly-open', 'bounded-file-header-read', 'sqlite-header-parse', 'sqlite-file-size-check'], $valid['dependencies']);
+
+        $plainPath = $writeTemp('wp-sqlite-plain-', $makeFirstPage(1024, 1));
+        $plain = SQLiteFileHeaderLoader::inspect($plainPath);
+        $t->same('header-ready', $plain['status']);
+        $t->same('rwc', $plain['open']['mode']);
+        $t->same(1024, $plain['header']->pageSize);
+        $t->same(1024, $plain['minimum_declared_bytes']);
+        $t->same(['file-uri-parser', 'bounded-file-header-read', 'sqlite-header-parse', 'sqlite-file-size-check'], $plain['dependencies']);
+
+        $shortPath = $writeTemp('wp-sqlite-short-', substr($makeFirstPage(512, 1), 0, 80));
+        $short = SQLiteFileHeaderLoader::inspect($uriForPath($shortPath) . '?mode=ro');
+        $t->same('short-header', $short['status']);
+        $t->same(true, $short['can_open']);
+        $t->same(false, $short['can_read_header']);
+        $t->same(80, $short['bytes_read']);
+        $t->same(80, $short['file_size']);
+        $t->same(null, $short['header']);
+        $t->same('SQLite database header requires at least 100 bytes', $short['reason']);
+
+        $invalidPath = $writeTemp('wp-sqlite-invalid-', str_repeat('x', 128));
+        $invalid = SQLiteFileHeaderLoader::inspect($invalidPath);
+        $t->same('invalid-header', $invalid['status']);
+        $t->same(false, $invalid['can_read_header']);
+        $t->same(100, $invalid['bytes_read']);
+        $t->same('Missing SQLite format 3 magic header', $invalid['reason']);
+        $t->same(['file-uri-parser', 'bounded-file-header-read', 'sqlite-header-parse'], $invalid['dependencies']);
+
+        $incompletePath = $writeTemp('wp-sqlite-incomplete-', substr($makeFirstPage(512, 1), 0, 128));
+        $incomplete = SQLiteFileHeaderLoader::inspect($incompletePath);
+        $t->same('incomplete-first-page', $incomplete['status']);
+        $t->same(false, $incomplete['can_read_header']);
+        $t->same(128, $incomplete['file_size']);
+        $t->same(512, $incomplete['minimum_first_page_bytes']);
+        $t->same(false, $incomplete['complete_first_page']);
+        $t->same(false, $incomplete['complete_declared_pages']);
+        $t->same('database file is smaller than its first page', $incomplete['reason']);
+
+        $missing = SQLiteFileHeaderLoader::inspect($uriForPath(sys_get_temp_dir() . '/wp-sqlite-missing-' . uniqid('', true) . '.db') . '?mode=ro');
+        $t->same('missing', $missing['status']);
+        $t->same(false, $missing['can_open']);
+        $t->same(false, $missing['can_read_header']);
+        $t->same(null, $missing['file_size']);
+        $t->same('database file does not exist', $missing['reason']);
+
+        $busy = SQLiteFileHeaderLoader::inspect($uriForPath($validPath) . '?mode=rw', false, SQLiteBusyHandler::withDelays(4, [2, 2]));
+        $t->same('busy-timeout', $busy['status']);
+        $t->same(false, $busy['can_open']);
+        $t->same(false, $busy['can_read_header']);
+        $t->same(0, $busy['bytes_read']);
+        $t->same(1024, $busy['file_size']);
+        $t->same(4, $busy['open']['busy']['total_sleep_ms']);
+        $t->same(['file-uri-parser', 'busy-handler', 'bounded-file-header-read'], $busy['dependencies']);
+
+        $memory = SQLiteFileHeaderLoader::inspect('file::memory:?mode=memory&cache=private');
+        $t->same('memory-open', $memory['status']);
+        $t->same(true, $memory['can_open']);
+        $t->same(false, $memory['can_read_header']);
+        $t->same(':memory:', $memory['path']);
+        $t->same(null, $memory['file_size']);
+        $t->same('in-memory databases do not have a file header', $memory['reason']);
+
+        foreach ([$validPath, $plainPath, $shortPath, $invalidPath, $incompletePath] as $path) {
+            @unlink($path);
+        }
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];

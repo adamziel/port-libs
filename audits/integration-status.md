@@ -117672,3 +117672,29 @@ Serialized root verification with repo-local `TMPDIR` passed under `.tmux-team/t
 Post-root edit note: only this audit result line was appended after the passing root run; lane code, tests, example, manifest, status, and lane notes were unchanged after root.
 
 Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-scalar-20260526T225221Z` still contains the accepted lane modifications after publication, so it was preserved and not removed.
+
+## Integration accepted - libsqlite file-header loader preflight - 2026-05-26T23:06:30Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T225759Z.ready`.
+
+Decision: accepted after bounded replay onto current `refs/heads/main` `dabae95673013520aeba5edf577e5c32ffa012f6`. Direct patch application was stale only in `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and `notes/wordpress-scenarios.md`; implementation, focused test, smoke, and lane notes replayed cleanly, and manifest/status were updated minimally from the current accepted files.
+
+Scope: adds `SQLiteFileHeaderLoader::inspect()` for bounded SQLite file-header loading after accepted file URI/open admission, plus a copied WordPress file-header preflight smoke and focused `SQLiteHeaderTest.php` assertions. No new support dependency or broad upstream runner was used.
+
+Focused verification before root:
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteFileHeaderLoader.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/examples/wordpress-file-header-loader-preflight.php` passed.
+- Manifest/status JSON decode passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4087 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-file-header-loader-preflight.php` passed and emitted valid JSON.
+
+Runtime gate before focused/root checks: `/` free space above `86000000` KiB, load below `25`, and no exact `php tools/run-tests.php` root harness process after the initial dashboard wait. Live Pages caught up to source `dabae95673013520aeba5edf577e5c32ffa012f6` before marker processing began.
+
+Root verification: pending at note-write time; this note is intentionally written before serialized root so the root gate covers the final commit snapshot.
+
+Serialized root verification with repo-local `TMPDIR` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 29221 assertions, 0 failures`.
+
+Post-root edit note: only this audit result line was appended after the passing root run; lane code, tests, example, manifest, status, and lane notes were unchanged after root.
+
+Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T225759Z` still contains the accepted lane modifications after publication, so it was preserved and not removed. Integration candidate `.tmux-team/integration-candidates/clean-libsqlite-deps-20260526T225759Z` also contains repo-local `.tmp-root` root-run artifacts, so it was preserved for non-forced cleanup rather than removed.
