@@ -1,5 +1,43 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite dependency scalar suite - 2026-05-26 07:58 UTC
+
+Accepted isolated marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T075145Z.ready`.
+
+Current `refs/heads/main` before acceptance: `61e6f6a63390cd1e243a9956a4c9ca74bd9ab753`
+(`Integrate libsqlite WAL checkpoint plan`).
+
+Dashboard guard evidence:
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit=61e6f6a63390cd1e243a9956a4c9ca74bd9ab753`.
+- Live dashboard commit reported `43e9d33b3c8d40ab25fc084724a7f4872ce6018e`.
+- The dashboard guard was open before candidate verification.
+
+Resource and process gate evidence:
+- `df -Pk /` reported at least `86284052` KiB available before the root run, above the required `86000000` KiB threshold.
+- `/proc/loadavg` first field was below `25` during focused and root checks.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before starting the serialized root harness.
+
+Candidate evidence:
+- The marker declared `lane=libsqlite`, `patch=...port-dev-libsqlite-deps-20260526T075145Z.patch`, `metadata=...port-dev-libsqlite-deps-20260526T075145Z.md`, and `base_sha=61e6f6a63390cd1e243a9956a4c9ca74bd9ab753`.
+- Patch sha256 matched the marker: `f639bf80b15e5f44cfca0b343388db941152dac7ad7ae820330896bf47cec5b0`.
+- The patch applied cleanly in a detached clean worktree from current `main` and touched only `lanes/libsqlite/**`.
+
+Focused verification passed in a detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 2648 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php --self-test` passed.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` from the exact accepted snapshot:
+- `php tools/run-tests.php` passed with `215 test files, 27364 assertions, 0 failures`.
+
+Decision: accepted. The slice adds bounded native SQL scalar dispatch for `min()`, `max()`, `lower()`, `upper()`, and `length()` with focused WordPress option smoke coverage. No new shared support-library component was activated.
+
+Dashboard publication should run next because accepted source moved beyond the live dashboard source.
+
 ## Clean-patch intake accepted - libsqlite WAL checkpoint plan - 2026-05-26 07:55 UTC
 
 Accepted isolated marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T074252Z.ready`.

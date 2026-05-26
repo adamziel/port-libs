@@ -2550,3 +2550,24 @@ Native `wp_options` WAL diagnostics can now preview checkpoint provenance before
 Status delta 2026-05-26 isolated WAL slice: added `SQLiteWal::checkpointPlan()` with focused assertions for applied, superseded, beyond-size, uncommitted-tail, empty-WAL, and malformed base-image cases. Filesystem checkpoint writes, WAL-index/shared-memory state, and durability orchestration remain separate follow-up work.
 
 Dependency closure: no new shared support component is needed; this reuses lane-local WAL parsing, checksum validation, checkpoint overlay, SQLite header parsing, and WordPress fixture helpers.
+
+## Core Scalar Min/Max And Text Helper Scenario
+
+Native SQL execution helpers now include the next bounded core scalar dispatch
+cluster needed by local WordPress option repair and expression planning:
+`min()`, `max()`, `lower()`, `upper()`, and `length()`. The
+`examples/wordpress-core-scalar-option-default.php` smoke reports these
+function results through the same local-only wp_options scalar preflight
+surface used for `abs()`, `round()`, `typeof()`, `quote()`, `coalesce()`,
+`ifnull()`, and `nullif()`.
+
+Status delta 2026-05-26 isolated dependency-suite scalar slice: added
+SQLite-style storage-class ordering for scalar `min()`/`max()`, SQL NULL
+propagation across multi-argument min/max calls, BLOB byte comparison,
+ASCII-only `lower()`/`upper()` behavior, and `length()` over UTF-8 text
+characters or BLOB bytes. This is intentionally a scalar dispatch helper, not a
+full SELECT expression evaluator or collation-aware comparison engine.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
+helpers.

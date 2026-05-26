@@ -21,6 +21,11 @@ final class SQLiteCoreScalarFunction
             'coalesce' => self::coalesce($arguments),
             'ifnull' => self::ifnull($arguments),
             'nullif' => self::nullif($arguments),
+            'min' => self::minmax('min', $arguments),
+            'max' => self::minmax('max', $arguments),
+            'lower' => self::caseMap('lower', $arguments),
+            'upper' => self::caseMap('upper', $arguments),
+            'length' => self::length($arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
     }
@@ -153,6 +158,76 @@ final class SQLiteCoreScalarFunction
         return self::sqliteValuesEqual($arguments[0], $arguments[1]) ? null : $arguments[0];
     }
 
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function minmax(string $functionName, array $arguments): mixed
+    {
+        self::assertArity($functionName, $arguments, 2, null);
+        foreach ($arguments as $argument) {
+            if ($argument === null) {
+                return null;
+            }
+            self::assertComparable($functionName, $argument);
+        }
+
+        $selected = $arguments[0];
+        foreach (array_slice($arguments, 1) as $argument) {
+            $comparison = self::compareSqlValues($argument, $selected);
+            if (($functionName === 'min' && $comparison < 0) || ($functionName === 'max' && $comparison > 0)) {
+                $selected = $argument;
+            }
+        }
+
+        return $selected;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function caseMap(string $functionName, array $arguments): ?string
+    {
+        self::assertArity($functionName, $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+        if ($arguments[0] instanceof SQLiteBlobValue) {
+            $value = $arguments[0]->bytes;
+        } elseif (is_scalar($arguments[0])) {
+            $value = (string) $arguments[0];
+        } else {
+            throw new \InvalidArgumentException("SQLite {$functionName}() argument must be scalar, BLOB, or NULL");
+        }
+
+        return $functionName === 'lower'
+            ? strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')
+            : strtr($value, 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function length(array $arguments): ?int
+    {
+        self::assertArity('length', $arguments, 1, 1);
+        if ($arguments[0] === null) {
+            return null;
+        }
+        if ($arguments[0] instanceof SQLiteBlobValue) {
+            return strlen($arguments[0]->bytes);
+        }
+        if (is_scalar($arguments[0])) {
+            $value = (string) $arguments[0];
+            if (function_exists('mb_strlen') && function_exists('mb_check_encoding') && mb_check_encoding($value, 'UTF-8')) {
+                return mb_strlen($value, 'UTF-8');
+            }
+
+            return strlen($value);
+        }
+
+        throw new \InvalidArgumentException('SQLite length() argument must be scalar, BLOB, or NULL');
+    }
+
     private static function assertArity(string $functionName, array $arguments, int $minimum, ?int $maximum): void
     {
         $count = count($arguments);
@@ -212,6 +287,48 @@ final class SQLiteCoreScalarFunction
         }
 
         return false;
+    }
+
+    private static function assertComparable(string $functionName, mixed $value): void
+    {
+        if ($value instanceof SQLiteBlobValue || is_scalar($value)) {
+            return;
+        }
+
+        throw new \InvalidArgumentException("SQLite {$functionName}() arguments must be scalar, BLOB, or NULL");
+    }
+
+    private static function compareSqlValues(mixed $left, mixed $right): int
+    {
+        $leftRank = self::sortRank($left);
+        $rightRank = self::sortRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
+        }
+
+        if ($leftRank === 1) {
+            return (float) $left <=> (float) $right;
+        }
+
+        $leftText = $left instanceof SQLiteBlobValue ? $left->bytes : (string) $left;
+        $rightText = $right instanceof SQLiteBlobValue ? $right->bytes : (string) $right;
+
+        return $leftText <=> $rightText;
+    }
+
+    private static function sortRank(mixed $value): int
+    {
+        if (is_int($value) || is_float($value) || is_bool($value)) {
+            return 1;
+        }
+        if (is_string($value)) {
+            return 2;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return 3;
+        }
+
+        throw new \InvalidArgumentException('SQLite scalar comparison argument must be scalar or BLOB');
     }
 
     private static function formatFloat(float $value): string

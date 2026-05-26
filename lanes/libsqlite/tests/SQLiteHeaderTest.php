@@ -11020,7 +11020,26 @@ SQL;
         $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('nullif', [1, 1.0]));
         $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('nullif', [new SQLiteBlobValue('a'), new SQLiteBlobValue('a')]));
 
+        $t->same(1, SQLiteCoreScalarFunction::sqlFunctionArguments('min', [3, 1, 2]));
+        $t->same(3.5, SQLiteCoreScalarFunction::sqlFunctionArguments('max', [1, 3.5, 2]));
+        $t->same('cache', SQLiteCoreScalarFunction::sqlFunctionArguments('min', ['seo', 'cache']));
+        $t->same('seo', SQLiteCoreScalarFunction::sqlFunctionArguments('max', ['seo', 'cache']));
+        $t->same(9, SQLiteCoreScalarFunction::sqlFunctionArguments('min', [9, '1']));
+        $t->same('1', SQLiteCoreScalarFunction::sqlFunctionArguments('max', [9, '1']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('max', [9, null, '1']));
+        $minBlob = SQLiteCoreScalarFunction::sqlFunctionArguments('min', [new SQLiteBlobValue("\x02"), new SQLiteBlobValue("\x01")]);
+        $t->same("\x01", $minBlob instanceof SQLiteBlobValue ? $minBlob->bytes : null);
+
+        $t->same('wp_cache', SQLiteCoreScalarFunction::sqlFunctionArguments('lower', ['WP_Cache']));
+        $t->same('WP_CACHE', SQLiteCoreScalarFunction::sqlFunctionArguments('upper', ['wp_Cache']));
+        $t->same('éclair', SQLiteCoreScalarFunction::sqlFunctionArguments('lower', ['éCLAIR']));
+        $t->same(6, SQLiteCoreScalarFunction::sqlFunctionArguments('length', ['plugin']));
+        $t->same(2, SQLiteCoreScalarFunction::sqlFunctionArguments('length', ['éx']));
+        $t->same(3, SQLiteCoreScalarFunction::sqlFunctionArguments('length', [new SQLiteBlobValue("\x00AB")]));
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('coalesce', [null]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('min', [1]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('length', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('missing', [1]));
     },
