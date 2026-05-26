@@ -10,20 +10,21 @@ use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $jsonbSettings = SQLiteJsonB::encode([
-    'plugin' => [
-        'enabled' => true,
-        'rules' => [
-            ['name' => 'seo', 'enabled' => true],
-            ['name' => 'cache', 'enabled' => false],
+        'plugin' => [
+            'enabled' => true,
+            'rules' => [
+                ['name' => 'seo', 'enabled' => true],
+                ['name' => 'cache', 'enabled' => false],
+            ],
+            'dotted.key' => 'quoted',
+            'dotted_key' => 'escaped',
         ],
-        'dotted.key' => 'quoted',
-    ],
     'priority' => 7,
 ]);
 
 $inputs = [
-    'strict_settings_text' => '{"plugin":{"enabled":true,"title":"Cache","rules":[{"name":"seo"},{"name":"cache"}]},"priority":7}',
-    'json5_settings_text' => "{plugin:{enabled:false,title:'Cache',rules:['seo','cache',],},priority:+7}",
+    'strict_settings_text' => '{"plugin":{"enabled":true,"title":"Cache","rules":[{"name":"seo"},{"name":"cache"}],"dotted_key":"escaped"},"priority":7}',
+    'json5_settings_text' => "{plugin:{enabled:false,title:'Cache',rules:['seo','cache',],dotted_key:'escaped',},priority:+7}",
     'jsonb_settings_blob' => new SQLiteBlobValue($jsonbSettings),
     'sql_null_option_value' => null,
 ];
@@ -44,6 +45,11 @@ foreach ($inputs as $name => $value) {
         ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
         ['column' => 'fullkey', 'operator' => 'LIKE', 'value' => '$.plugin.rules[%]'],
         ['column' => 'value', 'operator' => 'GLOB', 'value' => '*cache*'],
+    ];
+    $escapedLikeConstraints = [
+        ['column' => 'json', 'operator' => '=', 'value' => $value],
+        ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ['column' => 'key', 'operator' => 'LIKE', 'value' => ['pattern' => 'dotted!_key', 'escape' => '!']],
     ];
     $nameNotPatternConstraints = [
         ['column' => 'json', 'operator' => '=', 'value' => $value],
@@ -146,6 +152,7 @@ foreach ($inputs as $name => $value) {
         ])),
         'filteredObjectRuleRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $objectRuleConstraints)),
         'filteredCachePatternRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $namePatternConstraints)),
+        'filteredEscapedLikeRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $escapedLikeConstraints)),
         'filteredNotPatternRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $nameNotPatternConstraints)),
         'filteredRuleInRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $ruleInConstraints)),
         'filteredContainerAtomRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $containerAtomConstraints)),
@@ -168,6 +175,7 @@ foreach ($inputs as $name => $value) {
         'planner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $plannerConstraints)),
         'filteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $objectRuleConstraints)),
         'patternFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $namePatternConstraints)),
+        'escapedLikeFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $escapedLikeConstraints)),
         'notPatternFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $nameNotPatternConstraints)),
         'inFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $ruleInConstraints)),
         'containerAtomPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $containerAtomConstraints)),
@@ -191,7 +199,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, SELECT * visible-column projection, explicit hidden json/root and rowid projection, hidden json/root constraint planning, visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, MATCH/NOT MATCH, IN-list, numeric equality, IS NULL, IS NOT NULL, IS DISTINCT FROM, IS NOT DISTINCT FROM, range, BETWEEN, rowid/_rowid_/oid alias residual filtering, and ORDER BY/LIMIT preview paging for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, SELECT * visible-column projection, explicit hidden json/root and rowid projection, hidden json/root constraint planning, visible type, LIKE/GLOB, LIKE ESCAPE, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, MATCH/NOT MATCH, IN-list, numeric equality, IS NULL, IS NOT NULL, IS DISTINCT FROM, IS NOT DISTINCT FROM, range, BETWEEN, rowid/_rowid_/oid alias residual filtering, and ORDER BY/LIMIT preview paging for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**

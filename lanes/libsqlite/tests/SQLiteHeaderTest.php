@@ -5019,6 +5019,92 @@ return [
         $t->same(['name'], array_column($nameLikeRows, 'key'));
         $t->same(['cache'], array_column($nameLikeRows, 'atom'));
 
+        $escapedSettings = '{"plugin":{"rules":{"literal_%":"cache_hit","literal_x":"cache_miss","Literal_%":"case_hit"}}}';
+        $escapedLikeRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => 'LIKE', 'value' => ['pattern' => 'literal!_!%', 'escape' => '!']],
+        ]);
+        $t->same(['literal_%', 'Literal_%'], array_column($escapedLikeRows, 'key'));
+        $t->same(['cache_hit', 'case_hit'], array_column($escapedLikeRows, 'atom'));
+
+        $escapedLikeCaseFoldRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => 'LIKE', 'value' => ['pattern' => 'literal!_!%', 'escape' => '!']],
+            ['column' => 'atom', 'operator' => 'LIKE', 'value' => ['pattern' => 'CACHE!_%', 'escape' => '!']],
+        ]);
+        $t->same(['literal_%'], array_column($escapedLikeCaseFoldRows, 'key'));
+        $t->same(['cache_hit'], array_column($escapedLikeCaseFoldRows, 'atom'));
+
+        $escapedLikeCaseSensitiveRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => 'LIKE', 'value' => [
+                'pattern' => 'literal!_!%',
+                'escape' => '!',
+                'caseSensitive' => true,
+            ]],
+        ]);
+        $t->same(['literal_%'], array_column($escapedLikeCaseSensitiveRows, 'key'));
+        $t->same(['cache_hit'], array_column($escapedLikeCaseSensitiveRows, 'atom'));
+
+        $escapedLikeCaseSensitiveMissRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => 'LIKE', 'value' => [
+                'pattern' => 'LITERAL!_!%',
+                'escape' => '!',
+                'caseSensitive' => true,
+            ]],
+        ]);
+        $t->same([], $escapedLikeCaseSensitiveMissRows);
+
+        $notEscapedLikeRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+            ['column' => 'key', 'operator' => 'NOT LIKE', 'value' => ['pattern' => 'literal!_!%', 'escape' => '!']],
+        ]);
+        $t->same(['literal_x'], array_column($notEscapedLikeRows, 'key'));
+        $t->same(['cache_miss'], array_column($notEscapedLikeRows, 'atom'));
+
+        $escapedLikeJsonEachRows = SQLiteJsonTablePlan::filteredRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => 'LIKE', 'value' => ['pattern' => 'literal!_!%', 'escape' => '!']],
+        ]);
+        $t->same(['literal_%', 'Literal_%'], array_column($escapedLikeJsonEachRows, 'key'));
+        $t->same(['cache_hit', 'case_hit'], array_column($escapedLikeJsonEachRows, 'atom'));
+
+        $escapedLikePlan = SQLiteJsonTablePlan::plan('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => 'LIKE', 'value' => ['pattern' => 'literal!_!%', 'escape' => '!']],
+            ['column' => 'atom', 'operator' => 'NOT LIKE', 'value' => ['pattern' => 'case!_%', 'escape' => '!']],
+        ]);
+        $t->same(true, $escapedLikePlan['runnable']);
+        $t->same(['json', 'root'], array_column($escapedLikePlan['used'], 'column'));
+        $t->same(['key', 'atom'], array_column($escapedLikePlan['residual'], 'column'));
+        $t->same(['LIKE', 'NOT LIKE'], array_column($escapedLikePlan['residual'], 'operator'));
+        $t->same('literal!_!%', $escapedLikePlan['residual'][0]['value']['pattern']);
+        $t->same('!', $escapedLikePlan['residual'][0]['value']['escape']);
+        $t->same('case!_%', $escapedLikePlan['residual'][1]['value']['pattern']);
+        $t->same('!', $escapedLikePlan['residual'][1]['value']['escape']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'fullkey', 'operator' => 'LIKE', 'value' => ['escape' => '!']],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'fullkey', 'operator' => 'LIKE', 'value' => ['pattern' => '$%', 'escape' => '!!']],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $escapedSettings],
+            ['column' => 'fullkey', 'operator' => 'LIKE', 'value' => ['pattern' => '$%', 'escape' => 1]],
+        ]));
+
         $nameNotPatternRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],

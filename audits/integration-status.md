@@ -117388,3 +117388,35 @@ Root verification:
 
 Cleanup note:
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T213637Z` still contains the same modified/untracked handoff files, so it is preserved as cleanup debt instead of being removed.
+## Integration accepted - libsqlite JSON table residual LIKE ESCAPE - 2026-05-26T21:49:22Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T213747Z.ready`.
+
+Decision: accepted after bounded replay over current `refs/heads/main` `e4361b71b797b0127ceba9203b638c72b0de3847`. The marker was based on `11c5661f4e26d5ade83b2f7a5f08ddc68baf7008`; direct full-patch apply failed only in moving manifest/status/notes context. The implementation, test, and WordPress smoke hunks replayed cleanly on current `main`, so the candidate kept the behavior cluster and updated current manifest/status minimally.
+
+Dashboard guard evidence: cache-busted live Pages reported exact matching source `e4361b71b797b0127ceba9203b638c72b0de3847`, generated `2026-05-26 21:44:42 UTC`, with dashboard commit `3f42c475c0912c5bb595d8047d2a07e286b1e9e0`.
+
+Runtime gate evidence before focused checks: `df -Pk /` reported `86591492` KiB available, `/proc/loadavg` one-minute load was `1.76`, and no exact no-argument root harness process was present.
+
+Focused verification before root:
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3688 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+
+Accepted delta: native JSON table residual LIKE/NOT LIKE ESCAPE payload support for visible `json_each`/`json_tree` filtering, WordPress option-settings smoke expansion, focused assertions, `phpPass` movement to `724`, and mapped coverage movement to `388 / 1589`. This is non-overlapping with accepted JSON projection, rowid alias, IS NULL/IS DISTINCT, REGEXP/MATCH, and SQL subquery filtering clusters.
+
+Serialized root verification:
+- Runtime gate immediately before root: `df -Pk /` reported `86118084` KiB available, `/proc/loadavg` one-minute load was `3.07`, and no exact no-argument root harness process was present.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` and passed with `215 test files, 28822 assertions, 0 failures`.
+
+Final commit and cleanup:
+- Accepted commit: `0cf6ab9a9594b5f86b0341e42ef167b6626b063f` (`Integrate libsqlite JSON table LIKE escape residuals`).
+- Final ref publication moved `refs/heads/main` from `e4361b71b797b0127ceba9203b638c72b0de3847` to `0cf6ab9a9594b5f86b0341e42ef167b6626b063f` only after local `main` and live Pages still matched the verified source.
+- Removed accepted ready marker, patch, metadata, and the temporary replay patch from `.tmux-team/tmp/handoff-candidates`.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T213747Z` still contains modified lane files and was preserved as cleanup debt.
+- Clean integrator candidate worktree `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-candidate-20260526T214748Z` contains root-run `.tmp-root` untracked artifacts and was preserved rather than force-removed.
+- Remaining ready-marker count after cleanup sample: `6537` total ready markers, including `3269` libsqlite ready markers.
+
+Dashboard publication should run next for source `0cf6ab9a9594b5f86b0341e42ef167b6626b063f`; clean integration should not accept another source-moving marker until live Pages catches up.

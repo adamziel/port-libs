@@ -310,11 +310,26 @@ final class SQLiteJsonTablePlan
         if ($actual === null || $expected === null) {
             return false;
         }
-        if (!is_string($actual) || !is_string($expected)) {
+        if (!is_string($actual)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator LIKE expects text row values');
+        }
+
+        $caseSensitive = false;
+        $escape = null;
+        if (is_array($expected)) {
+            if (!array_key_exists('pattern', $expected)) {
+                throw new \InvalidArgumentException('SQLite JSON table residual operator LIKE expects a pattern payload');
+            }
+            $caseSensitive = (bool) ($expected['caseSensitive'] ?? false);
+            $escape = $expected['escape'] ?? null;
+            $expected = $expected['pattern'];
+        }
+
+        if (!is_string($expected) || ($escape !== null && !is_string($escape))) {
             throw new \InvalidArgumentException('SQLite JSON table residual operator LIKE expects text values');
         }
 
-        return SQLiteDatabase::likeMatches($actual, $expected);
+        return SQLiteDatabase::likeMatches($actual, $expected, $escape, $caseSensitive);
     }
 
     private static function compareResidualGlob(mixed $actual, mixed $expected): bool
