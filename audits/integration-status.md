@@ -115984,3 +115984,32 @@ Serialized root evidence: after disk/load/root-process gates passed (`98015948` 
 Artifact cleanup: accepted marker artifacts may be removed after commit publication. The worker handoff worktree still contains its expected lane-local modified files, so it is preserved rather than forcibly removed; cleanup debt remains to remove the inactive registered worktree only when it is confirmed safe and clean.
 
 Dashboard publication should run next for the new accepted source once the commit is on `main`.
+## Integration accepted - libsqlite timediff scalar dispatch - 2026-05-26T16:39:42Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T163436Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `2dd1dc12ac32f77dbdad0dfb09dbc94ea68f3804` (`Integrate libsqlite timeout runner evidence`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `2dd1dc12ac32f77dbdad0dfb09dbc94ea68f3804`, so the dashboard guard was open.
+
+Runtime gate evidence:
+- Before focused checks, `df -Pk /` reported `96839888` KiB available and `/proc/loadavg` one-minute load was `2.36`; no exact no-argument root harness process was active.
+- Before the serialized root check, `df -Pk /` reported `96786252` KiB available and `/proc/loadavg` one-minute load was `2.44`; no exact no-argument root harness process was active.
+
+Verification:
+- Patch sha256 matched marker metadata: `3a8f851773ce8d9d7d100b39efadf00349a081d7c330a3d2dbf9061f2cb5f684`.
+- Patch applied cleanly in detached worktree `.tmux-team/tmp/clean-integrator-libsqlite-sql-exec-20260526T163436Z` from `2dd1dc12ac32f77dbdad0dfb09dbc94ea68f3804`.
+- Focused checks passed: PHP syntax for `SQLiteCoreScalarFunction.php`, `wordpress-core-scalar-option-default.php`, and `SQLiteHeaderTest.php`; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` reported `1 test files, 2914 assertions, 0 failures`; the WordPress scalar smoke returned `+0000-00-01 02:30:00.000`; manifest/status JSON validation passed; `git diff --check -- lanes/libsqlite` passed.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 27890 assertions, 0 failures`.
+
+Scope:
+- Adds bounded native `timediff(A,B)` dispatch to the libsqlite core scalar helper, focused assertions, WordPress smoke coverage, and lane manifest/status/notes evidence.
+- No broad SQLite upstream runner was started. Dolt and non-libsqlite markers were not considered.
+
+Decision: accepted and prepared for publication as a small verified libsqlite slice.
+
+Cleanup:
+- Accepted marker ready/patch/metadata files were eligible for removal after publishing the commit.
+- Worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T163436Z` still contained modified `lanes/libsqlite/**` files after publication, so it was preserved as cleanup debt instead of being removed.

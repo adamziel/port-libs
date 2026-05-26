@@ -46,7 +46,7 @@ final class SQLiteCoreScalarFunction
             'zeroblob' => self::zeroblob($arguments),
             'random' => self::random($arguments),
             'randomblob' => self::randomblob($arguments),
-            'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime' => self::dateTime($normalized, $arguments),
+            'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'timediff' => self::dateTime($normalized, $arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
     }
@@ -706,8 +706,20 @@ final class SQLiteCoreScalarFunction
      */
     private static function dateTime(string $functionName, array $arguments): int|float|string|null
     {
-        $minimum = $functionName === 'strftime' ? 2 : 0;
+        $minimum = match ($functionName) {
+            'strftime' => 2,
+            'timediff' => 2,
+            default => 0,
+        };
         self::assertArity($functionName, $arguments, $minimum, null);
+        if ($functionName === 'timediff') {
+            self::assertArity($functionName, $arguments, 2, 2);
+            if ($arguments[0] === null || $arguments[1] === null) {
+                return null;
+            }
+
+            return self::timeDifference($arguments[0], $arguments[1]);
+        }
         if ($functionName === 'strftime' && $arguments[0] === null) {
             return null;
         }
@@ -773,6 +785,25 @@ final class SQLiteCoreScalarFunction
             'strftime' => self::strftimeSql(self::coerceText('strftime', $arguments[0], 'format'), $instant),
             default => throw new \InvalidArgumentException("Unsupported SQLite date/time function: {$functionName}"),
         };
+    }
+
+    private static function timeDifference(mixed $left, mixed $right): string
+    {
+        $leftInstant = self::parseDateTimeValue($left, []);
+        $rightInstant = self::parseDateTimeValue($right, []);
+        $negative = $leftInstant < $rightInstant;
+        $interval = $negative ? $leftInstant->diff($rightInstant) : $rightInstant->diff($leftInstant);
+
+        return sprintf(
+            '%s%04d-%02d-%02d %02d:%02d:%02d.000',
+            $negative ? '-' : '+',
+            $interval->y,
+            $interval->m,
+            $interval->d,
+            $interval->h,
+            $interval->i,
+            $interval->s
+        );
     }
 
     /**

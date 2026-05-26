@@ -9477,3 +9477,33 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local JSON table planning, JSON path/JSONB decoding, and existing SQL
 NULL comparison semantics without activating shared support-library work.
+
+## Focused Native Mapping: Core timediff() Scalar Dispatch
+
+This isolated SQL execution/planner scalar micro-slice adds bounded native
+`timediff(A,B)` dispatch to `SQLiteCoreScalarFunction` for copied WordPress
+`wp_options` timestamp diagnostics and future expression planning. Native PHP
+now returns SQLite-style signed `+YYYY-MM-DD HH:MM:SS.SSS` interval strings,
+propagates SQL NULL when either argument is NULL, and validates the two-argument
+contract through the existing date/time parser.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused core timediff scalar evidence row while preserving the
+current accepted static SQLite upstream denominator and veryquick evidence.
+This isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T16:34Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php timediff '2026-05-27 18:42:34' '2026-05-26 16:12:34'
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local date/time parsing and scalar dispatch without activating shared
+support-library work.
