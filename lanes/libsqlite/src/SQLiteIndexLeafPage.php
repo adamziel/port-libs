@@ -173,6 +173,35 @@ final class SQLiteIndexLeafPage
         return $deletedPage;
     }
 
+    public static function defragment(
+        string $page,
+        int $pageSize = 512,
+        int $headerOffset = 0,
+        ?int $usableSize = null,
+        bool $clearFreeSpace = false,
+    ): string {
+        self::validatePageSize($pageSize);
+        $usableSize ??= $pageSize;
+        if (strlen($page) !== $pageSize) {
+            throw new \InvalidArgumentException('SQLite index leaf page length does not match page size');
+        }
+
+        $header = SQLiteBTreePageHeader::parsePage($page, $pageSize, $headerOffset);
+        if ($header->pageType !== 'index-leaf') {
+            throw new \InvalidArgumentException('SQLite index leaf defragmentation requires an index leaf page');
+        }
+
+        $cells = array_map(
+            static fn (SQLiteIndexCell $cell): array => [
+                'offset' => $cell->offset,
+                'bytes' => $cell->bytesRead,
+            ],
+            SQLiteIndexCell::parsePageCells($page, $header, $usableSize),
+        );
+
+        return SQLiteBTreeLeafPageCompactor::compact($page, $header, $cells, $usableSize, $clearFreeSpace);
+    }
+
     private static function insertFreeblock(
         string $page,
         SQLiteBTreePageHeader $header,

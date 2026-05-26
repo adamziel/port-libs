@@ -1180,6 +1180,64 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::deleteCellsByRowIds($page, []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::deleteCellsByRowIds($page, [99]));
     },
+    'defragments sqlite table leaf pages after deletes while preserving row order' => static function (TestRunner $t): void {
+        $page = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_cache', str_repeat('stale', 12), 'no'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+            SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, 'blogname', 'Example', 'yes'])),
+        ]);
+        $deletedPage = SQLiteTableLeafPage::deleteCellsByRowIds($page, [2], secureDelete: true);
+        $deletedHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+
+        $compactedPage = SQLiteTableLeafPage::defragment($deletedPage, clearFreeSpace: true);
+        $header = SQLiteBTreePageHeader::parsePage($compactedPage, 512);
+        $cells = SQLiteTableLeafCell::parsePageCells($compactedPage, $header);
+
+        $t->same(3, $header->cellCount);
+        $t->same(0, $header->firstFreeblockOffset);
+        $t->same(0, $header->fragmentedFreeBytes);
+        $t->same([], $header->freeblocks($compactedPage));
+        $t->same($deletedHeader->freeSpaceBytes($deletedPage), $header->freeSpaceBytes($compactedPage));
+        $t->same([1, 3, 4], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $cells));
+        $t->same(
+            ['siteurl', 'home', 'blogname'],
+            array_map(static fn (SQLiteTableLeafCell $cell): string => SQLiteRecord::parse($cell->payload)->values[1], $cells),
+        );
+        $t->same(
+            str_repeat("\0", $header->cellContentAreaStart - $header->cellPointerArrayEnd()),
+            substr($compactedPage, $header->cellPointerArrayEnd(), $header->cellContentAreaStart - $header->cellPointerArrayEnd()),
+        );
+    },
+    'defragments sqlite index leaf pages after deletes while preserving records' => static function (TestRunner $t): void {
+        $page = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 1])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['_transient_timeout_feed', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 3])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 4])),
+        ]);
+        $deletedPage = SQLiteIndexLeafPage::deleteCellByRecordValues($page, ['_transient_timeout_feed', 2], secureDelete: true);
+        $deletedHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+
+        $compactedPage = SQLiteIndexLeafPage::defragment($deletedPage, clearFreeSpace: true);
+        $header = SQLiteBTreePageHeader::parsePage($compactedPage, 512);
+        $cells = SQLiteIndexCell::parsePageCells($compactedPage, $header);
+
+        $t->same(3, $header->cellCount);
+        $t->same(0, $header->firstFreeblockOffset);
+        $t->same(0, $header->fragmentedFreeBytes);
+        $t->same([], $header->freeblocks($compactedPage));
+        $t->same($deletedHeader->freeSpaceBytes($deletedPage), $header->freeSpaceBytes($compactedPage));
+        $t->same([
+            ['autoload', 1],
+            ['home', 3],
+            ['siteurl', 4],
+        ], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $cells));
+        $t->same(
+            str_repeat("\0", $header->cellContentAreaStart - $header->cellPointerArrayEnd()),
+            substr($compactedPage, $header->cellPointerArrayEnd(), $header->cellContentAreaStart - $header->cellPointerArrayEnd()),
+        );
+    },
     'assembles sqlite index interior pages from native index cell encoder' => static function (TestRunner $t): void {
         $cell = SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 2]), 512, null, 3);
         $page = SQLiteIndexInteriorPage::assemble([$cell], 5);

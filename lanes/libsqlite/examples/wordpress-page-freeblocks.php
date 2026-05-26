@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
+use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
+use PortLibs\LibSqlite\SQLiteIndexLeafPage;
+use PortLibs\LibSqlite\SQLiteTableLeafPage;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -25,10 +28,31 @@ try {
         $header->freeblocks($page, $usableSize),
     );
     $freeSpaceBytes = $header->freeSpaceBytes($page, $usableSize);
+    $defragmentation = null;
+    if ($header->pageType === 'table-leaf') {
+        $compactedPage = SQLiteTableLeafPage::defragment($page, $database->header->pageSize, $header->headerOffset, $usableSize, true);
+        $compactedHeader = SQLiteBTreePageHeader::parsePage($compactedPage, $database->header->pageSize, $header->headerOffset);
+        $defragmentation = [
+            'cellContentAreaStart' => $compactedHeader->cellContentAreaStart,
+            'firstFreeblockOffset' => $compactedHeader->firstFreeblockOffset,
+            'fragmentedFreeBytes' => $compactedHeader->fragmentedFreeBytes,
+            'freeSpaceBytes' => $compactedHeader->freeSpaceBytes($compactedPage, $usableSize),
+        ];
+    } elseif ($header->pageType === 'index-leaf') {
+        $compactedPage = SQLiteIndexLeafPage::defragment($page, $database->header->pageSize, $header->headerOffset, $usableSize, true);
+        $compactedHeader = SQLiteBTreePageHeader::parsePage($compactedPage, $database->header->pageSize, $header->headerOffset);
+        $defragmentation = [
+            'cellContentAreaStart' => $compactedHeader->cellContentAreaStart,
+            'firstFreeblockOffset' => $compactedHeader->firstFreeblockOffset,
+            'fragmentedFreeBytes' => $compactedHeader->fragmentedFreeBytes,
+            'freeSpaceBytes' => $compactedHeader->freeSpaceBytes($compactedPage, $usableSize),
+        ];
+    }
     $corruption = null;
 } catch (InvalidArgumentException $exception) {
     $freeblocks = [];
     $freeSpaceBytes = null;
+    $defragmentation = null;
     $corruption = $exception->getMessage();
 }
 
@@ -43,5 +67,6 @@ echo json_encode([
     'fragmentedFreeBytes' => $header->fragmentedFreeBytes,
     'freeSpaceBytes' => $freeSpaceBytes,
     'freeblocks' => $freeblocks,
+    'defragmentation' => $defragmentation,
     'corruption' => $corruption,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

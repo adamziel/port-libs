@@ -2,6 +2,23 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## B-tree Leaf Defragmentation Diagnostics Scenario
+
+Native B-tree deletion diagnostics can now compact table-leaf and index-leaf
+pages after obsolete option rows or index entries are removed. The
+`examples/wordpress-page-freeblocks.php` smoke reports a `defragmentation`
+preview for leaf pages, showing the post-compaction cell-content start,
+freeblock head, fragmented-byte count, and preserved free-space accounting
+without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated planner/WAL/B-tree closure slice: added a
+lane-local `SQLiteBTreeLeafPageCompactor`, public `defragment()` helpers on
+table and index leaf pages, focused tests for delete-then-compact table rows
+and option-name index records, and updated the WordPress page-freeblock
+diagnostic smoke. Dependency closure: no new support component is needed; this
+reuses lane-local B-tree headers, cell parsers, freeblock accounting, and
+record decoding.
+
 ## REGEXP-Style Option Name Pattern Scenario
 
 Native WordPress option diagnostics can now evaluate SQLite-style

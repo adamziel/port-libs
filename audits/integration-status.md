@@ -1,5 +1,53 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite leaf page defragmentation - 2026-05-26 09:33 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T092227Z.ready`.
+
+Source before acceptance: `5623f52d01fc569fc9d25f7a8573f46cdb17e559`
+(`Integrate libsqlite substr scalar dispatch`).
+
+Marker evidence:
+- Marker contained required `lane=libsqlite`, `patch=...`, and `metadata=...`
+  fields.
+- Marker base was `991fd1d20e6a70ca392c7a89d11a199df4d83b84`, behind current
+  `main`, so the patch was replayed in a detached clean worktree from
+  `5623f52d01fc569fc9d25f7a8573f46cdb17e559`.
+- Patch replay was bounded: code, tests, example, and notes applied cleanly;
+  only `lanes/libsqlite/lane-status.json` required a stale status merge to
+  preserve already accepted substr/scalar evidence while adding the
+  leaf-defragmentation status.
+- Nearby sampled libsqlite markers remained stale against current `main`:
+  `port-dev-libsqlite-btree-20260526T092310Z`,
+  `port-dev-libsqlite-deps-20260526T092323Z`,
+  `port-dev-libsqlite-encoding-20260526T092345Z`, and
+  `port-dev-libsqlite-suite-20260526T092325Z` all reported base `991fd1d2` and
+  had status/manifest or code conflicts when checked against a clean
+  `5623f52d` worktree.
+
+Focused verification:
+- `php -l` passed for changed libsqlite source, test, and example files.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2690 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-page-freeblocks.php
+  /tmp/libsqlite-page-freeblocks-smoke.sqlite 1` passed and reported a
+  `defragmentation` preview with freeblock head cleared, fragmented bytes reset,
+  and free-space accounting preserved.
+- JSON validation passed for `lanes/libsqlite/lane-status.json` and
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Gate before root: `/` free `87522884` KiB, load `3.20`, and no active
+  no-argument root harness.
+- Under `.tmux-team/tmp/clean-integrator-run.lock`,
+  `php tools/run-tests.php` passed with
+  `215 test files, 27461 assertions, 0 failures`.
+
+Decision: accepted. Dashboard publication should run next for the new source
+commit once it is published on `main`.
+
 ## Clean-patch intake accepted - libsqlite scalar substr dispatch - 2026-05-26 09:25 UTC
 
 Accepted `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T091553Z.ready`.
