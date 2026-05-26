@@ -47,6 +47,14 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param list<mixed> $arguments
+     */
+    public static function jsonGroupArrayDistinctSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue
+    {
+        return self::jsonGroupArrayDistinctSqlFunction($function, $arguments);
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed}> $rows
      */
     public static function jsonGroupArrayOrderBySqlFunction(string $function, iterable $rows): string|SQLiteBlobValue

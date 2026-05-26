@@ -1,5 +1,47 @@
 # Integration Status
 
+## Clean-patch accepted - libsqlite JSON aggregate DISTINCT argument vector - 2026-05-26 00:30 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T002121Z.ready`.
+
+Published commit: this integration commit
+(`Integrate libsqlite JSON aggregate DISTINCT vector`). The marker was based on
+`6fe117f3`, while current `main` was `b15d6097` (`Integrate libsqlite JSON
+aggregate ORDER BY`). Direct `git apply --check` failed on
+manifest/status/notes plus overlapping aggregate files, so the accepted slice
+was bounded to the non-overlapping functional delta: add
+`SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunctionArguments()` and focused
+example/test coverage while preserving the already accepted ORDER BY metadata.
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/libsqlite/src/SQLiteJsonAggregate.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php`
+  passed.
+- `php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php`
+  emitted `distinctOptionValueArrayVector`,
+  `distinctOptionValueJsonbDecoded`, and
+  `nameOrderedOptionValueJsonbDecoded`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+  `1 test files, 2264 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Pre-root gate under `.tmux-team/tmp/clean-integrator-run.lock` reported
+  `df_free=95215620` KiB and `load1=1.90`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26684 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker artifacts and inactive source/temporary verification
+  worktrees were removed after the commit was safely on `main`.
+- Remaining top-level ready-marker count after marker cleanup: `3523`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted libsqlite commit.
+
 ## Clean-patch accepted - libsqlite JSON aggregate ORDER BY - 2026-05-26 00:25 UTC
 
 Accepted one isolated marker:

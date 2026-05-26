@@ -3064,6 +3064,13 @@ return [
         $distinctJsonb = SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunction('JSONB_GROUP_ARRAY', ['siteurl', 'siteurl', null, null, $jsonRules, $jsonRules]);
         $t->true($distinctJsonb instanceof SQLiteBlobValue);
         $t->same(['siteurl', null, [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($distinctJsonb->bytes));
+        $t->same(
+            '["siteurl",null,[{"name":"seo"},{"name":"cache"}]]',
+            SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunctionArguments('JSON_GROUP_ARRAY', ['siteurl', 'siteurl', null, null, $jsonRules, $jsonRules]),
+        );
+        $distinctVectorJsonb = SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunctionArguments('JSONB_GROUP_ARRAY', ['siteurl', 'siteurl', null, null, $jsonRules, $jsonRules]);
+        $t->true($distinctVectorJsonb instanceof SQLiteBlobValue);
+        $t->same(['siteurl', null, [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($distinctVectorJsonb->bytes));
         $t->same('[]', SQLiteJsonAggregate::jsonGroupArrayDistinct([]));
         $t->same('[]', SQLiteJsonAggregate::jsonGroupArrayOrderBy([]));
 
@@ -3071,6 +3078,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinct([new SQLiteBlobValue("\xab\xcd")]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayOrderBy([[new SQLiteBlobValue("\xab\xcd"), 1]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunction('json_group', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunctionArguments('json_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayOrderBySqlFunction('json_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayOrderBy([['missing-order-key']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([[null, 5]]));

@@ -35,11 +35,15 @@ foreach ($copiedOptions as [$name, $value, $autoload]) {
 echo json_encode([
     'optionValueArray' => SQLiteJsonAggregate::jsonGroupArray($optionValues),
     'distinctOptionValueArray' => SQLiteJsonAggregate::jsonGroupArrayDistinct($optionValues),
+    'distinctOptionValueArrayVector' => SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunctionArguments(
+        'JSON_GROUP_ARRAY',
+        $optionValues,
+    ),
     'optionValueArrayFromSteps' => $state->finalizeArray('JSON_GROUP_ARRAY'),
     'distinctOptionValueArrayFromSteps' => $state->finalizeDistinctArray('JSON_GROUP_ARRAY'),
     'nameOrderedOptionValueArrayFromSteps' => $state->finalizeOrderedArray('JSON_GROUP_ARRAY'),
     'distinctOptionValueJsonbDecoded' => SQLiteJsonB::decode(
-        $state->finalizeDistinctArray('JSONB_GROUP_ARRAY')->bytes,
+        SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunctionArguments('JSONB_GROUP_ARRAY', $optionValues)->bytes,
     ),
     'nameOrderedOptionValueJsonbDecoded' => SQLiteJsonB::decode(
         $state->finalizeOrderedArray('JSONB_GROUP_ARRAY')->bytes,
