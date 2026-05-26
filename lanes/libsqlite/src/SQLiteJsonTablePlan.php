@@ -157,6 +157,7 @@ final class SQLiteJsonTablePlan
             'GLOB' => self::compareResidualGlob($actual, $expected),
             'IN' => self::compareResidualIn($actual, $expected),
             'NOT IN' => self::compareResidualNotIn($actual, $expected),
+            '<', '<=', '>', '>=' => self::compareResidualOrderedPredicate($actual, $operator, $expected),
             default => throw new \InvalidArgumentException("SQLite JSON table residual operator {$operator} is not supported"),
         };
     }
@@ -213,6 +214,57 @@ final class SQLiteJsonTablePlan
         }
 
         return SQLiteDatabase::globMatches($actual, $expected);
+    }
+
+    private static function compareResidualOrderedPredicate(mixed $actual, string $operator, mixed $expected): bool
+    {
+        if ($actual === null || $expected === null) {
+            return false;
+        }
+
+        $comparison = self::compareResidualOrdered($actual, $expected);
+
+        return match ($operator) {
+            '<' => $comparison < 0,
+            '<=' => $comparison <= 0,
+            '>' => $comparison > 0,
+            '>=' => $comparison >= 0,
+            default => throw new \InvalidArgumentException("SQLite JSON table residual operator {$operator} is not supported"),
+        };
+    }
+
+    private static function compareResidualOrdered(mixed $actual, mixed $expected): int
+    {
+        $actualClass = self::sqliteSortClass($actual);
+        $expectedClass = self::sqliteSortClass($expected);
+        if ($actualClass !== $expectedClass) {
+            return $actualClass <=> $expectedClass;
+        }
+
+        if ($actualClass === 1) {
+            return ((float) $actual) <=> ((float) $expected);
+        }
+
+        if ($actualClass === 2) {
+            return strcmp((string) $actual, (string) $expected);
+        }
+
+        throw new \InvalidArgumentException('SQLite JSON table residual ordered comparison supports only NULL, numeric, and text values');
+    }
+
+    private static function sqliteSortClass(mixed $value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+        if (is_int($value) || is_float($value)) {
+            return 1;
+        }
+        if (is_string($value)) {
+            return 2;
+        }
+
+        throw new \InvalidArgumentException('SQLite JSON table residual ordered comparison supports only NULL, numeric, and text values');
     }
 
     private static function valuesAreNotDistinct(mixed $left, mixed $right): bool

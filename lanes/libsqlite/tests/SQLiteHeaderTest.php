@@ -4227,6 +4227,37 @@ return [
             ['column' => 'type', 'operator' => 'NOT IN', 'value' => ['array', null]],
         ]));
 
+        $priorityRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+            ['column' => 'atom', 'operator' => '>=', 'value' => 7],
+            ['column' => 'atom', 'operator' => '<', 'value' => 8],
+        ]);
+        $t->same(['priority'], array_column($priorityRows, 'key'));
+        $t->same([7], array_column($priorityRows, 'atom'));
+
+        $orderedTextRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => '>', 'value' => 'b'],
+            ['column' => 'atom', 'operator' => '<=', 'value' => 'seo'],
+        ]);
+        $t->same(['seo', 'cache'], array_column($orderedTextRows, 'atom'));
+
+        $textAfterNumberRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+            ['column' => 'atom', 'operator' => '>', 'value' => 999],
+        ]);
+        $t->same(['name', 'name'], array_column($textAfterNumberRows, 'key'));
+        $t->same(['seo', 'cache'], array_column($textAfterNumberRows, 'atom'));
+
+        $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+            ['column' => 'atom', 'operator' => '>=', 'value' => null],
+        ]));
+
         $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.enabled'],
@@ -4255,6 +4286,10 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'key', 'operator' => 'IN', 'value' => 'name'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'value', 'operator' => '>', 'value' => new stdClass()],
         ]));
 
         $missingJson = SQLiteJsonTablePlan::plan('json_tree', [

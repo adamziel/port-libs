@@ -1,5 +1,38 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite JSON table range residuals - 2026-05-26 09:13 UTC
+
+Accepted `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T090532Z.ready`.
+
+Current `refs/heads/main` before acceptance: `d09d2c8bae534bc117eade6ee20bb1a9ffb93901` (`Integrate libsqlite upstream artifact records`).
+
+Dashboard guard evidence:
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json?clean_integrator_cb=20260526T091136Z` reported `sourceCommit=d09d2c8bae534bc117eade6ee20bb1a9ffb93901`, matching current `refs/heads/main`.
+- Live dashboard commit reported `683862ce3e25062bb5de7c8d287f16d8131eaf2d`.
+
+Marker evidence:
+- Marker declared `lane=libsqlite`, `base_sha=d9553b6d875c7860c0f0ec86b0978c1ca5e14e8e`, patch `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T090532Z.patch`, metadata `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T090532Z.md`, and log `.tmux-team/logs/isolated-lane-workers/port-dev-libsqlite-json-table-20260526T090532Z.log`.
+- The patch was stale only in already-moved `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and libsqlite notes. The accepted bounded replay excluded those coordination hunks and applied the lane-local source, test, and WordPress smoke hunks cleanly on current `main`.
+- No matching stale rework marker was present.
+
+Focused verification:
+- Initial gate was closed at `85078240` KiB free on `/`; after waiting outside the lock it reopened to `87255520` KiB free. Load stayed below `25`, and no no-argument root harness was active.
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 2665 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed and reported `4` smoke reports with priority range rows `1/1/1/0`.
+- JSON validation for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Pre-root gate reported `/` at `87254368` KiB available, load `3.43`, and no no-argument root harness process.
+- `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the exact candidate snapshot and passed with `215 test files, 27436 assertions, 0 failures`.
+
+Decision: accepted. This slice adds SQLite JSON table-valued residual `<`, `<=`, `>`, and `>=` comparison handling for numeric and text atoms without adding support-library scope.
+
+Dashboard publication should run next for the accepted source.
+
 ## Clean-patch intake accepted - libsqlite upstream runner artifact records - 2026-05-26 09:08 UTC
 
 Accepted `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T090257Z.ready`.
