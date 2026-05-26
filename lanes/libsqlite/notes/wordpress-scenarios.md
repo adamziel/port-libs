@@ -2589,6 +2589,26 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## JSON Table Residual NOT LIKE/NOT GLOB Scenario
+
+Local-only WordPress option import tooling can now preflight negative pattern
+filters on `json_each()` and `json_tree()` visible columns after hidden `json`
+and `root` constraints are planned. `SQLiteJsonTablePlan::filteredRows()`
+applies `NOT LIKE` and `NOT GLOB` residual predicates with the accepted SQLite
+pattern matchers, while preserving SQL NULL non-match behavior and strict text
+operand validation for copied plugin settings.
+
+Status delta 2026-05-26 isolated json-table/window slice: added
+`SQLiteJsonTablePlan` residual `NOT LIKE` and `NOT GLOB` support with focused
+native assertions and updated the `wordpress-json-each-option-settings.php`
+smoke to report the negative-pattern filtered rows. This remains a bounded
+residual-filter helper, not full virtual-table cursor lifecycle or SQL planner
+pushdown.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local JSON table planning, JSON path/table-valued helpers, and accepted
+LIKE/GLOB scalar matching.
+
 ## Core Encoding Scalar Diagnostics Scenario
 
 Native SQL execution helpers now include `hex()`, `unhex()`, `char()`,

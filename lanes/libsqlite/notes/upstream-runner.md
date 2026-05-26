@@ -8906,3 +8906,34 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local B-tree page header parsing, freeblock chain validation, and
 WordPress page diagnostics without activating shared storage support work.
+
+## Focused Native Mapping: JSON Table Residual NOT LIKE/NOT GLOB
+
+This isolated json-table/window micro-slice extends the bounded JSON
+table-valued planner residual-filter surface for visible `json_each()` and
+`json_tree()` columns. After hidden `json` and `root` equality constraints make
+the table-valued scan runnable, native `SQLiteJsonTablePlan::filteredRows()`
+can now apply residual `NOT LIKE` and `NOT GLOB` predicates using the accepted
+SQLite LIKE/GLOB matchers and the existing text/NULL validation boundary.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused JSON table residual-pattern evidence row while preserving the
+current accepted static SQLite upstream denominator and runner evidence. This
+isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T13:27Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local JSON table planning, JSON path/table-valued helpers, and accepted
+LIKE/GLOB scalar matching without activating shared support-library work.

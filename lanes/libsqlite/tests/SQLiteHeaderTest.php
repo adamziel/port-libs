@@ -4327,6 +4327,15 @@ return [
         $t->same(['name'], array_column($nameLikeRows, 'key'));
         $t->same(['cache'], array_column($nameLikeRows, 'atom'));
 
+        $nameNotPatternRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'fullkey', 'operator' => 'NOT LIKE', 'value' => '$.plugin.rules[%].name'],
+            ['column' => 'type', 'operator' => 'NOT GLOB', 'value' => 'text'],
+        ]);
+        $t->same(['array', 'object', 'object'], array_column($nameNotPatternRows, 'type'));
+        $t->same(['$.plugin.rules', '$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($nameNotPatternRows, 'fullkey'));
+
         $nameInRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],

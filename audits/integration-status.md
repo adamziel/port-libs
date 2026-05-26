@@ -115257,3 +115257,33 @@ Runtime gates:
 - Before the serialized root run, `df -Pk /` reported `131111336` KiB available, `/proc/loadavg` was `1.15`, and no exact no-argument root harness was active.
 
 Decision: accepted. Remaining ready-marker count at decision time was `5259`. Dashboard publication should run next because the accepted source moved while live Pages was still stale under the one-use external outage override.
+## Integration accepted - libsqlite JSON table NOT LIKE/NOT GLOB residuals - 2026-05-26T13:32:31Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T132740Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `aeac752ab28a5dc83da3f644850cf50a98ef14c1` (`Integrate libsqlite freeblock integrity report`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `aeac752ab28a5dc83da3f644850cf50a98ef14c1`, so the live dashboard guard was open.
+
+Candidate evidence:
+- Marker declared `lane=libsqlite`, `base_sha=aeac752ab28a5dc83da3f644850cf50a98ef14c1`, `patch=...port-dev-libsqlite-json-table-20260526T132740Z.patch`, and `metadata=...port-dev-libsqlite-json-table-20260526T132740Z.md`.
+- Patch sha256 matched the marker: `999633189e2c7dda9a688b7915d575ab37e7d848a8323b22823ab8a3df9e2a15`.
+- The patch applied cleanly in detached worktree `.tmux-team/tmp/clean-apply-libsqlite-json-table-20260526T132740Z` at `aeac752ab28a5dc83da3f644850cf50a98ef14c1`.
+- Scope was lane-local plus this integration-status entry: `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, `lanes/libsqlite/examples/wordpress-json-each-option-settings.php`, `lanes/libsqlite/lane-status.json`, `lanes/libsqlite/notes/upstream-runner.md`, `lanes/libsqlite/notes/wordpress-scenarios.md`, `lanes/libsqlite/src/SQLiteJsonTablePlan.php`, and `lanes/libsqlite/tests/SQLiteHeaderTest.php`.
+- Functional scope adds JSON table visible-column `NOT LIKE` and `NOT GLOB` residual predicate support after hidden `json`/`root` planning, with WordPress option-settings smoke evidence. No new support-library dependency was activated and no broad SQLite runner was started.
+
+Runtime and verification evidence:
+- Pre-focused gates: `/` had `124380884` KiB available, load was `3.44`, and no exact no-argument root harness was active.
+- Focused checks passed: `php -l` for `SQLiteJsonTablePlan.php`, `SQLiteHeaderTest.php`, and `wordpress-json-each-option-settings.php`; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed `1 test files, 2789 assertions, 0 failures`; the WordPress JSON table smoke ran and reported `NOT LIKE` / `NOT GLOB` planner residual rows; manifest/status JSON validation passed; `git diff --check -- lanes/libsqlite` passed.
+- Pre-root gates: `/` had `124373708` KiB available, load was `3.38`, and no exact no-argument root harness was active.
+- Serialized no-argument root harness under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27679 assertions, 0 failures`.
+
+Ready queue evidence:
+- Remaining ready-marker count before artifact cleanup: `5358`.
+- Dolt remains parked and no non-libsqlite marker was considered.
+
+Decision: accepted. Publish the clean candidate as a small commit on `refs/heads/main`, then remove the accepted marker, patch, metadata, log, prompt, and inactive marker worktree artifacts.
+
+Dashboard publication should run next because the accepted source head will move beyond the currently live dashboard source.
