@@ -153,8 +153,34 @@ final class SQLiteJsonTablePlan
             'IS' => self::valuesAreNotDistinct($actual, $expected),
             '!=', '<>' => $actual !== $expected,
             'IS NOT' => !self::valuesAreNotDistinct($actual, $expected),
+            'LIKE' => self::compareResidualLike($actual, $expected),
+            'GLOB' => self::compareResidualGlob($actual, $expected),
             default => throw new \InvalidArgumentException("SQLite JSON table residual operator {$operator} is not supported"),
         };
+    }
+
+    private static function compareResidualLike(mixed $actual, mixed $expected): bool
+    {
+        if ($actual === null || $expected === null) {
+            return false;
+        }
+        if (!is_string($actual) || !is_string($expected)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator LIKE expects text values');
+        }
+
+        return SQLiteDatabase::likeMatches($actual, $expected);
+    }
+
+    private static function compareResidualGlob(mixed $actual, mixed $expected): bool
+    {
+        if ($actual === null || $expected === null) {
+            return false;
+        }
+        if (!is_string($actual) || !is_string($expected)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator GLOB expects text values');
+        }
+
+        return SQLiteDatabase::globMatches($actual, $expected);
     }
 
     private static function valuesAreNotDistinct(mixed $left, mixed $right): bool

@@ -7302,3 +7302,37 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 schema parsing, partial-index predicate metadata, index b-tree traversal, and
 scalar comparison semantics without activating shared support-library work.
+
+## Focused Native Mapping: JSON Table Residual LIKE/GLOB Filters
+
+This isolated json-table/window micro-slice maps a bounded SQLite JSON
+table-valued residual predicate case: after hidden `json` and `root`
+constraints make a `json_each()` or `json_tree()` scan runnable, visible text
+columns can be filtered with SQL `LIKE` and `GLOB` predicates. The native helper
+reuses the accepted SQLite pattern matchers, treats SQL NULL pattern comparisons
+as non-matches, and rejects non-text operands instead of silently coercing JSON
+table ids or parent ids.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedJsonTableResidualPatternScripts: 1`. This reuses
+accepted static JSON table/window evidence over `json101.test`, `json102.test`,
+`json501.test`, `json107.test`, and `jsonb01.test`; this isolated worktree did
+not contain the hydrated upstream cache, so no fresh upstream `testfixture` run
+was started.
+
+Verification run 2026-05-26T04:41Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+JSON table row assembly, hidden-column planning, JSON path validation, and the
+existing SQLite LIKE/GLOB matchers without activating shared support-library
+work.

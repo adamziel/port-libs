@@ -22,10 +22,19 @@ activation gate.
 Native JSON table planning now has a bounded residual-filter execution helper
 for visible `json_each()`/`json_tree()` columns after hidden `json` and `root`
 constraints are planned. `SQLiteJsonTablePlan::filteredRows()` applies
-SQLite-style residual equality, inequality, `IS`, and `IS NOT` checks to the
-native row stream, so copied `wp_options.option_value` plugin settings can
-request rows such as `type = 'object'` or `key = 'enabled' AND atom IS 1`
+SQLite-style residual equality, inequality, `IS`, `IS NOT`, `LIKE`, and `GLOB`
+checks to the native row stream, so copied `wp_options.option_value` plugin
+settings can request rows such as `type = 'object'`,
+`key = 'enabled' AND atom IS 1`, or pattern-matched `fullkey`/`value` rows
 without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated json-table/window: added residual `LIKE` and
+`GLOB` execution for visible text columns, focused tests for pattern matches,
+SQL NULL non-matches, non-text operand rejection, and unsupported operator
+rejection, and updated `examples/wordpress-json-each-option-settings.php` to
+report cache-rule pattern rows plus the residual planner record. Dependency
+closure: no new support component is needed; the slice reuses lane-local JSON
+table rows, hidden-column planning, and existing SQLite LIKE/GLOB matchers.
 
 Status delta 2026-05-26 isolated sql-exec/planner: added filtered JSON table
 rows, focused residual predicate tests, and updated

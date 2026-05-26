@@ -3902,6 +3902,26 @@ return [
         $t->same(['enabled'], array_column($enabledTreeRows, 'key'));
         $t->same([1], array_column($enabledTreeRows, 'atom'));
 
+        $nameLikeRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'fullkey', 'operator' => 'LIKE', 'value' => '$.plugin.rules[%].name'],
+            ['column' => 'atom', 'operator' => 'GLOB', 'value' => 'c*'],
+        ]);
+        $t->same(['name'], array_column($nameLikeRows, 'key'));
+        $t->same(['cache'], array_column($nameLikeRows, 'atom'));
+
+        $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.enabled'],
+            ['column' => 'parent', 'operator' => 'LIKE', 'value' => '%'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+            ['column' => 'id', 'operator' => 'GLOB', 'value' => '*'],
+        ]));
+
         $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
@@ -3914,7 +3934,7 @@ return [
         ]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
-            ['column' => 'type', 'operator' => 'LIKE', 'value' => 'object'],
+            ['column' => 'type', 'operator' => 'REGEXP', 'value' => 'object'],
         ]));
 
         $missingJson = SQLiteJsonTablePlan::plan('json_tree', [

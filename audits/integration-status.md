@@ -1,5 +1,49 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite JSON table LIKE/GLOB residuals - 2026-05-26 04:47 UTC
+
+Accepted isolated marker
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T044135Z.ready`
+from base `bfd00a5a69681f3410195d23bd1cde66e1539529`.
+
+Decision evidence:
+- Dashboard guard passed before selection: cache-busted live
+  `porting-summary.json` reported
+  `sourceCommit=bfd00a5a69681f3410195d23bd1cde66e1539529`, matching current
+  `refs/heads/main`.
+- Ready marker had `lane=libsqlite`, `patch=...`, `metadata=...`, base
+  `bfd00a5a69681f3410195d23bd1cde66e1539529`, and matching patch sha256
+  `fc871f21ab5a965dadef6b0ce1ead04bb8ce90b8c21dff13af0d569bb0a3e515`.
+- The patch applied cleanly in detached worktree
+  `.tmux-team/tmp/clean-integrator-json-table-20260526T044135Z`.
+
+Focused evidence:
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2468 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php`
+  passed and reported the JSON table pattern-filter rows.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` decoded successfully as JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the clean candidate snapshot with
+  `215 test files, 27053 assertions, 0 failures`.
+
+Accepted change:
+- Adds libsqlite JSON table residual `LIKE` and `GLOB` execution for visible
+  text columns, with SQL NULL non-match and non-text operand rejection coverage.
+- Updates the WordPress JSON table example plus libsqlite manifest/status and
+  notes with the new residual-filter evidence.
+
+Dashboard publication should run next for the accepted source commit once this
+entry is committed and `refs/heads/main` is advanced.
+
 ## Clean-patch intake accepted - libsqlite UTF-16 native fallback - 2026-05-26 04:46 UTC
 
 Accepted marker:
