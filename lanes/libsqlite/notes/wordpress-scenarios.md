@@ -3429,3 +3429,21 @@ Dependency closure: no new shared support component is needed; this is a
 lane-local busy/open dependency helper that reuses the existing file URI
 preflight surface and does not activate a shared VFS, URL, or sleep/timer
 support row.
+
+## Incremental-vacuum Tail Truncation Scenario
+
+Native B-tree/freelist helpers now include bounded
+`planFreelistTailTruncation()` diagnostics for copied WordPress SQLite
+maintenance flows after large transient or cache option deletes. The
+`examples/wordpress-incremental-vacuum-tail-truncation.php` smoke reports
+contiguous free tail pages removed from the database image, freelist trunk
+metadata rewritten, and lower reusable freelist pages preserved without
+requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated B-tree delete/rebalance slice: added 25
+focused assertions for tail-leaf and tail-trunk truncation, header
+page-count/freelist-count rewrites, non-tail blockers, empty-freelist no-ops,
+and invalid-count errors.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local SQLite header and freelist trunk parsing/assembly.

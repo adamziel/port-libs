@@ -10080,6 +10080,31 @@ Dependency closure: no new support component is needed. This parser is bounded
 to SQLite filename semantics and does not activate the shared URL or
 percent-encoding backlog.
 
+## Focused Native Mapping: Incremental-vacuum Tail Truncation
+
+This B-tree delete/rebalance micro-slice maps a bounded portion of SQLite
+incremental-vacuum behavior: when the highest-numbered database pages are
+already on the freelist, native planning can remove only the contiguous free
+tail, rewrite freelist trunk/leaf metadata, and reduce the database page count
+without touching non-tail free pages.
+
+Focused upstream denominator impact: one additional B-tree/autovacuum evidence
+row is mapped against `incrvacuum.test` and existing freelist mutation behavior.
+No fresh upstream runner evidence is claimed by this isolated worktree slice.
+
+Native coverage added 2026-05-26:
+
+- truncates free tail leaves plus an empty first trunk page;
+- rewrites the first freelist trunk pointer when the removed tail page was the
+  old first trunk;
+- removes truncated leaves from lower trunk arrays while preserving lower
+  reusable pages;
+- leaves the database unchanged when the highest page is not free;
+- rejects invalid truncation counts.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+SQLite header and freelist trunk parsing/assembly.
+
 ## Focused Native Mapping: JSON Table Visible And Hidden Projection
 
 This JSON table/window micro-slice maps the SQLite JSON virtual table output

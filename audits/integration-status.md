@@ -117248,3 +117248,40 @@ Cleanup:
 - Commit/ref publication completed as this accepted commit (`Integrate libsqlite WAL checkpoint modes`).
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T210514Z` still contains modified lane files matching the accepted handoff, so it is preserved as cleanup debt rather than removed.
 - Accepted marker artifacts are safe to remove after this commit.
+
+## Integration accepted - libsqlite incremental vacuum tail truncation - 2026-05-26T21:18:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T210055Z.ready`
+
+Decision: accepting one bounded libsqlite B-tree behavior slice. The marker was based on `39e8a75d14f9babc721c7a09b19924563e310fbc`; implementation, test, smoke, and notes hunks replayed cleanly over current `0d373b13063423c596c049a107b69bdc0c8a938e`. Only `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` required minimal current-base reconciliation.
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported `sourceCommit` `0d373b13063423c596c049a107b69bdc0c8a938e`, matching local `refs/heads/main`.
+- No Pages-outage integration exception was used.
+
+Focused evidence:
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteFreelistTruncatePlan.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/examples/wordpress-incremental-vacuum-tail-truncation.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 3564 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-incremental-vacuum-tail-truncation.php`: JSON decoded successfully.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Runtime gate evidence before root:
+- `df -Pk /` reported `86681788` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.27`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Root evidence:
+- `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`: `215 test files, 28698 assertions, 0 failures`.
+
+Accepted delta:
+- Adds `SQLiteDatabase::planFreelistTailTruncation()` and `SQLiteFreelistTruncatePlan`.
+- Adds focused assertions for contiguous freelist tail-page truncation, header rewrites, non-tail blockers, and invalid limits.
+- Adds `wordpress-incremental-vacuum-tail-truncation.php` smoke.
+- Reconciles libsqlite status to `phpPass` `717` and mapped coverage `384 / 1589`.
+
+Cleanup:
+- Commit/ref publication completed as this accepted commit (`Integrate libsqlite incremental vacuum tail truncation`).
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T210055Z` still contains modified lane files matching the accepted handoff, so it is preserved as cleanup debt rather than removed.
+- Clean integrator candidate worktree `.tmux-team/worktrees/clean-integrator-libsqli-0d373b13-btree-20260526T211632Z` contains root-run `.tmp-root` output and is preserved as cleanup debt rather than force-removed.
+- Accepted marker, patch, and metadata artifacts were removed after commit publication.

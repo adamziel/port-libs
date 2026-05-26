@@ -1482,3 +1482,32 @@ Dependency closure: no new shared support component is needed. This is a
 lane-local open/VFS admission helper that composes the existing file URI parser
 and busy-handler planner without opening files, depending on ext/sqlite, or
 activating a shared filesystem/VFS component.
+
+## B-tree Incremental-vacuum Tail Truncation Slice
+
+Focused lane verification for the B-tree incremental-vacuum tail truncation
+slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/src/SQLiteFreelistTruncatePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-incremental-vacuum-tail-truncation.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-incremental-vacuum-tail-truncation.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3514 assertions, and 0 failures, adding 25 focused assertions
+over the pre-slice 3489 focused assertion count. The WordPress smoke reported
+contiguous free tail pages `[10,9,8]` truncated to page count 7, first freelist
+trunk rewritten from page 8 to page 5, freelist count reduced to 2, and lower
+reusable page 4 preserved for future allocation. Manifest/status JSON decoded
+successfully; lane diff check passed. The root harness was not run because this
+was an isolated micro-slice.
+
+Dependency closure: no new shared support component is needed. This is a
+lane-local B-tree/freelist planner that reuses existing SQLite header parsing
+and freelist trunk parsing/assembly.

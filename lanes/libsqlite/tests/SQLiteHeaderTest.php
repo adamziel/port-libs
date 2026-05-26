@@ -14,6 +14,7 @@ use PortLibs\LibSqlite\SQLiteConnectionCounters;
 use PortLibs\LibSqlite\SQLiteCoreScalarFunction;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistAllocationPlan;
+use PortLibs\LibSqlite\SQLiteFreelistTruncatePlan;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
 use PortLibs\LibSqlite\SQLiteFileUri;
 use PortLibs\LibSqlite\SQLiteGroupedAggregate;
@@ -8058,6 +8059,90 @@ SQL;
         $t->same(0, unpack('N', substr($plan->updatedFreelistPages[120], 4, 4))[1]);
         $t->same([120, 2, 3, 4], array_slice($postDatabase->freelistPageNumbers(), 0, 4));
         $t->same([120, 3], $postDatabase->freelistAllocationOrder(2));
+    },
+    'plans sqlite incremental-vacuum tail truncation from freelist trunks and leaves' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $emptyPage = str_repeat("\0", 512);
+        $firstPage = $makeFirstPage(512, 10);
+        $firstPage = substr_replace($firstPage, pack('N', 8), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 36, 4);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage
+            . SQLiteFreelistTrunkPage::assemble(null, [4, 9, 10])
+            . $emptyPage
+            . $emptyPage
+            . SQLiteFreelistTrunkPage::assemble(5, [])
+            . $emptyPage
+            . $emptyPage,
+        );
+
+        $plan = $database->planFreelistTailTruncation(4);
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= $plan->databasePageCount; $pageNumber++) {
+            $postPages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            if ($pageNumber <= $plan->databasePageCount) {
+                $postPages[$pageNumber] = $page;
+            }
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+
+        $t->same(SQLiteFreelistTruncatePlan::class, get_class($plan));
+        $t->same([
+            'truncated_page_numbers' => [10, 9, 8],
+            'database_page_count' => 7,
+            'first_freelist_trunk_page' => 5,
+            'freelist_page_count' => 2,
+            'updated_freelist_page_numbers' => [5],
+        ], $plan->toArray());
+        $t->same([1, 5], array_keys($plan->pageImages()));
+        $t->same(7, SQLiteHeader::parse($plan->firstPage)->databaseSizePages);
+        $t->same(5, SQLiteHeader::parse($plan->firstPage)->firstFreelistTrunkPage);
+        $t->same(2, SQLiteHeader::parse($plan->firstPage)->freelistPageCount);
+        $t->same([5, 4], $postDatabase->freelistPageNumbers());
+        $t->same([4, 5], $postDatabase->freelistAllocationOrder());
+        $t->same([4], SQLiteFreelistTrunkPage::parse(5, $plan->updatedFreelistPages[5], 512, 7)->leafPageNumbers);
+
+        $singlePagePlan = $database->planFreelistTailTruncation();
+        $t->same([10], $singlePagePlan->truncatedPageNumbers);
+        $t->same(9, $singlePagePlan->databasePageCount);
+        $t->same(4, $singlePagePlan->freelistPageCount);
+        $t->same([5], array_keys($singlePagePlan->updatedFreelistPages));
+
+        $blockedFirstPage = $makeFirstPage(512, 10);
+        $blockedFirstPage = substr_replace($blockedFirstPage, pack('N', 5), 32, 4);
+        $blockedFirstPage = substr_replace($blockedFirstPage, pack('N', 2), 36, 4);
+        $blockedDatabase = SQLiteDatabase::fromBytes(
+            $blockedFirstPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage
+            . SQLiteFreelistTrunkPage::assemble(null, [8])
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage,
+        );
+        $blockedPlan = $blockedDatabase->planFreelistTailTruncation(5);
+        $t->same([], $blockedPlan->truncatedPageNumbers);
+        $t->same(10, $blockedPlan->databasePageCount);
+        $t->same(5, $blockedPlan->firstFreelistTrunkPage);
+        $t->same(2, $blockedPlan->freelistPageCount);
+        $t->same([1], array_keys($blockedPlan->pageImages()));
+
+        $emptyFreelistDatabase = SQLiteDatabase::fromBytes($makeFirstPage(512, 4) . $emptyPage . $emptyPage . $emptyPage);
+        $emptyPlan = $emptyFreelistDatabase->planFreelistTailTruncation(2);
+        $t->same([], $emptyPlan->truncatedPageNumbers);
+        $t->same(4, $emptyPlan->databasePageCount);
+        $t->same(0, $emptyPlan->firstFreelistTrunkPage);
+        $t->same(0, $emptyPlan->freelistPageCount);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $database->planFreelistTailTruncation(0));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->planFreelistTailTruncation(-1));
     },
     'plans wordpress wp_options leaf insert page images with appended overflow pages' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

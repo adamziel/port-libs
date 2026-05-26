@@ -449,6 +449,116 @@ final class SQLiteDatabase
         return $this->planPageFreeList([$pageNumber], $secureDelete);
     }
 
+    public function planFreelistTailTruncation(int $maxPages = 1): SQLiteFreelistTruncatePlan
+    {
+        if ($maxPages < 1) {
+            throw new \InvalidArgumentException('SQLite freelist tail truncation count must be positive');
+        }
+
+        $databasePageCount = max($this->pageCount(), $this->header->databaseSizePages);
+        $trunkPages = $this->freelistTrunkPages();
+        $freelistPages = array_fill_keys($this->freelistPageNumbers(), true);
+        $truncatedPageNumbers = [];
+        for ($pageNumber = $databasePageCount; $pageNumber >= 2 && count($truncatedPageNumbers) < $maxPages; $pageNumber--) {
+            if (!isset($freelistPages[$pageNumber])) {
+                break;
+            }
+            if ($pageNumber === $this->pendingBytePageNumber() || ($this->isAutoVacuum() && $this->isPointerMapPage($pageNumber))) {
+                break;
+            }
+
+            $truncatedPageNumbers[] = $pageNumber;
+        }
+
+        $firstPage = $this->page(1);
+        if ($truncatedPageNumbers === []) {
+            $firstPage = substr_replace($firstPage, self::uint32Bytes($databasePageCount), 28, 4);
+
+            return new SQLiteFreelistTruncatePlan(
+                [],
+                $firstPage,
+                [],
+                $databasePageCount,
+                $this->header->firstFreelistTrunkPage,
+                $this->header->freelistPageCount,
+            );
+        }
+
+        $truncatedLookup = array_fill_keys($truncatedPageNumbers, true);
+        $previousTrunkByPage = [];
+        foreach ($trunkPages as $trunkPage) {
+            if ($trunkPage->nextTrunkPage !== null) {
+                $previousTrunkByPage[$trunkPage->nextTrunkPage] = $trunkPage->pageNumber;
+            }
+        }
+
+        $updatedFreelistPages = [];
+        $removedTrunkPages = [];
+        $firstTrunkPage = $this->header->firstFreelistTrunkPage;
+        foreach ($trunkPages as $trunkPage) {
+            if (isset($truncatedLookup[$trunkPage->pageNumber])) {
+                $removedTrunkPages[$trunkPage->pageNumber] = true;
+                if ($trunkPage->pageNumber === $firstTrunkPage) {
+                    $firstTrunkPage = $trunkPage->nextTrunkPage ?? 0;
+                } elseif (isset($previousTrunkByPage[$trunkPage->pageNumber])) {
+                    $previousTrunkPage = $previousTrunkByPage[$trunkPage->pageNumber];
+                    $previousBytes = $updatedFreelistPages[$previousTrunkPage] ?? $this->page($previousTrunkPage);
+                    $updatedFreelistPages[$previousTrunkPage] = substr_replace(
+                        $previousBytes,
+                        self::uint32Bytes($trunkPage->nextTrunkPage ?? 0),
+                        0,
+                        4,
+                    );
+                }
+                continue;
+            }
+
+            $leafPageNumbers = [];
+            foreach ($trunkPage->leafPageNumbers as $leafPageNumber) {
+                if (!isset($truncatedLookup[$leafPageNumber])) {
+                    $leafPageNumbers[] = $leafPageNumber;
+                }
+            }
+            if (count($leafPageNumbers) !== count($trunkPage->leafPageNumbers)) {
+                $updatedFreelistPages[$trunkPage->pageNumber] = SQLiteFreelistTrunkPage::assemble(
+                    $trunkPage->nextTrunkPage,
+                    $leafPageNumbers,
+                    $this->header->pageSize,
+                    $this->usablePageSize(),
+                );
+            }
+        }
+
+        foreach ($removedTrunkPages as $removedTrunkPage => $_) {
+            unset($updatedFreelistPages[$removedTrunkPage]);
+        }
+
+        $freelistPageCount = $this->header->freelistPageCount - count($truncatedPageNumbers);
+        if ($freelistPageCount < 0) {
+            throw new \InvalidArgumentException('SQLite freelist tail truncation exceeds the freelist page count');
+        }
+        if ($freelistPageCount === 0) {
+            $firstTrunkPage = 0;
+            $updatedFreelistPages = [];
+        }
+
+        $newDatabasePageCount = $databasePageCount - count($truncatedPageNumbers);
+        $firstPage = substr_replace($firstPage, self::uint32Bytes($newDatabasePageCount), 28, 4);
+        $firstPage = substr_replace($firstPage, self::uint32Bytes($firstTrunkPage), 32, 4);
+        $firstPage = substr_replace($firstPage, self::uint32Bytes($freelistPageCount), 36, 4);
+
+        ksort($updatedFreelistPages);
+
+        return new SQLiteFreelistTruncatePlan(
+            $truncatedPageNumbers,
+            $firstPage,
+            $updatedFreelistPages,
+            $newDatabasePageCount,
+            $firstTrunkPage,
+            $freelistPageCount,
+        );
+    }
+
     /**
      * @param list<int> $pageNumbers
      */
