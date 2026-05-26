@@ -824,12 +824,15 @@ final class SQLiteDatabase
 
             $before = $pageNumber <= $this->pageCount() ? $this->tryPageHeader($pageNumber) : null;
             $after = !isset($freelistPages[$pageNumber]) ? $postDatabase->tryPageHeader($pageNumber) : null;
+            $beforeFreeBytes = $before === null ? null : $this->btreePageFreeSpaceBytes($this, $pageNumber, $before);
+            $afterFreeBytes = $after === null ? null : $this->btreePageFreeSpaceBytes($postDatabase, $pageNumber, $after);
 
             if (isset($freelistPages[$pageNumber])) {
                 $actions[] = [
                     'action' => 'free-page',
                     'page' => $pageNumber,
                     'before_type' => $before?->pageType,
+                    'before_free_space_bytes' => $beforeFreeBytes,
                 ];
                 continue;
             }
@@ -846,6 +849,8 @@ final class SQLiteDatabase
                     'after_type' => $after->pageType,
                     'before_cells' => $before->cellCount,
                     'after_cells' => $after->cellCount,
+                    'before_free_space_bytes' => $beforeFreeBytes,
+                    'after_free_space_bytes' => $afterFreeBytes,
                 ];
                 continue;
             }
@@ -862,6 +867,8 @@ final class SQLiteDatabase
                     'page_type' => $after->pageType,
                     'before_rightmost_pointer' => $before->rightMostPointer,
                     'after_rightmost_pointer' => $after->rightMostPointer,
+                    'before_free_space_bytes' => $beforeFreeBytes,
+                    'after_free_space_bytes' => $afterFreeBytes,
                 ];
             }
 
@@ -877,6 +884,9 @@ final class SQLiteDatabase
                 'before_cells' => $before->cellCount,
                 'after_cells' => $after->cellCount,
                 'delta_cells' => $delta,
+                'before_free_space_bytes' => $beforeFreeBytes,
+                'after_free_space_bytes' => $afterFreeBytes,
+                'delta_free_space_bytes' => $afterFreeBytes - $beforeFreeBytes,
             ];
             if ($after->pageType === 'index-interior' || $after->pageType === 'table-interior') {
                 $action['before_left_children'] = $this->btreeInteriorLeftChildPointers($this->page($pageNumber), $before, $pageNumber);
@@ -886,6 +896,14 @@ final class SQLiteDatabase
         }
 
         return $actions;
+    }
+
+    private function btreePageFreeSpaceBytes(self $database, int $pageNumber, SQLiteBTreePageHeader $header): int
+    {
+        return $header->freeSpaceBytes(
+            $database->page($pageNumber),
+            $database->usablePageSize(),
+        );
     }
 
     /**

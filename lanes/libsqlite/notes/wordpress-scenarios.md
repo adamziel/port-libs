@@ -2260,6 +2260,26 @@ Dependency closure: no new support component is needed; this reuses lane-local
 B-tree page headers, index cell parsing, replacement planning, page-image
 overlays, freelist mutation, and WordPress fixture helpers.
 
+The same rebalance action stream now includes page free-space accounting:
+cell-delta actions report `before_free_space_bytes`,
+`after_free_space_bytes`, and `delta_free_space_bytes`, while pages moved to
+the freelist report their last b-tree `before_free_space_bytes`. For copied
+`wp_options` composite-index repairs this makes underfill/merge capacity
+auditable from the native plan output, rather than requiring a separate manual
+freeblock parse of every before/after page image.
+
+Status delta 2026-05-26 isolated btree-delete/rebalance slice: updated
+`SQLiteDatabase::btreeRebalanceActionsForPageImages()` to reuse lane-local
+B-tree free-space accounting for rebalance diagnostics, extended the focused
+multi-child composite-index parent merge assertion, and reused the existing
+WordPress smoke output. Full row deletion, table-leaf delete/merge,
+auto-vacuum pointer-map cleanup after arbitrary delete, and actual SQL DELETE
+statement execution remain separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+B-tree page headers, freeblock/free-space accounting, replacement planning,
+page-image overlays, freelist mutation, and WordPress fixture helpers.
+
 ## Partial IN-List Option Lookup Scenario
 
 Native `wp_options` name-list lookup planning now recognizes that a partial

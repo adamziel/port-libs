@@ -945,3 +945,26 @@ against a temporary native fixture and reported
 `wpOptionsOptionNameInListIndexRootPage: 3` for `home,siteurl`; manifest/status
 JSON decoded successfully; lane diff check passed. The root harness was not
 run because this was an isolated micro-slice.
+
+## Rebalance Free-Space Delta Diagnostic Slice
+
+Focused lane verification for the B-tree delete/rebalance free-space
+diagnostic slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 2477 assertions, and 0 failures. The WordPress smoke reported
+`before_free_space_bytes`, `after_free_space_bytes`, and
+`delta_free_space_bytes` on rebalance cell-delta actions plus
+`before_free_space_bytes` for freed pages during the composite-index parent
+merge. Manifest/status JSON decoded successfully; lane diff check passed. The
+root harness was not run because this was an isolated micro-slice.

@@ -113041,3 +113041,36 @@ Files staged:
 - `lanes/libsqlite/src/SQLiteJsonTablePlan.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - libsqlite B-tree rebalance free-space diagnostics - 2026-05-26 05:21 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T051327Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T051327Z.patch` (`sha256 16ea97609433ded9ccfd3970d78f410b7776f2d06febfc09862060ca5120c201`, verified).
+Lane/slice/session: `libsqlite` / `closure-libsqlite-btree-delete-rebalance-20260526T051327Z` / `port-dev-libsqlite-btree`.
+Base accepted HEAD: `867665534d3b0274eb14612cfae4aebbf8d3dfce`.
+
+Apply note: full patch was stale against current `main` (`9aad62825d04f048b46ee873c77fba27bbd3bfc7`) only in high-churn libsqlite manifest/status files. Source, test, and notes hunks applied cleanly in a detached current-main worktree; manifest/status updates were bounded to the new rebalance free-space diagnostics while preserving newer accepted index-leaf deletion evidence.
+
+Focused verification in the detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: 1 test file, 2484 assertions, 0 failures.
+- `php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php` passed and emitted rebalance free-space diagnostics.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates were checked before focused tests and root. Disk was initially below the required 86000000 KiB available, so the integrator waited outside the lock until `/` reopened; load stayed below `25` and no exact no-argument root harness was active.
+- `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the exact clean candidate snapshot and passed with 215 test files, 27069 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. This stays lane-local and reuses existing B-tree page headers, freeblock/free-space accounting, replacement planning, page overlays, freelist mutation, and WordPress fixture helpers.
+
+Files staged:
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/root-harness.md`
+- `lanes/libsqlite/notes/wordpress-scenarios.md`
+- `lanes/libsqlite/src/SQLiteDatabase.php`
+- `lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `audits/integration-status.md`
