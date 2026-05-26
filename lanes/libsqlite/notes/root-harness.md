@@ -1,5 +1,20 @@
 # libsqlite Root Harness Notes
 
+## Isolated JSON Aggregate Distinct Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the `json_group_array(DISTINCT X)` helper slice
+passed:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 test file, 2248 assertions, 0 failures.
+
+The root no-argument harness was not run for this isolated micro-slice.
+
 Date: 2026-05-23
 
 Focused lane verification for the rowid-range slice passed:

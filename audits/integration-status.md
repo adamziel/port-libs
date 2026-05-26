@@ -1,5 +1,45 @@
 # Integration Status
 
+## Clean-patch accepted - libsqlite JSON aggregate DISTINCT - 2026-05-26 00:16 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-20260526T000629Z.ready`.
+
+Published commit: this integration commit
+(`Integrate libsqlite JSON aggregate DISTINCT`). The accepted patch was
+verified from a detached clean worktree at source `c01835d8` and is scoped to
+`lanes/libsqlite/**` plus this integration-status entry. Patch sha256 matched
+the ready marker:
+`fd6342be957d227edfbd733d61446147ec04b85236f56bf0d8439a23b2220977`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l` passed for changed libsqlite source, test, and example files.
+- `php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+  `1 test files, 2248 assertions, 0 failures`.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json
+  lanes/libsqlite/lane-status.json` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- First root attempt found active exact no-argument root PID `1933636`, so the
+  lock was released and the gate was retried outside the lock.
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=97164756` KiB and `load1=3.29`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26668 assertions, 0 failures`.
+
+Cleanup:
+- Removed the accepted ready marker, patch, metadata file, referenced worker
+  log, prompt file, inactive source worktree, and pruned worktree metadata after
+  the commit was safely on `main`.
+- Remaining top-level ready-marker count after cleanup: `3488`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted libsqlite commit.
+
 ## Clean-patch accepted - rclone cleanup stale-handoff refresh - 2026-05-26 00:13 UTC
 
 Accepted one isolated marker:

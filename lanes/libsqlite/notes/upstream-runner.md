@@ -1,5 +1,51 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: `json_group_array(DISTINCT X)`
+
+Date: 2026-05-26
+
+This isolated micro-slice adds a bounded native row de-duplication helper for
+SQLite's `json_group_array(DISTINCT X)` aggregate boundary. Native
+`SQLiteJsonAggregate::jsonGroupArrayDistinct()` preserves first-seen row order,
+SQL NULL collapse, boolean-as-integer JSON rendering, JSON subtype passthrough,
+JSONB BLOB passthrough, and malformed raw BLOB rejection without claiming SQL
+planner support for `FILTER`, aggregate `ORDER BY`, or two-argument
+`DISTINCT` aggregates.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused SQLite JSON aggregate evidence for
+the same upstream behavior cluster:
+
+```sh
+json101.test json102.test jsonb01.test subtype1.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
+php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: syntax checks passed; the WordPress smoke reported
+`distinctOptionValueArray` and `distinctOptionValueJsonbDecoded`; focused lane
+tests passed with 1 file, 2248 assertions, and 0 failures.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON aggregate dispatch, JSON constructor value coercion,
+JSON subtype handling, JSONB encoder/decoder, BLOB wrapper, and SQL NULL
+handling components; it counts no shared support-library progress.
+
 ## Focused Native Mapping: JSON Aggregate Step/Final State
 
 Date: 2026-05-25

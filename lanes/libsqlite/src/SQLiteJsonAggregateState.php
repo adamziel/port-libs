@@ -9,12 +9,20 @@ final class SQLiteJsonAggregateState
     /** @var list<mixed> */
     private array $arrayValues = [];
 
+    /** @var list<mixed> */
+    private array $distinctArrayValues = [];
+
     /** @var list<array{0:mixed,1:mixed}> */
     private array $objectPairs = [];
 
     public function stepArray(mixed $value): void
     {
         $this->arrayValues[] = $value;
+    }
+
+    public function stepArrayDistinct(mixed $value): void
+    {
+        $this->distinctArrayValues[] = $value;
     }
 
     public function stepObject(mixed $label, mixed $value): void
@@ -27,18 +35,24 @@ final class SQLiteJsonAggregateState
         return SQLiteJsonAggregate::jsonGroupArraySqlFunction($function, $this->arrayValues);
     }
 
+    public function finalizeDistinctArray(string $function = 'json_group_array'): string|SQLiteBlobValue
+    {
+        return SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunction($function, $this->distinctArrayValues);
+    }
+
     public function finalizeObject(string $function = 'json_group_object'): string|SQLiteBlobValue
     {
         return SQLiteJsonAggregate::jsonGroupObjectSqlFunction($function, $this->objectPairs);
     }
 
     /**
-     * @return array{arrayRows:int,objectRows:int}
+     * @return array{arrayRows:int,distinctArrayRows:int,objectRows:int}
      */
     public function summary(): array
     {
         return [
             'arrayRows' => count($this->arrayValues),
+            'distinctArrayRows' => count($this->distinctArrayValues),
             'objectRows' => count($this->objectPairs),
         ];
     }

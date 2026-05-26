@@ -3040,8 +3040,18 @@ return [
         );
         $t->same('[]', SQLiteJsonAggregate::jsonGroupArray([]));
         $t->same('{}', SQLiteJsonAggregate::jsonGroupObject([]));
+        $t->same(
+            '["siteurl",null,1,0,[{"name":"seo"},{"name":"cache"}],{"count":2,"autoload":true}]',
+            SQLiteJsonAggregate::jsonGroupArrayDistinct(['siteurl', 'siteurl', null, null, true, 1, false, 0, $jsonRules, $jsonRules, $jsonbSummary, $jsonbSummary]),
+        );
+        $distinctJsonb = SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunction('JSONB_GROUP_ARRAY', ['siteurl', 'siteurl', null, null, $jsonRules, $jsonRules]);
+        $t->true($distinctJsonb instanceof SQLiteBlobValue);
+        $t->same(['siteurl', null, [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($distinctJsonb->bytes));
+        $t->same('[]', SQLiteJsonAggregate::jsonGroupArrayDistinct([]));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArray([new SQLiteBlobValue("\xab\xcd")]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinct([new SQLiteBlobValue("\xab\xcd")]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunction('json_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([[null, 5]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([['a']]));
     },
@@ -3109,14 +3119,26 @@ return [
         $state->stepArray(null);
         $state->stepArray(new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'));
         $state->stepArray(new SQLiteBlobValue(SQLiteJsonB::encode(['count' => 2, 'autoload' => true])));
+        $state->stepArrayDistinct('siteurl');
+        $state->stepArrayDistinct('siteurl');
+        $state->stepArrayDistinct(null);
+        $state->stepArrayDistinct(null);
+        $state->stepArrayDistinct(true);
+        $state->stepArrayDistinct(1);
+        $state->stepArrayDistinct(new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'));
+        $state->stepArrayDistinct(new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'));
         $state->stepObject('siteurl', 'https://example.test');
         $state->stepObject('rules', new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'));
         $state->stepObject('summary', new SQLiteBlobValue(SQLiteJsonB::encode(['count' => 2, 'autoload' => true])));
 
-        $t->same(['arrayRows' => 4, 'objectRows' => 3], $state->summary());
+        $t->same(['arrayRows' => 4, 'distinctArrayRows' => 8, 'objectRows' => 3], $state->summary());
         $t->same(
             '["siteurl",null,[{"name":"seo"},{"name":"cache"}],{"count":2,"autoload":true}]',
             $state->finalizeArray(),
+        );
+        $t->same(
+            '["siteurl",null,1,[{"name":"seo"},{"name":"cache"}]]',
+            $state->finalizeDistinctArray(),
         );
         $t->same(
             '{"siteurl":"https://example.test","rules":[{"name":"seo"},{"name":"cache"}],"summary":{"count":2,"autoload":true}}',
@@ -3124,10 +3146,13 @@ return [
         );
 
         $jsonbArray = $state->finalizeArray('JSONB_GROUP_ARRAY');
+        $jsonbDistinctArray = $state->finalizeDistinctArray('JSONB_GROUP_ARRAY');
         $jsonbObject = $state->finalizeObject('jsonb_group_object');
         $t->true($jsonbArray instanceof SQLiteBlobValue);
+        $t->true($jsonbDistinctArray instanceof SQLiteBlobValue);
         $t->true($jsonbObject instanceof SQLiteBlobValue);
         $t->same(['siteurl', null, [['name' => 'seo'], ['name' => 'cache']], ['count' => 2, 'autoload' => true]], SQLiteJsonB::decode($jsonbArray->bytes));
+        $t->same(['siteurl', null, 1, [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($jsonbDistinctArray->bytes));
         $t->same([
             'siteurl' => 'https://example.test',
             'rules' => [['name' => 'seo'], ['name' => 'cache']],
@@ -3136,8 +3161,10 @@ return [
 
         $empty = new SQLiteJsonAggregateState();
         $t->same('[]', $empty->finalizeArray());
+        $t->same('[]', $empty->finalizeDistinctArray());
         $t->same('{}', $empty->finalizeObject());
         $t->throws(InvalidArgumentException::class, static fn () => $state->finalizeArray('json_group'));
+        $t->throws(InvalidArgumentException::class, static fn () => $state->finalizeDistinctArray('json_group'));
         $t->throws(InvalidArgumentException::class, static fn () => $state->finalizeObject('jsonb_group'));
     },
     'canonicalizes sqlite json text json5 blob and null option values' => static function (TestRunner $t): void {

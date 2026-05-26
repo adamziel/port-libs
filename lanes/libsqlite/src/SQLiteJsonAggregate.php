@@ -31,6 +31,22 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<mixed> $values
+     */
+    public static function jsonGroupArrayDistinctSqlFunction(string $function, iterable $values): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupArrayDistinct($values);
+        if (strcasecmp($function, 'json_group_array') === 0) {
+            return $json;
+        }
+        if (strcasecmp($function, 'jsonb_group_array') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_array or jsonb_group_array');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed}> $pairs
      */
     public static function jsonGroupObjectSqlFunction(string $function, iterable $pairs): string|SQLiteBlobValue
@@ -68,6 +84,26 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<mixed> $values
+     */
+    public static function jsonGroupArrayDistinct(iterable $values): string
+    {
+        $items = [];
+        $seen = [];
+        foreach ($values as $value) {
+            $key = self::distinctKey($value);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $items[] = SQLiteJsonConstructor::jsonValue($value);
+        }
+
+        return '[' . implode(',', $items) . ']';
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed}> $pairs
      */
     public static function jsonGroupObject(iterable $pairs): string
@@ -90,5 +126,34 @@ final class SQLiteJsonAggregate
         } catch (\JsonException $exception) {
             throw new \InvalidArgumentException('SQLite JSON aggregate output could not be encoded as JSONB', 0, $exception);
         }
+    }
+
+    private static function distinctKey(mixed $value): string
+    {
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return 'json:' . $value->json;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            SQLiteJsonConstructor::jsonValue($value);
+
+            return 'blob:' . $value->bytes;
+        }
+        if ($value === null) {
+            return 'null:';
+        }
+        if (is_bool($value)) {
+            return 'integer:' . ($value ? '1' : '0');
+        }
+        if (is_int($value)) {
+            return 'integer:' . $value;
+        }
+        if (is_float($value)) {
+            return 'real:' . serialize($value);
+        }
+        if (is_string($value)) {
+            return 'text:' . $value;
+        }
+
+        return 'json-value:' . SQLiteJsonConstructor::jsonValue($value);
     }
 }

@@ -13,8 +13,8 @@
     "benchmarkDenominator": {
         "status": "cloned-static-inventory-plus-upstream-veryquick-runner",
         "total": 1589,
-            "mapped": 272,
-            "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-25 aggregate step/final refill reuses prior focused upstream JSON aggregate evidence because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_group_array/jsonb_group_array/json_group_object/jsonb_group_object aggregate state step/finalization while preserving accepted JSON remove, mutation, array-insert, aggregate dispatch, canonical, constructor, json_quote, json_valid, json_type/json_array_length, json_error_position, json_each/json_tree dispatch, hidden json/root columns, json_tree recursive rows, json_pretty, json_extract/jsonb_extract, JSON patch, and json_each evidence.",
+            "mapped": 273,
+            "source": "Shallow blobless GitHub mirror clone at .upstream-cache/libsqlite; initially inspected as a root-only sparse checkout, then hydrated only the SQLite build/test directories needed for configure, testfixture, and Tcl runner execution: src, test, tool, ext, autosetup, autoconf, and mptest. The 2026-05-23 strengthened static denominator counts the hydrated Tcl/C/harness test inventory plus focused static Tcl command counts without hydrating unrelated blobless paths. Latest 2026-05-26 aggregate DISTINCT refill reuses prior focused upstream JSON aggregate evidence because this isolated worktree has no hydrated upstream cache. Native PHP now maps bounded json_group_array(DISTINCT X) de-duplication while preserving accepted json_group_array/jsonb_group_array/json_group_object/jsonb_group_object aggregate state step/finalization, JSON remove, mutation, array-insert, aggregate dispatch, canonical, constructor, json_quote, json_valid, json_type/json_array_length, json_error_position, json_each/json_tree dispatch, hidden json/root columns, json_tree recursive rows, json_pretty, json_extract/jsonb_extract, JSON patch, and json_each evidence.",
         "inventory": {
             "allRepositoryFiles": 2208,
             "hydratedTestInventoryFiles": 2131,
@@ -110,6 +110,7 @@
             "focusedJsonPatchArgumentVectorDispatchScripts": 1,
             "focusedJsonAggregateArgumentVectorDispatchScripts": 1,
             "focusedJsonAggregateStepFinalScripts": 1,
+            "focusedJsonAggregateDistinctScripts": 1,
             "focusedJsonMutationArgumentVectorDispatchScripts": 1,
             "focusedJsonRemoveArgumentVectorDispatchScripts": 1,
             "focusedBtreeFreeblockCorruptionScripts": 2,

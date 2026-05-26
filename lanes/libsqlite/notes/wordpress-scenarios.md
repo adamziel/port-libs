@@ -2,6 +2,26 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Aggregate Distinct Option Summary Scenario
+
+Native JSON aggregate summaries now include a bounded
+`json_group_array(DISTINCT X)` row de-duplication helper for copied option
+values. The example `examples/wordpress-json-aggregate-option-summary.php`
+now includes duplicated string and JSONB option values, reports direct and
+step/final distinct JSON arrays, and decodes the JSONB distinct result for
+review. This gives WordPress import tooling a local-only way to spot unique
+settings payloads before migration without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated refill: added
+`SQLiteJsonAggregate::jsonGroupArrayDistinct()`,
+`SQLiteJsonAggregateState::stepArrayDistinct()`, and
+`SQLiteJsonAggregateState::finalizeDistinctArray()` with focused tests for
+first-seen ordering, SQL NULL collapse, boolean/integer equality, JSON subtype
+fragments, JSONB BLOB values, empty aggregate finalization, invalid function
+names, and malformed raw BLOB rejection. Dependency closure: no new support
+component is needed; the slice reuses existing lane-local JSON aggregate,
+constructor value coercion, JSON subtype, JSONB, BLOB, and SQL NULL support.
+
 ## JSON Aggregate Step/Final Option Summary Scenario
 
 Native JSON aggregate summaries now include a bounded step/final state helper
