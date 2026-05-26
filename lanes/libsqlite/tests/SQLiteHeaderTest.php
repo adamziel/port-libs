@@ -1810,6 +1810,91 @@ return [
         $t->same($largeValue, $options[0]->optionValue);
         $t->same('yes', $options[0]->autoload);
     },
+    'plans overflow-backed delete release from actual sqlite overflow next pointers' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $usableSize = 512;
+        $largeValue = str_repeat('stale-cache-fragment:', 80);
+        $payload = SQLiteRecord::encode([null, '_transient_large_cache', $largeValue, 'no']);
+        $localPayloadLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $usableSize);
+        $overflowPayload = substr($payload, $localPayloadLength);
+        $overflowPageNumbers = [5, 7, 6];
+        $overflowPages = SQLiteOverflowPage::encodeChainAtPages($overflowPayload, $overflowPageNumbers, $pageSize, $usableSize);
+
+        $firstPage = $makeFirstPage($pageSize, 7);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            5 => [SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3],
+            7 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 5],
+            6 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 7],
+        ] as $pageNumber => [$type, $parent]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parent),
+                ($pageNumber - 3) * 5,
+                5,
+            );
+        }
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, $payload, $usableSize, 5),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ]);
+        $emptyPage = str_repeat("\0", $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . $tablePage
+            . $emptyPage
+            . $overflowPages[5]
+            . $overflowPages[6]
+            . $overflowPages[7],
+        );
+
+        $chain = $database->overflowPageChainNumbers(5, strlen($overflowPayload));
+        $delete = SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease(
+            $tablePage,
+            2,
+            $database->overflowPageChainNumbers(...),
+            secureDelete: true,
+        );
+        $freePlan = $database->planPageFreeList($delete['obsolete_overflow_page_numbers'], true);
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= 7; $pageNumber++) {
+            $postPages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($freePlan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+        $deletedHeader = SQLiteBTreePageHeader::parsePage($delete['page'], $pageSize);
+        $deletedRows = SQLiteTableLeafCell::parsePageCells($delete['page'], $deletedHeader);
+        $deletedFreeblocks = $deletedHeader->freeblocks($delete['page']);
+
+        $t->same($overflowPageNumbers, $chain);
+        $t->same($overflowPageNumbers, $delete['obsolete_overflow_page_numbers']);
+        $t->same(2, $delete['rowid']);
+        $t->same($localPayloadLength, $delete['deleted_local_payload_length']);
+        $t->true($delete['deleted_cell_bytes'] > $localPayloadLength);
+        $t->same([1, 3], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $deletedRows));
+        $t->same(1, count($deletedFreeblocks));
+        $t->same($delete['deleted_cell_bytes'], $deletedFreeblocks[0]->size);
+        $t->same(str_repeat("\0", $delete['deleted_cell_bytes'] - 4), substr($delete['page'], $deletedFreeblocks[0]->offset + 4, $delete['deleted_cell_bytes'] - 4));
+        $t->same($overflowPageNumbers, $freePlan->freedPageNumbers);
+        $t->same([7, 6], $freePlan->leafPageNumbers);
+        $t->same([5], $freePlan->newTrunkPageNumbers);
+        $t->same(5, $freePlan->firstFreelistTrunkPage);
+        $t->same(3, $freePlan->freelistPageCount);
+        $t->same([7, 6], array_keys($freePlan->clearedPageImages));
+        $t->same([1, 2, 5, 6, 7], array_keys($freePlan->pageImages()));
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(6)->typeName());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(7)->typeName());
+        $t->same([5, 7, 6], $postDatabase->freelistPageNumbers());
+        $t->same([7, 6, 5], $postDatabase->freelistAllocationOrder());
+        $t->throws(InvalidArgumentException::class, static fn () => $database->overflowPageChainNumbers(5, strlen($overflowPayload) + $usableSize));
+    },
     'assembles wordpress wp_options table leaf pages from native record and cell encoders' => static function (TestRunner $t) use ($makeFirstPage): void {
         $schemaCell = SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
             'table',

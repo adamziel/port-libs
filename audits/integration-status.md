@@ -116879,3 +116879,38 @@ Root verification:
 Cleanup:
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T192842Z` still contains modified marker files, so it was preserved as cleanup debt rather than removed.
 - Accepted ready, patch, and metadata handoff files were eligible for removal after publishing the commit on `refs/heads/main`; worker log was preserved.
+## Integration accepted - libsqlite B-tree overflow next-pointer delete release - 2026-05-26T19:45:13Z
+
+Candidate: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T193447Z.ready`.
+
+Decision: accepted after focused checks, WordPress smoke, diff check, and serialized root verification.
+
+Scope:
+- Adds `SQLiteDatabase::overflowPageChainNumbers()` so delete/release planning can derive obsolete overflow pages from actual SQLite overflow next-page pointers.
+- Adds focused coverage for non-contiguous overflow chain deletion, secure-delete freelist release, new trunk promotion, auto-vacuum pointer-map free-page rewrites, and freelist allocation order.
+- Updates the WordPress overflow delete smoke to walk overflow next pointers instead of assuming contiguous overflow page ranges.
+
+Selection evidence:
+- Dashboard guard was open: live `porting-summary.json` and local `refs/heads/main` both reported source `0cb1d526a43ffc8d0bd5ab297d074f5c3498d1c4`.
+- Bounded recent libsqlite sample scored this marker above WAL snapshots (`+21`), SQL aggregate order terms (`+16`), and JSON ORDER BY NULLS (`+15`) because it provides the strongest focused assertion delta in a distinct B-tree ownership bucket.
+- Direct patch apply against current `0cb1d526a43ffc8d0bd5ab297d074f5c3498d1c4` needed only a bounded notes merge for `lanes/libsqlite/notes/root-harness.md`; implementation, test, example, manifest, and lane-status hunks applied cleanly.
+
+Focused verification:
+- Runtime gates before focused checks: `/` had `95139000` KiB available, one-minute load was `2.08`, and no exact no-argument `php tools/run-tests.php` process was running.
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php` passed.
+- Manifest/status JSON decode passed.
+- `php lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php` passed and emitted table overflow pages `[5,6,7]`, index overflow pages `[9,10]`, remaining table rowids `[1,3]`, and remaining index records for `home` and `siteurl`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3249 assertions, 0 failures`.
+- `git diff --check` passed.
+
+Root verification: `php tools/run-tests.php` passed with `215 test files, 28348 assertions, 0 failures` under the clean-integrator lock with repo-local `TMPDIR`.
+
+Ready queue count before root: `6242` total ready markers, including `2974` libsqlite ready markers.
+
+Cleanup:
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T193447Z` still contains modified marker files, so it was preserved as cleanup debt rather than removed.
+- Accepted ready, patch, and metadata handoff files were eligible for removal after publishing the commit on `refs/heads/main`; worker log was preserved.
+
+Dashboard publication: should run next after a successful source-moving commit.

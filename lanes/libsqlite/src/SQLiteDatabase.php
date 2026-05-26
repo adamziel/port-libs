@@ -11302,6 +11302,14 @@ final class SQLiteDatabase
     /**
      * @return list<int>
      */
+    public function overflowPageChainNumbers(int $firstOverflowPage, int $byteCount): array
+    {
+        return $this->overflowPageNumbers($firstOverflowPage, $byteCount);
+    }
+
+    /**
+     * @return list<int>
+     */
     private function overflowPageNumbers(int $firstOverflowPage, int $byteCount): array
     {
         if ($byteCount < 0) {

@@ -1282,3 +1282,25 @@ isolated micro-slice.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local header parsing, page counting, freelist counters, and auto-vacuum
 diagnostics.
+## B-tree Overflow Next-pointer Delete Release Slice
+
+Focused lane verification for the B-tree delete/rebalance overflow next-pointer
+release slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3228 assertions, and 0 failures, adding 22 focused assertions
+over the prior accepted B-tree overflow release count of 3206. The WordPress
+smoke reports obsolete table/index overflow chains by walking actual next-page
+pointers before deletion release planning. Manifest/status JSON decoded
+successfully; lane diff check passed. The root harness was not run because this
+was an isolated micro-slice.

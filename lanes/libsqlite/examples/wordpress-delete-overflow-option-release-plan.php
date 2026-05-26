@@ -6,7 +6,6 @@ use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
-use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
@@ -16,6 +15,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $largeValue = str_repeat('stale-cache-fragment:', 70);
 $tablePayload = SQLiteRecord::encode([null, '_transient_large_cache', $largeValue, 'no']);
 $tableOverflow = SQLiteTableLeafCell::encodeWithOverflowPages(2, $tablePayload, 5);
+$tableOverflowPages = array_combine(range(5, 4 + count($tableOverflow['overflowPages'])), $tableOverflow['overflowPages']);
 $tablePage = SQLiteTableLeafPage::assemble([
     SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
     $tableOverflow['cell'],
@@ -32,10 +32,22 @@ $indexPage = SQLiteIndexLeafPage::assemble([
     SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
 ]);
 
-$overflowPages = static fn (int $firstOverflowPage, int $byteCount): array => range(
-    $firstOverflowPage,
-    $firstOverflowPage + SQLiteOverflowPage::requiredPageCount($byteCount) - 1,
-);
+$overflowPageNumbers = static function (array $pages, int $firstOverflowPage, int $byteCount): array {
+    $pageNumbers = [];
+    $pageNumber = $firstOverflowPage;
+    $remaining = $byteCount;
+    while ($pageNumber !== 0 && $remaining > 0) {
+        $page = $pages[$pageNumber] ?? null;
+        if ($page === null) {
+            throw new InvalidArgumentException('Fixture overflow page is missing');
+        }
+        $pageNumbers[] = $pageNumber;
+        $pageNumber = unpack('N', substr($page, 0, 4))[1];
+        $remaining -= min($remaining, 508);
+    }
+
+    return $pageNumbers;
+};
 $indexOverflowReader = static function (int $firstOverflowPage, int $byteCount) use ($indexOverflowPages): string {
     $payload = '';
     $pageNumber = $firstOverflowPage;
@@ -54,13 +66,13 @@ $indexOverflowReader = static function (int $firstOverflowPage, int $byteCount) 
 $tableDelete = SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease(
     $tablePage,
     2,
-    $overflowPages,
+    static fn (int $firstOverflowPage, int $byteCount): array => $overflowPageNumbers($tableOverflowPages, $firstOverflowPage, $byteCount),
     secureDelete: true,
 );
 $indexDelete = SQLiteIndexLeafPage::deleteCellByRecordValuesWithOverflowRelease(
     $indexPage,
     [$largeIndexKey, 2],
-    $overflowPages,
+    static fn (int $firstOverflowPage, int $byteCount): array => $overflowPageNumbers($indexOverflowPages, $firstOverflowPage, $byteCount),
     secureDelete: true,
     overflowReader: $indexOverflowReader,
 );
