@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 20:53:08 UTC",
-    "sourceCommit": "8417829800f515acde575587db3278d71e56f547",
-    "sourceCommitShort": "8417829800f5",
+    "generated": "2026-05-26 21:01:27 UTC",
+    "sourceCommit": "39e8a75d14f9babc721c7a09b19924563e310fbc",
+    "sourceCommitShort": "39e8a75d14f9",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "43925125109a5655bae2fa0006fe2ccedd7891e0",
-    "dashboardCommitShort": "43925125109a",
+    "dashboardCommit": "f5c77bdcfd7c98142a212ec34fc98ef2480f4be9",
+    "dashboardCommitShort": "f5c77bdcfd7c",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,12 +83,12 @@
             "denominator": "1589",
             "mapped": "382",
             "coverage": "382 / 1589",
-            "php": "665 pass / 0 fail",
+            "php": "715 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded SQL execution/planner SELECT resu...",
-            "currentWork": "Latest SQL execution/planner work adds bounded SELECT DISTINCT, multi-term ORDER BY, LIMI...",
-            "nextTarget": "Next SQL execution/planner gap: integrate SELECT result primitives with broader expressio...",
+            "audit": "bounded dependency-suite open-admission s...",
+            "currentWork": "Latest dependency-suite work adds bounded SQLite open-admission planning for file URI mod...",
+            "nextTarget": "Next dependency/open gap: connect the open-admission plan to a bounded file-handle header...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
         },
