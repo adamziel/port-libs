@@ -115731,3 +115731,37 @@ Verification:
 Decision: accepted one current-base libsqlite marker from a detached clean worktree based on `6bdb5106139aa3ace1375323a7033150f2cffa87`.
 
 Dashboard publication should run next for the new accepted source after this commit reaches `main`.
+## Integration accepted - libsqlite JSON table numeric equality residuals - 2026-05-26T15:31:20Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T152402Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `11577af77284f7c9835e36431b98eeb4b7bc57b3` (`Integrate libsqlite persistent fts5aux blocker gate`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `11577af77284f7c9835e36431b98eeb4b7bc57b3`; `generatedAt` was absent from the returned JSON shape.
+- No Pages-outage override was used.
+
+Runtime gate evidence:
+- `df -Pk /` reported `106461920` KiB available before the root run, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.07`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Marker evidence:
+- Marker was current-base at `base_sha=11577af77284f7c9835e36431b98eeb4b7bc57b3`, lane-local to `lanes/libsqlite/**`, and patch sha256 matched `b055cad9cc58a41246a1adbf22aa49722c59c4a63de5a6e8d04ac490e368e2cd`.
+- The patch applied cleanly in detached candidate worktree `.tmux-team/tmp/clean-candidate-libsqlite-json-table-20260526T152402Z`.
+- Scope: JSON table visible-column residual filtering now treats integer and real values as the same numeric comparison class for `=`, `!=`, `IN`, and `IS NOT DISTINCT FROM` / `IS DISTINCT FROM`, while preserving strict text and SQL NULL behavior. Status, manifest, upstream-runner notes, and WordPress scenario evidence were updated.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- Manifest/status JSON decode check passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2855 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed and reported `numericEqualityPlanner` / numeric equality rows in the WordPress JSON option smoke.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the clean candidate snapshot and passed: `215 test files, 27810 assertions, 0 failures`.
+
+Decision: accepted. After commit publication, remove the accepted ready marker, patch, metadata handoff, and inactive worker/candidate worktrees. Dashboard publication should run next because accepted source moved beyond the live dashboard source.

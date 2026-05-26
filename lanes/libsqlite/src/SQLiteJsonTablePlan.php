@@ -149,9 +149,9 @@ final class SQLiteJsonTablePlan
     private static function compareResidualValue(mixed $actual, string $operator, mixed $expected): bool
     {
         return match ($operator) {
-            '=' => $actual === $expected,
+            '=' => self::valuesAreEqual($actual, $expected),
             'IS' => self::valuesAreNotDistinct($actual, $expected),
-            '!=', '<>' => $actual !== $expected,
+            '!=', '<>' => !self::valuesAreEqual($actual, $expected),
             'IS NOT' => !self::valuesAreNotDistinct($actual, $expected),
             'IS DISTINCT FROM' => !self::valuesAreNotDistinct($actual, $expected),
             'IS NOT DISTINCT FROM' => self::valuesAreNotDistinct($actual, $expected),
@@ -211,7 +211,7 @@ final class SQLiteJsonTablePlan
         }
 
         foreach ($expected as $value) {
-            if ($value !== null && $actual === $value) {
+            if ($value !== null && self::valuesAreEqual($actual, $value)) {
                 return true;
             }
         }
@@ -328,6 +328,15 @@ final class SQLiteJsonTablePlan
     {
         if ($left === null || $right === null) {
             return $left === null && $right === null;
+        }
+
+        return self::valuesAreEqual($left, $right);
+    }
+
+    private static function valuesAreEqual(mixed $left, mixed $right): bool
+    {
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return (float) $left === (float) $right;
         }
 
         return $left === $right;

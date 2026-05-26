@@ -4421,6 +4421,23 @@ return [
         $t->same(['priority'], array_column($priorityRows, 'key'));
         $t->same([7], array_column($priorityRows, 'atom'));
 
+        $numericEqualityRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+            ['column' => 'atom', 'operator' => '=', 'value' => 7.0],
+            ['column' => 'atom', 'operator' => 'IS NOT DISTINCT FROM', 'value' => 7.0],
+            ['column' => 'atom', 'operator' => 'IN', 'value' => [7.0, 9.0]],
+        ]);
+        $t->same(['priority'], array_column($numericEqualityRows, 'key'));
+        $t->same([7], array_column($numericEqualityRows, 'atom'));
+
+        $numericInequalityRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.priority'],
+            ['column' => 'atom', 'operator' => '!=', 'value' => 7.0],
+        ]);
+        $t->same([], $numericInequalityRows);
+
         $priorityBetweenRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$'],

@@ -9259,3 +9259,36 @@ Dependency closure: no new support component is needed. This reuses
 lane-local JSON table planning, JSON path/JSONB decoding, `SQLiteDatabase`
 REGEXP callback validation, and the existing WordPress JSON option smoke
 without activating shared support-library work.
+
+## Focused Native Mapping: JSON Table Numeric Equality Residual Predicates
+
+This isolated json-table/window micro-slice tightens SQLite equality semantics
+for visible-column residual filters after hidden `json` and `root` constraints
+make a `json_each()` or `json_tree()` scan runnable. Native
+`SQLiteJsonTablePlan::filteredRows()` now treats integer and real values as the
+same numeric comparison class for `=`, `!=`, `IN`, and
+`IS NOT DISTINCT FROM` / `IS DISTINCT FROM`, while preserving strict text
+comparisons and SQL NULL behavior.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused JSON table numeric equality residual evidence row while
+preserving the current accepted static SQLite upstream denominator and
+veryquick evidence. This isolated worktree did not contain the hydrated
+upstream cache, so no fresh upstream `testfixture`, `make test`, or `mptest`
+run was started.
+
+Verification run 2026-05-26T15:24Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local JSON table planning, JSON path/JSONB decoding, and existing SQL
+numeric comparison helpers without activating shared support-library work.

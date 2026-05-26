@@ -2654,6 +2654,23 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## JSON Table Numeric Equality Residual Scenario
+
+Native JSON table planning now applies SQLite numeric equality semantics to
+visible `json_each()` / `json_tree()` residual filters after hidden `json` and
+`root` constraints are planned. This lets local WordPress import tooling match
+JSON integer option atoms against real-valued SQL constants for `=`, `!=`,
+`IN`, and `IS NOT DISTINCT FROM` without weakening text or SQL NULL handling.
+
+Status delta 2026-05-26 isolated json-table/window slice: updated
+`SQLiteJsonTablePlan` residual equality helpers, focused assertions, and the
+`wordpress-json-each-option-settings.php` smoke to report numeric equality
+filter rows for copied plugin settings.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local JSON table planning, JSON path/JSONB decoding, and existing SQL
+numeric comparison behavior.
+
 ## JSON Table Null-Safe Residual Predicates
 
 Native `json_each()` / `json_tree()` residual filtering now accepts SQLite's
