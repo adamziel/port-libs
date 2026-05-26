@@ -3161,6 +3161,24 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
 patterns.
 
+## Rollback Hot Journal Admission Scenario
+
+Native rollback-journal diagnostics now classify copied rollback journal bytes
+as hot-journal recovery candidates before repair tooling applies page images.
+The `examples/wordpress-rollback-journal-option-diagnostics.php` smoke reports
+too-small journals, invalid headers, reserved-lock blockers, super-journal
+requirements, unknown page counts, and recoverable hot journals without
+requiring the SQLite extension.
+
+Status delta 2026-05-26 bounded-rebased priority rollback slice: added 27
+focused assertions for hot-journal admission diagnostics while preserving the
+accepted recovery-plan and rollback-image previews. This is intentionally
+read-only admission and preview coverage, not a durable pager recovery writer.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local rollback journal parsing, checksum behavior, and WordPress rollback
+diagnostics.
+
 Status delta 2026-05-26 isolated SQL execution/planner aggregate slice: added
 11 focused assertions for `sum(DISTINCT X)`, `total(DISTINCT X)`, and
 `avg(DISTINCT X)` numeric aggregate helpers, including NULL skipping, duplicate

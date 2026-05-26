@@ -65,6 +65,56 @@ final class SQLiteRollbackJournal
         return self::parse($bytes, $validateChecksums);
     }
 
+    /**
+     * @return array{hot:bool,reason:string,journal_bytes:int,header_valid:bool,page_count:int|null,initial_database_page_count:int|null,requires_super_journal:bool,super_journal_exists:bool|null,database_reserved_lock:bool}
+     */
+    public static function hotJournalCandidate(string $bytes, bool $databaseReservedLock = false, bool $requiresSuperJournal = false, ?bool $superJournalExists = null): array
+    {
+        $journalBytes = strlen($bytes);
+        $base = [
+            'hot' => false,
+            'reason' => '',
+            'journal_bytes' => $journalBytes,
+            'header_valid' => false,
+            'page_count' => null,
+            'initial_database_page_count' => null,
+            'requires_super_journal' => $requiresSuperJournal,
+            'super_journal_exists' => $superJournalExists,
+            'database_reserved_lock' => $databaseReservedLock,
+        ];
+
+        if ($journalBytes <= 512) {
+            $base['reason'] = 'journal_too_small';
+            return $base;
+        }
+        if ($databaseReservedLock) {
+            $base['reason'] = 'database_has_reserved_lock';
+            return $base;
+        }
+
+        try {
+            $header = SQLiteRollbackJournalHeader::parse($bytes);
+        } catch (\InvalidArgumentException) {
+            $base['reason'] = 'invalid_journal_header';
+            return $base;
+        }
+
+        $base['header_valid'] = true;
+        $base['page_count'] = $header->pageCount;
+        $base['initial_database_page_count'] = $header->initialDatabasePageCount;
+        $base['requires_super_journal'] = $requiresSuperJournal;
+
+        if ($base['requires_super_journal'] && $superJournalExists !== true) {
+            $base['reason'] = $superJournalExists === false ? 'missing_super_journal' : 'super_journal_status_unknown';
+            return $base;
+        }
+
+        $base['hot'] = true;
+        $base['reason'] = 'hot_journal_recovery_required';
+
+        return $base;
+    }
+
     public static function pageChecksum(string $pageImage, int $nonce): int
     {
         $checksum = $nonce & 0xffffffff;

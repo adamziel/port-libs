@@ -116700,8 +116700,42 @@ Runtime and verification evidence:
 Decision: proceed to serialized no-argument root harness from the clean candidate snapshot, then commit if root passes. Dashboard publication should run next after the accepted source moves.
 
 Root result:
+- Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 28234 assertions, 0 failures`.
+
+Cleanup:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T185740Z` still had modified lane files after acceptance, so it was preserved as cleanup debt rather than removed.
+- Accepted ready/patch/metadata artifacts were removed after the commit was safely published to `refs/heads/main`.
+
+Root result:
 - Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 28207 assertions, 0 failures`.
 
 Cleanup:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T184738Z` still had modified lane files after acceptance, so it was preserved as cleanup debt rather than removed.
 - Accepted ready/patch/metadata artifacts were removed after the commit was safely published to `refs/heads/main`.
+
+## Integration accepted - libsqlite rollback hot journal admission - 2026-05-26T19:04:48Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T185740Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `6fb44e64f2d33ded673e2b9d06cd8dadfe50f011` (`Integrate libsqlite numeric aggregate DISTINCT`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `6fb44e64f2d33ded673e2b9d06cd8dadfe50f011`, generated `2026-05-26 19:00:27 UTC`, dashboard commit `5f891d44367764e31a5be252d2b29d3f3295e15b`; guard was open.
+
+Candidate evidence:
+- Chosen from a bounded recent libsqlite sample because it adds native rollback behavior, 27 focused assertions, a WordPress rollback smoke update, `phpPass` `533 -> 534`, and mapped coverage `370 -> 371`.
+- Marker base was older (`a088016f27cb75638f5ff7fa2fa528b86351eede`), but implementation/test/example hunks replayed cleanly onto current `6fb44e64`; only manifest/status/notes were reconciled minimally from current files.
+- The slice adds `SQLiteRollbackJournal::hotJournalCandidate()` for too-small journals, invalid headers, reserved-lock blockers, super-journal requirements, unknown page counts, and recoverable hot-journal admission.
+
+Runtime and verification evidence:
+- `df -Pk /` reported `102071052` KiB available before focused checks, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.48`, below the `25` limit.
+- No exact `php tools/run-tests.php` root harness process was active before focused checks.
+- Focused syntax checks passed for `SQLiteRollbackJournal.php`, `SQLiteHeaderTest.php`, and `wordpress-rollback-journal-option-diagnostics.php`.
+- Manifest/status JSON validation passed.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3162 assertions, 0 failures`.
+- WordPress rollback journal smoke passed and emitted the new `hotJournal` record.
+- `git diff --check -- lanes/libsqlite` passed before the serialized root run.
+
+Decision: proceed to serialized no-argument root harness from the clean candidate snapshot, then commit if root passes. Dashboard publication should run next after the accepted source moves.

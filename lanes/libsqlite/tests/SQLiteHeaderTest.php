@@ -11697,6 +11697,61 @@ SQL;
         $t->same($page, $journal->pageImages()[1]);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(substr_replace($journalBytes, 'X', -1), true));
     },
+    'classifies sqlite rollback hot journal recovery candidates' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $sectorSize = 512;
+        $nonce = 0x41424344;
+        $page = str_repeat('H', $pageSize);
+        $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', 1, $nonce, 2, $sectorSize, $pageSize);
+        $journalBytes = str_pad($header, $sectorSize, "\0")
+            . pack('N', 2) . $page . pack('N', SQLiteRollbackJournal::pageChecksum($page, $nonce));
+
+        $hot = SQLiteRollbackJournal::hotJournalCandidate($journalBytes);
+        $t->same(true, $hot['hot']);
+        $t->same('hot_journal_recovery_required', $hot['reason']);
+        $t->same(true, $hot['header_valid']);
+        $t->same(1, $hot['page_count']);
+        $t->same(2, $hot['initial_database_page_count']);
+        $t->same(false, $hot['requires_super_journal']);
+        $t->same(false, $hot['database_reserved_lock']);
+
+        $locked = SQLiteRollbackJournal::hotJournalCandidate($journalBytes, databaseReservedLock: true);
+        $t->same(false, $locked['hot']);
+        $t->same('database_has_reserved_lock', $locked['reason']);
+        $t->same(false, $locked['header_valid']);
+
+        $short = SQLiteRollbackJournal::hotJournalCandidate(str_repeat("\0", 512));
+        $t->same(false, $short['hot']);
+        $t->same('journal_too_small', $short['reason']);
+
+        $badHeader = SQLiteRollbackJournal::hotJournalCandidate(str_repeat('x', 520));
+        $t->same(false, $badHeader['hot']);
+        $t->same('invalid_journal_header', $badHeader['reason']);
+
+        $unknownCountHeader = SQLiteRollbackJournalHeader::MAGIC . pack('N*', SQLiteRollbackJournalHeader::UNKNOWN_PAGE_COUNT, $nonce, 2, $sectorSize, $pageSize);
+        $unknownCountBytes = str_pad($unknownCountHeader, $sectorSize, "\0")
+            . pack('N', 2) . $page . pack('N', SQLiteRollbackJournal::pageChecksum($page, $nonce));
+        $unknownCount = SQLiteRollbackJournal::hotJournalCandidate($unknownCountBytes);
+        $t->same(true, $unknownCount['hot']);
+        $t->same(SQLiteRollbackJournalHeader::UNKNOWN_PAGE_COUNT, $unknownCount['page_count']);
+        $t->same(false, $unknownCount['requires_super_journal']);
+
+        $unknownSuperJournal = SQLiteRollbackJournal::hotJournalCandidate($unknownCountBytes, requiresSuperJournal: true);
+        $t->same(false, $unknownSuperJournal['hot']);
+        $t->same('super_journal_status_unknown', $unknownSuperJournal['reason']);
+        $t->same(true, $unknownSuperJournal['requires_super_journal']);
+        $t->same(null, $unknownSuperJournal['super_journal_exists']);
+
+        $missingSuperJournal = SQLiteRollbackJournal::hotJournalCandidate($unknownCountBytes, requiresSuperJournal: true, superJournalExists: false);
+        $t->same(false, $missingSuperJournal['hot']);
+        $t->same('missing_super_journal', $missingSuperJournal['reason']);
+        $t->same(false, $missingSuperJournal['super_journal_exists']);
+
+        $presentSuperJournal = SQLiteRollbackJournal::hotJournalCandidate($unknownCountBytes, requiresSuperJournal: true, superJournalExists: true);
+        $t->same(true, $presentSuperJournal['hot']);
+        $t->same('hot_journal_recovery_required', $presentSuperJournal['reason']);
+        $t->same(true, $presentSuperJournal['super_journal_exists']);
+    },
     'tracks sqlite savepoint rollback and release page diagnostics' => static function (TestRunner $t): void {
         $stack = new SQLiteSavepointStack();
 
