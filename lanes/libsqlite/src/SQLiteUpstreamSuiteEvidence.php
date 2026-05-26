@@ -76,6 +76,62 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function runnerCoverageAudit(): array
+    {
+        $denominator = $this->manifest['benchmarkDenominator'] ?? [];
+        $runner = is_array($denominator) && is_array($denominator['runnerStatus'] ?? null)
+            ? $denominator['runnerStatus']
+            : [];
+        $inventory = is_array($denominator) && is_array($denominator['inventory'] ?? null)
+            ? $denominator['inventory']
+            : [];
+
+        $commands = is_array($runner['commands'] ?? null) ? $runner['commands'] : [];
+        $results = is_array($runner['results'] ?? null) ? $runner['results'] : [];
+        $focusedResults = is_array($runner['focusedResults'] ?? null) ? $runner['focusedResults'] : [];
+        $fullReleaseStatus = is_array($runner['fullReleaseStatus'] ?? null) ? $runner['fullReleaseStatus'] : [];
+
+        $selectedScripts = [];
+        $patternScripts = [];
+        foreach ($commands as $command) {
+            if (!is_string($command)) {
+                continue;
+            }
+
+            foreach ($this->extractTestScriptTokens($command) as $script) {
+                if (str_contains($script, '*')) {
+                    $patternScripts[$script] = true;
+                    continue;
+                }
+
+                $selectedScripts[$script] = true;
+            }
+        }
+
+        ksort($selectedScripts);
+        ksort($patternScripts);
+
+        return [
+            'executed' => (bool) ($runner['executed'] ?? false),
+            'command_count' => count(array_filter($commands, 'is_string')),
+            'result_count' => count($results),
+            'focused_result_count' => count($focusedResults),
+            'selected_script_count' => count($selectedScripts),
+            'selected_scripts' => array_keys($selectedScripts),
+            'pattern_script_count' => count($patternScripts),
+            'pattern_scripts' => array_keys($patternScripts),
+            'veryquick' => $this->parseVeryquickResult($results['fullVeryquick'] ?? null),
+            'permutation_suites_declared' => (int) ($inventory['permutationSuitesDeclared'] ?? 0),
+            'all_test_suite_runs' => (int) ($inventory['allTestSuiteRuns'] ?? 0),
+            'full_release_executed' => (bool) ($fullReleaseStatus['executed'] ?? false),
+            'full_release_reason' => is_string($fullReleaseStatus['reason'] ?? null) ? $fullReleaseStatus['reason'] : '',
+            'remaining_suite_tiers' => $this->remainingSuiteTiers($fullReleaseStatus),
+        ];
+    }
+
+    /**
      * @return array{scripts: int, tests: int, errors: int}
      */
     private function parseVeryquickResult(mixed $result): array
@@ -92,6 +148,35 @@ final class SQLiteUpstreamSuiteEvidence
             'scripts' => (int) $matches[1],
             'errors' => (int) $matches[2],
             'tests' => (int) $matches[3],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractTestScriptTokens(string $command): array
+    {
+        if (preg_match_all('/(?<![A-Za-z0-9_.\/-])([A-Za-z0-9_.*?-]+\.test)(?![A-Za-z0-9_.-])/', $command, $matches) < 1) {
+            return [];
+        }
+
+        return array_values(array_unique($matches[1]));
+    }
+
+    /**
+     * @param array<string, mixed> $fullReleaseStatus
+     * @return list<string>
+     */
+    private function remainingSuiteTiers(array $fullReleaseStatus): array
+    {
+        if (($fullReleaseStatus['executed'] ?? false) === true) {
+            return [];
+        }
+
+        return [
+            'full release/all permutations',
+            'multi-configuration make test suites',
+            'long-running stress/permutation tiers beyond veryquick',
         ];
     }
 

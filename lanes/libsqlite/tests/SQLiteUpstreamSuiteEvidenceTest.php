@@ -62,6 +62,32 @@ return [
         $t->same(false, $matrix['wal-pager']['runnable']);
         $t->contains('upstream cache/testfixture not hydrated in this worktree', (string) $matrix['btree-delete']['skip_reason']);
     },
+    'audits recorded upstream runner coverage and remaining suite tiers' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $audit = $evidence->runnerCoverageAudit();
+
+        $t->same(true, $audit['executed']);
+        $t->true($audit['command_count'] >= 80, 'Expected accepted upstream command history to be counted');
+        $t->true($audit['result_count'] >= 80, 'Expected accepted upstream result history to be counted');
+        $t->true($audit['focused_result_count'] >= 20, 'Expected focused result notes to be counted separately');
+        $t->true($audit['selected_script_count'] >= 40, 'Expected concrete upstream .test selections to be extracted');
+        $t->true(in_array('json101.test', $audit['selected_scripts'], true), 'Expected json101.test in recorded upstream selections');
+        $t->true(in_array('btree01.test', $audit['selected_scripts'], true), 'Expected btree01.test in recorded upstream selections');
+        $t->true(in_array('btree*.test', $audit['pattern_scripts'], true), 'Expected btree*.test in recorded upstream pattern selections');
+        $t->true(in_array('pager*.test', $audit['pattern_scripts'], true), 'Expected pager*.test in recorded upstream pattern selections');
+        $t->same(1235, $audit['veryquick']['scripts']);
+        $t->same(329670, $audit['veryquick']['tests']);
+        $t->same(0, $audit['veryquick']['errors']);
+        $t->same(58, $audit['permutation_suites_declared']);
+        $t->same(28, $audit['all_test_suite_runs']);
+        $t->same(false, $audit['full_release_executed']);
+        $t->contains('not run', $audit['full_release_reason']);
+        $t->same([
+            'full release/all permutations',
+            'multi-configuration make test suites',
+            'long-running stress/permutation tiers beyond veryquick',
+        ], $audit['remaining_suite_tiers']);
+    },
     'rejects unsafe focused upstream subset script names' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
 

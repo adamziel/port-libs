@@ -1,5 +1,55 @@
 # Integration Status
 
+## Accepted - libsqlite upstream runner coverage audit - 2026-05-26 02:45 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T023352Z.ready`.
+
+Accepted source base: `a34a6920bdaa4ed5df8d617151cfbc43bf6700a1`
+(`Integrate libsqlite upstream subset run records`).
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=a34a6920bdaa4ed5df8d617151cfbc43bf6700a1`, matching current
+  `main`.
+- Live dashboard commit reported
+  `25ce993a3478b48d7a4d13b32c3f9bc05f00edfd`.
+
+Resource and process gate evidence:
+- Before focused verification, `df -Pk /` reported `86000888` KiB available,
+  load was `2.98`, and `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- Before serialized root verification, `df -Pk /` reported `86459532` KiB
+  available, load was `2.59`, and the exact no-argument root harness gate was
+  empty.
+
+Candidate evidence:
+- The marker contained required `lane=libsqlite`, `patch=`, and `metadata=`
+  fields.
+- Patch sha256 matched the marker:
+  `7d896c067710e1aa2593b6d99fbe85fdf91ef2bbbb4fb73a2d4d234ca077c7a0`.
+- Worker log showed focused checks completed and root harness intentionally not
+  run by the isolated worker.
+- The marker base `f944979142592720a72fddfed1760fe001e1793a` was stale behind
+  current `main`; code/test hunks applied cleanly with `git apply --3way`, and
+  only libsqlite status/notes were bounded-merged to preserve accepted focused
+  subset run-record evidence.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 67 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --check --cached -- lanes/libsqlite` and
+  `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 26878 assertions, 0 failures`.
+
+Decision: accepted after bounded stale metadata merge. Dashboard publication
+should run next after this source commit reaches `main`.
+
 ## Accepted - libsqlite JSON tree quoted selected roots - 2026-05-26 02:29 UTC
 
 Accepted marker:
