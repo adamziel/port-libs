@@ -2610,6 +2610,26 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, UTF-8 helpers when available, and
 existing expression-semantics helpers.
 
+## Core Scalar Native UTF-8 Text Unit Scenario
+
+Native SQL execution helpers no longer need mbstring to preserve SQLite UTF-8
+TEXT character semantics for bounded scalar diagnostics. The
+`examples/wordpress-core-scalar-option-default.php` smoke now reports
+`nativeUtf8TextUnits` for a mixed emoji/accent/CJK option value, proving
+character `length()`, `substr()`, and `instr()` positions remain stable on
+hosts without mbstring while BLOB diagnostics still use byte positions.
+
+Status delta 2026-05-26 isolated dependency-suite scalar slice: updated
+`SQLiteCoreScalarFunction` to split valid UTF-8 text with lane-local PCRE
+helpers for `length()`, `substr()`/`substring()`, and `instr()`, added focused
+multibyte assertions, and extended the WordPress scalar smoke. This stays a
+bounded scalar helper, not a full SELECT expression evaluator.
+
+Dependency closure: no new shared support component is needed; this removes a
+hard mbstring dependency for UTF-8 text units by reusing lane-local scalar
+coercion, PHP PCRE UTF-8 validation/splitting, and existing byte fallback
+behavior.
+
 ## JSON Table BETWEEN Residual Scenario
 
 Local-only WordPress option import tooling can now preflight SQL-style

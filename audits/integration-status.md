@@ -1,5 +1,49 @@
 # Integration Status
 
+## Integration accepted - libsqlite UTF-8 scalar units - 2026-05-26 12:59 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T125135Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Scope:
+- Replaced `mbstring`-dependent `length()`, `substr()` / `substring()`, and `instr()` text handling in `SQLiteCoreScalarFunction` with lane-local UTF-8 unit splitting for valid UTF-8 text.
+- Preserved byte semantics for `SQLiteBlobValue` inputs and malformed byte strings.
+- Added multibyte scalar assertions and updated the WordPress scalar smoke/status/manifest notes to record the no-hard-`mbstring` dependency closure.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before this pass was `a24d7d4a52ab8bdfa36c97dae60d8a943ff6362d` (`Integrate libsqlite focused repro file decision`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit` `a24d7d4a52ab8bdfa36c97dae60d8a943ff6362d`, so the live dashboard was not behind the accepted source head.
+- `gh api repos/adamziel/port-libs/pages` reported legacy Pages source `gh-pages` `/` and site status `built`.
+- `gh api repos/adamziel/port-libs/pages/builds/latest` reported latest build commit `dffc56be1645ebc25137f6c7203ec931f4632e44`, status `built`, created `2026-05-26T12:43:35Z`, updated `2026-05-26T12:53:38Z`, with no error message.
+- All existing Pages outage override files were already consumed; no override was used.
+
+Candidate evidence:
+- Marker contained complete `lane=libsqlite`, `patch=...`, `metadata=...`, and `log=...` fields.
+- Marker `base_sha` matched current accepted source `a24d7d4a52ab8bdfa36c97dae60d8a943ff6362d`.
+- Patch SHA-256 matched marker value `3f439d59498939536162fd31b7083ab8274b5d72a23a546860f06cfcaf7f1396`.
+- Patch applied cleanly in detached worktree `.tmux-team/tmp/clean-integrator-worktrees/libsqlite-deps-20260526T125135Z` created from current `main`.
+
+Runtime gate evidence:
+- Before focused checks, `df -Pk /` reported `129987712` KiB available and `/proc/loadavg` one-minute load was `1.67`; no exact no-argument root harness process was running.
+- Before root, `df -Pk /` reported `129986848` KiB available and `/proc/loadavg` one-minute load was `1.30`; no exact no-argument root harness process was running.
+
+Verification:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- Manifest/status JSON validation passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Focused `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 2755 assertions, 0 failures`.
+- Focused `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php --self-test` passed and reported `nativeUtf8TextUnits`.
+- Serialized clean-candidate root `php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 27628 assertions, 0 failures`.
+
+Ready queue evidence:
+- Ready-marker count before final publication was `5279`; libsqlite ready-marker count was `2011`; Dolt ready-marker count was `172`; stale rework marker count was `305`.
+- Dolt remained parked, and no non-libsqlite marker was considered while the libsqlite-only intake hold remains active.
+
+Decision: accepted. After commit publication to `main`, remove the accepted marker, patch, metadata, and inactive worker worktree only. Dashboard publication should run next because the accepted source head moved.
+
 ## Clean-patch intake accepted - libsqlite upstream runner failure diagnostics - 2026-05-26 12:05 UTC
 
 Accepted exactly one current-base libsqlite marker under the narrow

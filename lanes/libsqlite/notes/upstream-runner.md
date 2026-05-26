@@ -8454,6 +8454,37 @@ git diff --check -- lanes/libsqlite
 
 Dependency closure: no new support component is needed. This reuses lane-local WAL parsing, checksum validation, checkpoint overlay, SQLite header parsing, and WordPress fixture helpers without activating shared support-library work.
 
+## Focused Native Mapping: Core Scalar Native UTF-8 Text Units
+
+This isolated dependency-suite micro-slice closes the remaining mbstring edge
+for bounded core scalar text dispatch. `length()`, `substr()`/`substring()`,
+and `instr()` now use lane-local UTF-8 codepoint splitting for valid UTF-8
+TEXT even when mbstring is absent, while BLOB inputs keep byte semantics and
+malformed byte strings fall back to byte units.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional dependency-closure scalar evidence row while preserving the current
+accepted static SQLite upstream denominator. This isolated worktree did not
+contain the hydrated upstream cache, so no fresh upstream `testfixture`, `make
+test`, or `mptest` run was started.
+
+Verification run 2026-05-26T13:10Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php --self-test
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This removes the hard
+mbstring dependency for UTF-8 character counting, slicing, and search positions
+inside the bounded scalar helper by reusing PHP PCRE UTF-8 validation/splitting
+and existing byte fallback behavior.
+
 ## Focused Native Mapping: Core Scalar Min/Max And Text Helpers
 
 This isolated dependency-suite micro-slice closes a bounded SQL expression

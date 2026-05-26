@@ -46,5 +46,10 @@ echo json_encode([
     'functionName' => $functionName,
     'arguments' => array_map(static fn (mixed $value): mixed => $value instanceof SQLiteBlobValue ? 'blob:' . bin2hex($value->bytes) : $value, $typedArguments),
     'result' => $result instanceof SQLiteBlobValue ? 'blob:' . bin2hex($result->bytes) : $result,
-    'wordpressUse' => 'Preview core SQLite scalar defaulting, quoting, typing, numeric coercion, min/max selection, ASCII case folding, length checks, substr/substring slicing, trim/replace cleanup, instr matching, and hex/unhex/char/unicode/octet_length diagnostics for copied wp_options values before local import or repair.',
+    'nativeUtf8TextUnits' => [
+        'length' => SQLiteCoreScalarFunction::sqlFunctionArguments('length', ['💡éx中']),
+        'substring' => SQLiteCoreScalarFunction::sqlFunctionArguments('substr', ['💡éx中', 2, 2]),
+        'instr' => SQLiteCoreScalarFunction::sqlFunctionArguments('instr', ['💡éx中', '中']),
+    ],
+    'wordpressUse' => 'Preview core SQLite scalar defaulting, quoting, typing, numeric coercion, min/max selection, ASCII case folding, UTF-8 character length checks, substr/substring slicing, trim/replace cleanup, instr matching, and hex/unhex/char/unicode/octet_length diagnostics for copied wp_options values before local import or repair without a hard mbstring dependency.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

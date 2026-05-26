@@ -226,12 +226,7 @@ final class SQLiteCoreScalarFunction
             return strlen($arguments[0]->bytes);
         }
         if (is_scalar($arguments[0])) {
-            $value = (string) $arguments[0];
-            if (function_exists('mb_strlen') && function_exists('mb_check_encoding') && mb_check_encoding($value, 'UTF-8')) {
-                return mb_strlen($value, 'UTF-8');
-            }
-
-            return strlen($value);
+            return count(self::splitTextUnits((string) $arguments[0]));
         }
 
         throw new \InvalidArgumentException('SQLite length() argument must be scalar, BLOB, or NULL');
@@ -261,20 +256,12 @@ final class SQLiteCoreScalarFunction
             throw new \InvalidArgumentException("SQLite {$functionName}() first argument must be scalar, BLOB, or NULL");
         }
 
-        $value = (string) $arguments[0];
-        if (function_exists('mb_check_encoding') && function_exists('mb_substr') && function_exists('mb_strlen') && mb_check_encoding($value, 'UTF-8')) {
-            [$offset, $charLength] = self::substringWindow($start, $length, mb_strlen($value, 'UTF-8'));
+        $units = self::splitTextUnits((string) $arguments[0]);
+        [$offset, $byteLength] = self::substringWindow($start, $length, count($units));
 
-            return $charLength === null
-                ? mb_substr($value, $offset, null, 'UTF-8')
-                : mb_substr($value, $offset, $charLength, 'UTF-8');
-        }
-
-        [$offset, $byteLength] = self::substringWindow($start, $length, strlen($value));
-
-        return $byteLength === null
-            ? substr($value, $offset)
-            : substr($value, $offset, $byteLength);
+        return implode('', $byteLength === null
+            ? array_slice($units, $offset)
+            : array_slice($units, $offset, $byteLength));
     }
 
     /**
@@ -354,15 +341,15 @@ final class SQLiteCoreScalarFunction
             return 1;
         }
 
-        if (function_exists('mb_check_encoding') && function_exists('mb_strpos') && mb_check_encoding($haystack, 'UTF-8') && mb_check_encoding($needle, 'UTF-8')) {
-            $position = mb_strpos($haystack, $needle, 0, 'UTF-8');
-
-            return $position === false ? 0 : $position + 1;
+        $position = strpos($haystack, $needle);
+        if ($position === false) {
+            return 0;
+        }
+        if (self::isUtf8Text($haystack) && self::isUtf8Text($needle)) {
+            return count(self::splitTextUnits(substr($haystack, 0, $position))) + 1;
         }
 
-        $position = strpos($haystack, $needle);
-
-        return $position === false ? 0 : $position + 1;
+        return $position + 1;
     }
 
     /**
@@ -585,7 +572,7 @@ final class SQLiteCoreScalarFunction
      */
     private static function splitTextUnits(string $value): array
     {
-        if (function_exists('mb_check_encoding') && function_exists('preg_split') && mb_check_encoding($value, 'UTF-8')) {
+        if (self::isUtf8Text($value)) {
             /** @var list<string>|false $units */
             $units = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
             if ($units !== false) {
@@ -594,6 +581,11 @@ final class SQLiteCoreScalarFunction
         }
 
         return str_split($value);
+    }
+
+    private static function isUtf8Text(string $value): bool
+    {
+        return $value === '' || preg_match('//u', $value) === 1;
     }
 
     private static function formatFloat(float $value): string
