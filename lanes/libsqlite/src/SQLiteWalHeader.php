@@ -53,6 +53,11 @@ final class SQLiteWalHeader
         return $this->magic === self::MAGIC_BIG_ENDIAN ? 'big-endian' : 'little-endian';
     }
 
+    public function usesLittleEndianChecksums(): bool
+    {
+        return $this->magic === self::MAGIC_LITTLE_ENDIAN;
+    }
+
     /**
      * @return array<string, int|string>
      */

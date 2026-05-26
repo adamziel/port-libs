@@ -9731,9 +9731,48 @@ return [
         $t->same([
             'header' => $wal->header->toArray(),
             'frame_count' => 3,
+            'checksums_validated' => false,
             'committed_page_numbers' => [1, 2],
             'last_commit_frame' => $lastCommitFrame->toArray(),
         ], $wal->toArray());
+    },
+    'validates sqlite wal header and frame checksums when requested' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x01020304;
+        $salt2 = 0x05060708;
+        $headerPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 9, $salt1, $salt2);
+        $headerChecksum = SQLiteWal::checksumPair($headerPrefix, false);
+        $walBytes = $headerPrefix . pack('N*', $headerChecksum[0], $headerChecksum[1]);
+        $checksumSeed = $headerChecksum;
+
+        $appendFrame = static function (string $walBytes, array &$checksumSeed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $checksumSeed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $checksumSeed[0], $checksumSeed[1]);
+
+            return $walBytes . $framePrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]) . $pageImage;
+        };
+
+        $pageOne = $makeFirstPage($pageSize, 2);
+        $pageTwo = str_repeat('C', $pageSize);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 1, 0, $pageOne);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 2, $pageTwo);
+
+        $wal = SQLiteWal::parse($walBytes, null, true);
+
+        $t->same(true, $wal->checksumsValidated);
+        $t->same(true, $wal->toArray()['checksums_validated']);
+        $t->same($headerChecksum[0], $wal->header->checksum1);
+        $t->same($headerChecksum[1], $wal->header->checksum2);
+        $t->same($checksumSeed[0], $wal->frames[1]->checksum1);
+        $t->same($checksumSeed[1], $wal->frames[1]->checksum2);
+        $t->same([1, 2], array_keys($wal->pageImagesThroughLastCommit()));
+        $t->same($pageTwo, $wal->pageImagesThroughLastCommit()[2]);
+
+        $badHeaderChecksum = substr_replace($walBytes, pack('N', $headerChecksum[0] ^ 1), 24, 4);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse($badHeaderChecksum, null, true));
+
+        $badFrameChecksum = substr_replace($walBytes, pack('N', $checksumSeed[0] ^ 1), 32 + 24 + $pageSize + 16, 4);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse($badFrameChecksum, null, true));
     },
     'rejects malformed sqlite wal files' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(str_repeat("\0", 31)));

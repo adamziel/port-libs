@@ -47,12 +47,21 @@ $optionPayload = SQLiteRecord::encode([1, 'siteurl', 'https://example.test/from-
 $optionCell = SQLiteTableLeafCell::encode(1, $optionPayload, $pageSize);
 $optionPage = SQLiteTableLeafPage::assemble([$optionCell], $pageSize);
 
-$walBytes = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, $salt1, $salt2, 0, 0)
-    . pack('N*', 1, 0, $salt1, $salt2, 0, 0) . $schemaPage
-    . pack('N*', 2, 2, $salt1, $salt2, 0, 0) . $optionPage
-    . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . str_repeat('P', $pageSize);
+$walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, $salt1, $salt2);
+$checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+$walBytes = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+$appendFrame = static function (string $walBytes, array &$checksumSeed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+    $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+    $checksumSeed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $checksumSeed[0], $checksumSeed[1]);
 
-$wal = SQLiteWal::parse($walBytes);
+    return $walBytes . $framePrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]) . $pageImage;
+};
+
+$walBytes = $appendFrame($walBytes, $checksumSeed, 1, 0, $schemaPage);
+$walBytes = $appendFrame($walBytes, $checksumSeed, 2, 2, $optionPage);
+$walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, str_repeat('P', $pageSize));
+
+$wal = SQLiteWal::parse($walBytes, null, true);
 $database = SQLiteDatabase::fromBytes(implode('', $wal->pageImagesThroughLastCommit()));
 
 echo json_encode([

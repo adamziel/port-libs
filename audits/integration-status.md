@@ -1,5 +1,37 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite WAL checksum validation - 2026-05-26 01:00 UTC
+
+Accepted
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T004601Z.ready`
+after a bounded stale metadata merge onto current `main`
+`01a4c17ec4bef6112d752f1ee4eeea025f2c2122`.
+
+Evidence:
+- Dashboard guard was open before processing: live `porting-summary.json`
+  reported source commit `01a4c17ec4bef6112d752f1ee4eeea025f2c2122`,
+  matching current `refs/heads/main`.
+- Resource gates were open before focused and root checks: `/` had at least
+  `91102464` KiB available, load was below `25`, and the exact no-argument
+  root harness gate was empty.
+- Patch sha256 matched the marker:
+  `a6838850bd0ccc30e84b2f970945008714674e811bebf0936ce5c894ad96751f`.
+- The patch was based on `26d058e9911de656d5cdc2bec0e630e06cd3abaa`; code
+  applied cleanly and only libsqlite manifest/status/notes context needed a
+  bounded merge with the already accepted LIKE/GLOB option-name commit.
+- Focused checks passed from the detached clean worktree:
+  `php -l` on changed WAL/test/example files, the WordPress WAL diagnostics
+  smoke with `checksums_validated: true`, JSON manifest/status validation,
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+  (`1 test files, 2310 assertions, 0 failures`), and `git diff --check`.
+- Serialized no-argument root verification passed under
+  `.tmux-team/tmp/clean-integrator-run.lock` with
+  `214 test files, 26730 assertions, 0 failures`.
+
+Decision: accepted. This slice adds optional WAL header/frame checksum
+validation and preserves the non-validating WAL parse path. Dashboard
+publication should run next for the accepted commit.
+
 ## Clean-patch intake accepted - libsqlite LIKE/GLOB option-name patterns - 2026-05-26 00:49 UTC
 
 Accepted `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T004251Z.ready`.

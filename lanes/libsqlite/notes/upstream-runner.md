@@ -6282,13 +6282,51 @@ git diff --check -- lanes/libsqlite
 ```
 
 Result: syntax checks and the WordPress LIKE/GLOB smoke passed. The focused
-test file reaches the new LIKE/GLOB assertions successfully, then remains red
-on a pre-existing accepted-status mismatch: `SQLiteWalHeader`, `SQLiteWalFrame`,
-and `SQLiteWal` are imported and tested near the end of
-`SQLiteHeaderTest.php`, but those classes are absent from this worktree's
-`lanes/libsqlite/src` directory. Root aggregate harness was not assigned for
-this isolated micro-slice.
+test file reaches the new LIKE/GLOB assertions successfully; later root
+acceptance restored the WAL classes that were missing in that isolated worktree.
+Root aggregate harness was not assigned for this isolated micro-slice.
 
 Dependency closure: no new support component is needed. The slice reuses
 lane-local UTF-8 text splitting, ASCII case folding, decoded WordPress options,
 and table traversal; it counts no shared support-library progress.
+
+## Focused Native Mapping: WAL Header and Frame Checksums
+
+Date: 2026-05-26
+
+This isolated micro-slice extends the read-only SQLite WAL parser with explicit
+checksum verification. Callers can request validation of the 32-byte WAL header
+checksum and each frame checksum using the WAL byte order, seeded across header
+and frame content in SQLite's rolling checksum shape. The parser rejects header
+checksum mismatches and per-frame checksum mismatches while preserving the
+accepted non-validating parse path for existing diagnostics.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice is mapped against the existing static focused WAL inventory
+(`focusedWalTestScripts`: 42) and records one native WAL checksum mapping unit.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/src/SQLiteWalHeader.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused PHP passed 1 selected test file, 2310 assertions, and 0
+failures. Root aggregate harness was not assigned for this isolated
+micro-slice.
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local binary parsing, WAL frame assembly/inspection, table/page assembly,
+`SQLiteDatabase` traversal, and WordPress option decoding; it counts no shared
+support-library progress.

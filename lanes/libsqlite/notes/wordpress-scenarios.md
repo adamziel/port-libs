@@ -1932,8 +1932,8 @@ images through the last commit frame, and reads pending `siteurl`/`blogname`
 options without requiring the SQLite extension.
 
 This is intentionally not a full checkpoint or recovery engine yet. WAL
-checksum validation, WAL-index/shared-memory state, checkpoint writing,
-rollback journals, and savepoint behavior remain separate slices.
+WAL-index/shared-memory state, checkpoint writing, rollback journals, and
+savepoint behavior remain separate slices.
 
 ## LIKE/GLOB Option-Name Matching Scenario
 
@@ -1948,3 +1948,12 @@ This is intentionally a bounded decoded-row helper, not a full SQL WHERE
 executor. Planner pushdown for `LIKE` prefix ranges, configurable
 `PRAGMA case_sensitive_like`, regexp extension callbacks, and broader SQL
 expression dispatch remain separate slices.
+
+## WAL Checksum Option Diagnostics
+
+Native WAL inspection now validates WAL header and frame checksums when a
+caller requests strict parsing. The
+`examples/wordpress-wal-option-frame-diagnostics.php` smoke builds a checksummed
+WAL fixture, parses it with checksum validation enabled, extracts page images
+through the last commit frame, and reads the pending `siteurl` option without
+requiring the SQLite extension.
