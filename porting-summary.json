@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 00:08:13 UTC",
-    "sourceCommit": "1ceaa96a9fbe81310704b6bd87e1b84c11151f2a",
-    "sourceCommitShort": "1ceaa96a9fbe",
+    "generated": "2026-05-26 00:12:09 UTC",
+    "sourceCommit": "c01835d860dd9eb9e94d255436da0ed142303a41",
+    "sourceCommitShort": "c01835d860dd",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "8586d22abae84d4680f2ca646f0431e2ba87b08c",
-    "dashboardCommitShort": "8586d22abae8",
+    "dashboardCommit": "3c209c62a4086fca079159a9b216d960285a81f7",
+    "dashboardCommitShort": "3c209c62a408",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -171,7 +171,7 @@
             "php": "511 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "cloned static inventory plus bounded upstream Go runner...",
-            "audit": "verified 2026-05-25 isolated closure-refi...",
+            "audit": "verified 2026-05-26 isolated continuous-d...",
             "currentWork": "Native PHP maps OneDrive CleanUp/no-versions command and RC wiring locally on top of acce...",
             "nextTarget": "Map another bounded credential-free OneDrive/provider lifecycle cluster, such as a featur...",
             "blocker": "No rclone-local PHP blocker after this slice.",
