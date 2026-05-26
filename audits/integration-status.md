@@ -115052,3 +115052,37 @@ Ready queue evidence:
 - Non-libsqlite markers were ignored under the active libsqlite-only intake priority.
 
 Dashboard publication should run next because accepted source moved while live Pages still served stale source `2464928fd3673d823de3ec22a6e1c6c4f38b6d85` before acceptance.
+## Integration accepted - libsqlite focused repro file decision - 2026-05-26T12:50:28Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T124118Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Pages-outage override evidence:
+- Used the unconsumed `.tmux-team/tmp/pages-outage-integration-override-20260526T1246Z.md` targeted exception.
+- Target marker matched the override `target_ready` field and declared `lane=libsqlite`, `base_sha=8ab0375ac9e72382750dc8fb8f4b96a2913e777a`, and patch sha256 `5759fb473c57706327763d0e99161ae641382bc2c9260e1656753599df7421ae`.
+- Current accepted source before integration was `8ab0375ac9e72382750dc8fb8f4b96a2913e777a` (`Integrate libsqlite focused repro gate`).
+- Cache-busted live Pages JSON still reported stale `sourceCommit` `2464928fd3673d823de3ec22a6e1c6c4f38b6d85`.
+- GitHub `main` at `f970fda0e231d10bb79a55d66c580b7ef760c365` and legacy `gh-pages` at `dffc56be1645ebc25137f6c7203ec931f4632e44` both contained `porting-summary.json` for source `8ab0375ac9e72382750dc8fb8f4b96a2913e777a`.
+- `gh api repos/adamziel/port-libs/pages` reported legacy source `gh-pages` `/` with site status `errored`; latest Pages build `1015909108` targeted `dffc56be1645ebc25137f6c7203ec931f4632e44` and was still `building`.
+- GitHub Status summary still showed degraded Actions/Pages incident evidence during the pass.
+
+Scope:
+- Patch was lane-local to `lanes/libsqlite/**`.
+- It adds `SQLiteUpstreamSuiteEvidence::focusedFailureReproGateFromFiles()` and records the accepted-HEAD focused `ext/fts5/test/fts5aux.test` repro artifact as `focused-repro-passed` with `1` test and `0` errors.
+- This is rerun-decision evidence only; full SQLite `release`/`all` parity remains uncounted.
+
+Verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed.
+- Manifest/status JSON validation: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed, `1 test files, 453 assertions, 0 failures`.
+- Focused artifact smoke: `focused-repro-passed tests=1 errors=0 acceptance=accepted-for-lane-evidence`.
+- Serialized clean-candidate root under `.tmux-team/tmp/clean-integrator-run.lock`: passed, `215 test files, 27624 assertions, 0 failures`.
+
+Runtime gates:
+- Before focused checks, `df -Pk /` reported `131168132` KiB available, `/proc/loadavg` was `1.19`, and no exact no-argument root harness was active.
+- Before the serialized root run, `df -Pk /` reported `131111336` KiB available, `/proc/loadavg` was `1.15`, and no exact no-argument root harness was active.
+
+Decision: accepted. Remaining ready-marker count at decision time was `5259`. Dashboard publication should run next because the accepted source moved while live Pages was still stale under the one-use external outage override.

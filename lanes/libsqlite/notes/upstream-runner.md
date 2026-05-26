@@ -1,5 +1,45 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Focused Repro File Decision
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::focusedFailureReproGateFromFiles()`. The helper
+loads a bounded focused repro audit/log artifact from explicit paths, preserves
+missing files as blocked evidence, then delegates to the accepted HEAD and
+SQLite manifest provenance gate before any focused repro decision is recorded.
+
+The completed focused repro artifact is:
+
+```text
+audit: /home/claude/port-libs/audits/sqlite-fts5aux-repro-20260526T123916Z.md
+log: /home/claude/port-libs/.tmux-team/logs/sqlite-fts5aux-repro-20260526T123916Z.log
+repository HEAD: 8ab0375ac9e72382750dc8fb8f4b96a2913e777a
+script: ext/fts5/test/fts5aux.test
+result: 0 errors out of 1 tests
+```
+
+This does not count as release/all parity. It only changes the next runner
+decision from "run or parse the focused repro" to "make a supervisor-approved
+sanitizer/transient-failure decision before another guarded release/all attempt
+is counted."
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'require "lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php"; $e=PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence::fromManifestPath("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"); $g=$e->focusedFailureReproGateFromFiles(["category"=>"upstream-runtime-environment","script"=>"ext/fts5/test/fts5aux.test","case"=>"fts5aux-3.1"], "8ab0375ac9e72382750dc8fb8f4b96a2913e777a", "/home/claude/port-libs/audits/sqlite-fts5aux-repro-20260526T123916Z.md", "/home/claude/port-libs/.tmux-team/logs/sqlite-fts5aux-repro-20260526T123916Z.log", "/home/claude/port-libs"); echo $g["status"]." tests=".$g["artifact"]["results"]["tests"]." errors=".$g["artifact"]["results"]["errors"]."\n";'
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+guarded audit/log artifact parsing, accepted-HEAD provenance, and SQLite
+manifest UUID checks only.
+
 ## Focused Native Mapping: Failed-Script Repro Gate
 
 Date: 2026-05-26

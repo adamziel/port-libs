@@ -981,6 +981,65 @@ MD;
         $t->contains('wait for the guarded bounded-runner audit/log artifacts', $record['next_gate']);
         $t->contains('no new support component needed', $record['dependency_closure']);
     },
+    'parses a focused fts5aux repro decision from bounded runner files' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-focused-fts5aux-repro-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+        $auditPath = $root . '/sqlite-fts5aux-repro.md';
+        $logPath = $root . '/sqlite-fts5aux-repro.log';
+        file_put_contents($auditPath, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-fts5aux-repro-20260526T123916Z
+
+- Repository HEAD: `8ab0375ac9e72382750dc8fb8f4b96a2913e777a`
+- Scratch: `/tmp/sqlite-fts5aux-repro-20260526T123916Z`
+- Log: `/tmp/sqlite-fts5aux-repro-20260526T123916Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `180`
+- Patterns: `ext/fts5/test/fts5aux.test`
+- Exit: `0`
+- Elapsed seconds: `0`
+- Parsed summary: `0 errors out of 1 tests`
+- Parsed errors: `0`
+- Parsed tests: `1`
+- Runner time: `unknown`
+MD);
+        file_put_contents($logPath, "0 errors out of 1 tests in 00:00\n");
+        $blocker = [
+            'category' => 'upstream-runtime-environment',
+            'script' => 'ext/fts5/test/fts5aux.test',
+            'case' => 'fts5aux-3.1',
+        ];
+
+        try {
+            $gate = $evidence->focusedFailureReproGateFromFiles(
+                $blocker,
+                '8ab0375ac9e72382750dc8fb8f4b96a2913e777a',
+                $auditPath,
+                $logPath,
+                dirname(__DIR__, 3)
+            );
+
+            $t->same('focused-repro-passed', $gate['status']);
+            $t->same(true, $gate['artifact_files_ready']);
+            $t->same($auditPath, $gate['audit_path']);
+            $t->same($logPath, $gate['stdout_path']);
+            $t->same(0, $gate['blocker_count']);
+            $t->same('passed', $gate['artifact']['status']);
+            $t->same(1, $gate['artifact']['results']['tests']);
+            $t->same(0, $gate['artifact']['results']['errors']);
+            $t->same('accepted-for-lane-evidence', $gate['acceptance']['status']);
+            $t->contains('transient', $gate['next_gate']);
+            $t->contains('focused repro file gate', $gate['dependency_closure']);
+        } finally {
+            @unlink($auditPath);
+            @unlink($logPath);
+            @rmdir($root);
+        }
+    },
     'gates bounded runner artifacts on accepted checkout and SQLite manifest provenance' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $artifact = [

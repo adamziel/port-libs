@@ -1225,6 +1225,81 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $failureBlocker
+     * @return array<string, mixed>
+     */
+    public function focusedFailureReproGateFromFiles(
+        array $failureBlocker,
+        string $acceptedRepositoryHead,
+        string $auditPath,
+        ?string $stdoutPath = null,
+        ?string $repoRoot = null
+    ): array {
+        $missing = [];
+        if (!is_file($auditPath)) {
+            $missing[] = $auditPath;
+        }
+        if ($stdoutPath !== null && !is_file($stdoutPath)) {
+            $missing[] = $stdoutPath;
+        }
+
+        if ($missing !== []) {
+            $script = is_string($failureBlocker['script'] ?? null) ? $failureBlocker['script'] : '';
+            $case = is_string($failureBlocker['case'] ?? null) ? $failureBlocker['case'] : null;
+            $category = is_string($failureBlocker['category'] ?? null) ? $failureBlocker['category'] : 'upstream-suite-failure';
+
+            return [
+                'status' => 'blocked',
+                'script' => $script,
+                'case' => $case,
+                'category' => $category,
+                'plan' => $script === '' ? null : $this->buildFocusedSubsetPlan([$script], 1, $repoRoot),
+                'artifact' => null,
+                'acceptance' => null,
+                'audit_path' => $auditPath,
+                'stdout_path' => $stdoutPath,
+                'artifact_files_ready' => false,
+                'blocker_count' => 1,
+                'blockers' => [
+                    [
+                        'id' => 'focused-repro-artifact-files-missing',
+                        'evidence' => implode(', ', $missing),
+                    ],
+                ],
+                'next_gate' => 'wait for the focused failed-script repro audit/log files, then parse them before another broad release/all result is counted',
+                'dependency_closure' => 'no new support component needed; focused repro file gate reads bounded runner audit/log files only',
+            ];
+        }
+
+        $auditText = file_get_contents($auditPath);
+        if ($auditText === false) {
+            throw new \RuntimeException("Unable to read SQLite focused repro audit artifact: {$auditPath}");
+        }
+
+        $stdoutText = '';
+        if ($stdoutPath !== null) {
+            $stdoutText = file_get_contents($stdoutPath);
+            if ($stdoutText === false) {
+                throw new \RuntimeException("Unable to read SQLite focused repro stdout/log artifact: {$stdoutPath}");
+            }
+        }
+
+        $gate = $this->focusedFailureReproGate(
+            $failureBlocker,
+            $acceptedRepositoryHead,
+            $repoRoot,
+            $auditText,
+            $stdoutText
+        );
+        $gate['audit_path'] = $auditPath;
+        $gate['stdout_path'] = $stdoutPath;
+        $gate['artifact_files_ready'] = true;
+        $gate['dependency_closure'] = 'no new support component needed; focused repro file gate composes existing artifact parsing, provenance checks, and selected-script planning';
+
+        return $gate;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array
