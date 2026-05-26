@@ -1,5 +1,63 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite upstream runner failure diagnostics - 2026-05-26 12:05 UTC
+
+Accepted exactly one current-base libsqlite marker under the narrow
+Pages-outage integration override
+`.tmux-team/tmp/pages-outage-integration-override-20260526T1202Z.md`.
+
+Marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T115554Z.ready`
+
+Dashboard guard override evidence:
+- Current accepted source before integration:
+  `4af453bfddef5104d28e4dd46479a8ab35beca71`.
+- GitHub `main` at `a4cacd22654ea22b14e2cb1ec575b883429a8b07` and
+  GitHub `gh-pages` at `5487a04d4a59c47747b672f819ca797ea425f2c0` both
+  contained `porting-summary.json` with
+  `sourceCommit=4af453bfddef5104d28e4dd46479a8ab35beca71`.
+- Cache-busted live Pages JSON still reported
+  `sourceCommit=2464928fd3673d823de3ec22a6e1c6c4f38b6d85`, behind current
+  `refs/heads/main`.
+- Pages remained configured for legacy `gh-pages` `/`; latest Pages build
+  `1015847912` targeted `5487a04d4a59c47747b672f819ca797ea425f2c0` and was
+  still `building` from `2026-05-26T11:51:44Z` with no error message, while
+  repository Pages status was `errored`.
+- GitHub Status reported Actions `major_outage`, Pages
+  `degraded_performance`, and an active `Incident with Actions and Pages`.
+
+Scope:
+- Lane-local libsqlite upstream-suite evidence parsing only.
+- Parses completed guarded release-runner `FAILED:`, `OUTPUT:`, and sanitizer
+  `SUMMARY:` blocks into exact failed script diagnostics.
+- Records the completed `libsqlite-release-notty-runner-20260526T102446Z`
+  artifact as failed/blocked on `ext/fts5/test/fts5aux.test`, case
+  `fts5aux-3.1`, with `UndefinedBehaviorSanitizer` at
+  `ext/fts5/fts5_tcl.c:429:59`.
+- Does not count release/all parity and does not start a duplicate broad
+  SQLite runner.
+
+Focused verification from detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`: pass.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: pass.
+- Manifest/status JSON validation: pass.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`:
+  `1 test files, 424 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite`: pass.
+- Artifact smoke reported
+  `blocked-before-run failures=1 script=ext/fts5/test/fts5aux.test case=fts5aux-3.1`.
+
+Serialized root verification:
+- Runtime gate before root: `/` free `87724540` KiB, load `1.38`, and no
+  exact no-argument `php tools/run-tests.php` process active.
+- `php tools/run-tests.php` under
+  `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 27595
+  assertions, 0 failures`.
+
+Decision: accepted. Dashboard publication should run next because the accepted
+source moved while live Pages was still behind under the one-marker outage
+override.
+
 ## Accepted libsqlite scalar encoding helpers - 2026-05-26 11:47 UTC
 
 Accepted marker:

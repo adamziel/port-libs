@@ -1,5 +1,50 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Guarded Release Failure Diagnostics
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds bounded failure-block parsing to
+`SQLiteUpstreamSuiteEvidence::boundedRunnerArtifactRecord()`. Guarded runner
+artifacts that contain `FAILED:`, `OUTPUT:`, and sanitizer `SUMMARY:` lines now
+retain exact failed script diagnostics in the artifact result record instead of
+remaining an exit-1 artifact with only unknown parsed totals.
+
+Focused upstream runner:
+
+No new broad upstream `testfixture`, `make test`, `mptest`, `all`, or
+`release` run was started. The prior guarded release runner has completed:
+
+```text
+libsqlite-release-notty-runner-20260526T102446Z complete
+exit=1
+Parsed summary: unknown
+FAILED: Sanitize ext/fts5/test/fts5aux.test (1)
+case: fts5aux-3.1
+diagnostic: UndefinedBehaviorSanitizer applying non-zero offset 1 to a null pointer
+source: ext/fts5/fts5_tcl.c:429:59
+```
+
+The artifact remains failed/blocked evidence and is not countable release
+parity. The next gate is either a supervisor-approved rerun without the
+sanitizer environment, or a focused `fts5aux` repro record that explains
+whether this is an upstream test-environment blocker before another broad
+release/all attempt.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local manifest metadata and guarded audit/log artifacts only; it performs
+no upstream runner shell-out and counts no shared support-library progress.
+
 ## Focused Native Mapping: Bounded Runner Countability Gate
 
 Date: 2026-05-26

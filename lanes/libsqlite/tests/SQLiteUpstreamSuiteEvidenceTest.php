@@ -847,6 +847,52 @@ MD);
             @rmdir($root);
         }
     },
+    'extracts failed bounded runner script diagnostics from guarded release artifacts' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $audit = <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-notty-runner-20260526T102446Z
+
+- Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- Scratch: `/tmp/sqlite-release-notty-runner-20260526T102446Z`
+- Log: `/tmp/sqlite-release-notty-runner-20260526T102446Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `1`
+- Elapsed seconds: `4113`
+- Parsed summary: ``
+- Parsed errors: `unknown`
+- Parsed tests: `unknown`
+- Runner time: `unknown`
+
+## Tail
+
+```text
+FAILED: Sanitize ext/fts5/test/fts5aux.test (1)
+OUTPUT: fts5aux-1.0... Ok
+fts5aux-3.1.../tmp/src/ext/fts5/fts5_tcl.c:429:59: runtime error: applying non-zero offset 1 to null pointer
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/src/ext/fts5/fts5_tcl.c:429:59
+```
+MD;
+
+        $record = $evidence->boundedRunnerArtifactRecord($audit);
+
+        $t->same('failed', $record['status']);
+        $t->same(1, $record['results']['exit']);
+        $t->same(null, $record['results']['tests']);
+        $t->same(null, $record['results']['errors']);
+        $t->same(1, $record['results']['failure_count']);
+        $t->same('Sanitize ext/fts5/test/fts5aux.test (1)', $record['results']['failures'][0]['label']);
+        $t->same('ext/fts5/test/fts5aux.test', $record['results']['failures'][0]['script']);
+        $t->same('Sanitize', $record['results']['failures'][0]['kind']);
+        $t->same('fts5aux-3.1', $record['results']['failures'][0]['case']);
+        $t->contains('UndefinedBehaviorSanitizer', $record['results']['failures'][0]['diagnostic']);
+        $t->contains('record the failed upstream runner artifact', $record['next_gate']);
+    },
     'keeps missing bounded runner artifact files as a blocked evidence record' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $record = $evidence->boundedRunnerArtifactRecordFromFiles(

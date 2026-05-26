@@ -910,6 +910,7 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         $progress = $this->parseRunnerProgress($stdoutText);
+        $failures = $this->extractRunnerFailures($auditText . "\n" . $stdoutText);
         $activeGate = $processSnapshot === '' ? $this->activeFullSuiteRunnerGate('') : $this->activeFullSuiteRunnerGate($processSnapshot);
 
         $status = 'running-or-incomplete';
@@ -946,12 +947,16 @@ final class SQLiteUpstreamSuiteEvidence
                 'tests' => $tests,
                 'errors' => $errors,
                 'runner_time' => $runnerTime,
+                'failure_count' => count($failures),
+                'failures' => $failures,
             ],
             'progress' => $progress,
             'active_gate' => $activeGate,
             'next_gate' => $status === 'passed'
                 ? 'integrator confirms the artifact checkout matches the accepted base, then records this bounded runner as accepted evidence'
-                : 'wait for the active bounded runner or rerun with a supervisor-approved timeout, then replace incomplete evidence with parsed pass/fail counts',
+                : ($failures === []
+                    ? 'wait for the active bounded runner or rerun with a supervisor-approved timeout, then replace incomplete evidence with parsed pass/fail counts'
+                    : 'record the failed upstream runner artifact with exact failed script diagnostics, then rerun only after the upstream/runtime blocker is resolved'),
             'dependency_closure' => 'no new support component needed; bounded runner artifact records parse guarded audit/stdout text only',
         ];
     }
@@ -1480,6 +1485,50 @@ final class SQLiteUpstreamSuiteEvidence
             'total' => $total,
             'last_line' => $lastLine,
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function extractRunnerFailures(string $text): array
+    {
+        $failures = [];
+        if ($text === '') {
+            return $failures;
+        }
+
+        if (preg_match_all('/FAILED:\s+([^\r\n]+)(.*?)(?=\nFAILED:|\n## |\z)/s', $text, $matches, PREG_SET_ORDER) !== false) {
+            foreach ($matches as $match) {
+                $label = trim($match[1]);
+                $body = $match[2] ?? '';
+                $failure = [
+                    'label' => $label,
+                    'script' => null,
+                    'kind' => null,
+                    'case' => null,
+                    'diagnostic' => null,
+                ];
+
+                if (preg_match('/\b((?:ext\/)?[A-Za-z0-9_\/.-]+\.test)\b/', $label, $scriptMatch) === 1) {
+                    $failure['script'] = $scriptMatch[1];
+                }
+                if (preg_match('/^([A-Za-z0-9_ -]+?)\s+(?:ext\/)?[A-Za-z0-9_\/.-]+\.test\b/', $label, $kindMatch) === 1) {
+                    $failure['kind'] = trim($kindMatch[1]);
+                }
+                if (preg_match_all('/([A-Za-z0-9_\/.-]+-\d+(?:\.\d+)*)\.\.\./', $body, $caseMatches) !== false && $caseMatches[1] !== []) {
+                    $failure['case'] = end($caseMatches[1]);
+                }
+                if (preg_match('/SUMMARY:\s+([^\r\n]+)/', $body, $summaryMatch) === 1) {
+                    $failure['diagnostic'] = trim($summaryMatch[1]);
+                } elseif (preg_match('/runtime error:\s+([^\r\n]+)/', $body, $runtimeMatch) === 1) {
+                    $failure['diagnostic'] = 'runtime error: ' . trim($runtimeMatch[1]);
+                }
+
+                $failures[] = $failure;
+            }
+        }
+
+        return $failures;
     }
 
     /**
