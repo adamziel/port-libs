@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 10:52:25 UTC",
-    "sourceCommit": "74d72463802e3acce87bcf6a46fe48a25d277ab0",
-    "sourceCommitShort": "74d72463802e",
-    "sourceBranch": "main",
-    "dashboardCommit": "33948fe6829f9d1fc6194834a10bdcb4d9b102ef",
-    "dashboardCommitShort": "33948fe6829f",
+    "generated": "2026-05-26 11:49:20 UTC",
+    "sourceCommit": "4af453bfddef5104d28e4dd46479a8ab35beca71",
+    "sourceCommitShort": "4af453bfddef",
+    "sourceBranch": "dashboard-publish",
+    "dashboardCommit": "96b801dbb7861f073bcf977facfcfc415cb175f9",
+    "dashboardCommitShort": "96b801dbb786",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -86,8 +86,8 @@
             "php": "330 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated upstream-suite slice 2026-05-26T...",
-            "currentWork": "Latest upstream-suite work preserves accepted veryquick, runner ledgers, release-tier, co...",
+            "audit": "isolated SQL execution/planner scalar sli...",
+            "currentWork": "Latest scalar work preserves accepted veryquick, runner ledgers, release-tier, command-ma...",
             "nextTarget": "Wait for the active guarded release runner artifact/log to finish, parse it with boundedR...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
