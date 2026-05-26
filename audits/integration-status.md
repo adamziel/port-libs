@@ -1,5 +1,52 @@
 # Integration Status
 
+## Accepted - libsqlite full suite command manifest - 2026-05-26 07:42 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T073600Z.ready`.
+
+Source base and dashboard guard:
+- Candidate declared `base_sha=e3a871e04f0e42708f60491860def3768c4f1145`.
+- Current `refs/heads/main` before acceptance was
+  `e3a871e04f0e42708f60491860def3768c4f1145`.
+- Cache-busted live `porting-summary.json` reported matching
+  `sourceCommit=e3a871e04f0e42708f60491860def3768c4f1145` and dashboard
+  commit `9aea6658515c8af586881855e887f2195873616c`, so the dashboard guard
+  was open.
+
+Resource and process gates before root:
+- `df -Pk /` reported `88346416` KiB available, above the required
+  `86000000` KiB threshold.
+- `/proc/loadavg` first field was `1.91`, below the required `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before starting the
+  no-argument root harness.
+
+Focused verification in detached clean worktree
+`.tmux-team/tmp/clean-integrator-priority-20260526T073600Z`:
+- `git apply --check` passed against current `main`.
+- Patch sha256 matched
+  `cd7ade736cbfc923c260cdfa9c72052cd9a1294675ac587a97c1e8f7c1969db1`.
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php -r` JSON validation passed for
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 296 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 27340 assertions, 0 failures`.
+
+Decision: accepted. This slice adds a libsqlite upstream full-suite command
+manifest builder and tests, while keeping the remaining blockers explicit:
+hydrated upstream cache/build inputs, concrete permutation suite command map,
+and unmapped permutation suites. No new support-library component was needed.
+
+Dashboard publication should run next because `main` moved after the live
+dashboard source reported `e3a871e04f0e42708f60491860def3768c4f1145`.
+
 ## Clean-patch intake accepted - libsqlite rollback journal recovery plan - 2026-05-26 07:40 UTC
 
 Accepted isolated marker

@@ -740,6 +740,87 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function fullSuiteCommandManifest(int $jobs = 1, ?string $repoRoot = null): array
+    {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite full-suite command manifest jobs must be at least 1');
+        }
+
+        $readiness = $this->fullSuiteReadinessRecord($jobs, $repoRoot);
+        $release = $this->releaseTierMatrix($jobs, $repoRoot);
+        $wildcards = $this->wildcardExpansionPlan($repoRoot);
+        $permutations = $this->permutationSuiteMap($repoRoot);
+
+        $commands = [];
+        foreach ($release['tiers'] as $tier) {
+            if (!is_array($tier)) {
+                continue;
+            }
+
+            $commands[] = [
+                'id' => $tier['id'],
+                'kind' => 'upstream-runner',
+                'command' => $tier['command'],
+                'runnable' => (bool) ($tier['runnable'] ?? false),
+                'status' => $tier['status'] ?? 'unknown',
+                'missing' => is_array($tier['missing'] ?? null) ? $tier['missing'] : [],
+                'inventory_units' => (int) ($tier['inventory_units'] ?? 0),
+                'evidence_source' => 'release-tier-matrix',
+            ];
+        }
+
+        $commands[] = [
+            'id' => 'wildcard-expansion',
+            'kind' => 'manifest-normalization',
+            'command' => 'find .upstream-cache/libsqlite/test -maxdepth 1 -name "*.test" | sort',
+            'runnable' => ($wildcards['status'] ?? null) === 'ready',
+            'status' => $wildcards['status'] ?? 'unknown',
+            'missing' => ($wildcards['status'] ?? null) === 'ready' ? [] : ($wildcards['missing_patterns'] ?? []),
+            'inventory_units' => (int) ($wildcards['expanded_script_count'] ?? 0),
+            'evidence_source' => 'wildcard-expansion-plan',
+        ];
+
+        $commands[] = [
+            'id' => 'permutation-suite-map',
+            'kind' => 'manifest-normalization',
+            'command' => 'parse .upstream-cache/libsqlite/test/permutations.test into concrete suite run records',
+            'runnable' => ($permutations['status'] ?? null) === 'ready',
+            'status' => $permutations['status'] ?? 'unknown',
+            'missing' => ($permutations['status'] ?? null) === 'ready'
+                ? []
+                : ($permutations['source_ready'] ?? false ? ['unmapped permutation suites'] : [$permutations['source'] ?? '.upstream-cache/libsqlite/test/permutations.test']),
+            'inventory_units' => (int) ($permutations['mapped_suite_count'] ?? 0),
+            'evidence_source' => 'permutation-suite-map',
+        ];
+
+        $runnable = 0;
+        $blocked = 0;
+        foreach ($commands as $command) {
+            if (($command['runnable'] ?? false) === true) {
+                $runnable++;
+            } else {
+                $blocked++;
+            }
+        }
+
+        return [
+            'status' => $blocked === 0 ? 'ready' : 'blocked',
+            'jobs' => $jobs,
+            'accepted_baseline' => $readiness['accepted'],
+            'command_count' => count($commands),
+            'runnable_command_count' => $runnable,
+            'blocked_command_count' => $blocked,
+            'commands' => $commands,
+            'next_gate' => $blocked === 0
+                ? 'run each command and replace readiness-only records with parsed pass/fail evidence'
+                : $readiness['next_command'],
+            'dependency_closure' => 'no new support component needed; command manifest composes lane-local runner evidence, release tiers, wildcard expansion, and permutation-suite gates',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();

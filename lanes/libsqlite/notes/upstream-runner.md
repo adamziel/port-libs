@@ -7887,3 +7887,35 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 rollback journal parsing, checksum validation, SQLite page headers, and
 WordPress fixture helpers without activating shared support-library work.
+
+## Focused Native Mapping: Full-Suite Command Manifest
+
+This isolated upstream-suite micro-slice adds a machine-readable command
+manifest for the remaining SQLite full-suite gates. The manifest composes the
+accepted veryquick baseline with release/all, declared permutation-suite,
+`make test`, `mptest`, wildcard-expansion, and permutation-map gates, preserving
+the exact runnable/blocked status, missing prerequisites, evidence source, and
+next hydration/build gate for each command without claiming fresh upstream
+execution.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional upstream-suite evidence script while preserving the current accepted
+static SQLite upstream denominator. This isolated worktree did not contain the
+hydrated upstream cache, configured build directory, `testfixture`, `Makefile`,
+`mptest` directory, or `permutations.test`, so no fresh upstream `testfixture`,
+`make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T07:36Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+manifest runner evidence, release-tier planning, wildcard expansion,
+permutation-suite mapping, and SQLite testfixture/make command planning without
+activating shared support-library work.
