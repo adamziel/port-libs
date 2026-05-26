@@ -197,6 +197,125 @@ final class SQLiteSelectResult
         return $result;
     }
 
+    /**
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @param callable(array<string,mixed>,array<string,mixed>):bool|null $predicate
+     * @return list<array<string,mixed>>
+     */
+    public static function innerJoin(array $leftRows, array $rightRows, callable $predicate): array
+    {
+        $result = [];
+        foreach ($leftRows as $left) {
+            self::assertRow($left);
+            foreach ($rightRows as $right) {
+                self::assertRow($right);
+                $matched = $predicate($left, $right);
+                if ($matched !== null && !is_bool($matched)) {
+                    throw new \InvalidArgumentException('SQLite INNER JOIN predicate must return bool or NULL');
+                }
+                if ($matched === true) {
+                    $result[] = self::mergeJoinRows($left, $right);
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @param callable(array<string,mixed>,array<string,mixed>):bool|null $predicate
+     * @param list<string> $rightColumns
+     * @return list<array<string,mixed>>
+     */
+    public static function leftJoin(array $leftRows, array $rightRows, callable $predicate, array $rightColumns): array
+    {
+        if ($rightColumns === []) {
+            throw new \InvalidArgumentException('SQLite LEFT JOIN needs right-side result columns for NULL extension');
+        }
+
+        $nullRight = [];
+        foreach ($rightColumns as $column) {
+            if ($column === '') {
+                throw new \InvalidArgumentException('SQLite LEFT JOIN right-side column names cannot be empty');
+            }
+            $nullRight[$column] = null;
+        }
+
+        $result = [];
+        foreach ($leftRows as $left) {
+            self::assertRow($left);
+            $matchedAny = false;
+            foreach ($rightRows as $right) {
+                self::assertRow($right);
+                $matched = $predicate($left, $right);
+                if ($matched !== null && !is_bool($matched)) {
+                    throw new \InvalidArgumentException('SQLite LEFT JOIN predicate must return bool or NULL');
+                }
+                if ($matched === true) {
+                    $matchedAny = true;
+                    $result[] = self::mergeJoinRows($left, $right);
+                }
+            }
+            if (!$matchedAny) {
+                $result[] = self::mergeJoinRows($left, $nullRight);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @return list<array<string,mixed>>
+     */
+    public static function crossJoin(array $leftRows, array $rightRows): array
+    {
+        return self::innerJoin($leftRows, $rightRows, static fn (): bool => true);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $leftRows
+     * @param list<array<string,mixed>> $rightRows
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    public static function joinUsing(array $leftRows, array $rightRows, array $columns, bool $left = false): array
+    {
+        if ($columns === []) {
+            throw new \InvalidArgumentException('SQLite JOIN USING needs at least one column');
+        }
+        foreach ($columns as $column) {
+            if ($column === '') {
+                throw new \InvalidArgumentException('SQLite JOIN USING column names cannot be empty');
+            }
+        }
+
+        $rightColumns = self::collectColumns($rightRows);
+        $predicate = static function (array $leftRow, array $rightRow) use ($columns): bool {
+            foreach ($columns as $column) {
+                if (!array_key_exists($column, $leftRow) || !array_key_exists($column, $rightRow)) {
+                    throw new \InvalidArgumentException("SQLite JOIN USING row is missing column {$column}");
+                }
+                if ($leftRow[$column] === null || $rightRow[$column] === null) {
+                    return false;
+                }
+                if (self::valueKey($leftRow[$column]) !== self::valueKey($rightRow[$column])) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+
+        return $left
+            ? self::leftJoin($leftRows, $rightRows, $predicate, $rightColumns)
+            : self::innerJoin($leftRows, $rightRows, $predicate);
+    }
+
     private static function valueKey(mixed $value): string
     {
         if ($value === null) {
@@ -247,5 +366,63 @@ final class SQLiteSelectResult
             $value instanceof SQLiteBlobValue => 3,
             default => throw new \InvalidArgumentException('SQLite ORDER BY values must be scalar, BLOB, or NULL'),
         };
+    }
+
+    /**
+     * @param array<string,mixed> $left
+     * @param array<string,mixed> $right
+     * @return array<string,mixed>
+     */
+    private static function mergeJoinRows(array $left, array $right): array
+    {
+        $row = $left;
+        foreach ($right as $column => $value) {
+            if ($column === '') {
+                throw new \InvalidArgumentException('SQLite JOIN result column names cannot be empty');
+            }
+            if (str_starts_with($column, 'right.')) {
+                throw new \InvalidArgumentException("SQLite JOIN result has ambiguous column {$column}");
+            }
+            $target = array_key_exists($column, $row) ? 'right.' . $column : $column;
+            if (array_key_exists($target, $row)) {
+                throw new \InvalidArgumentException("SQLite JOIN result has ambiguous column {$column}");
+            }
+            self::valueKey($value);
+            $row[$target] = $value;
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function assertRow(array $row): void
+    {
+        foreach ($row as $column => $value) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT result rows must have named columns');
+            }
+            self::valueKey($value);
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function collectColumns(array $rows): array
+    {
+        $columns = [];
+        foreach ($rows as $row) {
+            self::assertRow($row);
+            foreach ($row as $column => $unused) {
+                if (!in_array($column, $columns, true)) {
+                    $columns[] = $column;
+                }
+            }
+        }
+
+        return $columns;
     }
 }

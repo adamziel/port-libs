@@ -10205,6 +10205,36 @@ git diff --check -- lanes/libsqlite
 
 Dependency closure: no new support component is needed. This slice reuses
 lane-local SQL value keys, BLOB wrappers, and pure PHP result-array dispatch.
+
+## Focused Native Mapping: SELECT Join Row Production
+
+Date: 2026-05-26
+
+This isolated priority micro-slice maps one additional focused upstream
+behavior row for bounded SELECT row production across INNER JOIN, CROSS JOIN,
+LEFT JOIN, and JOIN USING semantics. It does not launch a fresh upstream
+`testfixture`, `make test`, `mptest`, `all`, or `release` run from this
+worktree.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 390 to 391 by adding `focusedCoreSelectJoinScripts=1`.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectResult.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-join-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-options-join-preview.php
+```
+
+Result: focused PHP passed 1 selected test file, 3835 assertions, and 0
+failures. The WordPress join preview smoke passed and reports copied
+wp_options rows joined to option metadata without requiring ext/sqlite.
+
+Dependency closure: no new support component is needed. This slice reuses
+lane-local SQL value keys, BLOB wrappers, and pure PHP result-array dispatch.
 ### 2026-05-26 JSON table malformed JSONB planner diagnostic slice
 
 This isolated JSON table/window micro-slice maps one additional focused

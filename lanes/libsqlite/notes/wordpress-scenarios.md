@@ -3508,3 +3508,22 @@ includes a malformed JSONB payload that reports `jsonValid=false` and
 Dependency closure: no new support component is needed; this reuses existing
 lane-local JSONB validation, JSON5/text validity, BLOB wrappers, JSON table
 planning, and WordPress smoke infrastructure.
+
+## SELECT Join Option Metadata Preview
+
+Copied WordPress option import previews can now model bounded SQLite join row
+production without requiring the SQLite extension. The new smoke
+`examples/wordpress-options-join-preview.php` reports INNER JOIN public option
+metadata, LEFT JOIN NULL-extension for options without matching metadata,
+JOIN USING option_id equality, and result ordering over the joined rows.
+
+Status delta 2026-05-26 isolated priority SQL join slice: added
+`SQLiteSelectResult::innerJoin()`, `leftJoin()`, `crossJoin()`, and
+`joinUsing()` with focused tests for join order, duplicate right-column naming,
+LEFT JOIN NULL-extension, USING equality with SQL NULL non-matches, BLOB
+equality keys, CROSS JOIN cartesian output, ORDER BY composition, and strict
+predicate/column/type guards. Focused `SQLiteHeaderTest.php` passed at 3835
+assertions, up from the accepted 3787-assertion lane-status baseline.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+SQL value keys, BLOB wrappers, and pure PHP result-array dispatch.

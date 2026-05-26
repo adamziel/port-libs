@@ -13920,4 +13920,146 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn($options, 'option_name', [['bad']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn([['option_name' => []]], 'option_name', ['siteurl']));
     },
+    'produces sqlite select rows for inner cross left and using joins' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('url')],
+            ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('url')],
+            ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('text')],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'autoload' => 'no', 'payload' => null],
+            ['option_id' => 5, 'option_name' => 'orphaned', 'autoload' => null, 'payload' => true],
+        ];
+        $metadata = [
+            ['option_id' => 1, 'meta_key' => 'public', 'meta_value' => '1'],
+            ['option_id' => 1, 'meta_key' => 'network', 'meta_value' => '1'],
+            ['option_id' => 2, 'meta_key' => 'public', 'meta_value' => '0'],
+            ['option_id' => 4, 'meta_key' => 'cache', 'meta_value' => null],
+            ['option_id' => null, 'meta_key' => 'ignored', 'meta_value' => 'null'],
+        ];
+
+        $inner = SQLiteSelectResult::innerJoin(
+            $options,
+            $metadata,
+            static fn (array $option, array $meta): bool => $option['option_id'] === $meta['option_id']
+        );
+        $t->same(4, count($inner));
+        $t->same(['siteurl', 'siteurl', 'home', '_transient_feed'], array_column($inner, 'option_name'));
+        $t->same(['public', 'network', 'public', 'cache'], array_column($inner, 'meta_key'));
+        $t->same([1, 1, 2, 4], array_column($inner, 'option_id'));
+        $t->same([1, 1, 2, 4], array_column($inner, 'right.option_id'));
+        $t->same(['1', '1', '0', null], array_column($inner, 'meta_value'));
+        $t->same(['url', 'url', 'url', null], array_map(
+            static fn (mixed $value): mixed => $value instanceof SQLiteBlobValue ? $value->bytes : $value,
+            array_column($inner, 'payload')
+        ));
+
+        $public = SQLiteSelectResult::innerJoin(
+            $options,
+            $metadata,
+            static fn (array $option, array $meta): ?bool => $option['option_id'] === $meta['option_id']
+                ? $meta['meta_key'] === 'public'
+                : null
+        );
+        $t->same(['siteurl', 'home'], array_column($public, 'option_name'));
+        $t->same(['1', '0'], array_column($public, 'meta_value'));
+
+        $left = SQLiteSelectResult::leftJoin(
+            $options,
+            $metadata,
+            static fn (array $option, array $meta): bool => $option['option_id'] === $meta['option_id'] && $meta['meta_key'] === 'public',
+            ['option_id', 'meta_key', 'meta_value']
+        );
+        $t->same(5, count($left));
+        $t->same(['siteurl', 'home', 'blogname', '_transient_feed', 'orphaned'], array_column($left, 'option_name'));
+        $t->same(['public', 'public', null, null, null], array_column($left, 'meta_key'));
+        $t->same(['1', '0', null, null, null], array_column($left, 'meta_value'));
+        $t->same([1, 2, null, null, null], array_column($left, 'right.option_id'));
+        $t->same(['blogname', '_transient_feed', 'orphaned'], array_column(array_filter($left, static fn (array $row): bool => $row['meta_key'] === null), 'option_name'));
+
+        $usingRows = SQLiteSelectResult::joinUsing(
+            $options,
+            $metadata,
+            ['option_id']
+        );
+        $t->same(4, count($usingRows));
+        $t->same(['siteurl', 'siteurl', 'home', '_transient_feed'], array_column($usingRows, 'option_name'));
+        $t->same([1, 1, 2, 4], array_column($usingRows, 'right.option_id'));
+
+        $leftUsing = SQLiteSelectResult::joinUsing(
+            $options,
+            $metadata,
+            ['option_id'],
+            true
+        );
+        $t->same(6, count($leftUsing));
+        $t->same(['siteurl', 'siteurl', 'home', 'blogname', '_transient_feed', 'orphaned'], array_column($leftUsing, 'option_name'));
+        $t->same(['public', 'network', 'public', null, 'cache', null], array_column($leftUsing, 'meta_key'));
+        $t->same([1, 1, 2, null, 4, null], array_column($leftUsing, 'right.option_id'));
+
+        $cross = SQLiteSelectResult::crossJoin(
+            [['join_type' => 'left'], ['join_type' => 'right']],
+            [['side' => 'options'], ['side' => 'meta'], ['side' => 'terms']]
+        );
+        $t->same(6, count($cross));
+        $t->same(['left', 'left', 'left', 'right', 'right', 'right'], array_column($cross, 'join_type'));
+        $t->same(['options', 'meta', 'terms', 'options', 'meta', 'terms'], array_column($cross, 'side'));
+
+        $ordered = SQLiteSelectResult::execute(
+            SQLiteSelectResult::innerJoin(
+                $options,
+                $metadata,
+                static fn (array $option, array $meta): bool => $option['option_id'] === $meta['option_id']
+            ),
+            null,
+            [
+                ['column' => 'option_name'],
+                ['column' => 'meta_key', 'direction' => 'DESC'],
+            ],
+            3
+        );
+        $t->same(['_transient_feed', 'home', 'siteurl'], array_column($ordered, 'option_name'));
+        $t->same(['cache', 'public', 'public'], array_column($ordered, 'meta_key'));
+
+        $blobUsing = SQLiteSelectResult::joinUsing(
+            [['payload' => new SQLiteBlobValue('same'), 'left_id' => 1], ['payload' => new SQLiteBlobValue('other'), 'left_id' => 2]],
+            [['payload' => new SQLiteBlobValue('same'), 'right_id' => 10], ['payload' => null, 'right_id' => 11]],
+            ['payload']
+        );
+        $t->same(1, count($blobUsing));
+        $t->same(1, $blobUsing[0]['left_id']);
+        $t->same(10, $blobUsing[0]['right_id']);
+        $t->same('same', $blobUsing[0]['payload']->bytes);
+        $t->same('same', $blobUsing[0]['right.payload']->bytes);
+
+        $nullUsing = SQLiteSelectResult::joinUsing(
+            [['option_id' => null, 'option_name' => 'null-left']],
+            [['option_id' => null, 'meta_key' => 'null-right']],
+            ['option_id']
+        );
+        $t->same([], $nullUsing);
+
+        $emptyLeft = SQLiteSelectResult::leftJoin([], $metadata, static fn (): bool => true, ['option_id']);
+        $t->same([], $emptyLeft);
+
+        $emptyRight = SQLiteSelectResult::leftJoin(
+            [['option_id' => 9, 'option_name' => 'lonely']],
+            [],
+            static fn (): bool => true,
+            ['option_id', 'meta_key']
+        );
+        $t->same(1, count($emptyRight));
+        $t->same('lonely', $emptyRight[0]['option_name']);
+        $t->same(null, $emptyRight[0]['right.option_id']);
+        $t->same(null, $emptyRight[0]['meta_key']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::innerJoin($options, $metadata, static fn (): string => 'yes'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::leftJoin($options, $metadata, static fn (): string => 'yes', ['option_id']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::leftJoin($options, $metadata, static fn (): bool => false, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::leftJoin($options, $metadata, static fn (): bool => false, ['']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::joinUsing($options, $metadata, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::joinUsing($options, $metadata, ['']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::joinUsing([['option_id' => 1]], [['missing' => 1]], ['option_id']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::innerJoin([['option_id' => []]], $metadata, static fn (): bool => true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::innerJoin([['option_id' => 1]], [['option_id' => 1, 'right.option_id' => 1]], static fn (): bool => true));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::innerJoin([['' => 1]], $metadata, static fn (): bool => true));
+    },
 ];
