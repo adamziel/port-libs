@@ -1329,6 +1329,7 @@ return [
         $t->same(true, $redirectExample['maxAgeRedirectCookieRetained']);
         $t->same(true, $redirectExample['pathScopedRedirectCookieOmitted']);
         $t->same(true, $redirectExample['foreignDomainRedirectCookieOmitted']);
+        $t->same(true, $redirectExample['malformedPathRedirectCookiesOmitted']);
         $t->same(true, $redirectExample['secureCookiePlainRedirectOmitted']);
         $t->same(true, $redirectExample['defaultPathRedirectCookieOmitted']);
         $t->same(true, $redirectExample['sameNameScopedRedirectCookieRetained']);

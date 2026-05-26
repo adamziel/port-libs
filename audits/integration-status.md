@@ -1,5 +1,42 @@
 # Integration Status
 
+## Clean-patch accepted - Gitoxide malformed redirect cookie path quarantine - 2026-05-26 00:00 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-gitoxide-20260525T234623Z.ready`.
+
+Published commit: this integration commit
+(`Integrate Gitoxide malformed redirect cookie path quarantine`). The accepted
+patch was verified from a detached clean worktree at source `beb22d7141be` and
+is scoped to `lanes/gitoxide/**` plus this integration-status entry. Patch
+sha256 matched the ready marker:
+`89314299963e647682309e9dd79a2ddc5691b39cfdc1a6d1a35cc0b3ced30070`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/gitoxide/src/SmartHttpReceivePackTransport.php` passed.
+- `php -l lanes/gitoxide/tests/ReceivePackTransportTest.php` passed.
+- `php -l lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` passed.
+- `php -l lanes/gitoxide/fixtures/wordpress-smart-http-follow-redirects.php` passed.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReceivePackTransportTest.php` passed:
+  `1 test files, 362 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-smart-http-follow-redirects.php` exited 0.
+- Gitoxide manifest/status JSON validation passed.
+- `git diff --check -- lanes/gitoxide` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=98845480` KiB and `load1=2.65`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26636 assertions, 0 failures`.
+
+Cleanup removed the accepted ready marker, patch, metadata file, referenced
+worker log, inactive source worktree, and temporary verification worktree after
+the commit was safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted Gitoxide commit.
+
 ## Clean-patch accepted - Syncthing route catalog discovery - 2026-05-26 00:03 UTC
 
 Accepted one isolated marker:

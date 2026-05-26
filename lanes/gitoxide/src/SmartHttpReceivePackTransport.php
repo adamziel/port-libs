@@ -1068,14 +1068,13 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         $hostOnly = true;
 
         foreach (explode(';', $attributes) as $attribute) {
-            $attribute = trim($attribute);
-            if ($attribute === '') {
+            if (trim($attribute) === '') {
                 continue;
             }
 
-            [$name, $value] = array_pad(explode('=', $attribute, 2), 2, '');
+            [$name, $rawValue] = array_pad(explode('=', $attribute, 2), 2, '');
             $name = strtolower(trim($name));
-            $value = trim($value);
+            $value = trim($rawValue);
             if ($name === 'secure') {
                 $secure = true;
                 continue;
@@ -1092,8 +1091,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
                 $hostOnly = false;
                 continue;
             }
-            if ($name === 'path' && $value !== '' && str_starts_with($value, '/') && !self::containsControlByte($value)) {
-                $path = $value;
+            if ($name === 'path') {
+                if ($rawValue === '' || !str_starts_with($rawValue, '/') || self::containsControlByte($rawValue)) {
+                    return null;
+                }
+                $path = $rawValue;
             }
         }
 
