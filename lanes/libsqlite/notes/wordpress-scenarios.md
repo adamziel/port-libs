@@ -2,6 +2,22 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## REGEXP-Style Option Name Pattern Scenario
+
+Native WordPress option diagnostics can now evaluate SQLite-style
+application-defined `REGEXP` matching over decoded `option_name` values. The
+existing LIKE/GLOB smoke reports `regexpOptions` beside `likeOptions` and
+`globOptions`, so import and repair tooling can model site-specific option-name
+filters without loading the SQLite extension or truncating at the first 100
+rows.
+
+Status delta 2026-05-26 isolated encoding/collation slice: added
+`SQLiteDatabase::regexpMatches()`, `wordpressOptionsByNameRegexp()`, focused
+callback validation and late-row tests, and updated
+`examples/wordpress-option-name-like-glob.php` to report REGEXP-style rows.
+Dependency closure: no new support component is needed; REGEXP remains an
+application-defined callback and reuses lane-local decoded row traversal.
+
 ## UTF-16 Embedded NUL Option Text Scenario
 
 Copied SQLite text fields can legally contain embedded U+0000 codepoints

@@ -1,5 +1,45 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: REGEXP-Style Option Name Matching
+
+Date: 2026-05-26
+
+This isolated encoding/collation micro-slice adds bounded SQLite
+REGEXP-style matching for decoded `wp_options.option_name` text.
+`SQLiteDatabase::regexpMatches()` dispatches to a caller-supplied
+application callback, matching SQLite's operator shape where REGEXP semantics
+are application-defined. `wordpressOptionsByNameRegexp()` scans all decoded
+option rows without the convenience 100-row limit unless an explicit limit is
+provided.
+
+Focused upstream runner:
+
+No new upstream `testfixture` run was started from this isolated worktree.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors. The manifest mapped count increases
+by 1 for the bounded `focusedRegexpOptionNameScripts` evidence.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused lane tests passed with 1 file, 2496
+assertions, and 0 failures; the WordPress pattern smoke reported
+`regexpOptions` including the late rowid 105 transient fixture; manifest/status
+JSON validation passed; lane diff check passed.
+
+Dependency closure: no new shared support component is needed. The slice keeps
+REGEXP application-defined and lane-local by requiring a PHP callback, while
+reusing existing decoded row traversal and LIKE/GLOB smoke fixture coverage.
+
 ## Focused Native Mapping: Release Tier Matrix
 
 Date: 2026-05-26

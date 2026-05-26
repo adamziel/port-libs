@@ -2158,6 +2158,15 @@ return [
         $utf8SingleCharacter = $database->wordpressOptionsByNameLike('emoji__');
         $globTransient = $database->wordpressOptionsByNameGlob('_Transient_[A-Z][A-Z][A-Z]');
         $globNegated = $database->wordpressOptionsByNameGlob('*_[^0-9]');
+        $regexp = static function (string $pattern, string $value): bool {
+            $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
+            if ($result === false) {
+                throw new InvalidArgumentException('Invalid test regexp');
+            }
+
+            return $result === 1;
+        };
+        $regexpOptions = $database->wordpressOptionsByNameRegexp('^_(?:t|T)ransient_[[:alpha:]]+$', $regexp);
 
         $t->true(SQLiteDatabase::likeMatches('SiteURL', 'site%'));
         $t->same(false, SQLiteDatabase::likeMatches('SiteURL', 'site%', null, true));
@@ -2171,14 +2180,19 @@ return [
         $t->true(SQLiteDatabase::globMatches('siteurl[', 'siteurl['));
         $t->true(SQLiteDatabase::globMatches("site\0url", 'site?url'));
         $t->same(false, SQLiteDatabase::globMatches("site\0url", 'siteurl'));
+        $t->true(SQLiteDatabase::regexpMatches('_transient_feed', '^_transient_[[:alpha:]]+$', $regexp));
+        $t->same(false, SQLiteDatabase::regexpMatches('siteurl', '^_transient_', $regexp));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::regexpMatches('siteurl', 'site', static fn (): int => 1));
         $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $likeTransient));
         $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $caseSensitiveLike));
         $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $escapedPercent));
         $t->same(['emoji_é'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $utf8SingleCharacter));
         $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globTransient));
         $t->same(['emoji_é', 'literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
+        $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $regexpOptions));
         $t->same([], $database->wordpressOptionsByNameLike('%', null, 0));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByNameGlob('*', -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByNameRegexp('.*', $regexp, -1));
 
         $lateRows = [];
         for ($rowId = 1; $rowId <= 105; $rowId++) {
@@ -2202,6 +2216,10 @@ return [
         $t->same(['late_Plugin_GLOB'], array_map(
             static fn (SQLiteWordPressOption $option): string => $option->optionName,
             $lateDatabase->wordpressOptionsByNameGlob('late_*_GLOB'),
+        ));
+        $t->same(['late_plugin_flag', 'late_Plugin_GLOB'], array_map(
+            static fn (SQLiteWordPressOption $option): string => $option->optionName,
+            $lateDatabase->wordpressOptionsByNameRegexp('^late_[[:alpha:]]+_', $regexp),
         ));
     },
     'uses wordpress option_name indexes for IN-list option lookups without duplicate rhs rows' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {

@@ -11,9 +11,10 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $databasePath = $argv[1] ?? null;
 $likePattern = $argv[2] ?? '\_transient\_%';
 $globPattern = $argv[3] ?? '_Transient_[A-Z][A-Z][A-Z]';
+$regexpPattern = $argv[4] ?? '^_(?:t|T)ransient_[[:alpha:]]+$';
 
 if ($databasePath === null) {
-    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-option-name-like-glob.php path/to/wordpress.sqlite [like_pattern] [glob_pattern]\n");
+    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-option-name-like-glob.php path/to/wordpress.sqlite [like_pattern] [glob_pattern] [regexp_pattern]\n");
     fwrite(STDERR, "Use --self-test to run a small in-memory wp_options fixture.\n");
     exit(1);
 }
@@ -24,11 +25,21 @@ $database = $databasePath === '--self-test'
 
 $likeOptions = $database->wordpressOptionsByNameLike($likePattern, '\\');
 $globOptions = $database->wordpressOptionsByNameGlob($globPattern);
+$regexp = static function (string $pattern, string $value): bool {
+    $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
+    if ($result === false) {
+        throw new RuntimeException("Invalid REGEXP pattern: {$pattern}");
+    }
+
+    return $result === 1;
+};
+$regexpOptions = $database->wordpressOptionsByNameRegexp($regexpPattern, $regexp);
 
 echo json_encode([
     'path' => $databasePath,
     'likePattern' => $likePattern,
     'globPattern' => $globPattern,
+    'regexpPattern' => $regexpPattern,
     'likeOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $likeOptions,
@@ -36,6 +47,10 @@ echo json_encode([
     'globOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $globOptions,
+    ),
+    'regexpOptions' => array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $regexpOptions,
     ),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
 

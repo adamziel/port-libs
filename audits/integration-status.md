@@ -1,5 +1,58 @@
 # Integration Status
 
+## Accepted libsqlite REGEXP option-name scans - 2026-05-26 05:55 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T053641Z.ready`.
+
+Accepted source base:
+`b1229bbb0d54a140307a0db98875ed8bd9eda9e3` (`Integrate libsqlite JSON table
+IN-list residuals`).
+
+Patch evidence:
+- Marker lane was `libsqlite`; slice was
+  `closure-libsqlite-encoding-collation-20260526T053641Z`.
+- Marker referenced patch, metadata, and log files, and the patch SHA-256
+  matched `8e0bf5d782ef59412efc1d45ff6ec9d543c278397c9cc5764f6c67da70f9982e`.
+- Patch applied cleanly in detached worktree
+  `.tmux-team/tmp/clean-integrator-libsqlite-encoding-20260526T053641Z`.
+- The latest storage/data group-integrator queue note was treated as a hint
+  only; its shared-checkout apply failures were not used as acceptance surface.
+
+Dashboard and runtime gates:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=b1229bbb0d54a140307a0db98875ed8bd9eda9e3`, matching current
+  `main`.
+- Initial disk gate was closed at `85789484` KiB available. After waiting
+  outside the lock, `df -Pk /` reported `87731276` KiB available.
+- Before focused/root checks, `df -Pk /` remained above the `86000000` KiB
+  threshold, load was below `25`, and no exact no-argument root harness was
+  already running.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php` passed.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2496 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test`
+  passed and reported `regexpOptions`, including late rowid `105`.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 27117 assertions, 0 failures`.
+
+Decision: accepted. The slice adds callback-backed REGEXP-style option-name
+matching for libsqlite and updates the upstream/status/WordPress evidence. It
+does not activate a new shared dependency row because REGEXP remains
+application-defined through a caller-supplied PHP callback.
+
+Dashboard publication should run next because this acceptance moves
+`refs/heads/main` beyond the currently published `sourceCommit`.
+
 ## Accepted libsqlite JSON table IN-list residuals - 2026-05-26 05:35 UTC
 
 Accepted marker:

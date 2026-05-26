@@ -5768,6 +5768,35 @@ final class SQLiteDatabase
         return $options;
     }
 
+    /**
+     * @param callable(string, string): bool $regexp
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByNameRegexp(string $pattern, callable $regexp, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options REGEXP lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $options = [];
+        foreach ($this->tableRowsByName('wp_options', null) as $row) {
+            $option = SQLiteWordPressOption::fromTableRow($row);
+            if (!self::regexpMatches($option->optionName, $pattern, $regexp)) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
     public function wordpressOptionByIndexedName(string $optionName): ?SQLiteWordPressOption
     {
         $tableRootPage = $this->tableRootPage('wp_options');
@@ -10152,6 +10181,19 @@ final class SQLiteDatabase
             0,
             [],
         );
+    }
+
+    /**
+     * @param callable(string, string): bool $regexp
+     */
+    public static function regexpMatches(string $value, string $pattern, callable $regexp): bool
+    {
+        $matched = $regexp($pattern, $value);
+        if (!is_bool($matched)) {
+            throw new \InvalidArgumentException('SQLite REGEXP callback must return a boolean');
+        }
+
+        return $matched;
     }
 
     /**
