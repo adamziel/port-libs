@@ -192,4 +192,36 @@ return [
         ], $checklist['remaining_suite_tiers']);
         $t->contains('hydrate upstream cache', $checklist['next_acceptance_gate']);
     },
+    'builds a suite closure gap report for remaining upstream runner blockers' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $report = $evidence->suiteClosureGapReport();
+
+        $t->same('open', $report['status']);
+        $t->same('bounded-upstream-suite-evidence-ready', $report['bounded_evidence_status']);
+        $t->same(1589, $report['denominator_total']);
+        $t->true($report['denominator_mapped'] >= 288, 'Expected accepted mapped count to be preserved');
+        $t->same(1235, $report['veryquick']['scripts']);
+        $t->same(329670, $report['veryquick']['tests']);
+        $t->same(0, $report['veryquick']['errors']);
+        $t->true($report['focused']['entries'] >= 30, 'Expected focused ledger to feed the gap report');
+        $t->true($report['focused']['passed'] >= 14, 'Expected passed focused entries');
+        $t->same(0, $report['focused']['failed']);
+        $t->true($report['focused']['reused_or_skipped'] >= 10, 'Expected reused or skipped focused evidence to stay visible');
+        $t->true($report['selected_script_count'] >= 40, 'Expected concrete selected script count');
+        $t->true($report['wildcard_pattern_count'] >= 2, 'Expected wildcard pattern count');
+        $t->same([
+            'full release/all permutations',
+            'multi-configuration make test suites',
+            'long-running stress/permutation tiers beyond veryquick',
+        ], $report['remaining_suite_tiers']);
+        $t->same(4, $report['blocker_count']);
+        $t->same([
+            'full-release-unexecuted',
+            'remaining-suite-tiers',
+            'focused-results-reused-or-skipped',
+            'wildcard-script-selections',
+        ], array_column($report['blockers'], 'id'));
+        $t->contains('hydrate upstream cache', $report['blockers'][0]['next_gate']);
+        $t->contains('no new support component needed', $report['dependency_closure']);
+    },
 ];

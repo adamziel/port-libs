@@ -1,5 +1,15 @@
 # Integration Status
 
+## Accepted libsqlite upstream suite closure gap report - 2026-05-26 03:27 UTC
+
+Accepted marker `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T032209Z.ready` from current-base libsqlite worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-suite-20260526T032209Z`. Patch sha256 matched `49b2998a666d766f69382faf1ed6fc79a4179a5ea35659e1d20192fe722009d6` and applied cleanly in detached clean worktree `.tmux-team/tmp/clean-integrator-libsqlite-suite-20260526T032209Z` at `be3229f536e91d82dc259300ff79fefc1e4ccc73`.
+
+Dashboard guard evidence: cache-busted live `porting-summary.json` reported `sourceCommit=be3229f536e91d82dc259300ff79fefc1e4ccc73`, matching current `refs/heads/main`, with dashboard commit `a4eb1594e306e0edbbeac4460c5a97b5d4011842`. Runtime gates before focused/root work were open: `/` available samples stayed above `86000000` KiB (`86226352`, `86117256`, `86114896`), load samples were below `25` (`1.64`, `1.50`, `1.54`), and no no-argument root harness was already running.
+
+Focused verification passed: `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`; `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`; `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` (`1 test files, 118 assertions, 0 failures`); and `git diff --check -- lanes/libsqlite`. Serialized root verification passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 26956 assertions, 0 failures`.
+
+Decision: accepted. This slice adds `SQLiteUpstreamSuiteEvidence::suiteClosureGapReport()` plus focused tests and updates libsqlite manifest/status/notes to keep remaining upstream runner blockers explicit. No support-library activation was needed; the slice reuses lane-local manifest and runner evidence. Dashboard publication should run next after this source move.
+
 ## Clean-patch intake accepted - libsqlite upstream suite acceptance checklist - 2026-05-26 03:20 UTC
 
 Accepted marker:

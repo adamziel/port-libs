@@ -247,6 +247,77 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function suiteClosureGapReport(): array
+    {
+        $summary = $this->denominatorSummary();
+        $coverage = $this->runnerCoverageAudit();
+        $ledger = $this->focusedResultLedger();
+        $checklist = $this->upstreamSuiteAcceptanceChecklist();
+
+        $blockers = [];
+        if (!$coverage['full_release_executed']) {
+            $blockers[] = [
+                'id' => 'full-release-unexecuted',
+                'severity' => 'blocking',
+                'evidence' => $coverage['full_release_reason'],
+                'next_gate' => 'hydrate upstream cache and run release/all permutations from the accepted SQLite checkout',
+            ];
+        }
+
+        if ($coverage['remaining_suite_tiers'] !== []) {
+            $blockers[] = [
+                'id' => 'remaining-suite-tiers',
+                'severity' => 'blocking',
+                'evidence' => implode('; ', $coverage['remaining_suite_tiers']),
+                'next_gate' => 'record each remaining tier as passed, failed, or explicitly supervisor-skipped with a fresh run record',
+            ];
+        }
+
+        if ($ledger['reused_or_skipped_count'] > 0) {
+            $blockers[] = [
+                'id' => 'focused-results-reused-or-skipped',
+                'severity' => 'evidence-gap',
+                'evidence' => (string) $ledger['reused_or_skipped_count'] . ' focused entries reused accepted evidence or skipped fresh execution',
+                'next_gate' => 'rerun the reused focused subsets when the hydrated cache is available and replace prose notes with parsed run records',
+            ];
+        }
+
+        if ($coverage['pattern_script_count'] > 0) {
+            $blockers[] = [
+                'id' => 'wildcard-script-selections',
+                'severity' => 'audit-gap',
+                'evidence' => implode(', ', $coverage['pattern_scripts']),
+                'next_gate' => 'expand wildcard selections to concrete hydrated .test filenames before counting exact focused coverage',
+            ];
+        }
+
+        return [
+            'status' => $blockers === [] ? 'closed' : 'open',
+            'bounded_evidence_status' => $checklist['status'],
+            'denominator_total' => $summary['total'],
+            'denominator_mapped' => $summary['mapped'],
+            'veryquick' => $coverage['veryquick'],
+            'focused' => [
+                'entries' => $ledger['entry_count'],
+                'passed' => $ledger['passed_count'],
+                'failed' => $ledger['failed_count'],
+                'not_counted' => $ledger['not_counted_count'],
+                'reused_or_skipped' => $ledger['reused_or_skipped_count'],
+                'parsed_tests' => $ledger['result_tests_total'],
+                'parsed_errors' => $ledger['result_errors_total'],
+            ],
+            'selected_script_count' => $coverage['selected_script_count'],
+            'wildcard_pattern_count' => $coverage['pattern_script_count'],
+            'remaining_suite_tiers' => $coverage['remaining_suite_tiers'],
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'dependency_closure' => 'no new support component needed; report reuses lane-local manifest runner evidence only',
+        ];
+    }
+
+    /**
      * @return array{scripts: int, tests: int, errors: int}
      */
     private function parseVeryquickResult(mixed $result): array

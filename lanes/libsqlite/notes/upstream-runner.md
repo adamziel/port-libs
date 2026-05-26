@@ -1,5 +1,43 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Suite Closure Gap Report
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds a machine-readable closure gap
+report over the accepted SQLite runner evidence.
+`SQLiteUpstreamSuiteEvidence::suiteClosureGapReport()` combines the denominator,
+zero-error `veryquick` result, focused-result ledger, selected `.test` scripts,
+wildcard patterns, and remaining suite tiers into explicit blocker records for
+the next acceptance gate. It does not claim new upstream execution; it makes the
+remaining full release/all run, reused/skipped focused evidence, and wildcard
+expansion gaps auditable without prose interpretation.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. Prior applicable runner evidence remains the complete SQLite
+`veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; manifest/status JSON validation passed; focused
+lane tests passed with 1 file, 118 assertions, and 0 failures; lane diff check
+passed.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local manifest reader and runner-evidence helpers, performs no
+shell-out, and counts no shared support-library progress.
+
 ## Focused Native Mapping: Upstream Suite Acceptance Checklist
 
 Date: 2026-05-26
