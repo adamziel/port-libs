@@ -21,6 +21,12 @@ final class SQLiteJsonAggregateState
     /** @var list<array{0:mixed,1:mixed}> */
     private array $filteredArrayValues = [];
 
+    /** @var list<mixed> */
+    private array $windowArrayValues = [];
+
+    /** @var list<array{0:mixed,1:mixed}> */
+    private array $orderedWindowArrayValues = [];
+
     /** @var list<array{0:mixed,1:mixed}> */
     private array $objectPairs = [];
 
@@ -50,6 +56,16 @@ final class SQLiteJsonAggregateState
     public function stepArrayFilter(mixed $value, mixed $filter): void
     {
         $this->filteredArrayValues[] = [$value, $filter];
+    }
+
+    public function stepArrayWindow(mixed $value): void
+    {
+        $this->windowArrayValues[] = $value;
+    }
+
+    public function stepArrayOrderByWindow(mixed $value, mixed $orderKey): void
+    {
+        $this->orderedWindowArrayValues[] = [$value, $orderKey];
     }
 
     public function stepObject(mixed $label, mixed $value): void
@@ -87,6 +103,22 @@ final class SQLiteJsonAggregateState
         return SQLiteJsonAggregate::jsonGroupArrayFilterSqlFunction($function, $this->filteredArrayValues);
     }
 
+    /**
+     * @return list<string|SQLiteBlobValue>
+     */
+    public function finalizeWindowedArray(int $preceding, int $following = 0, string $function = 'json_group_array'): array
+    {
+        return SQLiteJsonAggregate::jsonGroupArrayWindowSqlFunction($function, $this->windowArrayValues, $preceding, $following);
+    }
+
+    /**
+     * @return list<string|SQLiteBlobValue>
+     */
+    public function finalizeOrderedWindowedArray(int $preceding, int $following = 0, string $function = 'json_group_array'): array
+    {
+        return SQLiteJsonAggregate::jsonGroupArrayOrderByWindowSqlFunction($function, $this->orderedWindowArrayValues, $preceding, $following);
+    }
+
     public function finalizeObject(string $function = 'json_group_object'): string|SQLiteBlobValue
     {
         return SQLiteJsonAggregate::jsonGroupObjectSqlFunction($function, $this->objectPairs);
@@ -98,7 +130,7 @@ final class SQLiteJsonAggregateState
     }
 
     /**
-     * @return array{arrayRows:int,distinctArrayRows:int,orderedArrayRows:int,distinctOrderedArrayRows:int,filteredArrayRows:int,objectRows:int,filteredObjectRows:int}
+     * @return array{arrayRows:int,distinctArrayRows:int,orderedArrayRows:int,distinctOrderedArrayRows:int,filteredArrayRows:int,windowArrayRows:int,orderedWindowArrayRows:int,objectRows:int,filteredObjectRows:int}
      */
     public function summary(): array
     {
@@ -108,6 +140,8 @@ final class SQLiteJsonAggregateState
             'orderedArrayRows' => count($this->orderedArrayValues),
             'distinctOrderedArrayRows' => count($this->distinctOrderedArrayValues),
             'filteredArrayRows' => count($this->filteredArrayValues),
+            'windowArrayRows' => count($this->windowArrayValues),
+            'orderedWindowArrayRows' => count($this->orderedWindowArrayValues),
             'objectRows' => count($this->objectPairs),
             'filteredObjectRows' => count($this->filteredObjectPairs),
         ];

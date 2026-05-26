@@ -103,6 +103,50 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<mixed> $values
+     * @return list<string|SQLiteBlobValue>
+     */
+    public static function jsonGroupArrayWindowSqlFunction(string $function, iterable $values, int $preceding, int $following = 0): array
+    {
+        $frames = self::jsonGroupArrayWindow($values, $preceding, $following);
+        if (strcasecmp($function, 'json_group_array') === 0) {
+            return $frames;
+        }
+        if (strcasecmp($function, 'jsonb_group_array') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_array or jsonb_group_array');
+        }
+
+        $jsonbFrames = [];
+        foreach ($frames as $frame) {
+            $jsonbFrames[] = new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($frame)));
+        }
+
+        return $jsonbFrames;
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed}> $rows
+     * @return list<string|SQLiteBlobValue>
+     */
+    public static function jsonGroupArrayOrderByWindowSqlFunction(string $function, iterable $rows, int $preceding, int $following = 0): array
+    {
+        $frames = self::jsonGroupArrayOrderByWindow($rows, $preceding, $following);
+        if (strcasecmp($function, 'json_group_array') === 0) {
+            return $frames;
+        }
+        if (strcasecmp($function, 'jsonb_group_array') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_array or jsonb_group_array');
+        }
+
+        $jsonbFrames = [];
+        foreach ($frames as $frame) {
+            $jsonbFrames[] = new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($frame)));
+        }
+
+        return $jsonbFrames;
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed}> $pairs
      */
     public static function jsonGroupObjectSqlFunction(string $function, iterable $pairs): string|SQLiteBlobValue
@@ -273,6 +317,64 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<mixed> $values
+     * @return list<string>
+     */
+    public static function jsonGroupArrayWindow(iterable $values, int $preceding, int $following = 0): array
+    {
+        self::assertWindowBounds($preceding, $following);
+
+        $rows = array_values(is_array($values) ? $values : iterator_to_array($values, false));
+        $frames = [];
+        $lastIndex = count($rows) - 1;
+        foreach ($rows as $position => $_value) {
+            $start = max(0, $position - $preceding);
+            $end = min($lastIndex, $position + $following);
+            $frames[] = self::jsonGroupArray(array_slice($rows, $start, $end - $start + 1));
+        }
+
+        return $frames;
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed}> $rows
+     * @return list<string>
+     */
+    public static function jsonGroupArrayOrderByWindow(iterable $rows, int $preceding, int $following = 0): array
+    {
+        self::assertWindowBounds($preceding, $following);
+
+        $ordered = [];
+        $position = 0;
+        foreach ($rows as $row) {
+            if (!is_array($row) || !array_key_exists(0, $row) || !array_key_exists(1, $row)) {
+                throw new \InvalidArgumentException('json_group_array() ORDER BY window rows must be [value, orderKey] pairs');
+            }
+            $ordered[] = [
+                'value' => $row[0],
+                'orderKey' => $row[1],
+                'position' => $position++,
+            ];
+        }
+
+        usort($ordered, static function (array $left, array $right): int {
+            $comparison = self::compareOrderKeys($left['orderKey'], $right['orderKey']);
+            if ($comparison === 0) {
+                return $left['position'] <=> $right['position'];
+            }
+
+            return $comparison;
+        });
+
+        $values = [];
+        foreach ($ordered as $row) {
+            $values[] = $row['value'];
+        }
+
+        return self::jsonGroupArrayWindow($values, $preceding, $following);
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed}> $pairs
      */
     public static function jsonGroupObject(iterable $pairs): string
@@ -379,5 +481,12 @@ final class SQLiteJsonAggregate
         }
 
         return true;
+    }
+
+    private static function assertWindowBounds(int $preceding, int $following): void
+    {
+        if ($preceding < 0 || $following < 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate window frame bounds must be non-negative');
+        }
     }
 }

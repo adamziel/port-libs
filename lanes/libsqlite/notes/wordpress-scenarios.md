@@ -2417,6 +2417,29 @@ Dependency closure: no new support component is needed; this reuses lane-local
 JSON aggregate coercion, JSON subtype handling, JSONB encode/decode, and
 ordered row scheduling helpers.
 
+## JSON Aggregate ROWS Window Option Summary Scenario
+
+Native JSON aggregate summaries now include bounded ROWS-style window frames
+for `json_group_array()` and `jsonb_group_array()`. The
+`examples/wordpress-json-aggregate-option-summary.php` smoke reports rolling
+current-and-previous option-value arrays in input order and after
+`ORDER BY option_name`, plus decoded JSONB frame output. This gives copied
+`wp_options` review tooling a local-only way to preview adjacent option
+settings during import without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated json-table/window slice: added
+`SQLiteJsonAggregate::jsonGroupArrayWindow()`,
+`jsonGroupArrayOrderByWindow()`, text/JSONB SQL dispatch helpers,
+`SQLiteJsonAggregateState` window step/final helpers, focused aggregate
+assertions, and the WordPress-visible smoke output. This is intentionally a
+bounded ROWS frame helper, not full SELECT/window parser integration; RANGE,
+GROUPS, EXCLUDE, partition scheduling, inverse aggregate optimization, and
+multi-term collation-aware ordering remain follow-up work.
+
+Dependency closure: no new shared support component is needed; the slice
+reuses lane-local JSON aggregate coercion, JSON subtype handling, JSONB
+encode/decode, SQL-style scalar ordering, and aggregate state helpers.
+
 ## WAL Reader Page Map Option Diagnostics
 
 Native `wp_options` WAL diagnostics now report page-level provenance for the

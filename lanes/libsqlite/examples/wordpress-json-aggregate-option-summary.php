@@ -31,6 +31,8 @@ foreach ($copiedOptions as [$name, $value, $autoload]) {
     $state->stepArrayOrderBy($value, $name);
     $state->stepArrayDistinctOrderBy($value, $name);
     $state->stepArrayFilter($value, $autoload === 'yes' ? 1 : 0);
+    $state->stepArrayWindow($value);
+    $state->stepArrayOrderByWindow($value, $name);
     $state->stepObject($name, $autoload === 'yes');
     $state->stepObjectFilter($name, $autoload === 'yes', $autoload === 'yes');
 }
@@ -47,6 +49,8 @@ echo json_encode([
     'nameOrderedOptionValueArrayFromSteps' => $state->finalizeOrderedArray('JSON_GROUP_ARRAY'),
     'distinctNameOrderedOptionValueArrayFromSteps' => $state->finalizeDistinctOrderedArray('JSON_GROUP_ARRAY'),
     'autoloadedOptionValueArrayFromFilterSteps' => $state->finalizeFilteredArray('JSON_GROUP_ARRAY'),
+    'rollingCurrentAndPreviousOptionValues' => $state->finalizeWindowedArray(1, 0, 'JSON_GROUP_ARRAY'),
+    'nameOrderedRollingCurrentAndPreviousOptionValues' => $state->finalizeOrderedWindowedArray(1, 0, 'JSON_GROUP_ARRAY'),
     'distinctOptionValueJsonbDecoded' => SQLiteJsonB::decode(
         SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunctionArguments('JSONB_GROUP_ARRAY', $optionValues)->bytes,
     ),
@@ -59,6 +63,10 @@ echo json_encode([
     'distinctNameOrderedOptionValueJsonbDecoded' => SQLiteJsonB::decode(
         $state->finalizeDistinctOrderedArray('JSONB_GROUP_ARRAY')->bytes,
     ),
+    'rollingOptionValueJsonbDecoded' => array_map(
+        static fn (SQLiteBlobValue $frame): mixed => SQLiteJsonB::decode($frame->bytes),
+        $state->finalizeWindowedArray(1, 0, 'JSONB_GROUP_ARRAY'),
+    ),
     'optionValueJsonbDecoded' => SQLiteJsonB::decode(
         $state->finalizeArray('JSONB_GROUP_ARRAY')->bytes,
     ),
@@ -69,5 +77,5 @@ echo json_encode([
         $state->finalizeObject('JSONB_GROUP_OBJECT')->bytes,
     ),
     'aggregateStepRows' => $state->summary(),
-    'wordpressUse' => 'Local-only wp_options import summary that mirrors SQLite json_group_array()/json_group_array(DISTINCT)/json_group_array(ORDER BY option_name)/json_group_array(DISTINCT ORDER BY option_name)/json_group_array() FILTER/json_group_object() FILTER step/final results and uppercase JSONB/result dispatch for copied option values, JSON subtype fragments, JSONB blobs, booleans, and NULLs without requiring the SQLite extension.',
+    'wordpressUse' => 'Local-only wp_options import summary that mirrors SQLite json_group_array()/json_group_array(DISTINCT)/json_group_array(ORDER BY option_name)/json_group_array(DISTINCT ORDER BY option_name)/json_group_array() FILTER/json_group_object() FILTER and bounded ROWS window step/final results plus uppercase JSONB/result dispatch for copied option values, JSON subtype fragments, JSONB blobs, booleans, and NULLs without requiring the SQLite extension.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

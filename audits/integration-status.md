@@ -1,5 +1,62 @@
 # Integration Status
 
+## Accepted libsqlite JSON aggregate window helpers - 2026-05-26 06:43 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T063705Z.ready`.
+
+Accepted source base: `81c57835874d97a8ffef9c50f3df50e0a6f17bf5`
+(`Integrate libsqlite ordered option windows`).
+
+Decision: accepted. The marker was complete (`lane=libsqlite`, `patch=...`,
+`metadata=...`, `log=...`), had no stale rework marker, and patch SHA-256
+matched
+`28889ec4f2e9084ee45eef90c7a09f6c7abcd21d1f37ff130d01029db59341f1`.
+The patch applied cleanly in detached clean worktree
+`.tmux-team/tmp/clean-integrator-port-dev-libsqlite-json-table-20260526T063705Z`.
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=81c57835874d97a8ffef9c50f3df50e0a6f17bf5`, matching current
+  `refs/heads/main` before candidate verification.
+
+Focused verification:
+- `php -l` passed for `lanes/libsqlite/src/SQLiteJsonAggregate.php`,
+  `lanes/libsqlite/src/SQLiteJsonAggregateState.php`,
+  `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+  `lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2566 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php`
+  passed and reported rolling text and decoded JSONB option-value frames.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` decoded as valid JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot with
+  `215 test files, 27203 assertions, 0 failures`.
+
+Resource and process gate evidence:
+- Before focused checks, `df -Pk /` reported `87841528` KiB available and
+  `/proc/loadavg` first field was `1.39`.
+- Before the serialized root harness, `df -Pk /` reported `87840932` KiB
+  available, `/proc/loadavg` first field was `1.31`, and
+  `pgrep -af '^php tools/run-tests\.php$'` was empty.
+
+Accepted scope:
+- Added bounded JSON aggregate ROWS window helpers for text and JSONB
+  `json_group_array` behavior, plus state helper methods, focused tests, a
+  WordPress option summary example update, and manifest/status notes.
+- Follow-ups remain explicit: this is not full SELECT/window parser integration
+  and does not implement RANGE, GROUPS, EXCLUDE, partition scheduling, inverse
+  aggregate optimization, or multi-term collation-aware ordering.
+
+Dashboard publication should run next because `refs/heads/main` moved after
+this acceptance.
+
 ## Accepted libsqlite ordered option result windows - 2026-05-26 06:36 UTC
 
 Accepted marker:
