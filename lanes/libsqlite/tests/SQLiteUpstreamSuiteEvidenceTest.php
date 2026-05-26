@@ -708,6 +708,25 @@ TXT;
         $t->same([], $clear['active']);
         $t->contains('may start if other gates pass', $clear['next_gate']);
     },
+    'parses active broad runner snapshots with pid ppid elapsed command fields' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $snapshot = <<<'TXT'
+577248       1       02:16 bash scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-release-notty-runner-20260526T102446Z audits/sqlite-release-notty-runner-20260526T102446Z.md .tmux-team/tmp/sqlite-release-notty-runner-20260526T102446Z .tmux-team/logs/sqlite-release-notty-runner-20260526T102446Z.log release 2 7200
+577296  577248       02:14 timeout 7200 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+577297  577296       02:14 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+TXT;
+
+        $gate = $evidence->activeFullSuiteRunnerGate($snapshot);
+
+        $t->same('blocked-active-runner', $gate['status']);
+        $t->same(3, $gate['active_count']);
+        $t->same(['release'], $gate['active_tiers']);
+        $t->same(577248, $gate['active'][0]['pid']);
+        $t->same('02:16', $gate['active'][0]['elapsed']);
+        $t->same('release', $gate['active'][0]['tier']);
+        $t->contains('run-sqlite-tcl-bounded-runner.sh', $gate['active'][0]['command']);
+        $t->contains('do not launch a duplicate broad SQLite suite', $gate['next_gate']);
+    },
     'builds a bounded upstream runner artifact record from audit and stdout text' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $audit = <<<'MD'

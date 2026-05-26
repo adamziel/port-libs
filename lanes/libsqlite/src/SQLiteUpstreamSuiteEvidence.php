@@ -850,7 +850,11 @@ final class SQLiteUpstreamSuiteEvidence
 
             $pid = null;
             $elapsed = null;
-            if (preg_match('/^\s*(\d+)\s+([0-9:-]+)\s+(.+)$/', $line, $matches) === 1) {
+            if (preg_match('/^\s*(\d+)\s+\d+\s+([0-9:-]+)\s+(.+)$/', $line, $matches) === 1) {
+                $pid = (int) $matches[1];
+                $elapsed = $matches[2];
+                $command = $matches[3];
+            } elseif (preg_match('/^\s*(\d+)\s+([0-9:-]+)\s+(.+)$/', $line, $matches) === 1) {
                 $pid = (int) $matches[1];
                 $elapsed = $matches[2];
                 $command = $matches[3];

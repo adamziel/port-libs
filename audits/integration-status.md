@@ -1,5 +1,54 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite active-runner snapshot parsing - 2026-05-26 10:34 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T102701Z.ready`.
+
+Decision: accepted. The marker was a current-base libsqlite handoff at
+`ec01b608a8e034da454976a5b6ac46484854ef37`; the patch hash matched
+`2ea65965734f77dbb4d4684e73ca8717f562d0f4be04559fc82cd2a204082e05` and
+applied cleanly in a detached clean worktree. The slice fixes
+`SQLiteUpstreamSuiteEvidence::activeFullSuiteRunnerGate()` so it parses both
+`pid elapsed command` and `pid ppid elapsed command` process snapshots, adds
+focused test coverage for the guarded release runner snapshot shape, and
+updates libsqlite upstream-suite notes/status without starting a duplicate
+broad SQLite runner.
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=ec01b608a8e034da454976a5b6ac46484854ef37`, matching current
+  `refs/heads/main` before intake.
+- Live dashboard commit reported
+  `769a47f4c8e8f2bf2e41578f8a0fb389faf33093`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 394 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Resource gate before root: `/` reported `86527332` KiB available, load was
+  `4.51`, and no no-argument root harness was active.
+- `php tools/run-tests.php` passed under
+  `.tmux-team/tmp/clean-integrator-run.lock` with
+  `215 test files, 27542 assertions, 0 failures`.
+
+Queue evidence:
+- The libsqlite priority override was applied; non-libsqlite markers and Dolt
+  markers were not considered for acceptance.
+- Top-level ready-marker count before cleanup: `4927`; libsqlite ready-marker
+  count: `1659`; Dolt ready-marker count: `172`.
+- The latest storage-data queue note remained stale at head `81c57835` and was
+  treated as a hint only.
+
+Dashboard publication should run next so the live summary advances beyond
+`ec01b608a8e034da454976a5b6ac46484854ef37` to the accepted source commit.
+
 ## Clean-patch intake accepted - libsqlite JSON table BETWEEN residuals - 2026-05-26 10:33 UTC
 
 Accepted isolated marker:

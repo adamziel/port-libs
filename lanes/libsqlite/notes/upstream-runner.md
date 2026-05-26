@@ -1,5 +1,50 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Active Runner PID/PPID Snapshot Parsing
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice tightens
+`SQLiteUpstreamSuiteEvidence::activeFullSuiteRunnerGate()` so it parses both
+older `pid elapsed command` snapshots and the prompt-relevant
+`pid ppid elapsed command` shape emitted by `ps -eo pid,ppid,etime,command`.
+Without this, the duplicate-runner gate could shift the parent PID into the
+elapsed field and keep an imprecise command for active `all`/`release`
+evidence.
+
+Focused upstream runner:
+
+No new broad upstream `testfixture`, `make test`, `mptest`, `all`, or
+`release` run was started. The process snapshot showed the active guarded
+release runner:
+
+```text
+577248       1       02:16 bash scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-release-notty-runner-20260526T102446Z audits/sqlite-release-notty-runner-20260526T102446Z.md .tmux-team/tmp/sqlite-release-notty-runner-20260526T102446Z .tmux-team/logs/sqlite-release-notty-runner-20260526T102446Z.log release 2 7200
+577296  577248       02:14 timeout 7200 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+577297  577296       02:14 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+```
+
+The lane-local gate now reports `blocked-active-runner`, tier `release`, PID
+`577248`, elapsed `02:16`, and the wrapper command. The next acceptance gate is
+to wait for `/home/claude/port-libs/audits/sqlite-release-notty-runner-20260526T102446Z.md`
+and `/home/claude/port-libs/.tmux-team/logs/sqlite-release-notty-runner-20260526T102446Z.log`
+to contain parsed pass/fail counts, then run the bounded-runner artifact and
+provenance gates against the accepted integration HEAD and SQLite manifest UUID.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice parses a
+supplied process snapshot only; it does not inspect secrets, mutate the shared
+checkout, or execute upstream tests.
+
 ## Focused Native Mapping: Selected Script Inventory
 
 Date: 2026-05-26
