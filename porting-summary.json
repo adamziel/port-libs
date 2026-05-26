@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 08:24:08 UTC",
-    "sourceCommit": "64df183f7c0fddfcdc3530bdb3cd0520eb85023d",
-    "sourceCommitShort": "64df183f7c0f",
+    "generated": "2026-05-26 08:30:58 UTC",
+    "sourceCommit": "5daeeb21a5c773aa5ab600e19580a47fafe28202",
+    "sourceCommitShort": "5daeeb21a5c7",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "48a5d9926b625bff0bd0748b8b4722a5380163fd",
-    "dashboardCommitShort": "48a5d9926b62",
+    "dashboardCommit": "099ba4c334d10801f1892b60cfb8d31a4730ff76",
+    "dashboardCommitShort": "099ba4c334d1",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,12 +83,12 @@
             "denominator": "1589",
             "mapped": "317",
             "coverage": "317 / 1589",
-            "php": "318 pass / 0 fail",
+            "php": "319 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated upstream-suite slice 2026-05-26T...",
-            "currentWork": "Latest bounded upstream-suite work preserves accepted WAL checkpoint-plan, scalar-dispatc...",
-            "nextTarget": "After the active shared all runner exits, collect its bounded audit/log artifact and repl...",
+            "audit": "isolated WAL slice 2026-05-26T08:22Z adds...",
+            "currentWork": "Latest bounded WAL work preserves accepted WAL checkpoint-plan, reader page-map, scalar-d...",
+            "nextTarget": "For WAL/rollback closure, implement one durable writer-facing behavior next: filesystem c...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
         },
