@@ -727,6 +727,26 @@ TXT;
         $t->contains('run-sqlite-tcl-bounded-runner.sh', $gate['active'][0]['command']);
         $t->contains('do not launch a duplicate broad SQLite suite', $gate['next_gate']);
     },
+    'parses active broad make test snapshots as duplicate suite runners' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $snapshot = <<<'TXT'
+601001 599999 00:37 make -C .upstream-cache/libsqlite-build-port-libsqlite test
+601104 601001 00:36 make -C .upstream-cache/libsqlite-build-port-libsqlite mptest
+601203 601104 00:35 php tools/run-tests.php lanes/libsqlite/tests
+TXT;
+
+        $gate = $evidence->activeFullSuiteRunnerGate($snapshot);
+
+        $t->same('blocked-active-runner', $gate['status']);
+        $t->same(2, $gate['active_count']);
+        $t->same(['make-test', 'mptest'], $gate['active_tiers']);
+        $t->same(601001, $gate['active'][0]['pid']);
+        $t->same('00:37', $gate['active'][0]['elapsed']);
+        $t->same('make-test', $gate['active'][0]['tier']);
+        $t->contains('make -C .upstream-cache/libsqlite-build-port-libsqlite test', $gate['active'][0]['command']);
+        $t->same('mptest', $gate['active'][1]['tier']);
+        $t->contains('make -C .upstream-cache/libsqlite-build-port-libsqlite mptest', $gate['active'][1]['command']);
+    },
     'builds a bounded upstream runner artifact record from audit and stdout text' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $audit = <<<'MD'

@@ -115312,6 +115312,32 @@ Verification:
 Decision: accepted as commit pending publication at this entry time. The slice adds a lane-local `SQLiteUpstreamSuiteEvidence::broadSuiteLaunchGate()` and tests that block duplicate broad SQLite suite launches unless supervisor approval, active-runner, and command-manifest gates are clear. It did not start a fresh upstream runner and did not add a support-library dependency.
 
 Dashboard publication should run next after the accepted source commit is visible on `main`.
+
+## Integration accepted - libsqlite make-test duplicate runner gate - 2026-05-26T14:03:44Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T135553Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `1232f7b1d697e561d2ac66c80fa0b4b127139933` (`Integrate libsqlite printf format scalars`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `1232f7b1d697e561d2ac66c80fa0b4b127139933`.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `119989796` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `3.48`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Verification:
+- Detached clean worktree: `.tmux-team/tmp/clean-integrator-libsqlite-suite-20260526T135553Z` at `1232f7b1d697e561d2ac66c80fa0b4b127139933`.
+- Patch sha256 matched marker metadata: `fdd12dcfd946e6475513925ee76ce44e1bdcd45e1197325f1e0d60d7c8632867`.
+- Focused checks passed: `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`, `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`, `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` (`1 test files, 496 assertions, 0 failures`), manifest/status JSON validation, and `git diff --check -- lanes/libsqlite`.
+- Full clean-candidate diff check passed with `git diff --check`.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 27726 assertions, 0 failures`.
+
+Decision: accepted as the final `Integrate libsqlite make-test runner gate` commit published to `main` by this pass. The slice extends the lane-local upstream-suite active-runner gate so `make -C <build> test` and `make -C <build> mptest` process snapshots block duplicate broad SQLite suite launches. It did not start a broad upstream runner and did not add a support-library dependency.
+
+Dashboard publication should run next after the accepted source commit is visible on `main`.
 ## Integration accepted - libsqlite indexed LIKE prefix range - 2026-05-26T13:47:50Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T134031Z.ready`.

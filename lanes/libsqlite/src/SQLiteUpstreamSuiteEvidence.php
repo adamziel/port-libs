@@ -910,14 +910,15 @@ final class SQLiteUpstreamSuiteEvidence
             $isSqliteRunner = str_contains($line, 'testfixture')
                 && str_contains($line, 'testrunner.tcl');
             $isBoundedWrapper = str_contains($line, 'run-sqlite-tcl-bounded-runner.sh');
-            if (!$isSqliteRunner && !$isBoundedWrapper) {
+            $isMakeSuite = preg_match('/(?:^|\s)make(?:\s+-C\s+\S+)?\s+(test|mptest)(?:\s|$)/', $line) === 1;
+            if (!$isSqliteRunner && !$isBoundedWrapper && !$isMakeSuite) {
                 continue;
             }
 
             $tier = null;
             if (preg_match('/(?:^|\s)(all|release|mptest)(?:\s|$)/', $line, $matches) === 1) {
                 $tier = $matches[1];
-            } elseif (str_contains($line, 'make test')) {
+            } elseif (preg_match('/(?:^|\s)make(?:\s+-C\s+\S+)?\s+test(?:\s|$)/', $line) === 1) {
                 $tier = 'make-test';
             }
 

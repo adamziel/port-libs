@@ -1,5 +1,36 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Make-Test Duplicate Runner Gate
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice extends
+`SQLiteUpstreamSuiteEvidence::activeFullSuiteRunnerGate()` so process snapshots
+for `make -C <build> test` and `make -C <build> mptest` are treated as active
+broad SQLite suite runners. These commands are release-tier commands produced by
+the lane's own command manifest, so duplicate-runner protection now covers the
+make-driven tiers as well as guarded wrapper and direct `testfixture`
+`all`/`release`/`mptest` commands.
+
+No new broad upstream `testfixture`, `make test`, `mptest`, `all`, or
+`release` run was started. The evidence is a supplied static process snapshot
+only; any real broad runner artifact still has to pass the accepted bounded
+artifact provenance/countability gates before it can count toward release/all
+parity.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This composes
+lane-local command readiness and supplied active-runner snapshots only.
+
 ## Focused Native Mapping: Broad Suite Launch Gate
 
 Date: 2026-05-26
