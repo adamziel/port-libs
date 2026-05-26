@@ -81,6 +81,7 @@ $readerBeforeCommit = $wal->readerSnapshotPageImage($baseDatabaseBytes, 2, 1);
 $readerAtCommit = $wal->readerSnapshotPageImage($baseDatabaseBytes, 2, 2);
 $readerAfterDraft = $wal->readerSnapshotPageImage($baseDatabaseBytes, 2, 3);
 $readerSnapshotMap = $wal->readerSnapshotPageMap($baseDatabaseBytes, 2);
+$readMarkPlan = $wal->readMarkPlan([0, 1, 2, null, 7]);
 $checkpointPlan = $wal->checkpointPlan($baseDatabaseBytes);
 $resetPlan = $wal->resetPlan($baseDatabaseBytes);
 $checkpointModes = [
@@ -124,6 +125,7 @@ echo json_encode([
     'checkpointModes' => $checkpointModes,
     'checkpointResults' => $checkpointResultSummary,
     'readerPageMap' => $readerPageMap,
+    'walIndexReadMarks' => $readMarkPlan,
     'readerOptionPage' => [
         'page_number' => $readerOptionPage['page_number'],
         'source' => $readerOptionPage['source'],
@@ -180,5 +182,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, and reset/truncate decisions while preserving uncommitted WAL tail frames.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, WAL-index read-mark checkpoint pins, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, and reset/truncate decisions while preserving uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

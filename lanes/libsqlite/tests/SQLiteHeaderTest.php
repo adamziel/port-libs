@@ -12335,6 +12335,101 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshot(substr($baseDatabase, 1), 4));
         $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshotPageMap(substr($baseDatabase, 1), 4));
     },
+    'plans sqlite wal-index read marks for pinned reader checkpoints' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $salt1 = 0x56565656;
+        $salt2 = 0x78787878;
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 14, $salt1, $salt2, 0, 0);
+        $wal = SQLiteWal::parse(
+            $walHeader
+            . pack('N*', 2, 2, $salt1, $salt2, 0, 0) . str_repeat('A', $pageSize)
+            . pack('N*', 3, 0, $salt1, $salt2, 0, 0) . str_repeat('B', $pageSize)
+            . pack('N*', 4, 4, $salt1, $salt2, 0, 0) . str_repeat('C', $pageSize)
+            . pack('N*', 2, 4, $salt1, $salt2, 0, 0) . str_repeat('D', $pageSize)
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . str_repeat('E', $pageSize)
+        );
+
+        $plan = $wal->readMarkPlan([0, 2, 4, null, 9]);
+        $t->same(5, $plan['mx_frame']);
+        $t->same(4, $plan['last_commit_frame']);
+        $t->same(2, $plan['checkpoint_pinned_frame']);
+        $t->same(false, $plan['checkpoint_can_finish']);
+        $t->same(true, $plan['reset_blocked']);
+        $t->same([0, 1, 3, 4], $plan['reusable_slots']);
+        $t->same(0, $plan['recommended_reader_slot']);
+        $t->same(4, $plan['recommended_reader_frame']);
+        $t->same(5, count($plan['read_marks']));
+
+        $t->same(0, $plan['read_marks'][0]['slot']);
+        $t->same(0, $plan['read_marks'][0]['frame']);
+        $t->same(true, $plan['read_marks'][0]['active']);
+        $t->same(true, $plan['read_marks'][0]['valid']);
+        $t->same(true, $plan['read_marks'][0]['stale']);
+        $t->same(false, $plan['read_marks'][0]['pins_checkpoint']);
+        $t->same('database_only_reader_before_wal_commit', $plan['read_marks'][0]['reason']);
+
+        $t->same(1, $plan['read_marks'][1]['slot']);
+        $t->same(2, $plan['read_marks'][1]['frame']);
+        $t->same(true, $plan['read_marks'][1]['active']);
+        $t->same(true, $plan['read_marks'][1]['valid']);
+        $t->same(true, $plan['read_marks'][1]['stale']);
+        $t->same(true, $plan['read_marks'][1]['pins_checkpoint']);
+        $t->same('reader_pins_older_snapshot', $plan['read_marks'][1]['reason']);
+
+        $t->same(2, $plan['read_marks'][2]['slot']);
+        $t->same(4, $plan['read_marks'][2]['frame']);
+        $t->same(true, $plan['read_marks'][2]['active']);
+        $t->same(true, $plan['read_marks'][2]['valid']);
+        $t->same(false, $plan['read_marks'][2]['stale']);
+        $t->same(false, $plan['read_marks'][2]['pins_checkpoint']);
+        $t->same('pins_latest_commit', $plan['read_marks'][2]['reason']);
+
+        $t->same(3, $plan['read_marks'][3]['slot']);
+        $t->same(null, $plan['read_marks'][3]['frame']);
+        $t->same(false, $plan['read_marks'][3]['active']);
+        $t->same(true, $plan['read_marks'][3]['valid']);
+        $t->same(false, $plan['read_marks'][3]['stale']);
+        $t->same(false, $plan['read_marks'][3]['pins_checkpoint']);
+        $t->same('unused_slot', $plan['read_marks'][3]['reason']);
+
+        $t->same(4, $plan['read_marks'][4]['slot']);
+        $t->same(9, $plan['read_marks'][4]['frame']);
+        $t->same(true, $plan['read_marks'][4]['active']);
+        $t->same(false, $plan['read_marks'][4]['valid']);
+        $t->same(false, $plan['read_marks'][4]['stale']);
+        $t->same(false, $plan['read_marks'][4]['pins_checkpoint']);
+        $t->same('beyond_wal_mx_frame', $plan['read_marks'][4]['reason']);
+
+        $latestOnly = $wal->readMarkPlan([4, 5]);
+        $t->same(null, $latestOnly['checkpoint_pinned_frame']);
+        $t->same(true, $latestOnly['checkpoint_can_finish']);
+        $t->same(false, $latestOnly['reset_blocked']);
+        $t->same([], $latestOnly['reusable_slots']);
+        $t->same(null, $latestOnly['recommended_reader_slot']);
+        $t->same(null, $latestOnly['recommended_reader_frame']);
+
+        $uncommittedWal = SQLiteWal::parse($walHeader . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . str_repeat('U', $pageSize));
+        $uncommitted = $uncommittedWal->readMarkPlan([0, 1, null]);
+        $t->same(1, $uncommitted['mx_frame']);
+        $t->same(null, $uncommitted['last_commit_frame']);
+        $t->same(null, $uncommitted['checkpoint_pinned_frame']);
+        $t->same(true, $uncommitted['checkpoint_can_finish']);
+        $t->same(false, $uncommitted['reset_blocked']);
+        $t->same('database_only_reader', $uncommitted['read_marks'][0]['reason']);
+        $t->same('reader_on_uncommitted_wal', $uncommitted['read_marks'][1]['reason']);
+        $t->same([2], $uncommitted['reusable_slots']);
+        $t->same(null, $uncommitted['recommended_reader_frame']);
+
+        $emptyWal = SQLiteWal::parse($walHeader);
+        $empty = $emptyWal->readMarkPlan([null, 0]);
+        $t->same(0, $empty['mx_frame']);
+        $t->same(null, $empty['last_commit_frame']);
+        $t->same(true, $empty['checkpoint_can_finish']);
+        $t->same([0], $empty['reusable_slots']);
+        $t->same(0, $empty['recommended_reader_slot']);
+        $t->same(null, $empty['recommended_reader_frame']);
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->readMarkPlan([-1]));
+    },
     'validates sqlite wal header and frame checksums when requested' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $salt1 = 0x01020304;

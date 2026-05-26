@@ -449,6 +449,75 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int|null> $readMarks
+     * @return array{mx_frame:int,last_commit_frame:int|null,checkpoint_pinned_frame:int|null,checkpoint_can_finish:bool,reset_blocked:bool,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}>,reusable_slots:list<int>,recommended_reader_slot:int|null,recommended_reader_frame:int|null}
+     */
+    public function readMarkPlan(array $readMarks): array
+    {
+        $mxFrame = count($this->frames);
+        $lastCommitFrame = $this->lastCommitFrame();
+        $lastCommitIndex = $lastCommitFrame?->index;
+        $rows = [];
+        $pins = [];
+        $reusableSlots = [];
+
+        foreach (array_values($readMarks) as $slot => $frame) {
+            if ($frame !== null && $frame < 0) {
+                throw new \InvalidArgumentException('SQLite WAL read-mark frame must be non-negative');
+            }
+
+            $active = $frame !== null;
+            $valid = $frame === null || $frame <= $mxFrame;
+            $stale = $frame !== null && $lastCommitIndex !== null && $frame < $lastCommitIndex;
+            $pinsCheckpoint = $valid && $frame !== null && $frame > 0 && $lastCommitIndex !== null && $frame < $lastCommitIndex;
+            if ($pinsCheckpoint) {
+                $pins[] = $frame;
+            }
+            if (!$active || !$valid || $stale) {
+                $reusableSlots[] = $slot;
+            }
+
+            $reason = 'pins_latest_commit';
+            if (!$active) {
+                $reason = 'unused_slot';
+            } elseif (!$valid) {
+                $reason = 'beyond_wal_mx_frame';
+            } elseif ($frame === 0) {
+                $reason = $lastCommitIndex === null ? 'database_only_reader' : 'database_only_reader_before_wal_commit';
+            } elseif ($stale) {
+                $reason = 'reader_pins_older_snapshot';
+            } elseif ($lastCommitIndex === null) {
+                $reason = 'reader_on_uncommitted_wal';
+            }
+
+            $rows[] = [
+                'slot' => $slot,
+                'frame' => $frame,
+                'active' => $active,
+                'valid' => $valid,
+                'stale' => $stale,
+                'pins_checkpoint' => $pinsCheckpoint,
+                'reason' => $reason,
+            ];
+        }
+
+        $checkpointPinnedFrame = $pins === [] ? null : min($pins);
+        $recommendedReaderSlot = $reusableSlots[0] ?? null;
+
+        return [
+            'mx_frame' => $mxFrame,
+            'last_commit_frame' => $lastCommitIndex,
+            'checkpoint_pinned_frame' => $checkpointPinnedFrame,
+            'checkpoint_can_finish' => $checkpointPinnedFrame === null,
+            'reset_blocked' => $lastCommitIndex !== null && $checkpointPinnedFrame !== null,
+            'read_marks' => $rows,
+            'reusable_slots' => $reusableSlots,
+            'recommended_reader_slot' => $recommendedReaderSlot,
+            'recommended_reader_frame' => $recommendedReaderSlot === null ? null : $lastCommitIndex,
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

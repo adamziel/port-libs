@@ -1,5 +1,32 @@
 # libsqlite Root Harness Notes
 
+## Isolated WAL Read-Mark Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the WAL-index read-mark slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+```
+
+Result: focused test count moved from the current accepted 3688-assertion
+baseline recorded in lane status to 3754 assertions, +66, with 0 failures. Root
+harness status: not run - isolated micro-slice. The WordPress WAL smoke now
+reports WAL-index read-mark slots for copied `wp_options` diagnostics,
+including database-only readers, stale snapshots that pin checkpoint
+completion, latest-commit readers, invalid marks beyond mxFrame, reusable slot
+selection, and the recommended reader frame.
+
+Dependency closure: no new support component is needed. This slice reuses the
+lane-local WAL header/frame parser, reader snapshot diagnostics, checkpoint
+planning helpers, and WordPress fixture smoke without activating a shared
+WAL-index, lock-manager, VFS, or process-locking dependency.
+
 ## Isolated WAL Checkpoint Result Slice
 
 Date: 2026-05-26

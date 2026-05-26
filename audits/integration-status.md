@@ -117420,3 +117420,37 @@ Final commit and cleanup:
 - Remaining ready-marker count after cleanup sample: `6537` total ready markers, including `3269` libsqlite ready markers.
 
 Dashboard publication should run next for source `0cf6ab9a9594b5f86b0341e42ef167b6626b063f`; clean integration should not accept another source-moving marker until live Pages catches up.
+## Integration accepted - libsqlite WAL-index read marks - 2026-05-26T21:59:20Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T215648Z.ready`.
+
+Decision: accepted from current `refs/heads/main` `debadf3190db8fbf914f764452a99626cfd177ba`. The marker was current-base, lane-local to `libsqlite`, and added native WAL-index read-mark diagnostics plus focused assertions and a WordPress WAL smoke update. This does not duplicate the accepted WAL checkpoint modes or WAL reader snapshot page-map clusters.
+
+Dashboard guard evidence: cache-busted live Pages reported exact matching source `debadf3190db8fbf914f764452a99626cfd177ba`, generated `2026-05-26 21:54:41 UTC`, with dashboard commit `38a5b66cecaa10e6dcd8b508c496365dcbddf41f`.
+
+Runtime gate evidence before focused checks: `df -Pk /` reported `87154164` KiB available, `/proc/loadavg` one-minute load was `1.25`, and no exact no-argument root harness process was present.
+
+Focused verification before root:
+- `php -l lanes/libsqlite/src/SQLiteWal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3754 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Accepted delta: `SQLiteWal::readMarkPlan()` for stale reader checkpoint pins, invalid marks beyond `mx_frame`, latest-commit readers, reusable slot selection, uncommitted WAL readers, empty WAL handling, and invalid negative mark rejection. The WordPress WAL diagnostic smoke now emits `walIndexReadMarks`; `lane-status.json` moves `phpPass` from `724` to `725`, and mapped coverage moves from `388` to `389 / 1589`.
+
+Serialized root verification:
+- Runtime/source gate immediately before root: local `refs/heads/main`, candidate HEAD, and live Pages all reported `debadf3190db8fbf914f764452a99626cfd177ba`; `df -Pk /` reported `87150816` KiB available; `/proc/loadavg` one-minute load was `1.19`; and no exact no-argument root harness process was present.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` and passed with `215 test files, 28888 assertions, 0 failures`.
+
+Final commit and cleanup:
+- Accepted commit: this commit (`Integrate libsqlite WAL read-mark diagnostics`).
+- Final ref publication moved `refs/heads/main` from `debadf3190db8fbf914f764452a99626cfd177ba` to this commit only after local `main` and live Pages still matched the verified source.
+- Removed accepted ready marker, patch, and metadata from `.tmux-team/tmp/handoff-candidates`.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T215648Z` still contains modified lane files and was preserved as cleanup debt.
+- Clean integrator candidate worktree `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-candidate-libsqlite-wal-20260526T215648Z` contains root-run `.tmp-root` untracked artifacts and was preserved rather than force-removed.
+- Remaining ready-marker count after cleanup sample: `6572` total ready markers, including `3304` libsqlite ready markers.
+
+Dashboard publication should run next for this final accepted source; clean integration should not accept another source-moving marker until live Pages catches up.
