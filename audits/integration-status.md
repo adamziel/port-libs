@@ -117079,3 +117079,36 @@ Decision: accepted after focused checks, WordPress smoke, `git diff --check`, an
 Cleanup:
 - Accepted marker artifacts were removed after commit publication.
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T201521Z` still contains modified/added copies of the accepted lane files, so it was preserved as cleanup debt rather than removed.
+
+## Integration accepted - libsqlite JSON table projection - 2026-05-26T20:34:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T202319Z.ready`
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `8fd5f7e83a3efb978bb92ce44faa2027284c4094` (`Integrate libsqlite auto-vacuum page reuse`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `8fd5f7e83a3efb978bb92ce44faa2027284c4094`, `generated` `2026-05-26 20:29:42 UTC`, and `dashboardCommit` `52792e80a00a3fcfb9a0fcba0cc6f8b2927e122a`.
+
+Candidate decision:
+- Selected the JSON table projection marker from the bounded recent sample because it adds non-overlapping JSON table/planner behavior, a WordPress JSON option smoke update, and the strongest sampled behavior assertion delta at +49 focused assertions.
+- Marker base `1a7e7562095e090a68842acb1fea5351051b756a` was one accepted source behind current `main`. Direct apply failed only in `lanes/libsqlite/lane-status.json`; implementation, test, example, and note hunks applied cleanly, and `lane-status.json` was reconciled minimally from current `8fd5f7e8`.
+- Scope: `SQLiteJsonTablePlan::visibleRows()`, `SQLiteJsonTablePlan::projectedRows()`, explicit hidden `json`/`root` projection, `rowid`/`_rowid_`/`oid` aliases, and `wordpress-json-each-option-settings.php` diagnostics.
+
+Focused verification in detached candidate `.tmux-team/tmp/clean-candidate-json-table-20260526T203148` with repo-local `TMPDIR=.tmp-root`:
+- Runtime gates before focused checks: `df -Pk /` reported `87014084` KiB available; `/proc/loadavg` one-minute load was `1.33`; no exact no-argument root process was running.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3385 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed and emitted valid JSON.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Runtime gates before root: `df -Pk /` reported `86902940` KiB available; `/proc/loadavg` one-minute load was `1.66`; no exact `php tools/run-tests.php` no-argument root process was already running.
+- Serialized no-argument root run under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=.tmp-root` passed: `215 test files, 28519 assertions, 0 failures`.
+- Root assertion delta versus current accepted source `8fd5f7e8` evidence (`28492`) is `+27`.
+
+Decision: accepted after focused checks, WordPress smoke, `git diff --check`, and serialized root verification. Dashboard publication should run next after commit because this pass moves source beyond the currently live `8fd5f7e8` dashboard.
+
+Cleanup:
+- Accepted ready/patch/metadata handoff artifacts were removed after commit publication.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T202319Z` still contains modified copies of the accepted lane files, so it was preserved as cleanup debt rather than removed.

@@ -133,6 +133,17 @@ foreach ($inputs as $name => $value) {
         'pluginRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$value, '$.plugin'])),
         'rulesRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$value, '$.plugin.rules'])),
         'plannedRulesRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::rows('JSON_EACH', $plannerConstraints)),
+        'visibleRuleRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::visibleRows('JSON_EACH', $plannerConstraints)),
+        'projectedRuleRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::projectedRows('JSON_EACH', $plannerConstraints, [
+            'rowid',
+            'key',
+            'value',
+            'type',
+            'atom',
+            'fullkey',
+            'json',
+            'root',
+        ])),
         'filteredObjectRuleRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $objectRuleConstraints)),
         'filteredCachePatternRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $namePatternConstraints)),
         'filteredNotPatternRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $nameNotPatternConstraints)),
@@ -180,7 +191,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, MATCH/NOT MATCH, IN-list, numeric equality, IS NULL, IS NOT NULL, IS DISTINCT FROM, IS NOT DISTINCT FROM, range, BETWEEN, rowid/_rowid_/oid alias residual filtering, and ORDER BY/LIMIT preview paging for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, SELECT * visible-column projection, explicit hidden json/root and rowid projection, hidden json/root constraint planning, visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, MATCH/NOT MATCH, IN-list, numeric equality, IS NULL, IS NOT NULL, IS DISTINCT FROM, IS NOT DISTINCT FROM, range, BETWEEN, rowid/_rowid_/oid alias residual filtering, and ORDER BY/LIMIT preview paging for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**
@@ -191,7 +202,7 @@ function normalizeJsonEachRows(array $rows): array
 {
     return array_map(
         static function (array $row): array {
-            if ($row['json'] instanceof SQLiteBlobValue) {
+            if (($row['json'] ?? null) instanceof SQLiteBlobValue) {
                 $row['json'] = [
                     'type' => 'blob',
                     'hexPrefix' => strtoupper(substr(bin2hex($row['json']->bytes), 0, 24)),

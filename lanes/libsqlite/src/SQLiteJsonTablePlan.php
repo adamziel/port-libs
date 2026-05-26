@@ -6,6 +6,8 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonTablePlan
 {
+    private const VISIBLE_COLUMNS = ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'];
+
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
      * @return array{function:string,runnable:bool,arguments:list<mixed>,json:mixed,root:string,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int}
@@ -129,6 +131,48 @@ final class SQLiteJsonTablePlan
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return list<array<string,mixed>>
+     */
+    public static function visibleRows(string $function, array $constraints): array
+    {
+        return self::projectedRows($function, $constraints, self::VISIBLE_COLUMNS);
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    public static function projectedRows(string $function, array $constraints, array $columns): array
+    {
+        if ($columns === []) {
+            throw new \InvalidArgumentException('SQLite JSON table projection must include at least one column');
+        }
+
+        $normalizedColumns = array_map(
+            static fn (string $column): string => strtolower($column),
+            $columns,
+        );
+
+        return array_map(
+            static function (array $row) use ($normalizedColumns): array {
+                $projected = [];
+                foreach ($normalizedColumns as $column) {
+                    if (!self::rowHasColumn($row, $column)) {
+                        throw new \InvalidArgumentException("SQLite JSON table projection column {$column} is not available");
+                    }
+
+                    $projected[$column] = self::rowColumnValue($row, $column);
+                }
+
+                return $projected;
+            },
+            self::filteredRows($function, $constraints),
+        );
     }
 
     private static function normalizeFunction(string $function): string

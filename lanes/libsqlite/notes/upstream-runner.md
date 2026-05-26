@@ -10046,3 +10046,39 @@ isolated micro-slice.
 Dependency closure: no new support component is needed. This parser is bounded
 to SQLite filename semantics and does not activate the shared URL or
 percent-encoding backlog.
+
+## Focused Native Mapping: JSON Table Visible And Hidden Projection
+
+This JSON table/window micro-slice maps the SQLite JSON virtual table output
+boundary between `SELECT *` visible columns and explicitly requested hidden
+columns. Native `SQLiteJsonTablePlan::visibleRows()` now returns the visible
+`json_each`/`json_tree` columns (`key`, `value`, `type`, `atom`, `id`,
+`parent`, `fullkey`, `path`) without hidden `json` or `root`, while
+`projectedRows()` supports explicit hidden `json`/`root` columns and
+`rowid`/`_rowid_`/`oid` aliases after the accepted hidden-column planner and
+residual filtering have run.
+
+Focused upstream denominator impact: one additional JSON table output-shaping
+evidence row is mapped against `json101.test`/`json102.test` behavior. No fresh
+upstream runner evidence is claimed by this slice.
+
+Verification run 2026-05-26T20:20Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3363 assertions, and 0 failures, adding 49 focused assertions
+over the pre-slice 3314 focused assertion count. The WordPress JSON table
+smoke passed. The root harness was not run because this was an isolated
+micro-slice.
+
+Dependency closure: no new support component is needed; this reuses existing
+lane-local JSON table row generation and residual filtering.

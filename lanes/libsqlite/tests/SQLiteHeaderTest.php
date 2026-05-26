@@ -5046,6 +5046,55 @@ return [
         $t->same(['object', 'object'], array_column($pagedRows, 'type'));
         $t->same(['$.plugin.rules[1]', '$.plugin.rules[0]'], array_column($pagedRows, 'fullkey'));
 
+        $visibleEachRows = SQLiteJsonTablePlan::visibleRows('json_each', $constraints);
+        $t->same(['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'], array_keys($visibleEachRows[0]));
+        $t->same([0, 1], array_column($visibleEachRows, 'key'));
+        $t->same(['object', 'object'], array_column($visibleEachRows, 'type'));
+        $t->same([null, null], array_column($visibleEachRows, 'atom'));
+        $t->same([1, 2], array_column($visibleEachRows, 'id'));
+        $t->same([null, null], array_column($visibleEachRows, 'parent'));
+        $t->same(['$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($visibleEachRows, 'fullkey'));
+        $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($visibleEachRows, 'path'));
+        $t->same(false, array_key_exists('json', $visibleEachRows[0]));
+        $t->same(false, array_key_exists('root', $visibleEachRows[0]));
+
+        $projectedTreeRows = SQLiteJsonTablePlan::projectedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+        ], ['rowid', '_ROWID_', 'oid', 'key', 'atom', 'json', 'root']);
+        $t->same(['rowid', '_rowid_', 'oid', 'key', 'atom', 'json', 'root'], array_keys($projectedTreeRows[0]));
+        $t->same([2, 4], array_column($projectedTreeRows, 'rowid'));
+        $t->same([2, 4], array_column($projectedTreeRows, '_rowid_'));
+        $t->same([2, 4], array_column($projectedTreeRows, 'oid'));
+        $t->same(['name', 'name'], array_column($projectedTreeRows, 'key'));
+        $t->same(['seo', 'cache'], array_column($projectedTreeRows, 'atom'));
+        $t->same([$settings, $settings], array_column($projectedTreeRows, 'json'));
+        $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($projectedTreeRows, 'root'));
+
+        $projectedEachRows = SQLiteJsonTablePlan::projectedRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+            ['column' => 'key', 'operator' => 'IN', 'value' => ['enabled', 'priority', 'rules']],
+        ], ['KEY', 'VALUE', 'TYPE', 'ATOM', 'ROWID']);
+        $t->same(['key', 'value', 'type', 'atom', 'rowid'], array_keys($projectedEachRows[0]));
+        $t->same(['enabled', 'rules'], array_column($projectedEachRows, 'key'));
+        $t->same([1, '[{"name":"seo"},{"name":"cache"}]'], array_column($projectedEachRows, 'value'));
+        $t->same(['true', 'array'], array_column($projectedEachRows, 'type'));
+        $t->same([1, null], array_column($projectedEachRows, 'atom'));
+        $t->same([1, 2], array_column($projectedEachRows, 'rowid'));
+
+        $t->same([], SQLiteJsonTablePlan::visibleRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => null],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::projectedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+        ], []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::projectedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+        ], ['missing']));
+
         $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$'],

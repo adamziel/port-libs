@@ -1022,6 +1022,31 @@ same reader-present restart/truncate diagnostics. Manifest/status JSON decoded
 successfully; lane diff check passed. The root harness was not run because this
 was an isolated micro-slice.
 
+## JSON Table Projection Output Slice
+
+Focused lane verification for the JSON table visible/projected output slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3363 assertions, and 0 failures, adding 49 focused assertions
+over the pre-slice 3314 focused assertion count. The WordPress JSON table
+smoke reports `SELECT *`-style visible columns separately from explicit hidden
+`json`/`root` and `rowid` alias projection for copied `wp_options` JSON
+expansion. The root harness was not run because this was an isolated
+micro-slice.
+
+Dependency closure: no new support component is needed; this reuses existing
+lane-local JSON table row generation and residual filtering.
+
 Dependency closure: no new support component is needed. This reuses the
 lane-local WAL header/frame parser, checkpoint planner, reader snapshot
 diagnostics, and WordPress WAL smoke path without activating shared support
