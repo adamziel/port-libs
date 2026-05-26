@@ -1504,6 +1504,9 @@ final class SQLiteUpstreamSuiteEvidence
         array $failedReleaseArtifacts,
         array $focusedReproGate
     ): array {
+        $expectedManifestUuid = is_string($this->manifest['upstream']['officialManifestUuid'] ?? null)
+            ? $this->manifest['upstream']['officialManifestUuid']
+            : null;
         $focusedScript = is_string($focusedReproGate['script'] ?? null) ? $focusedReproGate['script'] : null;
         $focusedCase = is_string($focusedReproGate['case'] ?? null) ? $focusedReproGate['case'] : null;
         $focusedArtifact = is_array($focusedReproGate['artifact'] ?? null) ? $focusedReproGate['artifact'] : [];
@@ -1522,12 +1525,34 @@ final class SQLiteUpstreamSuiteEvidence
             }
 
             $results = is_array($artifact['results'] ?? null) ? $artifact['results'] : [];
+            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+            $testset = is_string($requested['testset'] ?? null) ? $requested['testset'] : null;
+            $manifestUuid = is_string($artifact['sqlite_manifest_uuid'] ?? null) ? $artifact['sqlite_manifest_uuid'] : null;
             if (($artifact['status'] ?? null) !== 'failed') {
                 $blockers[] = [
                     'id' => 'release-artifact-not-failed',
                     'evidence' => 'persistent runtime blocker classification only accepts failed guarded release/all artifacts',
                     'index' => $index,
                     'artifact_status' => $artifact['status'] ?? 'unknown',
+                ];
+                continue;
+            }
+            if (!in_array($testset, ['all', 'release'], true)) {
+                $blockers[] = [
+                    'id' => 'release-artifact-not-release-tier',
+                    'evidence' => 'persistent runtime blocker classification only accepts broad all/release runner artifacts',
+                    'index' => $index,
+                    'testset' => $testset,
+                ];
+                continue;
+            }
+            if ($expectedManifestUuid === null || $manifestUuid !== $expectedManifestUuid) {
+                $blockers[] = [
+                    'id' => 'release-artifact-manifest-mismatch',
+                    'evidence' => 'failed release artifact SQLite manifest UUID must match the lane upstream manifest before persistent blocker evidence can be counted',
+                    'index' => $index,
+                    'expected' => $expectedManifestUuid,
+                    'actual' => $manifestUuid,
                 ];
                 continue;
             }
@@ -1562,11 +1587,11 @@ final class SQLiteUpstreamSuiteEvidence
                 continue;
             }
 
-            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
             $matches[] = [
                 'label' => $artifact['label'] ?? null,
                 'repository_head' => $artifact['repository_head'] ?? null,
-                'testset' => $requested['testset'] ?? null,
+                'sqlite_manifest_uuid' => $manifestUuid,
+                'testset' => $testset,
                 'exit' => $results['exit'] ?? null,
                 'elapsed_seconds' => $results['elapsed_seconds'] ?? null,
                 'script' => $matched['script'] ?? null,
@@ -1601,6 +1626,7 @@ final class SQLiteUpstreamSuiteEvidence
             'case' => $focusedCase,
             'matching_release_artifact_count' => count($matches),
             'matching_release_artifacts' => $matches,
+            'expected_sqlite_manifest_uuid' => $expectedManifestUuid,
             'focused_repro_status' => $focusedReproGate['status'] ?? 'unknown',
             'focused_tests' => is_int($focusedResults['tests'] ?? null) ? $focusedResults['tests'] : null,
             'focused_errors' => is_int($focusedResults['errors'] ?? null) ? $focusedResults['errors'] : null,

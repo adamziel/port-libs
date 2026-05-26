@@ -1274,12 +1274,17 @@ MD;
         $t->same('focused-repro-passed', $gate['focused_repro_status']);
         $t->same(1, $gate['focused_tests']);
         $t->same(0, $gate['focused_errors']);
+        $t->same('9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353', $gate['expected_sqlite_manifest_uuid']);
         $t->same('ext/fts5/test/fts5aux.test', $gate['script']);
         $t->same('fts5aux-3.1', $gate['case']);
         $t->same([
             'libsqlite-release-notty-runner-20260526T102446Z',
             'libsqlite-release-rerun-foreground-20260526T134619Z',
         ], array_column($gate['matching_release_artifacts'], 'label'));
+        $t->same([
+            '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353',
+            '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353',
+        ], array_column($gate['matching_release_artifacts'], 'sqlite_manifest_uuid'));
         $t->contains('persistent upstream-runtime blocker evidence', $gate['next_gate']);
         $t->contains('no new support component needed', $gate['dependency_closure']);
 
@@ -1288,6 +1293,75 @@ MD;
         $t->same(false, $blocked['persistent']);
         $t->same(1, $blocked['matching_release_artifact_count']);
         $t->same(['insufficient-repeated-release-failures'], array_column($blocked['blockers'], 'id'));
+    },
+    'rejects persistent release blocker evidence from non-release or mismatched manifest artifacts' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $focusedRepro = $evidence->focusedFailureReproGate(
+            [
+                'category' => 'upstream-runtime-environment',
+                'script' => 'ext/fts5/test/fts5aux.test',
+                'case' => 'fts5aux-3.1',
+            ],
+            '8ab0375ac9e72382750dc8fb8f4b96a2913e777a',
+            dirname(__DIR__, 3),
+            <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-fts5aux-repro-20260526T123916Z
+
+- Repository HEAD: `8ab0375ac9e72382750dc8fb8f4b96a2913e777a`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Patterns: `ext/fts5/test/fts5aux.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 1 tests`
+- Parsed errors: `0`
+- Parsed tests: `1`
+MD
+        );
+        $focusedReleaseFailureTail = <<<'MD'
+
+## Tail
+
+```text
+FAILED: Sanitize ext/fts5/test/fts5aux.test (1)
+OUTPUT: fts5aux-3.1.../tmp/src/ext/fts5/fts5_tcl.c:429:59: runtime error: applying non-zero offset 1 to null pointer
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/src/ext/fts5/fts5_tcl.c:429:59
+```
+MD;
+
+        $focusedArtifact = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-fts5aux-20260526T160000Z
+
+- Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Exit: `1`
+MD . $focusedReleaseFailureTail);
+        $wrongManifestRelease = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-wrong-manifest-20260526T160000Z
+
+- Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- SQLite manifest UUID: `different-manifest`
+- Testset: `release`
+- Exit: `1`
+MD . $focusedReleaseFailureTail);
+
+        $gate = $evidence->persistentReleaseRuntimeBlockerGate(
+            [$focusedArtifact, $wrongManifestRelease],
+            $focusedRepro
+        );
+
+        $t->same('blocked', $gate['status']);
+        $t->same(false, $gate['persistent']);
+        $t->same(0, $gate['matching_release_artifact_count']);
+        $t->same([
+            'release-artifact-not-release-tier',
+            'release-artifact-manifest-mismatch',
+            'insufficient-repeated-release-failures',
+        ], array_column($gate['blockers'], 'id'));
+        $t->same('veryquick', $gate['blockers'][0]['testset']);
+        $t->same('different-manifest', $gate['blockers'][1]['actual']);
+        $t->same('9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353', $gate['blockers'][1]['expected']);
+        $t->same(false, $gate['counts_as_release_parity']);
     },
     'gates bounded runner artifacts on accepted checkout and SQLite manifest provenance' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');

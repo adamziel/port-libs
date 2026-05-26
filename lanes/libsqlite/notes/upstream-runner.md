@@ -1,5 +1,34 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Persistent Release Manifest Gate
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice tightens
+`SQLiteUpstreamSuiteEvidence::persistentReleaseRuntimeBlockerGate()`. Repeated
+fts5aux sanitizer failures can now become persistent upstream-runtime blocker
+evidence only when each failed artifact is a broad `all` or `release` runner
+from the lane's expected SQLite manifest UUID. Focused repro records,
+`veryquick` artifacts, and mismatched-manifest release artifacts remain blocked
+evidence and cannot count as release/all parity.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run
+was started by this slice.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This composes existing
+lane-local release artifacts, focused repro evidence, and SQLite manifest
+provenance only.
+
 ## Focused Native Mapping: Persistent Release Runtime Blocker Gate
 
 Date: 2026-05-26
