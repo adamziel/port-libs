@@ -116114,3 +116114,54 @@ Cleanup:
 - Remove accepted marker artifacts only after the commit is safely on `main`. The accepted worker worktree should be removed only if still clean/inactive; otherwise preserve and record cleanup debt.
 
 Dashboard publication should run next after this accepted source move.
+## Integration accepted - libsqlite B-tree index overflow metadata - 2026-05-26T17:12:33Z
+
+Accepted marker:
+- `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T170542Z.ready`
+- Lane: `libsqlite`
+- Slice: `closure-libsqlite-btree-delete-rebalance-20260526T170542Z`
+- Base accepted HEAD in marker: `d8046f1fbe6e3f070380cdd6b58da1217b7a0e79`
+- Current integration base: `edd0f3b1a3a6c3ebe534541e4e487c9b4dbf2e5a`
+- Patch sha256 matched marker metadata: `0780dbfbac38d91e06641ab45c9055f99abcccd89df4ead3cdab32256bdcdd4f`
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate work was `edd0f3b1a3a6c3ebe534541e4e487c9b4dbf2e5a` (`Integrate libsqlite numeric aggregate helpers`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `edd0f3b1a3a6c3ebe534541e4e487c9b4dbf2e5a`.
+- Pages-outage override files from `20260526T1144Z`, `1202Z`, `1215Z`, `1236Z`, and `1246Z` were already consumed and were not used.
+
+Candidate handling:
+- The full marker patch was stale only in bookkeeping files already changed by later accepted numeric aggregate commits: `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and `notes/root-harness.md`.
+- Behavior files applied cleanly in detached clean worktree `.tmux-team/tmp/clean-integrator-check-20260526T171036Z-btree` from current `refs/heads/main`.
+- The accepted bounded refresh updates `lane-status.json` to the B-tree slice but leaves the stale manifest/root-note hunks out of the commit rather than overwriting newer accepted evidence.
+
+Runtime gate evidence:
+- Before focused/root checks, `df -Pk /` reported at least `121334492` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `2.97`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+- Focused and root checks ran with `TMPDIR` set to the candidate repo-local `.tmp-root`.
+
+Focused verification passed:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php`
+- `php -l lanes/libsqlite/src/SQLiteIndexCell.php`
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php`
+- Manifest/status JSON validation.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 2978 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php`: reported overflow delete prerequisite data with `firstOverflowPage: 3`, `localPayloadLength: 39`, `payloadLength: 695`, and `overflowPageCount: 2`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification passed:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+- Result: `215 test files, 27954 assertions, 0 failures`.
+
+Decision: accepted for a small libsqlite behavior slice. The commit preserves index-cell local payload length and first-overflow-page metadata, carries overflowing secondary-index entries into obsolete-chain release planning, adds four focused assertions, and expands the WordPress index-leaf delete smoke with overflow prerequisite evidence.
+
+Cleanup evidence:
+- The accepted worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T170542Z` still has modified lane files after publication, including stale manifest/status/root-harness hunks and the accepted behavior files. It was preserved and left registered; cleanup debt remains for a later safe worktree review.
+- Accepted ready marker, patch, metadata, and isolated-worker log artifacts were eligible for removal after the commit was safely published to `refs/heads/main`.
+
+Ready queue evidence:
+- Remaining ready-marker count before cleanup: `5879` total ready markers, including `2611` libsqlite ready markers.
+- Non-libsqlite and Dolt markers were not considered because the libsqlite-only intake priority still applies and Dolt remains parked.
+
+Dashboard publication should run next because accepted source moved and live Pages will lag the new commit until the dashboard updater publishes it.

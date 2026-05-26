@@ -28,6 +28,31 @@ $afterHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
 $afterCells = SQLiteIndexCell::parsePageCells($deletedPage, $afterHeader);
 $deletedBytes = $beforeCells[1]->bytesRead + $beforeCells[2]->bytesRead;
 
+$largeKey = str_repeat('_transient_large_cache_', 30);
+$largeRecord = SQLiteRecord::encode([$largeKey, 9]);
+$overflowAllocation = SQLiteIndexCell::encodeWithOverflowPages($largeRecord, 3);
+$overflowIndexPage = SQLiteIndexLeafPage::assemble([$overflowAllocation['cell']]);
+$overflowHeader = SQLiteBTreePageHeader::parsePage($overflowIndexPage, 512);
+$overflowPages = array_combine(
+    range(3, 2 + count($overflowAllocation['overflowPages'])),
+    $overflowAllocation['overflowPages'],
+);
+$overflowReader = static function (int $firstOverflowPage, int $byteCount) use ($overflowPages): string {
+    $payload = '';
+    $pageNumber = $firstOverflowPage;
+    while ($pageNumber !== 0 && strlen($payload) < $byteCount) {
+        $page = $overflowPages[$pageNumber] ?? null;
+        if ($page === null) {
+            throw new InvalidArgumentException('Fixture overflow page is missing');
+        }
+        $pageNumber = unpack('N', substr($page, 0, 4))[1];
+        $payload .= substr($page, 4);
+    }
+
+    return substr($payload, 0, $byteCount);
+};
+$overflowCell = SQLiteIndexCell::parsePageCells($overflowIndexPage, $overflowHeader, 512, $overflowReader)[0];
+
 echo json_encode([
     'wordpressUse' => 'Bulk delete obsolete wp_options option_name index entries locally and expose the coalesced page freeblock that a later writer can reuse.',
     'deletedIndexRecords' => $deletedRecords,
@@ -36,4 +61,11 @@ echo json_encode([
     'afterCellCount' => $afterHeader->cellCount,
     'freeblocks' => array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $afterHeader->freeblocks($deletedPage)),
     'secureDeletedBytes' => bin2hex(substr($deletedPage, $beforeCells[2]->offset + 4, max(0, $deletedBytes - 4))),
+    'overflowIndexDeletePrerequisite' => [
+        'firstOverflowPage' => $overflowCell->firstOverflowPage,
+        'localPayloadLength' => $overflowCell->localPayloadLength,
+        'payloadLength' => $overflowCell->payloadLength,
+        'overflowPageCount' => count($overflowAllocation['overflowPages']),
+        'recordPrefix' => substr($overflowCell->record()->values[0], 0, 22),
+    ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

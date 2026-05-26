@@ -1033,6 +1033,10 @@ return [
         $t->same('00000000', bin2hex(substr($allocation['overflowPages'][1], 0, 4)));
         $t->same(1, count($cells));
         $t->same([$largeKey, 42], $cells[0]->record()->values);
+        $t->same($allocation['localPayloadLength'], $cells[0]->localPayloadLength);
+        $t->same(3, $cells[0]->firstOverflowPage);
+        $t->same(strlen($payload), $cells[0]->payloadLength);
+        $t->same(strlen(SQLiteVarint::encode(strlen($payload))) + $allocation['localPayloadLength'] + 4, $cells[0]->bytesRead);
     },
     'assembles wordpress option_name index leaf pages from native index cell encoder' => static function (TestRunner $t) use ($makeFirstPage): void {
         $schemaPage = SQLiteTableLeafPage::assemble([

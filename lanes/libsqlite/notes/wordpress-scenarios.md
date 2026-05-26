@@ -79,6 +79,15 @@ diagnostic smoke. Dependency closure: no new support component is needed; this
 reuses lane-local B-tree headers, cell parsers, freeblock accounting, and
 record decoding.
 
+Status delta 2026-05-26 isolated B-tree delete/rebalance slice: parsed index
+cells that spill to overflow pages now preserve local payload length and
+first-overflow-page metadata, and writable index replacement entries carry that
+metadata forward for later obsolete-chain release planning. The index-leaf
+delete smoke reports the overflow-chain prerequisite for large
+`wp_options(option_name, ...)` index records. Dependency closure: no new support
+component is needed; this reuses lane-local index cells, overflow-chain
+readers, freelist planning, and WordPress index replacement diagnostics.
+
 ## REGEXP-Style Option Name Pattern Scenario
 
 Native WordPress option diagnostics can now evaluate SQLite-style

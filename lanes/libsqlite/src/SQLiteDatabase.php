@@ -758,7 +758,18 @@ final class SQLiteDatabase
             $matchedAutoload,
             $replacementAutoload,
             $allowAppend,
+            $obsoleteOverflowPageNumbers,
         );
+        $freedObsoletePages = $freePlan?->freedPageNumbers ?? [];
+        $pendingObsoletePages = array_values(array_diff($obsoleteOverflowPageNumbers, $freedObsoletePages));
+        if ($pendingObsoletePages !== []) {
+            $indexFreePlan = $this->withPageImages($pageImages)->planPageFreeList($pendingObsoletePages, $secureDelete);
+            foreach ($indexFreePlan->pageImages() as $pageNumber => $page) {
+                $pageImages[$pageNumber] = $page;
+            }
+            $freePlan = $indexFreePlan;
+            ksort($pageImages);
+        }
         $databasePageCount = max(
             $this->pageCount(),
             $this->header->databaseSizePages,
@@ -1892,6 +1903,7 @@ final class SQLiteDatabase
         ?string $oldAutoload,
         ?string $newAutoload,
         bool $allowAppend,
+        array &$obsoleteOverflowPageNumbers,
     ): array
     {
         foreach ($indexes as $index) {
@@ -1922,6 +1934,15 @@ final class SQLiteDatabase
                 ) {
                     $found = true;
                     if ($mutatesKey) {
+                        if ($entry['firstOverflowPage'] !== null) {
+                            $obsoleteOverflowPageNumbers = array_values(array_unique(array_merge(
+                                $obsoleteOverflowPageNumbers,
+                                $this->overflowPageNumbers(
+                                    $entry['firstOverflowPage'],
+                                    $entry['payloadLength'] - $entry['localPayloadLength'],
+                                ),
+                            )));
+                        }
                         continue;
                     }
                 } elseif ($indexRowId === $rowId) {
@@ -3006,7 +3027,7 @@ final class SQLiteDatabase
 
     /**
      * @param non-empty-list<SQLiteIndexColumn> $columns
-     * @return list<array{values:list<mixed>,cell:string}>
+     * @return list<array{values:list<mixed>,cell:string,payloadLength:int,localPayloadLength:int,firstOverflowPage:?int}>
      */
     private function writableIndexLeafEntries(string $page, SQLiteBTreePageHeader $header, array $columns): array
     {
@@ -3020,6 +3041,9 @@ final class SQLiteDatabase
             $entries[] = [
                 'values' => $this->indexEntryValuesForColumns($cell, count($columns)),
                 'cell' => substr($page, $cell->offset, $cell->bytesRead),
+                'payloadLength' => $cell->payloadLength,
+                'localPayloadLength' => $cell->localPayloadLength,
+                'firstOverflowPage' => $cell->firstOverflowPage,
             ];
         }
 
