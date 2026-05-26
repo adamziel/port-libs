@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "markerPDF",
+    "estimatedProgress": 3,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 2,
+    "phpFail": 0,
+    "wordpressScenarios": "PDF import into clean post content and Data Liberation document conversion workflows.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native PDF content stream text-run extraction for literal, array, hex, and FlateDecode streams.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "079f990fce6d",
+    "nextTask": "Add more PDF operators and map markerPDF extraction pipeline fixtures."
+}

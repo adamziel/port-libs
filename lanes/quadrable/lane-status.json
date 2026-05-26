@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "quadrable",
+    "estimatedProgress": 2,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 3,
+    "phpFail": 0,
+    "wordpressScenarios": "Authenticated local-first state sync for Playground snapshots and content databases.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native hash primitives for empty branches, leaf domain separation, and path-bit addressing.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "079f990fce6d",
+    "nextTask": "Port core coordinate/data model and inventory check.cpp assertions."
+}

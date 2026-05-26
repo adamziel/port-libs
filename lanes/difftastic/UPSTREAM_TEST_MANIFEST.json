@@ -1,0 +1,26 @@
+{
+    "schemaVersion": 1,
+    "lane": "difftastic",
+    "priority": 9,
+    "upstream": {
+        "name": "Wilfred/difftastic",
+        "url": "https://github.com/Wilfred/difftastic",
+        "commit": "7ccfcb315f7e46fd015809416c7d7dffa5be7078",
+        "license": "pending verification from upstream checkout",
+        "architecture": "Rust syntax-aware structural diff with parser integrations and HTML/text output."
+    },
+    "benchmarkDenominator": {
+        "status": "static-seed",
+        "total": "pending full upstream inventory",
+        "mapped": 2,
+        "source": "Rust tests, parser fixtures, sample diffs; denominator pending upstream inventory.",
+        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+    },
+    "nativeImplementation": {
+        "language": "PHP",
+        "shellOutsAllowedForProgress": false,
+        "currentSlice": "Native token-level differ that avoids raw line-only comparison."
+    },
+    "wordpressScenario": "Readable diffs for blocks, templates, theme.json, code snippets, and structured documents.",
+    "nextTask": "Map parser fixtures and replace generic tokens with syntax-tree anchors."
+}

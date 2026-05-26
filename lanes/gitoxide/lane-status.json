@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "gitoxide",
+    "estimatedProgress": 4,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 3,
+    "phpFail": 0,
+    "wordpressScenarios": "Git-backed WordPress content workflows, package installs, Playground snapshots, and server-side repo primitives.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native loose Git object storage with canonical object headers and SHA-1 object IDs.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "079f990fce6d",
+    "nextTask": "Expand loose object store into tree/commit parsing and map gitoxide object tests."
+}

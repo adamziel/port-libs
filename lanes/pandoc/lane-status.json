@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "pandoc",
+    "estimatedProgress": 3,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 2,
+    "phpFail": 0,
+    "wordpressScenarios": "Document conversion kernel for Data Liberation imports and block-oriented output.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native Markdown block reader and WordPress block writer for headings, paragraphs, and lists.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "079f990fce6d",
+    "nextTask": "Add inline marks/list nesting and map Pandoc native AST tests."
+}

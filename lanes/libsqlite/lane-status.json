@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "libsqlite",
+    "estimatedProgress": 4,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 3,
+    "phpFail": 0,
+    "wordpressScenarios": "SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native SQLite database header parser and SQLite varint decoder.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "079f990fce6d",
+    "nextTask": "Parse first b-tree page headers and map SQLite file-format tests."
+}

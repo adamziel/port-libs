@@ -1,0 +1,26 @@
+{
+    "schemaVersion": 1,
+    "lane": "libsqlite",
+    "priority": 4,
+    "upstream": {
+        "name": "sqlite/sqlite",
+        "url": "https://github.com/sqlite/sqlite",
+        "commit": "8f70ec615f4cd247d36f92a22c99f65ebbcc22a7",
+        "license": "SQLite blessing / public-domain style; verify exact upstream notice before redistribution",
+        "architecture": "SQLite database file format, b-tree pages, records, varints, journaling, and SQL-visible primitives."
+    },
+    "benchmarkDenominator": {
+        "status": "static-seed",
+        "total": "pending full upstream inventory",
+        "mapped": 3,
+        "source": "SQLite TCL/permutation tests plus file-format fixtures; denominator pending upstream inventory.",
+        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+    },
+    "nativeImplementation": {
+        "language": "PHP",
+        "shellOutsAllowedForProgress": false,
+        "currentSlice": "Native SQLite database header parser and SQLite varint decoder."
+    },
+    "wordpressScenario": "SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.",
+    "nextTask": "Parse first b-tree page headers and map SQLite file-format tests."
+}

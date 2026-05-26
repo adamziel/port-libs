@@ -1,0 +1,26 @@
+{
+    "schemaVersion": 1,
+    "lane": "gitoxide",
+    "priority": 1,
+    "upstream": {
+        "name": "GitoxideLabs/gitoxide",
+        "url": "https://github.com/GitoxideLabs/gitoxide",
+        "commit": "87433ed33eee9ba974111d20b854f6acb07cd4a6",
+        "license": "pending verification from upstream checkout",
+        "architecture": "Rust workspace for Git object database, packfiles, refs, protocol, worktree, and plumbing crates."
+    },
+    "benchmarkDenominator": {
+        "status": "static-seed",
+        "total": "pending full upstream inventory",
+        "mapped": 3,
+        "source": "cargo test workspace plus crate-level fixtures; full denominator pending clone/test inventory.",
+        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+    },
+    "nativeImplementation": {
+        "language": "PHP",
+        "shellOutsAllowedForProgress": false,
+        "currentSlice": "Native loose Git object storage with canonical object headers and SHA-1 object IDs."
+    },
+    "wordpressScenario": "Git-backed WordPress content workflows, package installs, Playground snapshots, and server-side repo primitives.",
+    "nextTask": "Expand loose object store into tree/commit parsing and map gitoxide object tests."
+}

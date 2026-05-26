@@ -1,0 +1,15 @@
+{
+    "schemaVersion": 1,
+    "library": "esbuild",
+    "estimatedProgress": 2,
+    "suiteProgress": "static manifest seed; upstream suite not yet executed",
+    "phpPass": 2,
+    "phpFail": 0,
+    "wordpressScenarios": "Node-free asset tooling for shared hosting, Playground, PHAR tools, and browser-backed PHP environments.",
+    "phase": "seed implementation",
+    "audit": "needs independent auditor review",
+    "currentWork": "Native JavaScript lexer for identifiers, numbers, strings, comments, and punctuators.",
+    "blocker": "Full upstream benchmark denominator still needs cloned/tested inventory.",
+    "latestCommit": "079f990fce6d",
+    "nextTask": "Map parser tests and add JS/TS lexer token coverage."
+}

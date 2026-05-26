@@ -1,0 +1,26 @@
+{
+    "schemaVersion": 1,
+    "lane": "lightningcss",
+    "priority": 2,
+    "upstream": {
+        "name": "parcel-bundler/lightningcss",
+        "url": "https://github.com/parcel-bundler/lightningcss",
+        "commit": "22bdda3d190f1cd321d98026225cfc964af64ad9",
+        "license": "pending verification from upstream checkout",
+        "architecture": "Rust CSS parser, transformer, minifier, prefixer, modules, and bundler semantics."
+    },
+    "benchmarkDenominator": {
+        "status": "static-seed",
+        "total": "pending full upstream inventory",
+        "mapped": 3,
+        "source": "Rust tests and fixture snapshots; full denominator pending upstream inventory.",
+        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+    },
+    "nativeImplementation": {
+        "language": "PHP",
+        "shellOutsAllowedForProgress": false,
+        "currentSlice": "Native CSS comment/whitespace minifier and declaration block parser."
+    },
+    "wordpressScenario": "Shared-hosting CSS transforms for themes, blocks, Playground, and plugin build-free delivery.",
+    "nextTask": "Broaden tokenizer fixtures and map Lightning CSS parser/minifier tests."
+}

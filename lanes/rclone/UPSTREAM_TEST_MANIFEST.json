@@ -1,0 +1,26 @@
+{
+    "schemaVersion": 1,
+    "lane": "rclone",
+    "priority": 10,
+    "upstream": {
+        "name": "rclone/rclone",
+        "url": "https://github.com/rclone/rclone",
+        "commit": "28d6b0b7b906da70afdc036ba5bb21f3c86613b8",
+        "license": "pending verification from upstream checkout",
+        "architecture": "Go storage provider abstraction, copy/sync/check semantics, filters, checksums, and resumability."
+    },
+    "benchmarkDenominator": {
+        "status": "static-seed",
+        "total": "pending full upstream inventory",
+        "mapped": 2,
+        "source": "Go backend/unit tests plus integration remotes; denominator pending upstream inventory.",
+        "warning": "This is a defensible seed manifest, not a completed upstream denominator. A worker must clone/count the upstream suite before this lane can claim real parity progress."
+    },
+    "nativeImplementation": {
+        "language": "PHP",
+        "shellOutsAllowedForProgress": false,
+        "currentSlice": "Native in-memory provider contract with object metadata, copy, list, and checksum sync plan."
+    },
+    "wordpressScenario": "Portable backup/import/export sync for shared hosts and cloud storage providers.",
+    "nextTask": "Map filter/checksum tests and add filesystem provider contract tests."
+}

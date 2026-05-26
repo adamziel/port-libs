@@ -1,0 +1,22 @@
+{
+  "name": "port-libs/native-php-ports",
+  "description": "Native standard-PHP ports for systems libraries useful to WordPress and shared-hosting environments.",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "classmap": [
+      "lanes/"
+    ],
+    "exclude-from-classmap": [
+      "lanes/*/tests/"
+    ]
+  },
+  "scripts": {
+    "test": "php tools/run-tests.php",
+    "dashboard": "php tools/generate-dashboard.php"
+  }
+}
+
