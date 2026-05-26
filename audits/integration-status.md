@@ -1,5 +1,62 @@
 # Integration Status
 
+## Accepted libsqlite savepoint rollback page previews - 2026-05-26 05:53 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T054230Z.ready`.
+
+Current `refs/heads/main` before publication:
+`67943ad75dabe0ca139184bfc8a225259d83a207` (`Integrate libsqlite regexp
+option scans`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=67943ad75dabe0ca139184bfc8a225259d83a207`, matching current
+  `main`.
+- Live dashboard commit reported
+  `5d3bac09932a03e7626571b8103f350fe0c915b3`.
+
+Merge decision:
+- The marker was built on stale base
+  `b1229bbb0d54a140307a0db98875ed8bd9eda9e3`.
+- In a detached clean worktree from current `main`, all implementation, test,
+  example, and notes hunks applied cleanly.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` required a bounded stale metadata merge to
+  preserve already accepted release-tier, JSON/planner, and REGEXP evidence
+  while adding this savepoint rollback-preview slice.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSavepointStack.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`
+  passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+  `1 test files, 2501 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`
+  passed and reported rollback preview page lists `[5, 8, 9]` and `[9]`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates before root: `df -Pk /` reported `86734440` KiB available,
+  `/proc/loadavg` first field was `2.01`, and no exact no-argument root harness
+  was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot:
+  `215 test files, 27122 assertions, 0 failures`.
+
+Decision: accepted. The commit adds
+`SQLiteSavepointStack::rollbackToPageNumbers()`, focused nested savepoint
+rollback-preview assertions, WordPress savepoint import smoke output, and
+libsqlite manifest/status/notes evidence. Dependency closure: no new support
+component was activated; the slice reuses lane-local transaction frame and
+page-number bookkeeping.
+
+Dashboard publication should run next because accepted source moved beyond the
+currently published dashboard source.
+
 ## Accepted libsqlite REGEXP option-name scans - 2026-05-26 05:55 UTC
 
 Accepted marker:

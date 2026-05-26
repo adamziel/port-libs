@@ -10459,10 +10459,14 @@ SQL;
         $t->same(3, $stack->depth());
         $t->same(['outer', 'plugin-import', 'option-row'], $stack->names());
         $t->same([2, 5, 7, 8], $stack->pendingPageNumbers());
+        $t->same([5, 7, 8], $stack->rollbackToPageNumbers('plugin-import'));
+        $t->same([8], $stack->rollbackToPageNumbers('option-row'));
+        $t->same([2, 5, 7, 8], $stack->rollbackToPageNumbers('outer'));
 
         $stack->rollbackTo('plugin-import');
         $t->same(2, $stack->depth());
         $t->same(['outer', 'plugin-import'], $stack->names());
+        $t->same([], $stack->rollbackToPageNumbers('plugin-import'));
         $t->same([
             [
                 'name' => 'outer',
@@ -10507,6 +10511,7 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $stack->savepoint(''));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->recordPageWrite(0));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackTo('missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackToPageNumbers('missing'));
         $t->throws(LogicException::class, static fn () => $stack->commit());
     },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {

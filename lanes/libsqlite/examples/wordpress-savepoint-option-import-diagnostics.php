@@ -19,6 +19,8 @@ $savepoints->savepoint('single_option_row');
 $savepoints->recordPageWrite(9);
 
 $beforeRollback = $savepoints->toArray();
+$rollbackPreview = $savepoints->rollbackToPageNumbers('plugin_settings');
+$singleOptionRollbackPreview = $savepoints->rollbackToPageNumbers('single_option_row');
 $savepoints->rollbackTo('plugin_settings');
 $afterRollback = $savepoints->toArray();
 
@@ -28,6 +30,8 @@ $afterRelease = $savepoints->toArray();
 
 echo json_encode([
     'beforeRollbackToPluginSettings' => $beforeRollback,
+    'rollbackToPluginSettingsPageNumbers' => $rollbackPreview,
+    'rollbackToSingleOptionRowPageNumbers' => $singleOptionRollbackPreview,
     'afterRollbackToPluginSettings' => $afterRollback,
     'afterReleasePluginSettings' => $afterRelease,
     'pendingPageNumbers' => $savepoints->pendingPageNumbers(),

@@ -7518,3 +7518,35 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 JSON table row assembly, hidden-column planning, JSONB wrappers, and scalar
 residual comparison semantics without activating shared support-library work.
+
+## Focused Native Mapping: Savepoint Rollback Page Preview
+
+This isolated WAL/rollback/savepoint closure micro-slice extends the accepted
+savepoint state tracker with a bounded `ROLLBACK TO` preview. Native
+`SQLiteSavepointStack::rollbackToPageNumbers()` now reports the sorted unique
+database page numbers that would be reverted by rolling back to the named
+savepoint: dirty pages in the named savepoint plus all younger savepoints. The
+existing `rollbackTo()` behavior remains unchanged: younger frames are
+discarded and the named savepoint stays active with cleared dirty-page state.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedSavepointRollbackPreviewScripts: 1`. This reuses
+the accepted static pager/journal and transaction-state inventories; this
+isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T05:42Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSavepointStack.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+transaction frame and page-number bookkeeping without activating shared
+support-library work.

@@ -82,6 +82,25 @@ final class SQLiteSavepointStack
         }
     }
 
+    /**
+     * @return list<int>
+     */
+    public function rollbackToPageNumbers(string $name): array
+    {
+        $index = $this->findFrame($name);
+        $pages = [];
+        for ($frameIndex = $index; $frameIndex < count($this->frames); $frameIndex++) {
+            foreach ($this->frames[$frameIndex]['pages'] as $pageNumber => $_) {
+                $pages[$pageNumber] = true;
+            }
+        }
+
+        $pageNumbers = array_keys($pages);
+        sort($pageNumbers, SORT_NUMERIC);
+
+        return $pageNumbers;
+    }
+
     public function commit(): void
     {
         if ($this->frames === []) {

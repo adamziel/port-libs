@@ -2358,3 +2358,21 @@ follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 JSON table row assembly, hidden-column planning, JSONB wrappers, and scalar
 residual comparison semantics.
+
+## Savepoint Rollback Page Preview Scenario
+
+Native `wp_options` import diagnostics now report the exact dirty database
+pages that a `ROLLBACK TO` savepoint would revert before mutating savepoint
+state. The `examples/wordpress-savepoint-option-import-diagnostics.php` smoke
+now includes rollback previews for the plugin-settings savepoint and the nested
+single-option savepoint, then performs the accepted rollback/release sequence.
+
+Status delta 2026-05-26 isolated WAL/rollback/savepoint slice: added
+`SQLiteSavepointStack::rollbackToPageNumbers()`, focused assertions for named,
+nested, outer, post-rollback, and missing savepoint cases, and refreshed the
+WordPress-visible savepoint import smoke. Full pager journal writing,
+master-journal coordination, WAL-index shared-memory state, and general SQL
+transaction execution remain separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+transaction frame and page-number bookkeeping.
