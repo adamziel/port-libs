@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 14:33:07 UTC",
-    "sourceCommit": "544389d7284df5917853fe291bcfcc7dcbd5648b",
-    "sourceCommitShort": "544389d7284d",
+    "generated": "2026-05-26 14:41:13 UTC",
+    "sourceCommit": "1387c69599dac8ab3089b06fe96f626770d4cff0",
+    "sourceCommitShort": "1387c69599da",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "5df8c0c387de6687f08cc7fd928992cacbc10a71",
-    "dashboardCommitShort": "5df8c0c387de",
+    "dashboardCommit": "9edabc8b4c3208d8a0dc322cf33fa48ddf995a00",
+    "dashboardCommitShort": "9edabc8b4c32",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,13 +81,13 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "339",
-            "coverage": "339 / 1589",
-            "php": "340 pass / 0 fail",
+            "mapped": "340",
+            "coverage": "340 / 1589",
+            "php": "341 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
             "audit": "isolated SQL execution/planner slice 2026...",
-            "currentWork": "Latest SQL execution/planner work adds SQLiteCoreScalarFunction likely()/unlikely()/likel...",
+            "currentWork": "Latest SQL execution/planner work adds SQLiteCoreScalarFunction random()/randomblob() so...",
             "nextTarget": "Continue SQL execution/planner closure with broader expression dispatch and comparison/af...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
