@@ -117866,3 +117866,39 @@ Root verification:
 - Serialized root command under clean-integrator lock passed with repo-local temp space: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` => `215 test files, 29420 assertions, 0 failures`.
 
 Decision: accepted. Commit pending at note completion time; after commit the dashboard guard should close until live Pages publishes the new source.
+## Integration accepted - libsqlite WAL open-view sidecar reads - 2026-05-26T23:55:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T234205Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Local `refs/heads/main` before candidate work was `70768c599a8e6786eb7eb8fa82fe9b43cc2ad505` (`Integrate libsqlite SELECT expression-index planner`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `70768c599a8e6786eb7eb8fa82fe9b43cc2ad505`, generated `2026-05-26 23:49:24 UTC`, dashboard commit `ac60058fe17449c75e2a8ffb6387ecd211400740`.
+- The dashboard guard was open; no Pages-outage exception was used.
+
+Candidate evidence:
+- Selected `port-dev-libsqlite-wal-20260526T234205Z.ready` from the recent libsqlite sample because it adds native `SQLiteWalOpenView` behavior, a copied `wp_options` WordPress smoke, and the largest non-overlapping focused assertion delta in the sampled behavior markers.
+- Original patch base was older (`cd44e1cbb8e64f8d02879ec79ad23f54bbf3f0e9`), and full `git apply --check` failed only in moving `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and lane notes.
+- Replayed only clean implementation, test, and example hunks into a detached clean worktree from current `main`, then reconciled current manifest/status counters minimally.
+- Effective code/test files: `lanes/libsqlite/src/SQLiteWalOpenView.php`, `lanes/libsqlite/tests/SQLiteHeaderTest.php`, `lanes/libsqlite/examples/wordpress-wal-open-view-preflight.php`, `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`, and `lanes/libsqlite/lane-status.json`.
+
+Focused verification:
+- Runtime gates before focused checks: `/` had at least `137727240` KiB available, load average was `1.62`, and no exact no-argument root harness was running.
+- `php -l lanes/libsqlite/src/SQLiteWalOpenView.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-open-view-preflight.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed with `1 test files, 4351 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-wal-open-view-preflight.php`: passed and emitted JSON that decoded successfully.
+- Manifest/status JSON decode: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Root verification:
+- Runtime gates before root: `/` had at least `137105056` KiB available, load average was `1.20`, and no exact no-argument root harness was running.
+- `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`: passed with `215 test files, 29485 assertions, 0 failures`.
+
+Cleanup:
+- The originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T234205Z` still has modified lane files and notes, so it was preserved as cleanup debt rather than removed.
+- Accepted ready marker, patch, and metadata files are removable after the amended commit is safely on `main`.
+
+Dashboard publication should run next after the accepted commit because this pass moves source beyond live Pages.

@@ -76,6 +76,7 @@ use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalHeader;
+use PortLibs\LibSqlite\SQLiteWalOpenView;
 use PortLibs\LibSqlite\SQLiteWindowFunction;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
 use PortLibs\LibSqlite\SQLiteWordPressOptionReplacementPlan;
@@ -12616,6 +12617,130 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshot($baseDatabase, 6));
         $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshot(substr($baseDatabase, 1), 4));
         $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshotPageMap(substr($baseDatabase, 1), 4));
+    },
+    'opens sqlite databases with sidecar wal page overlays' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x26262626;
+        $salt2 = 0x47474747;
+        $basePageOne = $makeFirstPage($pageSize, 2);
+        $basePageTwo = str_pad('base-siteurl=https://example.test/base', $pageSize, '.');
+        $baseDatabase = $basePageOne . $basePageTwo;
+        $walPageTwoFirst = str_pad('wal-siteurl=https://example.test/first', $pageSize, '1');
+        $walPageThree = str_pad('wal-option=blog_public:1', $pageSize, '3');
+        $walPageTwoSecond = str_pad('wal-siteurl=https://example.test/second', $pageSize, '2');
+        $walTail = str_pad('uncommitted-draft=https://example.test/draft', $pageSize, 'u');
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 17, $salt1, $salt2, 0, 0);
+        $walBytes = $walHeader
+            . pack('N*', 2, 2, $salt1, $salt2, 0, 0) . $walPageTwoFirst
+            . pack('N*', 3, 0, $salt1, $salt2, 0, 0) . $walPageThree
+            . pack('N*', 2, 3, $salt1, $salt2, 0, 0) . $walPageTwoSecond
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $walTail;
+
+        $view = SQLiteWalOpenView::fromBytes($baseDatabase, $walBytes);
+        $t->same(SQLiteWalOpenView::class, get_class($view));
+        $t->same(512, $view->pageSize());
+        $t->same(true, $view->hasWal());
+        $t->same(2, $view->baseDatabasePageCount());
+        $t->same(4, $view->wal->frameCount());
+        $t->same(1, $view->wal->uncommittedFrameCount());
+
+        $latestSnapshot = $view->snapshot();
+        $t->same(4, $latestSnapshot['end_frame']);
+        $t->same(3, $latestSnapshot['commit_frame']->index);
+        $t->same(3, $latestSnapshot['database_page_count']);
+
+        $pageOne = $view->pageImage(1);
+        $pageTwo = $view->pageImage(2);
+        $pageThree = $view->pageImage(3);
+        $t->same('database', $pageOne['source']);
+        $t->same(null, $pageOne['frame_index']);
+        $t->same($basePageOne, $pageOne['image']);
+        $t->same('wal', $pageTwo['source']);
+        $t->same(3, $pageTwo['frame_index']);
+        $t->same($walPageTwoSecond, $pageTwo['image']);
+        $t->same(4, $pageTwo['snapshot_end_frame']);
+        $t->same(3, $pageTwo['snapshot_commit_frame']);
+        $t->same('wal', $pageThree['source']);
+        $t->same(2, $pageThree['frame_index']);
+        $t->same($walPageThree, $pageThree['image']);
+        $t->same(false, str_contains($pageTwo['image'], 'draft'));
+
+        $firstSnapshotPageTwo = $view->pageImage(2, 1);
+        $t->same(1, $firstSnapshotPageTwo['frame_index']);
+        $t->same($walPageTwoFirst, $firstSnapshotPageTwo['image']);
+        $t->same(1, $firstSnapshotPageTwo['snapshot_end_frame']);
+        $t->same(1, $firstSnapshotPageTwo['snapshot_commit_frame']);
+        $t->throws(OutOfBoundsException::class, static fn () => $view->pageImage(3, 1));
+
+        $effectiveDatabase = $view->databaseImage();
+        $t->same(3 * $pageSize, strlen($effectiveDatabase));
+        $t->same($basePageOne, substr($effectiveDatabase, 0, $pageSize));
+        $t->same($walPageTwoSecond, substr($effectiveDatabase, $pageSize, $pageSize));
+        $t->same($walPageThree, substr($effectiveDatabase, $pageSize * 2, $pageSize));
+        $t->same(false, str_contains($effectiveDatabase, 'uncommitted-draft'));
+
+        $map = $view->pageMap();
+        $t->same(3, count($map));
+        $t->same(['database', 'wal', 'wal'], array_column($map, 'source'));
+        $t->same([null, 3, 2], array_column($map, 'frame_index'));
+        $t->same([0, 512, 1024], array_column($map, 'database_offset'));
+
+        $checkpoint = $view->checkpointResult('passive');
+        $t->same('uncommitted_frames_after_last_commit', $checkpoint['reason']);
+        $t->same('preserve_wal', $checkpoint['wal_action']);
+        $t->same(2, $checkpoint['checkpointed_frame_count']);
+        $t->same(1, $checkpoint['uncommitted_frame_count']);
+        $t->same($effectiveDatabase, $checkpoint['database_bytes']);
+
+        $summary = $view->toArray();
+        $t->same(true, $summary['has_wal']);
+        $t->same(4, $summary['snapshot_end_frame']);
+        $t->same(3, $summary['snapshot_commit_frame']);
+        $t->same(3, $summary['snapshot_database_page_count']);
+        $t->same(4, $summary['wal_frame_count']);
+        $t->same(1, $summary['wal_uncommitted_frame_count']);
+        $t->same($map, $summary['page_map']);
+
+        $databaseOnly = SQLiteWalOpenView::fromBytes($baseDatabase);
+        $t->same(false, $databaseOnly->hasWal());
+        $t->same(2, $databaseOnly->snapshot()['database_page_count']);
+        $t->same($basePageTwo, $databaseOnly->pageImage(2)['image']);
+        $t->same($baseDatabase, $databaseOnly->databaseImage());
+        $t->same('wal_file_missing', $databaseOnly->checkpointResult('truncate')['reason']);
+        $t->same('no_wal_file', $databaseOnly->checkpointResult('truncate')['wal_action']);
+        $t->throws(InvalidArgumentException::class, static fn () => $databaseOnly->snapshot(1));
+        $t->throws(InvalidArgumentException::class, static fn () => $databaseOnly->checkpointResult('invalid'));
+        $t->throws(InvalidArgumentException::class, static fn () => $databaseOnly->checkpointResult('passive', -1));
+
+        $tmpBase = tempnam(sys_get_temp_dir(), 'libsqlite-wal-open-');
+        if ($tmpBase === false) {
+            throw new RuntimeException('Unable to create temporary database path');
+        }
+        $databasePath = $tmpBase . '.sqlite';
+        @unlink($tmpBase);
+        $walPath = $databasePath . '-wal';
+        file_put_contents($databasePath, $baseDatabase);
+        file_put_contents($walPath, $walBytes);
+        try {
+            $fileView = SQLiteWalOpenView::fromFiles($databasePath);
+            $t->same(true, $fileView->hasWal());
+            $t->same($walPageTwoSecond, $fileView->pageImage(2)['image']);
+            $t->same(3 * $pageSize, strlen($fileView->databaseImage()));
+            unlink($walPath);
+            $fileViewWithoutWal = SQLiteWalOpenView::fromFiles($databasePath);
+            $t->same(false, $fileViewWithoutWal->hasWal());
+            $t->same($baseDatabase, $fileViewWithoutWal->databaseImage());
+        } finally {
+            @unlink($databasePath);
+            @unlink($walPath);
+        }
+
+        $badWal = substr_replace($walBytes, pack('N', 0x99999999), 32 + 8, 4);
+        $mismatchedPageSizeWal = substr_replace($walBytes, pack('N', 1024), 8, 4);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalOpenView::fromBytes($baseDatabase, $badWal));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalOpenView::fromBytes($baseDatabase, $mismatchedPageSizeWal));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalOpenView::fromBytes(substr($baseDatabase, 1), $walBytes));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalOpenView::fromFiles('/path/that/does/not/exist.sqlite'));
     },
     'plans sqlite wal-index read marks for pinned reader checkpoints' => static function (TestRunner $t): void {
         $pageSize = 512;
