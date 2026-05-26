@@ -4356,6 +4356,22 @@ return [
         $t->same(['enabled'], array_column($enabledTreeRows, 'key'));
         $t->same([1], array_column($enabledTreeRows, 'atom'));
 
+        $atomIsNullRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => 'IS NOT DISTINCT FROM', 'value' => null],
+        ]);
+        $t->same(['array', 'object', 'object'], array_column($atomIsNullRows, 'type'));
+        $t->same(['$.plugin.rules', '$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($atomIsNullRows, 'fullkey'));
+
+        $atomIsDistinctRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => 'IS DISTINCT FROM', 'value' => null],
+        ]);
+        $t->same(['name', 'name'], array_column($atomIsDistinctRows, 'key'));
+        $t->same(['seo', 'cache'], array_column($atomIsDistinctRows, 'atom'));
+
         $nameLikeRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],

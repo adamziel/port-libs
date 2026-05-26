@@ -2654,6 +2654,24 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## JSON Table Null-Safe Residual Predicates
+
+Native `json_each()` / `json_tree()` residual filtering now accepts SQLite's
+`IS DISTINCT FROM` and `IS NOT DISTINCT FROM` spellings in addition to `IS` and
+`IS NOT`. The WordPress JSON option settings smoke reports container rows where
+`atom IS NOT DISTINCT FROM NULL` and scalar rows where
+`atom IS DISTINCT FROM NULL`, which is useful when copied plugin settings mix
+arrays/objects with scalar rule names during local import preflight.
+
+Status delta 2026-05-26 isolated JSON table/window slice: added null-safe
+residual predicate aliases to `SQLiteJsonTablePlan`, focused assertions for
+container/scalar row separation, and smoke output/planner records in
+`examples/wordpress-json-each-option-settings.php`.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local JSON table planning, JSON5/JSONB decoding, SQL NULL comparison, and
+existing WordPress option JSON smoke coverage.
+
 ## JSON Table REGEXP Residual Scenario
 
 Native JSON table planning now supports visible-column `REGEXP` and

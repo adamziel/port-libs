@@ -115661,3 +115661,13 @@ Verification:
 - Serialized clean-candidate root under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27770 assertions, 0 failures`.
 
 Decision: accepted one marker. After the commit is published on `refs/heads/main`, remove the accepted marker artifacts and inactive worktree. Dashboard publication should run next for the new accepted source head.
+## Integration accepted - libsqlite JSON table IS DISTINCT residuals - 2026-05-26T15:06:17Z
+
+- Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T145749Z.ready`
+- Base marker SHA: `813031c88f919817e63bce18ab3ebc0f4067aa90`; accepted over current `HEAD` `fe4f341555e27dc6e84a71a425203c98387998fe` with a bounded stale merge limited to libsqlite manifest/status bookkeeping.
+- Scope: adds `IS DISTINCT FROM` and `IS NOT DISTINCT FROM` residual filtering for visible `json_each`/`json_tree` columns, updates the WordPress JSON option smoke, and records focused JSON-table evidence without claiming a fresh broad upstream SQLite run.
+- Focused checks: PHP syntax for `SQLiteJsonTablePlan.php`, `SQLiteHeaderTest.php`, and `wordpress-json-each-option-settings.php`; manifest/status JSON decode; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` (`1 test files, 2852 assertions, 0 failures`); `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php`; and `git diff --check` all passed.
+- Serialized root check: `php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 27783 assertions, 0 failures`.
+- Runtime gates before focused/root checks: `/` free space stayed above `86000000` KiB, load stayed below `25`, and no exact no-argument root harness was running before the serialized root check.
+- Ready-marker count before cleanup: `5579`.
+- Dashboard publication should run next because this acceptance moves the source head beyond the currently published dashboard source.

@@ -153,6 +153,8 @@ final class SQLiteJsonTablePlan
             'IS' => self::valuesAreNotDistinct($actual, $expected),
             '!=', '<>' => $actual !== $expected,
             'IS NOT' => !self::valuesAreNotDistinct($actual, $expected),
+            'IS DISTINCT FROM' => !self::valuesAreNotDistinct($actual, $expected),
+            'IS NOT DISTINCT FROM' => self::valuesAreNotDistinct($actual, $expected),
             'LIKE' => self::compareResidualLike($actual, $expected),
             'NOT LIKE' => !self::compareResidualLike($actual, $expected),
             'GLOB' => self::compareResidualGlob($actual, $expected),
