@@ -749,4 +749,67 @@ MD;
         $t->same('blocked-active-runner', $record['active_gate']['status']);
         $t->contains('wait for the active bounded runner', $record['next_gate']);
     },
+    'builds a bounded runner artifact record from guarded audit and log files' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-bounded-runner-artifacts-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+        $auditPath = $root . '/sqlite-runner.md';
+        $logPath = $root . '/sqlite-runner.log';
+        file_put_contents($auditPath, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-all-runner-20260526T090257Z
+
+- Repository HEAD: `d9553b6d875c7860c0f0ec86b0978c1ca5e14e8e`
+- Scratch: `/tmp/sqlite-full-suite-all-runner-20260526T090257Z`
+- Log: `/tmp/sqlite-full-suite-all-runner-20260526T090257Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `all`
+- Jobs: `2`
+- Timeout seconds: `5400`
+- Patterns: none
+- Exit: `0`
+- Elapsed seconds: `92`
+- Parsed summary: `0 errors out of 10785 tests`
+- Runner time: `00:01:32`
+MD);
+        file_put_contents($logPath, "01:20 tcl(9022/10785) r2 ETC 00:09\n01:32 tcl(10785/10785) r0\n");
+
+        try {
+            $record = $evidence->boundedRunnerArtifactRecordFromFiles($auditPath, $logPath);
+
+            $t->same('passed', $record['status']);
+            $t->same($auditPath, $record['audit_path']);
+            $t->same($logPath, $record['stdout_path']);
+            $t->same(true, $record['artifact_files_ready']);
+            $t->same('libsqlite-all-runner-20260526T090257Z', $record['label']);
+            $t->same('d9553b6d875c7860c0f0ec86b0978c1ca5e14e8e', $record['repository_head']);
+            $t->same(10785, $record['results']['tests']);
+            $t->same(0, $record['results']['errors']);
+            $t->same(10785, $record['progress']['completed']);
+            $t->same(10785, $record['progress']['total']);
+            $t->contains('artifact-file records read bounded runner audit/log files only', $record['dependency_closure']);
+        } finally {
+            @unlink($auditPath);
+            @unlink($logPath);
+            @rmdir($root);
+        }
+    },
+    'keeps missing bounded runner artifact files as a blocked evidence record' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $record = $evidence->boundedRunnerArtifactRecordFromFiles(
+            '/tmp/missing-sqlite-runner-audit.md',
+            '/tmp/missing-sqlite-runner.log'
+        );
+
+        $t->same('blocked-missing-artifact-files', $record['status']);
+        $t->same('/tmp/missing-sqlite-runner-audit.md', $record['audit_path']);
+        $t->same('/tmp/missing-sqlite-runner.log', $record['stdout_path']);
+        $t->same([
+            '/tmp/missing-sqlite-runner-audit.md',
+            '/tmp/missing-sqlite-runner.log',
+        ], $record['missing']);
+        $t->contains('wait for the guarded bounded-runner audit/log artifacts', $record['next_gate']);
+        $t->contains('no new support component needed', $record['dependency_closure']);
+    },
 ];

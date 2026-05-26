@@ -955,6 +955,55 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function boundedRunnerArtifactRecordFromFiles(
+        string $auditPath,
+        ?string $stdoutPath = null,
+        string $processSnapshot = ''
+    ): array {
+        $missing = [];
+        if (!is_file($auditPath)) {
+            $missing[] = $auditPath;
+        }
+        if ($stdoutPath !== null && !is_file($stdoutPath)) {
+            $missing[] = $stdoutPath;
+        }
+
+        if ($missing !== []) {
+            return [
+                'status' => 'blocked-missing-artifact-files',
+                'audit_path' => $auditPath,
+                'stdout_path' => $stdoutPath,
+                'missing' => $missing,
+                'next_gate' => 'wait for the guarded bounded-runner audit/log artifacts to exist, then parse them before counting all/release evidence',
+                'dependency_closure' => 'no new support component needed; artifact-file records read bounded runner audit/log files only',
+            ];
+        }
+
+        $auditText = file_get_contents($auditPath);
+        if ($auditText === false) {
+            throw new \RuntimeException("Unable to read SQLite bounded runner audit artifact: {$auditPath}");
+        }
+
+        $stdoutText = '';
+        if ($stdoutPath !== null) {
+            $stdoutText = file_get_contents($stdoutPath);
+            if ($stdoutText === false) {
+                throw new \RuntimeException("Unable to read SQLite bounded runner stdout/log artifact: {$stdoutPath}");
+            }
+        }
+
+        $record = $this->boundedRunnerArtifactRecord($auditText, $stdoutText, $processSnapshot);
+        $record['audit_path'] = $auditPath;
+        $record['stdout_path'] = $stdoutPath;
+        $record['artifact_files_ready'] = true;
+        $record['dependency_closure'] = 'no new support component needed; artifact-file records read bounded runner audit/log files only';
+
+        return $record;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();

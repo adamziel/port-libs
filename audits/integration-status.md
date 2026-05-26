@@ -1,5 +1,35 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite upstream runner artifact records - 2026-05-26 09:08 UTC
+
+Accepted `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T090257Z.ready`.
+
+Current `refs/heads/main` before acceptance: `d9553b6d875c7860c0f0ec86b0978c1ca5e14e8e` (`Integrate libsqlite savepoint release plans`).
+
+Dashboard guard evidence:
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json?clean_integrator_cb=20260526Tnow` reported `sourceCommit=d9553b6d875c7860c0f0ec86b0978c1ca5e14e8e`, matching current `refs/heads/main`.
+- Live dashboard commit reported `1baa7bbafb1c40759efbdbd74db4f91c4934e690`.
+
+Marker evidence:
+- Marker declared `lane=libsqlite`, `base_sha=d9553b6d875c7860c0f0ec86b0978c1ca5e14e8e`, patch `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T090257Z.patch`, metadata `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T090257Z.md`, and log `.tmux-team/logs/isolated-lane-workers/port-dev-libsqlite-upstream-runner-20260526T090257Z.log`.
+- Patch sha256 verified as `3ec72b56870969a83c60c1128fb18d6c32b0cd468f1bb16b03e93193af192237`.
+- The shared checkout was dirty, so the exact detached worker snapshot at the marker worktree was used for verification and commit. It was detached at `d9553b6d875c7860c0f0ec86b0978c1ca5e14e8e` with only the candidate five-file libsqlite diff.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- JSON validation for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed with `1 test files, 351 assertions, 0 failures`.
+
+Serialized root verification:
+- Resource gate before root: `/` had `87949116` KiB available, load was `3.63`, and no no-argument root harness was already running.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed with `215 test files, 27429 assertions, 0 failures`.
+
+Decision: accepted. This slice adds file-backed bounded upstream runner artifact records for libsqlite without launching a duplicate broad SQLite runner.
+
+Dashboard publication should run next for the accepted source.
+
 ## Accepted port-dev-libsqlite-priority-20260526T085538Z - 2026-05-26 09:04 UTC
 
 Accepted marker:

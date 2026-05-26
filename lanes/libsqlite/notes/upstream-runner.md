@@ -1,5 +1,55 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Bounded Runner Artifact File Record
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::boundedRunnerArtifactRecordFromFiles()`. The
+helper reads guarded bounded-runner audit/log artifacts from explicit paths,
+keeps missing audit/log files as `blocked-missing-artifact-files`, and delegates
+ready artifacts to the existing parsed pass/fail/in-progress record. This gives
+the integrator a direct handoff path for artifacts like:
+
+```text
+/home/claude/port-libs/audits/sqlite-full-suite-all-runner-20260526T083945Z.md
+/home/claude/port-libs/.tmux-team/logs/sqlite-full-suite-all-runner-20260526T083945Z.log
+```
+
+Focused upstream runner:
+
+No new broad upstream `testfixture`, `make test`, or `mptest` run was started
+from this isolated worktree. Process evidence still showed the shared bounded
+`all` runner active:
+
+```text
+scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-all-runner-20260526T083945Z ... all 2 5400
+./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error all
+```
+
+The shared runner audit existed and recorded repository head
+`5daeeb21a5c773aa5ab600e19580a47fafe28202`, SQLite commit
+`8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`, manifest UUID
+`9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`, testset
+`all`, jobs `2`, and timeout `5400`; the log did not yet contain parsed
+pass/fail counts during this slice. Prior accepted evidence remains the
+complete SQLite `veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local manifest evidence and bounded-runner audit/log files only; it
+performs no upstream runner shell-out and counts no shared support-library
+progress.
+
 ## Focused Native Mapping: Bounded Runner Artifact Record
 
 Date: 2026-05-26
