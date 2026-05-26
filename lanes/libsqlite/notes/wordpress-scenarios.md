@@ -2136,3 +2136,17 @@ the SQLite extension.
 This is intentionally a row-level aggregate helper, not a full SQL executor.
 Window frames, HAVING/GROUP BY planner integration, and a general expression
 VM remain separate slices.
+
+## Commented Schema Autoindex Review Scenario
+
+Native schema inspection now ignores SQL comments while inferring automatic
+`UNIQUE` and non-rowid `PRIMARY KEY` index metadata from copied
+`sqlite_schema.sql` rows. The new
+`examples/wordpress-commented-schema-autoindex.php` smoke checks a commented
+`wp_options` schema row with inline `--` comments, block comments, quoted
+string literals that contain comment-looking text, and a commented
+`WITHOUT ROWID` table option.
+
+This is intentionally a bounded schema metadata parser improvement, not a full
+SQL parser. Trigger bodies, generated-column expression planning, view
+expansion, and general DDL execution remain separate slices.

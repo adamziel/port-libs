@@ -6918,3 +6918,43 @@ with 1 selected file, 2380 assertions, and 0 failures.
 Dependency closure: no new support component is needed. The slice reuses
 lane-local transaction/page-number bookkeeping for storage diagnostics and
 counts no shared support-library progress.
+
+## Focused Native Mapping: Commented CREATE TABLE Autoindex Inference
+
+Date: 2026-05-26
+
+This isolated dependency-closure micro-slice aligns bounded `sqlite_schema`
+`CREATE TABLE` parsing with SQLite dump/schema SQL that contains line and block
+comments. `SQLiteCreateTable` now ignores `-- ...` and `/* ... */` comments
+outside quoted strings, identifiers, and bracket-quoted names before inferring
+automatic `UNIQUE`/`PRIMARY KEY` index metadata. That keeps copied WordPress
+schema rows from treating comment text such as `UNIQUE`, `PRIMARY KEY`, or
+`WITHOUT ROWID` as live schema tokens.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice maps against SQLite schema/index parser coverage and
+records one native schema-comment autoindex mapping unit. Prior applicable
+runner evidence remains the complete SQLite `veryquick` run: 1235 scripts,
+329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCreateTable.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-commented-schema-autoindex.php
+php lanes/libsqlite/examples/wordpress-commented-schema-autoindex.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused lane tests passed with 1 selected file, 2418 assertions, and 0
+failures. The WordPress smoke reports automatic index metadata for commented
+`wp_options` schema SQL without requiring the SQLite extension.
+
+Dependency closure: no new support component is needed. The slice reuses the
+lane-local `CREATE TABLE` parser and schema/index metadata helpers; it does not
+activate shared parser-generator, SQL engine, or SQLite-extension support.

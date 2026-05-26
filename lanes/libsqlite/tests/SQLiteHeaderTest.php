@@ -5966,6 +5966,42 @@ return [
             'legacy_name',
         ], SQLiteCreateTable::uniqueAutoIndexFirstColumns("CREATE TABLE t(a text CHECK(a <> 'UNIQUE'), [legacy_name] text unique on conflict ignore)"));
     },
+    'infers sqlite automatic index columns through schema sql comments' => static function (TestRunner $t): void {
+        $sql = <<<'SQL'
+CREATE TABLE wp_options(
+    option_id INTEGER PRIMARY KEY, -- rowid alias UNIQUE text must be ignored
+    option_name TEXT /* copied schema keeps this comment, not a token */ UNIQUE,
+    option_value TEXT CHECK(option_value <> '--not a comment'),
+    autoload TEXT,
+    /* table-level comment before the real constraint */
+    CONSTRAINT uq_autoload_name UNIQUE(autoload, option_name COLLATE nocase DESC)
+) /* trailing comment before table option */ WITHOUT /* gap */ ROWID
+SQL;
+
+        $columns = SQLiteCreateTable::automaticIndexColumnMetadata($sql);
+
+        $t->same([
+            ['option_name'],
+            ['autoload', 'option_name'],
+        ], array_map(
+            static fn (array $indexColumns): array => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $indexColumns),
+            $columns,
+        ));
+        $t->same([
+            ['BINARY'],
+            ['BINARY', 'NOCASE'],
+        ], array_map(
+            static fn (array $indexColumns): array => array_map(static fn (SQLiteIndexColumn $column): string => $column->collation, $indexColumns),
+            $columns,
+        ));
+        $t->same([
+            [false],
+            [false, true],
+        ], array_map(
+            static fn (array $indexColumns): array => array_map(static fn (SQLiteIndexColumn $column): bool => $column->descending, $indexColumns),
+            $columns,
+        ));
+    },
     'infers sqlite primary key autoindex columns without consuming rowid aliases' => static function (TestRunner $t): void {
         $t->same([
             'option_name',

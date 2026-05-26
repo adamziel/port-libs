@@ -1,5 +1,60 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite commented schema autoindex - 2026-05-26 03:08 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T030428Z.ready`.
+
+Accepted source base:
+`6a75784baf9d528a0e6de6e09d99b5e8b3de8cf9` (`Integrate libsqlite focused
+result ledger`).
+
+Dashboard guard evidence:
+- Cache-busted/live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=6a75784baf9d528a0e6de6e09d99b5e8b3de8cf9`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `7218b050a18ec7bf4418c6a8258c9cf0a430e2ed`, generated
+  `2026-05-26 03:03:15 UTC`.
+
+Candidate evidence:
+- Marker contained required `lane=libsqlite`, `patch=...`, and `metadata=...`
+  fields, with `base_sha=6a75784baf9d528a0e6de6e09d99b5e8b3de8cf9`.
+- Patch hash matched marker metadata:
+  `8b97b73a18cd04eda49fbb07a8585bc054866a5770dee2a263ca537dd52c02d0`.
+- Worker log recorded completed focused evidence and no root harness run.
+- Patch applied cleanly in detached worktree
+  `.tmux-team/tmp/clean-integrator-libsqlite-deps-20260526T030428Z`.
+
+Runtime gate evidence:
+- Before focused checks, `/` reported `86159544` KiB available, load was
+  `1.82`, and no `php tools/run-tests.php` root harness was active.
+- Before serialized root verification, `/` reported `86051900` KiB available,
+  load was `1.57`, and no duplicate root harness was active.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteCreateTable.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-commented-schema-autoindex.php`
+  passed.
+- `php lanes/libsqlite/examples/wordpress-commented-schema-autoindex.php`
+  passed and reported the expected commented-schema automatic index metadata.
+- `lane-status.json` and `UPSTREAM_TEST_MANIFEST.json` decoded as valid JSON.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2418 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot with `215 test files, 26923
+  assertions, 0 failures`.
+
+Decision: accepted. This slice adds lane-local handling for SQLite schema SQL
+comments while inferring automatic index columns from `CREATE TABLE` statements,
+plus focused WordPress smoke/test/status evidence. Dashboard publication should
+run next after this accepted source move.
+
 ## Clean-patch intake accepted - libsqlite focused result ledger - 2026-05-26 03:01 UTC
 
 Accepted marker:
