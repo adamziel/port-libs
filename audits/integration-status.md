@@ -1,5 +1,58 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite selected script inventory - 2026-05-26 10:09 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T100249Z.ready`.
+
+Accepted commit: this integration commit
+(`Integrate libsqlite selected script inventory`).
+
+Decision evidence:
+- Dashboard guard was open before intake. Cache-busted live
+  `porting-summary.json` reported
+  `sourceCommit=336fcd6cbaa643e1734e931ba24e287a181ff392`, matching the then
+  current `refs/heads/main`.
+- Runtime gates before focused/root work were open: `/` stayed above the
+  required `86000000` KiB floor, load stayed below `25`, and no existing
+  no-argument root harness was active.
+- The marker was lane-scoped to `libsqlite` with required `lane=`, `patch=`,
+  and `metadata=` fields. Its patch applied cleanly in a detached clean
+  worktree from current `refs/heads/main`.
+- The accepted slice adds
+  `SQLiteUpstreamSuiteEvidence::selectedScriptInventory()` to resolve accepted
+  focused SQLite `.test` selections plus wildcard-expanded scripts against a
+  hydrated upstream SQLite test directory, keeping missing sources explicit as
+  blockers. It does not launch or count a new broad upstream runner.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 386 assertions, 0 failures`.
+- Shared-cache selected-script inventory smoke passed with
+  `ready resolved=74 missing=0 wildcard=ready`.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `php tools/run-tests.php` ran under
+  `.tmux-team/tmp/clean-integrator-run.lock` from the exact clean candidate
+  snapshot and passed with `215 test files, 27524 assertions, 0 failures`.
+
+Cleanup:
+- Removed the accepted ready marker, patch, metadata, isolated worker prompt,
+  isolated worker log, and detached candidate worktrees after `main` was
+  updated.
+- Remaining top-level ready-marker count after cleanup sample: `4876`;
+  libsqlite ready-marker count: `1608`. Counts were increasing from active
+  workers during cleanup.
+
+Dashboard publication should run next because live dashboard source now trails
+this accepted `refs/heads/main` integration commit. Post-commit cache-busted
+live `porting-summary.json` still reported source
+`336fcd6cbaa643e1734e931ba24e287a181ff392`.
+
 ## Clean-patch intake accepted - libsqlite bounded runner acceptance gate - 2026-05-26 10:01 UTC
 
 Accepted isolated marker:

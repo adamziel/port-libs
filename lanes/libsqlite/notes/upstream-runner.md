@@ -1,5 +1,49 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Selected Script Inventory
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::selectedScriptInventory()`. The helper composes
+accepted concrete `.test` selections with wildcard-expansion evidence, resolves
+them against a supplied hydrated `.upstream-cache/libsqlite/test` directory, and
+keeps missing cache or missing script files as machine-readable blockers before
+full `all`/`release` handoff.
+
+Focused upstream runner:
+
+No new broad upstream `testfixture`, `make test`, or `mptest` run was started.
+No active broad SQLite runner was visible in the local process snapshot at the
+start of this slice, but this work stayed in the assigned evidence/runner
+mapping scope rather than launching a fresh broad run. The shared upstream cache
+is readable for integrator-side source resolution; lane tests use temp
+hydration fixtures and missing-cache fixtures. Prior applicable runner evidence
+remains the complete SQLite `veryquick` run: 1235 scripts, 329670 tests, and 0
+errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'require "lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php"; $e=PortLibs\LibSqlite\SQLiteUpstreamSuiteEvidence::fromManifestPath("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"); $i=$e->selectedScriptInventory("/home/claude/port-libs"); echo $i["status"]." resolved=".$i["resolved_script_count"]." missing=".$i["missing_script_count"]." wildcard=".$i["wildcard_status"]."\n";'
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+The read-only shared upstream cache smoke reported:
+
+```text
+ready resolved=74 missing=0 wildcard=ready
+```
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local manifest evidence plus hydrated SQLite test-source paths only; it
+performs no upstream runner shell-out and counts no shared support-library
+progress.
+
 ## Focused Native Mapping: Bounded Runner Acceptance Provenance Gate
 
 Date: 2026-05-26

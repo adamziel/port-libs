@@ -891,4 +891,55 @@ MD);
         ], array_column($blocked['blockers'], 'id'));
         $t->contains('matching SQLite manifest', $blocked['next_gate']);
     },
+    'builds a selected upstream test script inventory from hydrated sources' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-selected-script-inventory-' . bin2hex(random_bytes(4));
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        mkdir($testDirectory, 0777, true);
+
+        $selected = array_slice($evidence->runnerCoverageAudit()['selected_scripts'], 0, 6);
+        foreach ($selected as $script) {
+            file_put_contents($testDirectory . '/' . $script, '# selected script fixture');
+        }
+        foreach ($evidence->runnerCoverageAudit()['pattern_scripts'] as $pattern) {
+            file_put_contents($testDirectory . '/' . str_replace('*', '01', $pattern), '# wildcard script fixture');
+        }
+
+        try {
+            $inventory = $evidence->selectedScriptInventory($root);
+
+            $t->same('blocked', $inventory['status']);
+            $t->same(true, $inventory['test_directory_ready']);
+            $t->true($inventory['requested_selected_script_count'] >= 40, 'Expected selected runner history to remain visible');
+            $t->true($inventory['requested_wildcard_pattern_count'] >= 2, 'Expected wildcard runner history to remain visible');
+            $t->true($inventory['resolved_script_count'] >= 8, 'Expected selected and wildcard fixture scripts to resolve');
+            $t->true($inventory['missing_script_count'] > 0, 'Expected omitted accepted scripts to remain blocked');
+            $t->same(0, $inventory['invalid_script_count']);
+            $t->same('ready', $inventory['wildcard_status']);
+            $t->contains('hydrate .upstream-cache/libsqlite/test', $inventory['next_gate']);
+            $t->contains('no new support component needed', $inventory['dependency_closure']);
+
+            $sources = array_column($inventory['resolved_scripts'], 'source');
+            $t->true(in_array('.upstream-cache/libsqlite/test/' . $selected[0], $sources, true), 'Expected selected script source path');
+        } finally {
+            foreach (glob($testDirectory . '/*.test') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
+    'blocks selected upstream test script inventory when the test directory is absent' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $inventory = $evidence->selectedScriptInventory('/tmp/missing-libsqlite-selected-script-inventory-root');
+
+        $t->same('blocked', $inventory['status']);
+        $t->same(false, $inventory['test_directory_ready']);
+        $t->same(0, $inventory['resolved_script_count']);
+        $t->true($inventory['missing_script_count'] >= 40, 'Expected selected scripts to remain blocked without hydrated sources');
+        $t->same('blocked-needs-hydrated-test-dir', $inventory['wildcard_status']);
+        $t->contains('resolve every selected or wildcard-expanded .test file', $inventory['next_gate']);
+    },
 ];

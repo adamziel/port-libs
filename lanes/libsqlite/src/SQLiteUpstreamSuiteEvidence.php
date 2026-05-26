@@ -1065,6 +1065,99 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function selectedScriptInventory(?string $repoRoot = null): array
+    {
+        $coverage = $this->runnerCoverageAudit();
+        $wildcards = $this->wildcardExpansionPlan($repoRoot);
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $relativeTestDirectory = '.upstream-cache/libsqlite/test';
+        $testDirectory = $root . '/' . $relativeTestDirectory;
+        $testDirectoryReady = is_dir($testDirectory);
+
+        $resolved = [];
+        $missing = [];
+        $invalid = [];
+
+        foreach ($coverage['selected_scripts'] as $script) {
+            if (!is_string($script) || !preg_match('/^[A-Za-z0-9_.?-]+\.test$/', $script)) {
+                $invalid[] = (string) $script;
+                continue;
+            }
+
+            $path = $testDirectory . '/' . $script;
+            if (!$testDirectoryReady || !is_file($path)) {
+                $missing[] = $script;
+                continue;
+            }
+
+            $resolved[$script] = [
+                'script' => $script,
+                'source' => $relativeTestDirectory . '/' . $script,
+                'bytes' => filesize($path) ?: 0,
+                'from' => 'selected-runner-history',
+            ];
+        }
+
+        foreach ($wildcards['expanded'] ?? [] as $pattern => $scripts) {
+            if (!is_string($pattern) || !is_array($scripts)) {
+                continue;
+            }
+
+            foreach ($scripts as $script) {
+                if (!is_string($script) || !preg_match('/^[A-Za-z0-9_.?-]+\.test$/', $script)) {
+                    $invalid[] = (string) $script;
+                    continue;
+                }
+
+                $path = $testDirectory . '/' . $script;
+                if (!is_file($path)) {
+                    $missing[] = $script;
+                    continue;
+                }
+
+                $resolved[$script] = [
+                    'script' => $script,
+                    'source' => $relativeTestDirectory . '/' . $script,
+                    'bytes' => filesize($path) ?: 0,
+                    'from' => 'wildcard-pattern:' . $pattern,
+                ];
+            }
+        }
+
+        ksort($resolved);
+        $missing = array_values(array_unique($missing));
+        sort($missing);
+        $invalid = array_values(array_unique($invalid));
+        sort($invalid);
+
+        $requestedCount = (int) $coverage['selected_script_count'] + (int) $wildcards['expanded_script_count'];
+        $blocked = !$testDirectoryReady || $missing !== [] || $invalid !== [] || ($wildcards['status'] ?? null) === 'blocked-needs-hydrated-test-dir';
+
+        return [
+            'status' => $blocked ? 'blocked' : 'ready',
+            'test_directory' => $relativeTestDirectory,
+            'test_directory_ready' => $testDirectoryReady,
+            'requested_selected_script_count' => (int) $coverage['selected_script_count'],
+            'requested_wildcard_pattern_count' => (int) $coverage['pattern_script_count'],
+            'requested_expanded_wildcard_script_count' => (int) $wildcards['expanded_script_count'],
+            'requested_total_script_count' => $requestedCount,
+            'resolved_script_count' => count($resolved),
+            'missing_script_count' => count($missing),
+            'invalid_script_count' => count($invalid),
+            'resolved_scripts' => array_values($resolved),
+            'missing_scripts' => $missing,
+            'invalid_scripts' => $invalid,
+            'wildcard_status' => $wildcards['status'] ?? 'unknown',
+            'next_gate' => $blocked
+                ? 'hydrate .upstream-cache/libsqlite/test and resolve every selected or wildcard-expanded .test file before launching broad all/release runners'
+                : 'use the resolved script inventory as the concrete focused-suite denominator for reruns and all/release handoff review',
+            'dependency_closure' => 'no new support component needed; selected-script inventory reads hydrated SQLite test sources only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();
