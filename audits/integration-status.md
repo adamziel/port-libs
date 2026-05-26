@@ -117320,3 +117320,40 @@ Decision: accepted. After commit publication, remove the accepted ready marker, 
 
 Cleanup debt:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T211426Z` still contains modified lane files after the accepted patch was published on `main`, so it was preserved and left registered. Do not remove it without worker cleanup or explicit reauthorization.
+
+## Integration accepted - libsqlite WAL reader snapshots - 2026-05-26T21:34:12Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T212226Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` and cache-busted live Pages both reported exact source `888834e6ff1990b73057a7a4271497c4b80fe5b2` before candidate verification.
+- Live generated timestamp was `2026-05-26 21:30:08 UTC`; dashboard commit was `9d5dc6b99581cf9a85983e0ef288f01c99593df5`.
+
+Candidate evidence:
+- Chosen from a bounded recent libsqlite sample because it was the strongest sampled non-overlapping behavior slice: WAL reader snapshot page resolution at pinned end frames, with claimed `+95` focused assertions, `+1` `phpPass`, and mapped coverage movement.
+- The marker was based on `d8d76c9764c6d9119a7515be3d48ed045c945a3f`; direct apply over current `888834e6ff1990b73057a7a4271497c4b80fe5b2` failed only in `UPSTREAM_TEST_MANIFEST.json`, `lane-status.json`, and `notes/root-harness.md`.
+- Implementation, focused test, and WordPress smoke hunks applied cleanly. Manifest/status were minimally reconciled from the current accepted files; stale broad notes were not replayed.
+- The patch adds `SQLiteWal::readerSnapshot()`, `readerSnapshotPageImage()`, and `readerSnapshotPageMap()` while preserving the existing latest-reader wrappers.
+
+Focused verification in clean candidate:
+- Runtime gate before focused checks: `df -Pk /` reported `88336032` KiB available; `/proc/loadavg` was below `25`; no exact no-argument root harness was active.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteWal.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3648 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed and reported pinned `readerSnapshots` diagnostics excluding uncommitted tail frames.
+- Manifest/status JSON decode passed.
+- `git diff --check` passed.
+
+Root verification:
+- Runtime gate before root: `df -Pk /` reported `88330880` KiB available; load was `1.95`; no exact no-argument root harness was active.
+- Serialized no-argument root harness ran under `.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR=$candidate/.tmp-root`.
+- Root passed with `215 test files, 28782 assertions, 0 failures`.
+
+Decision: accepted. After commit publication, remove the accepted ready marker, patch, and metadata artifacts. Dashboard publication should run next because this is a source-moving libsqlite commit.
+
+Cleanup debt:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T212226Z` still contains modified lane files after the accepted patch was verified, so it is preserved and left registered. Do not remove it without worker cleanup or explicit reauthorization.
+- Clean integrator candidate worktree `.tmux-team/tmp/clean-integrator-wal-snapshot-20260526T2132Z` contains root-run `.tmp-root` output and is preserved as cleanup debt rather than force-removed.

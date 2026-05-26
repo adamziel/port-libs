@@ -12103,6 +12103,9 @@ SQL;
         $t->same('wal', $pageTwo['source']);
         $t->same(2, $pageTwo['frame_index']);
         $t->same($walPageTwoCommitted, $pageTwo['image']);
+        $t->same(4, $pageTwo['snapshot_end_frame']);
+        $t->same(3, $pageTwo['snapshot_commit_frame']);
+        $t->same(3, $pageTwo['database_page_count']);
         $t->same('wal', $pageThree['source']);
         $t->same(3, $pageThree['frame_index']);
         $t->same($walPageThreeCommitted, $pageThree['image']);
@@ -12113,23 +12116,138 @@ SQL;
                 'source' => 'database',
                 'frame_index' => null,
                 'database_offset' => 0,
+                'snapshot_end_frame' => 4,
+                'snapshot_commit_frame' => 3,
+                'database_page_count' => 3,
             ],
             [
                 'page_number' => 2,
                 'source' => 'wal',
                 'frame_index' => 2,
                 'database_offset' => 512,
+                'snapshot_end_frame' => 4,
+                'snapshot_commit_frame' => 3,
+                'database_page_count' => 3,
             ],
             [
                 'page_number' => 3,
                 'source' => 'wal',
                 'frame_index' => 3,
                 'database_offset' => 1024,
+                'snapshot_end_frame' => 4,
+                'snapshot_commit_frame' => 3,
+                'database_page_count' => 3,
             ],
         ], $wal->readerPageMap($baseDatabase));
         $t->throws(OutOfBoundsException::class, static fn () => $wal->readerPageImage($baseDatabase, 4));
         $t->throws(InvalidArgumentException::class, static fn () => $wal->readerPageImage($baseDatabase, 0));
         $t->throws(InvalidArgumentException::class, static fn () => $wal->readerPageMap(substr($baseDatabase, 1)));
+    },
+    'resolves sqlite wal reader snapshots at bounded end frames' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x12121212;
+        $salt2 = 0x34343434;
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 6, $salt1, $salt2, 0, 0);
+        $basePageOne = $makeFirstPage($pageSize, 2);
+        $basePageTwo = str_repeat('B', $pageSize);
+        $basePageThree = str_repeat('C', $pageSize);
+        $firstCommitPageTwo = str_repeat('F', $pageSize);
+        $secondCommitPageTwo = str_repeat('S', $pageSize);
+        $secondCommitPageThree = str_repeat('3', $pageSize);
+        $uncommittedPageTwo = str_repeat('U', $pageSize);
+        $walBytes = $walHeader
+            . pack('N*', 2, 2, $salt1, $salt2, 0, 0) . $firstCommitPageTwo
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . str_repeat('P', $pageSize)
+            . pack('N*', 3, 0, $salt1, $salt2, 0, 0) . $secondCommitPageThree
+            . pack('N*', 2, 3, $salt1, $salt2, 0, 0) . $secondCommitPageTwo
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $uncommittedPageTwo;
+
+        $wal = SQLiteWal::parse($walBytes);
+        $baseDatabase = $basePageOne . $basePageTwo . $basePageThree;
+
+        $beforeCommit = $wal->readerSnapshot($baseDatabase, 0);
+        $t->same(0, $beforeCommit['end_frame']);
+        $t->same(null, $beforeCommit['commit_frame']);
+        $t->same(3, $beforeCommit['database_page_count']);
+        $beforeCommitPageTwo = $wal->readerSnapshotPageImage($baseDatabase, 2, 0);
+        $t->same('database', $beforeCommitPageTwo['source']);
+        $t->same(null, $beforeCommitPageTwo['frame_index']);
+        $t->same($basePageTwo, $beforeCommitPageTwo['image']);
+        $t->same(0, $beforeCommitPageTwo['snapshot_end_frame']);
+        $t->same(null, $beforeCommitPageTwo['snapshot_commit_frame']);
+        $t->same(3, $beforeCommitPageTwo['database_page_count']);
+
+        $firstSnapshot = $wal->readerSnapshot($baseDatabase, 1);
+        $t->same(1, $firstSnapshot['end_frame']);
+        $t->same(1, $firstSnapshot['commit_frame']->index);
+        $t->same(2, $firstSnapshot['database_page_count']);
+        $firstPageTwo = $wal->readerSnapshotPageImage($baseDatabase, 2, 1);
+        $t->same('wal', $firstPageTwo['source']);
+        $t->same(1, $firstPageTwo['frame_index']);
+        $t->same($firstCommitPageTwo, $firstPageTwo['image']);
+        $t->same(1, $firstPageTwo['snapshot_end_frame']);
+        $t->same(1, $firstPageTwo['snapshot_commit_frame']);
+        $t->same(2, $firstPageTwo['database_page_count']);
+        $t->throws(OutOfBoundsException::class, static fn () => $wal->readerSnapshotPageImage($baseDatabase, 3, 1));
+
+        $midTransactionPageTwo = $wal->readerSnapshotPageImage($baseDatabase, 2, 3);
+        $t->same('wal', $midTransactionPageTwo['source']);
+        $t->same(1, $midTransactionPageTwo['frame_index']);
+        $t->same($firstCommitPageTwo, $midTransactionPageTwo['image']);
+        $t->same(3, $midTransactionPageTwo['snapshot_end_frame']);
+        $t->same(1, $midTransactionPageTwo['snapshot_commit_frame']);
+        $t->same(false, str_contains($midTransactionPageTwo['image'], 'P'));
+        $t->throws(OutOfBoundsException::class, static fn () => $wal->readerSnapshotPageImage($baseDatabase, 3, 3));
+
+        $secondSnapshot = $wal->readerSnapshot($baseDatabase, 4);
+        $t->same(4, $secondSnapshot['end_frame']);
+        $t->same(4, $secondSnapshot['commit_frame']->index);
+        $t->same(3, $secondSnapshot['database_page_count']);
+        $secondPageTwo = $wal->readerSnapshotPageImage($baseDatabase, 2, 4);
+        $secondPageThree = $wal->readerSnapshotPageImage($baseDatabase, 3, 4);
+        $t->same(4, $secondPageTwo['frame_index']);
+        $t->same($secondCommitPageTwo, $secondPageTwo['image']);
+        $t->same(3, $secondPageThree['frame_index']);
+        $t->same($secondCommitPageThree, $secondPageThree['image']);
+        $t->same(false, str_contains($secondPageTwo['image'], 'U'));
+        $t->same([
+            [
+                'page_number' => 1,
+                'source' => 'database',
+                'frame_index' => null,
+                'database_offset' => 0,
+                'snapshot_end_frame' => 4,
+                'snapshot_commit_frame' => 4,
+                'database_page_count' => 3,
+            ],
+            [
+                'page_number' => 2,
+                'source' => 'wal',
+                'frame_index' => 4,
+                'database_offset' => 512,
+                'snapshot_end_frame' => 4,
+                'snapshot_commit_frame' => 4,
+                'database_page_count' => 3,
+            ],
+            [
+                'page_number' => 3,
+                'source' => 'wal',
+                'frame_index' => 3,
+                'database_offset' => 1024,
+                'snapshot_end_frame' => 4,
+                'snapshot_commit_frame' => 4,
+                'database_page_count' => 3,
+            ],
+        ], $wal->readerSnapshotPageMap($baseDatabase, 4));
+
+        $latestPageTwo = $wal->readerSnapshotPageImage($baseDatabase, 2);
+        $t->same(4, $latestPageTwo['frame_index']);
+        $t->same(5, $latestPageTwo['snapshot_end_frame']);
+        $t->same(4, $latestPageTwo['snapshot_commit_frame']);
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshot($baseDatabase, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshot($baseDatabase, 6));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshot(substr($baseDatabase, 1), 4));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->readerSnapshotPageMap(substr($baseDatabase, 1), 4));
     },
     'validates sqlite wal header and frame checksums when requested' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

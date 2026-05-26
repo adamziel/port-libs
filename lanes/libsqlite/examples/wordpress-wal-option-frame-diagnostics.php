@@ -67,13 +67,20 @@ $appendFrame = static function (string $walBytes, array &$checksumSeed, int $pag
 $walBytes = $appendFrame($walBytes, $checksumSeed, 1, 0, $schemaPage);
 $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 2, $optionPage);
 $committedWalBytes = $walBytes;
-$walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, str_repeat('P', $pageSize));
+$draftOptionPayload = SQLiteRecord::encode([1, 'siteurl', 'https://example.test/draft-wal', 'yes']);
+$draftOptionCell = SQLiteTableLeafCell::encode(1, $draftOptionPayload, $pageSize);
+$draftOptionPage = SQLiteTableLeafPage::assemble([$draftOptionCell], $pageSize);
+$walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, $draftOptionPage);
 
 $wal = SQLiteWal::parse($walBytes, null, true);
 $committedWal = SQLiteWal::parse($committedWalBytes, null, true);
 $database = SQLiteDatabase::fromBytes($wal->checkpointDatabaseImage($baseDatabaseBytes));
 $readerPageMap = $wal->readerPageMap($baseDatabaseBytes);
 $readerOptionPage = $wal->readerPageImage($baseDatabaseBytes, 2);
+$readerBeforeCommit = $wal->readerSnapshotPageImage($baseDatabaseBytes, 2, 1);
+$readerAtCommit = $wal->readerSnapshotPageImage($baseDatabaseBytes, 2, 2);
+$readerAfterDraft = $wal->readerSnapshotPageImage($baseDatabaseBytes, 2, 3);
+$readerSnapshotMap = $wal->readerSnapshotPageMap($baseDatabaseBytes, 2);
 $checkpointPlan = $wal->checkpointPlan($baseDatabaseBytes);
 $resetPlan = $wal->resetPlan($baseDatabaseBytes);
 $checkpointModes = [
@@ -104,7 +111,7 @@ foreach ($checkpointResults as $name => $result) {
         'final_database_bytes' => $result['final_database_bytes'],
         'containsWalSiteUrl' => str_contains($result['database_bytes'], 'from-wal'),
         'containsBaseSiteUrl' => str_contains($result['database_bytes'], 'from-base'),
-        'containsUncommittedTail' => str_contains($result['database_bytes'], 'P'),
+        'containsUncommittedTail' => str_contains($result['database_bytes'], 'draft-wal'),
     ];
 }
 
@@ -122,7 +129,40 @@ echo json_encode([
         'source' => $readerOptionPage['source'],
         'frame_index' => $readerOptionPage['frame_index'],
         'database_offset' => $readerOptionPage['database_offset'],
-        'containsUncommittedTail' => str_contains($readerOptionPage['image'], 'P'),
+        'snapshot_end_frame' => $readerOptionPage['snapshot_end_frame'],
+        'snapshot_commit_frame' => $readerOptionPage['snapshot_commit_frame'],
+        'database_page_count' => $readerOptionPage['database_page_count'],
+        'containsUncommittedTail' => str_contains($readerOptionPage['image'], 'draft-wal'),
+    ],
+    'readerSnapshots' => [
+        'beforeCommit' => [
+            'source' => $readerBeforeCommit['source'],
+            'frame_index' => $readerBeforeCommit['frame_index'],
+            'snapshot_end_frame' => $readerBeforeCommit['snapshot_end_frame'],
+            'snapshot_commit_frame' => $readerBeforeCommit['snapshot_commit_frame'],
+            'containsBaseSiteUrl' => str_contains($readerBeforeCommit['image'], 'from-base'),
+            'containsCommittedSiteUrl' => str_contains($readerBeforeCommit['image'], 'from-wal'),
+            'containsDraftSiteUrl' => str_contains($readerBeforeCommit['image'], 'draft-wal'),
+        ],
+        'atCommit' => [
+            'source' => $readerAtCommit['source'],
+            'frame_index' => $readerAtCommit['frame_index'],
+            'snapshot_end_frame' => $readerAtCommit['snapshot_end_frame'],
+            'snapshot_commit_frame' => $readerAtCommit['snapshot_commit_frame'],
+            'containsBaseSiteUrl' => str_contains($readerAtCommit['image'], 'from-base'),
+            'containsCommittedSiteUrl' => str_contains($readerAtCommit['image'], 'from-wal'),
+            'containsDraftSiteUrl' => str_contains($readerAtCommit['image'], 'draft-wal'),
+        ],
+        'afterDraft' => [
+            'source' => $readerAfterDraft['source'],
+            'frame_index' => $readerAfterDraft['frame_index'],
+            'snapshot_end_frame' => $readerAfterDraft['snapshot_end_frame'],
+            'snapshot_commit_frame' => $readerAfterDraft['snapshot_commit_frame'],
+            'containsBaseSiteUrl' => str_contains($readerAfterDraft['image'], 'from-base'),
+            'containsCommittedSiteUrl' => str_contains($readerAfterDraft['image'], 'from-wal'),
+            'containsDraftSiteUrl' => str_contains($readerAfterDraft['image'], 'draft-wal'),
+        ],
+        'mapAtCommit' => $readerSnapshotMap,
     ],
     'schema' => array_map(
         static fn (SQLiteSchemaRecord $record): array => [
@@ -140,5 +180,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, and reset/truncate decisions while preserving uncommitted WAL tail frames.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes at pinned snapshot end frames, checkpoint provenance, checkpoint mode eligibility, bounded checkpoint dry-run images, and reset/truncate decisions while preserving uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

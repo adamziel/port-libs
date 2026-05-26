@@ -453,6 +453,14 @@ final class SQLiteWal
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
     {
+        return $this->readerSnapshotPageImage($databaseBytes, $pageNumber);
+    }
+
+    /**
+     * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}
+     */
+    public function readerSnapshotPageImage(string $databaseBytes, int $pageNumber, ?int $snapshotEndFrame = null): array
+    {
         if ($pageNumber < 1) {
             throw new \InvalidArgumentException('SQLite WAL reader page numbers are one-based');
         }
@@ -465,13 +473,13 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL reader requires a database image aligned to the page size');
         }
 
-        $lastCommitFrame = $this->lastCommitFrame();
-        $databasePageCount = $lastCommitFrame?->databasePageCountAfterCommit ?? intdiv(strlen($databaseBytes), $pageSize);
+        $snapshot = $this->readerSnapshot($databaseBytes, $snapshotEndFrame);
+        $databasePageCount = $snapshot['database_page_count'];
         if ($pageNumber > $databasePageCount) {
             throw new \OutOfBoundsException("SQLite WAL reader page {$pageNumber} is beyond the committed database size");
         }
 
-        $frame = $this->lastCommittedFrameForPage($pageNumber);
+        $frame = $this->lastCommittedFrameForPage($pageNumber, $snapshot['commit_frame']);
         if ($frame !== null) {
             return [
                 'page_number' => $pageNumber,
@@ -479,6 +487,9 @@ final class SQLiteWal
                 'frame_index' => $frame->index,
                 'database_offset' => ($pageNumber - 1) * $pageSize,
                 'image' => $frame->pageImage,
+                'snapshot_end_frame' => $snapshot['end_frame'],
+                'snapshot_commit_frame' => $snapshot['commit_frame']?->index,
+                'database_page_count' => $databasePageCount,
             ];
         }
 
@@ -494,6 +505,9 @@ final class SQLiteWal
             'frame_index' => null,
             'database_offset' => $offset,
             'image' => $image,
+            'snapshot_end_frame' => $snapshot['end_frame'],
+            'snapshot_commit_frame' => $snapshot['commit_frame']?->index,
+            'database_page_count' => $databasePageCount,
         ];
     }
 
@@ -501,6 +515,14 @@ final class SQLiteWal
      * @return list<array{page_number:int,source:string,frame_index:int|null,database_offset:int}>
      */
     public function readerPageMap(string $databaseBytes): array
+    {
+        return $this->readerSnapshotPageMap($databaseBytes);
+    }
+
+    /**
+     * @return list<array{page_number:int,source:string,frame_index:int|null,database_offset:int,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}>
+     */
+    public function readerSnapshotPageMap(string $databaseBytes, ?int $snapshotEndFrame = null): array
     {
         $pageSize = $this->header->pageSize;
         if ($pageSize === 0) {
@@ -510,11 +532,11 @@ final class SQLiteWal
             throw new \InvalidArgumentException('SQLite WAL reader requires a database image aligned to the page size');
         }
 
-        $lastCommitFrame = $this->lastCommitFrame();
-        $databasePageCount = $lastCommitFrame?->databasePageCountAfterCommit ?? intdiv(strlen($databaseBytes), $pageSize);
+        $snapshot = $this->readerSnapshot($databaseBytes, $snapshotEndFrame);
+        $databasePageCount = $snapshot['database_page_count'];
         $map = [];
         for ($pageNumber = 1; $pageNumber <= $databasePageCount; $pageNumber++) {
-            $entry = $this->readerPageImage($databaseBytes, $pageNumber);
+            $entry = $this->readerSnapshotPageImage($databaseBytes, $pageNumber, $snapshot['end_frame']);
             unset($entry['image']);
             $map[] = $entry;
         }
@@ -522,17 +544,53 @@ final class SQLiteWal
         return $map;
     }
 
-    private function lastCommittedFrameForPage(int $pageNumber): ?SQLiteWalFrame
+    /**
+     * @return array{end_frame:int,commit_frame:SQLiteWalFrame|null,database_page_count:int}
+     */
+    public function readerSnapshot(string $databaseBytes, ?int $snapshotEndFrame = null): array
     {
-        $lastCommitFrame = $this->lastCommitFrame();
-        if ($lastCommitFrame === null) {
+        if ($snapshotEndFrame !== null && ($snapshotEndFrame < 0 || $snapshotEndFrame > count($this->frames))) {
+            throw new \InvalidArgumentException('SQLite WAL snapshot end frame is outside the WAL frame range');
+        }
+
+        $endFrame = $snapshotEndFrame ?? count($this->frames);
+        $commitFrame = $this->lastCommitFrameAtOrBefore($endFrame);
+        $pageSize = $this->header->pageSize;
+        if ($pageSize === 0) {
+            $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
+        }
+        if ($pageSize < 512 || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL reader snapshot requires a database image aligned to the page size');
+        }
+
+        return [
+            'end_frame' => $endFrame,
+            'commit_frame' => $commitFrame,
+            'database_page_count' => $commitFrame?->databasePageCountAfterCommit ?? intdiv(strlen($databaseBytes), $pageSize),
+        ];
+    }
+
+    private function lastCommittedFrameForPage(int $pageNumber, ?SQLiteWalFrame $commitFrame): ?SQLiteWalFrame
+    {
+        if ($commitFrame === null) {
             return null;
         }
 
-        for ($index = $lastCommitFrame->index - 1; $index >= 0; $index--) {
+        for ($index = $commitFrame->index - 1; $index >= 0; $index--) {
             $frame = $this->frames[$index];
             if ($frame->pageNumber === $pageNumber) {
                 return $frame;
+            }
+        }
+
+        return null;
+    }
+
+    private function lastCommitFrameAtOrBefore(int $endFrame): ?SQLiteWalFrame
+    {
+        for ($index = min($endFrame, count($this->frames)) - 1; $index >= 0; $index--) {
+            if ($this->frames[$index]->isCommitFrame()) {
+                return $this->frames[$index];
             }
         }
 
