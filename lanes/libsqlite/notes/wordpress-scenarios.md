@@ -3564,3 +3564,20 @@ assertions, up from the accepted 3787-assertion lane-status baseline.
 
 Dependency closure: no new support component is needed; this reuses lane-local
 SQL value keys, BLOB wrappers, and pure PHP result-array dispatch.
+## SELECT CASE Option Projection Scenario
+
+Copied WordPress option import previews can now model bounded SQLite CASE
+projection expressions without requiring the SQLite extension. The smoke
+`examples/wordpress-select-case-preview.php` reports copied `wp_options` rows
+bucketed through simple CASE on `autoload`, searched CASE truthiness over score
+and option-name expressions, scalar branch results, ELSE fallback values, and
+final ordering over projected columns.
+
+Status delta 2026-05-26 isolated SQL execution/planner slice: added
+`SQLiteSelectProjection` CASE expression dispatch with 40 focused assertions
+covering simple CASE, searched CASE, SQL truthiness for numeric/text/BLOB
+values, NULL simple-CASE non-matches, lazy first-match evaluation, nested
+scalar branch results, BLOB branch values, strict malformed branch guards, and
+composition with existing SELECT result ordering. Dependency closure: no new
+support component is needed; this reuses lane-local SELECT projection and
+scalar dispatch helpers.

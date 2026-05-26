@@ -42,7 +42,8 @@ final class SQLiteSelectProjection
             'column' => self::columnValue($row, self::requiredString($expression, 'name', 'column expression')),
             'literal' => $expression['value'] ?? null,
             'function' => self::functionValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT projection expression type must be column, literal, or function'),
+            'case' => self::caseValue($row, $expression),
+            default => throw new \InvalidArgumentException('SQLite SELECT projection expression type must be column, literal, function, or case'),
         };
     }
 
@@ -69,6 +70,110 @@ final class SQLiteSelectProjection
         }
 
         return SQLiteCoreScalarFunction::sqlFunctionArguments($function, $evaluated);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function caseValue(array $row, array $expression): mixed
+    {
+        $base = null;
+        $hasBase = array_key_exists('base', $expression);
+        if ($hasBase) {
+            $base = self::expressionValue($row, $expression['base']);
+        }
+
+        $branches = $expression['branches'] ?? null;
+        if (!is_array($branches) || !array_is_list($branches) || $branches === []) {
+            throw new \InvalidArgumentException('SQLite SELECT projection CASE expression needs non-empty branches');
+        }
+
+        foreach ($branches as $branch) {
+            if (!is_array($branch) || !array_key_exists('when', $branch) || !array_key_exists('then', $branch)) {
+                throw new \InvalidArgumentException('SQLite SELECT projection CASE branches need when and then expressions');
+            }
+
+            $when = self::expressionValue($row, $branch['when']);
+            $matched = $hasBase ? self::caseBaseMatches($base, $when) : self::isSqlTrue($when);
+            if ($matched) {
+                return self::expressionValue($row, $branch['then']);
+            }
+        }
+
+        return array_key_exists('else', $expression)
+            ? self::expressionValue($row, $expression['else'])
+            : null;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function expressionValue(array $row, mixed $expression): mixed
+    {
+        if (is_array($expression) && array_key_exists('type', $expression)) {
+            return self::evaluateExpression($row, $expression);
+        }
+
+        return $expression;
+    }
+
+    private static function caseBaseMatches(mixed $base, mixed $when): bool
+    {
+        if ($base === null || $when === null) {
+            return false;
+        }
+
+        return self::valueKey($base) === self::valueKey($when);
+    }
+
+    private static function isSqlTrue(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return self::numericPrefix($value->bytes) !== 0.0;
+        }
+        if (is_bool($value) || is_int($value) || is_float($value)) {
+            return (float) $value !== 0.0;
+        }
+        if (is_string($value)) {
+            return self::numericPrefix($value) !== 0.0;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT projection CASE values must be scalar, BLOB, or NULL');
+    }
+
+    private static function numericPrefix(string $value): float
+    {
+        $trimmed = ltrim($value);
+        if (preg_match('/^[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?/', $trimmed, $match) !== 1) {
+            return 0.0;
+        }
+
+        return (float) $match[0];
+    }
+
+    private static function valueKey(mixed $value): string
+    {
+        if ($value === null) {
+            return 'null:';
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return 'blob:' . $value->bytes;
+        }
+        if (is_bool($value) || is_int($value)) {
+            return 'integer:' . (int) $value;
+        }
+        if (is_float($value)) {
+            return 'real:' . sprintf('%.17G', $value);
+        }
+        if (is_string($value)) {
+            return 'text:' . $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT projection CASE values must be scalar, BLOB, or NULL');
     }
 
     /**

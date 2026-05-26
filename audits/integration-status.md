@@ -117653,3 +117653,22 @@ Focused verification in detached worktree `.tmux-team/tmp/clean-integrator-candi
 Runtime gate evidence before focused checks: `/` available `146376260` KiB, load average `2.13`, and no exact `php tools/run-tests.php` root harness was active.
 
 Root verification under the clean-integrator lock with repo-local `TMPDIR`: `php tools/run-tests.php` passed with `215 test files, 29121 assertions, 0 failures`.
+## Integration accepted - libsqlite SELECT CASE projection - 2026-05-26T23:01:06Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T225221Z.ready`.
+
+Decision: accepted bounded replay candidate from base `252d8b7690245db4adf8806601aebc8903b7fd85` onto current source `ce0eaffb6dbf10dc714f93a71abd93ab3f047375`. Direct `git apply --check` failed only on moved `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, focused tests, example, and notes replayed cleanly, then current manifest/status were reconciled minimally.
+
+Dashboard guard: cache-busted live Pages reported exact matching source `ce0eaffb6dbf10dc714f93a71abd93ab3f047375`, generated `2026-05-26 22:57:22 UTC`, dashboard `b1e6b054fcf2d1907e23697af898c70d32ce28ea`.
+
+Runtime gates before focused checks: `/` available `145443640` KiB, load `1.88`, and no exact no-argument `php tools/run-tests.php` process was running.
+
+Focused verification with repo-local `TMPDIR`: `php -l` passed for `SQLiteSelectProjection.php`, `SQLiteHeaderTest.php`, and `wordpress-select-case-preview.php`; selected `projects select result rows through case expressions` passed with `40` assertions and `0` failures; full `SQLiteHeaderTest.php` passed with `1 test files, 4027 assertions, 0 failures`; WordPress CASE projection smoke passed; manifest/status JSON decode passed; `git diff --check -- lanes/libsqlite` passed.
+
+Delta: adds bounded SELECT simple/searched CASE projection dispatch, SQL truthiness, NULL simple-CASE non-match behavior, lazy branch evaluation, scalar/BLOB branch results, strict malformed CASE guards, and copied wp_options CASE projection smoke. Manifest mapped coverage moves `395 -> 396`; libsqlite `phpPass` moves `730 -> 731`.
+
+Serialized root verification with repo-local `TMPDIR` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 29161 assertions, 0 failures`.
+
+Post-root edit note: only this audit result line was appended after the passing root run; lane code, tests, example, manifest, status, and lane notes were unchanged after root.
+
+Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-scalar-20260526T225221Z` still contains the accepted lane modifications after publication, so it was preserved and not removed.

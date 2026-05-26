@@ -10294,3 +10294,37 @@ php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
 Result: focused PHP passed 1 selected test file, 3721 assertions, and 0
 failures. The WordPress smoke passed and includes validated planner diagnostics
 for malformed JSONB payloads.
+## Focused Native Mapping: SELECT CASE Projection Expressions
+
+Date: 2026-05-26
+
+This isolated SQL execution/planner micro-slice maps one additional focused
+behavior row for bounded SELECT projection CASE expressions over produced
+rows. `SQLiteSelectProjection` now evaluates simple CASE and searched CASE,
+uses SQL-style truthiness for searched WHEN terms, treats NULL simple-CASE
+comparisons as non-matches, and returns the first matching branch lazily before
+falling back to ELSE or NULL.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 394 to 395 by adding
+`focusedWordPressSelectCaseProjectionScripts=1`. No fresh upstream
+`testfixture`, `make test`, `mptest`, `all`, or `release` run was launched
+from this isolated worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectProjection.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-case-preview.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["projects select result rows through case expressions"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-select-case-preview.php
+```
+
+Result: focused selected PHP passed with 40 assertions and 0 failures. The
+WordPress CASE projection smoke passed and reports copied `wp_options` rows
+bucketed through CASE expressions without requiring ext/sqlite.
+
+Dependency closure: no new support component is needed. This is lane-local
+SELECT expression dispatch and reuses existing scalar functions, BLOB wrappers,
+and result ordering helpers.

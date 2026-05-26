@@ -13592,6 +13592,162 @@ SQL;
             ['type' => 'unknown'],
         ]));
     },
+    'projects select result rows through case expressions' => static function (TestRunner $t): void {
+        $rows = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'score' => 9],
+            ['option_id' => 2, 'option_name' => 'home', 'option_value' => null, 'autoload' => 'yes', 'score' => 0],
+            ['option_id' => 3, 'option_name' => '_transient_api', 'option_value' => 'cached', 'autoload' => 'no', 'score' => '2abc'],
+            ['option_id' => 4, 'option_name' => 'orphaned', 'option_value' => 'unused', 'autoload' => null, 'score' => null],
+        ];
+
+        $projected = SQLiteSelectProjection::project($rows, [
+            ['type' => 'column', 'name' => 'option_name'],
+            ['type' => 'case', 'alias' => 'autoload_label', 'base' => ['type' => 'column', 'name' => 'autoload'], 'branches' => [
+                ['when' => 'yes', 'then' => 'autoloaded'],
+                ['when' => 'no', 'then' => 'manual'],
+                ['when' => null, 'then' => 'never-matches-null'],
+            ], 'else' => 'unknown'],
+            ['type' => 'case', 'alias' => 'score_label', 'branches' => [
+                ['when' => ['type' => 'column', 'name' => 'score'], 'then' => ['type' => 'function', 'name' => 'printf', 'arguments' => ['score=%s', ['type' => 'column', 'name' => 'score']]]],
+                ['when' => ['type' => 'function', 'name' => 'like', 'arguments' => ['orphaned%', ['type' => 'column', 'name' => 'option_name']]], 'then' => 'orphan-review'],
+            ], 'else' => 'zero-or-null'],
+            ['type' => 'case', 'alias' => 'simple_null', 'base' => ['type' => 'column', 'name' => 'autoload'], 'branches' => [
+                ['when' => null, 'then' => 'null-match'],
+            ]],
+            ['type' => 'case', 'alias' => 'fallback_value', 'branches' => [
+                ['when' => 0, 'then' => 'zero'],
+                ['when' => '', 'then' => 'empty'],
+                ['when' => '  +0.0 tail', 'then' => 'numeric-zero'],
+            ], 'else' => ['type' => 'function', 'name' => 'coalesce', 'arguments' => [
+                ['type' => 'column', 'name' => 'option_value'],
+                'default',
+            ]]],
+        ]);
+
+        $t->same(4, count($projected));
+        $t->same(['option_name', 'autoload_label', 'score_label', 'simple_null', 'fallback_value'], array_keys($projected[0]));
+        $t->same(['siteurl', 'home', '_transient_api', 'orphaned'], array_column($projected, 'option_name'));
+        $t->same(['autoloaded', 'autoloaded', 'manual', 'unknown'], array_column($projected, 'autoload_label'));
+        $t->same(['score=9', 'zero-or-null', 'score=2abc', 'orphan-review'], array_column($projected, 'score_label'));
+        $t->same([null, null, null, null], array_column($projected, 'simple_null'));
+        $t->same(['https://example.test', 'default', 'cached', 'unused'], array_column($projected, 'fallback_value'));
+
+        $literalCase = SQLiteSelectProjection::project([['ignored' => true]], [
+            ['type' => 'case', 'branches' => [
+                ['when' => 'abc', 'then' => 'not-true'],
+                ['when' => ' -3.5ms', 'then' => ['type' => 'literal', 'value' => new SQLiteBlobValue('matched')]],
+            ]],
+        ]);
+        $t->true($literalCase[0]['expr1'] instanceof SQLiteBlobValue);
+        $t->same('matched', $literalCase[0]['expr1'] instanceof SQLiteBlobValue ? $literalCase[0]['expr1']->bytes : null);
+
+        $blobBase = SQLiteSelectProjection::project([['blob' => new SQLiteBlobValue('same')]], [
+            ['type' => 'case', 'alias' => 'blob_match', 'base' => ['type' => 'column', 'name' => 'blob'], 'branches' => [
+                ['when' => new SQLiteBlobValue('miss'), 'then' => 'miss'],
+                ['when' => new SQLiteBlobValue('same'), 'then' => 'hit'],
+            ], 'else' => 'none'],
+        ]);
+        $t->same('hit', $blobBase[0]['blob_match']);
+
+        $blobTruth = SQLiteSelectProjection::project([['blob' => new SQLiteBlobValue(' 12 bytes')]], [
+            ['type' => 'case', 'alias' => 'truth', 'branches' => [
+                ['when' => ['type' => 'column', 'name' => 'blob'], 'then' => 'true'],
+            ], 'else' => 'false'],
+        ]);
+        $t->same('true', $blobTruth[0]['truth']);
+
+        $truthRows = SQLiteSelectProjection::project([
+            ['label' => 'integer-one', 'value' => 1],
+            ['label' => 'integer-zero', 'value' => 0],
+            ['label' => 'real-negative', 'value' => -0.25],
+            ['label' => 'real-zero', 'value' => 0.0],
+            ['label' => 'bool-true', 'value' => true],
+            ['label' => 'bool-false', 'value' => false],
+            ['label' => 'text-number', 'value' => '  +7ms'],
+            ['label' => 'text-zero', 'value' => '0 cache'],
+            ['label' => 'text-plain', 'value' => 'cache'],
+            ['label' => 'blob-number', 'value' => new SQLiteBlobValue('5 bytes')],
+            ['label' => 'blob-zero', 'value' => new SQLiteBlobValue('0 bytes')],
+            ['label' => 'null-value', 'value' => null],
+        ], [
+            ['type' => 'column', 'name' => 'label'],
+            ['type' => 'case', 'alias' => 'truth', 'branches' => [
+                ['when' => ['type' => 'column', 'name' => 'value'], 'then' => 'true'],
+            ], 'else' => 'false'],
+        ]);
+        $t->same(12, count($truthRows));
+        $t->same(['true', 'false', 'true', 'false', 'true', 'false', 'true', 'false', 'false', 'true', 'false', 'false'], array_column($truthRows, 'truth'));
+        $t->same('integer-one', $truthRows[0]['label']);
+        $t->same('false', $truthRows[1]['truth']);
+        $t->same('true', $truthRows[2]['truth']);
+        $t->same('false', $truthRows[3]['truth']);
+        $t->same('true', $truthRows[4]['truth']);
+        $t->same('false', $truthRows[5]['truth']);
+        $t->same('true', $truthRows[6]['truth']);
+        $t->same('false', $truthRows[7]['truth']);
+        $t->same('false', $truthRows[8]['truth']);
+        $t->same('true', $truthRows[9]['truth']);
+        $t->same('false', $truthRows[10]['truth']);
+        $t->same('false', $truthRows[11]['truth']);
+
+        $lazyCase = SQLiteSelectProjection::project([['value' => 'yes']], [
+            ['type' => 'case', 'alias' => 'first_match', 'base' => ['type' => 'column', 'name' => 'value'], 'branches' => [
+                ['when' => 'yes', 'then' => 'matched'],
+                ['when' => 'yes', 'then' => ['type' => 'function', 'name' => 'missing', 'arguments' => []]],
+            ], 'else' => ['type' => 'function', 'name' => 'missing', 'arguments' => []]],
+        ]);
+        $t->same('matched', $lazyCase[0]['first_match']);
+
+        $simpleRows = SQLiteSelectProjection::project([
+            ['value' => 1],
+            ['value' => true],
+            ['value' => 1.0],
+            ['value' => '1'],
+            ['value' => new SQLiteBlobValue('1')],
+        ], [
+            ['type' => 'case', 'alias' => 'simple', 'base' => ['type' => 'column', 'name' => 'value'], 'branches' => [
+                ['when' => 1, 'then' => 'integer-one'],
+                ['when' => true, 'then' => 'bool-true'],
+                ['when' => 1.0, 'then' => 'real-one'],
+                ['when' => '1', 'then' => 'text-one'],
+                ['when' => new SQLiteBlobValue('1'), 'then' => 'blob-one'],
+            ], 'else' => 'miss'],
+        ]);
+        $t->same(5, count($simpleRows));
+        $t->same('integer-one', $simpleRows[0]['simple']);
+        $t->same('integer-one', $simpleRows[1]['simple']);
+        $t->same('real-one', $simpleRows[2]['simple']);
+        $t->same('text-one', $simpleRows[3]['simple']);
+        $t->same('blob-one', $simpleRows[4]['simple']);
+
+        $ordered = SQLiteSelectResult::execute($projected, null, [
+            ['column' => 'autoload_label'],
+            ['column' => 'option_name'],
+        ]);
+        $t->same(['home', 'siteurl', '_transient_api', 'orphaned'], array_column($ordered, 'option_name'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'case', 'branches' => []],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'case', 'branches' => [['when' => 1]]],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'case', 'base' => ['type' => 'column', 'name' => 'missing'], 'branches' => [['when' => 1, 'then' => 1]]],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'case', 'branches' => [['when' => ['not' => 'scalar'], 'then' => 1]]],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'case', 'base' => ['not' => 'scalar'], 'branches' => [['when' => 1, 'then' => 1]]],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project([['value' => []]], [
+            ['type' => 'case', 'branches' => [['when' => ['type' => 'column', 'name' => 'value'], 'then' => 1]]],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project([['value' => []]], [
+            ['type' => 'case', 'base' => ['type' => 'column', 'name' => 'value'], 'branches' => [['when' => 1, 'then' => 1]]],
+        ]));
+    },
     'dispatches sqlite text aggregate group concat semantics' => static function (TestRunner $t): void {
         $t->same('siteurl,home,blogname', SQLiteTextAggregate::groupConcat(['siteurl', null, 'home', 'blogname']));
         $t->same('siteurl|home|blogname', SQLiteTextAggregate::groupConcat(['siteurl', null, 'home', 'blogname'], '|'));

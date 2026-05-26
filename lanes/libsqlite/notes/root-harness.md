@@ -1595,3 +1595,28 @@ micro-slice; clean integration reruns the serialized root harness.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local B-tree headers, table/index leaf cell encoders, record encoding,
 freeblock chain parsing, and WordPress freeblock diagnostics.
+## SQL SELECT CASE Projection Slice
+
+Focused lane verification for the SQL execution/planner SELECT CASE projection
+slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectProjection.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-case-preview.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["projects select result rows through case expressions"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-select-case-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php`
+CASE test passed with 40 assertions and 0 failures. The WordPress smoke
+reported copied `wp_options` rows projected through simple and searched CASE
+expressions before final result ordering. Manifest/status JSON decoded
+successfully; lane diff check passed. The root harness was not run because this
+was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local SELECT projection helper, existing core scalar dispatch, BLOB value
+wrappers, and pure PHP result ordering.
