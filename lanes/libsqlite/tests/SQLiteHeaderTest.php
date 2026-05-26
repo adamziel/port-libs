@@ -4498,6 +4498,18 @@ return [
         $t->same(['name'], array_column($regexpRows, 'key'));
         $t->same(['cache'], array_column($regexpRows, 'atom'));
 
+        $match = static function (string $pattern, string $candidate): bool {
+            return in_array($candidate, explode(' ', $pattern), true);
+        };
+        $matchRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => 'MATCH', 'value' => ['pattern' => 'seo cache', 'match' => $match]],
+            ['column' => 'fullkey', 'operator' => 'NOT MATCH', 'value' => ['pattern' => '$.plugin.rules[0].name', 'match' => $match]],
+        ]);
+        $t->same(['name'], array_column($matchRows, 'key'));
+        $t->same(['cache'], array_column($matchRows, 'atom'));
+
         $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$'],
@@ -4554,6 +4566,14 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'type', 'operator' => 'REGEXP', 'value' => ['pattern' => 'object', 'regexp' => static fn (): int => 1]],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'type', 'operator' => 'MATCH', 'value' => 'object'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'type', 'operator' => 'MATCH', 'value' => ['pattern' => 'object', 'match' => static fn (): int => 1]],
         ]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],

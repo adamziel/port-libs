@@ -382,6 +382,7 @@
             "focusedCoreConditionalScalarFunctionScripts": 1,
             "focusedJsonTableResidualIsDistinctScripts": 1,
             "focusedJsonTableResidualNumericEqualityScripts": 1,
+            "focusedJsonTableResidualMatchScripts": 1,
             "focusedUpstreamBoundedRunnerStdoutSummaryScripts": 1,
             "focusedUpstreamPersistentReleaseRuntimeBlockerScripts": 1,
             "focusedUpstreamPersistentReleaseManifestGateScripts": 1
@@ -742,6 +743,7 @@
             "focusedCoreRandomScalarFunction": "The 2026-05-26 isolated SQL execution/planner random scalar slice adds random()/randomblob() dispatch for copied wp_options token/nonce diagnostics, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers zero-arity random() signed integer output excluding the minimum sentinel, randomblob() BLOB byte counts, SQLite minimum one-byte randomblob behavior for non-positive lengths, arity/type errors, and WordPress nonce preview diagnostics without requiring ext/sqlite.",
             "focusedJsonTableResidualIsDistinct": "Run on 2026-05-26 reused accepted static JSON table/window evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers residual IS DISTINCT FROM and IS NOT DISTINCT FROM predicates on visible json_each/json_tree columns after hidden json/root planning, including SQL NULL-safe container atom filtering and scalar atom filtering.",
             "focusedJsonTableResidualNumericEquality": "Run on 2026-05-26 reused accepted static JSON table/window evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers SQLite numeric equality semantics for visible json_each/json_tree residual filters, including integer JSON atoms matching real SQL constants for =, !=, IN, and IS NOT DISTINCT FROM without weakening text or NULL comparisons.",
+            "focusedJsonTableResidualMatch": "Run on 2026-05-26 reused accepted static JSON table/window evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers callback-backed MATCH and NOT MATCH residual predicates on visible json_each/json_tree text columns after hidden json/root planning, preserving SQL NULL false results and strict payload/callback validation.",
             "focusedWalCheckpointResetReaderBlocker": "Run on 2026-05-26 reused accepted static WAL/pager evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers RESTART/TRUNCATE checkpoint reset refusal while a reader snapshot remains open at the last committed frame, including busy diagnostics and WordPress WAL checkpoint-mode output."
         }
     },

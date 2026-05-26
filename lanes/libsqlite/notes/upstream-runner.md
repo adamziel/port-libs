@@ -9321,3 +9321,34 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local JSON table planning, JSON path/JSONB decoding, and existing SQL
 numeric comparison helpers without activating shared support-library work.
+
+## Focused Native Mapping: JSON Table MATCH Residual Predicates
+
+This isolated json-table/window micro-slice extends the bounded JSON
+table-valued planner residual filter to accept callback-backed `MATCH` and
+`NOT MATCH` predicates on visible `json_each`/`json_tree` text columns. Native
+`SQLiteJsonTablePlan::filteredRows()` accepts an explicit residual payload with
+a text `pattern` and callable `match`, returns false for SQL NULL operands, and
+keeps hidden `json`/`root` constraints as planned table-valued arguments.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused JSON table MATCH residual evidence row while preserving the
+current accepted static SQLite upstream denominator and veryquick evidence.
+This isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T15:50Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local JSON table planning, JSON path/JSONB decoding, and caller-supplied
+application MATCH callbacks without activating shared support-library work.

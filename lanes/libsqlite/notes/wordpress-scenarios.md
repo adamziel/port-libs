@@ -2654,6 +2654,23 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## JSON Table MATCH Residual Scenario
+
+Native JSON table planning now supports visible-column `MATCH` and `NOT MATCH`
+residual filters after hidden `json`/`root` constraint planning. The WordPress
+JSON settings smoke expands copied `wp_options` plugin rules through
+`json_each()` and applies a caller-supplied MATCH callback to mirror SQLite's
+application-defined operator surface without requiring an FTS extension.
+
+Status delta 2026-05-26 isolated json-table/window slice: added
+`SQLiteJsonTablePlan` residual `MATCH`/`NOT MATCH` support with focused
+assertions for callback payload validation, SQL NULL non-matches, and
+WordPress option-value smoke output.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local JSON table planning, JSON path/JSONB decoding, and caller-supplied
+application callbacks.
+
 ## JSON Table Numeric Equality Residual Scenario
 
 Native JSON table planning now applies SQLite numeric equality semantics to

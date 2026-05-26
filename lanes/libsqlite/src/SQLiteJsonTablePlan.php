@@ -161,6 +161,8 @@ final class SQLiteJsonTablePlan
             'NOT GLOB' => !self::compareResidualGlob($actual, $expected),
             'REGEXP' => self::compareResidualRegexp($actual, $expected),
             'NOT REGEXP' => !self::compareResidualRegexp($actual, $expected),
+            'MATCH' => self::compareResidualMatch($actual, $expected),
+            'NOT MATCH' => !self::compareResidualMatch($actual, $expected),
             'IN' => self::compareResidualIn($actual, $expected),
             'NOT IN' => self::compareResidualNotIn($actual, $expected),
             'BETWEEN' => self::compareResidualBetween($actual, $expected),
@@ -271,6 +273,29 @@ final class SQLiteJsonTablePlan
         }
 
         return SQLiteDatabase::regexpMatches($actual, $expected['pattern'], $expected['regexp']);
+    }
+
+    private static function compareResidualMatch(mixed $actual, mixed $expected): bool
+    {
+        if ($actual === null || $expected === null) {
+            return false;
+        }
+        if (!is_string($actual)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator MATCH expects text row values');
+        }
+        if (!is_array($expected) || !array_key_exists('pattern', $expected) || !array_key_exists('match', $expected)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator MATCH expects a pattern and callback payload');
+        }
+        if (!is_string($expected['pattern']) || !is_callable($expected['match'])) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator MATCH expects a text pattern and callable callback');
+        }
+
+        $matched = $expected['match']($expected['pattern'], $actual);
+        if (!is_bool($matched)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator MATCH callback must return bool');
+        }
+
+        return $matched;
     }
 
     private static function compareResidualOrderedPredicate(mixed $actual, string $operator, mixed $expected): bool
