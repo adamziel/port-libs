@@ -1,5 +1,30 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Full Freelist Trunk Page-Free Planning
+
+Date: 2026-05-26
+
+This isolated B-tree delete/rebalance micro-slice maps bounded SQLite
+`freePage2` behavior for deletion/replacement paths where obsolete pages are
+freed while the first freelist trunk is compatibility-full. Native planning now
+has focused coverage for promoting the first newly freed page to the freelist
+trunk head, linking the old trunk behind it, inserting later freed pages as
+leaves, preserving allocation order, and reporting auto-vacuum pointer-map page
+updates from `SQLiteFreelistFreePlan::toArray()`.
+
+No fresh upstream `testfixture` run was started from this isolated worktree.
+This slice reuses accepted B-tree/delete/freelist evidence for `delete.test`,
+`delete2.test`, `delete3.test`, `delete4.test`, and `btree01.test`; broad
+release/all runner evidence remains assigned to the upstream-suite lane.
+
+Verification run for this slice:
+
+```sh
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: 1 selected test file, 3046 assertions, 0 failures.
+
 ## Focused Native Mapping: Permutation Readiness Gate
 
 Date: 2026-05-26

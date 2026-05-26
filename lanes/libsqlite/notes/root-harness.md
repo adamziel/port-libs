@@ -1,5 +1,29 @@
 # libsqlite Root Harness Notes
 
+## B-tree Full Freelist Trunk Free Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the B-tree delete/rebalance full-freelist-trunk
+freePage2 slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteFreelistFreePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-free-pages-full-freelist-trunk.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-free-pages-full-freelist-trunk.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused test run reported 1 selected file, 3046
+assertions, and 0 failures. The WordPress smoke reported a new freelist trunk
+at the first freed obsolete page, secure-delete-cleared leaf pages, preserved
+old-trunk linkage, and next allocation order through the new trunk.
+
+The root no-argument harness was not run because this was an isolated
+micro-slice.
+
 ## Isolated JSON Aggregate Distinct Slice
 
 Date: 2026-05-26

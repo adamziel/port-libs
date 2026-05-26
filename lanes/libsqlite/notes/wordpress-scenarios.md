@@ -2,6 +2,23 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## B-tree Full Freelist Trunk Free Scenario
+
+Copied WordPress SQLite databases can delete or replace large `wp_options`
+values whose obsolete overflow pages must be returned to a freelist whose first
+trunk is already full. The new smoke
+`examples/wordpress-free-pages-full-freelist-trunk.php` previews that repair
+case without the SQLite extension: the first freed page becomes a new trunk,
+later freed pages become secure-delete-cleared leaves, the old trunk remains
+linked, and the next allocation order is visible for reuse planning.
+
+Status delta 2026-05-26 isolated B-tree delete/rebalance slice: added focused
+tests for full-trunk freePage2 planning and auto-vacuum pointer-map update
+summaries, and exposed `updated_pointer_map_page_numbers` from
+`SQLiteFreelistFreePlan::toArray()`. Dependency closure: no new support
+component is needed; this reuses lane-local freelist trunk/page-free,
+secure-delete, and pointer-map planners.
+
 ## Date/Time Scalar Timestamp Scenario
 
 Copied WordPress option and migration SQL often formats import timestamps with

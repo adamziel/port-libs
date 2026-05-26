@@ -782,6 +782,103 @@ return [
         $t->same(0, $postHeader->freelistPageCount);
         $t->throws(InvalidArgumentException::class, static fn () => $database->planPageAllocation(4, false));
     },
+    'frees sqlite pages into a new trunk when the first freelist trunk is full' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $leafInsertLimit = intdiv($pageSize, 4) - 8;
+        $existingLeafPages = range(9, 9 + $leafInsertLimit - 1);
+        $databasePageCount = max($existingLeafPages) + 3;
+        $firstPage = $makeFirstPage($pageSize, $databasePageCount);
+        $firstPage = substr_replace($firstPage, pack('N', 5), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 1 + count($existingLeafPages)), 36, 4);
+        $pages = array_fill(1, $databasePageCount, $emptyPage);
+        $pages[1] = $firstPage;
+        $pages[5] = SQLiteFreelistTrunkPage::assemble(null, $existingLeafPages);
+        $database = SQLiteDatabase::fromBytes(implode('', $pages));
+
+        $plan = $database->planPageFreeList([6, 7, 8], true);
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $pages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $pages));
+        $trunkPages = $postDatabase->freelistTrunkPages();
+
+        $t->same([
+            'freed_page_numbers' => [6, 7, 8],
+            'leaf_page_numbers' => [7, 8],
+            'new_trunk_page_numbers' => [6],
+            'database_page_count' => $databasePageCount,
+            'first_freelist_trunk_page' => 6,
+            'freelist_page_count' => 1 + count($existingLeafPages) + 3,
+            'updated_freelist_page_numbers' => [6],
+            'cleared_page_numbers' => [7, 8],
+        ], $plan->toArray());
+        $t->same([1, 6, 7, 8], array_keys($plan->pageImages()));
+        $t->same(2, count($trunkPages));
+        $t->same(6, $trunkPages[0]->pageNumber);
+        $t->same(5, $trunkPages[0]->nextTrunkPage);
+        $t->same([7, 8], $trunkPages[0]->leafPageNumbers);
+        $t->same(5, $trunkPages[1]->pageNumber);
+        $t->same($existingLeafPages, $trunkPages[1]->leafPageNumbers);
+        $t->same(6, $postDatabase->header->firstFreelistTrunkPage);
+        $t->same(1 + count($existingLeafPages) + 3, $postDatabase->header->freelistPageCount);
+        $t->same([7, 8, 6, $existingLeafPages[0]], $postDatabase->freelistAllocationOrder(4));
+        $t->same(str_repeat("\0", $pageSize), $postDatabase->page(7));
+        $t->same(str_repeat("\0", $pageSize), $postDatabase->page(8));
+    },
+    'reports auto-vacuum pointer-map pages updated by sqlite page-free planning' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $firstPage = $makeFirstPage($pageSize, 8);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([3, 4, 5, 6, 7, 8] as $pageNumber) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr(SQLitePointerMapEntry::BTREE_PAGE) . pack('N', 3),
+                ($pageNumber - 3) * 5,
+                5,
+            );
+        }
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage
+            . $emptyPage,
+        );
+
+        $plan = $database->planPageFreeList([4, 5], true);
+        $postPages = [];
+        for ($pageNumber = 1; $pageNumber <= 8; $pageNumber++) {
+            $postPages[$pageNumber] = $database->page($pageNumber);
+        }
+        foreach ($plan->pageImages() as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+
+        $t->same([
+            'freed_page_numbers' => [4, 5],
+            'leaf_page_numbers' => [5],
+            'new_trunk_page_numbers' => [4],
+            'database_page_count' => 8,
+            'first_freelist_trunk_page' => 4,
+            'freelist_page_count' => 2,
+            'updated_freelist_page_numbers' => [4],
+            'cleared_page_numbers' => [5],
+            'updated_pointer_map_page_numbers' => [2],
+        ], $plan->toArray());
+        $t->same([1, 2, 4, 5], array_keys($plan->pageImages()));
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(4)->parentPageNumber);
+        $t->same(0, $postDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same([5, 4], $postDatabase->freelistAllocationOrder());
+    },
     'rejects corrupt sqlite freelist trunk metadata' => static function (TestRunner $t) use ($makeFirstPage): void {
         $countTooSmall = $makeFirstPage(512, 5);
         $countTooSmall = substr_replace($countTooSmall, pack('N', 4), 32, 4);

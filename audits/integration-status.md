@@ -116302,3 +116302,45 @@ Decision: accepted after focused checks, diff checks, and serialized root passed
 Post-publication cleanup note for the 2026-05-26T17:36Z SQLite capability scalar acceptance:
 - Accepted commit: `9b0231a109169b13e055a147371096740437a5fd` (`Integrate libsqlite SQLite capability scalars`).
 - The accepted worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T172532Z` still contains modified/untracked lane files matching the accepted patch, so it was preserved and left registered instead of removed. Cleanup debt: remove that inactive worktree only after confirming no worker is attached and no additional unaccepted changes were added.
+## Integration accepted - libsqlite full-freelist trunk free-page planning - 2026-05-26T17:45:20Z
+
+Accepted one libsqlite marker in this clean-patch pass:
+
+- Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T173806Z.ready`
+- Lane: `libsqlite`
+- Slice: `closure-libsqlite-btree-delete-rebalance-20260526T173806Z`
+- Worker base: `7965a96748eaea9a38caed2605f59ee5ac2e860c`
+- Accepted base: `0963e93f9b179f463a751146f2c7c61727c36fa4`
+- Patch sha256 matched marker metadata: `8a37eefdd9ee2346266ae455a23a24db86405667370e94643665addc57cfb98c`
+
+Dashboard guard evidence:
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `0963e93f9b179f463a751146f2c7c61727c36fa4`.
+- All Pages-outage override files from `20260526T1144Z` through `20260526T1246Z` were already consumed and were not used.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `116076816` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `2.64`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+- Focused and root checks used repo-local `TMPDIR` at `.tmp-root` inside the detached clean candidate worktree.
+
+Integration details:
+- The original patch was stale only on high-churn `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`.
+- Behavior/test/docs files applied cleanly over current `main`; status and manifest were bounded-merged to preserve newer accepted WAL/scalar/dashboard evidence.
+- Scope adds full-freelist-trunk free-page planning for B-tree delete/rebalance work, including new trunk promotion, secure-delete leaf clearing, allocation-order evidence, and auto-vacuum pointer-map update summaries.
+
+Focused verification passed:
+- `php -l lanes/libsqlite/src/SQLiteFreelistFreePlan.php`
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-free-pages-full-freelist-trunk.php`
+- Manifest/status JSON validation
+- `git diff --check -- lanes/libsqlite`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 3061 assertions, 0 failures`
+- `php lanes/libsqlite/examples/wordpress-free-pages-full-freelist-trunk.php` emitted expected freelist diagnostics.
+
+Serialized root verification passed:
+- `php tools/run-tests.php`: `215 test files, 28041 assertions, 0 failures`
+
+Cleanup debt:
+- The accepted worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T173806Z` still reports modified/add changes for the committed libsqlite files after publication. It was preserved and left registered; do not remove it destructively.
+
+Decision: accepted after clean detached worktree verification and serialized root pass. Remove the accepted marker artifacts after the commit is safely on `main`. Dashboard publication should run next because accepted source moved.

@@ -47,7 +47,7 @@ final class SQLiteFreelistFreePlan
     }
 
     /**
-     * @return array{freed_page_numbers:list<int>,leaf_page_numbers:list<int>,new_trunk_page_numbers:list<int>,database_page_count:int,first_freelist_trunk_page:int,freelist_page_count:int,updated_freelist_page_numbers:list<int>,cleared_page_numbers?:list<int>}
+     * @return array{freed_page_numbers:list<int>,leaf_page_numbers:list<int>,new_trunk_page_numbers:list<int>,database_page_count:int,first_freelist_trunk_page:int,freelist_page_count:int,updated_freelist_page_numbers:list<int>,updated_pointer_map_page_numbers?:list<int>,cleared_page_numbers?:list<int>}
      */
     public function toArray(): array
     {
@@ -62,6 +62,9 @@ final class SQLiteFreelistFreePlan
         ];
         if ($this->clearedPageNumbers !== []) {
             $summary['cleared_page_numbers'] = $this->clearedPageNumbers;
+        }
+        if ($this->updatedPointerMapPages !== []) {
+            $summary['updated_pointer_map_page_numbers'] = array_keys($this->updatedPointerMapPages);
         }
 
         return $summary;
