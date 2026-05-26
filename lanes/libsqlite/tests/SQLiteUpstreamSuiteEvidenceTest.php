@@ -424,7 +424,7 @@ return [
         mkdir($testDirectory, 0777, true);
         file_put_contents(
             $testDirectory . '/permutations.test',
-            "test_suite full\npermutation memsubsys1\nrun_tests quick\njournaltest {-files {pager.test} -description {journal mode}}\n"
+            "test_suite \"full\"\ntest_suite \"fts5-light\"\ntest_suite \"pcache\${discard_rate}\"\npermutation memsubsys1\nrun_tests quick\njournaltest {-files {pager.test} -description {journal mode}}\n"
         );
 
         try {
@@ -432,16 +432,49 @@ return [
 
             $t->same('partial', $map['status']);
             $t->same(58, $map['declared_suite_count']);
-            $t->same(4, $map['mapped_suite_count']);
-            $t->same(54, $map['unmapped_suite_count']);
+            $t->same(6, $map['mapped_suite_count']);
+            $t->same(52, $map['unmapped_suite_count']);
             $t->same(true, $map['source_ready']);
             $t->same([
+                'fts5-light',
                 'full',
                 'journaltest',
                 'memsubsys1',
+                'pcache${discard_rate}',
                 'quick',
             ], $map['suites']);
             $t->contains('complete the permutation parser', $map['next_gate']);
+        } finally {
+            @unlink($testDirectory . '/permutations.test');
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
+    'marks permutation suite map ready when declared quoted suites are hydrated' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-permutation-ready-map-' . bin2hex(random_bytes(4));
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        mkdir($testDirectory, 0777, true);
+
+        $source = '';
+        for ($i = 1; $i <= 58; $i++) {
+            $source .= sprintf("test_suite \"suite%02d\" -description {fixture}\n", $i);
+        }
+        file_put_contents($testDirectory . '/permutations.test', $source);
+
+        try {
+            $map = $evidence->permutationSuiteMap($root);
+
+            $t->same('ready', $map['status']);
+            $t->same(58, $map['declared_suite_count']);
+            $t->same(58, $map['mapped_suite_count']);
+            $t->same(0, $map['unmapped_suite_count']);
+            $t->same(true, $map['source_ready']);
+            $t->same('suite01', $map['suites'][0]);
+            $t->same('suite58', $map['suites'][57]);
+            $t->contains('turn parsed permutation suite names', $map['next_gate']);
         } finally {
             @unlink($testDirectory . '/permutations.test');
             @rmdir($testDirectory);

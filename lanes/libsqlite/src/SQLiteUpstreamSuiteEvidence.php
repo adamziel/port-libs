@@ -1120,7 +1120,8 @@ final class SQLiteUpstreamSuiteEvidence
     {
         $names = [];
         $patterns = [
-            '/^\s*test_suite\s+([A-Za-z0-9_.-]+)/m',
+            '/^\s*test_suite\s+"([^"\r\n]+)"/m',
+            '/^\s*test_suite\s+([A-Za-z0-9_.${}-]+)/m',
             '/^\s*permutation\s+([A-Za-z0-9_.-]+)/m',
             '/^\s*run_tests\s+([A-Za-z0-9_.-]+)/m',
             '/^\s*([A-Za-z0-9_.-]+)\s+\{[^}\n]*(?:-files|-description|-initialize|-shutdown)/m',
@@ -1129,6 +1130,10 @@ final class SQLiteUpstreamSuiteEvidence
         foreach ($patterns as $pattern) {
             if (preg_match_all($pattern, $text, $matches) !== false) {
                 foreach ($matches[1] as $name) {
+                    if ($name === 'NAME') {
+                        continue;
+                    }
+
                     $names[$name] = true;
                 }
             }

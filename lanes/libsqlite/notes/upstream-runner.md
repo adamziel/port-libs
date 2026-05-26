@@ -1,5 +1,54 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Hydrated Permutation Suite Source Map
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice tightens
+`SQLiteUpstreamSuiteEvidence::permutationSuiteMap()` so it parses SQLite's
+actual quoted `test_suite "name"` declarations in `test/permutations.test`,
+including the dynamic `pcache${discard_rate}` source declaration. The previous
+parser only recognized unquoted names, so it kept a hydrated permutation source
+as partial/empty even when the upstream file was available.
+
+Focused upstream runner:
+
+No duplicate broad upstream `testfixture`, `make test`, or `mptest` run was
+started. Process evidence still showed the shared bounded `all` runner active:
+
+```text
+scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-all-runner-20260526T083945Z ... all 2 5400
+./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error all
+```
+
+Hydrated source-map evidence from the shared cache:
+
+```text
+/home/claude/port-libs/.upstream-cache/libsqlite/test/permutations.test
+permutationSuiteMap('/home/claude/port-libs') => status ready, mapped 60, declared 58, unmapped 0
+wildcardExpansionPlan('/home/claude/port-libs') => status ready, expanded 6 wildcard patterns to 24 concrete .test scripts
+```
+
+The mapped count is intentionally treated as `>= declared` because the upstream
+source includes conditional/dynamic declarations; this is a source-map gate, not
+fresh release/all pass evidence. The next acceptance gate remains explicit
+per-suite testfixture run records with parsed pass/fail counts.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local manifest evidence and the read-only hydrated SQLite upstream cache
+only; it performs no upstream runner shell-out and counts no shared
+support-library progress.
+
 ## Focused Native Mapping: Bounded Runner Artifact File Record
 
 Date: 2026-05-26

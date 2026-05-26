@@ -1,5 +1,56 @@
 # Integration Status
 
+## Accepted libsqlite upstream-runner hydrated permutation source map - 2026-05-26 09:51 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T094111Z.ready`.
+
+Decision: accepted current-base libsqlite marker
+`closure-libsqlite-upstream-suite-hydrated-runner-20260526T094111Z`.
+The marker was based on current source head
+`852bb868a2d2e4f2f0cd612b504319efc80667b4` and its patch applied cleanly in a
+detached worktree. Newest sampled stale libsqlite markers based on
+`63ed46b4` were not accepted because their patches failed against current
+`main`; the current-base upstream-runner marker was selected instead.
+
+Focused verification from the detached clean candidate snapshot:
+- Resource gates before focused checks: `/` had `87264084` KiB available and
+  load was `5.25`.
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 359 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- Hydrated source-map smoke against
+  `/home/claude/port-libs/.upstream-cache/libsqlite/test/permutations.test`
+  reported `status=ready mapped=60 declared=58 unmapped=0`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Resource gates before root: `/` had `87154004` KiB available, load was
+  `6.59`, and no no-argument root harness was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 27485 assertions, 0 failures`.
+
+Dashboard guard evidence before intake:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=852bb868a2d2e4f2f0cd612b504319efc80667b4`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `7acc12680088dc5eb9dee0703d0f5bee9780a5c0`.
+
+Queue evidence:
+- The libsqlite priority override was applied; non-libsqlite markers and Dolt
+  markers were not considered for acceptance.
+- Top-level ready-marker count before cleanup: `4830`; libsqlite ready-marker
+  count before cleanup: `1562`.
+- Latest sampled storage-data queue note remained
+  `.tmux-team/tmp/group-integrator-queue/storage-data-20260526T063855Z.txt`
+  and was treated as a stale hint only.
+
+Dashboard publication should run next after this source commit is visible on
+`main`.
+
 ## Clean-patch intake accepted - libsqlite core text scalar dispatch - 2026-05-26 09:38 UTC
 
 Accepted isolated marker:
