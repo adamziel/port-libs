@@ -9132,3 +9132,36 @@ Dependency closure: no new support component is needed. This reuses
 lane-local scalar coercion, `SQLiteBlobValue`, PHP CSPRNG primitives, and
 existing expression-semantics dispatch without activating shared
 support-library work.
+
+## Focused Native Mapping: JSON Table REGEXP Residual Predicates
+
+This isolated json-table/window micro-slice extends the bounded JSON
+table-valued planner residual filter to accept SQL-level `REGEXP` and
+`NOT REGEXP` predicates on visible `json_each`/`json_tree` columns. Native
+`SQLiteJsonTablePlan::filteredRows()` now accepts an explicit residual payload
+containing a text `pattern` and callable `regexp`, applies SQLite's existing
+lane-local REGEXP callback validation, preserves SQL NULL false results, and
+keeps hidden `json`/`root` constraints as planned table-valued arguments.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused JSON table REGEXP residual evidence row while preserving the
+current accepted static SQLite upstream denominator and veryquick evidence.
+This isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T14:39Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local JSON table planning, JSON path/JSONB decoding, `SQLiteDatabase`
+REGEXP callback validation, and the existing WordPress JSON option smoke
+without activating shared support-library work.

@@ -4418,6 +4418,23 @@ return [
         ]);
         $t->same(['seo'], array_column($notBetweenRows, 'atom'));
 
+        $regexp = static function (string $pattern, string $value): bool {
+            $matched = preg_match('/' . str_replace('/', '\\/', $pattern) . '/', $value);
+            if ($matched === false) {
+                throw new InvalidArgumentException('Invalid test regexp');
+            }
+
+            return $matched === 1;
+        };
+        $regexpRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => 'REGEXP', 'value' => ['pattern' => '^(?:seo|cache)$', 'regexp' => $regexp]],
+            ['column' => 'fullkey', 'operator' => 'NOT REGEXP', 'value' => ['pattern' => '\\[0\\]', 'regexp' => $regexp]],
+        ]);
+        $t->same(['name'], array_column($regexpRows, 'key'));
+        $t->same(['cache'], array_column($regexpRows, 'atom'));
+
         $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$'],
@@ -4470,6 +4487,10 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'type', 'operator' => 'REGEXP', 'value' => 'object'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'type', 'operator' => 'REGEXP', 'value' => ['pattern' => 'object', 'regexp' => static fn (): int => 1]],
         ]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],

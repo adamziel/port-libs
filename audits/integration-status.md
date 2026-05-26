@@ -115552,3 +115552,38 @@ Verification:
 - Serialized clean-candidate root under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27759 assertions, 0 failures`.
 
 Decision: accepted one marker. After the commit is published on `refs/heads/main`, remove the accepted marker artifacts and inactive worktree. Dashboard publication should run next for the new accepted source head.
+
+## Integration accepted - libsqlite JSON table REGEXP residuals - 2026-05-26T14:52:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T143936Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `1387c69599dac8ab3089b06fe96f626770d4cff0` (`Integrate libsqlite random scalar dispatch`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `1387c69599dac8ab3089b06fe96f626770d4cff0`, so the dashboard guard was open.
+
+Marker evidence:
+- Marker declared `lane=libsqlite`, `base_sha=1387c69599dac8ab3089b06fe96f626770d4cff0`, `patch=...port-dev-libsqlite-json-table-20260526T143936Z.patch`, and `metadata=...port-dev-libsqlite-json-table-20260526T143936Z.md`.
+- Patch sha256 matched marker metadata: `084b317e385e0fef80bc79210ff3ebcd79eed73f5c24207969a47c8a1bd565da`.
+- Worker log reported focused syntax checks, focused `SQLiteHeaderTest.php`, WordPress json_each smoke, manifest/status JSON validation, and `git diff --check -- lanes/libsqlite`; the worker did not run root.
+- Patch applied cleanly in detached clean worktree `.tmux-team/tmp/clean-candidates/libsqlite-json-table-20260526T143936Z` based on current `refs/heads/main`.
+
+Scope:
+- Added native JSON table residual `REGEXP` and `NOT REGEXP` comparisons for visible `json_each`/`json_tree` columns using an explicit `pattern` plus callable `regexp` payload.
+- Added focused tests, WordPress JSON option-smoke output, manifest/status evidence, and WordPress/upstream runner notes.
+- No new dependency/support-library component was introduced.
+
+Verification:
+- Runtime gates before focused checks: `/` had `112505848` KiB available and load was `3.62`.
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2839 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Runtime gates before serialized root: `/` had `112470796` KiB available, load was `4.18`, and no exact no-argument root harness process was running.
+- Serialized clean-candidate root under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27770 assertions, 0 failures`.
+
+Decision: accepted one marker. After the commit is published on `refs/heads/main`, remove the accepted marker artifacts and inactive worktree. Dashboard publication should run next for the new accepted source head.

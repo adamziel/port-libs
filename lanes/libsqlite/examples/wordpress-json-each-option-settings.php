@@ -67,6 +67,20 @@ foreach ($inputs as $name => $value) {
         ['column' => 'root', 'operator' => '=', 'value' => '$'],
         ['column' => 'atom', 'operator' => 'BETWEEN', 'value' => [6, 7]],
     ];
+    $regexp = static function (string $pattern, string $candidate): bool {
+        $matched = preg_match('/' . str_replace('/', '\\/', $pattern) . '/', $candidate);
+        if ($matched === false) {
+            throw new RuntimeException("Invalid JSON table REGEXP pattern: {$pattern}");
+        }
+
+        return $matched === 1;
+    };
+    $ruleRegexpConstraints = [
+        ['column' => 'json', 'operator' => '=', 'value' => $value],
+        ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ['column' => 'value', 'operator' => 'REGEXP', 'value' => ['pattern' => 'cache|seo', 'regexp' => $regexp]],
+        ['column' => 'fullkey', 'operator' => 'NOT REGEXP', 'value' => ['pattern' => '\\[0\\]', 'regexp' => $regexp]],
+    ];
     $reports[] = [
         'name' => $name,
         'rootRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $value)),
@@ -79,6 +93,7 @@ foreach ($inputs as $name => $value) {
         'filteredRuleInRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $ruleInConstraints)),
         'filteredPriorityRangeRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $priorityRangeConstraints)),
         'filteredPriorityBetweenRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $priorityBetweenConstraints)),
+        'filteredRuleRegexpRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $ruleRegexpConstraints)),
         'planner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $plannerConstraints)),
         'filteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $objectRuleConstraints)),
         'patternFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $namePatternConstraints)),
@@ -86,6 +101,7 @@ foreach ($inputs as $name => $value) {
         'inFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $ruleInConstraints)),
         'rangeFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $priorityRangeConstraints)),
         'betweenFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $priorityBetweenConstraints)),
+        'regexpFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $ruleRegexpConstraints)),
         'dispatch' => [
             'sqlFunction' => 'JSON_EACH',
             'caseInsensitive' => true,
@@ -96,7 +112,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, and visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, IN-list, range, and BETWEEN residual filtering for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, and visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, IN-list, range, and BETWEEN residual filtering for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**
@@ -136,6 +152,9 @@ function normalizeJsonTableValue(mixed $value): mixed
             'type' => 'blob',
             'hexPrefix' => strtoupper(substr(bin2hex($value->bytes), 0, 24)),
         ];
+    }
+    if ($value instanceof Closure) {
+        return 'callable';
     }
 
     if (!is_array($value)) {

@@ -2621,6 +2621,23 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## JSON Table REGEXP Residual Scenario
+
+Native JSON table planning now supports visible-column `REGEXP` and
+`NOT REGEXP` residual filters after hidden `json`/`root` constraint planning.
+The `examples/wordpress-json-each-option-settings.php` smoke reports copied
+`wp_options` plugin settings expanded through `json_each()` with strict JSON,
+JSON5, JSONB, and SQL NULL inputs, then applies callback-backed REGEXP filters
+to rule values and full JSON paths without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated json-table/window slice: added bounded
+`SQLiteJsonTablePlan` REGEXP residual comparison using an explicit
+`pattern`/`regexp` payload and the lane-local SQLite REGEXP callback contract.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local JSON table planning, JSON path/JSONB decoding, and existing REGEXP
+callback validation.
+
 ## Core Random Scalar Scenario
 
 Native SQL execution helpers now include `random()` and `randomblob()` in the

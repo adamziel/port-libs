@@ -157,6 +157,8 @@ final class SQLiteJsonTablePlan
             'NOT LIKE' => !self::compareResidualLike($actual, $expected),
             'GLOB' => self::compareResidualGlob($actual, $expected),
             'NOT GLOB' => !self::compareResidualGlob($actual, $expected),
+            'REGEXP' => self::compareResidualRegexp($actual, $expected),
+            'NOT REGEXP' => !self::compareResidualRegexp($actual, $expected),
             'IN' => self::compareResidualIn($actual, $expected),
             'NOT IN' => self::compareResidualNotIn($actual, $expected),
             'BETWEEN' => self::compareResidualBetween($actual, $expected),
@@ -249,6 +251,24 @@ final class SQLiteJsonTablePlan
         }
 
         return SQLiteDatabase::globMatches($actual, $expected);
+    }
+
+    private static function compareResidualRegexp(mixed $actual, mixed $expected): bool
+    {
+        if ($actual === null || $expected === null) {
+            return false;
+        }
+        if (!is_string($actual)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator REGEXP expects text row values');
+        }
+        if (!is_array($expected) || !array_key_exists('pattern', $expected) || !array_key_exists('regexp', $expected)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator REGEXP expects a pattern and callback payload');
+        }
+        if (!is_string($expected['pattern']) || !is_callable($expected['regexp'])) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator REGEXP expects a text pattern and callable callback');
+        }
+
+        return SQLiteDatabase::regexpMatches($actual, $expected['pattern'], $expected['regexp']);
     }
 
     private static function compareResidualOrderedPredicate(mixed $actual, string $operator, mixed $expected): bool
