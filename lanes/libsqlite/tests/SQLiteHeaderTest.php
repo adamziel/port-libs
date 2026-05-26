@@ -11234,10 +11234,27 @@ SQL;
         $t->same('4142', bin2hex($substrBlob instanceof SQLiteBlobValue ? $substrBlob->bytes : ''));
         $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('substr', ['plugin', null, 2]));
 
+        $t->same('cache key', SQLiteCoreScalarFunction::sqlFunctionArguments('trim', ['  cache key  ']));
+        $t->same('cache', SQLiteCoreScalarFunction::sqlFunctionArguments('trim', ['..cache..', '.']));
+        $t->same('cache..', SQLiteCoreScalarFunction::sqlFunctionArguments('ltrim', ['..cache..', '.']));
+        $t->same('..cache', SQLiteCoreScalarFunction::sqlFunctionArguments('rtrim', ['..cache..', '.']));
+        $t->same('clair', SQLiteCoreScalarFunction::sqlFunctionArguments('trim', ['éclairé', 'é']));
+        $t->same('plugin_cache', SQLiteCoreScalarFunction::sqlFunctionArguments('replace', ['plugin-cache', '-', '_']));
+        $t->same('plugin-cache', SQLiteCoreScalarFunction::sqlFunctionArguments('replace', ['plugin-cache', '', '_']));
+        $t->same(8, SQLiteCoreScalarFunction::sqlFunctionArguments('instr', ['plugin_cache', 'cache']));
+        $t->same(2, SQLiteCoreScalarFunction::sqlFunctionArguments('instr', ['éclair', 'c']));
+        $t->same(2, SQLiteCoreScalarFunction::sqlFunctionArguments('instr', [new SQLiteBlobValue("\x00ABC"), new SQLiteBlobValue('AB')]));
+        $t->same(0, SQLiteCoreScalarFunction::sqlFunctionArguments('instr', ['plugin_cache', 'theme']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('replace', ['plugin-cache', null, '_']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('instr', ['plugin-cache', null]));
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('coalesce', [null]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('min', [1]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('length', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('substr', [['not' => 'scalar'], 1]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('trim', [['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('replace', ['plugin-cache', '-', ['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('instr', [['not' => 'scalar'], 'cache']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('missing', [1]));
     },

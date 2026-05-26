@@ -27,6 +27,9 @@ final class SQLiteCoreScalarFunction
             'upper' => self::caseMap('upper', $arguments),
             'length' => self::length($arguments),
             'substr', 'substring' => self::substring($normalized, $arguments),
+            'trim', 'ltrim', 'rtrim' => self::trim($normalized, $arguments),
+            'replace' => self::replace($arguments),
+            'instr' => self::instr($arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
     }
@@ -269,6 +272,94 @@ final class SQLiteCoreScalarFunction
             : substr($value, $offset, $byteLength);
     }
 
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function trim(string $functionName, array $arguments): string|null
+    {
+        self::assertArity($functionName, $arguments, 1, 2);
+        if ($arguments[0] === null || (array_key_exists(1, $arguments) && $arguments[1] === null)) {
+            return null;
+        }
+
+        $value = self::coerceText($functionName, $arguments[0], 'first');
+        $characters = array_key_exists(1, $arguments)
+            ? self::coerceText($functionName, $arguments[1], 'second')
+            : ' ';
+        if ($characters === '') {
+            return $value;
+        }
+
+        $units = self::splitTextUnits($value);
+        $trimSet = array_fill_keys(self::splitTextUnits($characters), true);
+        $start = 0;
+        $end = count($units) - 1;
+        if ($functionName !== 'rtrim') {
+            while ($start <= $end && isset($trimSet[$units[$start]])) {
+                $start++;
+            }
+        }
+        if ($functionName !== 'ltrim') {
+            while ($end >= $start && isset($trimSet[$units[$end]])) {
+                $end--;
+            }
+        }
+
+        return implode('', array_slice($units, $start, $end - $start + 1));
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function replace(array $arguments): ?string
+    {
+        self::assertArity('replace', $arguments, 3, 3);
+        if ($arguments[0] === null || $arguments[1] === null || $arguments[2] === null) {
+            return null;
+        }
+
+        $value = self::coerceText('replace', $arguments[0], 'first');
+        $from = self::coerceText('replace', $arguments[1], 'second');
+        if ($from === '') {
+            return $value;
+        }
+
+        return str_replace($from, self::coerceText('replace', $arguments[2], 'third'), $value);
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function instr(array $arguments): ?int
+    {
+        self::assertArity('instr', $arguments, 2, 2);
+        if ($arguments[0] === null || $arguments[1] === null) {
+            return null;
+        }
+
+        if ($arguments[0] instanceof SQLiteBlobValue && $arguments[1] instanceof SQLiteBlobValue) {
+            $position = strpos($arguments[0]->bytes, $arguments[1]->bytes);
+
+            return $position === false ? 0 : $position + 1;
+        }
+
+        $haystack = self::coerceText('instr', $arguments[0], 'first');
+        $needle = self::coerceText('instr', $arguments[1], 'second');
+        if ($needle === '') {
+            return 1;
+        }
+
+        if (function_exists('mb_check_encoding') && function_exists('mb_strpos') && mb_check_encoding($haystack, 'UTF-8') && mb_check_encoding($needle, 'UTF-8')) {
+            $position = mb_strpos($haystack, $needle, 0, 'UTF-8');
+
+            return $position === false ? 0 : $position + 1;
+        }
+
+        $position = strpos($haystack, $needle);
+
+        return $position === false ? 0 : $position + 1;
+    }
+
     private static function assertArity(string $functionName, array $arguments, int $minimum, ?int $maximum): void
     {
         $count = count($arguments);
@@ -370,6 +461,34 @@ final class SQLiteCoreScalarFunction
         }
 
         throw new \InvalidArgumentException('SQLite scalar comparison argument must be scalar or BLOB');
+    }
+
+    private static function coerceText(string $functionName, mixed $value, string $position): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return $value->bytes;
+        }
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException("SQLite {$functionName}() {$position} argument must be scalar, BLOB, or NULL");
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitTextUnits(string $value): array
+    {
+        if (function_exists('mb_check_encoding') && function_exists('preg_split') && mb_check_encoding($value, 'UTF-8')) {
+            /** @var list<string>|false $units */
+            $units = preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY);
+            if ($units !== false) {
+                return $units;
+            }
+        }
+
+        return str_split($value);
     }
 
     private static function formatFloat(float $value): string

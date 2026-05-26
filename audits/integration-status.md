@@ -1,5 +1,46 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite core text scalar dispatch - 2026-05-26 09:38 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T092859Z.ready`.
+
+Source marker evidence:
+- Marker lane was `libsqlite`, slice
+  `closure-libsqlite-sql-exec-planner-scalar-functions-20260526T092859Z`.
+- Marker base was `5623f52d01fc569fc9d25f7a8573f46cdb17e559`, behind current
+  `main` `63ed46b427a5d014ef6523ea9f4b80793712a91f`, so the patch was applied
+  in a detached current-main worktree with a bounded stale `lane-status.json`
+  merge that preserved the accepted leaf-defragmentation status while adding
+  the scalar evidence.
+- The applied slice adds native `trim()`, `ltrim()`, `rtrim()`, `replace()`,
+  and `instr()` dispatch to `SQLiteCoreScalarFunction`, extends the focused
+  libsqlite test coverage, and updates the WordPress scalar smoke and lane
+  evidence notes. No shared support-library row was activated.
+
+Focused verification in detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2706 assertions, 0 failures`.
+- WordPress scalar smokes passed:
+  `replace plugin-cache - _` returned `plugin_cache`, and
+  `instr plugin_cache cache` returned `8`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Gate sample before root reported `/` at `86870664` KiB available, load
+  `3.56`, and no active no-argument root harness.
+- `php tools/run-tests.php` was run under
+  `.tmux-team/tmp/clean-integrator-run.lock` and passed with
+  `215 test files, 27477 assertions, 0 failures`.
+
+Decision: accepted. Dashboard publication should run next after the accepted
+source commit is visible on `refs/heads/main`.
+
 ## Clean-patch intake accepted - libsqlite leaf page defragmentation - 2026-05-26 09:33 UTC
 
 Accepted marker:

@@ -2646,3 +2646,24 @@ implementation, or master-journal coordinator.
 
 Dependency closure: no new shared support component is needed; this reuses
 lane-local savepoint state tracking and WordPress fixture diagnostics.
+
+## Core Text Scalar Cleanup Scenario
+
+Native SQL execution helpers now include `trim()`, `ltrim()`, `rtrim()`,
+`replace()`, and `instr()` in the bounded core scalar dispatch surface used by
+local WordPress option repair and expression planning. The
+`examples/wordpress-core-scalar-option-default.php` smoke reports local-only
+cleanup and matching of copied `wp_options` values, including explicit trim
+character sets, option-name separator replacement, UTF-8 text positions, and
+BLOB byte search positions without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added
+SQLite-style SQL NULL propagation, default and explicit trim character sets,
+empty replace-pattern no-op behavior, UTF-8 text-unit handling, BLOB byte
+`instr()` positions, not-found zero results, and strict arity/type errors. This
+is intentionally a scalar dispatch helper, not a full SELECT expression
+evaluator or VDBE projection engine.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
+helpers.
