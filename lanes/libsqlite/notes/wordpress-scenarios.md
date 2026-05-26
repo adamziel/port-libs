@@ -2,6 +2,23 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT Projection Scalar Preview Scenario
+
+Copied WordPress option import previews can now model SELECT projection
+columns that are scalar expressions, not just raw decoded columns. The smoke
+`examples/wordpress-select-projection-scalar-preview.php` reports copied
+`wp_options`-style rows projected through `lower()`, `coalesce()`, `printf()`,
+and nested `LIKE`/`iif()` expressions, then ordered through the existing
+result helper without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner slice: added
+`SQLiteSelectProjection` with focused source-column, literal, alias, nested
+function argument, scalar dispatch, missing-column, invalid-alias,
+invalid-argument-list, unsupported-function, and invalid-expression assertions.
+The focused lane test count moves from 3787 to 3828 assertions, +41.
+Dependency closure: no new support component is needed; this reuses lane-local
+core scalar dispatch and pure PHP result-row arrays.
+
 ## WAL Checkpoint Dry-run Scenario
 
 Copied WordPress SQLite databases can now preview checkpoint mode effects

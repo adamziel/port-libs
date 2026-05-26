@@ -1,5 +1,40 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: SELECT Projection Scalar Expressions
+
+Date: 2026-05-26
+
+This isolated SQL execution/planner micro-slice adds bounded native SELECT
+projection wiring for row-produced scalar expression columns. The new
+`SQLiteSelectProjection` helper evaluates source-column references, literals,
+aliases, scalar function calls, and nested scalar arguments over already
+produced rows. It is intentionally a projection/result primitive; it does not
+claim parser-level SELECT execution, joins, VDBE bytecode, or a fresh upstream
+`testfixture` run.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedWordPressSelectProjectionScalarScripts: 1`. No
+fresh upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run
+was started from this isolated worktree.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectProjection.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-projection-scalar-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-projection-scalar-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Focused assertion delta: 3787 to 3828 assertions, +41.
+
+Dependency closure: no new support component is needed. This slice reuses
+lane-local core scalar dispatch, SQL result ordering, BLOB wrappers, and pure
+PHP row arrays.
+
 ## Focused Native Mapping: SELECT DISTINCT/ORDER BY/LIMIT Results
 
 Date: 2026-05-26

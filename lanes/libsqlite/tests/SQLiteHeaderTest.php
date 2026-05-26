@@ -56,6 +56,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
+use PortLibs\LibSqlite\SQLiteSelectProjection;
 use PortLibs\LibSqlite\SQLiteSelectResult;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
@@ -13272,6 +13273,113 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('sqlite_compileoption_used', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('missing', [1]));
+    },
+    'projects select result rows through scalar expressions' => static function (TestRunner $t): void {
+        $rows = [
+            ['option_id' => 1, 'option_name' => 'SiteURL', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
+            ['option_id' => 2, 'option_name' => '_Transient_API', 'option_value' => null, 'autoload' => 'no'],
+            ['option_id' => 3, 'option_name' => 'emoji_💡', 'option_value' => 'enabled', 'autoload' => 'yes'],
+        ];
+
+        $projected = SQLiteSelectProjection::project($rows, [
+            ['type' => 'column', 'name' => 'option_id'],
+            ['type' => 'function', 'name' => 'lower', 'alias' => 'normalized_name', 'arguments' => [
+                ['type' => 'column', 'name' => 'option_name'],
+            ]],
+            ['type' => 'function', 'name' => 'coalesce', 'alias' => 'effective_value', 'arguments' => [
+                ['type' => 'column', 'name' => 'option_value'],
+                'default',
+            ]],
+            ['type' => 'function', 'name' => 'printf', 'alias' => 'diagnostic', 'arguments' => [
+                'row=%03d name=%Q autoload=%s',
+                ['type' => 'column', 'name' => 'option_id'],
+                ['type' => 'column', 'name' => 'option_name'],
+                ['type' => 'column', 'name' => 'autoload'],
+            ]],
+            ['type' => 'function', 'name' => 'length', 'alias' => 'name_chars', 'arguments' => [
+                ['type' => 'column', 'name' => 'option_name'],
+            ]],
+            ['type' => 'function', 'name' => 'substr', 'alias' => 'name_prefix', 'arguments' => [
+                ['type' => 'column', 'name' => 'option_name'],
+                1,
+                4,
+            ]],
+            ['type' => 'function', 'name' => 'instr', 'alias' => 'underscore_at', 'arguments' => [
+                ['type' => 'column', 'name' => 'option_name'],
+                '_',
+            ]],
+            ['type' => 'function', 'name' => 'iif', 'alias' => 'autoload_label', 'arguments' => [
+                ['type' => 'function', 'name' => 'like', 'arguments' => ['y%', ['type' => 'column', 'name' => 'autoload']]],
+                'autoloaded',
+                'manual',
+            ]],
+            ['type' => 'literal', 'alias' => 'source', 'value' => 'wp_options'],
+        ]);
+
+        $t->same(3, count($projected));
+        $t->same(['option_id', 'normalized_name', 'effective_value', 'diagnostic', 'name_chars', 'name_prefix', 'underscore_at', 'autoload_label', 'source'], array_keys($projected[0]));
+        $t->same(1, $projected[0]['option_id']);
+        $t->same('siteurl', $projected[0]['normalized_name']);
+        $t->same('https://example.test', $projected[0]['effective_value']);
+        $t->same("row=001 name='SiteURL' autoload=yes", $projected[0]['diagnostic']);
+        $t->same(7, $projected[0]['name_chars']);
+        $t->same('Site', $projected[0]['name_prefix']);
+        $t->same(0, $projected[0]['underscore_at']);
+        $t->same('autoloaded', $projected[0]['autoload_label']);
+        $t->same('wp_options', $projected[0]['source']);
+
+        $t->same(2, $projected[1]['option_id']);
+        $t->same('_transient_api', $projected[1]['normalized_name']);
+        $t->same('default', $projected[1]['effective_value']);
+        $t->same("row=002 name='_Transient_API' autoload=no", $projected[1]['diagnostic']);
+        $t->same(14, $projected[1]['name_chars']);
+        $t->same('_Tra', $projected[1]['name_prefix']);
+        $t->same(1, $projected[1]['underscore_at']);
+        $t->same('manual', $projected[1]['autoload_label']);
+        $t->same('wp_options', $projected[1]['source']);
+
+        $t->same(3, $projected[2]['option_id']);
+        $t->same('emoji_💡', $projected[2]['normalized_name']);
+        $t->same('enabled', $projected[2]['effective_value']);
+        $t->same("row=003 name='emoji_💡' autoload=yes", $projected[2]['diagnostic']);
+        $t->same(7, $projected[2]['name_chars']);
+        $t->same('emoj', $projected[2]['name_prefix']);
+        $t->same(6, $projected[2]['underscore_at']);
+        $t->same('autoloaded', $projected[2]['autoload_label']);
+        $t->same('wp_options', $projected[2]['source']);
+
+        $literalOnly = SQLiteSelectProjection::project([['ignored' => 1]], [
+            ['type' => 'literal', 'value' => null],
+            ['type' => 'literal', 'alias' => 'blob_value', 'value' => new SQLiteBlobValue('wp')],
+        ]);
+        $t->same(['expr1', 'blob_value'], array_keys($literalOnly[0]));
+        $t->same(null, $literalOnly[0]['expr1']);
+        $t->true($literalOnly[0]['blob_value'] instanceof SQLiteBlobValue);
+        $t->same('wp', $literalOnly[0]['blob_value'] instanceof SQLiteBlobValue ? $literalOnly[0]['blob_value']->bytes : null);
+
+        $ordered = SQLiteSelectResult::execute($projected, null, [
+            ['column' => 'autoload_label', 'direction' => 'ASC'],
+            ['column' => 'normalized_name', 'direction' => 'DESC'],
+        ]);
+        $t->same(['siteurl', 'emoji_💡', '_transient_api'], array_column($ordered, 'normalized_name'));
+        $t->same(['autoloaded', 'autoloaded', 'manual'], array_column($ordered, 'autoload_label'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'column', 'name' => 'missing'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'column', 'name' => 'option_name', 'alias' => ''],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'function', 'name' => 'lower', 'arguments' => ['not-a-list' => 'value']],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'function', 'name' => 'missing', 'arguments' => []],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectProjection::project($rows, [
+            ['type' => 'unknown'],
+        ]));
     },
     'dispatches sqlite text aggregate group concat semantics' => static function (TestRunner $t): void {
         $t->same('siteurl,home,blogname', SQLiteTextAggregate::groupConcat(['siteurl', null, 'home', 'blogname']));

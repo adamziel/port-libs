@@ -117483,3 +117483,39 @@ Ready queue evidence:
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T220058Z` still has lane-local modified files after the accepted patch landed on `main`, so it was preserved and left registered. Accepted marker ready/patch/metadata files were removed after ref publication.
 
 Dashboard publication should run next after this source-moving commit lands.
+## Integration accepted - libsqlite SELECT projection scalar expressions - 2026-05-26T22:24:08Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T221819Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `70d151e06d1ebde6d97eccf98f5d051f69a595ec` (`Integrate libsqlite JSON malformed planner diagnostics`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `70d151e06d1ebde6d97eccf98f5d051f69a595ec`, `generated` `2026-05-26 22:16:29 UTC`, and `dashboardCommit` `21178ed63db3a5ea900bfc2897afef59562b5dfd`.
+- The dashboard guard was open when this marker was selected.
+
+Runtime gate evidence:
+- Initial `df -Pk /` reported `85352984` KiB available, below the `86000000` KiB floor, so the pass waited outside the clean-integrator lock.
+- Recheck after the wait reported `151404976` KiB available on `/`, above the floor.
+- Focused-check gate reported `/` at `151255716` KiB available, `/tmp` at `10420728` KiB available, load `3.37`, and no exact no-argument root harness process.
+
+Candidate evidence:
+- Selected current-base behavior marker `port-dev-libsqlite-scalar-20260526T221819Z.ready`, base `70d151e06d1ebde6d97eccf98f5d051f69a595ec`.
+- Chosen over sampled current-base SQL projection, encoding, and upstream-runner markers because it had the strongest dashboard-visible behavior delta in the bounded sample: focused `SQLiteHeaderTest.php` `3787 -> 3828` assertions (`+41`), `phpPass` `726 -> 727`, mapped coverage `390 -> 391`, and a WordPress SELECT projection scalar smoke/status entry.
+- Effective clean candidate delta modified only `lanes/libsqlite/**` metadata, notes, and focused tests; `SQLiteSelectProjection` already existed on accepted source and the accepted slice adds focused coverage plus public status/manifest movement for that behavior.
+
+Focused verification:
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3828 assertions, 0 failures`.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` decoded with `JSON_THROW_ON_ERROR`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Serialized no-argument `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR` set to the candidate-local `.tmp-root` directory.
+- Root passed with `215 test files, 28962 assertions, 0 failures`.
+
+Decision:
+- Accepted for commit as a small source-moving libsqlite behavior/test-growth slice. Dashboard publication should run next after the commit lands on `main`.
+- Published commit: this audit entry is included in `Integrate libsqlite SELECT projection scalar expressions`.
+- Accepted ready marker, patch, and metadata files were removed after ref publication.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-scalar-20260526T221819Z` still contains the accepted lane diff as dirty state, so it was preserved and left registered rather than removed.

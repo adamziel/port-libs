@@ -1,5 +1,32 @@
 # libsqlite Root Harness Notes
 
+## Isolated SQL SELECT Projection Scalar Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the SQL execution/planner SELECT projection
+scalar-expression slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectProjection.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-projection-scalar-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-projection-scalar-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused test count moved from the current accepted 3787-assertion
+baseline recorded in lane status to 3828 assertions, +41, with 0 failures.
+Root harness status: not run - isolated micro-slice. The WordPress SELECT
+projection smoke reports copied `wp_options` rows projected through scalar
+expression columns before ORDER BY result semantics.
+
+Dependency closure: no new support component is needed. The implementation
+reuses lane-local core scalar dispatch, SQL result ordering, BLOB wrappers,
+and pure PHP row arrays.
+
 ## Isolated WAL Read-Mark Slice
 
 Date: 2026-05-26
