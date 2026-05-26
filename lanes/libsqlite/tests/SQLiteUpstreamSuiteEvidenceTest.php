@@ -1402,6 +1402,56 @@ MD . $focusedReleaseFailureTail);
         $t->same('9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353', $gate['blockers'][1]['expected']);
         $t->same(false, $gate['counts_as_release_parity']);
     },
+    'requires an explicit supervisor exclusion decision before closing release blocker parity' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $persistent = [
+            'status' => 'persistent-upstream-runtime-blocker',
+            'persistent' => true,
+            'script' => 'ext/fts5/test/fts5aux.test',
+            'case' => 'fts5aux-3.1',
+            'matching_release_artifact_count' => 2,
+            'focused_tests' => 1,
+            'focused_errors' => 0,
+        ];
+
+        $pending = $evidence->releaseParityExclusionDecisionGate($persistent);
+        $t->same('blocked', $pending['status']);
+        $t->same(false, $pending['counts_as_zero_error_release_parity']);
+        $t->same(false, $pending['counts_as_release_blocker_closure']);
+        $t->same('supervisor-exclusion-decision-required', $pending['blockers'][0]['id']);
+        $t->contains('release/all parity uncounted', $pending['next_gate']);
+
+        $accepted = $evidence->releaseParityExclusionDecisionGate(
+            $persistent,
+            true,
+            'Supervisor accepts ext/fts5 fts5aux sanitizer as an upstream non-portability exclusion for this release-runner environment.'
+        );
+        $t->same('accepted-non-portability-exclusion', $accepted['status']);
+        $t->same(false, $accepted['counts_as_zero_error_release_parity']);
+        $t->same(true, $accepted['counts_as_release_blocker_closure']);
+        $t->same(true, $accepted['supervisor_accepted_exclusion']);
+        $t->same(0, $accepted['blocker_count']);
+        $t->same('ext/fts5/test/fts5aux.test', $accepted['script']);
+        $t->same('fts5aux-3.1', $accepted['case']);
+        $t->contains('non-portability exclusion only', $accepted['next_gate']);
+        $t->contains('no new support component needed', $accepted['dependency_closure']);
+
+        $unproven = $evidence->releaseParityExclusionDecisionGate(
+            [
+                'status' => 'blocked',
+                'persistent' => false,
+                'matching_release_artifact_count' => 1,
+                'focused_tests' => 1,
+                'focused_errors' => 0,
+            ],
+            true
+        );
+        $t->same('blocked', $unproven['status']);
+        $t->same([
+            'persistent-blocker-not-proven',
+            'insufficient-release-artifacts',
+        ], array_column($unproven['blockers'], 'id'));
+    },
     'gates bounded runner artifacts on accepted checkout and SQLite manifest provenance' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $artifact = [

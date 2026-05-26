@@ -9691,3 +9691,39 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local overflow-chain, freeblock, secure-delete, and freelist planning
 primitives without activating shared support-library work.
+
+## Upstream Runner: Release Parity Exclusion Decision Gate
+
+This isolated upstream-suite runner micro-slice did not start a duplicate
+broad `testfixture`, `release`, `all`, `make test`, or `mptest` run. Process
+sampling showed only lane workers, not an active broad SQLite suite runner at
+the time of selection. The implementation adds a machine-readable decision gate
+for the persistent `ext/fts5/test/fts5aux.test` sanitizer blocker: repeated
+broad release failures plus a clean focused repro are still blocked until the
+supervisor explicitly accepts a non-portability exclusion, and accepted
+exclusions still do not count as zero-error release/all parity.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional upstream-runner evidence gate while preserving the accepted static
+SQLite denominator and veryquick evidence. No fresh upstream runner evidence is
+claimed by this slice.
+
+Verification run 2026-05-26T18:08Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteUpstreamSuiteEvidenceTest.php`
+passed with 1 selected file, 576 assertions, and 0 failures, adding 17 focused
+assertions for the exclusion decision gate. Manifest/status JSON decoded
+successfully and lane diff check passed. The root harness was not run because
+this was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This composes existing
+lane-local runner artifact, persistent blocker, focused repro, and supervisor
+decision evidence only.

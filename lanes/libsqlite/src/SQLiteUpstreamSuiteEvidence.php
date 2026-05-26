@@ -1648,6 +1648,79 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $persistentBlockerGate
+     * @return array<string, mixed>
+     */
+    public function releaseParityExclusionDecisionGate(
+        array $persistentBlockerGate,
+        bool $supervisorAcceptedExclusion = false,
+        string $decisionNote = ''
+    ): array {
+        $persistent = ($persistentBlockerGate['status'] ?? null) === 'persistent-upstream-runtime-blocker'
+            && ($persistentBlockerGate['persistent'] ?? false) === true;
+        $matchingCount = is_int($persistentBlockerGate['matching_release_artifact_count'] ?? null)
+            ? $persistentBlockerGate['matching_release_artifact_count']
+            : 0;
+        $focusedTests = is_int($persistentBlockerGate['focused_tests'] ?? null)
+            ? $persistentBlockerGate['focused_tests']
+            : null;
+        $focusedErrors = is_int($persistentBlockerGate['focused_errors'] ?? null)
+            ? $persistentBlockerGate['focused_errors']
+            : null;
+
+        $blockers = [];
+        if (!$persistent) {
+            $blockers[] = [
+                'id' => 'persistent-blocker-not-proven',
+                'evidence' => 'release/all parity exclusion requires a persistent upstream runtime blocker gate',
+                'persistent_status' => $persistentBlockerGate['status'] ?? 'unknown',
+            ];
+        }
+        if ($matchingCount < 2) {
+            $blockers[] = [
+                'id' => 'insufficient-release-artifacts',
+                'evidence' => 'release/all parity exclusion requires at least two matching broad all/release artifacts',
+                'matching_release_artifacts' => $matchingCount,
+            ];
+        }
+        if ($focusedTests === null || $focusedTests < 1 || $focusedErrors !== 0) {
+            $blockers[] = [
+                'id' => 'focused-repro-not-clean',
+                'evidence' => 'release/all parity exclusion requires a focused repro with parsed zero-error evidence',
+                'focused_tests' => $focusedTests,
+                'focused_errors' => $focusedErrors,
+            ];
+        }
+        if (!$supervisorAcceptedExclusion) {
+            $blockers[] = [
+                'id' => 'supervisor-exclusion-decision-required',
+                'evidence' => 'persistent upstream runtime blockers do not count as release/all parity until the supervisor explicitly accepts the non-portability exclusion',
+            ];
+        }
+
+        $accepted = $blockers === [];
+
+        return [
+            'status' => $accepted ? 'accepted-non-portability-exclusion' : 'blocked',
+            'counts_as_zero_error_release_parity' => false,
+            'counts_as_release_blocker_closure' => $accepted,
+            'supervisor_accepted_exclusion' => $supervisorAcceptedExclusion,
+            'decision_note' => $decisionNote,
+            'script' => $persistentBlockerGate['script'] ?? null,
+            'case' => $persistentBlockerGate['case'] ?? null,
+            'matching_release_artifact_count' => $matchingCount,
+            'focused_tests' => $focusedTests,
+            'focused_errors' => $focusedErrors,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => $accepted
+                ? 'record this as a supervisor-accepted non-portability exclusion only; release/all zero-error parity still requires a future countable zero-error artifact'
+                : 'keep release/all parity uncounted until a zero-error artifact passes countability gates or the supervisor explicitly accepts the persistent sanitizer blocker as a non-portability exclusion',
+            'dependency_closure' => 'no new support component needed; exclusion decisions compose existing persistent blocker evidence and an explicit supervisor decision only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array

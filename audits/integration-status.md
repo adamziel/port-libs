@@ -116429,3 +116429,41 @@ Decision: accepted for commit and main publication. Dashboard publication should
 Post-commit cleanup note:
 - Accepted worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T174156Z` still has the marker's tracked lane changes after publication; preserved it and left it registered as cleanup debt rather than removing it.
 - Clean verifier worktree `.tmux-team/tmp/clean-integrator-check-20260526T174959Z` has repo-local root-harness temp output under `.tmp-root`; preserved it and left it registered instead of forcing removal.
+## Integration accepted - libsqlite release exclusion decision gate - 2026-05-26T18:12:40Z
+
+Accepted marker:
+- `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T180146Z.ready`
+- Lane: `libsqlite`
+- Slice: `closure-libsqlite-upstream-suite-hydrated-runner-20260526T180146Z`
+- Base accepted HEAD: `ec76697530b1f909af0dc70b16e28c2876449162`
+- Patch sha256 matched marker metadata: `91587457237346429977c9b46734b4bf91a531cff8ee4b8617256c94438d2379`
+- Patch applied cleanly in detached clean worktree `.tmux-team/tmp/clean-integrator-check-20260526T1810-upstream-runner` from `refs/heads/main`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `ec76697530b1f909af0dc70b16e28c2876449162` (`Integrate libsqlite full rollback savepoint plans`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `ec76697530b1f909af0dc70b16e28c2876449162`.
+- Dashboard guard was open before marker inspection.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `111715232` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `0.94`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Focused verification passed in the clean candidate worktree with repo-local `TMPDIR`:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed: `1 test files, 576 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR`:
+- `php tools/run-tests.php` passed: `215 test files, 28093 assertions, 0 failures`.
+
+Decision:
+- Accepted one targeted libsqlite upstream-suite blocker marker that adds `releaseParityExclusionDecisionGate()` and 17 focused assertions for the persistent `fts5aux` sanitizer/runtime release-suite blocker.
+- This records an explicit supervisor-decision gate; accepted non-portability exclusions still do not count as zero-error release/all parity.
+- Cleanup debt: the originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-upstream-runner-20260526T180146Z` still contains modified lane files relative to its detached base, so it was preserved and left registered rather than removed.
+- No non-libsqlite markers were considered because libsqlite-only intake remains active.
+- Dolt remains parked.
+
+Dashboard publication should run next because accepted source moved.
