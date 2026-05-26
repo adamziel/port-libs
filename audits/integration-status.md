@@ -1,5 +1,54 @@
 # Integration Status
 
+## Integration accepted - libsqlite release rerun decision gate - 2026-05-26 13:10 UTC
+
+Accepted source: supervisor-rebased from
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T130320Z.ready`
+onto `54bfb5e90464b2a386a9d964c11e76939a09d0a7`.
+
+Priority lane: `libsqlite`.
+
+Dashboard/resource evidence:
+- Starting `refs/heads/main` was `54bfb5e90464b2a386a9d964c11e76939a09d0a7`
+  (`Integrate libsqlite sign zeroblob scalars`).
+- Live dashboard still reported prior source `a0628fc72cabb5811e6c1498424fae0d5b5a787b`;
+  this commit requires dashboard publication next.
+- `df -Pk / /tmp` reported `/` `127871724` KiB free and `/tmp` `7314628`
+  KiB free.
+- `/proc/loadavg` reported `1.08 1.27 1.47`.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument
+  root harness rows before root verification.
+
+Candidate evidence:
+- The stale upstream-runner patch was rebased onto current accepted `main`.
+- Source/test/notes hunks applied cleanly; manifest/status metadata conflicts
+  were resolved by preserving the accepted sign/zeroblob evidence and adding
+  only the release-rerun-decision fields.
+- Scope was lane-local plus this audit entry.
+- The slice adds `SQLiteUpstreamSuiteEvidence::releaseRerunDecisionGate()` to
+  compose the failed guarded release artifact and the passed focused `fts5aux`
+  repro without counting release/all parity.
+
+Focused checks:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed: `1 test files, 470 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root check:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the clean candidate snapshot: `215 test files, 27657 assertions,
+  0 failures`.
+
+Decision: accepted. The failed `libsqlite-release-notty-runner-20260526T102446Z`
+artifact remains uncounted. The supervisor decision permits exactly one
+guarded current-head release/all rerun after duplicate-runner, disk, load, and
+dashboard guards are open; if the same `fts5aux-3.1` sanitizer failure repeats,
+record it as persistent upstream-runtime sanitizer evidence and keep
+release/all parity uncounted.
+
 ## Integration accepted - libsqlite scalar sign and zeroblob - 2026-05-26 13:07 UTC
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T130228Z.ready`.

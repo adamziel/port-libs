@@ -1300,6 +1300,106 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $failedReleaseArtifact
+     * @param array<string, mixed> $focusedReproGate
+     * @return array<string, mixed>
+     */
+    public function releaseRerunDecisionGate(
+        array $failedReleaseArtifact,
+        array $focusedReproGate,
+        bool $supervisorApproved = false
+    ): array {
+        $releaseResults = is_array($failedReleaseArtifact['results'] ?? null) ? $failedReleaseArtifact['results'] : [];
+        $releaseBlockers = is_array($releaseResults['failure_blockers'] ?? null) ? $releaseResults['failure_blockers'] : [];
+        $releaseActiveGate = is_array($failedReleaseArtifact['active_gate'] ?? null) ? $failedReleaseArtifact['active_gate'] : [];
+        $focusedArtifact = is_array($focusedReproGate['artifact'] ?? null) ? $focusedReproGate['artifact'] : [];
+        $focusedResults = is_array($focusedArtifact['results'] ?? null) ? $focusedArtifact['results'] : [];
+
+        $primaryBlocker = null;
+        foreach ($releaseBlockers as $blocker) {
+            if (is_array($blocker)) {
+                $primaryBlocker = $blocker;
+                break;
+            }
+        }
+
+        $releaseScript = is_array($primaryBlocker) && is_string($primaryBlocker['script'] ?? null)
+            ? $primaryBlocker['script']
+            : null;
+        $releaseCase = is_array($primaryBlocker) && is_string($primaryBlocker['case'] ?? null)
+            ? $primaryBlocker['case']
+            : null;
+        $focusedScript = is_string($focusedReproGate['script'] ?? null) ? $focusedReproGate['script'] : null;
+        $focusedCase = is_string($focusedReproGate['case'] ?? null) ? $focusedReproGate['case'] : null;
+
+        $blockers = [];
+        if (($failedReleaseArtifact['status'] ?? null) !== 'failed') {
+            $blockers[] = [
+                'id' => 'release-artifact-not-failed',
+                'evidence' => 'rerun decisions require the original guarded release/all artifact to be recorded as failed evidence',
+            ];
+        }
+        if (($releaseActiveGate['status'] ?? null) === 'blocked-active-runner') {
+            $blockers[] = [
+                'id' => 'release-runner-still-active',
+                'evidence' => 'a supplied process snapshot still contains a broad SQLite runner',
+                'active_tiers' => $releaseActiveGate['active_tiers'] ?? [],
+            ];
+        }
+        if ($primaryBlocker === null || ($primaryBlocker['category'] ?? null) !== 'upstream-runtime-environment') {
+            $blockers[] = [
+                'id' => 'release-failure-not-runtime-environment',
+                'evidence' => 'the failed release artifact does not classify its primary failure as an upstream runtime/environment blocker',
+            ];
+        }
+        if (($focusedReproGate['status'] ?? null) !== 'focused-repro-passed') {
+            $blockers[] = [
+                'id' => 'focused-repro-not-passed',
+                'evidence' => 'the exact failed-script focused repro has not produced accepted zero-error evidence',
+                'focused_status' => $focusedReproGate['status'] ?? 'unknown',
+            ];
+        }
+        if ($releaseScript === null || $releaseScript !== $focusedScript || $releaseCase !== $focusedCase) {
+            $blockers[] = [
+                'id' => 'focused-repro-target-mismatch',
+                'evidence' => 'focused repro target does not match the failed release script/case',
+                'release_script' => $releaseScript,
+                'release_case' => $releaseCase,
+                'focused_script' => $focusedScript,
+                'focused_case' => $focusedCase,
+            ];
+        }
+
+        $decisionReady = $blockers === [];
+        $rerunAllowed = $decisionReady && $supervisorApproved;
+
+        return [
+            'status' => $rerunAllowed
+                ? 'rerun-allowed'
+                : ($decisionReady ? 'blocked-pending-supervisor-decision' : 'blocked'),
+            'rerun_allowed' => $rerunAllowed,
+            'supervisor_approved' => $supervisorApproved,
+            'release_artifact_status' => $failedReleaseArtifact['status'] ?? 'unknown',
+            'release_repository_head' => $failedReleaseArtifact['repository_head'] ?? null,
+            'focused_repro_status' => $focusedReproGate['status'] ?? 'unknown',
+            'focused_repository_head' => $focusedArtifact['repository_head'] ?? null,
+            'script' => $releaseScript,
+            'case' => $releaseCase,
+            'focused_tests' => is_int($focusedResults['tests'] ?? null) ? $focusedResults['tests'] : null,
+            'focused_errors' => is_int($focusedResults['errors'] ?? null) ? $focusedResults['errors'] : null,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_as_release_parity' => false,
+            'next_gate' => $rerunAllowed
+                ? 'start a fresh guarded release/all runner only after duplicate-runner gates are clear; count the result only through bounded artifact provenance gates'
+                : ($decisionReady
+                    ? 'obtain an explicit supervisor sanitizer/transient-failure decision before launching or counting another guarded release/all run'
+                    : 'keep release/all parity uncounted until the failed release artifact and exact focused repro produce matching accepted evidence'),
+            'dependency_closure' => 'no new support component needed; rerun decisions compose lane-local failed-release and focused-repro evidence only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array

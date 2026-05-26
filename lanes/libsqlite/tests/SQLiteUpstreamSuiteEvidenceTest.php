@@ -1040,6 +1040,87 @@ MD);
             @rmdir($root);
         }
     },
+    'builds a guarded release rerun decision from failed release and focused repro evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $releaseAudit = <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-notty-runner-20260526T102446Z
+
+- Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `1`
+- Elapsed seconds: `4113`
+- Parsed summary: ``
+- Parsed errors: `unknown`
+- Parsed tests: `unknown`
+- Runner time: `unknown`
+
+## Tail
+
+```text
+FAILED: Sanitize ext/fts5/test/fts5aux.test (1)
+OUTPUT: fts5aux-1.0... Ok
+fts5aux-3.1.../tmp/src/ext/fts5/fts5_tcl.c:429:59: runtime error: applying non-zero offset 1 to null pointer
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/src/ext/fts5/fts5_tcl.c:429:59
+```
+MD;
+        $reproAudit = <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-fts5aux-repro-20260526T123916Z
+
+- Repository HEAD: `8ab0375ac9e72382750dc8fb8f4b96a2913e777a`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `180`
+- Patterns: `ext/fts5/test/fts5aux.test`
+- Exit: `0`
+- Elapsed seconds: `0`
+- Parsed summary: `0 errors out of 1 tests`
+- Parsed errors: `0`
+- Parsed tests: `1`
+- Runner time: `unknown`
+MD;
+
+        $release = $evidence->boundedRunnerArtifactRecord($releaseAudit);
+        $repro = $evidence->focusedFailureReproGate(
+            [
+                'category' => 'upstream-runtime-environment',
+                'script' => 'ext/fts5/test/fts5aux.test',
+                'case' => 'fts5aux-3.1',
+            ],
+            '8ab0375ac9e72382750dc8fb8f4b96a2913e777a',
+            dirname(__DIR__, 3),
+            $reproAudit
+        );
+
+        $pending = $evidence->releaseRerunDecisionGate($release, $repro);
+        $t->same('blocked-pending-supervisor-decision', $pending['status']);
+        $t->same(false, $pending['rerun_allowed']);
+        $t->same(false, $pending['counts_as_release_parity']);
+        $t->same(0, $pending['blocker_count']);
+        $t->same('failed', $pending['release_artifact_status']);
+        $t->same('focused-repro-passed', $pending['focused_repro_status']);
+        $t->same('ext/fts5/test/fts5aux.test', $pending['script']);
+        $t->same('fts5aux-3.1', $pending['case']);
+        $t->same(1, $pending['focused_tests']);
+        $t->same(0, $pending['focused_errors']);
+        $t->contains('explicit supervisor sanitizer/transient-failure decision', $pending['next_gate']);
+        $t->contains('no new support component needed', $pending['dependency_closure']);
+
+        $approved = $evidence->releaseRerunDecisionGate($release, $repro, true);
+        $t->same('rerun-allowed', $approved['status']);
+        $t->same(true, $approved['rerun_allowed']);
+        $t->same(true, $approved['supervisor_approved']);
+        $t->same(false, $approved['counts_as_release_parity']);
+        $t->contains('duplicate-runner gates are clear', $approved['next_gate']);
+    },
     'gates bounded runner artifacts on accepted checkout and SQLite manifest provenance' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $artifact = [

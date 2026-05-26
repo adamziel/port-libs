@@ -1,5 +1,44 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Release Rerun Decision Gate
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::releaseRerunDecisionGate()`. The helper composes
+the failed guarded release artifact with the passed accepted-HEAD focused
+`fts5aux` repro and keeps the result machine-readable:
+
+```text
+release artifact: libsqlite-release-notty-runner-20260526T102446Z
+failed script: ext/fts5/test/fts5aux.test
+failed case: fts5aux-3.1
+focused repro: sqlite-fts5aux-repro-20260526T123916Z
+focused result: 0 errors out of 1 tests
+decision status without approval: blocked-pending-supervisor-decision
+counts as release parity: false
+```
+
+No new broad upstream `testfixture`, `make test`, `mptest`, `all`, or
+`release` run was started. A future broad rerun is allowed only after an
+explicit supervisor sanitizer/transient-failure decision and clear
+duplicate-runner gates, and it must still pass bounded artifact provenance
+before it can count as release/all evidence.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This composes
+lane-local failed-release artifact parsing, focused-repro parsing, and
+provenance/duplicate-runner gates only.
+
 ## Focused Native Mapping: Focused Repro File Decision
 
 Date: 2026-05-26
