@@ -1277,6 +1277,67 @@ return [
         $t->same(str_repeat("\0", $beforeCells[1]->bytesRead - 4), substr($deletedPage, $beforeCells[1]->offset + 4, $beforeCells[1]->bytesRead - 4));
         $t->same(str_repeat("\0", $beforeCells[3]->bytesRead - 4), substr($deletedPage, $beforeCells[3]->offset + 4, $beforeCells[3]->bytesRead - 4));
     },
+    'reports obsolete overflow pages when deleting sqlite index leaf records' => static function (TestRunner $t): void {
+        $largeKey = str_repeat('_transient_large_cache_', 30);
+        $largeRecord = SQLiteRecord::encode([$largeKey, 9]);
+        $encoded = SQLiteIndexCell::encodeWithOverflowPages($largeRecord, 3);
+        $page = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 1])),
+            $encoded['cell'],
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 2])),
+        ]);
+        $beforeHeader = SQLiteBTreePageHeader::parsePage($page, 512);
+        $beforeCells = SQLiteIndexCell::parsePageCells(
+            $page,
+            $beforeHeader,
+            512,
+            static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat('x', $byteCount),
+        );
+        $expectedOverflowPages = range(3, 2 + count($encoded['overflowPages']));
+        $overflowPagesByNumber = array_combine($expectedOverflowPages, $encoded['overflowPages']);
+        $overflowReader = static function (int $firstOverflowPage, int $byteCount) use ($overflowPagesByNumber): string {
+            $payload = '';
+            $pageNumber = $firstOverflowPage;
+            while ($pageNumber !== 0 && strlen($payload) < $byteCount) {
+                $page = $overflowPagesByNumber[$pageNumber] ?? null;
+                if ($page === null) {
+                    throw new InvalidArgumentException('Fixture overflow page is missing');
+                }
+                $pageNumber = unpack('N', substr($page, 0, 4))[1];
+                $payload .= substr($page, 4);
+            }
+
+            return substr($payload, 0, $byteCount);
+        };
+
+        $delete = SQLiteIndexLeafPage::deleteCellByRecordValuesWithOverflowRelease(
+            $page,
+            [$largeKey, 9],
+            static fn (int $firstOverflowPage, int $byteCount): array => range(
+                $firstOverflowPage,
+                $firstOverflowPage + SQLiteOverflowPage::requiredPageCount($byteCount) - 1,
+            ),
+            secureDelete: true,
+            overflowReader: $overflowReader,
+        );
+        $header = SQLiteBTreePageHeader::parsePage($delete['page'], 512);
+        $remainingCells = SQLiteIndexCell::parsePageCells($delete['page'], $header);
+        $freeblocks = $header->freeblocks($delete['page']);
+
+        $t->same($expectedOverflowPages, $delete['obsolete_overflow_page_numbers']);
+        $t->same([$largeKey, 9], $delete['record_values']);
+        $t->same($beforeCells[1]->localPayloadLength, $delete['deleted_local_payload_length']);
+        $t->same($beforeCells[1]->bytesRead, $delete['deleted_cell_bytes']);
+        $t->same([['home', 1], ['siteurl', 2]], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $remainingCells));
+        $t->same(1, count($freeblocks));
+        $t->same($beforeCells[1]->offset, $freeblocks[0]->offset);
+        $t->same($beforeCells[1]->bytesRead, $freeblocks[0]->size);
+        $t->same(str_repeat("\0", $beforeCells[1]->bytesRead - 4), substr($delete['page'], $beforeCells[1]->offset + 4, $beforeCells[1]->bytesRead - 4));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SQLiteIndexLeafPage::deleteCellByRecordValuesWithOverflowRelease($page, ['missing', 99], static fn (): array => []),
+        );
+    },
     'deletes sqlite table leaf cells by rowid into sorted coalesced freeblocks' => static function (TestRunner $t): void {
         $siteurlCell = SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
             null,
@@ -1376,6 +1437,50 @@ return [
         $t->same(str_repeat("\0", $beforeCells[2]->bytesRead - 4), substr($deletedPage, $beforeCells[2]->offset + 4, $beforeCells[2]->bytesRead - 4));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::deleteCellsByRowIds($page, []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::deleteCellsByRowIds($page, [99]));
+    },
+    'reports obsolete overflow pages when deleting sqlite table leaf rowids' => static function (TestRunner $t): void {
+        $payload = SQLiteRecord::encode([null, '_transient_large_cache', str_repeat('stale-cache-fragment:', 70), 'no']);
+        $encoded = SQLiteTableLeafCell::encodeWithOverflowPages(2, $payload, 3);
+        $page = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            $encoded['cell'],
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ]);
+        $beforeHeader = SQLiteBTreePageHeader::parsePage($page, 512);
+        $beforeCells = SQLiteTableLeafCell::parsePageCells(
+            $page,
+            $beforeHeader,
+            512,
+            static fn (int $firstOverflowPage, int $byteCount): string => str_repeat('x', $byteCount),
+        );
+        $expectedOverflowPages = range(3, 2 + count($encoded['overflowPages']));
+
+        $delete = SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease(
+            $page,
+            2,
+            static fn (int $firstOverflowPage, int $byteCount): array => range(
+                $firstOverflowPage,
+                $firstOverflowPage + SQLiteOverflowPage::requiredPageCount($byteCount) - 1,
+            ),
+            secureDelete: true,
+        );
+        $header = SQLiteBTreePageHeader::parsePage($delete['page'], 512);
+        $remainingCells = SQLiteTableLeafCell::parsePageCells($delete['page'], $header);
+        $freeblocks = $header->freeblocks($delete['page']);
+
+        $t->same($expectedOverflowPages, $delete['obsolete_overflow_page_numbers']);
+        $t->same(2, $delete['rowid']);
+        $t->same($beforeCells[1]->localPayloadLength, $delete['deleted_local_payload_length']);
+        $t->same($beforeCells[1]->bytesRead, $delete['deleted_cell_bytes']);
+        $t->same([1, 3], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $remainingCells));
+        $t->same(1, count($freeblocks));
+        $t->same($beforeCells[1]->offset, $freeblocks[0]->offset);
+        $t->same($beforeCells[1]->bytesRead, $freeblocks[0]->size);
+        $t->same(str_repeat("\0", $beforeCells[1]->bytesRead - 4), substr($delete['page'], $beforeCells[1]->offset + 4, $beforeCells[1]->bytesRead - 4));
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease($page, 99, static fn (): array => []),
+        );
     },
     'defragments sqlite table leaf pages after deletes while preserving row order' => static function (TestRunner $t): void {
         $page = SQLiteTableLeafPage::assemble([

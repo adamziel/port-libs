@@ -9660,3 +9660,34 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local scalar coercion and PHP runtime math primitives without activating
 shared support-library work.
+
+## Focused Native Mapping: B-tree Overflow Delete Release Diagnostics
+
+This isolated B-tree delete/rebalance micro-slice adds bounded native delete
+diagnostics for overflow-backed table leaf rowids and index leaf records. The
+new helpers preserve the rewritten leaf page and secure-delete freeblock
+behavior while reporting obsolete overflow page numbers for a later
+freelist/pointer-map release step.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps two
+additional focused B-tree delete/rebalance evidence rows while preserving the
+current accepted static SQLite upstream denominator and veryquick evidence.
+This isolated worktree did not contain the hydrated upstream cache, so no
+fresh upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T17:41Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
+php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local overflow-chain, freeblock, secure-delete, and freelist planning
+primitives without activating shared support-library work.

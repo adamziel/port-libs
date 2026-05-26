@@ -3129,6 +3129,25 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
 patterns.
 
+## Overflow-backed Option Delete Release Scenario
+
+Native B-tree helpers now expose delete diagnostics for large `wp_options`
+rows and option_name index entries whose payload spills to overflow pages. The
+`examples/wordpress-delete-overflow-option-release-plan.php` smoke deletes a
+large transient option row and matching index record, reports obsolete overflow
+page chains, verifies coalesced secure-delete freeblocks, and leaves the
+remaining table/index entries readable without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated B-tree delete/rebalance slice: added 20
+focused assertions for overflow-backed table leaf rowid deletion and index
+leaf record deletion release diagnostics. This is intentionally a bounded
+delete primitive; the follow-up whole-option delete plan should feed the
+reported overflow pages into the existing freelist/pointer-map mutation path.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local overflow-chain readers, B-tree freeblock deletion, secure-delete,
+and freelist planning primitives.
+
 ## Core Math Scalar Scenario
 
 Native SQL execution helpers now include bounded math scalar behavior for local

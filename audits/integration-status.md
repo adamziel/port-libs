@@ -116344,3 +116344,45 @@ Cleanup debt:
 - The accepted worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T173806Z` still reports modified/add changes for the committed libsqlite files after publication. It was preserved and left registered; do not remove it destructively.
 
 Decision: accepted after clean detached worktree verification and serialized root pass. Remove the accepted marker artifacts after the commit is safely on `main`. Dashboard publication should run next because accepted source moved.
+
+## Integration accepted - libsqlite overflow delete release diagnostics - 2026-05-26T17:58:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T174156Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Candidate evidence:
+- Base accepted HEAD in marker: `0963e93f9b179f463a751146f2c7c61727c36fa4`.
+- Current clean integration base: `26f66e35267147609667b243c71078e3e5f696b9` (`Integrate libsqlite full-freelist trunk planning`).
+- Patch sha256 matched marker metadata: `7f6b5390f9bcba4df6fad7ecf4842c7e257f983ba9e4b0f4202d65d940024b31`.
+- The marker's behavior, tests, smoke, manifest, and notes applied cleanly with `git apply --3way --exclude=lanes/libsqlite/lane-status.json`; the stale status hunk was bounded-merged against current `26f66e35` counts and status text.
+- Scope: native B-tree overflow-backed table/index delete diagnostics, WordPress delete-overflow smoke, manifest/notes/status evidence.
+
+Dashboard guard evidence:
+- Cache-busted live Pages `porting-summary.json` reported matching `sourceCommit` `26f66e35267147609667b243c71078e3e5f696b9` before marker processing.
+
+Runtime gate evidence:
+- Before focused/root checks, `df -Pk /` reported at least `115063548` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `1.68`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+- Focused and root checks used repo-local `TMPDIR` at `.tmux-team/tmp/clean-integrator-check-20260526T174959Z/.tmp-root`.
+
+Focused verification passed:
+- `php -l lanes/libsqlite/src/SQLiteTableLeafPage.php`.
+- `php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php`.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`.
+- `php -l lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php`.
+- Manifest/status JSON decode passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3081 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php` passed and reported obsolete table overflow pages `[5,6,7]`, obsolete index overflow pages `[9,10]`, and remaining table/index records.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification passed:
+- Command: `TMPDIR=.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`.
+- Result: `215 test files, 28061 assertions, 0 failures`.
+
+Decision: accepted for commit and main publication. Dashboard publication should run next after this source move.
+
+Post-commit cleanup note:
+- Accepted worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T174156Z` still has the marker's tracked lane changes after publication; preserved it and left it registered as cleanup debt rather than removing it.
+- Clean verifier worktree `.tmux-team/tmp/clean-integrator-check-20260526T174959Z` has repo-local root-harness temp output under `.tmp-root`; preserved it and left it registered instead of forcing removal.

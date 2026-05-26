@@ -86,6 +86,7 @@ final class SQLiteIndexLeafPage
         ?int $usableSize = null,
         int $textEncoding = 1,
         bool $secureDelete = false,
+        ?callable $overflowReader = null,
     ): string {
         self::validatePageSize($pageSize);
         $usableSize ??= $pageSize;
@@ -101,7 +102,7 @@ final class SQLiteIndexLeafPage
             throw new \InvalidArgumentException('SQLite index leaf deletion requires an index leaf page');
         }
 
-        $cells = SQLiteIndexCell::parsePageCells($page, $header, $usableSize);
+        $cells = SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader);
         $deleteIndex = null;
         foreach ($cells as $index => $cell) {
             if ($cell->record($textEncoding)->values === $recordValues) {
@@ -136,6 +137,79 @@ final class SQLiteIndexLeafPage
         }
 
         return self::insertFreeblock($newPage, $header, $deletedCell->offset, $deletedCell->bytesRead, $usableSize, $secureDelete);
+    }
+
+    /**
+     * @param list<mixed> $recordValues
+     * @param callable(int, int): list<int> $overflowPageNumbers
+     * @return array{page:string,record_values:list<mixed>,obsolete_overflow_page_numbers:list<int>,deleted_local_payload_length:int,deleted_cell_bytes:int}
+     */
+    public static function deleteCellByRecordValuesWithOverflowRelease(
+        string $page,
+        array $recordValues,
+        callable $overflowPageNumbers,
+        int $pageSize = 512,
+        int $headerOffset = 0,
+        ?int $usableSize = null,
+        int $textEncoding = 1,
+        bool $secureDelete = false,
+        ?callable $overflowReader = null,
+    ): array {
+        self::validatePageSize($pageSize);
+        $usableSize ??= $pageSize;
+        if (strlen($page) !== $pageSize) {
+            throw new \InvalidArgumentException('SQLite index leaf page length does not match page size');
+        }
+        if ($usableSize < 480 || $usableSize > $pageSize) {
+            throw new \InvalidArgumentException('SQLite index leaf usable size is outside the page');
+        }
+
+        $header = SQLiteBTreePageHeader::parsePage($page, $pageSize, $headerOffset);
+        if ($header->pageType !== 'index-leaf') {
+            throw new \InvalidArgumentException('SQLite index leaf deletion requires an index leaf page');
+        }
+
+        $cells = SQLiteIndexCell::parsePageCells(
+            $page,
+            $header,
+            $usableSize,
+            $overflowReader ?? static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount),
+        );
+        $deletedCell = null;
+        foreach ($cells as $cell) {
+            if ($cell->record($textEncoding)->values === $recordValues) {
+                $deletedCell = $cell;
+                break;
+            }
+        }
+        if ($deletedCell === null) {
+            throw new \InvalidArgumentException('SQLite index leaf cell record was not found');
+        }
+
+        $obsoleteOverflowPageNumbers = [];
+        if ($deletedCell->firstOverflowPage !== null) {
+            $obsoleteOverflowPageNumbers = $overflowPageNumbers(
+                $deletedCell->firstOverflowPage,
+                $deletedCell->payloadLength - $deletedCell->localPayloadLength,
+            );
+        }
+
+        return [
+            'page' => self::deleteCellByRecordValues(
+                $page,
+                $recordValues,
+                $pageSize,
+                $headerOffset,
+                $usableSize,
+                $textEncoding,
+                $secureDelete,
+                $overflowReader ?? static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount),
+            ),
+            'record_values' => $recordValues,
+            'obsolete_overflow_page_numbers' => $obsoleteOverflowPageNumbers,
+            'deleted_local_payload_length' => $deletedCell->localPayloadLength,
+            'deleted_cell_bytes' => $deletedCell->bytesRead,
+        ];
     }
 
     /**

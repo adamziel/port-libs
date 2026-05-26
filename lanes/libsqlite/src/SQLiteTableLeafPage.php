@@ -82,6 +82,7 @@ final class SQLiteTableLeafPage
         int $headerOffset = 0,
         ?int $usableSize = null,
         bool $secureDelete = false,
+        ?callable $overflowReader = null,
     ): string {
         self::validatePageSize($pageSize);
         $usableSize ??= $pageSize;
@@ -97,7 +98,7 @@ final class SQLiteTableLeafPage
             throw new \InvalidArgumentException('SQLite table leaf deletion requires a table leaf page');
         }
 
-        $cells = SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize);
+        $cells = SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader);
         $deleteIndex = null;
         foreach ($cells as $index => $cell) {
             if ($cell->rowId === $rowId) {
@@ -132,6 +133,75 @@ final class SQLiteTableLeafPage
         }
 
         return self::insertFreeblock($newPage, $header, $deletedCell->offset, $deletedCell->bytesRead, $usableSize, $secureDelete);
+    }
+
+    /**
+     * @param callable(int, int): list<int> $overflowPageNumbers
+     * @return array{page:string,rowid:int,obsolete_overflow_page_numbers:list<int>,deleted_local_payload_length:int,deleted_cell_bytes:int}
+     */
+    public static function deleteCellByRowIdWithOverflowRelease(
+        string $page,
+        int $rowId,
+        callable $overflowPageNumbers,
+        int $pageSize = 512,
+        int $headerOffset = 0,
+        ?int $usableSize = null,
+        bool $secureDelete = false,
+    ): array {
+        self::validatePageSize($pageSize);
+        $usableSize ??= $pageSize;
+        if (strlen($page) !== $pageSize) {
+            throw new \InvalidArgumentException('SQLite table leaf page length does not match page size');
+        }
+        if ($usableSize < 480 || $usableSize > $pageSize) {
+            throw new \InvalidArgumentException('SQLite table leaf usable size is outside the page');
+        }
+
+        $header = SQLiteBTreePageHeader::parsePage($page, $pageSize, $headerOffset);
+        if ($header->pageType !== 'table-leaf') {
+            throw new \InvalidArgumentException('SQLite table leaf deletion requires a table leaf page');
+        }
+
+        $cells = SQLiteTableLeafCell::parsePageCells(
+            $page,
+            $header,
+            $usableSize,
+            static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount),
+        );
+        $deletedCell = null;
+        foreach ($cells as $cell) {
+            if ($cell->rowId === $rowId) {
+                $deletedCell = $cell;
+                break;
+            }
+        }
+        if ($deletedCell === null) {
+            throw new \InvalidArgumentException('SQLite table leaf rowid was not found');
+        }
+
+        $obsoleteOverflowPageNumbers = [];
+        if ($deletedCell->firstOverflowPage !== null) {
+            $obsoleteOverflowPageNumbers = $overflowPageNumbers(
+                $deletedCell->firstOverflowPage,
+                $deletedCell->payloadLength - $deletedCell->localPayloadLength,
+            );
+        }
+
+        return [
+            'page' => self::deleteCellByRowId(
+                $page,
+                $rowId,
+                $pageSize,
+                $headerOffset,
+                $usableSize,
+                $secureDelete,
+                static fn (int $_firstOverflowPage, int $byteCount): string => str_repeat("\0", $byteCount),
+            ),
+            'rowid' => $rowId,
+            'obsolete_overflow_page_numbers' => $obsoleteOverflowPageNumbers,
+            'deleted_local_payload_length' => $deletedCell->localPayloadLength,
+            'deleted_cell_bytes' => $deletedCell->bytesRead,
+        ];
     }
 
     /**

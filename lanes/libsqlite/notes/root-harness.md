@@ -1189,3 +1189,27 @@ source-id, compile-option preview, and capability gates for FTS, RTree, math,
 JSON omission, threadsafe, and default page-size metadata. Status JSON decoded
 successfully; lane diff check passed. The root harness was not run because this
 was an isolated micro-slice.
+
+## B-tree Overflow Delete Release Diagnostics Slice
+
+Focused lane verification for the B-tree delete/rebalance overflow-release
+slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
+php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-delete-overflow-option-release-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3061 assertions, and 0 failures, adding 20 focused assertions.
+The WordPress smoke reported obsolete table/index overflow page chains plus
+coalesced secure-delete freeblocks for deleting a large transient option and
+its option_name index entry. Manifest/status JSON decoded successfully; lane
+diff check passed. The root harness was not run because this was an isolated
+micro-slice.
