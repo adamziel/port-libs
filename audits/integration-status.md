@@ -116572,3 +116572,30 @@ Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqli
 Remaining ready-marker count near intake was `6053` total ready markers, including `2785` libsqlite ready markers.
 
 Dashboard publication should run next because this acceptance moves the source head beyond the currently published live dashboard source.
+## Integration accepted - libsqlite JSON table rowid aliases - 2026-05-26T18:34:30Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T182508Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `7bee0291f498b9046392614a6b39a21db9ab57e7` (`Integrate libsqlite release admission ledger`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `7bee0291f498b9046392614a6b39a21db9ab57e7`, so the dashboard guard was open.
+
+Candidate evidence:
+- The marker was lane-local to `libsqlite` and referenced patch, metadata, and log files with matching ready metadata.
+- The marker base was `521dd4473564b9347890742a3b0f20a3135157ad`, so direct `git apply --check` failed only on fast-moving `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` counters/text.
+- The behavior, tests, notes, and WordPress smoke hunks applied cleanly to a detached worktree from current `main` when those two fast-moving metadata files were excluded; the metadata intent was then merged in bounded form by bumping mapped coverage `366 -> 367`, `phpPass` `507 -> 508`, and adding the JSON table rowid-alias evidence text without overwriting newer release-admission status.
+- Scope: native `json_each()`/`json_tree()` rowid, `_rowid_`, and `oid` aliases for residual predicates and `ORDER BY`/`LIMIT` paging, plus WordPress JSON option-expansion smoke output.
+
+Verification:
+- Runtime gates before focused/root checks: `/` had more than `107000000` KiB available, load was below `2`, and no exact no-argument `php tools/run-tests.php` process was active.
+- Syntax/JSON validation passed for changed PHP files plus `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- Focused: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3112 assertions, 0 failures`.
+- WordPress smoke: `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed and reported rowid-alias filtered/ordered planner output.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized root: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed with `215 test files, 28158 assertions, 0 failures` before this audit entry; the full accepted snapshot will be rerun after this entry before publishing the commit.
+
+Decision: accepted after final serialized root verification and atomic ref publication. Dashboard publication should run next after the accepted source commit lands.
+
+Cleanup debt: the originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T182508Z` still contains modified accepted lane files after publication, so it was preserved and left registered instead of being removed.

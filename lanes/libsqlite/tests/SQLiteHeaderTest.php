@@ -4757,6 +4757,27 @@ return [
         $t->same(['seo', 'cache'], array_column($orderedNameRows, 'atom'));
         $t->same(['$.plugin.rules[0].name', '$.plugin.rules[1].name'], array_column($orderedNameRows, 'fullkey'));
 
+        $rowidAliasRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'rowid', 'operator' => 'BETWEEN', 'value' => [1, 3]],
+            ['column' => '_rowid_', 'operator' => 'IN', 'value' => [2, 3, 4]],
+            ['column' => 'oid', 'operator' => 'NOT IN', 'value' => [1]],
+        ]);
+        $t->same(['name', 1], array_column($rowidAliasRows, 'key'));
+        $t->same([2, 3], array_column($rowidAliasRows, 'id'));
+        $t->same(['$.plugin.rules[0].name', '$.plugin.rules[1]'], array_column($rowidAliasRows, 'fullkey'));
+
+        $orderedRowidAliasRows = SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'rowid', 'operator' => '>', 'value' => 0],
+        ], [
+            ['column' => '_rowid_', 'direction' => 'DESC'],
+        ], 3, 1);
+        $t->same([3, 2, 1], array_column($orderedRowidAliasRows, 'id'));
+        $t->same(['$.plugin.rules[1]', '$.plugin.rules[0].name', '$.plugin.rules[0]'], array_column($orderedRowidAliasRows, 'fullkey'));
+
         $pagedRows = SQLiteJsonTablePlan::orderedRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],

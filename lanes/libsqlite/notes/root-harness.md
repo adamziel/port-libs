@@ -1,5 +1,26 @@
 # libsqlite Root Harness Notes
 
+## JSON Table Rowid Alias Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the JSON table rowid alias slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused test run reported 1 selected file, 3112
+assertions, and 0 failures. The WordPress smoke reported four input variants
+plus rowid-alias filtered and ordered JSON table rows. The no-argument root
+harness was not run because this worker was assigned only isolated micro-slice
+verification.
+
 ## B-tree Full Freelist Trunk Free Slice
 
 Date: 2026-05-26

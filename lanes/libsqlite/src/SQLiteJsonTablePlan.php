@@ -160,11 +160,11 @@ final class SQLiteJsonTablePlan
     {
         foreach ($constraints as $constraint) {
             $column = strtolower((string) $constraint['column']);
-            if (!array_key_exists($column, $row)) {
+            if (!self::rowHasColumn($row, $column)) {
                 throw new \InvalidArgumentException("SQLite JSON table residual column {$column} is not available");
             }
 
-            if (!self::compareResidualValue($row[$column], strtoupper((string) $constraint['operator']), $constraint['value'] ?? null)) {
+            if (!self::compareResidualValue(self::rowColumnValue($row, $column), strtoupper((string) $constraint['operator']), $constraint['value'] ?? null)) {
                 return false;
             }
         }
@@ -369,7 +369,7 @@ final class SQLiteJsonTablePlan
     {
         foreach ($orderBy as $term) {
             $column = strtolower($term['column']);
-            if (!array_key_exists($column, $left) || !array_key_exists($column, $right)) {
+            if (!self::rowHasColumn($left, $column) || !self::rowHasColumn($right, $column)) {
                 throw new \InvalidArgumentException("SQLite JSON table ORDER BY column {$column} is not available");
             }
 
@@ -378,7 +378,7 @@ final class SQLiteJsonTablePlan
                 throw new \InvalidArgumentException('SQLite JSON table ORDER BY direction must be ASC or DESC');
             }
 
-            $comparison = self::compareResidualOrdered($left[$column], $right[$column]);
+            $comparison = self::compareResidualOrdered(self::rowColumnValue($left, $column), self::rowColumnValue($right, $column));
             if ($comparison !== 0) {
                 return $direction === 'DESC' ? -$comparison : $comparison;
             }
@@ -400,6 +400,31 @@ final class SQLiteJsonTablePlan
         }
 
         throw new \InvalidArgumentException('SQLite JSON table residual ordered comparison supports only NULL, numeric, and text values');
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowHasColumn(array $row, string $column): bool
+    {
+        return array_key_exists($column, $row) || self::isRowIdAlias($column);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function rowColumnValue(array $row, string $column): mixed
+    {
+        if (self::isRowIdAlias($column)) {
+            return $row['id'];
+        }
+
+        return $row[$column];
+    }
+
+    private static function isRowIdAlias(string $column): bool
+    {
+        return $column === 'rowid' || $column === '_rowid_' || $column === 'oid';
     }
 
     private static function valuesAreNotDistinct(mixed $left, mixed $right): bool

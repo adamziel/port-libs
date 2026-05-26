@@ -121,6 +121,12 @@ foreach ($inputs as $name => $value) {
         ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
         ['column' => 'type', 'operator' => 'IN', 'value' => ['object', 'text']],
     ];
+    $rowidAliasConstraints = [
+        ['column' => 'json', 'operator' => '=', 'value' => $value],
+        ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ['column' => 'rowid', 'operator' => 'BETWEEN', 'value' => [1, 2]],
+        ['column' => '_rowid_', 'operator' => 'NOT IN', 'value' => [1]],
+    ];
     $reports[] = [
         'name' => $name,
         'rootRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $value)),
@@ -140,10 +146,14 @@ foreach ($inputs as $name => $value) {
         'filteredPriorityBetweenRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $priorityBetweenConstraints)),
         'filteredRuleRegexpRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $ruleRegexpConstraints)),
         'filteredRuleMatchRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $ruleMatchConstraints)),
+        'filteredRowidAliasRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $rowidAliasConstraints)),
         'orderedPagedRuleRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::orderedRows('JSON_EACH', $orderedRuleConstraints, [
             ['column' => 'type', 'direction' => 'ASC'],
             ['column' => 'key', 'direction' => 'DESC'],
         ], 2)),
+        'orderedRowidAliasRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::orderedRows('JSON_EACH', $plannerConstraints, [
+            ['column' => '_rowid_', 'direction' => 'DESC'],
+        ], 1)),
         'planner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $plannerConstraints)),
         'filteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $objectRuleConstraints)),
         'patternFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $namePatternConstraints)),
@@ -158,6 +168,7 @@ foreach ($inputs as $name => $value) {
         'betweenFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $priorityBetweenConstraints)),
         'regexpFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $ruleRegexpConstraints)),
         'matchFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $ruleMatchConstraints)),
+        'rowidAliasFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $rowidAliasConstraints)),
         'orderedPagedPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $orderedRuleConstraints)),
         'dispatch' => [
             'sqlFunction' => 'JSON_EACH',
@@ -169,7 +180,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, MATCH/NOT MATCH, IN-list, numeric equality, IS NULL, IS NOT NULL, IS DISTINCT FROM, IS NOT DISTINCT FROM, range, BETWEEN residual filtering, and ORDER BY/LIMIT preview paging for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, MATCH/NOT MATCH, IN-list, numeric equality, IS NULL, IS NOT NULL, IS DISTINCT FROM, IS NOT DISTINCT FROM, range, BETWEEN, rowid/_rowid_/oid alias residual filtering, and ORDER BY/LIMIT preview paging for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**

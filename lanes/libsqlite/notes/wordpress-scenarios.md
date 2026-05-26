@@ -2110,6 +2110,22 @@ Dependency closure: no new support component is needed; the slice reuses
 existing lane-local JSON canonicalizer, JSON5 parser, JSONB, and BLOB support
 and counts no shared support-library progress.
 
+## JSON Table Rowid Alias Residual Scenario
+
+Native JSON table planning now accepts SQLite's `rowid`, `_rowid_`, and `oid`
+aliases for bounded `json_each()` and `json_tree()` residual predicates and
+`ORDER BY` paging after hidden `json` and `root` constraints are planned. The
+aliases map to the existing JSON table `id` column, preserving accepted visible
+column filtering while allowing copied `wp_options` plugin-setting reviews to
+page or resume deterministic JSON virtual-table scans by row identity.
+
+Status delta 2026-05-26 isolated json-table/window slice: added alias mapping
+in `SQLiteJsonTablePlan`, 36 focused assertions for `BETWEEN`, `IN`, `NOT IN`,
+and descending `ORDER BY` over rowid aliases, plus updated
+`wordpress-json-each-option-settings.php` smoke output. Dependency closure: no
+new support component is needed; the slice reuses lane-local JSON table rows,
+hidden-column planning, and existing SQLite scalar comparison helpers.
+
 ## Focused Native Mapping: `json_each()`/`json_tree()` Hidden Columns
 
 Date: 2026-05-25
