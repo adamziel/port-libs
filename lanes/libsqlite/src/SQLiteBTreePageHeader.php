@@ -224,6 +224,46 @@ final class SQLiteBTreePageHeader
         ];
     }
 
+    /**
+     * @return array{status:string,page_type:string,freeblock_count:int,secure_delete_payload_zeroed:?bool,freeblocks:list<array{offset:int,size:int,payload_offset:int,payload_size:int,payload_zeroed:bool}>,error:?string}
+     */
+    public function freeblockSecureDeleteReport(string $page, ?int $usableSize = null): array
+    {
+        $freeblocks = [];
+        $allZeroed = null;
+        $error = null;
+
+        try {
+            $allZeroed = true;
+            foreach ($this->freeblocks($page, $usableSize) as $freeblock) {
+                $payloadOffset = $freeblock->offset + 4;
+                $payloadSize = max(0, $freeblock->size - 4);
+                $payload = $payloadSize === 0 ? '' : substr($page, $payloadOffset, $payloadSize);
+                $payloadZeroed = $payload === str_repeat("\0", $payloadSize);
+                $allZeroed = $allZeroed && $payloadZeroed;
+                $freeblocks[] = [
+                    'offset' => $freeblock->offset,
+                    'size' => $freeblock->size,
+                    'payload_offset' => $payloadOffset,
+                    'payload_size' => $payloadSize,
+                    'payload_zeroed' => $payloadZeroed,
+                ];
+            }
+        } catch (\InvalidArgumentException $exception) {
+            $error = $exception->getMessage();
+            $allZeroed = null;
+        }
+
+        return [
+            'status' => $error === null ? 'ok' : 'corrupt',
+            'page_type' => $this->pageType,
+            'freeblock_count' => count($freeblocks),
+            'secure_delete_payload_zeroed' => $allZeroed,
+            'freeblocks' => $freeblocks,
+            'error' => $error,
+        ];
+    }
+
     public function isLeaf(): bool
     {
         return ($this->pageTypeFlag & 0x08) !== 0;

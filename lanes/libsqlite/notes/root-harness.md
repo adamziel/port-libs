@@ -902,6 +902,31 @@ and freed pages `[7,8]`; manifest/status JSON decoded successfully; lane diff
 check passed. The root harness was not run because this was an isolated
 micro-slice.
 
+## B-tree Secure-delete Freeblock Payload Report Slice
+
+Focused lane verification for the B-tree secure-delete freeblock payload
+diagnostic slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBTreePageHeader.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-page-freeblocks.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-page-freeblocks.php /tmp/libsqlite-secure-delete-freeblock.sqlite 2
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 2866 assertions, and 0 failures. The WordPress page-freeblock
+smoke reported `freeblockSecureDelete.status: ok`, one table-leaf freeblock at
+offset 431, a 40-byte zeroed freeblock payload, and preserved defragmentation
+free-space accounting after deleting a transient option row with secure-delete
+enabled. The root harness was not run because this was an isolated
+micro-slice.
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local B-tree page header parser, table leaf deletion/freeblock chain
+helpers, and existing WordPress page-freeblock smoke path.
+
 ## Interior Left-Child Pointer Rebalance Diagnostic Slice
 
 Focused lane verification for the B-tree delete/rebalance left-child pointer

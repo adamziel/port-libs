@@ -115765,3 +115765,38 @@ Serialized root verification:
 - `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the clean candidate snapshot and passed: `215 test files, 27810 assertions, 0 failures`.
 
 Decision: accepted. After commit publication, remove the accepted ready marker, patch, metadata handoff, and inactive worker/candidate worktrees. Dashboard publication should run next because accepted source moved beyond the live dashboard source.
+
+## Integration accepted - libsqlite secure-delete freeblock diagnostics - 2026-05-26T15:37:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T153041Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before this pass was `72219cf244f08c8bafdc4575523d276f6ec8df9e` (`Integrate libsqlite JSON table numeric equality`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `72219cf244f08c8bafdc4575523d276f6ec8df9e`; `generatedAt` was absent from the returned JSON shape.
+- The dashboard guard was open, so no Pages-outage override was used.
+
+Runtime gate evidence:
+- `df -Pk /` reported `105680312` KiB available before the root run, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.70`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Marker evidence:
+- Marker was current-base at `base_sha=72219cf244f08c8bafdc4575523d276f6ec8df9e`, lane-local to `lanes/libsqlite/**`, and patch sha256 matched `bc33d7d31af7da34ad057bf0be75b82ec9bd60f6bb565489457a03040cd19337`.
+- The patch applied cleanly in detached candidate worktree `.tmux-team/tmp/clean-integrator-libsqlite-closure-20260526T153041Z`.
+- Scope: `SQLiteBTreePageHeader::freeblockSecureDeleteReport()` now reports whether reusable freeblock payload bytes were zeroed; the WordPress page-freeblock smoke includes the secure-delete payload report; lane notes/status were updated.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteBTreePageHeader.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-page-freeblocks.php` passed.
+- Manifest/status JSON decode check passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2866 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-page-freeblocks.php /tmp/libsqlite-secure-delete-freeblock.sqlite 2` passed and reported `freeblockSecureDelete.secure_delete_payload_zeroed: true`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` from the clean candidate snapshot and passed: `215 test files, 27821 assertions, 0 failures`.
+
+Decision: accepted. After commit publication, remove the accepted ready marker, patch, metadata handoff, and inactive worker/candidate worktrees. Dashboard publication should run next because accepted source moved beyond the live dashboard source.

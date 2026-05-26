@@ -1218,6 +1218,34 @@ return [
         $t->same(1, count($deletedAgainHeader->freeblocks($deletedAgainPage)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::deleteCellByRowId($deletedAgainPage, 99));
     },
+    'reports secure-delete payload zeroing for sqlite btree freeblocks' => static function (TestRunner $t): void {
+        $page = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_cache', 'stale payload bytes', 'no'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ]);
+
+        $nonSecurePage = SQLiteTableLeafPage::deleteCellByRowId($page, 2, secureDelete: false);
+        $nonSecureHeader = SQLiteBTreePageHeader::parsePage($nonSecurePage, 512);
+        $nonSecureReport = $nonSecureHeader->freeblockSecureDeleteReport($nonSecurePage);
+
+        $securePage = SQLiteTableLeafPage::deleteCellByRowId($page, 2, secureDelete: true);
+        $secureHeader = SQLiteBTreePageHeader::parsePage($securePage, 512);
+        $secureReport = $secureHeader->freeblockSecureDeleteReport($securePage);
+
+        $t->same('ok', $nonSecureReport['status']);
+        $t->same(1, $nonSecureReport['freeblock_count']);
+        $t->same(false, $nonSecureReport['secure_delete_payload_zeroed']);
+        $t->same(false, $nonSecureReport['freeblocks'][0]['payload_zeroed']);
+        $t->true($nonSecureReport['freeblocks'][0]['payload_size'] > 0);
+
+        $t->same('ok', $secureReport['status']);
+        $t->same(1, $secureReport['freeblock_count']);
+        $t->same(true, $secureReport['secure_delete_payload_zeroed']);
+        $t->same(true, $secureReport['freeblocks'][0]['payload_zeroed']);
+        $t->same($nonSecureReport['freeblocks'][0]['offset'], $secureReport['freeblocks'][0]['offset']);
+        $t->same($nonSecureReport['freeblocks'][0]['size'], $secureReport['freeblocks'][0]['size']);
+    },
     'bulk deletes sqlite table leaf rowids into coalesced reusable freeblocks' => static function (TestRunner $t): void {
         $cells = [
             SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),

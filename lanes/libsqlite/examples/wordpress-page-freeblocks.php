@@ -22,6 +22,7 @@ $page = $database->page($pageNumber);
 $usableSize = $database->usablePageSize();
 
 $integrity = $header->freeblockIntegrityReport($page, $usableSize);
+$secureDelete = $header->freeblockSecureDeleteReport($page, $usableSize);
 $freeblocks = $integrity['freeblocks'];
 $freeSpaceBytes = $integrity['free_space_bytes'];
 
@@ -65,6 +66,7 @@ echo json_encode([
     'firstFreeblockOffset' => $header->firstFreeblockOffset,
     'fragmentedFreeBytes' => $header->fragmentedFreeBytes,
     'freeblockIntegrity' => $integrity,
+    'freeblockSecureDelete' => $secureDelete,
     'freeSpaceBytes' => $freeSpaceBytes,
     'freeblocks' => $freeblocks,
     'defragmentation' => $defragmentation,
