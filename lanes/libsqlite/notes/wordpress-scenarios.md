@@ -1934,3 +1934,17 @@ options without requiring the SQLite extension.
 This is intentionally not a full checkpoint or recovery engine yet. WAL
 checksum validation, WAL-index/shared-memory state, checkpoint writing,
 rollback journals, and savepoint behavior remain separate slices.
+
+## LIKE/GLOB Option-Name Matching Scenario
+
+Native WordPress option diagnostics now include SQLite-style pattern matching
+for decoded `wp_options.option_name` text. The new
+`examples/wordpress-option-name-like-glob.php` smoke exercises escaped
+`LIKE '\_transient\_%'` matching with SQLite's default ASCII-only case folding
+and a case-sensitive `GLOB '_Transient_[A-Z][A-Z][A-Z]'` pattern without
+requiring the SQLite extension.
+
+This is intentionally a bounded decoded-row helper, not a full SQL WHERE
+executor. Planner pushdown for `LIKE` prefix ranges, configurable
+`PRAGMA case_sensitive_like`, regexp extension callbacks, and broader SQL
+expression dispatch remain separate slices.

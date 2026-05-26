@@ -2069,6 +2069,43 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], null, null, 'WPSLUG', $wpslug));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameRangeWithPrefixAndCollation(['autoload' => 'no'], 'cache-a', 'cache-c', 'WPSLUG', static fn (): string => '0'));
     },
+    'matches sqlite like and glob patterns for wordpress option names' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $makeFirstPage(512, 2));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, '_transient_feed', 'cached feed', 'no'], 1),
+            $schemaCell([null, '_Transient_API', 'cached api', 'no'], 2),
+            $schemaCell([null, 'emoji_é', 'utf8 payload', 'no'], 3),
+            $schemaCell([null, 'literal_percent_%', 'literal percent', 'no'], 4),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 5),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2);
+
+        $likeTransient = $database->wordpressOptionsByNameLike('\_transient\_%', '\\');
+        $caseSensitiveLike = $database->wordpressOptionsByNameLike('_transient_%', null, null, true);
+        $escapedPercent = $database->wordpressOptionsByNameLike('literal\_percent\_\%', '\\');
+        $utf8SingleCharacter = $database->wordpressOptionsByNameLike('emoji__');
+        $globTransient = $database->wordpressOptionsByNameGlob('_Transient_[A-Z][A-Z][A-Z]');
+        $globNegated = $database->wordpressOptionsByNameGlob('*_[^0-9]');
+
+        $t->true(SQLiteDatabase::likeMatches('SiteURL', 'site%'));
+        $t->same(false, SQLiteDatabase::likeMatches('SiteURL', 'site%', null, true));
+        $t->true(SQLiteDatabase::likeMatches('literal_percent_%', 'literal\_percent\_\%', '\\'));
+        $t->true(SQLiteDatabase::likeMatches('emoji_é', 'emoji__'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::likeMatches('x', 'x', 'xx'));
+        $t->true(SQLiteDatabase::globMatches('_Transient_API', '_Transient_[A-Z][A-Z][A-Z]'));
+        $t->same(false, SQLiteDatabase::globMatches('_transient_api', '_Transient_[A-Z][A-Z][A-Z]'));
+        $t->true(SQLiteDatabase::globMatches('siteurl[', 'siteurl['));
+        $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $likeTransient));
+        $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $caseSensitiveLike));
+        $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $escapedPercent));
+        $t->same(['emoji_é'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $utf8SingleCharacter));
+        $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globTransient));
+        $t->same(['emoji_é', 'literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
+        $t->same([], $database->wordpressOptionsByNameLike('%', null, 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByNameGlob('*', -1));
+    },
     'uses wordpress option_name indexes for IN-list option lookups without duplicate rhs rows' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

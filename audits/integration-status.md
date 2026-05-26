@@ -1,5 +1,32 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite LIKE/GLOB option-name patterns - 2026-05-26 00:49 UTC
+
+Accepted `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T004251Z.ready`.
+
+Commit: this integration commit (`Integrate libsqlite LIKE GLOB option names`).
+
+Candidate and guard evidence:
+- Current `refs/heads/main` before integration was `26d058e9911de656d5cdc2bec0e630e06cd3abaa`.
+- Cache-busted live `porting-summary.json` reported matching `sourceCommit=26d058e9911de656d5cdc2bec0e630e06cd3abaa`, so the dashboard guard was open.
+- Resource gate before root verification was open: `df -Pk /` reported `92141040` KiB available and load average first field was `3.25`.
+- Exact no-argument root harness gate was empty before the serialized root run.
+- The selected marker was shape-valid with `lane=libsqlite`, `patch=...`, and `metadata=...`.
+- Newer/similar libsqlite priority/deps/suite markers were sampled and failed `git apply --check` against current `main` because they tried to add WAL files already accepted on `main`.
+
+Verification:
+- `git apply --check` passed from a detached clean worktree at current `main`.
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php` passed.
+- `php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test` passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Focused `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 2300 assertions, 0 failures`.
+- Serialized no-argument root `php tools/run-tests.php` passed with `214 test files, 26720 assertions, 0 failures`.
+
+Decision: accepted after focused and root verification. The accepted slice adds bounded SQLite-style `LIKE` and `GLOB` option-name matching helpers and WordPress example evidence. Dashboard publication should run next after the commit is visible on `main`.
+
 ## Clean-patch intake accepted - libsqlite WAL committed page images - 2026-05-26 00:39 UTC
 
 Accepted isolated marker:

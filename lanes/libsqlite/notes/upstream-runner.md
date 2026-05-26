@@ -6249,3 +6249,46 @@ aggregate harness was not assigned for this isolated micro-slice.
 Dependency closure: no new support component is needed. The slice reuses
 lane-local binary parsing, table/page assembly, `SQLiteDatabase` traversal, and
 WordPress option decoding; it counts no shared support-library progress.
+
+## Focused Native Mapping: LIKE and GLOB Option-Name Matching
+
+Date: 2026-05-26
+
+This isolated encoding/collation micro-slice adds bounded SQLite-style pattern
+matching for decoded `wp_options.option_name` text. Native helpers now expose
+ASCII case-folded `LIKE` with `%`, `_`, optional one-character `ESCAPE`, UTF-8
+character wildcards when the input is well-formed, byte fallback for malformed
+text, and case-sensitive `GLOB` with `*`, `?`, bracket classes, ASCII ranges,
+and `^` negated classes.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice maps against the existing focused collation/function
+inventory and adds one native LIKE/GLOB pattern-matching unit. Prior applicable
+runner evidence remains the complete SQLite `veryquick` run: 1235 scripts,
+329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
+php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks and the WordPress LIKE/GLOB smoke passed. The focused
+test file reaches the new LIKE/GLOB assertions successfully, then remains red
+on a pre-existing accepted-status mismatch: `SQLiteWalHeader`, `SQLiteWalFrame`,
+and `SQLiteWal` are imported and tested near the end of
+`SQLiteHeaderTest.php`, but those classes are absent from this worktree's
+`lanes/libsqlite/src` directory. Root aggregate harness was not assigned for
+this isolated micro-slice.
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local UTF-8 text splitting, ASCII case folding, decoded WordPress options,
+and table traversal; it counts no shared support-library progress.

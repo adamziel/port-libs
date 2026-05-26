@@ -5551,6 +5551,64 @@ final class SQLiteDatabase
         return $options;
     }
 
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByNameLike(
+        string $pattern,
+        ?string $escape = null,
+        ?int $limit = null,
+        bool $caseSensitive = false,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options LIKE lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $options = [];
+        foreach ($this->wordpressOptions() as $option) {
+            if (!self::likeMatches($option->optionName, $pattern, $escape, $caseSensitive)) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByNameGlob(string $pattern, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options GLOB lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $options = [];
+        foreach ($this->wordpressOptions() as $option) {
+            if (!self::globMatches($option->optionName, $pattern)) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
     public function wordpressOptionByIndexedName(string $optionName): ?SQLiteWordPressOption
     {
         $tableRootPage = $this->tableRootPage('wp_options');
@@ -9903,6 +9961,249 @@ final class SQLiteDatabase
             'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
             default => throw new \InvalidArgumentException("Unsupported SQLite index collation: {$collation}"),
         };
+    }
+
+    public static function likeMatches(
+        string $value,
+        string $pattern,
+        ?string $escape = null,
+        bool $caseSensitive = false,
+    ): bool {
+        if ($escape !== null && self::sqliteTextLength($escape) !== 1) {
+            throw new \InvalidArgumentException('SQLite LIKE ESCAPE expression must be a single character');
+        }
+
+        return self::likeMatchesAt(
+            self::sqlitePatternCharacters($value),
+            self::sqlitePatternCharacters($pattern),
+            self::sqlitePatternCharacters($escape ?? ''),
+            $caseSensitive,
+            0,
+            0,
+            [],
+        );
+    }
+
+    public static function globMatches(string $value, string $pattern): bool
+    {
+        return self::globMatchesAt(
+            self::sqlitePatternCharacters($value),
+            self::sqlitePatternCharacters($pattern),
+            0,
+            0,
+            [],
+        );
+    }
+
+    /**
+     * @param list<string> $value
+     * @param list<string> $pattern
+     * @param list<string> $escape
+     * @param array<string, bool> $seen
+     */
+    private static function likeMatchesAt(
+        array $value,
+        array $pattern,
+        array $escape,
+        bool $caseSensitive,
+        int $valueOffset,
+        int $patternOffset,
+        array $seen,
+    ): bool {
+        $state = $valueOffset . ':' . $patternOffset;
+        if (isset($seen[$state])) {
+            return false;
+        }
+        $seen[$state] = true;
+
+        $valueCount = count($value);
+        $patternCount = count($pattern);
+        while ($patternOffset < $patternCount) {
+            $patternCharacter = $pattern[$patternOffset];
+            if ($escape !== [] && $patternCharacter === $escape[0]) {
+                $patternOffset++;
+                if ($patternOffset >= $patternCount) {
+                    return false;
+                }
+                $patternCharacter = $pattern[$patternOffset];
+            } elseif ($patternCharacter === '%') {
+                while ($patternOffset + 1 < $patternCount && $pattern[$patternOffset + 1] === '%') {
+                    $patternOffset++;
+                }
+                if ($patternOffset + 1 >= $patternCount) {
+                    return true;
+                }
+                for ($nextValueOffset = $valueOffset; $nextValueOffset <= $valueCount; $nextValueOffset++) {
+                    if (self::likeMatchesAt($value, $pattern, $escape, $caseSensitive, $nextValueOffset, $patternOffset + 1, $seen)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            } elseif ($patternCharacter === '_') {
+                if ($valueOffset >= $valueCount) {
+                    return false;
+                }
+                $valueOffset++;
+                $patternOffset++;
+                continue;
+            }
+
+            if ($valueOffset >= $valueCount || !self::sqlitePatternCharactersEqual($value[$valueOffset], $patternCharacter, $caseSensitive)) {
+                return false;
+            }
+
+            $valueOffset++;
+            $patternOffset++;
+        }
+
+        return $valueOffset === $valueCount;
+    }
+
+    /**
+     * @param list<string> $value
+     * @param list<string> $pattern
+     * @param array<string, bool> $seen
+     */
+    private static function globMatchesAt(array $value, array $pattern, int $valueOffset, int $patternOffset, array $seen): bool
+    {
+        $state = $valueOffset . ':' . $patternOffset;
+        if (isset($seen[$state])) {
+            return false;
+        }
+        $seen[$state] = true;
+
+        $valueCount = count($value);
+        $patternCount = count($pattern);
+        while ($patternOffset < $patternCount) {
+            $patternCharacter = $pattern[$patternOffset];
+            if ($patternCharacter === '*') {
+                while ($patternOffset + 1 < $patternCount && $pattern[$patternOffset + 1] === '*') {
+                    $patternOffset++;
+                }
+                if ($patternOffset + 1 >= $patternCount) {
+                    return true;
+                }
+                for ($nextValueOffset = $valueOffset; $nextValueOffset <= $valueCount; $nextValueOffset++) {
+                    if (self::globMatchesAt($value, $pattern, $nextValueOffset, $patternOffset + 1, $seen)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            if ($valueOffset >= $valueCount) {
+                return false;
+            }
+            if ($patternCharacter === '?') {
+                $valueOffset++;
+                $patternOffset++;
+                continue;
+            }
+            if ($patternCharacter === '[') {
+                $class = self::readGlobCharacterClass($pattern, $patternOffset);
+                if ($class === null) {
+                    if ($value[$valueOffset] !== '[') {
+                        return false;
+                    }
+                    $valueOffset++;
+                    $patternOffset++;
+                    continue;
+                }
+                if (in_array($value[$valueOffset], $class['characters'], true) === $class['negated']) {
+                    return false;
+                }
+                $valueOffset++;
+                $patternOffset = $class['nextOffset'];
+                continue;
+            }
+            if ($value[$valueOffset] !== $patternCharacter) {
+                return false;
+            }
+
+            $valueOffset++;
+            $patternOffset++;
+        }
+
+        return $valueOffset === $valueCount;
+    }
+
+    /**
+     * @param list<string> $pattern
+     * @return null|array{characters:list<string>,negated:bool,nextOffset:int}
+     */
+    private static function readGlobCharacterClass(array $pattern, int $offset): ?array
+    {
+        $count = count($pattern);
+        if ($offset + 1 >= $count) {
+            return null;
+        }
+
+        $index = $offset + 1;
+        $negated = false;
+        if ($pattern[$index] === '^') {
+            $negated = true;
+            $index++;
+        }
+
+        $characters = [];
+        $first = true;
+        while ($index < $count) {
+            $character = $pattern[$index];
+            if ($character === ']' && !$first) {
+                return [
+                    'characters' => array_values(array_unique($characters)),
+                    'negated' => $negated,
+                    'nextOffset' => $index + 1,
+                ];
+            }
+            if (
+                $index + 2 < $count
+                && $pattern[$index + 1] === '-'
+                && $pattern[$index + 2] !== ']'
+                && strlen($character) === 1
+                && strlen($pattern[$index + 2]) === 1
+            ) {
+                $start = ord($character);
+                $end = ord($pattern[$index + 2]);
+                if ($start <= $end) {
+                    for ($ord = $start; $ord <= $end; $ord++) {
+                        $characters[] = chr($ord);
+                    }
+                    $index += 3;
+                    $first = false;
+                    continue;
+                }
+            }
+
+            $characters[] = $character;
+            $index++;
+            $first = false;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function sqlitePatternCharacters(string $value): array
+    {
+        return self::sqliteTextCharacters($value) ?? str_split($value);
+    }
+
+    private static function sqliteTextLength(string $value): int
+    {
+        return count(self::sqlitePatternCharacters($value));
+    }
+
+    private static function sqlitePatternCharactersEqual(string $left, string $right, bool $caseSensitive): bool
+    {
+        if ($caseSensitive) {
+            return $left === $right;
+        }
+
+        return self::asciiLower($left) === self::asciiLower($right);
     }
 
     private static function asciiLower(string $value): string
