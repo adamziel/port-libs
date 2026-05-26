@@ -2,6 +2,26 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT WHERE Predicate Preview Scenario
+
+Copied WordPress option import previews can now model residual `WHERE`
+predicate dispatch before final result ordering without requiring the SQLite
+extension. The smoke `examples/wordpress-options-where-predicate-preview.php`
+reports copied `wp_options` rows filtered through nested `AND`/`OR`/`NOT`,
+comparison, `BETWEEN`, `IN`/`NOT IN`, `IS`/`IS NOT`, `IS NULL`,
+`LIKE ... ESCAPE`, and `GLOB` predicates, preserving SQLite three-valued
+truth handling for `NULL` comparisons and `NOT IN` lists.
+
+Status delta 2026-05-26 isolated priority SQL execution/planner slice: added
+`SQLiteSelectPredicate` with focused assertions for residual WHERE filtering,
+SQLite truth tables, BLOB identity, storage-class distinctness, missing-column
+guards, invalid operator/list/type guards, and final `ORDER BY` integration.
+The focused lane test count moves from the accepted current-source baseline of
+4175 assertions to 4201 assertions, +26. Lane `phpPass` moves from 734 to 735.
+Dependency closure: no new support component is needed; this reuses lane-local
+BLOB wrappers, LIKE/GLOB matchers, SQL result ordering, and pure PHP row
+arrays.
+
 ## Compound SELECT Option Preview Scenario
 
 Copied WordPress option import previews can now model result rows composed from

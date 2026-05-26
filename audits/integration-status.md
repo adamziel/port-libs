@@ -117761,7 +117761,41 @@ Root verification:
 
 Decision: accepted. Commit pending at note completion time; after commit the dashboard guard should close until live Pages publishes the new source.
 
+Post-commit cleanup note for `ba869c1ad4f45d315171ac513362a7bc34241feb`:
+- Removed accepted marker artifacts: ready marker, patch, metadata, isolated worker prompt, and isolated worker log for `port-dev-libsqlite-priority-20260526T231831Z`.
+- Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T231831Z` because it still contains the accepted modified/add files. Cleanup debt: remove or prune only after a later operator confirms no active worker owns it and no dirty work must be preserved.
+
 Post-commit cleanup note for `60bb8bdcd4dc522cf1a2fe4c1347ef445717f2ec`:
 - Removed accepted marker artifacts: ready marker, patch, metadata, isolated worker prompt, and isolated worker log for `port-dev-libsqlite-deps-20260526T231801Z`.
 - Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T231801Z` because it still contains the accepted modified/add files. Cleanup debt: remove or prune only after a later operator confirms no active worker owns it and no dirty work must be preserved.
 - An unrelated pre-existing detached worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T232141Z` also remains registered with dirty/untracked content and was not removed.
+## Integration accepted - libsqlite SELECT WHERE predicates - 2026-05-26T23:34:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T231831Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence before candidate verification:
+- Current `refs/heads/main` was `6d334dabb2bbd4a916dcd46deb58b496e22d3bf0` (`Integrate libsqlite page cache preflight`).
+- Cache-busted live Pages reported matching `sourceCommit` `6d334dabb2bbd4a916dcd46deb58b496e22d3bf0`, generated `2026-05-26 23:27:52 UTC`, dashboard commit `5c1e9659518cc64447b7482cf9001ddf70be58da`.
+
+Candidate evidence:
+- Marker lane `libsqlite`, base `cc288456bc4b283ffae2bea0c69e335113177c4a`, patch sha256 `e7c425e3e1ece89b2a9569b328d450bbb9d506374ae747bbc053bf2aded58824`.
+- Direct apply failed only on moved `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`; implementation, test, example, and WordPress scenario hunks replayed cleanly over current `6d334dab`.
+- Selected over current stale-base status/suite markers because it is non-overlapping SQL execution behavior with focused assertions and a WordPress smoke.
+- Clean candidate worktree: `.tmux-team/tmp/clean-integrator-candidate-20260526T232959Z-libsqlite-sample`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSelectPredicate.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-options-where-predicate-preview.php` passed.
+- Manifest/status JSON decode passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4201 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-options-where-predicate-preview.php` passed and emitted valid JSON for copied WordPress WHERE predicate previews.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Runtime gate before root: `/` had `140547260` KiB available, load average was `2.20`, and no exact no-argument root harness was running.
+- Serialized root command under clean-integrator lock passed with repo-local temp space: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` => `215 test files, 29335 assertions, 0 failures`.
+
+Decision: accepted. Commit pending at note completion time; after commit the dashboard guard should close until live Pages publishes the new source.

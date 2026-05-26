@@ -59,6 +59,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLiteSelectCompound;
+use PortLibs\LibSqlite\SQLiteSelectPredicate;
 use PortLibs\LibSqlite\SQLiteSelectProjection;
 use PortLibs\LibSqlite\SQLiteSelectResult;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
@@ -14598,6 +14599,142 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn([['option_name' => 'siteurl']], 'missing', ['siteurl']));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn($options, 'option_name', [['bad']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn([['option_name' => []]], 'option_name', ['siteurl']));
+    },
+    'filters sqlite select rows with residual where predicate semantics' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 24, 'payload' => new SQLiteBlobValue('url')],
+            ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'bytes' => 18, 'payload' => new SQLiteBlobValue('url')],
+            ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'bytes' => 8, 'payload' => new SQLiteBlobValue('text')],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'autoload' => 'no', 'bytes' => 42, 'payload' => null],
+            ['option_id' => 5, 'option_name' => '_site_transient_update_plugins', 'autoload' => 'no', 'bytes' => 110, 'payload' => new SQLiteBlobValue('cache')],
+            ['option_id' => 6, 'option_name' => 'orphaned', 'autoload' => null, 'bytes' => null, 'payload' => true],
+        ];
+
+        $autoloaded = SQLiteSelectPredicate::filter($options, [
+            'operator' => '=',
+            'left' => ['column' => 'autoload'],
+            'right' => 'yes',
+        ]);
+        $t->same(['siteurl', 'home', 'blogname'], array_column($autoloaded, 'option_name'));
+
+        $largeOrTransient = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'OR',
+            'terms' => [
+                ['operator' => '>=', 'left' => ['column' => 'bytes'], 'right' => 100],
+                ['operator' => 'LIKE', 'left' => ['column' => 'option_name'], 'right' => '!_transient!_%', 'escape' => '!'],
+            ],
+        ]);
+        $t->same(['_transient_feed', '_site_transient_update_plugins'], array_column($largeOrTransient, 'option_name'));
+
+        $ordinaryPublicNames = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'AND',
+            'terms' => [
+                ['operator' => 'IN', 'left' => ['column' => 'autoload'], 'values' => ['yes', 'maybe']],
+                ['operator' => 'NOT LIKE', 'left' => ['column' => 'option_name'], 'right' => '!_%', 'escape' => '!'],
+                ['operator' => 'BETWEEN', 'left' => ['column' => 'bytes'], 'lower' => 8, 'upper' => 24],
+            ],
+        ]);
+        $t->same(['siteurl', 'home', 'blogname'], array_column($ordinaryPublicNames, 'option_name'));
+
+        $notBetween = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'NOT BETWEEN',
+            'left' => ['column' => 'bytes'],
+            'lower' => 10,
+            'upper' => 50,
+        ]);
+        $t->same(['blogname', '_site_transient_update_plugins'], array_column($notBetween, 'option_name'));
+
+        $globbed = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'GLOB',
+            'left' => ['column' => 'option_name'],
+            'right' => '[bh]*',
+        ]);
+        $t->same(['home', 'blogname'], array_column($globbed, 'option_name'));
+
+        $notGlobbed = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'NOT GLOB',
+            'left' => ['column' => 'option_name'],
+            'right' => '*transient*',
+        ]);
+        $t->same(['siteurl', 'home', 'blogname', 'orphaned'], array_column($notGlobbed, 'option_name'));
+
+        $notInWithoutNull = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'NOT IN',
+            'left' => ['column' => 'option_name'],
+            'values' => ['siteurl', 'home'],
+        ]);
+        $t->same(['blogname', '_transient_feed', '_site_transient_update_plugins', 'orphaned'], array_column($notInWithoutNull, 'option_name'));
+
+        $notInWithNull = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'NOT IN',
+            'left' => ['column' => 'option_name'],
+            'values' => ['siteurl', null],
+        ]);
+        $t->same([], $notInWithNull);
+
+        $nullAutoload = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'IS NULL',
+            'left' => ['column' => 'autoload'],
+        ]);
+        $t->same(['orphaned'], array_column($nullAutoload, 'option_name'));
+
+        $nonnullPayload = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'IS NOT NULL',
+            'left' => ['column' => 'payload'],
+        ]);
+        $t->same(['siteurl', 'home', 'blogname', '_site_transient_update_plugins', 'orphaned'], array_column($nonnullPayload, 'option_name'));
+
+        $blobMatch = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'IS',
+            'left' => ['column' => 'payload'],
+            'right' => new SQLiteBlobValue('url'),
+        ]);
+        $t->same(['siteurl', 'home'], array_column($blobMatch, 'option_name'));
+
+        $blobNotMatch = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'IS NOT',
+            'left' => ['column' => 'payload'],
+            'right' => new SQLiteBlobValue('url'),
+        ]);
+        $t->same(['blogname', '_transient_feed', '_site_transient_update_plugins', 'orphaned'], array_column($blobNotMatch, 'option_name'));
+
+        $nullComparisonDropsRows = SQLiteSelectPredicate::filter($options, [
+            'operator' => '>',
+            'left' => ['column' => 'bytes'],
+            'right' => 20,
+        ]);
+        $t->same(['siteurl', '_transient_feed', '_site_transient_update_plugins'], array_column($nullComparisonDropsRows, 'option_name'));
+
+        $notNullTruth = SQLiteSelectPredicate::filter($options, [
+            'operator' => 'NOT',
+            'term' => ['operator' => '=', 'left' => ['column' => 'autoload'], 'right' => 'yes'],
+        ]);
+        $t->same(['_transient_feed', '_site_transient_update_plugins'], array_column($notNullTruth, 'option_name'));
+
+        $ordered = SQLiteSelectResult::execute($ordinaryPublicNames, null, [
+            ['column' => 'bytes', 'direction' => 'DESC'],
+            ['column' => 'option_name'],
+        ], 2);
+        $t->same(['siteurl', 'home'], array_column($ordered, 'option_name'));
+
+        $t->same(true, SQLiteSelectPredicate::evaluate($options[0], ['operator' => '<>', 'left' => ['column' => 'option_name'], 'right' => 'home']));
+        $t->same(null, SQLiteSelectPredicate::evaluate($options[5], ['operator' => '=', 'left' => ['column' => 'autoload'], 'right' => 'yes']));
+        $t->same(null, SQLiteSelectPredicate::evaluate($options[5], ['operator' => 'AND', 'terms' => [
+            ['operator' => '=', 'left' => ['column' => 'autoload'], 'right' => 'yes'],
+            ['operator' => '>', 'left' => ['column' => 'bytes'], 'right' => 0],
+        ]]));
+        $t->same(true, SQLiteSelectPredicate::evaluate($options[0], ['operator' => 'OR', 'terms' => [
+            ['operator' => '=', 'left' => ['column' => 'autoload'], 'right' => null],
+            ['operator' => '=', 'left' => ['column' => 'option_name'], 'right' => 'siteurl'],
+        ]]));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter([['option_name' => []]], ['operator' => '=', 'left' => ['column' => 'option_name'], 'right' => 'siteurl']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter([['option_name' => 'siteurl']], ['operator' => '=', 'left' => ['column' => 'missing'], 'right' => 'siteurl']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'IN', 'left' => ['column' => 'option_name'], 'values' => 'siteurl']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'LIKE', 'left' => ['column' => 'bytes'], 'right' => '%']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'GLOB', 'left' => ['column' => 'bytes'], 'right' => '*']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'AND', 'terms' => []]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectPredicate::filter($options, ['operator' => 'MATCH', 'left' => ['column' => 'option_name'], 'right' => 'siteurl']));
     },
     'produces sqlite select rows for inner cross left and using joins' => static function (TestRunner $t): void {
         $options = [
