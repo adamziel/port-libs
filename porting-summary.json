@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 09:38:33 UTC",
-    "sourceCommit": "63ed46b427a5d014ef6523ea9f4b80793712a91f",
-    "sourceCommitShort": "63ed46b427a5",
+    "generated": "2026-05-26 09:42:44 UTC",
+    "sourceCommit": "852bb868a2d2e4f2f0cd612b504319efc80667b4",
+    "sourceCommitShort": "852bb868a2d2",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "cea0dd82a697a0344fd6607552f580c91f3be9cd",
-    "dashboardCommitShort": "cea0dd82a697",
+    "dashboardCommit": "7acc12680088dc5eb9dee0703d0f5bee9780a5c0",
+    "dashboardCommitShort": "7acc12680088",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -86,7 +86,7 @@
             "php": "323 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated planner/WAL/B-tree closure slice...",
+            "audit": "isolated SQL execution/planner scalar sli...",
             "currentWork": "Latest SQL execution/planner work preserves accepted veryquick, runner ledgers, release-t...",
             "nextTarget": "Wire leaf defragmentation into bounded write-plan paths that decide between reuse, rebala...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
