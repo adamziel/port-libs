@@ -9,6 +9,7 @@ use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteCreateIndex;
 use PortLibs\LibSqlite\SQLiteCreateTable;
+use PortLibs\LibSqlite\SQLiteConnectionCounters;
 use PortLibs\LibSqlite\SQLiteCoreScalarFunction;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistAllocationPlan;
@@ -7413,6 +7414,53 @@ SQL;
             'seq' => 900,
             'rowid' => 2,
         ], $comments->currentSequenceRecord()?->toArray());
+    },
+    'tracks sqlite connection counters for wordpress insert update and rollback previews' => static function (TestRunner $t): void {
+        $counters = SQLiteConnectionCounters::initial();
+
+        $t->same(0, $counters->sqlFunctionArguments('last_insert_rowid', []));
+        $t->same(0, $counters->sqlFunctionArguments('changes', []));
+        $t->same(0, $counters->sqlFunctionArguments('total_changes', []));
+
+        $counters->recordInsert(42);
+        $t->same(42, $counters->lastInsertRowId());
+        $t->same(1, $counters->changes());
+        $t->same(1, $counters->totalChanges());
+        $t->same(42, $counters->sqlFunctionArguments('LAST_INSERT_ROWID', []));
+
+        $snapshot = $counters->snapshot();
+        $counters->recordUpdate(3);
+        $t->same(42, $counters->lastInsertRowId());
+        $t->same(3, $counters->sqlFunctionArguments('changes', []));
+        $t->same(4, $counters->sqlFunctionArguments('total_changes', []));
+
+        $counters->recordDelete(0);
+        $t->same(0, $counters->changes());
+        $t->same(4, $counters->totalChanges());
+        $t->same(42, $counters->lastInsertRowId());
+
+        $counters->recordInsert(99, 0);
+        $t->same(42, $counters->lastInsertRowId());
+        $t->same(0, $counters->changes());
+        $t->same(4, $counters->totalChanges());
+
+        $counters->restoreAfterRollback($snapshot);
+        $t->same([
+            'last_insert_rowid' => 42,
+            'changes' => 1,
+            'total_changes' => 1,
+        ], $counters->toArray());
+
+        $counters->recordNoOp();
+        $t->same(0, $counters->changes());
+        $t->same(1, $counters->totalChanges());
+
+        $t->throws(InvalidArgumentException::class, static fn () => new SQLiteConnectionCounters(-1));
+        $t->throws(InvalidArgumentException::class, static fn () => new SQLiteConnectionCounters(0, 2, 1));
+        $t->throws(InvalidArgumentException::class, static fn () => $counters->recordInsert(0));
+        $t->throws(InvalidArgumentException::class, static fn () => $counters->recordUpdate(-1));
+        $t->throws(InvalidArgumentException::class, static fn () => $counters->sqlFunctionArguments('changes', [1]));
+        $t->throws(InvalidArgumentException::class, static fn () => $counters->sqlFunctionArguments('sqlite_offset', []));
     },
     'reads a wordpress option value from a sqlite overflow page' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $recordPayload, $tableLeafPage, $overflowLeafCell, $overflowPage): void {
         $largeValue = str_repeat('0123456789', 56) . 'endxx';

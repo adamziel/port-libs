@@ -9864,3 +9864,38 @@ this was an isolated micro-slice.
 
 Dependency closure: no new support component is needed. This composes
 lane-local admission ledger records and supplied active-runner snapshots only.
+
+## Dependency Suite: Connection Counter Functions
+
+This isolated dependency-suite micro-slice did not start an upstream
+testfixture because the worktree has no hydrated upstream checkout. It adds a
+bounded native connection-state helper for copied WordPress write paths:
+`last_insert_rowid()`, `changes()`, and `total_changes()` now have lane-local
+counter diagnostics that can be attached to insert/update/delete and savepoint
+rollback previews without requiring ext-sqlite.
+
+Focused upstream denominator impact: one lane-local focused core connection
+counter script is mapped in `UPSTREAM_TEST_MANIFEST.json`; no fresh upstream
+runner evidence is claimed.
+
+Verification run 2026-05-26T19:14Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteConnectionCounters.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3187 assertions, and 0 failures, adding 29 focused assertions
+for connection-counter behavior. The WordPress connection-counter smoke passed,
+manifest/status JSON decoded successfully, and lane diff check passed. The root
+harness was not run because this was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+write-plan and savepoint evidence and adds only a bounded native PHP
+connection-state helper.

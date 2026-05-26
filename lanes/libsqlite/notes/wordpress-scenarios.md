@@ -3161,6 +3161,25 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
 patterns.
 
+## Connection Counter Option Insert Scenario
+
+Native dependency helpers now expose bounded SQLite connection counters for
+copied WordPress insert/update batches. The
+`examples/wordpress-connection-counter-option-insert.php` smoke reports
+`last_insert_rowid()`, `changes()`, and `total_changes()` after a generated
+`wp_options` insert, an autoload update, and savepoint rollback restoration
+without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated dependency-suite connection-counter slice:
+added 29 focused assertions for initial zero counters, generated rowid capture,
+update/delete/no-op change counts, total change accumulation, rollback snapshot
+restore, SQL-function arity/state errors, and WordPress option-insert
+diagnostics.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local write-plan, savepoint, and scalar-dispatch evidence while keeping
+stateful connection counters out of the stateless core scalar dispatcher.
+
 ## Rollback Hot Journal Admission Scenario
 
 Native rollback-journal diagnostics now classify copied rollback journal bytes

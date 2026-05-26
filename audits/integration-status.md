@@ -116776,3 +116776,41 @@ Root verification and publication:
 - The originating worker worktree still contained lane-local modified files at acceptance time, so it was preserved as cleanup debt rather than removed.
 
 Decision: accepted and published to `refs/heads/main`. Dashboard publication should run next because accepted source moved from `9df75bb19e79f64844fb6077545aede7017fedd9` to `f7d4bc5070a238a3d5a060ab1a00a28687f5aa66`.
+## Integration accepted - libsqlite connection counters - 2026-05-26T19:23:25Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T191411Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before this pass was `1181508d75b7b8c56cca902820deb90fe8ffa50f` (`Integrate libsqlite unistr scalar helpers`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `1181508d75b7b8c56cca902820deb90fe8ffa50f`, `generated` `2026-05-26 19:20:14 UTC`, and dashboard commit `a7cef2a78a63720f32ad518c8dcbc42ad95864b4`.
+
+Candidate evidence:
+- Selected the dependency-suite connection-counter behavior marker over sampled status-only, release-blocker, and duplicate scalar alternatives because it adds native behavior, a WordPress smoke, 29 focused assertions, `phpPass` growth, and one mapped coverage item.
+- The marker was based on older accepted head `9df75bb19e79f64844fb6077545aede7017fedd9`; direct `git apply --check` failed only on moving `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`.
+- Bounded replay was used in detached clean worktree `.tmux-team/tmp/clean-candidate-libsqlite-deps-20260526T191411Z`: implementation, test, example, and notes hunks applied cleanly, then current manifest/status counters were reconciled minimally from accepted `1181508d75b7b8c56cca902820deb90fe8ffa50f`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteConnectionCounters.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php`: passed.
+- Manifest/status JSON decode: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 3206 assertions, 0 failures`.
+- WordPress connection-counter smoke `php lanes/libsqlite/examples/wordpress-connection-counter-option-insert.php`: passed and reported `last_insert_rowid`, `changes`, `total_changes`, and savepoint rollback diagnostics.
+- `git diff --check`: passed.
+
+Runtime gate evidence before focused/root checks:
+- `df -Pk /` reported `98923692` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `0.99`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before candidate checks.
+
+Root verification and publication:
+- Serialized no-argument root harness under `.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR=$candidate/.tmp-root`: passed, `215 test files, 28278 assertions, 0 failures`.
+- Accepted commit: `Integrate libsqlite connection counters` (final hash recorded in completion report).
+
+Decision: accepted and ready for locked publication to `refs/heads/main`. Dashboard publication should run next because accepted source moves beyond `1181508d75b7b8c56cca902820deb90fe8ffa50f`.
+
+Cleanup:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T191411Z` still has modified lane-local files after acceptance, so it is preserved as cleanup debt rather than removed.
+- Accepted ready/patch/metadata artifacts may be removed after locked publication.
