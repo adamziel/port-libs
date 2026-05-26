@@ -1,5 +1,68 @@
 # Integration Status
 
+## Accepted libsqlite upstream runner gate - 2026-05-26 08:18 UTC
+
+Accepted
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T081206Z.ready`
+as the `Integrate libsqlite upstream runner gate` commit.
+
+`refs/heads/main` was advanced by this accepted integration.
+
+Dashboard guard evidence before acceptance:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=9d333e5c97980b320e4b8a5a17d18aee22af135a`, matching the
+  then-current source head.
+- Live dashboard commit reported
+  `c9b9ffe939081210759974e640840559fc852b45`, so the dashboard guard was open
+  before the source move.
+
+Resource and process gate evidence:
+- Initial disk gate was closed at `83777304` KiB available on `/`; after
+  waiting outside the lock it reopened to `87032700` KiB available.
+- Before focused checks, `/` reported `87797260` KiB available, load was
+  `5.41`, and no no-argument root harness was running.
+- Before serialized root verification, `/` reported `87780736` KiB available,
+  load was `4.87`, and no no-argument root harness was running.
+- Before the final ref update, `/` reported `87848432` KiB available, load was
+  `4.38`, and no no-argument root harness was running.
+
+Focused verification in a detached clean worktree from
+`9d333e5c97980b320e4b8a5a17d18aee22af135a`:
+- Patch hash matched
+  `9f6c6cb97563d597895bdc229c7446e9c54d4bc68b2068c501c180e51679964e`.
+- `git apply --check` passed in the detached clean worktree.
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` decoded as valid JSON.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 309 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot with
+  `215 test files, 27377 assertions, 0 failures`.
+
+Cleanup:
+- Removed accepted marker files:
+  `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T081206Z.ready`,
+  `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T081206Z.patch`,
+  and
+  `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T081206Z.md`.
+- Removed the clean integrator temp worktree.
+- The accepted worker worktree was preserved because `git worktree remove`
+  refused to remove modified or untracked files without force.
+
+Queue evidence after cleanup:
+- Top-level ready-marker count: `4631`.
+- Libsqlite ready-marker count: `1363`.
+
+Dashboard publication should run next. The live dashboard still reports
+`sourceCommit=9d333e5c97980b320e4b8a5a17d18aee22af135a`, so it is now behind
+the accepted source head.
+
 ## Clean-patch intake accepted - libsqlite dependency scalar suite - 2026-05-26 07:58 UTC
 
 Accepted isolated marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T075145Z.ready`.

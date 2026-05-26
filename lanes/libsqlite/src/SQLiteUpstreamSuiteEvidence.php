@@ -821,6 +821,66 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function activeFullSuiteRunnerGate(string $processSnapshot): array
+    {
+        $active = [];
+        foreach (preg_split('/\R/', $processSnapshot) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_contains($line, 'grep -E')) {
+                continue;
+            }
+
+            $isSqliteRunner = str_contains($line, 'testfixture')
+                && str_contains($line, 'testrunner.tcl');
+            $isBoundedWrapper = str_contains($line, 'run-sqlite-tcl-bounded-runner.sh');
+            if (!$isSqliteRunner && !$isBoundedWrapper) {
+                continue;
+            }
+
+            $tier = null;
+            if (preg_match('/(?:^|\s)(all|release|mptest)(?:\s|$)/', $line, $matches) === 1) {
+                $tier = $matches[1];
+            } elseif (str_contains($line, 'make test')) {
+                $tier = 'make-test';
+            }
+
+            if ($tier === null) {
+                continue;
+            }
+
+            $pid = null;
+            $elapsed = null;
+            if (preg_match('/^\s*(\d+)\s+([0-9:-]+)\s+(.+)$/', $line, $matches) === 1) {
+                $pid = (int) $matches[1];
+                $elapsed = $matches[2];
+                $command = $matches[3];
+            } else {
+                $command = $line;
+            }
+
+            $active[] = [
+                'pid' => $pid,
+                'elapsed' => $elapsed,
+                'tier' => $tier,
+                'command' => $command,
+            ];
+        }
+
+        return [
+            'status' => $active === [] ? 'clear' : 'blocked-active-runner',
+            'active_count' => count($active),
+            'active_tiers' => array_values(array_unique(array_column($active, 'tier'))),
+            'active' => $active,
+            'next_gate' => $active === []
+                ? 'no active broad SQLite full-suite runner detected in supplied process snapshot; a supervisor-approved bounded run may start if other gates pass'
+                : 'do not launch a duplicate broad SQLite suite; wait for the active runner artifact/log, then record parsed pass/fail evidence',
+            'dependency_closure' => 'no new support component needed; active-runner gate parses a supplied process snapshot and does not inspect secrets or execute upstream tests',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();

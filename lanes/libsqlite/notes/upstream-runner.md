@@ -1,5 +1,46 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Active Broad-Runner Gate
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::activeFullSuiteRunnerGate()`. The helper parses a
+supplied process snapshot into a machine-readable duplicate-runner gate for
+broad SQLite `all`, `release`, `make test`, and `mptest` work. It records
+`clear` when no broad runner is present and `blocked-active-runner` with PID,
+elapsed time, suite tier, command, and next gate when one is already running.
+
+Focused upstream runner:
+
+No new broad upstream `testfixture`, `make test`, or `mptest` run was started
+from this isolated worktree. Process evidence already showed an active shared
+bounded all runner:
+
+```text
+scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-all-runner-20260526T080745Z ... all 2 1800
+./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error all
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors. The active all-runner artifact/log
+should be parsed after it exits if it maps to the accepted checkout.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses a
+supplied process snapshot and lane-local upstream-suite evidence only; it
+performs no upstream runner shell-out and counts no shared support-library
+progress.
+
 ## Focused Native Mapping: Recorded Runner Result Ledger
 
 Date: 2026-05-26
