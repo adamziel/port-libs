@@ -24,6 +24,11 @@ final class FolderScanApiCoordinator
         }
     }
 
+    public function scheduler(): FolderScanScheduler
+    {
+        return $this->scheduler;
+    }
+
     /**
      * Handles a Syncthing-style POST /rest/db/scan request represented as a
      * WordPress REST payload.

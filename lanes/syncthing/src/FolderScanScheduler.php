@@ -78,6 +78,63 @@ final class FolderScanScheduler
         );
     }
 
+    /**
+     * @param array<string, mixed> $payload
+     * @return array{folders:array<string, array<string, mixed>>, page:array{offset:int, limit:int, total:int, returned:int, nextOffset:null|int}}
+     */
+    public function folderStatusPage(array $payload = [], ?int $now = null): array
+    {
+        $now = self::clock($now);
+        $folderFilter = isset($payload['folder']) && trim((string) $payload['folder']) !== ''
+            ? trim((string) $payload['folder'])
+            : null;
+        $stateFilter = isset($payload['state']) && trim((string) $payload['state']) !== ''
+            ? strtolower(trim((string) $payload['state']))
+            : null;
+
+        $folderIds = $folderFilter === null ? $this->folderIds() : [$folderFilter];
+        $statuses = [];
+        foreach ($folderIds as $folderId) {
+            if (!$this->folderServices->has($folderId)) {
+                continue;
+            }
+
+            $state = $this->folderServices->isRunning($folderId) ? 'running' : 'paused';
+            if ($stateFilter !== null && $stateFilter !== $state) {
+                continue;
+            }
+
+            $service = $this->requireFolder($folderId);
+            $snapshot = $service->checkpoint($now);
+            $statuses[$folderId] = [
+                'folder' => $folderId,
+                'state' => $state,
+                'running' => $state === 'running',
+                'paused' => $state === 'paused',
+                'scheduledScan' => $this->scheduledScanStatus($folderId, $now),
+                'checkpoint' => $snapshot?->toRestStatus(),
+            ];
+        }
+        ksort($statuses, SORT_STRING);
+
+        $total = count($statuses);
+        $offset = self::boundedInt($payload['offset'] ?? 0, min: 0, max: $total);
+        $limit = self::boundedInt($payload['limit'] ?? 50, min: 1, max: 100);
+        $paged = array_slice($statuses, $offset, $limit, preserve_keys: true);
+        $nextOffset = $offset + count($paged);
+
+        return [
+            'folders' => $paged,
+            'page' => [
+                'offset' => $offset,
+                'limit' => $limit,
+                'total' => $total,
+                'returned' => count($paged),
+                'nextOffset' => $nextOffset < $total ? $nextOffset : null,
+            ],
+        ];
+    }
+
     public function isPaused(string $folderId): bool
     {
         self::assertFolderId($folderId);
@@ -369,6 +426,12 @@ final class FolderScanScheduler
         }
 
         return $now;
+    }
+
+    private static function boundedInt(mixed $value, int $min, int $max): int
+    {
+        $int = is_numeric($value) ? (int) $value : $min;
+        return max($min, min($max, $int));
     }
 
     /**

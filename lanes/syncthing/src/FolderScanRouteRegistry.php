@@ -32,6 +32,21 @@ final class FolderScanRouteRegistry
             'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/scan'),
             'queued' => false,
         ]);
+        $registry->register('GET', '/syncthing/db/scan/status', static function (array $payload, ?int $now = null) use ($coordinator): FolderScanApiResponse {
+            $page = $coordinator->scheduler()->folderStatusPage($payload, $now);
+
+            return new FolderScanApiResponse(FolderScanApiCoordinator::HTTP_OK, [
+                'ok' => true,
+                'status' => 'ok',
+                'folders' => $page['folders'],
+                'page' => $page['page'],
+            ]);
+        }, [
+            'upstreamRoute' => 'lib/model model.ScanFolders folder paused/running status and scan checkpoint state',
+            'wordpressRoute' => $registry->wordpressRoute('/syncthing/db/scan/status'),
+            'queued' => false,
+            'scanStatusCatalog' => true,
+        ]);
 
         if ($queue !== null) {
             $registry->register('POST', '/syncthing/db/scan/queue', $queue->enqueue(...), [

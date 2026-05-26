@@ -229,6 +229,66 @@ return [
         $t->same([], $missingPage->body['routes']);
         $t->same(0, $missingPage->body['page']['total']);
     },
+    'route registry exposes paged scan status for many WordPress folders' => static function (TestRunner $t): void {
+        $mediaRoot = syncthing_folder_scan_route_root();
+        $contentRoot = syncthing_folder_scan_route_root();
+        $privateRoot = syncthing_folder_scan_route_root();
+        try {
+            syncthing_folder_scan_route_write($mediaRoot, 'wp-content/uploads/2026/05/hero.jpg', 'abcdefgh');
+            syncthing_folder_scan_route_write($contentRoot, 'wp-content/themes/twentytwentyseven/style.css', 'body{}');
+            syncthing_folder_scan_route_write($privateRoot, 'wp-content/private/secret.jpg', 'private');
+            $scheduler = new FolderScanScheduler();
+            $scheduler->addFolder('wordpress-media', new FolderScanService('wordpress-media', new FileInfoScanner($mediaRoot), new FolderScanCheckpointStore(), ttlSeconds: 60));
+            $scheduler->addFolder('wordpress-content', new FolderScanService('wordpress-content', new FileInfoScanner($contentRoot), new FolderScanCheckpointStore(), ttlSeconds: 120));
+            $scheduler->addFolder('wordpress-private', new FolderScanService('wordpress-private', new FileInfoScanner($privateRoot), new FolderScanCheckpointStore()), running: false);
+            $registry = FolderScanRouteRegistry::forScanApi(new FolderScanApiCoordinator($scheduler));
+
+            $registry->dispatch('POST', '/syncthing/db/scan', [
+                'folders' => [
+                    'wordpress-media' => ['wp-content/uploads/2026/05'],
+                    'wordpress-content' => ['wp-content/themes/twentytwentyseven'],
+                ],
+                'hashBlocks' => true,
+                'blockSize' => 4,
+                'next' => 30,
+            ], now: 5000);
+
+            $firstPage = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/scan/status', [
+                'offset' => 0,
+                'limit' => 2,
+            ], now: 5010);
+            $paused = $registry->dispatch('GET', '/syncthing/db/scan/status', [
+                'state' => 'paused',
+            ], now: 5010);
+            $oneFolder = $registry->dispatch('GET', '/syncthing/db/scan/status', [
+                'folder' => 'wordpress-media',
+            ], now: 5010);
+            $missing = $registry->dispatch('GET', '/syncthing/db/scan/status', [
+                'folder' => 'missing-folder',
+            ], now: 5010);
+            $route = syncthing_folder_scan_route_by_path($registry->routes(), '/syncthing/db/scan/status', 'GET');
+
+            $t->same(FolderScanApiCoordinator::HTTP_OK, $firstPage->statusCode);
+            $t->same(3, $firstPage->body['page']['total']);
+            $t->same(2, $firstPage->body['page']['returned']);
+            $t->same(2, $firstPage->body['page']['nextOffset']);
+            $t->same(['wordpress-content', 'wordpress-media'], array_keys($firstPage->body['folders']));
+            $t->same('complete', $firstPage->body['folders']['wordpress-media']['checkpoint']['state'] ?? null);
+            $t->same(5030, $firstPage->body['folders']['wordpress-media']['scheduledScan']['scheduledAt'] ?? null);
+            $t->same(false, $firstPage->body['folders']['wordpress-media']['scheduledScan']['due'] ?? null);
+            $t->same(['wordpress-private'], array_keys($paused->body['folders']));
+            $t->same('paused', $paused->body['folders']['wordpress-private']['state'] ?? null);
+            $t->same(null, $paused->body['folders']['wordpress-private']['checkpoint'] ?? null);
+            $t->same(['wordpress-media'], array_keys($oneFolder->body['folders']));
+            $t->same([], $missing->body['folders']);
+            $t->same('/wp-json/local-first/v1/syncthing/db/scan/status', $route['wordpressRoute']);
+            $t->same(true, $route['metadata']['scanStatusCatalog'] ?? null);
+        } finally {
+            syncthing_folder_scan_route_rm($mediaRoot);
+            syncthing_folder_scan_route_rm($contentRoot);
+            syncthing_folder_scan_route_rm($privateRoot);
+        }
+    },
     'route registry acknowledges all watcher cleanup payloads after retention pruning' => static function (TestRunner $t): void {
         $root = syncthing_folder_scan_route_root();
         try {

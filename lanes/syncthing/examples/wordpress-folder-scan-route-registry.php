@@ -41,6 +41,9 @@ try {
         'blockSize' => 4,
     ], now: 1000);
     $completed = $queue->runNext(now: 1001);
+    $scanStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/scan/status', [
+        'limit' => 10,
+    ], now: 1002);
     $watchScheduler->recordEvent('wordpress-media', 'wp-content/uploads/2026/05/hero.jpg', now: 1010);
     $pendingWatchStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/status', [], now: 1014);
     $pendingMediaWatchStatus = $registry->dispatch('GET', '/wp-json/local-first/v1/syncthing/db/watch/status', [
@@ -76,6 +79,7 @@ try {
         'watchRouteCatalog' => $watchRouteCatalog->toArray(),
         'accepted' => $accepted->toArray(),
         'completed' => $completed?->toArray(),
+        'scanStatus' => $scanStatus->toArray(),
         'pendingWatchStatus' => $pendingWatchStatus->toArray(),
         'pendingMediaWatchStatus' => $pendingMediaWatchStatus->toArray(),
         'restartStatus' => $restartStatus->toArray(),

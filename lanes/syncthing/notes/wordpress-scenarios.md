@@ -35,6 +35,14 @@ path prefix, then page through route metadata with bounded `offset`/`limit`
 arguments and `nextOffset` bookkeeping. Dependency closure: no new support
 component is needed; this reuses the existing bounded route-registry component.
 
+The route-registry scan-status slice adds `GET /syncthing/db/scan/status` for
+WordPress REST clients that need a bounded list of many local-first folders
+without starting a scan. The route reports each folder's running or paused state,
+latest checkpoint REST status when one exists, delayed scan timing, optional
+single-folder filtering, state filtering, and bounded pagination. Dependency
+closure: no new support component is needed; this reuses the existing bounded
+scan scheduler, checkpoint store, and route-registry components.
+
 ## Current Native Slice
 
 Native scanner-style content blocks now match Syncthing's `lib/scanner/blocks_test.go`

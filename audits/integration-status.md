@@ -1,5 +1,41 @@
 # Integration Status
 
+## Clean-patch accepted - Syncthing scan status route - 2026-05-26 00:09 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-syncthing-20260526T000204Z.ready`.
+
+Published commit: this integration commit
+(`Integrate Syncthing scan status route`). The accepted patch was verified from
+a detached clean worktree at source `0fb10872` and is scoped to
+`lanes/syncthing/**` plus this integration-status entry. Patch sha256 matched
+the ready marker:
+`ca65b7e638b066592507bfccb4948cfad2c591fa26f10e7cbd1e15970c9e9ef6`.
+
+Focused verification on the clean candidate snapshot:
+- Syncthing scan route syntax checks passed for the coordinator, scheduler,
+  route registry, route-registry test, and WordPress route-registry example.
+- `php tools/run-tests.php lanes/syncthing/tests/FolderScanRouteRegistryTest.php`
+  passed: `1 test files, 96 assertions, 0 failures`.
+- `php lanes/syncthing/examples/wordpress-folder-scan-route-registry.php` passed.
+- Syncthing manifest/status JSON validation passed.
+- `git diff --check -- lanes/syncthing` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=98031136` KiB and `load1=2.58`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26657 assertions, 0 failures`.
+
+Cleanup:
+- Pending until the commit is safely on `main`: remove the accepted ready
+  marker, patch, metadata file, referenced worker log, inactive source
+  worktree, and temporary verification worktree.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted Syncthing commit.
+
 ## Clean-patch accepted - rclone cleanup RC command args - 2026-05-26 00:04 UTC
 
 Accepted one isolated marker:
