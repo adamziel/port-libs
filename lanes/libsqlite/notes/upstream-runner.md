@@ -9067,3 +9067,36 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local savepoint state tracking and existing WordPress recovery diagnostics
 without activating shared storage support work.
+
+## Upstream Runner Evidence: Foreground Release Snapshot Gate
+
+This isolated upstream-suite runner micro-slice strengthens
+`SQLiteUpstreamSuiteEvidence::activeFullSuiteRunnerGate()` for the currently
+active guarded foreground release rerun. The active process sample uses
+`ps -eo pid,ppid,stat,etime,pcpu,cmd`, so the parser now preserves `ppid`,
+`stat`, and `pcpu` while still recognizing the bounded runner wrapper,
+foreground `timeout`, and `testfixture ... --stop-on-error release` rows as a
+single duplicate-runner blocker. The valgrind child remains visible in the
+raw process evidence but is not counted as a separate broad suite tier because
+it lacks an all/release/mptest launch command.
+
+No broad upstream `all`, `release`, `make test`, or `mptest` run was launched
+from this isolated worker. The active shared guarded runner observed for this
+slice was `libsqlite-release-rerun-foreground-20260526T134619Z`; release/all
+parity remains uncounted until that runner finishes and its bounded audit/log
+artifacts pass the existing provenance/countability gates.
+
+Verification run 2026-05-26T14:20Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local upstream runner evidence model and parses supplied process snapshots
+only; it does not inspect secrets, mutate upstream caches, or execute upstream
+tests.

@@ -1,5 +1,44 @@
 # Integration Status
 
+## Integration accepted - libsqlite foreground runner snapshot gate - 2026-05-26 14:15 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T141056Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `1f3026bfcb493d15c5e2c5c16bd11c8fa7d62421` (`Integrate libsqlite savepoint release plan`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit` `1f3026bfcb493d15c5e2c5c16bd11c8fa7d62421`, so the live dashboard was not behind the current accepted source head.
+- Existing Pages-outage override files through `20260526T1246Z` were already consumed; no outage override was used.
+- `gh api repos/adamziel/port-libs/pages` reported legacy Pages source `gh-pages` `/` and site status `built`.
+- `gh api repos/adamziel/port-libs/pages/builds/latest` reported latest build commit `dffc56be1645ebc25137f6c7203ec931f4632e44`, status `built`, created `2026-05-26T12:43:35Z`, updated `2026-05-26T12:53:38Z`, with no error message.
+- `git ls-remote origin` reported remote `main` at `fdc741f64e8c93a4f5da6ac2898ffede2b1521bc` and remote `gh-pages` at `dffc56be1645ebc25137f6c7203ec931f4632e44`.
+
+Runtime gate evidence:
+- `df -Pk /` reported `117331888` KiB available before the root run, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `3.99`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Marker evidence:
+- Marker fields included `lane=libsqlite`, `patch=...`, and `metadata=...`.
+- Marker `base_sha` matched current `refs/heads/main` at `1f3026bfcb493d15c5e2c5c16bd11c8fa7d62421`.
+- Patch SHA-256 matched `74d79a860aafc1ea1d610246f4b4c01036323dedead16d84c1e9e5595656a7d3`.
+- Patch was lane-local under `lanes/libsqlite/**`, with focused upstream-runner process snapshot parsing for foreground `ps -eo pid,ppid,stat,etime,pcpu,cmd` evidence. It did not launch a broad SQLite runner and recorded the active foreground release rerun as uncounted until bounded artifacts pass provenance/countability gates.
+
+Focused checks from detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed.
+- Manifest/status JSON validation: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed, `1 test files, 511 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Serialized root result:
+- `php tools/run-tests.php`: passed under `.tmux-team/tmp/clean-integrator-run.lock`, `215 test files, 27744 assertions, 0 failures`.
+
+Decision: accepted as a small current-base libsqlite suite-blocker evidence slice. The accepted marker artifacts and inactive isolated worktree were removed after publication. Remaining ready-marker count before cleanup was `5457`; libsqlite ready-marker count before cleanup was `2189`.
+
+Dashboard publication should run next because accepted source moved beyond the currently published dashboard source.
+
 ## Integration accepted - libsqlite concat scalar dispatch - 2026-05-26 13:17 UTC
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T131307Z.ready`.

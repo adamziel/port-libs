@@ -747,6 +747,33 @@ TXT;
         $t->same('mptest', $gate['active'][1]['tier']);
         $t->contains('make -C .upstream-cache/libsqlite-build-port-libsqlite mptest', $gate['active'][1]['command']);
     },
+    'parses active broad foreground runner snapshots with ps stat and cpu fields' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $snapshot = <<<'TXT'
+1666044       1 S+       28:41  0.0 bash scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-release-rerun-foreground-20260526T134619Z audits/libsqlite-release-rerun-foreground-20260526T134619Z.md .tmux-team/tmp/libsqlite-release-rerun-foreground-20260526T134619Z .tmux-team/logs/libsqlite-release-rerun-foreground-20260526T134619Z.log release 2 7200
+1666103 1666044 S+       28:39  0.0 timeout --foreground 7200 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+1666104 1666103 S+       28:39  0.2 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+1936678 1666104 R+       00:08 99.1 valgrind -v --error-exitcode=1 /tmp/build/testfixture /tmp/src/test/testrunner.tcl valgrind /tmp/src/ext/recover/recover1.test
+TXT;
+
+        $gate = $evidence->activeFullSuiteRunnerGate($snapshot);
+
+        $t->same('blocked-active-runner', $gate['status']);
+        $t->same(3, $gate['active_count']);
+        $t->same(['release'], $gate['active_tiers']);
+        $t->same(1666044, $gate['active'][0]['pid']);
+        $t->same(1, $gate['active'][0]['ppid']);
+        $t->same('S+', $gate['active'][0]['stat']);
+        $t->same('28:41', $gate['active'][0]['elapsed']);
+        $t->same(0.0, $gate['active'][0]['pcpu']);
+        $t->same('release', $gate['active'][0]['tier']);
+        $t->contains('libsqlite-release-rerun-foreground-20260526T134619Z', $gate['active'][0]['command']);
+        $t->same(1666044, $gate['active'][1]['ppid']);
+        $t->same('release', $gate['active'][1]['tier']);
+        $t->same(1666103, $gate['active'][2]['ppid']);
+        $t->same(0.2, $gate['active'][2]['pcpu']);
+        $t->contains('do not launch a duplicate broad SQLite suite', $gate['next_gate']);
+    },
     'builds a bounded upstream runner artifact record from audit and stdout text' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $audit = <<<'MD'

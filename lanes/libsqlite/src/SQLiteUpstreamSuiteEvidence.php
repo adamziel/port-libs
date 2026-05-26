@@ -927,9 +927,20 @@ final class SQLiteUpstreamSuiteEvidence
             }
 
             $pid = null;
+            $ppid = null;
+            $stat = null;
+            $pcpu = null;
             $elapsed = null;
-            if (preg_match('/^\s*(\d+)\s+\d+\s+([0-9:-]+)\s+(.+)$/', $line, $matches) === 1) {
+            if (preg_match('/^\s*(\d+)\s+(\d+)\s+([A-Za-z<NLsl+]+)\s+([0-9:-]+)\s+([0-9.]+)\s+(.+)$/', $line, $matches) === 1) {
                 $pid = (int) $matches[1];
+                $ppid = (int) $matches[2];
+                $stat = $matches[3];
+                $elapsed = $matches[4];
+                $pcpu = (float) $matches[5];
+                $command = $matches[6];
+            } elseif (preg_match('/^\s*(\d+)\s+\d+\s+([0-9:-]+)\s+(.+)$/', $line, $matches) === 1) {
+                $pid = (int) $matches[1];
+                $ppid = (int) preg_split('/\s+/', trim($line))[1];
                 $elapsed = $matches[2];
                 $command = $matches[3];
             } elseif (preg_match('/^\s*(\d+)\s+([0-9:-]+)\s+(.+)$/', $line, $matches) === 1) {
@@ -942,7 +953,10 @@ final class SQLiteUpstreamSuiteEvidence
 
             $active[] = [
                 'pid' => $pid,
+                'ppid' => $ppid,
+                'stat' => $stat,
                 'elapsed' => $elapsed,
+                'pcpu' => $pcpu,
                 'tier' => $tier,
                 'command' => $command,
             ];
