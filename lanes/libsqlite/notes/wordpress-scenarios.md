@@ -152,6 +152,22 @@ and updated `examples/wordpress-option-name-like-glob.php` to report
 component is needed; this reuses lane-local NOCASE comparison, LIKE matching,
 and index range traversal.
 
+## Indexed GLOB Prefix Option-Name Range Scenario
+
+Case-sensitive WordPress option-name diagnostics can now use a leading literal
+`GLOB` prefix as an `option_name` index range before applying SQLite `GLOB` as
+a residual predicate. The pattern smoke reports `globPrefixRange` and
+`indexedGlobOptions`, covering bracket-class suffixes, `?` UTF-8 character
+matches, wildcard residual filtering, zero limits, and no-prefix rejection.
+
+Status delta 2026-05-26 isolated encoding/collation slice: added
+`SQLiteDatabase::globPrefixRangeBounds()` and
+`wordpressOptionsByIndexedNameGlobPrefixRange()`, plus 13 focused assertions in
+`SQLiteHeaderTest.php` and an updated WordPress pattern smoke.
+
+Dependency closure: no new support component is needed; this reuses
+lane-local binary index range traversal and the accepted SQLite GLOB matcher.
+
 ## UTF-16 Embedded NUL Option Text Scenario
 
 Copied SQLite text fields can legally contain embedded U+0000 codepoints

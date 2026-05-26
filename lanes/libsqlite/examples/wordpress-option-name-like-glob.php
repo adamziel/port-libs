@@ -42,6 +42,15 @@ try {
     $indexedNoCaseUpperCaseLike = ['error' => $exception->getMessage()];
 }
 $globOptions = $database->wordpressOptionsByNameGlob($globPattern);
+$indexedGlobOptions = null;
+try {
+    $indexedGlobOptions = array_map(
+        static fn (SQLiteWordPressOption $option): array => $option->toArray(),
+        $database->wordpressOptionsByIndexedNameGlobPrefixRange($globPattern),
+    );
+} catch (InvalidArgumentException $exception) {
+    $indexedGlobOptions = ['error' => $exception->getMessage()];
+}
 $globReversedRangeOptions = $database->wordpressOptionsByNameGlob('plugin_[z-a]');
 $regexp = static function (string $pattern, string $value): bool {
     $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
@@ -74,6 +83,8 @@ echo json_encode([
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),
         $globOptions,
     ),
+    'globPrefixRange' => SQLiteDatabase::globPrefixRangeBounds($globPattern),
+    'indexedGlobOptions' => $indexedGlobOptions,
     'globReversedRangePattern' => 'plugin_[z-a]',
     'globReversedRangeOptions' => array_map(
         static fn (SQLiteWordPressOption $option): array => $option->toArray(),

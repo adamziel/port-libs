@@ -5915,6 +5915,38 @@ final class SQLiteDatabase
         return $options;
     }
 
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
+    public function wordpressOptionsByIndexedNameGlobPrefixRange(string $pattern, ?int $limit = null): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed GLOB prefix lookup limit cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $bounds = self::globPrefixRangeBounds($pattern);
+        if ($bounds === null) {
+            throw new \InvalidArgumentException('SQLite wp_options indexed GLOB prefix lookup requires a leading literal prefix');
+        }
+
+        $options = [];
+        foreach ($this->wordpressOptionsByIndexedNameRange($bounds['lowerInclusive'], $bounds['upperBound']) as $option) {
+            if (!self::globMatches($option->optionName, $pattern)) {
+                continue;
+            }
+
+            $options[] = $option;
+            if ($limit !== null && count($options) >= $limit) {
+                break;
+            }
+        }
+
+        return $options;
+    }
+
     private static function normalizeWordPressOptionOrderColumn(string $orderBy): string
     {
         $column = strtolower($orderBy);
@@ -10404,6 +10436,30 @@ final class SQLiteDatabase
             0,
             [],
         );
+    }
+
+    /**
+     * @return null|array{lowerInclusive:string,upperBound:?string}
+     */
+    public static function globPrefixRangeBounds(string $pattern): ?array
+    {
+        $patternCharacters = self::sqlitePatternCharacters($pattern);
+        $prefix = '';
+        foreach ($patternCharacters as $character) {
+            if ($character === '*' || $character === '?' || $character === '[') {
+                break;
+            }
+            $prefix .= $character;
+        }
+
+        if ($prefix === '') {
+            return null;
+        }
+
+        return [
+            'lowerInclusive' => $prefix,
+            'upperBound' => self::nextBinaryPrefixUpperBound($prefix),
+        ];
     }
 
     /**

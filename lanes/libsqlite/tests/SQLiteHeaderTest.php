@@ -2671,6 +2671,10 @@ return [
         $escapedPercent = $database->wordpressOptionsByNameLike('literal\_percent\_\%', '\\');
         $utf8SingleCharacter = $database->wordpressOptionsByNameLike('emoji__');
         $globTransient = $database->wordpressOptionsByNameGlob('_Transient_[A-Z][A-Z][A-Z]');
+        $indexedGlobTransient = $database->wordpressOptionsByIndexedNameGlobPrefixRange('_Transient_[A-Z][A-Z][A-Z]');
+        $indexedGlobUtf8 = $database->wordpressOptionsByIndexedNameGlobPrefixRange('emoji_?');
+        $indexedGlobLiteral = $database->wordpressOptionsByIndexedNameGlobPrefixRange('literal_percent_*');
+        $indexedGlobLimited = $database->wordpressOptionsByIndexedNameGlobPrefixRange('_Transient_*', 1);
         $globNegated = $database->wordpressOptionsByNameGlob('*_[^0-9]');
         $regexp = static function (string $pattern, string $value): bool {
             $result = preg_match('/' . str_replace('/', '\\/', $pattern) . '/u', $value);
@@ -2691,6 +2695,11 @@ return [
         $t->same(['lowerInclusive' => '_transient_', 'upperBound' => '_transient`'], SQLiteDatabase::likePrefixRangeBounds('\_transient\_%', '\\'));
         $t->same(['lowerInclusive' => 'literal_percent_%', 'upperBound' => 'literal_percent_&'], SQLiteDatabase::likePrefixRangeBounds('literal\_percent\_\%', '\\'));
         $t->same(null, SQLiteDatabase::likePrefixRangeBounds('%transient'));
+        $t->same(['lowerInclusive' => '_Transient_', 'upperBound' => '_Transient`'], SQLiteDatabase::globPrefixRangeBounds('_Transient_[A-Z][A-Z][A-Z]'));
+        $t->same(['lowerInclusive' => 'emoji_', 'upperBound' => 'emoji`'], SQLiteDatabase::globPrefixRangeBounds('emoji_?'));
+        $t->same(['lowerInclusive' => 'literal_percent_', 'upperBound' => 'literal_percent`'], SQLiteDatabase::globPrefixRangeBounds('literal_percent_*'));
+        $t->same(null, SQLiteDatabase::globPrefixRangeBounds('*transient'));
+        $t->same(null, SQLiteDatabase::globPrefixRangeBounds('[st]*'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::likeMatches('x', 'x', 'xx'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::likePrefixRangeBounds('x%', 'xx'));
         $t->true(SQLiteDatabase::globMatches('_Transient_API', '_Transient_[A-Z][A-Z][A-Z]'));
@@ -2722,15 +2731,22 @@ return [
         $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $escapedPercent));
         $t->same(['emoji_é'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $utf8SingleCharacter));
         $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globTransient));
+        $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobTransient));
+        $t->same(['emoji_é'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobUtf8));
+        $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobLiteral));
+        $t->same(['_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $indexedGlobLimited));
         $t->same(['emoji_é', 'literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
         $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $regexpOptions));
         $t->same([], $database->wordpressOptionsByNameLike('%', null, 0));
         $t->same([], $database->wordpressOptionsByIndexedNameLikePrefixRange('\_transient\_%', '\\', 0));
         $t->same([], $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('\_transient\_%', '\\', 0));
+        $t->same([], $database->wordpressOptionsByIndexedNameGlobPrefixRange('_Transient_*', 0));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLikePrefixRange('%transient'));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('%transient'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameGlobPrefixRange('*transient'));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLikePrefixRange('site%', null, -1));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameLikePrefixRangeNoCase('site%', null, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByIndexedNameGlobPrefixRange('site*', -1));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByNameGlob('*', -1));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByNameRegexp('.*', $regexp, -1));
 

@@ -9796,3 +9796,37 @@ isolated micro-slice.
 
 Dependency closure: no new support component is needed. This composes existing
 lane-local countability and explicit exclusion gates only.
+
+## Encoding/Collation: Indexed GLOB Prefix Range
+
+This isolated encoding/collation micro-slice did not start an upstream
+testfixture because the worktree has no hydrated upstream checkout. It adds a
+bounded native planner helper for copied WordPress `wp_options` scans:
+`GLOB` patterns with a leading literal prefix now derive a binary
+`option_name` index range, then apply the accepted SQLite `GLOB` matcher as a
+residual predicate.
+
+Focused upstream denominator impact: one lane-local focused WordPress
+GLOB-prefix range script is mapped in `UPSTREAM_TEST_MANIFEST.json`; no fresh
+upstream runner evidence is claimed.
+
+Verification run 2026-05-26T18:37Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3124 assertions, and 0 failures, adding 13 focused assertions
+for indexed GLOB-prefix range planning. The WordPress pattern smoke passed,
+manifest/status JSON decoded successfully, and lane diff check passed. The
+root harness was not run because this was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This reuses
+lane-local binary index range traversal and accepted GLOB residual matching.

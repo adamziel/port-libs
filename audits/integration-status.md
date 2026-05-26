@@ -1,5 +1,49 @@
 # Integration Status
 
+## Integration accepted - libsqlite indexed LIKE/GLOB prefix ranges - 2026-05-26T18:43:29Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T183717Z.ready`.
+
+Commit: this commit (`Integrate libsqlite indexed LIKE/GLOB prefix ranges`).
+
+Scope:
+- Lane-local `SQLiteDatabase` range-bound planning for indexed WordPress `option_name` LIKE/GLOB scans.
+- Focused assertions for LIKE/GLOB prefix-range behavior, including `NOCASE` indexed LIKE and GLOB prefix seek bounds.
+- WordPress option-name LIKE/GLOB smoke and libsqlite manifest/status/notes updates.
+
+Dashboard guard evidence:
+- Pre-integration `refs/heads/main` was `9d1fadfadd4d367dbb706164dd7f7ab65d7b5785`.
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `9d1fadfadd4d367dbb706164dd7f7ab65d7b5785`, so the guard was open.
+
+Runtime gate evidence:
+- Before focused checks/root, `/` free space was above the `86000000` KiB floor (`105481356` KiB before focused checks).
+- One-minute load was below `25` (`1.21` before focused checks).
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before focused checks.
+
+Verification:
+- Patch SHA-256 matched marker metadata: `3e378185d80bbcccc1efa6a2f20fec9d69e22c8fc90a47416ee9779adac978cb`.
+- `git apply --check` passed in detached clean worktree `.tmux-team/tmp/clean-integrator-encoding-20260526T183717Z`.
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php` passed.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3124 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test` passed.
+
+Root verification:
+- Serialized clean-candidate root passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 28170 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker payloads `.ready`, `.patch`, and `.md` were removed only after `refs/heads/main` was safely advanced.
+- The accepted worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-encoding-20260526T183717Z` still contains modified lane-local files matching the accepted slice, so it was preserved and left registered as cleanup debt rather than removed.
+
+Ready queue evidence:
+- Ready-marker count before acceptance was `6095` total ready markers, including `2827` libsqlite ready markers and `172` Dolt ready markers.
+- Dolt remains parked.
+
+Dashboard publication should run next because `refs/heads/main` will move to this commit and the live dashboard must catch up before the next clean integration pass accepts another marker.
+
 ## Integration accepted - libsqlite full rollback savepoint plans - 2026-05-26T17:59:18Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T175335Z.ready`.
