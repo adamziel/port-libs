@@ -7376,3 +7376,34 @@ Dependency closure: no new support component is needed. This reuses lane-local
 JSON table row assembly, hidden-column planning, JSON path validation, and the
 existing SQLite LIKE/GLOB matchers without activating shared support-library
 work.
+
+## Focused Native Mapping: Index Leaf Delete Freeblock Reuse
+
+This isolated planner/WAL/B-tree closure micro-slice maps a bounded SQLite
+B-tree delete behavior for secondary indexes: removing one index-leaf record
+updates the cell pointer array, releases the deleted cell bytes into the
+page-local freeblock chain, coalesces adjacent freeblocks, and can clear the
+released payload bytes for secure-delete diagnostics.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedWordPressIndexLeafDeleteFreeblockScripts: 1`. This
+reuses accepted static B-tree/delete evidence over `delete*.test`,
+`btree01.test`, `index.test`, and corrupt freeblock coverage; this isolated
+worktree did not contain the hydrated upstream cache, so no fresh upstream
+`testfixture` run was started.
+
+Verification run 2026-05-26T05:08Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+index cell parsing, record decoding, B-tree page headers, freeblock parsing,
+and WordPress fixture helpers without activating shared support-library work.

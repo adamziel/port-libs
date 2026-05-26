@@ -1047,6 +1047,37 @@ return [
         $t->same('https://example.test', $option->optionValue);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::assemble([str_repeat('x', 500), str_repeat('y', 500)]));
     },
+    'deletes sqlite index leaf cells into sorted coalesced freeblocks' => static function (TestRunner $t): void {
+        $siteurlCell = SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1]));
+        $transientCell = SQLiteIndexCell::encode(SQLiteRecord::encode(['_transient_cache', 2]));
+        $homeCell = SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 3]));
+        $page = SQLiteIndexLeafPage::assemble([$siteurlCell, $transientCell, $homeCell]);
+        $beforeHeader = SQLiteBTreePageHeader::parsePage($page, 512);
+        $beforeCells = SQLiteIndexCell::parsePageCells($page, $beforeHeader);
+        $deletedCellBytes = $beforeCells[1]->bytesRead;
+
+        $deletedPage = SQLiteIndexLeafPage::deleteCellByRecordValues($page, ['_transient_cache', 2], secureDelete: true);
+        $header = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+        $cells = SQLiteIndexCell::parsePageCells($deletedPage, $header);
+
+        $t->same(2, $header->cellCount);
+        $t->same([['siteurl', 1], ['home', 3]], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $cells));
+        $t->same([
+            [
+                'offset' => $beforeCells[1]->offset,
+                'size' => $deletedCellBytes,
+                'end_offset' => $beforeCells[1]->offset + $deletedCellBytes,
+                'next_offset' => null,
+            ],
+        ], array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $header->freeblocks($deletedPage)));
+        $t->same(str_repeat("\0", $deletedCellBytes - 4), substr($deletedPage, $beforeCells[1]->offset + 4, $deletedCellBytes - 4));
+
+        $deletedAgainPage = SQLiteIndexLeafPage::deleteCellByRecordValues($deletedPage, ['home', 3]);
+        $deletedAgainHeader = SQLiteBTreePageHeader::parsePage($deletedAgainPage, 512);
+        $t->same(1, $deletedAgainHeader->cellCount);
+        $t->same(1, count($deletedAgainHeader->freeblocks($deletedAgainPage)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellByRecordValues($deletedAgainPage, ['missing', 9]));
+    },
     'assembles sqlite index interior pages from native index cell encoder' => static function (TestRunner $t): void {
         $cell = SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 2]), 512, null, 3);
         $page = SQLiteIndexInteriorPage::assemble([$cell], 5);

@@ -2282,3 +2282,23 @@ remain separate follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 schema parsing, partial-index predicate metadata, index b-tree traversal, and
 scalar comparison semantics.
+
+## Index Leaf Delete Freeblock Scenario
+
+Native `wp_options` index maintenance diagnostics now include a page-local
+secondary-index delete primitive. The
+`examples/wordpress-delete-option-index-leaf-freeblock.php` smoke builds a
+minimal `option_name` index leaf, deletes an obsolete `_transient_cache` record,
+reports the remaining index records, exposes the reusable freeblock created by
+the deleted cell, and shows the secure-deleted payload bytes.
+
+Status delta 2026-05-26 isolated planner/WAL/B-tree closure slice: added
+`SQLiteIndexLeafPage::deleteCellByRecordValues()`, focused index-leaf
+freeblock/coalescing/secure-delete assertions, and a WordPress-visible smoke
+for local option-index repair tooling. Full SQL `DELETE`, table-row deletion,
+arbitrary secondary-index maintenance, sibling merge/redistribution after
+delete, and auto-vacuum pointer-map cleanup remain separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+index cell parsing, record decoding, B-tree page headers, freeblock parsing,
+and WordPress fixture helpers.
