@@ -9315,6 +9315,38 @@ Dependency closure: no new support component is needed. This reuses
 lane-local savepoint state tracking and existing WordPress recovery diagnostics
 without activating shared storage support work.
 
+## Focused Native Mapping: Savepoint ROLLBACK TO Apply and COMMIT Plans
+
+This isolated WAL/rollback/savepoint closure micro-slice extends bounded
+savepoint diagnostics with `SQLiteSavepointStack::rollbackToWithPlan()`,
+`commitPlan()`, and `commitWithPlan()`. The new helpers let callers capture
+the exact ROLLBACK TO or COMMIT provenance and apply the transition without
+duplicating state logic. Focused coverage includes duplicate savepoint names
+resolving to the newest frame, retained outer dirty pages after ROLLBACK TO,
+commit page aggregation, savepoint release count, and transaction clearing.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused savepoint rollback/commit plan evidence row while
+preserving the current accepted static SQLite upstream denominator and runner
+evidence. This isolated worktree did not contain the hydrated upstream cache,
+so no fresh upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T17:34Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSavepointStack.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local savepoint state tracking and existing WordPress recovery diagnostics
+without activating shared storage support work.
+
 ## Upstream Runner Evidence: Foreground Release Snapshot Gate
 
 This isolated upstream-suite runner micro-slice strengthens

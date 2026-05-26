@@ -2959,6 +2959,25 @@ implementation, or master-journal coordinator.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local savepoint state tracking and WordPress fixture diagnostics.
 
+## Savepoint Rollback Apply and Commit Plan Scenario
+
+Native `wp_options` import diagnostics now include apply-and-report helpers for
+`ROLLBACK TO` and `COMMIT`. The
+`examples/wordpress-savepoint-option-import-diagnostics.php` smoke reports a
+`rollbackToWithPlan()` transition and a separate commit preview that aggregates
+dirty page numbers, counts released savepoints, and confirms the transaction is
+closed after commit.
+
+Status delta 2026-05-26 isolated WAL/rollback/savepoint slice: added
+`SQLiteSavepointStack::rollbackToWithPlan()`, `commitPlan()`, and
+`commitWithPlan()` with 23 focused assertions for duplicate savepoint names,
+rollback page retention, commit page aggregation, commit apply state, and empty
+transaction errors. This remains diagnostic pager state tracking, not durable
+journal/WAL file writing or master-journal coordination.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local savepoint state tracking and WordPress fixture diagnostics.
+
 ## Core Text Scalar Cleanup Scenario
 
 Native SQL execution helpers now include `trim()`, `ltrim()`, `rtrim()`,

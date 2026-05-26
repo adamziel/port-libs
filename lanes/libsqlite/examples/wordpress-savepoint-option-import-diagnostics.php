@@ -22,7 +22,7 @@ $beforeRollback = $savepoints->toArray();
 $rollbackPlan = $savepoints->rollbackToPlan('plugin_settings');
 $rollbackPreview = $savepoints->rollbackToPageNumbers('plugin_settings');
 $singleOptionRollbackPreview = $savepoints->rollbackToPageNumbers('single_option_row');
-$savepoints->rollbackTo('plugin_settings');
+$rollbackWithPlan = $savepoints->rollbackToWithPlan('plugin_settings');
 $afterRollback = $savepoints->toArray();
 
 $savepoints->recordPageWrite(6);
@@ -32,17 +32,31 @@ $afterRelease = $savepoints->toArray();
 $outerReleasePlan = $savepoints->releasePlan('wp_option_import');
 $outerReleaseWithPlan = $savepoints->releaseWithPlan('wp_option_import');
 
+$commitPreview = new SQLiteSavepointStack();
+$commitPreview->beginTransaction('wp_option_import_commit');
+$commitPreview->recordPageWrite(1);
+$commitPreview->savepoint('plugin_settings_commit');
+$commitPreview->recordPageWrite(5);
+$commitPreview->savepoint('single_option_row_commit');
+$commitPreview->recordPageWrite(7);
+$commitPlan = $commitPreview->commitPlan();
+$commitWithPlan = $commitPreview->commitWithPlan();
+
 echo json_encode([
     'beforeRollbackToPluginSettings' => $beforeRollback,
     'rollbackToPluginSettingsPlan' => $rollbackPlan,
     'rollbackToPluginSettingsPageNumbers' => $rollbackPreview,
     'rollbackToSingleOptionRowPageNumbers' => $singleOptionRollbackPreview,
+    'rollbackToPluginSettingsWithPlan' => $rollbackWithPlan,
     'afterRollbackToPluginSettings' => $afterRollback,
     'releasePluginSettingsPlan' => $releasePlan,
     'releasePluginSettingsWithPlan' => $releaseWithPlan,
     'afterReleasePluginSettings' => $afterRelease,
     'releaseOuterTransactionPlan' => $outerReleasePlan,
     'releaseOuterTransactionWithPlan' => $outerReleaseWithPlan,
+    'commitPlan' => $commitPlan,
+    'commitWithPlan' => $commitWithPlan,
+    'commitTransactionActiveAfter' => $commitPreview->transactionActive(),
     'pendingPageNumbers' => $savepoints->pendingPageNumbers(),
     'transactionActive' => $savepoints->transactionActive(),
     'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE plans and page-dirty state for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages would roll back, merge upward, or remain pending after a failed option-row import.',

@@ -65,6 +65,17 @@ final class SQLiteSavepointStack
     /**
      * @return array{savepoint:string,found_index:int,retained_depth:int,discarded_frame_names:list<string>,rollback_page_numbers:list<int>,target_frame_cleared:bool,transaction_active_after:bool}
      */
+    public function rollbackToWithPlan(string $name): array
+    {
+        $plan = $this->rollbackToPlan($name);
+        $this->rollbackTo($name);
+
+        return $plan;
+    }
+
+    /**
+     * @return array{savepoint:string,found_index:int,retained_depth:int,discarded_frame_names:list<string>,rollback_page_numbers:list<int>,target_frame_cleared:bool,transaction_active_after:bool}
+     */
     public function rollbackToPlan(string $name): array
     {
         $index = $this->findFrame($name);
@@ -170,6 +181,46 @@ final class SQLiteSavepointStack
         }
 
         $this->frames = [];
+    }
+
+    /**
+     * @return array{committed_frame_names:list<string>,committed_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool}
+     */
+    public function commitWithPlan(): array
+    {
+        $plan = $this->commitPlan();
+        $this->commit();
+
+        return $plan;
+    }
+
+    /**
+     * @return array{committed_frame_names:list<string>,committed_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool}
+     */
+    public function commitPlan(): array
+    {
+        if ($this->frames === []) {
+            throw new \LogicException('SQLite transaction is not active');
+        }
+
+        $frameNames = [];
+        $pages = [];
+        foreach ($this->frames as $frame) {
+            $frameNames[] = $frame['name'];
+            foreach ($frame['pages'] as $pageNumber => $_) {
+                $pages[$pageNumber] = true;
+            }
+        }
+
+        $pageNumbers = array_keys($pages);
+        sort($pageNumbers, SORT_NUMERIC);
+
+        return [
+            'committed_frame_names' => $frameNames,
+            'committed_page_numbers' => $pageNumbers,
+            'released_savepoint_count' => max(0, count($this->frames) - 1),
+            'transaction_active_after' => false,
+        ];
     }
 
     public function transactionActive(): bool

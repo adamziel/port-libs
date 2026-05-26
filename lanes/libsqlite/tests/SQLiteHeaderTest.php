@@ -11560,9 +11560,72 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackTo('missing'));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackToPageNumbers('missing'));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackToPlan('missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackToWithPlan('missing'));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->releasePlan('missing'));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->releaseWithPlan('missing'));
+        $t->throws(LogicException::class, static fn () => $stack->commitPlan());
+        $t->throws(LogicException::class, static fn () => $stack->commitWithPlan());
         $t->throws(LogicException::class, static fn () => $stack->commit());
+    },
+    'plans sqlite savepoint rollback apply and commit transitions' => static function (TestRunner $t): void {
+        $stack = new SQLiteSavepointStack();
+        $stack->beginTransaction('wp-import');
+        $stack->recordPageWrite(1);
+        $stack->savepoint('batch');
+        $stack->recordPageWrite(4);
+        $stack->savepoint('batch');
+        $stack->recordPageWrite(6);
+        $stack->savepoint('row');
+        $stack->recordPageWrite(8);
+
+        $t->same([
+            'savepoint' => 'batch',
+            'found_index' => 2,
+            'retained_depth' => 3,
+            'discarded_frame_names' => ['row'],
+            'rollback_page_numbers' => [6, 8],
+            'target_frame_cleared' => true,
+            'transaction_active_after' => true,
+        ], $stack->rollbackToWithPlan('batch'));
+        $t->same(3, $stack->depth());
+        $t->same(['wp-import', 'batch', 'batch'], $stack->names());
+        $t->same([1, 4], $stack->pendingPageNumbers());
+        $t->same([
+            [
+                'name' => 'wp-import',
+                'transaction' => true,
+                'page_numbers' => [1],
+            ],
+            [
+                'name' => 'batch',
+                'transaction' => false,
+                'page_numbers' => [4],
+            ],
+            [
+                'name' => 'batch',
+                'transaction' => false,
+                'page_numbers' => [],
+            ],
+        ], $stack->toArray());
+
+        $stack->recordPageWrite(7);
+        $t->same([
+            'committed_frame_names' => ['wp-import', 'batch', 'batch'],
+            'committed_page_numbers' => [1, 4, 7],
+            'released_savepoint_count' => 2,
+            'transaction_active_after' => false,
+        ], $stack->commitPlan());
+        $t->same(true, $stack->transactionActive());
+        $t->same([
+            'committed_frame_names' => ['wp-import', 'batch', 'batch'],
+            'committed_page_numbers' => [1, 4, 7],
+            'released_savepoint_count' => 2,
+            'transaction_active_after' => false,
+        ], $stack->commitWithPlan());
+        $t->same(false, $stack->transactionActive());
+        $t->same(0, $stack->depth());
+        $t->same([], $stack->names());
+        $t->same([], $stack->pendingPageNumbers());
     },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 27)));
