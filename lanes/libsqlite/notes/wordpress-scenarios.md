@@ -3083,3 +3083,24 @@ is intentionally an aggregate helper, not a full SELECT/VDBE executor.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
 patterns.
+
+## Numeric Aggregate Option Size Scenario
+
+Native SQL execution helpers now include bounded `count()`, `sum()`, `total()`,
+`avg()`, `min()`, and `max()` aggregate behavior for local WordPress option
+repair and import diagnostics. The
+`examples/wordpress-numeric-aggregate-option-summary.php` smoke reports copied
+`wp_options` value-size summaries using SQLite-style NULL skipping, text/blob
+numeric coercion, DISTINCT counting, FILTER-style autoload selection, and
+ROWS-style rolling totals without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner aggregate slice: added
+43 focused assertions for numeric aggregate step/final semantics, including
+count(*) versus count(X), count(DISTINCT X), sum NULL versus total zero
+behavior, avg divisor semantics, min/max SQL sort classes, filter truthiness,
+window frame bounds, state summaries, and strict type errors. This is
+intentionally an aggregate helper, not a full SELECT/VDBE executor.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
+patterns.

@@ -1114,3 +1114,28 @@ group_concat option-name summaries with DISTINCT, ORDER BY, FILTER-style
 autoload selection, NULL skipping, and rolling windows. Manifest/status JSON
 decoded successfully; lane diff check passed. The root harness was not run
 because this was an isolated micro-slice.
+
+## Numeric Aggregate count/sum/total/avg/min/max Slice
+
+Focused lane verification for the SQL execution/planner numeric aggregate slice
+passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteNumericAggregate.php
+php -l lanes/libsqlite/src/SQLiteNumericAggregateState.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-numeric-aggregate-option-summary.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-numeric-aggregate-option-summary.php
+php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 2974 assertions, and 0 failures, adding 43 focused assertions
+over the prior accepted text-aggregate slice. The WordPress smoke reported
+copied `wp_options` value-size summaries with count(*), count(X),
+count(DISTINCT X), sum, total, avg, min, max, FILTER-style autoload selection,
+NULL skipping, and rolling totals. Manifest/status JSON decoded successfully;
+lane diff check passed. The root harness was not run because this was an
+isolated micro-slice.

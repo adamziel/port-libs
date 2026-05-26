@@ -39,6 +39,8 @@ use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
+use PortLibs\LibSqlite\SQLiteNumericAggregate;
+use PortLibs\LibSqlite\SQLiteNumericAggregateState;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -11854,5 +11856,54 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcat([['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcatOrderBy([['siteurl', ['bad']], ['home', 1]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcatWindow(['siteurl'], -1));
+    },
+    'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
+        $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];
+
+        $t->same(7, SQLiteNumericAggregate::countAll($values));
+        $t->same(6, SQLiteNumericAggregate::countValue($values));
+        $t->same(4, SQLiteNumericAggregate::countDistinct([null, '10', '10', 10, true, 1, new SQLiteBlobValue('10')]));
+        $t->same(41.5, SQLiteNumericAggregate::sum($values));
+        $t->same(41.5, SQLiteNumericAggregate::total($values));
+        $t->same(41.5 / 6, SQLiteNumericAggregate::avg($values));
+        $t->same(null, SQLiteNumericAggregate::sum([null, null]));
+        $t->same(0.0, SQLiteNumericAggregate::total([null, null]));
+        $t->same(null, SQLiteNumericAggregate::avg([null, null]));
+        $t->same(0, SQLiteNumericAggregate::sum(['not numeric']));
+
+        $t->same(2, SQLiteNumericAggregate::min([null, 'alpha', 2, 'beta']));
+        $maxBlob = SQLiteNumericAggregate::max([2, 'z', new SQLiteBlobValue('a'), new SQLiteBlobValue('b')]);
+        $t->true($maxBlob instanceof SQLiteBlobValue);
+        $t->same('b', $maxBlob->bytes);
+        $t->same(30, SQLiteNumericAggregate::sumFilter([[10, 1], [20, '2'], [30, 0], [40, null], [50, 'true']]));
+        $t->same([10.0, 30.0, 50.0, 70.0], SQLiteNumericAggregate::totalWindow([10, 20, 30, 40], 1, 0));
+
+        $state = new SQLiteNumericAggregateState();
+        foreach ([[10, 1], [null, 1], ['20ms', 0], ['5.5', 1], ['nope', 1]] as [$value, $filter]) {
+            $state->step($value);
+            $state->stepDistinct($value);
+            $state->stepFilter($value, $filter);
+            $state->stepWindow($value);
+        }
+        $t->same(5, $state->countAll());
+        $t->same(4, $state->countValue());
+        $t->same(4, $state->countDistinct());
+        $t->same(35.5, $state->sum());
+        $t->same(35.5, $state->total());
+        $t->same(35.5 / 4, $state->avg());
+        $t->same(10, $state->min());
+        $t->same('nope', $state->max());
+        $t->same(15.5, $state->sumFiltered());
+        $t->same([10.0, 10.0, 20.0, 25.5, 5.5], $state->totalWindowed(1, 0));
+        $t->same([
+            'rows' => 5,
+            'distinctRows' => 5,
+            'filteredRows' => 5,
+            'windowRows' => 5,
+        ], $state->summary());
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteNumericAggregate::sum([['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteNumericAggregate::min([['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteNumericAggregate::totalWindow([1], -1));
     },
 ];

@@ -1854,6 +1854,39 @@ Cleanup:
 
 Dashboard publication should run next after this accepted source move.
 
+## Integrated libsqlite numeric aggregate helpers - 2026-05-26T17:14:30Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T165609Z.ready`.
+
+Decision: accepted one bounded current-base libsqlite behavior slice. The marker was based on `d8046f1fbe6e3f070380cdd6b58da1217b7a0e79`, matching current `refs/heads/main`, and patch SHA-256 `78d4d31843c48f75110fab1ec8a098d7191b64684391fd97c0d0381698f00085` matched marker metadata.
+
+Dashboard guard:
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported source `d8046f1fbe6e3f070380cdd6b58da1217b7a0e79`, matching current `refs/heads/main`, so the dashboard guard was open.
+
+Scope:
+- Added lane-local numeric aggregate helpers for `count(*)`, `count(X)`, `count(DISTINCT X)`, `sum()`, `total()`, `avg()`, `min()`, `max()`, FILTER-style rows, and bounded ROWS-style rolling totals.
+- Added `SQLiteNumericAggregateState`, focused assertions, a WordPress copied-`wp_options` value-size summary smoke, and libsqlite manifest/status/notes evidence.
+
+Verification:
+- Runtime gates before checks were open: `/` reported at least `92583376` KiB available, load stayed below `25`, and no exact no-argument root harness was active before the serialized root run.
+- Syntax checks passed for `SQLiteNumericAggregate.php`, `SQLiteNumericAggregateState.php`, `SQLiteHeaderTest.php`, and `wordpress-numeric-aggregate-option-summary.php`.
+- Manifest/status JSON decode passed.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2974 assertions, 0 failures`.
+- WordPress smoke `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-numeric-aggregate-option-summary.php` passed and emitted the expected numeric aggregate summary JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized clean-candidate root `TMPDIR=$candidate/.tmp-root flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed: `215 test files, 27950 assertions, 0 failures`.
+
+Notes:
+- The previous clean-patch pass had deferred this same candidate because the root harness wrote to tmpfs `/tmp` and hit `errno=122 Disk quota exceeded`; this accepted run used a repo-local `TMPDIR` inside the clean candidate and completed without temp write failures.
+- Dolt and non-libsqlite markers were not considered because libsqlite priority remains active.
+
+Cleanup:
+- Remove accepted marker ready/patch/metadata files only after the commit is safely on `main`.
+- Accepted marker ready/patch/metadata files were eligible for removal after publishing the commit.
+- Worker worktree `.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T165609Z` was inactive but still contained modified/added accepted libsqlite files after publication, so it was preserved as cleanup debt instead of being removed.
+
+Dashboard publication should run next after this accepted source move.
+
 ## Clean-patch intake accepted - libsqlite JSON aggregate distinct order - 2026-05-26 06:18 UTC
 
 Accepted isolated marker:
