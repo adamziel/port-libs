@@ -116914,3 +116914,40 @@ Cleanup:
 - Accepted ready, patch, and metadata handoff files were eligible for removal after publishing the commit on `refs/heads/main`; worker log was preserved.
 
 Dashboard publication: should run next after a successful source-moving commit.
+# Integration accepted - libsqlite release blocker closure record - 2026-05-26T19:53:48Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-release-blocker-20260526T194559Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate work was `e977c5461cd72603a1643604764aa150f1388e8b` (`Integrate libsqlite overflow next-pointer delete release`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit` `e977c5461cd72603a1643604764aa150f1388e8b`, `generated` `2026-05-26 19:49:57 UTC`, and `dashboardCommit` `1c0b4c84ceaa8c01c9d8e6707571e8d2c4a64e15`.
+- The dashboard guard was open; no Pages-outage exception was used.
+
+Candidate evidence:
+- The marker was lane-local to `libsqlite`, based on older accepted source `0cb1d526a43ffc8d0bd5ab297d074f5c3498d1c4`.
+- Direct `git apply --check` against current clean `e977c546` failed only in `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- Implementation, test, and upstream-runner note hunks applied cleanly with those current status/manifest files excluded, so the slice was handled as a bounded older-base replay.
+- Current manifest/status were reconciled minimally from accepted `e977c546`: mapped coverage moves to `376 / 1589`; `phpPass` remains `555` because this is upstream-suite closure evidence, not a new PHP behavior pass row.
+
+Scope:
+- Added `SQLiteUpstreamSuiteEvidence::releaseBlockerClosureRecord()` to compose bounded runner artifact-set countability, release admission ledgers, supervisor exclusion decisions, rerun decisions, and active-runner snapshots into one release-blocker closure record.
+- Added focused assertions for zero-error release artifact closure, exclusion-only blocker closure without parity credit, and active-runner duplicate blocking.
+- Updated libsqlite upstream-runner notes and manifest/status evidence without starting a duplicate broad SQLite runner.
+
+Verification:
+- Runtime gates before focused checks: `/` had `93549156` KiB available, `/proc/loadavg` was `1.17`, and no exact `php tools/run-tests.php` root process was active.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed.
+- Manifest/status JSON decode: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: `1 test files, 714 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite`: passed.
+- Runtime gates before the serialized root run: `/` had `93437764` KiB available, `/proc/loadavg` was `1.28`, and no exact `php tools/run-tests.php` root process was active.
+- `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`: `215 test files, 28383 assertions, 0 failures`.
+
+Decision: accepted. Publish one small source-moving commit and close the dashboard guard for publication.
+
+Cleanup:
+- Accepted handoff marker, patch, and metadata files may be removed after commit publication.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-release-blocker-20260526T194559Z` still contains modified lane files matching its submitted slice, so it is preserved as cleanup debt rather than removed.

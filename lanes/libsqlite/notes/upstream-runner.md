@@ -9932,3 +9932,49 @@ run because this was an isolated micro-slice.
 
 Dependency closure: no new support component is needed. This composes existing
 lane-local bounded runner file/countability gates only.
+
+## Release Blocker: Closure Record Gate
+
+This isolated release-blocker micro-slice did not start a duplicate broad
+`testfixture`, `release`, `all`, `make test`, or `mptest` run. It adds
+`SQLiteUpstreamSuiteEvidence::releaseBlockerClosureRecord()`, an
+integrator-facing closure record that composes the existing bounded artifact-set
+countability gate, release admission ledger, supervisor non-portability
+exclusion decision, rerun decision, and active-runner duplicate gate.
+
+The closure record has four explicit outcomes:
+
+- `zero-error-release-parity-countable`: a guarded release/all artifact has
+  parsed zero-error counts, accepted repository HEAD, matching SQLite manifest
+  UUID, and no duplicate-runner blocker.
+- `release-blocker-closed-by-exclusion`: supervisor policy explicitly accepts
+  the persistent `fts5aux` sanitizer failure as exclusion-only closure; this
+  does not count as zero-error release/all parity.
+- `rerun-allowed`: no closure already exists, no active broad runner is visible,
+  and supervisor approval allows one guarded broad rerun.
+- `blocked-active-runner` or `blocked`: the integrator must wait for the active
+  runner or resolve artifact/provenance/exclusion blockers before admission.
+
+Focused upstream denominator impact: one additional release admission
+blocker-removal gate is mapped in `UPSTREAM_TEST_MANIFEST.json`. No fresh
+upstream runner evidence is claimed by this slice.
+
+Verification run 2026-05-26T19:55Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteUpstreamSuiteEvidenceTest.php`
+passed with 1 selected file, 714 assertions, and 0 failures, adding 35 focused
+assertions for release-blocker closure-record composition. Manifest/status JSON
+decoded successfully and lane diff check passed. The root harness was not run
+because this was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This composes existing
+lane-local artifact-set countability, admission ledger, exclusion, rerun, and
+active-runner gates only.

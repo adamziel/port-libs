@@ -2061,6 +2061,92 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $artifactSetRecord
+     * @param array<string, mixed>|null $exclusionDecisionGate
+     * @return array<string, mixed>
+     */
+    public function releaseBlockerClosureRecord(
+        array $artifactSetRecord,
+        ?array $exclusionDecisionGate,
+        string $processSnapshot,
+        bool $supervisorApproved = false
+    ): array {
+        $admissions = [];
+        foreach (is_array($artifactSetRecord['entries'] ?? null) ? $artifactSetRecord['entries'] : [] as $entry) {
+            if (!is_array($entry) || !is_array($entry['gate'] ?? null)) {
+                continue;
+            }
+
+            $label = is_string($entry['label'] ?? null) ? $entry['label'] : 'artifact-' . (string) count($admissions);
+            $admissions[$label] = $this->releaseBlockerAdmissionRecord($entry['gate']);
+        }
+
+        if (is_array($exclusionDecisionGate)) {
+            $admissions['supervisor-exclusion'] = $this->releaseBlockerAdmissionRecord(
+                [
+                    'status' => 'blocked',
+                    'countable' => false,
+                    'artifact_status' => 'not-applicable',
+                    'acceptance' => [
+                        'tests' => null,
+                        'errors' => null,
+                    ],
+                    'blockers' => [
+                        [
+                            'id' => 'artifact-not-supplied-for-exclusion',
+                            'evidence' => 'closure is using the explicit supervisor exclusion gate instead of a zero-error release/all artifact',
+                        ],
+                    ],
+                ],
+                $exclusionDecisionGate
+            );
+        }
+
+        $ledger = $this->releaseAdmissionLedger($admissions);
+        $rerun = $this->releaseRerunDecisionRecord($admissions, $processSnapshot, $supervisorApproved);
+        $activeGate = is_array($rerun['active_gate'] ?? null) ? $rerun['active_gate'] : [];
+
+        $status = 'blocked';
+        if (($ledger['counts_as_zero_error_release_parity'] ?? false) === true) {
+            $status = 'zero-error-release-parity-countable';
+        } elseif (($ledger['release_blocker_closed'] ?? false) === true) {
+            $status = 'release-blocker-closed-by-exclusion';
+        } elseif (($rerun['rerun_allowed'] ?? false) === true) {
+            $status = 'rerun-allowed';
+        } elseif (($activeGate['status'] ?? null) === 'blocked-active-runner') {
+            $status = 'blocked-active-runner';
+        }
+
+        return [
+            'status' => $status,
+            'artifact_set_status' => $artifactSetRecord['status'] ?? 'unknown',
+            'artifact_count' => is_int($artifactSetRecord['artifact_count'] ?? null) ? $artifactSetRecord['artifact_count'] : 0,
+            'countable_artifacts' => is_int($artifactSetRecord['countable_count'] ?? null) ? $artifactSetRecord['countable_count'] : 0,
+            'blocked_artifacts' => is_int($artifactSetRecord['blocked_count'] ?? null) ? $artifactSetRecord['blocked_count'] : 0,
+            'failed_artifacts' => is_int($artifactSetRecord['failed_count'] ?? null) ? $artifactSetRecord['failed_count'] : 0,
+            'timed_out_artifacts' => is_int($artifactSetRecord['timed_out_count'] ?? null) ? $artifactSetRecord['timed_out_count'] : 0,
+            'active_artifacts' => is_int($artifactSetRecord['active_count'] ?? null) ? $artifactSetRecord['active_count'] : 0,
+            'missing_artifacts' => is_int($artifactSetRecord['missing_count'] ?? null) ? $artifactSetRecord['missing_count'] : 0,
+            'admission_count' => count($admissions),
+            'ledger' => $ledger,
+            'rerun_decision' => $rerun,
+            'release_blocker_closed' => (bool) ($ledger['release_blocker_closed'] ?? false),
+            'counts_as_zero_error_release_parity' => (bool) ($ledger['counts_as_zero_error_release_parity'] ?? false),
+            'rerun_allowed' => (bool) ($rerun['rerun_allowed'] ?? false),
+            'blocker_count' => is_int($rerun['blocker_count'] ?? null) ? $rerun['blocker_count'] : 0,
+            'blockers' => is_array($rerun['blockers'] ?? null) ? $rerun['blockers'] : [],
+            'next_gate' => match ($status) {
+                'zero-error-release-parity-countable' => 'accept the zero-error release/all artifact from the closure record and do not launch another broad runner',
+                'release-blocker-closed-by-exclusion' => 'accept exclusion-only release blocker closure if supervisor policy allows it; keep zero-error release/all parity uncounted',
+                'rerun-allowed' => 'launch at most one guarded broad release/all rerun, then feed its audit/log files back into the artifact-set closure record',
+                'blocked-active-runner' => 'wait for the active guarded release/all runner to finish, then parse its audit/log files before making a closure decision',
+                default => 'keep the release blocker open until artifact-set countability, exclusion, duplicate-runner, and supervisor-approval gates are resolved',
+            },
+            'dependency_closure' => 'no new support component needed; closure record composes artifact-set countability, admission ledger, exclusion, and active-runner gates only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array

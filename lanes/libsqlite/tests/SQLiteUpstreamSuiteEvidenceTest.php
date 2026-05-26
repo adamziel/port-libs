@@ -2043,6 +2043,129 @@ MD);
             @rmdir($root);
         }
     },
+    'composes artifact-set and exclusion gates into a release blocker closure record' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-release-blocker-closure-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        $passedAudit = $root . '/sqlite-release-pass.md';
+        $passedLog = $root . '/sqlite-release-pass.log';
+        $failedAudit = $root . '/sqlite-release-failed.md';
+        file_put_contents($passedAudit, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-pass-20260526T203000Z
+
+- Repository HEAD: `closure-head`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Exit: `0`
+- Parsed summary: `0 errors out of 24000 tests`
+- Parsed errors: `0`
+- Parsed tests: `24000`
+MD);
+        file_put_contents($passedLog, "0 errors out of 24000 tests in 03:10\n");
+        file_put_contents($failedAudit, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-failed-20260526T203100Z
+
+- Repository HEAD: `closure-head`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Exit: `1`
+
+## Tail
+
+```text
+FAILED: Sanitize ext/fts5/test/fts5aux.test (1)
+OUTPUT: fts5aux-3.1.../tmp/src/ext/fts5/fts5_tcl.c:429:59: runtime error: applying non-zero offset 1 to null pointer
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/src/ext/fts5/fts5_tcl.c:429:59
+```
+MD);
+
+        try {
+            $artifactSet = $evidence->boundedRunnerArtifactSetRecord(
+                [
+                    'zero-error-release' => [
+                        'audit' => $passedAudit,
+                        'stdout' => $passedLog,
+                    ],
+                    'failed-release' => [
+                        'audit' => $failedAudit,
+                    ],
+                ],
+                'closure-head'
+            );
+
+            $closure = $evidence->releaseBlockerClosureRecord($artifactSet, null, '', false);
+
+            $t->same('zero-error-release-parity-countable', $closure['status']);
+            $t->same('partially-countable', $closure['artifact_set_status']);
+            $t->same(2, $closure['artifact_count']);
+            $t->same(1, $closure['countable_artifacts']);
+            $t->same(1, $closure['blocked_artifacts']);
+            $t->same(1, $closure['failed_artifacts']);
+            $t->same(2, $closure['admission_count']);
+            $t->same(true, $closure['release_blocker_closed']);
+            $t->same(true, $closure['counts_as_zero_error_release_parity']);
+            $t->same(false, $closure['rerun_allowed']);
+            $t->same('zero-error-release-parity-countable', $closure['ledger']['status']);
+            $t->same(1, $closure['ledger']['zero_error_release_artifacts']);
+            $t->same(24000, $closure['ledger']['artifact_tests_total']);
+            $t->same(0, $closure['ledger']['artifact_errors_total']);
+            $t->same('rerun-not-needed-zero-error-parity', $closure['rerun_decision']['status']);
+            $t->same(0, $closure['blocker_count']);
+            $t->contains('do not launch another broad runner', $closure['next_gate']);
+            $t->contains('closure record composes artifact-set countability', $closure['dependency_closure']);
+
+            $exclusion = $evidence->releaseParityExclusionDecisionGate(
+                [
+                    'status' => 'persistent-upstream-runtime-blocker',
+                    'persistent' => true,
+                    'script' => 'ext/fts5/test/fts5aux.test',
+                    'case' => 'fts5aux-3.1',
+                    'matching_release_artifact_count' => 2,
+                    'focused_tests' => 1,
+                    'focused_errors' => 0,
+                ],
+                true,
+                'Supervisor accepts this sanitizer failure as non-portable in the release-runner environment.'
+            );
+            $exclusionOnly = $evidence->releaseBlockerClosureRecord(
+                $evidence->boundedRunnerArtifactSetRecord([], 'closure-head'),
+                $exclusion,
+                '',
+                false
+            );
+
+            $t->same('release-blocker-closed-by-exclusion', $exclusionOnly['status']);
+            $t->same('blocked-empty-artifact-set', $exclusionOnly['artifact_set_status']);
+            $t->same(0, $exclusionOnly['artifact_count']);
+            $t->same(1, $exclusionOnly['admission_count']);
+            $t->same(true, $exclusionOnly['release_blocker_closed']);
+            $t->same(false, $exclusionOnly['counts_as_zero_error_release_parity']);
+            $t->same('release-blocker-closed-by-exclusion', $exclusionOnly['ledger']['status']);
+            $t->same(1, $exclusionOnly['ledger']['exclusion_only_closures']);
+            $t->same('blocked', $exclusionOnly['rerun_decision']['status']);
+            $t->same('release-blocker-closed-by-exclusion', $exclusionOnly['rerun_decision']['blockers'][0]['id']);
+            $t->contains('exclusion-only release blocker closure', $exclusionOnly['next_gate']);
+
+            $activeOnly = $evidence->releaseBlockerClosureRecord(
+                $evidence->boundedRunnerArtifactSetRecord([], 'closure-head'),
+                null,
+                '577248 1 02:16 bash scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-release-notty-runner release 2 7200',
+                true
+            );
+            $t->same('blocked-active-runner', $activeOnly['status']);
+            $t->same(false, $activeOnly['release_blocker_closed']);
+            $t->same(false, $activeOnly['rerun_allowed']);
+            $t->same('blocked-active-runner', $activeOnly['rerun_decision']['active_gate']['status']);
+            $t->same('active-runner-still-running', $activeOnly['blockers'][0]['id']);
+            $t->contains('wait for the active guarded release/all runner', $activeOnly['next_gate']);
+        } finally {
+            foreach ([$passedAudit, $passedLog, $failedAudit] as $file) {
+                @unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
     'does not duplicate the permutation release tier blocker once hydrated suites are parsed' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/libsqlite-permutation-readiness-' . bin2hex(random_bytes(4));
         $build = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
