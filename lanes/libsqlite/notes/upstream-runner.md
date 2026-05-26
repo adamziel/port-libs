@@ -1,5 +1,40 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Native UTF-16 Record Conversion Fallback
+
+Date: 2026-05-26
+
+This isolated dependency-suite micro-slice closes a lane-local runtime
+dependency gap for UTF-16 SQLite database images. `SQLiteRecord` now keeps
+using `mb_convert_encoding()` when it is available, but falls back to native PHP
+UTF-16LE/UTF-16BE conversion with surrogate-pair validation when mbstring is
+absent. Existing malformed UTF-16 rejection remains active without depending
+only on `mb_check_encoding()`.
+
+Focused upstream runner:
+
+No new upstream `testfixture` run was started from this isolated worktree.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors. The manifest mapped count increases
+by 1 for the bounded `focusedUtf16NativeFallbackScripts` evidence.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteRecord.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. The slice
+removes the hard mbstring activation gate for UTF-16 record conversion by
+keeping conversion and validation lane-local, while still using mbstring when
+the host provides it.
+
 ## Focused Native Mapping: Wildcard Expansion Plan
 
 Date: 2026-05-26

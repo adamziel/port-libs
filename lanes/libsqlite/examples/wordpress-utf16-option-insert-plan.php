@@ -64,8 +64,9 @@ try {
 }
 
 echo json_encode([
-    'wordpressUse' => 'Plan a bounded generated wp_options row insert in a UTF-16LE SQLite image without the SQLite extension.',
+    'wordpressUse' => 'Plan a bounded generated wp_options row insert in a UTF-16LE SQLite image without the SQLite extension or a hard mbstring dependency.',
     'textEncoding' => $postDatabase->header->textEncoding,
+    'utf16ConversionDependency' => 'native-php-fallback',
     'malformedUtf16Rejected' => $malformedUtf16Rejected,
     'plan' => $plan->toArray(),
     'updatedPageNumbers' => array_keys($plan->pageImages()),

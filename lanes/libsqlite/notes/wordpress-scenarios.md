@@ -2,6 +2,21 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## UTF-16 Option Insert Native Conversion Scenario
+
+Copied UTF-16 WordPress SQLite databases can now be inspected and written
+without requiring the host to load mbstring. `SQLiteRecord` still uses
+mbstring when available, but falls back to native PHP UTF-16LE/UTF-16BE
+conversion and surrogate validation for record text. The existing
+`examples/wordpress-utf16-option-insert-plan.php` smoke now reports the native
+fallback dependency status while planning a bounded `wp_options` insert.
+
+Status delta 2026-05-26 isolated dependency-suite slice: added lane-local
+UTF-16 conversion fallback helpers, focused surrogate-pair fallback assertions,
+and updated the UTF-16 WordPress smoke. Dependency closure: no new shared
+support component is needed; UTF-16 conversion no longer has a hard mbstring
+activation gate.
+
 ## JSON Table Residual Filter Planner Scenario
 
 Native JSON table planning now has a bounded residual-filter execution helper

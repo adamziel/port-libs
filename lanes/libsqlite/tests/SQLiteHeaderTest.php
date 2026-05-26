@@ -1190,6 +1190,21 @@ return [
         $t->contains(hex2bin('00411234'), $utf16be);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::encode(['x'], 4));
     },
+    'utf16 record conversion has a native fallback for non-mbstring runtimes' => static function (TestRunner $t): void {
+        $text = 'A' . "\u{1234}" . "\u{1f600}";
+
+        $encode = new ReflectionMethod(SQLiteRecord::class, 'encodeUtf16TextWithoutMbstring');
+        $decode = new ReflectionMethod(SQLiteRecord::class, 'decodeUtf16TextWithoutMbstring');
+
+        $utf16le = $encode->invoke(null, $text, 2);
+        $utf16be = $encode->invoke(null, $text, 3);
+
+        $t->same('410034123dd800de', bin2hex($utf16le));
+        $t->same('00411234d83dde00', bin2hex($utf16be));
+        $t->same($text, $decode->invoke(null, $utf16le, 2));
+        $t->same($text, $decode->invoke(null, $utf16be, 3));
+        $t->throws(InvalidArgumentException::class, static fn () => $encode->invoke(null, "\xc3\x28", 2));
+    },
     'rejects malformed utf16 sqlite record text fields' => static function (TestRunner $t): void {
         $oddLengthUtf16le = SQLiteVarint::encode(2) . SQLiteVarint::encode(15) . "\x41";
         $loneHighSurrogateUtf16le = SQLiteVarint::encode(2) . SQLiteVarint::encode(17) . "\x00\xd8";

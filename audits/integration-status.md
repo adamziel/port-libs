@@ -1,5 +1,57 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite UTF-16 native fallback - 2026-05-26 04:46 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T043256Z.ready`
+(`closure-libsqlite-dependency-suite-20260526T043256Z`).
+
+Current `refs/heads/main` before integration:
+`436d2759b9226b0027f296e60994eb0f24e0ffe5`
+(`Integrate libsqlite upstream wildcard expansion plan`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=436d2759b9226b0027f296e60994eb0f24e0ffe5`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `e07eb4ceec05d81c6f69cb6779aa2c3dfb74cdbe`.
+
+Candidate evidence:
+- Marker fields were complete: `lane=libsqlite`, `patch=...`, and
+  `metadata=...`.
+- Patch sha256 matched
+  `d7d30f7717ad7cdc358c9a17cd6c2b982bc2f7c3b3ec52e7aa85719367a30f1f`.
+- The current-base detached worker snapshot was at
+  `436d2759b9226b0027f296e60994eb0f24e0ffe5` with only the expected
+  `lanes/libsqlite/**` files modified. Shared-checkout `git apply --check`
+  was not used for acceptance because active dirty libsqlite lane state
+  diverged from committed `main`.
+- The slice adds native PHP UTF-16LE/UTF-16BE SQLite record text conversion
+  fallback and validation for runtimes without `mbstring`, while keeping
+  `mb_convert_encoding()` as the preferred path when available.
+
+Verification:
+- Runtime gate before focused checks: `df -Pk /` reported `86564288` KiB
+  available, `/proc/loadavg` first field was `1.53`, and no no-argument root
+  harness was active.
+- Focused checks passed: `php -l` for `SQLiteRecord.php`,
+  `SQLiteHeaderTest.php`, and `wordpress-utf16-option-insert-plan.php`;
+  focused `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+  passed with `1 test files, 2464 assertions, 0 failures`; the UTF-16
+  WordPress smoke emitted valid JSON; manifest/status JSON validation passed;
+  and `git diff --check -- lanes/libsqlite` passed.
+- Runtime gate before serialized root: `df -Pk /` reported `86560680` KiB
+  available, `/proc/loadavg` first field was `1.27`, and no no-argument root
+  harness was active.
+- Serialized root verification under
+  `.tmux-team/tmp/clean-integrator-run.lock` passed with
+  `215 test files, 27049 assertions, 0 failures`.
+
+Decision: accepted. Dashboard publication should run next for the new accepted
+source commit.
+
 ## Clean-patch intake accepted - libsqlite upstream wildcard expansion plan - 2026-05-26 04:31 UTC
 
 Accepted marker:
