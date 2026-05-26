@@ -58,14 +58,29 @@ final class SQLiteNumericAggregateState
         return SQLiteNumericAggregate::sum($this->values);
     }
 
+    public function sumDistinct(): int|float|null
+    {
+        return SQLiteNumericAggregate::sumDistinct($this->distinctValues);
+    }
+
     public function total(): float
     {
         return SQLiteNumericAggregate::total($this->values);
     }
 
+    public function totalDistinct(): float
+    {
+        return SQLiteNumericAggregate::totalDistinct($this->distinctValues);
+    }
+
     public function avg(): ?float
     {
         return SQLiteNumericAggregate::avg($this->values);
+    }
+
+    public function avgDistinct(): ?float
+    {
+        return SQLiteNumericAggregate::avgDistinct($this->distinctValues);
     }
 
     public function min(): mixed

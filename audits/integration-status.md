@@ -116672,3 +116672,36 @@ Decision: accepted pending final serialized root verification and atomic ref pub
 Serialized root verification under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=$candidate/.tmp-root` passed: `215 test files, 28196 assertions, 0 failures`.
 
 Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-suite-20260526T184559Z` still contains modified accepted libsqlite files after publication, so it was preserved and left registered instead of being removed. Accepted ready/patch/metadata marker artifacts were removed after `main` advanced.
+
+## Integration accepted - libsqlite numeric aggregate DISTINCT - 2026-05-26T18:58:07Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T184738Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `a088016f27cb75638f5ff7fa2fa528b86351eede` (`Integrate libsqlite release rerun admission`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `a088016f27cb75638f5ff7fa2fa528b86351eede`, generated `2026-05-26 18:53:10 UTC`, dashboard commit `8fd5c5da9200a5073a3ca1816748f156d77b8ead`; guard was open.
+
+Candidate evidence:
+- Chosen from a bounded recent libsqlite sample because it adds native behavior plus focused assertions and a WordPress smoke: numeric aggregate DISTINCT helpers for `sum(DISTINCT X)`, `total(DISTINCT X)`, and `avg(DISTINCT X)`.
+- Marker base was older (`f7a64504861a2fc52162679900dcf5e9230a79ac`), but implementation/test/example/notes hunks replayed cleanly onto current `a088016f`; only manifest/status hunks were reconciled minimally from current files.
+- Expected dashboard-visible delta: `phpPass` `522 -> 533`, mapped coverage `369 -> 370`.
+
+Runtime and verification evidence:
+- `df -Pk /` reported `103139464` KiB available before focused checks, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.55`, below the `25` limit.
+- No exact `php tools/run-tests.php` root harness process was active before focused checks.
+- Focused syntax checks passed for `SQLiteNumericAggregate.php`, `SQLiteNumericAggregateState.php`, and `wordpress-numeric-aggregate-option-summary.php`.
+- WordPress numeric aggregate smoke passed and reported `distinctValueBytes: 41`, `averageDistinctValueBytes: 10.25`, and `totalDistinctValueBytes: 41`.
+- Focused `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3135 assertions, 0 failures`.
+- `git diff --check` passed before the serialized root run.
+
+Decision: proceed to serialized no-argument root harness from the clean candidate snapshot, then commit if root passes. Dashboard publication should run next after the accepted source moves.
+
+Root result:
+- Serialized `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 28207 assertions, 0 failures`.
+
+Cleanup:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T184738Z` still had modified lane files after acceptance, so it was preserved as cleanup debt rather than removed.
+- Accepted ready/patch/metadata artifacts were removed after the commit was safely published to `refs/heads/main`.

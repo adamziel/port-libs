@@ -80,6 +80,14 @@ final class SQLiteNumericAggregate
     /**
      * @param iterable<mixed> $values
      */
+    public static function sumDistinct(iterable $values): int|float|null
+    {
+        return self::sum(self::distinctValues($values));
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     */
     public static function total(iterable $values): float
     {
         $total = 0.0;
@@ -93,6 +101,14 @@ final class SQLiteNumericAggregate
         }
 
         return $total;
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     */
+    public static function totalDistinct(iterable $values): float
+    {
+        return self::total(self::distinctValues($values));
     }
 
     /**
@@ -113,6 +129,14 @@ final class SQLiteNumericAggregate
         }
 
         return $count === 0 ? null : $total / $count;
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     */
+    public static function avgDistinct(iterable $values): ?float
+    {
+        return self::avg(self::distinctValues($values));
     }
 
     /**
@@ -236,6 +260,31 @@ final class SQLiteNumericAggregate
         }
 
         throw new \InvalidArgumentException('SQLite count(DISTINCT) values must be scalar, BLOB, or NULL');
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @return list<mixed>
+     */
+    private static function distinctValues(iterable $values): array
+    {
+        $distinct = [];
+        $seen = [];
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            $key = self::distinctKey($value);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $distinct[] = $value;
+        }
+
+        return $distinct;
     }
 
     private static function compareSqlValues(mixed $left, mixed $right): int

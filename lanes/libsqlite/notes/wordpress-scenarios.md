@@ -3161,6 +3161,18 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate scheduling
 patterns.
 
+Status delta 2026-05-26 isolated SQL execution/planner aggregate slice: added
+11 focused assertions for `sum(DISTINCT X)`, `total(DISTINCT X)`, and
+`avg(DISTINCT X)` numeric aggregate helpers, including NULL skipping, duplicate
+storage-class keys, text and BLOB numeric coercion, empty-DISTINCT results,
+state wrapper finalization, strict type errors, and updated WordPress
+option-size smoke output. This is intentionally an aggregate helper, not a
+full SELECT/VDBE executor.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, and accepted aggregate DISTINCT
+state patterns.
+
 ## Overflow-backed Option Delete Release Scenario
 
 Native B-tree helpers now expose delete diagnostics for large `wp_options`
