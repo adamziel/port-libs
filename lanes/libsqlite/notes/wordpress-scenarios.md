@@ -3319,3 +3319,22 @@ before they mutate local database files.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local header parsing, page counting, freelist counters, and auto-vacuum
 diagnostics.
+
+## File URI Open Preflight
+
+`examples/wordpress-file-uri-open-preflight.php` decodes and validates SQLite
+`file:` URI filenames before copied WordPress database repair, import, or
+read-only inspection tools open them. The smoke reports decoded paths,
+localhost authority, mode/cache/vfs options, boolean immutable/nolock/psow
+flags, repeated query values, and preserved unknown parameters without
+requiring the SQLite extension.
+
+Status delta 2026-05-26 bounded dependency-suite slice: added 27 focused
+assertions for plain filenames, percent decoding, `file::memory:`, local
+authority handling, valid mode/cache/boolean flags, repeated query tracking,
+unknown parameter preservation, malformed percent escapes, unsupported
+authorities, empty query names, and invalid mode/cache/boolean values.
+
+Dependency closure: no new shared support component is needed; this is a
+lane-local SQLite filename parser and does not activate the shared URL or
+percent-encoding backlog.

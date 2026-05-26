@@ -9978,3 +9978,37 @@ because this was an isolated micro-slice.
 Dependency closure: no new support component is needed. This composes existing
 lane-local artifact-set countability, admission ledger, exclusion, rerun, and
 active-runner gates only.
+
+## Dependency Suite: File URI Open Preflight
+
+This bounded dependency-suite micro-slice does not start a duplicate broad
+SQLite `testfixture`, `release`, `all`, `make test`, or `mptest` run. It adds
+`SQLiteFileUri::parse()` for lane-local SQLite `file:` URI filename preflight
+before copied WordPress database repair/import/read-only inspection code opens
+files.
+
+Focused upstream denominator impact: one additional focused file/open evidence
+row is mapped in `UPSTREAM_TEST_MANIFEST.json`. No fresh upstream runner
+evidence is claimed by this slice.
+
+Verification run 2026-05-26T19:53Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteFileUri.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-file-uri-open-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-file-uri-open-preflight.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3278 assertions, and 0 failures, adding 27 focused assertions.
+The WordPress file URI smoke passed, manifest/status JSON decoded successfully,
+and lane diff check passed. The root harness was not run because this was an
+isolated micro-slice.
+
+Dependency closure: no new support component is needed. This parser is bounded
+to SQLite filename semantics and does not activate the shared URL or
+percent-encoding backlog.

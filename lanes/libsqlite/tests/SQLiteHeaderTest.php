@@ -14,6 +14,7 @@ use PortLibs\LibSqlite\SQLiteCoreScalarFunction;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistAllocationPlan;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
+use PortLibs\LibSqlite\SQLiteFileUri;
 use PortLibs\LibSqlite\SQLiteIndexCell;
 use PortLibs\LibSqlite\SQLiteIndexColumn;
 use PortLibs\LibSqlite\SQLiteIndexInteriorPage;
@@ -12523,6 +12524,49 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcat([['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcatOrderBy([['siteurl', ['bad']], ['home', 1]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTextAggregate::groupConcatWindow(['siteurl'], -1));
+    },
+    'parses sqlite file uri open preflight filenames' => static function (TestRunner $t): void {
+        $plain = SQLiteFileUri::parse('/srv/wp/sqlite/site.db');
+        $t->same(false, $plain['is_uri']);
+        $t->same('/srv/wp/sqlite/site.db', $plain['path']);
+        $t->same(null, $plain['mode']);
+        $t->same([], $plain['all_query_parameters']);
+
+        $readOnly = SQLiteFileUri::parse('file:/srv/wp/sqlite/site%20copy.db?mode=ro&immutable=1&cache=shared');
+        $t->same(true, $readOnly['is_uri']);
+        $t->same('/srv/wp/sqlite/site copy.db', $readOnly['path']);
+        $t->same(null, $readOnly['authority']);
+        $t->same('ro', $readOnly['mode']);
+        $t->same('shared', $readOnly['cache']);
+        $t->same(true, $readOnly['immutable']);
+
+        $localhost = SQLiteFileUri::parse('file://localhost/tmp/wp%2dcontent/cache.db?mode=rw&vfs=unix-dotfile&nolock=1&psow=0');
+        $t->same('localhost', $localhost['authority']);
+        $t->same('/tmp/wp-content/cache.db', $localhost['path']);
+        $t->same('rw', $localhost['mode']);
+        $t->same('unix-dotfile', $localhost['vfs']);
+        $t->same(true, $localhost['nolock']);
+        $t->same(false, $localhost['psow']);
+
+        $memory = SQLiteFileUri::parse('file::memory:?mode=memory&cache=private');
+        $t->same(':memory:', $memory['path']);
+        $t->same('memory', $memory['mode']);
+        $t->same('private', $memory['cache']);
+
+        $repeated = SQLiteFileUri::parse('file:wp.db?mode=ro&mode=rw&wordpress=copy&empty=');
+        $t->same('rw', $repeated['mode']);
+        $t->same(['ro', 'rw'], $repeated['all_query_parameters']['mode']);
+        $t->same(['wordpress' => 'copy', 'empty' => ''], $repeated['unknown_parameters']);
+
+        $encodedQuery = SQLiteFileUri::parse('file:wp.db?cache=shared&name=plugin%3Dcache%26autoload');
+        $t->same('plugin=cache&autoload', $encodedQuery['unknown_parameters']['name']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file://example.com/tmp/wp.db'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file:wp.db?mode=delete'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file:wp.db?cache=global'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file:wp.db?immutable=true'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file:wp%ZZ.db'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file:wp.db?=empty'));
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];

@@ -116951,3 +116951,35 @@ Decision: accepted. Publish one small source-moving commit and close the dashboa
 Cleanup:
 - Accepted handoff marker, patch, and metadata files may be removed after commit publication.
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-release-blocker-20260526T194559Z` still contains modified lane files matching its submitted slice, so it is preserved as cleanup debt rather than removed.
+
+## Integration accepted - libsqlite file URI open preflight - 2026-05-26T20:00:45Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T195315Z.ready`.
+
+Decision:
+- Accepted a bounded current-base replay of the dependency-suite file URI open-preflight marker. The original marker was based on `e977c5461cd72603a1643604764aa150f1388e8b`; direct full-patch apply failed only on current manifest/status/notes after `c6a0ce5a`. Implementation, focused test, and WordPress smoke hunks applied cleanly to current `refs/heads/main` `c6a0ce5aba26c23439cfd322a6a3f2f369df8d88`; manifest/status/notes were minimally reconciled from current files.
+- Chose this marker over sampled WAL/encoding/SQL/release-blocker alternatives because it adds the largest non-overlapping behavior delta in the fresh sample: 27 focused assertions plus a WordPress smoke, lane-local to dependency/open preflight. Duplicate release-blocker closure-record churn was not accepted.
+
+Dashboard guard:
+- Cache-busted live Pages `porting-summary.json` matched current `refs/heads/main` `c6a0ce5aba26c23439cfd322a6a3f2f369df8d88` before integration, generated `2026-05-26 19:55:52 UTC`; guard was open.
+
+Verification:
+- `php -l lanes/libsqlite/src/SQLiteFileUri.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-file-uri-open-preflight.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 3278 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-file-uri-open-preflight.php`: passed.
+- Manifest/status JSON decode: passed.
+- `git diff --check`: passed before the serialized root run.
+
+Runtime gates before root:
+- `df -Pk /`: `92385012` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg`: `1.21`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'`: empty.
+
+Root result:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php`: passed, `215 test files, 28412 assertions, 0 failures`.
+
+Cleanup:
+- Accepted handoff marker, patch, and metadata may be removed after commit publication.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T195315Z` still contains modified lane files matching its submitted slice, so it is preserved as cleanup debt rather than removed.
