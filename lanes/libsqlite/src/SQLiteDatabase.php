@@ -5660,7 +5660,8 @@ final class SQLiteDatabase
         }
 
         $options = [];
-        foreach ($this->wordpressOptions() as $option) {
+        foreach ($this->tableRowsByName('wp_options', null) as $row) {
+            $option = SQLiteWordPressOption::fromTableRow($row);
             if (!self::likeMatches($option->optionName, $pattern, $escape, $caseSensitive)) {
                 continue;
             }
@@ -5687,7 +5688,8 @@ final class SQLiteDatabase
         }
 
         $options = [];
-        foreach ($this->wordpressOptions() as $option) {
+        foreach ($this->tableRowsByName('wp_options', null) as $row) {
+            $option = SQLiteWordPressOption::fromTableRow($row);
             if (!self::globMatches($option->optionName, $pattern)) {
                 continue;
             }

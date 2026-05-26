@@ -2119,6 +2119,30 @@ return [
         $t->same(['emoji_é', 'literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $globNegated));
         $t->same([], $database->wordpressOptionsByNameLike('%', null, 0));
         $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsByNameGlob('*', -1));
+
+        $lateRows = [];
+        for ($rowId = 1; $rowId <= 105; $rowId++) {
+            $lateRows[] = $schemaCell([null, sprintf('filler_%03d', $rowId), 'skip', 'no'], $rowId);
+        }
+        $lateRows[] = $schemaCell([null, 'late_plugin_flag', 'late value', 'no'], 106);
+        $lateRows[] = $schemaCell([null, 'late_Plugin_GLOB', 'late glob', 'no'], 107);
+        $latePage1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 4096, 100, $makeFirstPage(4096, 2));
+        $lateDatabase = SQLiteDatabase::fromBytes($latePage1 . $tableLeafPage($lateRows, 4096));
+
+        $t->same(['late_plugin_flag', 'late_Plugin_GLOB'], array_map(
+            static fn (SQLiteWordPressOption $option): string => $option->optionName,
+            $lateDatabase->wordpressOptionsByNameLike('late\_plugin\_%', '\\'),
+        ));
+        $t->same(['late_plugin_flag'], array_map(
+            static fn (SQLiteWordPressOption $option): string => $option->optionName,
+            $lateDatabase->wordpressOptionsByNameLike('late_plugin_%', null, 1),
+        ));
+        $t->same(['late_Plugin_GLOB'], array_map(
+            static fn (SQLiteWordPressOption $option): string => $option->optionName,
+            $lateDatabase->wordpressOptionsByNameGlob('late_*_GLOB'),
+        ));
     },
     'uses wordpress option_name indexes for IN-list option lookups without duplicate rhs rows' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([

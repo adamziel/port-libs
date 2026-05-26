@@ -1,5 +1,47 @@
 # Integration Status
 
+## Accepted libsqlite LIKE/GLOB late-row option scans - 2026-05-26 02:22 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T021403Z.ready`.
+
+Decision: accepted with a bounded stale metadata merge. The marker was based on
+`e736bd669edbe4b1d71dab88c9322e2b9bd77039`, while current `main` was
+`1290fbff9e5e172ab261001199f8f808f25c2638`. Full patch application failed
+only on stale `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+`lanes/libsqlite/lane-status.json`; behavioral files applied cleanly after
+excluding those two JSON files. The manifest/status evidence was merged
+additively to preserve already accepted json_pretty dispatch evidence while
+recording the late-row LIKE/GLOB scan slice.
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=1290fbff9e5e172ab261001199f8f808f25c2638`, matching current
+  `refs/heads/main`, so intake was open.
+
+Verification:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php` passed.
+- `php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test`
+  passed and reported `_transient_late` at rowid `105`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2389 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized root verification under
+  `.tmux-team/tmp/clean-integrator-run.lock` passed with
+  `215 test files, 26844 assertions, 0 failures`.
+
+Resource gates before focused/root checks:
+- `/` free space stayed above the required `86000000` KiB threshold.
+- `/proc/loadavg` first field stayed below `25`.
+- No exact no-argument root harness was active before the serialized root run.
+
+Ready-marker count before accepted-marker cleanup: `3782`.
+
+Dashboard publication should run next for the new accepted source commit.
+
 ## Accepted - libsqlite json_pretty mixed-case dispatch - 2026-05-26 02:18 UTC
 
 Accepted marker:

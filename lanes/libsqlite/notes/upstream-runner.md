@@ -1,5 +1,46 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: LIKE/GLOB Late-Row Result Semantics
+
+Date: 2026-05-26
+
+This isolated sql-exec/planner micro-slice fixes a bounded decoded-result
+edge. `SQLiteDatabase::wordpressOptionsByNameLike()` and
+`wordpressOptionsByNameGlob()` now scan `wp_options` table rows directly
+instead of routing through `wordpressOptions()`, whose default limit is 100
+rows. Caller-supplied result limits are still honored, but pattern matches
+after the first 100 copied option rows are no longer silently hidden.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses the accepted LIKE/GLOB and collation/function
+cluster evidence while adding a native late-row result semantic fixture.
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-option-name-like-glob.php
+php lanes/libsqlite/examples/wordpress-option-name-like-glob.php --self-test
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the WordPress LIKE/GLOB smoke reported the late
+`_transient_late` row at rowid 105; focused lane tests passed with 2387
+assertions and late-row LIKE/GLOB coverage.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local table traversal, decoded WordPress option rows, UTF-8
+pattern splitting, and ASCII case folding; it counts no shared support-library
+progress.
+
 ## Focused Native Mapping: Malformed UTF-16 Record Text
 
 Date: 2026-05-26

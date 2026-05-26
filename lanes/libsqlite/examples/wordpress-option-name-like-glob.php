@@ -41,7 +41,7 @@ echo json_encode([
 
 function exampleWordPressOptionPatternFixture(): string
 {
-    $pageSize = 512;
+    $pageSize = 4096;
     $varint = static fn (int $value): string => SQLiteVarint::encode($value);
     $recordPayload = static function (array $values) use ($varint): string {
         $serialTypes = [];
@@ -108,11 +108,17 @@ function exampleWordPressOptionPatternFixture(): string
         $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
     ], 100, $page1);
 
-    $page2 = $tableLeafPage([
+    $optionCells = [
         $schemaCell([null, '_transient_feed', 'cached feed', 'no'], 1),
         $schemaCell([null, '_Transient_API', 'cached api', 'no'], 2),
         $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
-    ]);
+    ];
+    for ($rowId = 4; $rowId <= 104; $rowId++) {
+        $optionCells[] = $schemaCell([null, sprintf('filler_%03d', $rowId), 'skip', 'no'], $rowId);
+    }
+    $optionCells[] = $schemaCell([null, '_transient_late', 'late cached value', 'no'], 105);
+
+    $page2 = $tableLeafPage($optionCells);
 
     return $page1 . $page2;
 }

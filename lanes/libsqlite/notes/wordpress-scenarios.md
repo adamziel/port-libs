@@ -2,6 +2,24 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## LIKE/GLOB Late-Row Option Scan Scenario
+
+Native WordPress option diagnostics now preserve decoded LIKE/GLOB pattern
+matches that appear after the first 100 `wp_options` rows. The example
+`examples/wordpress-option-name-like-glob.php --self-test` includes a late
+`_transient_late` option at rowid 105 and reports it for escaped
+`LIKE '\_transient\_%'`, so import and repair tooling can scan copied option
+tables without being truncated by the convenience `wordpressOptions()` default
+limit.
+
+Status delta 2026-05-26 isolated sql-exec/planner: updated
+`wordpressOptionsByNameLike()` and `wordpressOptionsByNameGlob()` to traverse
+`wp_options` rows directly while preserving explicit caller limits, extended
+focused tests for late LIKE/GLOB matches, and updated the WordPress smoke.
+Dependency closure: no new support component is needed; the slice reuses
+lane-local table traversal, decoded WordPress option rows, UTF-8 pattern
+splitting, and ASCII case folding.
+
 ## UTF-16 Option Insert Malformed Text Guard Scenario
 
 Native UTF-16 record decoding now rejects malformed copied database text before
