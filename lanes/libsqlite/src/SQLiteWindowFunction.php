@@ -1,0 +1,304 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LibSqlite;
+
+final class SQLiteWindowFunction
+{
+    /**
+     * @param iterable<mixed> $orderKeys
+     * @return list<int>
+     */
+    public static function rowNumber(iterable $orderKeys): array
+    {
+        return array_map(static fn (int $index): int => $index + 1, array_keys(self::rows($orderKeys)));
+    }
+
+    /**
+     * @param iterable<mixed> $orderKeys
+     * @return list<int>
+     */
+    public static function rank(iterable $orderKeys): array
+    {
+        $peerGroups = self::peerGroups($orderKeys);
+        $ranks = [];
+        $rank = 1;
+        foreach ($peerGroups as $group) {
+            foreach ($group as $_index) {
+                $ranks[] = $rank;
+            }
+            $rank += count($group);
+        }
+
+        return $ranks;
+    }
+
+    /**
+     * @param iterable<mixed> $orderKeys
+     * @return list<int>
+     */
+    public static function denseRank(iterable $orderKeys): array
+    {
+        $peerGroups = self::peerGroups($orderKeys);
+        $ranks = [];
+        $rank = 1;
+        foreach ($peerGroups as $group) {
+            foreach ($group as $_index) {
+                $ranks[] = $rank;
+            }
+            $rank++;
+        }
+
+        return $ranks;
+    }
+
+    /**
+     * @param iterable<mixed> $orderKeys
+     * @return list<float>
+     */
+    public static function percentRank(iterable $orderKeys): array
+    {
+        $rows = self::rows($orderKeys);
+        $count = count($rows);
+        if ($count === 0) {
+            return [];
+        }
+        if ($count === 1) {
+            return [0.0];
+        }
+
+        return array_map(static fn (int $rank): float => ($rank - 1) / ($count - 1), self::rank($rows));
+    }
+
+    /**
+     * @param iterable<mixed> $orderKeys
+     * @return list<float>
+     */
+    public static function cumeDist(iterable $orderKeys): array
+    {
+        $peerGroups = self::peerGroups($orderKeys);
+        $count = array_sum(array_map('count', $peerGroups));
+        if ($count === 0) {
+            return [];
+        }
+
+        $result = [];
+        $seen = 0;
+        foreach ($peerGroups as $group) {
+            $seen += count($group);
+            $value = (float) ($seen / $count);
+            foreach ($group as $_index) {
+                $result[] = $value;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param iterable<mixed> $rows
+     * @return list<int>
+     */
+    public static function ntile(iterable $rows, int $buckets): array
+    {
+        if ($buckets <= 0) {
+            throw new \InvalidArgumentException('SQLite ntile() bucket count must be positive');
+        }
+
+        $values = self::rows($rows);
+        $count = count($values);
+        if ($count === 0) {
+            return [];
+        }
+
+        $baseSize = intdiv($count, $buckets);
+        $largerBuckets = $count % $buckets;
+        $result = [];
+        for ($bucket = 1; $bucket <= min($buckets, $count); $bucket++) {
+            $size = $baseSize + ($bucket <= $largerBuckets ? 1 : 0);
+            if ($size === 0) {
+                continue;
+            }
+            array_push($result, ...array_fill(0, $size, $bucket));
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @return list<mixed>
+     */
+    public static function lag(iterable $values, int $offset = 1, mixed $default = null): array
+    {
+        return self::offsetValue($values, -$offset, $default, 'lag');
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @return list<mixed>
+     */
+    public static function lead(iterable $values, int $offset = 1, mixed $default = null): array
+    {
+        return self::offsetValue($values, $offset, $default, 'lead');
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @return list<mixed>
+     */
+    public static function firstValue(iterable $values): array
+    {
+        $rows = self::rows($values);
+        if ($rows === []) {
+            return [];
+        }
+
+        return array_fill(0, count($rows), $rows[0]);
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @return list<mixed>
+     */
+    public static function lastValue(iterable $values): array
+    {
+        $rows = self::rows($values);
+        if ($rows === []) {
+            return [];
+        }
+
+        return array_fill(0, count($rows), $rows[count($rows) - 1]);
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @return list<mixed>
+     */
+    public static function nthValue(iterable $values, int $nth): array
+    {
+        if ($nth <= 0) {
+            throw new \InvalidArgumentException('SQLite nth_value() index must be positive');
+        }
+
+        $rows = self::rows($values);
+        $value = $rows[$nth - 1] ?? null;
+
+        return array_fill(0, count($rows), $value);
+    }
+
+    /**
+     * @param iterable<mixed> $rows
+     * @return array{rowNumber:list<int>,rank:list<int>,denseRank:list<int>,percentRank:list<float>,cumeDist:list<float>,ntile:list<int>}
+     */
+    public static function rankingSummary(iterable $rows, int $buckets): array
+    {
+        $orderKeys = self::rows($rows);
+
+        return [
+            'rowNumber' => self::rowNumber($orderKeys),
+            'rank' => self::rank($orderKeys),
+            'denseRank' => self::denseRank($orderKeys),
+            'percentRank' => self::percentRank($orderKeys),
+            'cumeDist' => self::cumeDist($orderKeys),
+            'ntile' => self::ntile($orderKeys, $buckets),
+        ];
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @return list<mixed>
+     */
+    private static function offsetValue(iterable $values, int $relativeOffset, mixed $default, string $functionName): array
+    {
+        $offset = abs($relativeOffset);
+        if ($offset <= 0) {
+            throw new \InvalidArgumentException("SQLite {$functionName}() offset must be positive");
+        }
+
+        $rows = self::rows($values);
+        $result = [];
+        foreach (array_keys($rows) as $index) {
+            $target = $index + $relativeOffset;
+            $result[] = array_key_exists($target, $rows) ? $rows[$target] : $default;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param iterable<mixed> $orderKeys
+     * @return list<list<int>>
+     */
+    private static function peerGroups(iterable $orderKeys): array
+    {
+        $rows = self::rows($orderKeys);
+        $groups = [];
+        foreach ($rows as $index => $key) {
+            self::sortRank($key);
+            if ($index === 0 || self::compareSqlValues($rows[$index - 1], $key) !== 0) {
+                $groups[] = [];
+            }
+            $groups[count($groups) - 1][] = $index;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param iterable<mixed> $rows
+     * @return list<mixed>
+     */
+    private static function rows(iterable $rows): array
+    {
+        return array_values(is_array($rows) ? $rows : iterator_to_array($rows, false));
+    }
+
+    private static function compareSqlValues(mixed $left, mixed $right): int
+    {
+        $leftRank = self::sortRank($left);
+        $rightRank = self::sortRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
+        }
+
+        if ($left === null || $right === null) {
+            return 0;
+        }
+        if ($left instanceof SQLiteBlobValue && $right instanceof SQLiteBlobValue) {
+            return strcmp($left->bytes, $right->bytes);
+        }
+        if ((is_int($left) || is_float($left) || is_bool($left)) && (is_int($right) || is_float($right) || is_bool($right))) {
+            return ((float) $left) <=> ((float) $right);
+        }
+
+        return strcmp(self::valueText($left), self::valueText($right));
+    }
+
+    private static function valueText(mixed $value): string
+    {
+        if ($value instanceof SQLiteBlobValue) {
+            return $value->bytes;
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value) || is_float($value) || is_string($value)) {
+            return (string) $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite window ORDER BY values must be scalar, BLOB, or NULL');
+    }
+
+    private static function sortRank(mixed $value): int
+    {
+        return match (true) {
+            $value === null => 0,
+            is_int($value) || is_float($value) || is_bool($value) => 1,
+            is_string($value) => 2,
+            $value instanceof SQLiteBlobValue => 3,
+            default => throw new \InvalidArgumentException('SQLite window ORDER BY values must be scalar, BLOB, or NULL'),
+        };
+    }
+}

@@ -65,6 +65,7 @@ use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalHeader;
+use PortLibs\LibSqlite\SQLiteWindowFunction;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
 use PortLibs\LibSqlite\SQLiteWordPressOptionReplacementPlan;
 use PortLibs\LibSqlite\SQLiteWordPressOptionWritePlan;
@@ -12627,5 +12628,43 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteNumericAggregate::sumDistinct([['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteNumericAggregate::min([['not' => 'scalar']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteNumericAggregate::totalWindow([1], -1));
+    },
+    'dispatches sqlite builtin window ranking and value functions' => static function (TestRunner $t): void {
+        $orderKeys = [10, 10, 20, 30, 30, 30, 40];
+
+        $t->same([1, 2, 3, 4, 5, 6, 7], SQLiteWindowFunction::rowNumber($orderKeys));
+        $t->same([1, 1, 3, 4, 4, 4, 7], SQLiteWindowFunction::rank($orderKeys));
+        $t->same([1, 1, 2, 3, 3, 3, 4], SQLiteWindowFunction::denseRank($orderKeys));
+        $t->same([0.0, 0.0, 2 / 6, 3 / 6, 3 / 6, 3 / 6, 1.0], SQLiteWindowFunction::percentRank($orderKeys));
+        $t->same([2 / 7, 2 / 7, 3 / 7, 6 / 7, 6 / 7, 6 / 7, 1.0], SQLiteWindowFunction::cumeDist($orderKeys));
+        $t->same([1, 1, 1, 2, 2, 3, 3], SQLiteWindowFunction::ntile($orderKeys, 3));
+        $t->same([1, 2, 3], SQLiteWindowFunction::ntile(['a', 'b', 'c'], 10));
+        $t->same([], SQLiteWindowFunction::rowNumber([]));
+        $t->same([], SQLiteWindowFunction::ntile([], 3));
+        $t->same([0.0], SQLiteWindowFunction::percentRank(['only']));
+
+        $values = ['siteurl', 'home', 'blogname', '_transient_feed'];
+        $t->same(['missing', 'siteurl', 'home', 'blogname'], SQLiteWindowFunction::lag($values, 1, 'missing'));
+        $t->same(['missing', 'missing', 'siteurl', 'home'], SQLiteWindowFunction::lag($values, 2, 'missing'));
+        $t->same(['home', 'blogname', '_transient_feed', 'missing'], SQLiteWindowFunction::lead($values, 1, 'missing'));
+        $t->same(['siteurl', 'siteurl', 'siteurl', 'siteurl'], SQLiteWindowFunction::firstValue($values));
+        $t->same(['_transient_feed', '_transient_feed', '_transient_feed', '_transient_feed'], SQLiteWindowFunction::lastValue($values));
+        $t->same(['blogname', 'blogname', 'blogname', 'blogname'], SQLiteWindowFunction::nthValue($values, 3));
+        $t->same([null, null, null, null], SQLiteWindowFunction::nthValue($values, 9));
+
+        $mixedKeys = [null, null, 1, true, '1', new SQLiteBlobValue('1'), new SQLiteBlobValue('1')];
+        $t->same([1, 1, 3, 3, 5, 6, 6], SQLiteWindowFunction::rank($mixedKeys));
+        $t->same([1, 1, 2, 2, 3, 4, 4], SQLiteWindowFunction::denseRank($mixedKeys));
+        $t->same([2 / 7, 2 / 7, 4 / 7, 4 / 7, 5 / 7, 1.0, 1.0], SQLiteWindowFunction::cumeDist($mixedKeys));
+
+        $summary = SQLiteWindowFunction::rankingSummary($orderKeys, 4);
+        $t->same([1, 1, 3, 4, 4, 4, 7], $summary['rank']);
+        $t->same([1, 1, 2, 2, 3, 3, 4], $summary['ntile']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::ntile([1], 0));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lag([1], 0));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::lead([1], 0));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::nthValue([1], 0));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWindowFunction::rank([['bad']]));
     },
 ];

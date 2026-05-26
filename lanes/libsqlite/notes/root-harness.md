@@ -1,5 +1,29 @@
 # libsqlite Root Harness Notes
 
+## Isolated SQL Window Function Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the SQL execution/planner builtin window
+function slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWindowFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-window-option-rankings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-window-option-rankings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused test count moved from 3249 to 3276 assertions, +27. Root
+harness status: not run - isolated micro-slice.
+
+Dependency closure: no new support component is needed. The native helper
+reuses lane-local SQL value ordering and pure PHP result arrays; no shared
+support-library row is activated.
+
 ## JSON Table Rowid Alias Slice
 
 Date: 2026-05-26

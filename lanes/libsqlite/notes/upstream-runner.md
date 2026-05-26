@@ -1,5 +1,39 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Builtin Window Ranking and Value Helpers
+
+Date: 2026-05-26
+
+This isolated SQL execution/planner micro-slice adds bounded native helpers for
+SQLite builtin window functions over already ordered result partitions:
+`row_number()`, `rank()`, `dense_rank()`, `percent_rank()`, `cume_dist()`,
+`ntile()`, `lag()`, `lead()`, `first_value()`, `last_value()`, and
+`nth_value()`. The helper is intentionally a result-semantics primitive; it
+does not claim parser-level `OVER (...)` planning or full SELECT execution.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedCoreWindowFunctionScripts: 1`. No fresh upstream
+`testfixture`, `make test`, `mptest`, `all`, or `release` run was started from
+this isolated worktree.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWindowFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-window-option-rankings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-window-option-rankings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Focused assertion delta: 3249 to 3276 assertions, +27.
+
+Dependency closure: no new support component is needed. This slice reuses
+lane-local SQL sort-class comparison, BLOB wrappers, and pure PHP result-array
+dispatch.
+
 ## Focused Native Mapping: GLOB Reversed Bracket Ranges
 
 Date: 2026-05-26

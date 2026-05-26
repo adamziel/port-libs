@@ -2,6 +2,22 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Builtin Window Option Ranking Scenario
+
+Copied WordPress option result previews can now model SQLite builtin window
+functions without requiring the SQLite extension. The new smoke
+`examples/wordpress-window-option-rankings.php` reports `row_number()`,
+`rank()`, `dense_rank()`, `percent_rank()`, `cume_dist()`, `ntile()`,
+`lag()`, `lead()`, `first_value()`, `last_value()`, and `nth_value()` over a
+bounded `wp_options`-style result set ordered by value size.
+
+Status delta 2026-05-26 isolated SQL execution/planner slice: added
+`SQLiteWindowFunction` with focused ranking, distribution, offset, value, peer
+group, SQL sort-class, empty/single-row, and strict argument assertions. The
+focused lane test count moves from 3249 to 3276 assertions. Dependency closure:
+no new support component is needed; this reuses lane-local SQL value ordering
+semantics and pure PHP result arrays.
+
 ## B-tree Full Freelist Trunk Free Scenario
 
 Copied WordPress SQLite databases can delete or replace large `wp_options`
