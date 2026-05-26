@@ -2122,3 +2122,17 @@ without requiring the SQLite extension.
 This is intentionally not a full pager transaction engine yet. WAL-index
 shared-memory state, master-journal coordination, durable journal writing, and
 general SQL execution remain separate slices.
+
+## JSON Aggregate FILTER Option Summary Scenario
+
+Native JSON aggregate summaries now include bounded SQLite aggregate
+`FILTER` behavior for copied `wp_options` rows. The
+`examples/wordpress-json-aggregate-option-summary.php` smoke now reports
+autoload-filtered `json_group_array()` results and autoload-only
+`json_group_object()` maps, including text and JSONB aggregate dispatch, so
+plugin/theme option imports can preflight filtered summaries without requiring
+the SQLite extension.
+
+This is intentionally a row-level aggregate helper, not a full SQL executor.
+Window frames, HAVING/GROUP BY planner integration, and a general expression
+VM remain separate slices.

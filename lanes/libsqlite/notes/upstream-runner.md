@@ -84,6 +84,50 @@ Dependency closure: no new support component is needed. The slice reuses the
 existing lane-local manifest reader and upstream runner command planner; it
 counts no shared support-library progress.
 
+## Focused Native Mapping: JSON Aggregate FILTER Dispatch
+
+Date: 2026-05-26
+
+This isolated sql-exec/planner micro-slice adds a bounded native mapping for
+SQLite aggregate `FILTER` behavior on JSON aggregate rows. Native
+`SQLiteJsonAggregate::jsonGroupArrayFilter()` and
+`jsonGroupObjectFilter()` accept row inputs carrying a value (or label/value)
+plus a SQL-style filter expression, skip NULL and zero filter values, and
+reuse the accepted JSON text/JSONB aggregate dispatch paths for
+`json_group_array`, `jsonb_group_array`, `json_group_object`, and
+`jsonb_group_object`. `SQLiteJsonAggregateState` now records filtered array
+and object step rows and finalizes them through the same text/JSONB helpers.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice maps against the existing static focused JSON aggregate
+inventory and records one native aggregate FILTER mapping unit. Prior
+applicable runner evidence remains the complete SQLite `veryquick` run: 1235
+scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
+php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused lane tests passed with 1 selected file,
+2415 assertions, and 0 failures; the WordPress JSON aggregate smoke emitted
+autoload-filtered option arrays and object maps.
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local JSON aggregate dispatch, JSON subtype handling, JSONB encode/decode,
+and existing WordPress option aggregate smoke data; it counts no shared
+support-library progress.
+
 ## Focused Native Mapping: LIKE/GLOB Late-Row Result Semantics
 
 Date: 2026-05-26

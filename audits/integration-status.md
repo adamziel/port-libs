@@ -1,5 +1,56 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite JSON aggregate FILTER dispatch - 2026-05-26 02:49 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T023935Z.ready`
+from lane `libsqlite`.
+
+Candidate evidence:
+- Marker contained required `lane=libsqlite`, `patch=`, and `metadata=`
+  fields.
+- Worker log
+  `.tmux-team/logs/isolated-lane-workers/port-dev-libsqlite-sql-exec-20260526T023935Z.log`
+  reported focused checks passing for syntax, `SQLiteHeaderTest.php`,
+  WordPress JSON aggregate smoke, JSON validation, and
+  `git diff --check -- lanes/libsqlite`.
+- Marker base `a34a6920bdaa4ed5df8d617151cfbc43bf6700a1` was stale behind
+  current `main` `63abfa0ac5f8055cf913ec3ae9460789f6ab8292`; full patch
+  apply failed only on stale libsqlite manifest/status/notes hunks.
+- Source/test/example hunks applied cleanly in detached clean worktree
+  `.tmux-team/tmp/clean-integrator-check-20260526T024433Z`; manifest,
+  lane-status, and notes were bounded-merged to preserve already accepted
+  runner coverage audit evidence.
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=63abfa0ac5f8055cf913ec3ae9460789f6ab8292`, matching current
+  `main` before candidate work.
+
+Focused verification:
+- `php -l` passed for `SQLiteJsonAggregate.php`,
+  `SQLiteJsonAggregateState.php`, `SQLiteHeaderTest.php`, and
+  `wordpress-json-aggregate-option-summary.php`.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json
+  lanes/libsqlite/lane-status.json` passed.
+- `php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php`
+  passed and emitted autoload-filtered aggregate output.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2415 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates before root were open: `/` had `86144664` KiB available, load
+  was `1.36`, and no exact no-argument root harness was already running.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 26902 assertions, 0 failures`.
+
+Decision: accepted. This commit adds bounded native JSON aggregate FILTER
+dispatch helpers and evidence only; no Dolt marker was considered and
+non-libsqlite intake remains held.
+
+Dashboard publication should run next for the accepted source commit.
+
 ## Accepted - libsqlite upstream runner coverage audit - 2026-05-26 02:45 UTC
 
 Accepted marker:

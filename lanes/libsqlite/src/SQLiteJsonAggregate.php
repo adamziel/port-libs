@@ -71,11 +71,43 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<array{0:mixed,1:mixed}> $rows
+     */
+    public static function jsonGroupArrayFilterSqlFunction(string $function, iterable $rows): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupArrayFilter($rows);
+        if (strcasecmp($function, 'json_group_array') === 0) {
+            return $json;
+        }
+        if (strcasecmp($function, 'jsonb_group_array') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_array or jsonb_group_array');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed}> $pairs
      */
     public static function jsonGroupObjectSqlFunction(string $function, iterable $pairs): string|SQLiteBlobValue
     {
         $json = self::jsonGroupObject($pairs);
+        if (strcasecmp($function, 'json_group_object') === 0) {
+            return $json;
+        }
+        if (strcasecmp($function, 'jsonb_group_object') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_object or jsonb_group_object');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     */
+    public static function jsonGroupObjectFilterSqlFunction(string $function, iterable $rows): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupObjectFilter($rows);
         if (strcasecmp($function, 'json_group_object') === 0) {
             return $json;
         }
@@ -163,6 +195,26 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<array{0:mixed,1:mixed}> $rows
+     */
+    public static function jsonGroupArrayFilter(iterable $rows): string
+    {
+        $values = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || !array_key_exists(0, $row) || !array_key_exists(1, $row)) {
+                throw new \InvalidArgumentException('json_group_array() FILTER rows must be [value, filter] pairs');
+            }
+            if (!self::sqlFilterPasses($row[1])) {
+                continue;
+            }
+
+            $values[] = $row[0];
+        }
+
+        return self::jsonGroupArray($values);
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed}> $pairs
      */
     public static function jsonGroupObject(iterable $pairs): string
@@ -176,6 +228,26 @@ final class SQLiteJsonAggregate
         }
 
         return '{' . implode(',', $members) . '}';
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     */
+    public static function jsonGroupObjectFilter(iterable $rows): string
+    {
+        $pairs = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || !array_key_exists(0, $row) || !array_key_exists(1, $row) || !array_key_exists(2, $row)) {
+                throw new \InvalidArgumentException('json_group_object() FILTER rows must be [label, value, filter] triples');
+            }
+            if (!self::sqlFilterPasses($row[2])) {
+                continue;
+            }
+
+            $pairs[] = [$row[0], $row[1]];
+        }
+
+        return self::jsonGroupObject($pairs);
     }
 
     private static function decodeAggregateJson(string $json): mixed
@@ -226,5 +298,28 @@ final class SQLiteJsonAggregate
         }
 
         return strcmp((string) $left, (string) $right);
+    }
+
+    private static function sqlFilterPasses(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value != 0;
+        }
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ($trimmed === '') {
+                return false;
+            }
+
+            return (float) $trimmed != 0.0;
+        }
+
+        return true;
     }
 }
