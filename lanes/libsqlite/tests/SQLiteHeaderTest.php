@@ -1701,6 +1701,118 @@ return [
             substr($compactedPage, $header->cellPointerArrayEnd(), $header->cellContentAreaStart - $header->cellPointerArrayEnd()),
         );
     },
+    'inserts sqlite table leaf cells into reusable freeblocks after delete' => static function (TestRunner $t): void {
+        $page = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_cache', str_repeat('stale:', 16), 'no'])),
+            SQLiteTableLeafCell::encode(5, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ]);
+        $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($page, 2, secureDelete: true);
+        $deletedHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+        $deletedFreeblocks = $deletedHeader->freeblocks($deletedPage);
+        $newPayload = SQLiteRecord::encode([null, 'blogname', 'Example Site', 'yes']);
+        $newCellLength = strlen(SQLiteTableLeafCell::encode(3, $newPayload));
+
+        $insertedPage = SQLiteTableLeafPage::insertCellByRowIdReusingFreeblock($deletedPage, 3, $newPayload);
+        $header = SQLiteBTreePageHeader::parsePage($insertedPage, 512);
+        $cells = SQLiteTableLeafCell::parsePageCells($insertedPage, $header);
+        $freeblocks = $header->freeblocks($insertedPage);
+
+        $t->same(2, $deletedHeader->cellCount);
+        $t->same(1, count($deletedFreeblocks));
+        $t->same(3, $header->cellCount);
+        $t->same([1, 3, 5], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $cells));
+        $t->same(['siteurl', 'blogname', 'home'], array_map(static fn (SQLiteTableLeafCell $cell): string => SQLiteRecord::parse($cell->payload)->values[1], $cells));
+        $t->same($deletedFreeblocks[0]->offset, $cells[1]->offset);
+        $t->same($deletedHeader->cellContentAreaStart, $header->cellContentAreaStart);
+        $t->same($deletedHeader->fragmentedFreeBytes, $header->fragmentedFreeBytes);
+        $t->same($deletedHeader->freeSpaceBytes($deletedPage) - $newCellLength - 2, $header->freeSpaceBytes($insertedPage));
+        $t->same(1, count($freeblocks));
+        $t->same($deletedFreeblocks[0]->offset + $newCellLength, $freeblocks[0]->offset);
+        $t->same($deletedFreeblocks[0]->size - $newCellLength, $freeblocks[0]->size);
+        $t->same(0, $freeblocks[0]->nextOffset ?? 0);
+        $t->same([null, 'blogname', 'Example Site', 'yes'], SQLiteRecord::parse($cells[1]->payload)->values);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::insertCellByRowIdReusingFreeblock($insertedPage, 3, $newPayload));
+    },
+    'inserts sqlite table leaf cells using whole freeblock remainder as fragments' => static function (TestRunner $t): void {
+        $payload = SQLiteRecord::encode([null, '_transient_cache', 'old-cache', 'no']);
+        $newPayload = SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes']);
+        $oldCell = SQLiteTableLeafCell::encode(2, $payload);
+        $newCell = SQLiteTableLeafCell::encode(2, $newPayload);
+        $suffix = strlen($oldCell) >= strlen($newCell) ? '' : str_repeat('x', strlen($newCell) - strlen($oldCell));
+        $oldCell = SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_cache', 'old-cache' . $suffix, 'no']));
+        $page = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+            $oldCell,
+            SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, 'blogname', 'Example', 'yes'])),
+        ]);
+        $deletedPage = SQLiteTableLeafPage::deleteCellByRowId($page, 2);
+        $deletedHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+        $deletedFreeblock = $deletedHeader->freeblocks($deletedPage)[0];
+        $replacementPayload = SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes']);
+        $replacementBytes = strlen(SQLiteTableLeafCell::encode(3, $replacementPayload));
+        $insertedPage = SQLiteTableLeafPage::insertCellByRowIdReusingFreeblock($deletedPage, 3, $replacementPayload);
+        $header = SQLiteBTreePageHeader::parsePage($insertedPage, 512);
+
+        $t->same(3, $header->cellCount);
+        $t->same([], $header->freeblocks($insertedPage));
+        $t->same($deletedFreeblock->size - $replacementBytes, $header->fragmentedFreeBytes);
+        $t->same($deletedHeader->freeSpaceBytes($deletedPage) - $replacementBytes - 2, $header->freeSpaceBytes($insertedPage));
+        $t->same([1, 3, 4], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, SQLiteTableLeafCell::parsePageCells($insertedPage, $header)));
+    },
+    'inserts sqlite index leaf cells into reusable freeblocks after delete' => static function (TestRunner $t): void {
+        $page = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 1])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['old_transient_padding', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 5])),
+        ]);
+        $deletedPage = SQLiteIndexLeafPage::deleteCellByRecordValues($page, ['old_transient_padding', 2], secureDelete: true);
+        $deletedHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+        $deletedFreeblocks = $deletedHeader->freeblocks($deletedPage);
+        $newValues = ['home', 3];
+        $newCellLength = strlen(SQLiteIndexCell::encode(SQLiteRecord::encode($newValues)));
+
+        $insertedPage = SQLiteIndexLeafPage::insertCellByRecordValuesReusingFreeblock($deletedPage, $newValues);
+        $header = SQLiteBTreePageHeader::parsePage($insertedPage, 512);
+        $cells = SQLiteIndexCell::parsePageCells($insertedPage, $header);
+        $freeblocks = $header->freeblocks($insertedPage);
+
+        $t->same(2, $deletedHeader->cellCount);
+        $t->same(1, count($deletedFreeblocks));
+        $t->same(3, $header->cellCount);
+        $t->same([['autoload', 1], ['home', 3], ['siteurl', 5]], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $cells));
+        $t->same($deletedFreeblocks[0]->offset, $cells[1]->offset);
+        $t->same($deletedHeader->cellContentAreaStart, $header->cellContentAreaStart);
+        $t->same($deletedHeader->fragmentedFreeBytes, $header->fragmentedFreeBytes);
+        $t->same($deletedHeader->freeSpaceBytes($deletedPage) - $newCellLength - 2, $header->freeSpaceBytes($insertedPage));
+        $t->same(1, count($freeblocks));
+        $t->same($deletedFreeblocks[0]->offset + $newCellLength, $freeblocks[0]->offset);
+        $t->same($deletedFreeblocks[0]->size - $newCellLength, $freeblocks[0]->size);
+        $t->same(0, $freeblocks[0]->nextOffset ?? 0);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::insertCellByRecordValuesReusingFreeblock($insertedPage, $newValues));
+    },
+    'inserts sqlite index leaf cells using whole freeblock remainder as fragments' => static function (TestRunner $t): void {
+        $oldValues = ['layoutx', 2];
+        $newValues = ['home', 3];
+        $page = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 1])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode($oldValues)),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 4])),
+        ]);
+        $deletedPage = SQLiteIndexLeafPage::deleteCellByRecordValues($page, $oldValues);
+        $deletedHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+        $deletedFreeblock = $deletedHeader->freeblocks($deletedPage)[0];
+        $replacementBytes = strlen(SQLiteIndexCell::encode(SQLiteRecord::encode($newValues)));
+        $insertedPage = SQLiteIndexLeafPage::insertCellByRecordValuesReusingFreeblock($deletedPage, $newValues);
+        $header = SQLiteBTreePageHeader::parsePage($insertedPage, 512);
+
+        $t->same(3, $header->cellCount);
+        $t->same([], $header->freeblocks($insertedPage));
+        $t->same($deletedFreeblock->size - $replacementBytes, $header->fragmentedFreeBytes);
+        $t->same($deletedHeader->freeSpaceBytes($deletedPage) - $replacementBytes - 2, $header->freeSpaceBytes($insertedPage));
+        $t->same(0, $header->firstFreeblockOffset);
+        $t->same([['autoload', 1], ['home', 3], ['siteurl', 4]], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, SQLiteIndexCell::parsePageCells($insertedPage, $header)));
+    },
     'assembles sqlite index interior pages from native index cell encoder' => static function (TestRunner $t): void {
         $cell = SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 2]), 512, null, 3);
         $page = SQLiteIndexInteriorPage::assemble([$cell], 5);

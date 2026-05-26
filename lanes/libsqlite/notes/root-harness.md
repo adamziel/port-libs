@@ -1511,3 +1511,33 @@ was an isolated micro-slice.
 Dependency closure: no new shared support component is needed. This is a
 lane-local B-tree/freelist planner that reuses existing SQLite header parsing
 and freelist trunk parsing/assembly.
+
+## B-tree Leaf Freeblock Reuse Slice
+
+Focused lane verification for the B-tree delete/rebalance leaf freeblock-reuse
+slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
+php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: the isolated worker focused run passed at 3579 assertions. Replayed on
+current accepted source `d8d76c9764c6d9119a7515be3d48ed045c945a3f`, focused
+`SQLiteHeaderTest.php` passed with 1 selected file, 3603 assertions, and 0
+failures, adding 39 focused assertions over the prior accepted focused count of
+3564 for this file. The WordPress smoke now reports bulk transient deletion
+followed by reusing the coalesced table-leaf freeblock for a refreshed
+transient row. Manifest/status JSON decoded successfully; lane diff check
+passed. The root harness was not run by the isolated worker because this was a
+micro-slice; clean integration reruns the serialized root harness.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local B-tree headers, table/index leaf cell encoders, record encoding,
+freeblock chain parsing, and WordPress freeblock diagnostics.

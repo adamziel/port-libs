@@ -117285,3 +117285,38 @@ Cleanup:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T210055Z` still contains modified lane files matching the accepted handoff, so it is preserved as cleanup debt rather than removed.
 - Clean integrator candidate worktree `.tmux-team/worktrees/clean-integrator-libsqli-0d373b13-btree-20260526T211632Z` contains root-run `.tmp-root` output and is preserved as cleanup debt rather than force-removed.
 - Accepted marker, patch, and metadata artifacts were removed after commit publication.
+## Integration accepted - libsqlite B-tree leaf freeblock reuse - 2026-05-26T21:26:27Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T211426Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` and cache-busted live Pages both reported exact source `d8d76c9764c6d9119a7515be3d48ed045c945a3f` before candidate verification.
+- Live generated timestamp was `2026-05-26 21:20:52 UTC`; dashboard commit was `f1307c368bdeeeebc5bab12e835c359e948e831a`.
+
+Candidate evidence:
+- Chosen from a bounded recent libsqlite sample because it was a non-overlapping B-tree behavior slice with the strongest sampled focused-test movement and a WordPress smoke.
+- The marker was based on `0d373b13063423c596c049a107b69bdc0c8a938e`; replay over current `d8d76c9764c6d9119a7515be3d48ed045c945a3f` required only minimal manifest/status/root-note reconciliation. Implementation, test, example, and WordPress scenario hunks applied cleanly.
+- The patch adds table/index leaf insertion into reusable freeblocks left by deletes, including freeblock splitting, tiny-remainder fragmented-byte accounting, sorted pointer insertion, duplicate rejection, and copied wp_options transient delete/reinsert diagnostics.
+
+Focused verification in clean candidate:
+- Runtime gate before focused checks: `df -Pk /` reported `86333448` KiB available; `/proc/loadavg` was below `25`; no exact no-argument root harness was active in the earlier gate sample.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteTableLeafPage.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3603 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php` passed.
+- Manifest/status JSON decode passed.
+- `git diff --check` passed.
+
+Root verification:
+- Runtime gate before root: `df -Pk /` reported `86109192` KiB available; load was `2.13`; no exact no-argument root harness was active.
+- Serialized no-argument root harness ran under `.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR=$candidate/.tmp-root`.
+- Root passed with `215 test files, 28737 assertions, 0 failures`.
+
+Decision: accepted. After commit publication, remove the accepted ready marker, patch, and metadata artifacts. Dashboard publication should run next because this is a source-moving libsqlite commit.
+
+Cleanup debt:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T211426Z` still contains modified lane files after the accepted patch was published on `main`, so it was preserved and left registered. Do not remove it without worker cleanup or explicit reauthorization.

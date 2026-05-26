@@ -43,13 +43,26 @@ $deletedPage = SQLiteTableLeafPage::deleteCellsByRowIds($tablePage, [2, 3], secu
 $afterHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
 $afterCells = SQLiteTableLeafCell::parsePageCells($deletedPage, $afterHeader);
 $deletedBytes = $beforeCells[1]->bytesRead + $beforeCells[2]->bytesRead;
+$reinsertPayload = SQLiteRecord::encode([
+    null,
+    '_transient_cache_refilled',
+    'fresh payload',
+    'no',
+]);
+$reinsertedPage = SQLiteTableLeafPage::insertCellByRowIdReusingFreeblock($deletedPage, 3, $reinsertPayload);
+$reinsertedHeader = SQLiteBTreePageHeader::parsePage($reinsertedPage, 512);
+$reinsertedCells = SQLiteTableLeafCell::parsePageCells($reinsertedPage, $reinsertedHeader);
 
 echo json_encode([
-    'wordpressUse' => 'Bulk delete obsolete wp_options transient table rows locally and expose the coalesced table leaf freeblock that a later writer can reuse.',
+    'wordpressUse' => 'Bulk delete obsolete wp_options transient table rows locally and reuse the coalesced table leaf freeblock for a refreshed transient row.',
     'deletedRowIds' => [2, 3],
     'beforeRowIds' => array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $beforeCells),
     'afterRowIds' => array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $afterCells),
     'afterCellCount' => $afterHeader->cellCount,
     'freeblocks' => array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $afterHeader->freeblocks($deletedPage)),
+    'reinsertedRowIds' => array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $reinsertedCells),
+    'reinsertedOptionNames' => array_map(static fn (SQLiteTableLeafCell $cell): string => SQLiteRecord::parse($cell->payload)->values[1], $reinsertedCells),
+    'reinsertedCellCount' => $reinsertedHeader->cellCount,
+    'reusedFreeblocks' => array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $reinsertedHeader->freeblocks($reinsertedPage)),
     'secureDeletedBytes' => bin2hex(substr($deletedPage, $beforeCells[2]->offset + 4, max(0, $deletedBytes - 4))),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

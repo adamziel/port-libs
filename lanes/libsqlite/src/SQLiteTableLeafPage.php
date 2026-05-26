@@ -230,6 +230,49 @@ final class SQLiteTableLeafPage
         return $deletedPage;
     }
 
+    public static function insertCellByRowIdReusingFreeblock(
+        string $page,
+        int $rowId,
+        string $recordPayload,
+        int $pageSize = 512,
+        int $headerOffset = 0,
+        ?int $usableSize = null,
+    ): string {
+        self::validatePageSize($pageSize);
+        $usableSize ??= $pageSize;
+        if (strlen($page) !== $pageSize) {
+            throw new \InvalidArgumentException('SQLite table leaf page length does not match page size');
+        }
+        if ($usableSize < 480 || $usableSize > $pageSize) {
+            throw new \InvalidArgumentException('SQLite table leaf usable size is outside the page');
+        }
+
+        $header = SQLiteBTreePageHeader::parsePage($page, $pageSize, $headerOffset);
+        if ($header->pageType !== 'table-leaf') {
+            throw new \InvalidArgumentException('SQLite table leaf insertion requires a table leaf page');
+        }
+
+        $cells = SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize);
+        foreach ($cells as $cell) {
+            if ($cell->rowId === $rowId) {
+                throw new \InvalidArgumentException('SQLite table leaf insertion rowid already exists');
+            }
+        }
+
+        $insertIndex = 0;
+        while ($insertIndex < count($cells) && $cells[$insertIndex]->rowId < $rowId) {
+            $insertIndex++;
+        }
+
+        return self::insertCellBytesReusingFreeblock(
+            $page,
+            $header,
+            SQLiteTableLeafCell::encode($rowId, $recordPayload),
+            $insertIndex,
+            $usableSize,
+        );
+    }
+
     public static function defragment(
         string $page,
         int $pageSize = 512,
@@ -306,6 +349,82 @@ final class SQLiteTableLeafPage
             if ($secureDelete) {
                 $page = substr_replace($page, str_repeat("\0", $block['size']), $block['offset'], $block['size']);
             }
+            $page = substr_replace($page, pack('n', $nextOffset) . pack('n', $block['size']), $block['offset'], 4);
+        }
+
+        return $page;
+    }
+
+    private static function insertCellBytesReusingFreeblock(
+        string $page,
+        SQLiteBTreePageHeader $header,
+        string $cell,
+        int $insertIndex,
+        int $usableSize,
+    ): string {
+        if ($cell === '') {
+            throw new \InvalidArgumentException('SQLite table leaf insertion requires a non-empty cell');
+        }
+        if ($header->cellPointerArrayEnd() + 2 > $header->cellContentAreaStart) {
+            throw new \InvalidArgumentException('SQLite table leaf insertion has no room for another cell pointer');
+        }
+
+        $cellLength = strlen($cell);
+        $freeblocks = $header->freeblocks($page, $usableSize);
+        $selected = null;
+        foreach ($freeblocks as $freeblock) {
+            if ($freeblock->size >= $cellLength) {
+                $selected = $freeblock;
+                break;
+            }
+        }
+        if ($selected === null) {
+            throw new \InvalidArgumentException('SQLite table leaf insertion found no reusable freeblock large enough for the cell');
+        }
+
+        $remainderSize = $selected->size - $cellLength;
+        $replacementBlocks = [];
+        foreach ($freeblocks as $freeblock) {
+            if ($freeblock->offset === $selected->offset) {
+                if ($remainderSize >= 4) {
+                    $replacementBlocks[] = [
+                        'offset' => $selected->offset + $cellLength,
+                        'size' => $remainderSize,
+                    ];
+                } elseif ($remainderSize > 0) {
+                    $fragmented = $header->fragmentedFreeBytes + $remainderSize;
+                    if ($fragmented > 60) {
+                        throw new \InvalidArgumentException('SQLite table leaf insertion would exceed fragmented free byte limit');
+                    }
+                    $page[$header->headerOffset + 7] = chr($fragmented);
+                }
+                continue;
+            }
+            $replacementBlocks[] = ['offset' => $freeblock->offset, 'size' => $freeblock->size];
+        }
+
+        usort($replacementBlocks, static fn (array $a, array $b): int => $a['offset'] <=> $b['offset']);
+        $page = substr_replace($page, $cell, $selected->offset, $cellLength);
+        $page = self::writeFreeblocks($page, $header, $replacementBlocks);
+
+        $pointers = $header->cellPointers($page);
+        array_splice($pointers, $insertIndex, 0, [$selected->offset]);
+        $page = substr_replace($page, pack('n', count($pointers)), $header->headerOffset + 3, 2);
+        foreach ($pointers as $index => $pointer) {
+            $page = substr_replace($page, pack('n', $pointer), $header->cellPointerArrayOffset() + ($index * 2), 2);
+        }
+
+        return $page;
+    }
+
+    /**
+     * @param list<array{offset:int,size:int}> $blocks
+     */
+    private static function writeFreeblocks(string $page, SQLiteBTreePageHeader $header, array $blocks): string
+    {
+        $page = substr_replace($page, pack('n', $blocks[0]['offset'] ?? 0), $header->headerOffset + 1, 2);
+        foreach ($blocks as $index => $block) {
+            $nextOffset = $blocks[$index + 1]['offset'] ?? 0;
             $page = substr_replace($page, pack('n', $nextOffset) . pack('n', $block['size']), $block['offset'], 4);
         }
 

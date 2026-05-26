@@ -157,6 +157,16 @@ delete smoke reports the overflow-chain prerequisite for large
 component is needed; this reuses lane-local index cells, overflow-chain
 readers, freelist planning, and WordPress index replacement diagnostics.
 
+Status delta 2026-05-26 isolated B-tree delete/rebalance slice: table and
+index leaf pages can now insert replacement cells into reusable in-page
+freeblocks left by deletes. The table/index helpers preserve sorted pointer
+order, split reusable freeblocks when enough space remains, convert tiny
+remainders into fragmented free bytes, and reject duplicate rowid/record
+inserts. The WordPress table-leaf freeblock smoke now deletes obsolete
+transient rows and reinserts a refreshed transient into the coalesced freeblock.
+Dependency closure: no new support component is needed; this reuses lane-local
+B-tree headers, leaf cell encoders, record encoding, and freeblock diagnostics.
+
 ## REGEXP-Style Option Name Pattern Scenario
 
 Native WordPress option diagnostics can now evaluate SQLite-style
