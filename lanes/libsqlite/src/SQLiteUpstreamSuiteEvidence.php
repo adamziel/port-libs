@@ -559,6 +559,118 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function fullSuiteReadinessRecord(int $jobs = 1, ?string $repoRoot = null): array
+    {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite full-suite readiness jobs must be at least 1');
+        }
+
+        $summary = $this->denominatorSummary();
+        $coverage = $this->runnerCoverageAudit();
+        $ledger = $this->focusedResultLedger();
+        $closure = $this->suiteClosureGapReport();
+        $release = $this->releaseTierMatrix($jobs, $repoRoot);
+        $permutations = $this->permutationSuiteMap($repoRoot);
+        $wildcards = $this->wildcardExpansionPlan($repoRoot);
+
+        $accepted = [];
+        if ($coverage['veryquick']['scripts'] > 0 && $coverage['veryquick']['errors'] === 0) {
+            $accepted[] = [
+                'id' => 'veryquick',
+                'status' => 'accepted',
+                'scripts' => $coverage['veryquick']['scripts'],
+                'tests' => $coverage['veryquick']['tests'],
+                'errors' => $coverage['veryquick']['errors'],
+            ];
+        }
+
+        $ready = [];
+        foreach ($release['tiers'] as $tier) {
+            if (is_array($tier) && ($tier['status'] ?? null) === 'ready') {
+                $ready[] = [
+                    'id' => $tier['id'],
+                    'command' => $tier['command'],
+                    'inventory_units' => $tier['inventory_units'],
+                ];
+            }
+        }
+
+        if (($wildcards['status'] ?? null) === 'ready') {
+            $ready[] = [
+                'id' => 'wildcard-expansion',
+                'command' => 'replace wildcard .test selections with concrete expanded script lists',
+                'inventory_units' => $wildcards['expanded_script_count'],
+            ];
+        }
+
+        if (($permutations['status'] ?? null) === 'ready') {
+            $ready[] = [
+                'id' => 'permutation-suite-map',
+                'command' => 'turn parsed permutation suite names into explicit testfixture run records',
+                'inventory_units' => $permutations['mapped_suite_count'],
+            ];
+        }
+
+        $blocked = [];
+        foreach ($release['tiers'] as $tier) {
+            if (!is_array($tier) || in_array($tier['status'] ?? null, ['ready', 'accepted'], true)) {
+                continue;
+            }
+
+            $blocked[] = [
+                'id' => $tier['id'],
+                'status' => $tier['status'],
+                'missing' => $tier['missing'],
+                'next_gate' => $release['next_gate'],
+            ];
+        }
+
+        if (($wildcards['status'] ?? null) !== 'ready' && ($wildcards['status'] ?? null) !== 'complete-no-wildcards') {
+            $blocked[] = [
+                'id' => 'wildcard-expansion',
+                'status' => $wildcards['status'],
+                'missing' => $wildcards['missing_patterns'],
+                'next_gate' => $wildcards['next_gate'],
+            ];
+        }
+
+        if (($permutations['status'] ?? null) !== 'ready') {
+            $blocked[] = [
+                'id' => 'permutation-suite-map',
+                'status' => $permutations['status'],
+                'missing' => $permutations['source_ready'] ? ['unmapped permutation suites'] : [$permutations['source']],
+                'next_gate' => $permutations['next_gate'],
+            ];
+        }
+
+        return [
+            'status' => $blocked === [] ? 'ready-for-full-suite-runs' : 'blocked',
+            'denominator_total' => $summary['total'],
+            'denominator_mapped' => $summary['mapped'],
+            'jobs' => $jobs,
+            'accepted_count' => count($accepted),
+            'ready_count' => count($ready),
+            'blocked_count' => count($blocked),
+            'focused_ledger' => [
+                'entries' => $ledger['entry_count'],
+                'passed' => $ledger['passed_count'],
+                'failed' => $ledger['failed_count'],
+                'reused_or_skipped' => $ledger['reused_or_skipped_count'],
+            ],
+            'accepted' => $accepted,
+            'ready' => $ready,
+            'blocked' => $blocked,
+            'closure_blocker_ids' => array_column($closure['blockers'], 'id'),
+            'next_command' => $blocked === []
+                ? 'run the ready release tiers and record parsed pass/fail counts'
+                : 'hydrate .upstream-cache/libsqlite plus configured testfixture/build outputs, then rerun this readiness record',
+            'dependency_closure' => 'no new support component needed; readiness record composes lane-local runner evidence and hydrated SQLite test harness gates only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();

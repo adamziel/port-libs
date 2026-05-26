@@ -454,4 +454,82 @@ return [
             @rmdir($root);
         }
     },
+    'builds a full upstream suite readiness record for integrator handoff' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $record = $evidence->fullSuiteReadinessRecord(2, dirname(__DIR__, 3));
+
+        $t->same('blocked', $record['status']);
+        $t->same(1589, $record['denominator_total']);
+        $t->true($record['denominator_mapped'] >= 308, 'Expected accepted mapped count to be preserved');
+        $t->same(2, $record['jobs']);
+        $t->same(1, $record['accepted_count']);
+        $t->same(0, $record['ready_count']);
+        $t->true($record['blocked_count'] >= 6, 'Expected release, wildcard, and permutation gates to block without cache');
+        $t->same(0, $record['focused_ledger']['failed']);
+        $t->true($record['focused_ledger']['entries'] >= 30, 'Expected focused ledger summary');
+        $t->same('veryquick', $record['accepted'][0]['id']);
+        $t->same(1235, $record['accepted'][0]['scripts']);
+        $t->same(329670, $record['accepted'][0]['tests']);
+        $t->same(0, $record['accepted'][0]['errors']);
+
+        $blockedIds = array_column($record['blocked'], 'id');
+        $t->true(in_array('release-all', $blockedIds, true), 'Expected release-all gate');
+        $t->true(in_array('make-test', $blockedIds, true), 'Expected make-test gate');
+        $t->true(in_array('mptest', $blockedIds, true), 'Expected mptest gate');
+        $t->true(in_array('wildcard-expansion', $blockedIds, true), 'Expected wildcard expansion gate');
+        $t->true(in_array('permutation-suite-map', $blockedIds, true), 'Expected permutation map gate');
+        $t->true(in_array('full-release-unexecuted', $record['closure_blocker_ids'], true), 'Expected closure blocker id');
+        $t->contains('hydrate .upstream-cache/libsqlite', $record['next_command']);
+        $t->contains('no new support component needed', $record['dependency_closure']);
+    },
+    'promotes full suite readiness gates when local harness fixtures are hydrated' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-full-suite-readiness-' . bin2hex(random_bytes(4));
+        $buildDirectory = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        $mptestDirectory = $root . '/.upstream-cache/libsqlite/mptest';
+        mkdir($buildDirectory, 0777, true);
+        mkdir($testDirectory, 0777, true);
+        mkdir($mptestDirectory, 0777, true);
+        file_put_contents($buildDirectory . '/testfixture', '');
+        file_put_contents($buildDirectory . '/Makefile', "test:\n\t@true\nmptest:\n\t@true\n");
+        file_put_contents($testDirectory . '/testrunner.tcl', '# focused full-suite readiness fixture');
+        file_put_contents($testDirectory . '/permutations.test', "test_suite full\npermutation memsubsys1\n");
+        foreach ($evidence->runnerCoverageAudit()['pattern_scripts'] as $pattern) {
+            file_put_contents($testDirectory . '/' . str_replace('*', '01', $pattern), '# focused wildcard fixture');
+        }
+
+        try {
+            $record = $evidence->fullSuiteReadinessRecord(4, $root);
+
+            $t->same('blocked', $record['status']);
+            $t->same(4, $record['jobs']);
+            $t->same(1, $record['accepted_count']);
+            $t->true($record['ready_count'] >= 4, 'Expected hydrated release tiers and wildcard expansion to become ready');
+            $t->same('veryquick', $record['accepted'][0]['id']);
+
+            $readyIds = array_column($record['ready'], 'id');
+            $t->true(in_array('release-all', $readyIds, true), 'Expected release-all ready gate');
+            $t->true(in_array('make-test', $readyIds, true), 'Expected make-test ready gate');
+            $t->true(in_array('mptest', $readyIds, true), 'Expected mptest ready gate');
+            $t->true(in_array('wildcard-expansion', $readyIds, true), 'Expected wildcard expansion ready gate');
+
+            $blockedIds = array_column($record['blocked'], 'id');
+            $t->true(in_array('permutation-suites', $blockedIds, true), 'Expected command-map blocker for declared permutation tier');
+            $t->true(in_array('permutation-suite-map', $blockedIds, true), 'Expected partial permutation parser blocker');
+            $t->contains('hydrate .upstream-cache/libsqlite', $record['next_command']);
+        } finally {
+            foreach (glob($testDirectory . '/*.test') ?: [] as $file) {
+                unlink($file);
+            }
+            @unlink($buildDirectory . '/testfixture');
+            @unlink($buildDirectory . '/Makefile');
+            @rmdir($mptestDirectory);
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($buildDirectory);
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
 ];

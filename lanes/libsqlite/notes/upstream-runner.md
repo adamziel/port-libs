@@ -1,5 +1,44 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Full-Suite Readiness Record
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::fullSuiteReadinessRecord()`. The helper composes
+the accepted zero-error `veryquick` baseline, focused-result ledger, closure
+blocker ids, release-tier matrix, wildcard expansion gate, and permutation
+suite-map gate into one machine-readable integrator handoff record. It reports
+which full-suite gates are accepted, ready, or blocked, includes exact ready
+commands when a local harness tree is hydrated, and keeps missing cache/build
+inputs explicit instead of claiming fresh upstream execution.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, configured
+`.upstream-cache/libsqlite-build-port-libsqlite` build directory,
+`testfixture`, `Makefile`, `mptest` directory, or
+`test/permutations.test` source, so no new upstream `testfixture`,
+`make test`, `mptest`, or release/all runner was started. Prior applicable
+runner evidence remains the complete SQLite `veryquick` run: 1235 scripts,
+329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local manifest runner evidence, release-tier planning, wildcard expansion
+planning, and hydrated SQLite harness readiness checks only; it performs no
+shell-out and counts no shared support-library progress.
+
 ## Focused Native Mapping: Permutation Suite Map
 
 Date: 2026-05-26

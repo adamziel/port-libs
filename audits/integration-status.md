@@ -1,5 +1,51 @@
 # Integration Status
 
+## Accepted libsqlite full-suite readiness handoff - 2026-05-26 06:57 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T064335Z.ready`.
+
+Accepted from stale base `81c57835874d97a8ffef9c50f3df50e0a6f17bf5` after a
+bounded manifest/status merge onto current `main`
+`3dcd5c6fa54036d3380a1631adad33153959cada`.
+
+Candidate summary:
+- Lane: `libsqlite`.
+- Slice: `priority-libsqlite-full-suite-20260526T064335Z`.
+- Patch SHA-256 matched marker metadata:
+  `ab701434608015d9d79200094c737f78c1427a0ccce51a05d897450b3b1c18af`.
+- The source/test/notes hunks applied cleanly in a detached current-head
+  worktree; only `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` required a bounded stale metadata merge to
+  preserve already accepted JSON aggregate window evidence.
+
+Verification:
+- Runtime gates were open before focused checks and root verification:
+  disk stayed above `86000000` KiB free, load stayed below `25`, and no
+  no-argument `php tools/run-tests.php` process was active before starting the
+  serialized root run.
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Libsqlite manifest/status JSON validation passed.
+- Focused
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 250 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized no-argument root verification passed under
+  `.tmux-team/tmp/clean-integrator-run.lock` with
+  `215 test files, 27236 assertions, 0 failures`.
+
+Decision: accepted. The slice adds
+`SQLiteUpstreamSuiteEvidence::fullSuiteReadinessRecord()` and focused tests for
+a single libsqlite full-suite readiness record over accepted veryquick,
+focused-ledger, release-tier, wildcard, permutation-map, and closure blocker
+evidence. It does not claim fresh upstream `testfixture`, `make test`, or
+`mptest` execution because the clean isolated worktree had no hydrated upstream
+cache/build inputs.
+
+Dashboard publication should run next because this acceptance moves
+`refs/heads/main`.
+
 ## Accepted libsqlite JSON aggregate window helpers - 2026-05-26 06:43 UTC
 
 Accepted marker:
