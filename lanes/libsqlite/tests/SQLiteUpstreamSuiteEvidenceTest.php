@@ -1751,6 +1751,84 @@ TXT;
         $t->contains('keep the release blocker open', $blocked['next_gate']);
         $t->contains('no new support component needed', $blocked['dependency_closure']);
     },
+    'summarizes release admission records into countable and blocked upstream evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $zeroError = [
+            'status' => 'admissible',
+            'closure_mode' => 'zero-error-release-artifact',
+            'release_blocker_closed' => true,
+            'counts_as_zero_error_release_parity' => true,
+            'artifact_status' => 'passed',
+            'artifact_tests' => 22000,
+            'artifact_errors' => 0,
+            'blocker_count' => 0,
+            'blockers' => [],
+        ];
+        $excluded = [
+            'status' => 'admissible',
+            'closure_mode' => 'supervisor-non-portability-exclusion',
+            'release_blocker_closed' => true,
+            'counts_as_zero_error_release_parity' => false,
+            'artifact_status' => 'failed',
+            'artifact_tests' => null,
+            'artifact_errors' => null,
+            'blocker_count' => 0,
+            'blockers' => [],
+        ];
+        $blocked = [
+            'status' => 'blocked',
+            'closure_mode' => 'blocked',
+            'release_blocker_closed' => false,
+            'counts_as_zero_error_release_parity' => false,
+            'artifact_status' => 'failed',
+            'blocker_count' => 2,
+            'blockers' => [
+                [
+                    'id' => 'artifact-not-passed',
+                    'source' => 'countability',
+                    'evidence' => 'bounded runner artifact has not produced parsed zero-error pass evidence',
+                ],
+                [
+                    'id' => 'supervisor-exclusion-decision-required',
+                    'source' => 'exclusion',
+                    'evidence' => 'persistent upstream runtime blockers require an explicit decision',
+                ],
+            ],
+        ];
+
+        $ledger = $evidence->releaseAdmissionLedger([
+            'zero-error-release' => $zeroError,
+            'sanitizer-exclusion' => $excluded,
+            'failed-rerun' => $blocked,
+        ]);
+
+        $t->same('zero-error-release-parity-countable', $ledger['status']);
+        $t->same(3, $ledger['entry_count']);
+        $t->same(1, $ledger['zero_error_release_artifacts']);
+        $t->same(1, $ledger['exclusion_only_closures']);
+        $t->same(1, $ledger['blocked_admissions']);
+        $t->same(true, $ledger['release_blocker_closed']);
+        $t->same(true, $ledger['counts_as_zero_error_release_parity']);
+        $t->same(22000, $ledger['artifact_tests_total']);
+        $t->same(0, $ledger['artifact_errors_total']);
+        $t->same('zero-error-release', $ledger['entries'][0]['label']);
+        $t->same('supervisor-non-portability-exclusion', $ledger['entries'][1]['closure_mode']);
+        $t->same('failed-rerun', $ledger['blockers'][0]['admission']);
+        $t->same('artifact-not-passed', $ledger['blockers'][0]['id']);
+        $t->contains('publish release/all zero-error parity', $ledger['next_gate']);
+        $t->contains('no new support component needed', $ledger['dependency_closure']);
+
+        $exclusionOnly = $evidence->releaseAdmissionLedger(['sanitizer-exclusion' => $excluded]);
+        $t->same('release-blocker-closed-by-exclusion', $exclusionOnly['status']);
+        $t->same(false, $exclusionOnly['counts_as_zero_error_release_parity']);
+        $t->same(true, $exclusionOnly['release_blocker_closed']);
+        $t->contains('zero-error release/all parity uncounted', $exclusionOnly['next_gate']);
+
+        $blockedOnly = $evidence->releaseAdmissionLedger(['failed-rerun' => $blocked]);
+        $t->same('blocked', $blockedOnly['status']);
+        $t->same(false, $blockedOnly['release_blocker_closed']);
+        $t->same(2, count($blockedOnly['blockers']));
+    },
     'does not duplicate the permutation release tier blocker once hydrated suites are parsed' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/libsqlite-permutation-readiness-' . bin2hex(random_bytes(4));
         $build = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';

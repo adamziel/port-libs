@@ -1793,6 +1793,93 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $admissionRecords
+     * @return array<string, mixed>
+     */
+    public function releaseAdmissionLedger(array $admissionRecords): array
+    {
+        $entries = [];
+        $zeroError = 0;
+        $exclusionOnly = 0;
+        $blocked = 0;
+        $artifactTests = 0;
+        $artifactErrors = 0;
+        $blockers = [];
+
+        foreach ($admissionRecords as $name => $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $label = is_string($name) ? $name : 'admission-' . (string) $name;
+            $closureMode = is_string($record['closure_mode'] ?? null) ? $record['closure_mode'] : 'blocked';
+            $countsAsParity = ($record['counts_as_zero_error_release_parity'] ?? false) === true;
+            $closed = ($record['release_blocker_closed'] ?? false) === true;
+            $tests = is_int($record['artifact_tests'] ?? null) ? $record['artifact_tests'] : null;
+            $errors = is_int($record['artifact_errors'] ?? null) ? $record['artifact_errors'] : null;
+
+            if ($countsAsParity) {
+                $zeroError++;
+                $artifactTests += $tests ?? 0;
+                $artifactErrors += $errors ?? 0;
+            } elseif ($closed && $closureMode === 'supervisor-non-portability-exclusion') {
+                $exclusionOnly++;
+            } else {
+                $blocked++;
+                foreach (is_array($record['blockers'] ?? null) ? $record['blockers'] : [] as $blocker) {
+                    if (is_array($blocker)) {
+                        $blockers[] = [
+                            'admission' => $label,
+                            'id' => $blocker['id'] ?? 'unknown',
+                            'source' => $blocker['source'] ?? null,
+                            'evidence' => $blocker['evidence'] ?? null,
+                        ];
+                    }
+                }
+            }
+
+            $entries[] = [
+                'label' => $label,
+                'status' => $record['status'] ?? 'unknown',
+                'closure_mode' => $closureMode,
+                'release_blocker_closed' => $closed,
+                'counts_as_zero_error_release_parity' => $countsAsParity,
+                'artifact_status' => $record['artifact_status'] ?? 'unknown',
+                'artifact_tests' => $tests,
+                'artifact_errors' => $errors,
+                'blocker_count' => is_int($record['blocker_count'] ?? null) ? $record['blocker_count'] : 0,
+            ];
+        }
+
+        $status = 'blocked';
+        if ($zeroError > 0) {
+            $status = 'zero-error-release-parity-countable';
+        } elseif ($exclusionOnly > 0 && $blocked === 0) {
+            $status = 'release-blocker-closed-by-exclusion';
+        }
+
+        return [
+            'status' => $status,
+            'entry_count' => count($entries),
+            'zero_error_release_artifacts' => $zeroError,
+            'exclusion_only_closures' => $exclusionOnly,
+            'blocked_admissions' => $blocked,
+            'release_blocker_closed' => $zeroError > 0 || ($exclusionOnly > 0 && $blocked === 0),
+            'counts_as_zero_error_release_parity' => $zeroError > 0,
+            'artifact_tests_total' => $artifactTests,
+            'artifact_errors_total' => $artifactErrors,
+            'entries' => $entries,
+            'blockers' => $blockers,
+            'next_gate' => $zeroError > 0
+                ? 'integrator may publish release/all zero-error parity from the countable admission entries'
+                : ($exclusionOnly > 0 && $blocked === 0
+                    ? 'integrator may close the release blocker by exclusion while keeping zero-error release/all parity uncounted'
+                    : 'keep release/all parity and blocker closure open until an admission record is countable or explicitly excluded'),
+            'dependency_closure' => 'no new support component needed; admission ledger summarizes lane-local release blocker admission records only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array

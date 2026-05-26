@@ -116545,3 +116545,30 @@ Decision: accepted after focused and serialized root verification. Dashboard pub
 
 Cleanup debt:
 - The accepted marker's worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-release-blocker-20260526T181450Z` still had modified lane files after the committed patch was safely on `main`, so it was preserved and left registered. Accepted marker files were removed separately.
+## Integration accepted - libsqlite release admission ledger - 2026-05-26T18:27:14Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T182227Z.ready`.
+
+Decision: accepted one current-base `libsqlite` upstream-suite marker based on `521dd4473564b9347890742a3b0f20a3135157ad` after the live dashboard guard opened for that same source. The patch adds `SQLiteUpstreamSuiteEvidence::releaseAdmissionLedger()` and focused assertions that separate countable zero-error release/all parity records, supervisor non-portability exclusion-only closure, and still-blocked admissions with blocker provenance.
+
+Guard evidence before focused/root checks:
+- Cache-busted live Pages `porting-summary.json` reported `sourceCommit` `521dd4473564b9347890742a3b0f20a3135157ad`, matching current `refs/heads/main`.
+- `df -Pk /` reported at least `108493908` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was between `1.78` and `2.04`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before the serialized root run.
+
+Focused verification in detached clean candidate `.tmux-team/clean-candidates/clean-libsqlite-suite-20260526T182227Z-2799149` with repo-local `TMPDIR=$candidate/.tmp-root`:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed: `1 test files, 626 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=$candidate/.tmp-root` passed: `215 test files, 28153 assertions, 0 failures`.
+
+No WordPress smoke was required because this is upstream-suite countability/admission evidence plumbing, not a user-facing WordPress execution path. No Dolt marker or non-libsqlite marker was considered.
+
+Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-suite-20260526T182227Z` still contains modified libsqlite files after the accepted patch landed, so it was preserved and left registered. Accepted ready/patch/metadata marker artifacts were removed after `main` advanced.
+
+Remaining ready-marker count near intake was `6053` total ready markers, including `2785` libsqlite ready markers.
+
+Dashboard publication should run next because this acceptance moves the source head beyond the currently published live dashboard source.
