@@ -1,5 +1,59 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite bulk leaf delete freeblocks - 2026-05-26 07:24 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T071725Z.ready`
+(`closure-libsqlite-planner-wal-btree-20260526T071725Z`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json?cache_bust=1779780120425479912`
+  reported `sourceCommit=901e6a21bd5a743610361d9d08dbf45b363d24b5`.
+- Current `refs/heads/main` before acceptance was
+  `901e6a21bd5a743610361d9d08dbf45b363d24b5`
+  (`Integrate libsqlite core scalar dispatch`), so the dashboard guard was
+  open.
+- Live dashboard commit reported
+  `cc49a7cbf7f7b6b53b13bc27f9d116ee68c45fdb`.
+
+Resource and process gate evidence:
+- `df -Pk /` reported at least `90311564` KiB available, above the required
+  `86000000` KiB threshold.
+- `/proc/loadavg` first field was at most `1.49`, below the required `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before starting the
+  serialized no-argument root harness.
+
+Candidate evidence:
+- The full stale-base patch was based on
+  `f820702c231923f1c98de1e684779818e75c2b01` and failed full
+  `git apply --check` against current `main` only in churny
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`,
+  `lanes/libsqlite/lane-status.json`, and libsqlite notes paths.
+- Substantive code/test/example hunks applied cleanly after excluding those
+  status/manifest/notes files. The status merge was bounded to preserve the
+  already accepted scalar-dispatch evidence while adding the bulk leaf-delete
+  evidence.
+
+Focused verification in the detached clean candidate snapshot passed:
+- `php -l` for touched libsqlite source, test, and example files.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`:
+  `1 test files, 2617 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php`
+  reported deleted rowids `[2,3]`, remaining rowids `[1,4]`, one coalesced
+  freeblock, and zeroed secure-delete bytes.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` and root `git diff --check` passed.
+
+Serialized root verification passed under
+`.tmux-team/tmp/clean-integrator-run.lock`:
+`215 test files, 27303 assertions, 0 failures`.
+
+Decision: accepted. The slice adds bounded bulk table/index leaf deletion and
+secure-delete clearing across coalesced freeblocks, with no new shared
+support-library dependency. Dashboard publication should run next for the new
+accepted source.
+
 ## Accepted - libsqlite core scalar dispatch - 2026-05-26 07:23 UTC
 
 Accepted marker:

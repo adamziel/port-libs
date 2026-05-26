@@ -7820,3 +7820,39 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 automatic index metadata parsing, SQLite scalar comparison, record decoding,
 and WordPress option traversal without activating shared support-library work.
+
+## Focused Native Mapping: Bulk B-tree Leaf Deletes
+
+This isolated B-tree delete/rebalance micro-slice adds bounded bulk deletion
+helpers for table and index leaf pages. Native PHP can now remove multiple
+adjacent `wp_options` table rowids or secondary-index records from one leaf,
+update the pointer array, coalesce the freed cell bodies into a reusable
+freeblock, and, when secure-delete is requested, clear stale interior
+freeblock headers inside the coalesced payload before writing the surviving
+freeblock header.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped
+count is preserved at the current accepted 312 while adding
+`focusedWordPressBulkLeafDeleteFreeblockScripts: 1`. This reuses accepted
+static B-tree delete/rebalance evidence over `delete.test`, `delete2.test`,
+`delete3.test`, `delete4.test`, and `btree01.test`; this isolated worktree did
+not contain the hydrated upstream cache, so no fresh upstream `testfixture`,
+`make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T07:17Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
+php -l lanes/libsqlite/src/SQLiteIndexLeafPage.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+B-tree page headers, table/index leaf cell parsing, record decoding, freeblock
+accounting, and WordPress fixture helpers without activating shared
+support-library work.

@@ -1079,6 +1079,35 @@ return [
         $t->same(1, count($deletedAgainHeader->freeblocks($deletedAgainPage)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellByRecordValues($deletedAgainPage, ['missing', 9]));
     },
+    'bulk deletes sqlite index leaf records into coalesced reusable freeblocks' => static function (TestRunner $t): void {
+        $cells = [
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['_transient_cache', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['_transient_timeout_cache', 3])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 4])),
+        ];
+        $page = SQLiteIndexLeafPage::assemble($cells);
+        $beforeHeader = SQLiteBTreePageHeader::parsePage($page, 512);
+        $beforeCells = SQLiteIndexCell::parsePageCells($page, $beforeHeader);
+
+        $deletedPage = SQLiteIndexLeafPage::deleteCellsByRecordValues($page, [
+            ['_transient_cache', 2],
+            ['_transient_timeout_cache', 3],
+        ], secureDelete: true);
+        $header = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+        $remainingCells = SQLiteIndexCell::parsePageCells($deletedPage, $header);
+        $freeblocks = $header->freeblocks($deletedPage);
+
+        $t->same(2, $header->cellCount);
+        $t->same([['siteurl', 1], ['home', 4]], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $remainingCells));
+        $t->same(1, count($freeblocks));
+        $t->same($beforeCells[2]->offset, $freeblocks[0]->offset);
+        $t->same($beforeCells[1]->bytesRead + $beforeCells[2]->bytesRead, $freeblocks[0]->size);
+        $t->same(str_repeat("\0", $beforeCells[1]->bytesRead - 4), substr($deletedPage, $beforeCells[1]->offset + 4, $beforeCells[1]->bytesRead - 4));
+        $t->same(str_repeat("\0", $beforeCells[2]->bytesRead - 4), substr($deletedPage, $beforeCells[2]->offset + 4, $beforeCells[2]->bytesRead - 4));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellsByRecordValues($page, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellsByRecordValues($page, [['missing', 99]]));
+    },
     'deletes sqlite table leaf cells by rowid into sorted coalesced freeblocks' => static function (TestRunner $t): void {
         $siteurlCell = SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
             null,
@@ -1124,6 +1153,32 @@ return [
         $t->same(1, $deletedAgainHeader->cellCount);
         $t->same(1, count($deletedAgainHeader->freeblocks($deletedAgainPage)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::deleteCellByRowId($deletedAgainPage, 99));
+    },
+    'bulk deletes sqlite table leaf rowids into coalesced reusable freeblocks' => static function (TestRunner $t): void {
+        $cells = [
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, '_transient_cache', 'stale payload', 'no'])),
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, '_transient_timeout_cache', '1700000000', 'no'])),
+            SQLiteTableLeafCell::encode(4, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ];
+        $page = SQLiteTableLeafPage::assemble($cells);
+        $beforeHeader = SQLiteBTreePageHeader::parsePage($page, 512);
+        $beforeCells = SQLiteTableLeafCell::parsePageCells($page, $beforeHeader);
+
+        $deletedPage = SQLiteTableLeafPage::deleteCellsByRowIds($page, [2, 3], secureDelete: true);
+        $header = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+        $remainingCells = SQLiteTableLeafCell::parsePageCells($deletedPage, $header);
+        $freeblocks = $header->freeblocks($deletedPage);
+
+        $t->same(2, $header->cellCount);
+        $t->same([1, 4], array_map(static fn (SQLiteTableLeafCell $cell): int => $cell->rowId, $remainingCells));
+        $t->same(1, count($freeblocks));
+        $t->same($beforeCells[2]->offset, $freeblocks[0]->offset);
+        $t->same($beforeCells[1]->bytesRead + $beforeCells[2]->bytesRead, $freeblocks[0]->size);
+        $t->same(str_repeat("\0", $beforeCells[1]->bytesRead - 4), substr($deletedPage, $beforeCells[1]->offset + 4, $beforeCells[1]->bytesRead - 4));
+        $t->same(str_repeat("\0", $beforeCells[2]->bytesRead - 4), substr($deletedPage, $beforeCells[2]->offset + 4, $beforeCells[2]->bytesRead - 4));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::deleteCellsByRowIds($page, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteTableLeafPage::deleteCellsByRowIds($page, [99]));
     },
     'assembles sqlite index interior pages from native index cell encoder' => static function (TestRunner $t): void {
         $cell = SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 2]), 512, null, 3);

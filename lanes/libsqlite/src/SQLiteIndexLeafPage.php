@@ -135,7 +135,42 @@ final class SQLiteIndexLeafPage
             );
         }
 
-        return self::insertFreeblock($newPage, $header, $deletedCell->offset, $deletedCell->bytesRead, $usableSize);
+        return self::insertFreeblock($newPage, $header, $deletedCell->offset, $deletedCell->bytesRead, $usableSize, $secureDelete);
+    }
+
+    /**
+     * @param list<list<mixed>> $recordValuesList
+     */
+    public static function deleteCellsByRecordValues(
+        string $page,
+        array $recordValuesList,
+        int $pageSize = 512,
+        int $headerOffset = 0,
+        ?int $usableSize = null,
+        int $textEncoding = 1,
+        bool $secureDelete = false,
+    ): string {
+        if ($recordValuesList === []) {
+            throw new \InvalidArgumentException('SQLite index leaf bulk deletion requires at least one record value list');
+        }
+
+        $deletedPage = $page;
+        foreach ($recordValuesList as $recordValues) {
+            if (!is_array($recordValues)) {
+                throw new \InvalidArgumentException('SQLite index leaf bulk deletion records must be value lists');
+            }
+            $deletedPage = self::deleteCellByRecordValues(
+                $deletedPage,
+                $recordValues,
+                $pageSize,
+                $headerOffset,
+                $usableSize,
+                $textEncoding,
+                $secureDelete,
+            );
+        }
+
+        return $deletedPage;
     }
 
     private static function insertFreeblock(
@@ -144,6 +179,7 @@ final class SQLiteIndexLeafPage
         int $offset,
         int $size,
         int $usableSize,
+        bool $secureDelete,
     ): string {
         if ($size < 4) {
             $fragmented = ord($page[$header->headerOffset + 7]) + $size;
@@ -186,6 +222,9 @@ final class SQLiteIndexLeafPage
         );
         foreach ($coalesced as $index => $block) {
             $nextOffset = $coalesced[$index + 1]['offset'] ?? 0;
+            if ($secureDelete) {
+                $page = substr_replace($page, str_repeat("\0", $block['size']), $block['offset'], $block['size']);
+            }
             $page = substr_replace($page, pack('n', $nextOffset) . pack('n', $block['size']), $block['offset'], 4);
         }
 

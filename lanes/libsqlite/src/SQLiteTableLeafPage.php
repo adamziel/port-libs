@@ -131,7 +131,33 @@ final class SQLiteTableLeafPage
             );
         }
 
-        return self::insertFreeblock($newPage, $header, $deletedCell->offset, $deletedCell->bytesRead, $usableSize);
+        return self::insertFreeblock($newPage, $header, $deletedCell->offset, $deletedCell->bytesRead, $usableSize, $secureDelete);
+    }
+
+    /**
+     * @param list<int> $rowIds
+     */
+    public static function deleteCellsByRowIds(
+        string $page,
+        array $rowIds,
+        int $pageSize = 512,
+        int $headerOffset = 0,
+        ?int $usableSize = null,
+        bool $secureDelete = false,
+    ): string {
+        if ($rowIds === []) {
+            throw new \InvalidArgumentException('SQLite table leaf bulk deletion requires at least one rowid');
+        }
+
+        $deletedPage = $page;
+        foreach ($rowIds as $rowId) {
+            if (!is_int($rowId)) {
+                throw new \InvalidArgumentException('SQLite table leaf bulk deletion rowids must be integers');
+            }
+            $deletedPage = self::deleteCellByRowId($deletedPage, $rowId, $pageSize, $headerOffset, $usableSize, $secureDelete);
+        }
+
+        return $deletedPage;
     }
 
     private static function insertFreeblock(
@@ -140,6 +166,7 @@ final class SQLiteTableLeafPage
         int $offset,
         int $size,
         int $usableSize,
+        bool $secureDelete,
     ): string {
         if ($size < 4) {
             $fragmented = ord($page[$header->headerOffset + 7]) + $size;
@@ -177,6 +204,9 @@ final class SQLiteTableLeafPage
         $page = substr_replace($page, pack('n', $coalesced[0]['offset']), $header->headerOffset + 1, 2);
         foreach ($coalesced as $index => $block) {
             $nextOffset = $coalesced[$index + 1]['offset'] ?? 0;
+            if ($secureDelete) {
+                $page = substr_replace($page, str_repeat("\0", $block['size']), $block['offset'], $block['size']);
+            }
             $page = substr_replace($page, pack('n', $nextOffset) . pack('n', $block['size']), $block['offset'], 4);
         }
 

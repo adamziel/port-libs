@@ -2499,3 +2499,25 @@ implementation.
 Dependency closure: no new shared support component is needed. This reuses
 lane-local scalar coercion and `SQLiteBlobValue` without activating shared
 support-library work.
+
+## Bulk Leaf Delete Freeblock Scenario
+
+Native `wp_options` repair tooling can now delete adjacent obsolete rows or
+index records from a single B-tree leaf in one bounded operation. The
+`examples/wordpress-delete-option-table-leaf-freeblock.php` smoke bulk deletes
+`_transient_cache` and `_transient_timeout_cache`, reports remaining rowids
+`[1,4]`, exposes one coalesced reusable freeblock, and verifies secure-delete
+clearing across the coalesced payload.
+
+Status delta 2026-05-26 isolated B-tree delete/rebalance slice: added
+`SQLiteTableLeafPage::deleteCellsByRowIds()` and
+`SQLiteIndexLeafPage::deleteCellsByRecordValues()`, focused table/index bulk
+delete assertions, and tightened secure-delete clearing so stale interior
+freeblock headers are wiped when adjacent deleted cells coalesce. Full SQL
+DELETE dispatch, paired secondary-index maintenance, sibling
+merge/redistribution after delete, and auto-vacuum pointer-map cleanup remain
+separate follow-up work.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local B-tree page headers, table/index cell parsing, record decoding,
+freeblock accounting, and WordPress fixture helpers.
