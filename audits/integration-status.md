@@ -1,5 +1,48 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite WAL committed page images - 2026-05-26 00:39 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T002911Z.ready`.
+
+Commit:
+this integration commit (`Integrate libsqlite WAL page image diagnostics`).
+
+Gate and selection evidence:
+- Current `refs/heads/main` before acceptance was `166116ef9cd8`
+  (`Integrate libsqlite JSON aggregate DISTINCT vector`).
+- Cache-busted live `porting-summary.json` reported matching
+  `sourceCommit=166116ef9cd81d28d3aa7eeb4a336fab43944a4a`, so the dashboard
+  guard was open.
+- Resource gate before the serialized root run was open: `df -Pk /` reported
+  `94071784` KiB available, load average first field was `2.61`, and the
+  exact no-argument root harness gate was empty.
+- Libsqlite priority was applied before non-libsqlite markers. The marker was
+  shape-valid (`lane=libsqlite`, `patch=...`, `metadata=...`), not stale-marked,
+  owner-free by process sample, and its patch sha256 matched
+  `e2cd09340eab7257cf79329b7039a5495efb81524f7ca777eb2c0e468377eb81`.
+- Detached clean worktree apply at `166116ef` passed.
+
+Focused verification:
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`: passed.
+- `php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`: passed and reported committed WAL page images plus `siteurl` and `blogname` options.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed with
+  `1 test files, 2284 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite`: passed.
+- Full `git diff --check`: passed.
+
+Serialized root verification:
+- `php tools/run-tests.php` under
+  `.tmux-team/tmp/clean-integrator-run.lock`: passed with
+  `214 test files, 26704 assertions, 0 failures`.
+
+Decision: accepted. This is a bounded read-only libsqlite WAL diagnostics slice
+that records committed WAL frame page images and malformed WAL rejection
+coverage. Dashboard publication should run next after the commit is visible on
+`main`.
+
 ## Clean-patch accepted - libsqlite JSON aggregate DISTINCT argument vector - 2026-05-26 00:30 UTC
 
 Accepted one isolated marker:

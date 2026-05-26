@@ -1922,3 +1922,15 @@ exercises uppercase `JSON_ARRAY`, `JSON_OBJECT`, `JSONB_ARRAY`, and
 including JSON subtype passthrough, JSONB queue blobs, SQL NULL array members,
 JSONB result decoding, and raw BLOB rejection without requiring the SQLite
 extension.
+## WAL Frame Option Diagnostics
+
+Native WAL inspection now includes a bounded read-only frame parser for
+WordPress recovery/import tooling. The new
+`examples/wordpress-wal-option-frame-diagnostics.php` script builds a WAL
+fixture with committed schema and `wp_options` page images, extracts page
+images through the last commit frame, and reads pending `siteurl`/`blogname`
+options without requiring the SQLite extension.
+
+This is intentionally not a full checkpoint or recovery engine yet. WAL
+checksum validation, WAL-index/shared-memory state, checkpoint writing,
+rollback journals, and savepoint behavior remain separate slices.

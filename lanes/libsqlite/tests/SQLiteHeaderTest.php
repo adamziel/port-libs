@@ -49,6 +49,9 @@ use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteTableRow;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
+use PortLibs\LibSqlite\SQLiteWal;
+use PortLibs\LibSqlite\SQLiteWalFrame;
+use PortLibs\LibSqlite\SQLiteWalHeader;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
 use PortLibs\LibSqlite\SQLiteWordPressOptionReplacementPlan;
 use PortLibs\LibSqlite\SQLiteWordPressOptionWritePlan;
@@ -9649,5 +9652,61 @@ return [
     },
     'sqlite record parser rejects reserved serial types' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::parse("\x02\x0a"));
+    },
+    'parses sqlite wal headers and committed frame page images' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x01020304;
+        $salt2 = 0x05060708;
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 7, $salt1, $salt2, 0x11111111, 0x22222222);
+        $pageOne = $makeFirstPage($pageSize, 2);
+        $pageTwo = str_repeat('W', $pageSize);
+        $pageThree = str_repeat('U', $pageSize);
+        $walBytes = $walHeader
+            . pack('N*', 1, 0, $salt1, $salt2, 0xaaaa0001, 0xbbbb0001) . $pageOne
+            . pack('N*', 2, 2, $salt1, $salt2, 0xaaaa0002, 0xbbbb0002) . $pageTwo
+            . pack('N*', 3, 0, $salt1, $salt2, 0xaaaa0003, 0xbbbb0003) . $pageThree;
+
+        $wal = SQLiteWal::parse($walBytes);
+
+        $t->same(SQLiteWal::class, get_class($wal));
+        $t->same(SQLiteWalHeader::class, get_class($wal->header));
+        $t->same(3, $wal->frameCount());
+        $t->same('big-endian', $wal->header->byteOrder());
+        $t->same([
+            'magic' => SQLiteWalHeader::MAGIC_BIG_ENDIAN,
+            'format_version' => 3007000,
+            'page_size' => 512,
+            'checkpoint_sequence' => 7,
+            'salt1' => $salt1,
+            'salt2' => $salt2,
+            'checksum1' => 0x11111111,
+            'checksum2' => 0x22222222,
+            'byte_order' => 'big-endian',
+        ], $wal->header->toArray());
+        $lastCommitFrame = $wal->lastCommitFrame();
+        $t->same(SQLiteWalFrame::class, get_class($lastCommitFrame));
+        $t->same(2, $lastCommitFrame->index);
+        $t->same(2, $lastCommitFrame->pageNumber);
+        $t->same(true, $lastCommitFrame->isCommitFrame());
+        $t->same([1, 2], array_keys($wal->pageImagesThroughLastCommit()));
+        $t->same($pageOne, $wal->pageImagesThroughLastCommit()[1]);
+        $t->same($pageTwo, $wal->pageImagesThroughLastCommit()[2]);
+        $t->same([
+            'header' => $wal->header->toArray(),
+            'frame_count' => 3,
+            'committed_page_numbers' => [1, 2],
+            'last_commit_frame' => $lastCommitFrame->toArray(),
+        ], $wal->toArray());
+    },
+    'rejects malformed sqlite wal files' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(str_repeat("\0", 31)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(pack('N*', 0, 3007000, 512, 0, 1, 2, 3, 4)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalHeader::parse(pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, 500, 0, 1, 2, 3, 4)));
+
+        $header = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, 512, 0, 1, 2, 3, 4);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse(substr($header, 0, 32) . str_repeat("\0", 16)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse(pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, 0, 0, 1, 2, 3, 4)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse($header . pack('N*', 1, 1, 9, 2, 3, 4) . str_repeat("\0", 512)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteWal::parse($header . pack('N*', 0, 1, 1, 2, 3, 4) . str_repeat("\0", 512)));
     },
 ];

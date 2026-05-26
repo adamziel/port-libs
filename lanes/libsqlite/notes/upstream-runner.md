@@ -6211,3 +6211,41 @@ git diff --check -- lanes/libsqlite
 Result: recorded in `lane-status.json` after focused verification. Root aggregate harness was not assigned for this isolated micro-slice.
 
 Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and table-valued row support; it counts no shared support-library progress.
+## Focused Native Mapping: WAL Header and Frame Reader
+
+Date: 2026-05-26
+
+This isolated micro-slice adds a bounded read-only SQLite WAL parser. It maps
+the WAL file header fields, validates supported WAL magic values and page
+sizes, iterates fixed-size frames, rejects frame salt mismatches and truncated
+frames, identifies commit frames via non-zero database-size fields, and exposes
+page images through the last commit frame for recovery/import diagnostics.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice is mapped against the existing static focused WAL inventory
+(`focusedWalTestScripts`: 42) and records one native WAL header/frame mapping
+unit. Prior applicable runner evidence remains the complete SQLite `veryquick`
+run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWalHeader.php
+php -l lanes/libsqlite/src/SQLiteWalFrame.php
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: recorded in `lane-status.json` after focused verification. Root
+aggregate harness was not assigned for this isolated micro-slice.
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local binary parsing, table/page assembly, `SQLiteDatabase` traversal, and
+WordPress option decoding; it counts no shared support-library progress.
