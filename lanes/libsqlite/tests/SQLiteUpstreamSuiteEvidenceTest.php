@@ -168,4 +168,28 @@ return [
         $t->same(true, $subsetRunRecords['uses_cached_or_missing_cache_evidence']);
         $t->contains('isolated worktree lacked a hydrated upstream cache', (string) $subsetRunRecords['skip_reason']);
     },
+    'builds an upstream suite acceptance checklist from runner and ledger evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $checklist = $evidence->upstreamSuiteAcceptanceChecklist();
+
+        $t->same('bounded-upstream-suite-evidence-ready', $checklist['status']);
+        $t->same(1589, $checklist['denominator_total']);
+        $t->true($checklist['denominator_mapped'] >= 287, 'Expected accepted mapped count to be preserved');
+        $t->same(1811, $checklist['inventory_unit_total']);
+        $t->same(true, $checklist['veryquick_zero_error']);
+        $t->same(1235, $checklist['veryquick_scripts']);
+        $t->same(329670, $checklist['veryquick_tests']);
+        $t->true($checklist['focused_entries'] >= 30, 'Expected focused ledger entries to be counted');
+        $t->true($checklist['focused_passed'] >= 14, 'Expected focused passed ledger entries');
+        $t->same(0, $checklist['focused_failed']);
+        $t->true($checklist['focused_reused_or_skipped'] >= 10, 'Expected reused or skipped evidence to remain visible');
+        $t->true($checklist['selected_script_count'] >= 40, 'Expected accepted selected scripts to be counted');
+        $t->true($checklist['pattern_script_count'] >= 2, 'Expected accepted wildcard script patterns to be counted');
+        $t->same([
+            'full release/all permutations',
+            'multi-configuration make test suites',
+            'long-running stress/permutation tiers beyond veryquick',
+        ], $checklist['remaining_suite_tiers']);
+        $t->contains('hydrate upstream cache', $checklist['next_acceptance_gate']);
+    },
 ];

@@ -205,6 +205,48 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function upstreamSuiteAcceptanceChecklist(): array
+    {
+        $summary = $this->denominatorSummary();
+        $coverage = $this->runnerCoverageAudit();
+        $ledger = $this->focusedResultLedger();
+
+        $inventoryUnits = 0;
+        foreach ($summary['inventory_units'] as $count) {
+            $inventoryUnits += (int) $count;
+        }
+
+        $ready = $summary['total'] > 0
+            && $inventoryUnits > 0
+            && $coverage['veryquick']['scripts'] > 0
+            && $coverage['veryquick']['errors'] === 0
+            && $ledger['failed_count'] === 0
+            && $coverage['remaining_suite_tiers'] !== [];
+
+        return [
+            'status' => $ready ? 'bounded-upstream-suite-evidence-ready' : 'incomplete',
+            'denominator_total' => $summary['total'],
+            'denominator_mapped' => $summary['mapped'],
+            'inventory_unit_total' => $inventoryUnits,
+            'veryquick_zero_error' => $coverage['veryquick']['scripts'] > 0 && $coverage['veryquick']['errors'] === 0,
+            'veryquick_scripts' => $coverage['veryquick']['scripts'],
+            'veryquick_tests' => $coverage['veryquick']['tests'],
+            'focused_entries' => $ledger['entry_count'],
+            'focused_passed' => $ledger['passed_count'],
+            'focused_failed' => $ledger['failed_count'],
+            'focused_reused_or_skipped' => $ledger['reused_or_skipped_count'],
+            'selected_script_count' => $coverage['selected_script_count'],
+            'pattern_script_count' => $coverage['pattern_script_count'],
+            'remaining_suite_tiers' => $coverage['remaining_suite_tiers'],
+            'next_acceptance_gate' => $coverage['full_release_executed']
+                ? 'refresh manifest/status from accepted full release runner evidence'
+                : 'hydrate upstream cache and run release/all or a supervisor-approved bounded subset from this checklist',
+        ];
+    }
+
+    /**
      * @return array{scripts: int, tests: int, errors: int}
      */
     private function parseVeryquickResult(mixed $result): array

@@ -1,5 +1,53 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite upstream suite acceptance checklist - 2026-05-26 03:20 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T031008Z.ready`.
+
+Accepted commit:
+This integration commit (`Integrate libsqlite upstream suite checklist`).
+
+Decision evidence:
+- Libsqlite priority override applied; Dolt and non-libsqlite markers were not
+  considered.
+- Live dashboard guard was open before candidate selection:
+  `porting-summary.json` reported
+  `sourceCommit=ea13e1d3c99ac43733b01fbae182b4eb73779913`, matching
+  `refs/heads/main`.
+- Marker contained required `lane=libsqlite`, `patch=`, and `metadata=` fields.
+  Patch sha256 matched marker metadata:
+  `4dfeceb06f46cf7d07bbac368e89dec06659fd1f70d8a62e4fce92accccef889`.
+- The marker base `6a75784baf9d528a0e6de6e09d99b5e8b3de8cf9` was stale
+  relative to current `main` `ea13e1d3c99ac43733b01fbae182b4eb73779913`.
+  Plain `git apply --check` failed only at
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json`; `git apply --3way` applied code, tests,
+  and notes cleanly and left bounded manifest/status conflicts. The conflicts
+  were resolved by preserving the newer accepted commented-schema autoindex
+  evidence while adding this upstream-suite checklist evidence.
+
+Focused verification in detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 100 assertions, 0 failures`.
+- Manifest/status JSON validation passed for
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates were open immediately before root verification:
+  `/` reported at least `86179608` KiB available, load was `1.31`, and no
+  existing `php tools/run-tests.php` process was active.
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the clean candidate snapshot with
+  `215 test files, 26938 assertions, 0 failures`.
+
+Dashboard publication should run next after this accepted source commit is on
+`refs/heads/main`.
+
 ## Clean-patch intake accepted - libsqlite commented schema autoindex - 2026-05-26 03:08 UTC
 
 Accepted marker:
