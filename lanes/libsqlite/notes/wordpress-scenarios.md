@@ -2572,6 +2572,26 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## Core Scalar Substring Scenario
+
+Native SQL execution helpers now include `substr()` and `substring()` in the
+bounded core scalar dispatch surface used by local WordPress option repair and
+expression planning. The `examples/wordpress-core-scalar-option-default.php`
+smoke reports local-only slicing of copied `wp_options` values, including
+prefix/tail extraction, UTF-8 option text, and BLOB byte slices without
+requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added
+SQLite-style substring start and length handling for SQL NULL propagation,
+1-based starts, start zero, negative starts, negative lengths, UTF-8 text, BLOB
+bytes, and strict arity/type errors. This is intentionally a scalar dispatch
+helper, not a full SELECT expression evaluator or collation-aware expression
+engine.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
+helpers.
+
 ## WAL Reset Plan Scenario
 
 Native `wp_options` WAL diagnostics now include reset eligibility after a

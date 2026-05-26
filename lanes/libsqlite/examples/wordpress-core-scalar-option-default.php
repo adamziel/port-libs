@@ -13,7 +13,7 @@ if ($functionName === '--self-test') {
     $functionName = 'coalesce';
     $arguments = ['null', 'published'];
 } elseif ($functionName === null) {
-    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php abs|round|typeof|quote|coalesce|ifnull|nullif|min|max|lower|upper|length arg...\n");
+    fwrite(STDERR, "Usage: php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php abs|round|typeof|quote|coalesce|ifnull|nullif|min|max|lower|upper|length|substr|substring arg...\n");
     exit(1);
 }
 
@@ -46,5 +46,5 @@ echo json_encode([
     'functionName' => $functionName,
     'arguments' => array_map(static fn (mixed $value): mixed => $value instanceof SQLiteBlobValue ? 'blob:' . bin2hex($value->bytes) : $value, $typedArguments),
     'result' => $result instanceof SQLiteBlobValue ? 'blob:' . bin2hex($result->bytes) : $result,
-    'wordpressUse' => 'Preview core SQLite scalar defaulting, quoting, typing, numeric coercion, min/max selection, ASCII case folding, and length checks for copied wp_options values before local import or repair.',
+    'wordpressUse' => 'Preview core SQLite scalar defaulting, quoting, typing, numeric coercion, min/max selection, ASCII case folding, length checks, and substr/substring slicing for copied wp_options values before local import or repair.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

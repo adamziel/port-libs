@@ -8106,6 +8106,37 @@ SQL scalar coercion, SQLite storage-class comparison, `SQLiteBlobValue`, and
 existing expression-semantics helpers without activating shared
 support-library work.
 
+## Focused Native Mapping: Core Scalar Substring Dispatch
+
+This isolated SQL execution/planner micro-slice closes a bounded scalar
+function gap needed by expression dispatch and WordPress option repair previews.
+Native PHP core scalar dispatch now supports `substr()` and `substring()` with
+SQLite-style SQL NULL propagation, 1-based starts, the special start-zero
+length rule, negative starts, negative lengths, UTF-8 text slicing when the
+runtime exposes mbstring, and BLOB byte slicing.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` records one
+additional focused core substring scalar evidence row while preserving the
+current accepted static SQLite upstream denominator. This isolated worktree did
+not contain the hydrated upstream cache, so no fresh upstream `testfixture`,
+`make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T09:25Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php substr _plugin_cache 2 6
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+scalar coercion, UTF-8 helpers when available, `SQLiteBlobValue`, and existing
+expression-semantics dispatch without activating shared support-library work.
+
 ## Focused Native Mapping: WAL Reset Plan
 
 This isolated WAL/rollback/savepoint micro-slice adds bounded WAL reset and

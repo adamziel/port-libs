@@ -26,6 +26,7 @@ final class SQLiteCoreScalarFunction
             'lower' => self::caseMap('lower', $arguments),
             'upper' => self::caseMap('upper', $arguments),
             'length' => self::length($arguments),
+            'substr', 'substring' => self::substring($normalized, $arguments),
             default => throw new \InvalidArgumentException("Unsupported SQLite core scalar function: {$functionName}"),
         };
     }
@@ -228,6 +229,46 @@ final class SQLiteCoreScalarFunction
         throw new \InvalidArgumentException('SQLite length() argument must be scalar, BLOB, or NULL');
     }
 
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function substring(string $functionName, array $arguments): string|SQLiteBlobValue|null
+    {
+        self::assertArity($functionName, $arguments, 2, 3);
+        if ($arguments[0] === null || $arguments[1] === null || (array_key_exists(2, $arguments) && $arguments[2] === null)) {
+            return null;
+        }
+
+        $start = self::coerceInteger($arguments[1]);
+        $length = array_key_exists(2, $arguments) ? self::coerceInteger($arguments[2]) : null;
+        if ($arguments[0] instanceof SQLiteBlobValue) {
+            [$offset, $byteLength] = self::substringWindow($start, $length, strlen($arguments[0]->bytes));
+            $bytes = $byteLength === null
+                ? substr($arguments[0]->bytes, $offset)
+                : substr($arguments[0]->bytes, $offset, $byteLength);
+
+            return new SQLiteBlobValue($bytes);
+        }
+        if (!is_scalar($arguments[0])) {
+            throw new \InvalidArgumentException("SQLite {$functionName}() first argument must be scalar, BLOB, or NULL");
+        }
+
+        $value = (string) $arguments[0];
+        if (function_exists('mb_check_encoding') && function_exists('mb_substr') && function_exists('mb_strlen') && mb_check_encoding($value, 'UTF-8')) {
+            [$offset, $charLength] = self::substringWindow($start, $length, mb_strlen($value, 'UTF-8'));
+
+            return $charLength === null
+                ? mb_substr($value, $offset, null, 'UTF-8')
+                : mb_substr($value, $offset, $charLength, 'UTF-8');
+        }
+
+        [$offset, $byteLength] = self::substringWindow($start, $length, strlen($value));
+
+        return $byteLength === null
+            ? substr($value, $offset)
+            : substr($value, $offset, $byteLength);
+    }
+
     private static function assertArity(string $functionName, array $arguments, int $minimum, ?int $maximum): void
     {
         $count = count($arguments);
@@ -336,5 +377,43 @@ final class SQLiteCoreScalarFunction
         $formatted = sprintf('%.15G', $value);
 
         return str_contains($formatted, 'E') ? str_replace('E', 'e', $formatted) : $formatted;
+    }
+
+    /**
+     * @return array{0:int,1:int|null}
+     */
+    private static function substringWindow(int $start, ?int $length, int $unitCount): array
+    {
+        $leftPadding = 0;
+        if ($start > 0) {
+            $offset = $start - 1;
+        } elseif ($start < 0) {
+            $offset = $unitCount + $start;
+            if ($offset < 0) {
+                $leftPadding = -$offset;
+                $offset = 0;
+            }
+        } else {
+            $offset = 0;
+        }
+
+        if ($length === null) {
+            return [min($offset, $unitCount), null];
+        }
+
+        if ($start === 0 && $length > 0) {
+            $length--;
+        } elseif ($leftPadding > 0 && $length > 0) {
+            $length = max(0, $length - $leftPadding);
+        }
+
+        if ($length < 0) {
+            $end = min(max($offset, 0), $unitCount);
+            $offset = max(0, $end + $length);
+
+            return [$offset, $end - $offset];
+        }
+
+        return [min($offset, $unitCount), max(0, $length)];
     }
 }

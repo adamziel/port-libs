@@ -1,5 +1,52 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite scalar substr dispatch - 2026-05-26 09:25 UTC
+
+Accepted `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T091553Z.ready`.
+
+Current accepted source before integration: `991fd1d20e6a70ca392c7a89d11a199df4d83b84`
+(`Integrate libsqlite JSON table range residuals`).
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=991fd1d20e6a70ca392c7a89d11a199df4d83b84`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported `20996d118cf360284ddb3f8dc13a04b2f8a072f6`.
+
+Marker evidence:
+- Marker fields were complete: `lane=libsqlite`,
+  `patch=.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T091553Z.patch`,
+  and
+  `metadata=.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T091553Z.md`.
+- Marker base was current at `991fd1d20e6a70ca392c7a89d11a199df4d83b84`.
+- Patch applied cleanly in detached clean worktree
+  `.tmux-team/tmp/clean-integrator-sql-exec-20260526T091553Z`.
+
+Focused verification passed:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php`
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`:
+  `1 test files, 2675 assertions, 0 failures`
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php substr _plugin_cache 2 6`
+  returned `plugin`
+- JSON validation passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json`
+- `git diff --check -- lanes/libsqlite` passed
+
+Serialized root verification:
+- Pre-root gate reported `/` at `86043484` KiB available, load `3.85`, and no
+  no-argument root harness process.
+- `php tools/run-tests.php` ran under
+  `.tmux-team/tmp/clean-integrator-run.lock` from the exact candidate snapshot
+  and passed with `215 test files, 27446 assertions, 0 failures`.
+
+Decision: accepted. This slice adds native SQLite `substr()` and `substring()`
+core scalar dispatch for scalar text and BLOB values, including UTF-8-aware text
+slicing when mbstring is available, without adding support-library scope.
+
+Dashboard publication should run next for the accepted source.
+
 ## Clean-patch intake accepted - libsqlite JSON table range residuals - 2026-05-26 09:13 UTC
 
 Accepted `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T090532Z.ready`.
