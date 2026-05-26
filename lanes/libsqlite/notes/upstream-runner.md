@@ -8265,6 +8265,38 @@ Dependency closure: no new support component is needed. This reuses lane-local
 scalar coercion, UTF-8 helpers when available, `SQLiteBlobValue`, and existing
 expression-semantics dispatch without activating shared support-library work.
 
+## Focused Native Mapping: JSON Table Residual BETWEEN Predicates
+
+This isolated json-table/window micro-slice extends the bounded JSON
+table-valued planner residual filter to accept SQL-level `BETWEEN` and
+`NOT BETWEEN` predicates on visible `json_each`/`json_tree` columns. Native
+PHP now applies inclusive two-bound scalar ordering after hidden `json`/`root`
+constraint planning, returns no match when the actual value or either bound is
+SQL NULL, and validates that `BETWEEN` receives exactly two bounds.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused JSON table residual BETWEEN evidence row while preserving
+the current accepted static SQLite upstream denominator. This isolated
+worktree did not contain the hydrated upstream cache, so no fresh upstream
+`testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T10:18Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local JSON table planning, JSON row production, scalar residual ordering,
+and WordPress fixture diagnostics without activating shared SQL expression
+support.
+
 ## Focused Native Mapping: Bulk Secondary-Index Leaf Deletes
 
 This isolated B-tree delete/rebalance micro-slice tightens the accepted

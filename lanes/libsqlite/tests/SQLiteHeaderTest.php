@@ -4331,6 +4331,27 @@ return [
         $t->same(['priority'], array_column($priorityRows, 'key'));
         $t->same([7], array_column($priorityRows, 'atom'));
 
+        $priorityBetweenRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+            ['column' => 'atom', 'operator' => 'BETWEEN', 'value' => [6, 7]],
+        ]);
+        $t->same(['priority'], array_column($priorityBetweenRows, 'key'));
+        $t->same([7], array_column($priorityBetweenRows, 'atom'));
+
+        $notBetweenRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => 'NOT BETWEEN', 'value' => ['c', 'n']],
+        ]);
+        $t->same(['seo'], array_column($notBetweenRows, 'atom'));
+
+        $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$'],
+            ['column' => 'atom', 'operator' => 'BETWEEN', 'value' => [null, 10]],
+        ]));
+
         $orderedTextRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
@@ -4381,6 +4402,10 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'key', 'operator' => 'IN', 'value' => 'name'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'atom', 'operator' => 'BETWEEN', 'value' => [1]],
         ]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],

@@ -2589,6 +2589,27 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
 
+## JSON Table BETWEEN Residual Scenario
+
+Local-only WordPress option import tooling can now preflight SQL-style
+`BETWEEN` filters while expanding copied JSON option values through
+`json_each`/`json_tree`. The
+`examples/wordpress-json-each-option-settings.php` smoke reports priority
+rows selected by a visible-column `atom BETWEEN 6 AND 7` residual after hidden
+`json`/`root` planning, alongside the accepted type, LIKE/GLOB, IN-list, and
+range residual diagnostics.
+
+Status delta 2026-05-26 isolated json-table/window slice: added
+`SQLiteJsonTablePlan` residual `BETWEEN` and `NOT BETWEEN` support with
+focused assertions for numeric bounds, text bounds, SQL NULL non-matches,
+invalid bound arity, and WordPress-visible planner output. This is a bounded
+residual predicate helper, not full virtual-table cursor lifecycle or broader
+SELECT planner integration.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local JSON table planning, JSON row production, scalar residual ordering,
+and WordPress fixture diagnostics.
+
 ## WAL Checkpoint Mode Plan Scenario
 
 Native `wp_options` WAL diagnostics now include checkpoint-mode eligibility for

@@ -157,10 +157,43 @@ final class SQLiteJsonTablePlan
             'GLOB' => self::compareResidualGlob($actual, $expected),
             'IN' => self::compareResidualIn($actual, $expected),
             'NOT IN' => self::compareResidualNotIn($actual, $expected),
+            'BETWEEN' => self::compareResidualBetween($actual, $expected),
+            'NOT BETWEEN' => self::compareResidualNotBetween($actual, $expected),
             '<', '<=', '>', '>=' => self::compareResidualOrderedPredicate($actual, $operator, $expected),
             default => throw new \InvalidArgumentException("SQLite JSON table residual operator {$operator} is not supported"),
         };
     }
+
+    private static function compareResidualBetween(mixed $actual, mixed $expected): bool
+    {
+        if (!is_array($expected) || count($expected) !== 2) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator BETWEEN expects a two-value list');
+        }
+
+        [$lower, $upper] = array_values($expected);
+        if ($actual === null || $lower === null || $upper === null) {
+            return false;
+        }
+
+        return self::compareResidualOrdered($actual, $lower) >= 0
+            && self::compareResidualOrdered($actual, $upper) <= 0;
+    }
+
+    private static function compareResidualNotBetween(mixed $actual, mixed $expected): bool
+    {
+        if (!is_array($expected) || count($expected) !== 2) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator BETWEEN expects a two-value list');
+        }
+
+        [$lower, $upper] = array_values($expected);
+        if ($actual === null || $lower === null || $upper === null) {
+            return false;
+        }
+
+        return self::compareResidualOrdered($actual, $lower) < 0
+            || self::compareResidualOrdered($actual, $upper) > 0;
+    }
+
 
     private static function compareResidualIn(mixed $actual, mixed $expected): bool
     {

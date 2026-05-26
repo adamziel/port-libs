@@ -1,5 +1,57 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite JSON table BETWEEN residuals - 2026-05-26 10:33 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T101800Z.ready`.
+
+Accepted commit: this integration commit
+(`Integrate libsqlite JSON table BETWEEN residuals`).
+
+Decision evidence:
+- Dashboard guard was open before intake. Cache-busted live
+  `porting-summary.json` reported
+  `sourceCommit=008c84e187817c884cd42af0091866e2b8be63af`, matching current
+  `refs/heads/main`.
+- The marker was lane-scoped to `libsqlite` with required `lane=`, `patch=`,
+  and `metadata=` fields. Its base SHA was
+  `a8bea4ccafe075d2b74d933bcbc6f082b93c7620`, but the functional patch
+  applied cleanly in a detached clean worktree from current `main`.
+- `lanes/libsqlite/lane-status.json` and
+  `lanes/libsqlite/notes/upstream-runner.md` were bounded-merged to preserve
+  already accepted B-tree/index-delete and selected-script inventory evidence
+  while recording this JSON table residual predicate slice.
+- The accepted slice adds JSON table residual `BETWEEN` and `NOT BETWEEN`
+  filtering with SQLite-style NULL non-match behavior and two-bound validation.
+
+Focused verification:
+- Gate sample before the counted focused checks: `/` had `86765108` KiB
+  available, load was `1.57`, and no no-argument root harness was active.
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2728 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php`
+  passed.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Gate sample before the root run: `/` had `86661948` KiB available, load was
+  `1.84`, and no no-argument root harness was active.
+- `php tools/run-tests.php` ran under
+  `.tmux-team/tmp/clean-integrator-run.lock` and passed with
+  `215 test files, 27534 assertions, 0 failures`.
+
+Dependency closure:
+- No new shared support component is needed. This slice reuses lane-local JSON
+  table planning, JSON row production, scalar residual ordering, and WordPress
+  fixture diagnostics without activating shared SQL expression support.
+
+Dashboard publication should run next after this commit is published.
+
 ## Clean-patch intake accepted - libsqlite bulk index leaf deletes - 2026-05-26 10:16 UTC
 
 Accepted isolated marker:
