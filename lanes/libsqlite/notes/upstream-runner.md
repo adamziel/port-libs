@@ -1,5 +1,48 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Bounded Runner Countability Gate
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::boundedRunnerCountabilityGateFromFiles()`. The
+helper composes guarded bounded-runner audit/log parsing, active-runner snapshot
+evidence, accepted repository HEAD provenance, and SQLite manifest UUID
+matching into one `countable` or `blocked` record. It prevents an active or
+incomplete release/all artifact from being counted just because its audit file
+exists.
+
+Focused upstream runner:
+
+No new broad upstream `testfixture`, `make test`, `mptest`, `all`, or
+`release` run was started. The process snapshot still showed the active guarded
+release runner:
+
+```text
+577248       1       11:31 bash scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-release-notty-runner-20260526T102446Z audits/sqlite-release-notty-runner-20260526T102446Z.md .tmux-team/tmp/sqlite-release-notty-runner-20260526T102446Z .tmux-team/logs/sqlite-release-notty-runner-20260526T102446Z.log release 2 7200
+577296  577248       11:30 timeout 7200 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+577297  577296       11:30 testfixture ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+```
+
+The next acceptance gate is to wait for the guarded audit/log to contain parsed
+zero-error pass evidence, then run the countability gate against the accepted
+integration HEAD and the manifest SQLite UUID before updating suite evidence.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local manifest metadata, guarded audit/log artifacts, and supplied process
+snapshots only; it performs no upstream runner shell-out and counts no shared
+support-library progress.
+
 ## Focused Native Mapping: Active Runner PID/PPID Snapshot Parsing
 
 Date: 2026-05-26

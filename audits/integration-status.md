@@ -1,5 +1,48 @@
 # Integration Status
 
+## Accepted libsqlite bounded runner countability gate - 2026-05-26 10:43 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T103612Z.ready`.
+
+Base/current source before acceptance:
+`2464928fd3673d823de3ec22a6e1c6c4f38b6d85` (`Integrate libsqlite active
+runner snapshot parsing`).
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=2464928fd3673d823de3ec22a6e1c6c4f38b6d85`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `86ecec733a8fa530083ef3db4c1745452a5033a4`.
+
+Resource and process gate evidence:
+- Initial disk gate was closed at `85532548` KiB free; after waiting outside
+  the clean-integrator lock, the gate reopened at `86476692` KiB free.
+- Focused-check gate sample reported `/` at `86362172` KiB free, load `6.49`,
+  and no no-argument root harness process.
+- Root-check gate sample reported `/` at `86356004` KiB free, load `6.08`,
+  and no no-argument root harness process.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 413 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the clean candidate snapshot with
+  `215 test files, 27561 assertions, 0 failures`.
+
+Decision: accepted. This libsqlite upstream-suite slice adds
+`SQLiteUpstreamSuiteEvidence::boundedRunnerCountabilityGateFromFiles()` so
+guarded release/all runner artifacts remain blocked until audit/log parsing,
+active-runner state, accepted repository HEAD, and SQLite manifest UUID all
+prove the artifact countable. No new support component was needed.
+
 ## Clean-patch intake accepted - libsqlite active-runner snapshot parsing - 2026-05-26 10:34 UTC
 
 Accepted marker:

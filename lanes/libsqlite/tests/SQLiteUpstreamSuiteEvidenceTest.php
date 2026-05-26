@@ -910,6 +910,104 @@ MD);
         ], array_column($blocked['blockers'], 'id'));
         $t->contains('matching SQLite manifest', $blocked['next_gate']);
     },
+    'blocks bounded runner countability while guarded release artifact is still active' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-bounded-runner-countability-active-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+        $auditPath = $root . '/sqlite-release-runner.md';
+        $logPath = $root . '/sqlite-release-runner.log';
+        file_put_contents($auditPath, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-notty-runner-20260526T102446Z
+
+- Repository HEAD: `008c84e187817c884cd42af0091866e2b8be63af`
+- Scratch: `/tmp/sqlite-release-notty-runner-20260526T102446Z`
+- Log: `/tmp/sqlite-release-notty-runner-20260526T102446Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+MD);
+        file_put_contents($logPath, "05:40 tcl(3840/22000) r2 ETC 01:12:20\n");
+        $snapshot = <<<'TXT'
+577248       1       05:42 bash scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-release-notty-runner-20260526T102446Z audits/sqlite-release-notty-runner-20260526T102446Z.md .tmux-team/tmp/sqlite-release-notty-runner-20260526T102446Z .tmux-team/logs/sqlite-release-notty-runner-20260526T102446Z.log release 2 7200
+577297  577296       05:40 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release
+TXT;
+
+        try {
+            $gate = $evidence->boundedRunnerCountabilityGateFromFiles(
+                $auditPath,
+                $logPath,
+                '008c84e187817c884cd42af0091866e2b8be63af',
+                $snapshot
+            );
+
+            $t->same('blocked', $gate['status']);
+            $t->same(false, $gate['countable']);
+            $t->same('active-runner-in-progress', $gate['artifact_status']);
+            $t->true($gate['blocker_count'] >= 2, 'Expected active runner and artifact-not-passed blockers');
+            $t->same('active-runner-still-running', $gate['blockers'][0]['id']);
+            $t->same(['release'], $gate['blockers'][0]['active_tiers']);
+            $t->same(3840, $gate['artifact']['progress']['completed']);
+            $t->same(22000, $gate['artifact']['progress']['total']);
+            $t->same('blocked', $gate['acceptance']['status']);
+            $t->contains('do not count this bounded runner artifact', $gate['next_gate']);
+            $t->contains('no new support component needed', $gate['dependency_closure']);
+        } finally {
+            @unlink($auditPath);
+            @unlink($logPath);
+            @rmdir($root);
+        }
+    },
+    'marks bounded runner countability only after artifact and provenance pass' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-bounded-runner-countability-pass-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+        $auditPath = $root . '/sqlite-release-runner.md';
+        $logPath = $root . '/sqlite-release-runner.log';
+        file_put_contents($auditPath, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-runner-20260526T111111Z
+
+- Repository HEAD: `2464928fd3673d823de3ec22a6e1c6c4f38b6d85`
+- Scratch: `/tmp/sqlite-release-runner-20260526T111111Z`
+- Log: `/tmp/sqlite-release-runner-20260526T111111Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Elapsed seconds: `180`
+- Parsed summary: `0 errors out of 22000 tests`
+- Runner time: `00:03:00`
+MD);
+        file_put_contents($logPath, "03:00 tcl(22000/22000) r0\n");
+
+        try {
+            $gate = $evidence->boundedRunnerCountabilityGateFromFiles(
+                $auditPath,
+                $logPath,
+                '2464928fd3673d823de3ec22a6e1c6c4f38b6d85'
+            );
+
+            $t->same('countable', $gate['status']);
+            $t->same(true, $gate['countable']);
+            $t->same('passed', $gate['artifact_status']);
+            $t->same(0, $gate['blocker_count']);
+            $t->same('accepted-for-lane-evidence', $gate['acceptance']['status']);
+            $t->same(22000, $gate['acceptance']['tests']);
+            $t->same(0, $gate['acceptance']['errors']);
+            $t->contains('record this bounded runner artifact', $gate['next_gate']);
+        } finally {
+            @unlink($auditPath);
+            @unlink($logPath);
+            @rmdir($root);
+        }
+    },
     'builds a selected upstream test script inventory from hydrated sources' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $root = sys_get_temp_dir() . '/libsqlite-selected-script-inventory-' . bin2hex(random_bytes(4));

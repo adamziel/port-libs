@@ -1069,6 +1069,63 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function boundedRunnerCountabilityGateFromFiles(
+        string $auditPath,
+        ?string $stdoutPath,
+        string $acceptedRepositoryHead,
+        string $processSnapshot = ''
+    ): array {
+        $artifact = $this->boundedRunnerArtifactRecordFromFiles($auditPath, $stdoutPath, $processSnapshot);
+        if (($artifact['status'] ?? null) === 'blocked-missing-artifact-files') {
+            return [
+                'status' => 'blocked',
+                'countable' => false,
+                'artifact_status' => $artifact['status'],
+                'artifact' => $artifact,
+                'acceptance' => null,
+                'blocker_count' => 1,
+                'blockers' => [
+                    [
+                        'id' => 'artifact-files-missing',
+                        'evidence' => implode(', ', is_array($artifact['missing'] ?? null) ? $artifact['missing'] : []),
+                    ],
+                ],
+                'next_gate' => 'wait for guarded bounded-runner audit/log files, then parse and prove zero-error provenance before counting release/all evidence',
+                'dependency_closure' => 'no new support component needed; countability gate composes bounded runner artifact and provenance records only',
+            ];
+        }
+
+        $acceptance = $this->boundedRunnerAcceptanceGate($artifact, $acceptedRepositoryHead);
+        $blockers = is_array($acceptance['blockers'] ?? null) ? $acceptance['blockers'] : [];
+        $activeGate = is_array($artifact['active_gate'] ?? null) ? $artifact['active_gate'] : [];
+        if (($activeGate['status'] ?? null) === 'blocked-active-runner') {
+            array_unshift($blockers, [
+                'id' => 'active-runner-still-running',
+                'evidence' => 'supplied process snapshot still contains a broad SQLite runner',
+                'active_tiers' => $activeGate['active_tiers'] ?? [],
+            ]);
+        }
+
+        $countable = ($acceptance['status'] ?? null) === 'accepted-for-lane-evidence' && $blockers === [];
+
+        return [
+            'status' => $countable ? 'countable' : 'blocked',
+            'countable' => $countable,
+            'artifact_status' => $artifact['status'] ?? 'unknown',
+            'artifact' => $artifact,
+            'acceptance' => $acceptance,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => $countable
+                ? 'record this bounded runner artifact in manifest/status as accepted release/all evidence'
+                : 'do not count this bounded runner artifact until it has parsed zero-error results, no active runner, accepted HEAD provenance, and matching SQLite manifest UUID',
+            'dependency_closure' => 'no new support component needed; countability gate composes bounded runner artifact and provenance records only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function selectedScriptInventory(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();
