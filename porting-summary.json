@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 08:01:45 UTC",
-    "sourceCommit": "9d333e5c97980b320e4b8a5a17d18aee22af135a",
-    "sourceCommitShort": "9d333e5c9798",
+    "generated": "2026-05-26 08:24:08 UTC",
+    "sourceCommit": "64df183f7c0fddfcdc3530bdb3cd0520eb85023d",
+    "sourceCommitShort": "64df183f7c0f",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "c9b9ffe939081210759974e640840559fc852b45",
-    "dashboardCommitShort": "c9b9ffe93908",
+    "dashboardCommit": "48a5d9926b625bff0bd0748b8b4722a5380163fd",
+    "dashboardCommitShort": "48a5d9926b62",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,15 +81,15 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "316",
-            "coverage": "316 / 1589",
-            "php": "317 pass / 0 fail",
+            "mapped": "317",
+            "coverage": "317 / 1589",
+            "php": "318 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated dependency-suite scalar slice 20...",
-            "currentWork": "Latest bounded dependency-suite work preserves accepted WAL checkpoint-plan, scalar-dispa...",
-            "nextTarget": "When a hydrated upstream cache/build is available, run the full-suite command manifest ga...",
-            "blocker": "Full SQLite all/release runner parity remains pending; this isolated work...",
+            "audit": "isolated upstream-suite slice 2026-05-26T...",
+            "currentWork": "Latest bounded upstream-suite work preserves accepted WAL checkpoint-plan, scalar-dispatc...",
+            "nextTarget": "After the active shared all runner exits, collect its bounded audit/log artifact and repl...",
+            "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
         },
         {
