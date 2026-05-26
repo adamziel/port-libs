@@ -2200,3 +2200,22 @@ follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 B-tree page headers, replacement planning, index page assembly, freelist
 mutation, and WordPress fixture helpers.
+
+The parent-merge smoke now also exposes `before_left_children` and
+`after_left_children` on interior divider insert/removal rebalance actions.
+For the copied `wp_options` composite-index scenario, this reports root child
+slots changing from `[4,8]` to `[4]` and the surviving lower parent changing
+from `[5,6]` to `[5,6,9]`, making the delete-triggered parent merge auditable
+without manually parsing before/after page images.
+
+Status delta 2026-05-26 isolated btree-delete/rebalance slice: updated
+`SQLiteDatabase::btreeRebalanceActionsForPageImages()` to include interior
+left-child pointer lists on cell-delta actions, extended the focused
+multi-child composite-index parent merge assertion, and reused the existing
+WordPress smoke output. Full row deletion, table-leaf delete/merge, and
+auto-vacuum pointer-map cleanup after arbitrary delete remain separate
+follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+B-tree page headers, index cell parsing, replacement planning, page-image
+overlays, freelist mutation, and WordPress fixture helpers.

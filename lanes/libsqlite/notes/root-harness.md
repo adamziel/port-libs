@@ -901,3 +901,26 @@ merge, alongside root divider removal, parent divider insertion, leaf merges,
 and freed pages `[7,8]`; manifest/status JSON decoded successfully; lane diff
 check passed. The root harness was not run because this was an isolated
 micro-slice.
+
+## Interior Left-Child Pointer Rebalance Diagnostic Slice
+
+Focused lane verification for the B-tree delete/rebalance left-child pointer
+diagnostic slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed; the
+WordPress smoke reported interior divider actions with `before_left_children`
+and `after_left_children` on the root and surviving lower parent during the
+multi-child composite-index parent merge, alongside the accepted right-most
+pointer update and freed pages `[7,8]`; manifest/status JSON decoded
+successfully; lane diff check passed. The root harness was not run because
+this was an isolated micro-slice.

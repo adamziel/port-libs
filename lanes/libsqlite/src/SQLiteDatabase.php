@@ -870,7 +870,7 @@ final class SQLiteDatabase
             }
 
             $delta = $after->cellCount - $before->cellCount;
-            $actions[] = [
+            $action = [
                 'action' => $this->btreeCellDeltaAction($after->pageType, $delta),
                 'page' => $pageNumber,
                 'page_type' => $after->pageType,
@@ -878,9 +878,41 @@ final class SQLiteDatabase
                 'after_cells' => $after->cellCount,
                 'delta_cells' => $delta,
             ];
+            if ($after->pageType === 'index-interior' || $after->pageType === 'table-interior') {
+                $action['before_left_children'] = $this->btreeInteriorLeftChildPointers($this->page($pageNumber), $before, $pageNumber);
+                $action['after_left_children'] = $this->btreeInteriorLeftChildPointers($postDatabase->page($pageNumber), $after, $pageNumber);
+            }
+            $actions[] = $action;
         }
 
         return $actions;
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function btreeInteriorLeftChildPointers(string $page, SQLiteBTreePageHeader $header, int $pageNumber): array
+    {
+        if ($header->pageType === 'index-interior') {
+            $overflowReader = fn (int $firstOverflowPage, int $byteCount): string => $this->readOverflowPayload($firstOverflowPage, $byteCount);
+            $leftChildren = [];
+            foreach (SQLiteIndexCell::parsePageCells($page, $header, $this->usablePageSize(), $overflowReader) as $cell) {
+                if ($cell->leftChildPage === null) {
+                    throw new \InvalidArgumentException("SQLite index interior page {$pageNumber} has an invalid left child pointer");
+                }
+                $leftChildren[] = $cell->leftChildPage;
+            }
+
+            return $leftChildren;
+        }
+        if ($header->pageType === 'table-interior') {
+            return array_map(
+                static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage,
+                SQLiteTableInteriorCell::parsePageCells($page, $header),
+            );
+        }
+
+        throw new \InvalidArgumentException("SQLite page {$pageNumber} is not an interior b-tree page");
     }
 
     private function btreeCellDeltaAction(string $pageType, int $delta): string

@@ -8737,6 +8737,8 @@ SQL;
                 'before_cells' => 2,
                 'after_cells' => 1,
                 'delta_cells' => -1,
+                'before_left_children' => [4, 8],
+                'after_left_children' => [4],
             ],
             [
                 'action' => 'index-interior-rightmost-pointer-update',
@@ -8752,6 +8754,8 @@ SQL;
                 'before_cells' => 2,
                 'after_cells' => 3,
                 'delta_cells' => 1,
+                'before_left_children' => [5, 6],
+                'after_left_children' => [5, 6, 9],
             ],
             [
                 'action' => 'index-leaf-entry-merge',

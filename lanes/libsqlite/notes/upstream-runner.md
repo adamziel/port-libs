@@ -7167,3 +7167,35 @@ Dependency closure: no new support component is needed. This reuses lane-local
 B-tree page headers, index replacement planning, page image overlays, freelist
 mutation, and WordPress fixtures without shelling out or activating shared
 support-library work.
+
+## Focused Native Mapping: Interior Left-Child Pointer Rebalance Diagnostics
+
+This isolated btree-delete/rebalance micro-slice extends the accepted
+delete-triggered composite-index parent-merge diagnostic. Interior divider
+insert/removal actions now include `before_left_children` and
+`after_left_children`, so the surviving root/lower parent child slots can be
+audited together with the accepted right-most pointer update.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped
+count increases by 1 with `focusedWordPressInteriorLeftChildPointerRebalanceScripts: 1`.
+This reuses accepted upstream delete/rebalance evidence over `update.test`,
+`index.test`, `btree01.test`, `delete2.test`, `delete3.test`, and
+`delete4.test`; this isolated worktree did not contain the hydrated upstream
+cache, so no fresh upstream `testfixture` run was started.
+
+Verification run 2026-05-26T04:04Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+B-tree page headers, index cell parsing, replacement planning, page image
+overlays, freelist mutation, and WordPress fixtures without shelling out or
+activating shared support-library work.

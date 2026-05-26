@@ -1,5 +1,60 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite B-tree left-child rebalance diagnostics - 2026-05-26 04:10 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T040440Z.ready`.
+
+Accepted source base:
+`fe4090fa411f79fb08498cb9745bf02f6b798cc4` (`Integrate libsqlite JSON table
+residual filters`).
+
+Dashboard guard evidence:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=fe4090fa411f79fb08498cb9745bf02f6b798cc4`.
+- Current `refs/heads/main` matched that source before candidate work began.
+- Live dashboard commit reported
+  `9a2b89c561765b3f5727b570a6210cca853b3621`.
+
+Candidate evidence:
+- Marker fields were complete (`lane=libsqlite`, `patch=...`,
+  `metadata=...`, `log=...`) and the marker base matched current main.
+- Patch hash matched the marker:
+  `7151675c267013b16eb62ef771a63cd26c05a45779357dc2f3fef127c93d3cb1`.
+- No stale `.needs-lane-rework.md` marker was present and no worker process was
+  still writing the referenced worktree.
+- Patch scope was bounded to libsqlite B-tree diagnostics, tests, manifest,
+  status, and notes.
+
+Focused verification in detached clean worktree
+`.tmux-team/tmp/clean-integrator-btree-20260526T040440Z`:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2450 assertions, 0 failures`.
+- The WordPress parent-merge smoke printed interior rebalance actions with
+  `before_left_children` and `after_left_children`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Runtime gates were open before the serialized root harness:
+  `df -Pk /` reported `87346292` KiB available, `/proc/loadavg` first field was
+  `1.50`, and no `php tools/run-tests.php` process was active.
+- Serialized no-argument `php tools/run-tests.php` ran under
+  `.tmux-team/tmp/clean-integrator-run.lock` from the exact clean candidate
+  snapshot.
+- Root harness passed with `215 test files, 27013 assertions, 0 failures`.
+
+Decision: accepted. The commit adds `before_left_children` and
+`after_left_children` to libsqlite delete-triggered interior B-tree rebalance
+diagnostics and records the mapped evidence without claiming a fresh upstream
+SQLite `testfixture` run.
+
+Dashboard publication should run next after this accepted source move.
+
 ## Accepted libsqlite upstream suite execution plan - 2026-05-26 03:56 UTC
 
 Accepted marker:
