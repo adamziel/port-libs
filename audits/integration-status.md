@@ -115902,3 +115902,43 @@ Cleanup debt:
 - Accepted worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T155753Z` still contains the six lane-local patch modifications after the commit was published, so it was preserved and left registered.
 
 Dashboard publication should run next after this accepted source move so live Pages catches up before another clean integration pass.
+## Integration accepted - libsqlite JSON table IS NULL residuals - 2026-05-26T16:16:50Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T161216Z.ready`.
+
+Decision: accepted one current-base libsqlite marker after clean detached-worktree verification. Scope is lane-local JSON table residual predicate handling for `IS NULL` and `IS NOT NULL`, with manifest/status/example/notes evidence updates.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `86a6c90212f19dca4c3fc32dd66cbb4868b5270a` (`Integrate libsqlite UTC date scalars`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `86a6c90212f19dca4c3fc32dd66cbb4868b5270a`; `generatedAt` was absent from the returned JSON shape.
+
+Runtime gate evidence before focused/root checks:
+- `df -Pk /` reported `100021504` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.92`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Focused verification in clean candidate worktree `.tmux-team/worktrees/clean-integrator-json-null-20260526T161621Z`:
+- Patch sha256 matched marker: `ede160299675b29a83ec959a68cac50d4a62c89086a93385c111668ee1eb1748`.
+- `git apply --check` passed from clean `86a6c90212f19dca4c3fc32dd66cbb4868b5270a`.
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2902 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` decoded with `JSON_THROW_ON_ERROR`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed from the exact clean candidate snapshot: `215 test files, 27867 assertions, 0 failures`.
+
+Ready queue evidence at decision time:
+- Remaining ready-marker count before acceptance cleanup: `5747` total ready markers, including `2479` libsqlite ready markers.
+- The accepted marker was the only sampled recent libsqlite marker already based on current `86a6c90212f19dca4c3fc32dd66cbb4868b5270a`; nearby sampled markers based on `3e253aacf40c6449ff997ebebe32390c4d5943a7` were stale.
+- No non-libsqlite marker was considered because the libsqlite-only intake priority still applies.
+- Dolt remains parked.
+
+Dashboard publication should run next after this commit because accepting the marker advances the source head beyond the live dashboard source.
+
+Cleanup:
+- Accepted marker files were eligible for removal after `refs/heads/main` advanced.
+- Worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T161216Z` still had modified lane-local files matching the handoff output, so it was preserved as cleanup debt instead of being removed.

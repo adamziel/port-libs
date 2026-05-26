@@ -4392,6 +4392,14 @@ return [
         $t->same(['array', 'object', 'object'], array_column($atomIsNullRows, 'type'));
         $t->same(['$.plugin.rules', '$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($atomIsNullRows, 'fullkey'));
 
+        $atomIsNullPredicateRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => 'IS NULL'],
+        ]);
+        $t->same(['array', 'object', 'object'], array_column($atomIsNullPredicateRows, 'type'));
+        $t->same(['$.plugin.rules', '$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($atomIsNullPredicateRows, 'fullkey'));
+
         $atomIsDistinctRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
@@ -4399,6 +4407,14 @@ return [
         ]);
         $t->same(['name', 'name'], array_column($atomIsDistinctRows, 'key'));
         $t->same(['seo', 'cache'], array_column($atomIsDistinctRows, 'atom'));
+
+        $atomIsNotNullPredicateRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'atom', 'operator' => 'IS NOT NULL'],
+        ]);
+        $t->same(['name', 'name'], array_column($atomIsNotNullPredicateRows, 'key'));
+        $t->same(['seo', 'cache'], array_column($atomIsNotNullPredicateRows, 'atom'));
 
         $nameLikeRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],

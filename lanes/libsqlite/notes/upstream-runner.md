@@ -9383,3 +9383,35 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local JSON table planning, JSON path/JSONB decoding, and caller-supplied
 application MATCH callbacks without activating shared support-library work.
+
+## Focused Native Mapping: JSON Table IS NULL Residual Predicates
+
+This isolated json-table/window micro-slice extends bounded residual predicate
+execution for planned `json_each()` and `json_tree()` table-valued scans with
+SQLite-style `IS NULL` and `IS NOT NULL` operators. Native
+`SQLiteJsonTablePlan::filteredRows()` now filters visible `atom` values for
+container rows whose SQL atom is NULL and scalar rows whose atom is not NULL,
+while preserving hidden `json`/`root` constraint planning and existing
+NULL-safe `IS DISTINCT FROM` behavior.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused JSON table IS NULL residual evidence row while preserving
+the current accepted static SQLite upstream denominator and veryquick
+evidence. This isolated worktree did not contain the hydrated upstream cache,
+so no fresh upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T16:12Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local JSON table planning, JSON path/JSONB decoding, and existing SQL
+NULL comparison semantics without activating shared support-library work.

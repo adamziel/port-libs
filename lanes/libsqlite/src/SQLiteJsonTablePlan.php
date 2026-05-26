@@ -151,8 +151,10 @@ final class SQLiteJsonTablePlan
         return match ($operator) {
             '=' => self::valuesAreEqual($actual, $expected),
             'IS' => self::valuesAreNotDistinct($actual, $expected),
+            'IS NULL' => $actual === null,
             '!=', '<>' => !self::valuesAreEqual($actual, $expected),
             'IS NOT' => !self::valuesAreNotDistinct($actual, $expected),
+            'IS NOT NULL' => $actual !== null,
             'IS DISTINCT FROM' => !self::valuesAreNotDistinct($actual, $expected),
             'IS NOT DISTINCT FROM' => self::valuesAreNotDistinct($actual, $expected),
             'LIKE' => self::compareResidualLike($actual, $expected),

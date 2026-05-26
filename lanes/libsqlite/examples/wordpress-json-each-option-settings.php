@@ -61,10 +61,20 @@ foreach ($inputs as $name => $value) {
         ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
         ['column' => 'atom', 'operator' => 'IS NOT DISTINCT FROM', 'value' => null],
     ];
+    $containerAtomIsNullConstraints = [
+        ['column' => 'json', 'operator' => '=', 'value' => $value],
+        ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ['column' => 'atom', 'operator' => 'IS NULL'],
+    ];
     $scalarAtomConstraints = [
         ['column' => 'json', 'operator' => '=', 'value' => $value],
         ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
         ['column' => 'atom', 'operator' => 'IS DISTINCT FROM', 'value' => null],
+    ];
+    $scalarAtomIsNotNullConstraints = [
+        ['column' => 'json', 'operator' => '=', 'value' => $value],
+        ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ['column' => 'atom', 'operator' => 'IS NOT NULL'],
     ];
     $priorityRangeConstraints = [
         ['column' => 'json', 'operator' => '=', 'value' => $value],
@@ -117,7 +127,9 @@ foreach ($inputs as $name => $value) {
         'filteredNotPatternRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $nameNotPatternConstraints)),
         'filteredRuleInRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $ruleInConstraints)),
         'filteredContainerAtomRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $containerAtomConstraints)),
+        'filteredContainerAtomIsNullRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $containerAtomIsNullConstraints)),
         'filteredScalarAtomRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $scalarAtomConstraints)),
+        'filteredScalarAtomIsNotNullRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $scalarAtomIsNotNullConstraints)),
         'filteredPriorityRangeRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $priorityRangeConstraints)),
         'filteredPriorityNumericEqualityRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $priorityNumericEqualityConstraints)),
         'filteredPriorityBetweenRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $priorityBetweenConstraints)),
@@ -129,7 +141,9 @@ foreach ($inputs as $name => $value) {
         'notPatternFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $nameNotPatternConstraints)),
         'inFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $ruleInConstraints)),
         'containerAtomPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $containerAtomConstraints)),
+        'containerAtomIsNullPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $containerAtomIsNullConstraints)),
         'scalarAtomPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $scalarAtomConstraints)),
+        'scalarAtomIsNotNullPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $scalarAtomIsNotNullConstraints)),
         'rangeFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $priorityRangeConstraints)),
         'numericEqualityPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $priorityNumericEqualityConstraints)),
         'betweenFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $priorityBetweenConstraints)),
@@ -145,7 +159,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, and visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, MATCH/NOT MATCH, IN-list, numeric equality, IS DISTINCT FROM, IS NOT DISTINCT FROM, range, and BETWEEN residual filtering for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, and visible type, LIKE/GLOB, NOT LIKE/NOT GLOB, REGEXP/NOT REGEXP, MATCH/NOT MATCH, IN-list, numeric equality, IS NULL, IS NOT NULL, IS DISTINCT FROM, IS NOT DISTINCT FROM, range, and BETWEEN residual filtering for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**
