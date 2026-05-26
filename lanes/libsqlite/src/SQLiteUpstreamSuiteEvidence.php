@@ -508,6 +508,57 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function permutationSuiteMap(?string $repoRoot = null): array
+    {
+        $denominator = $this->manifest['benchmarkDenominator'] ?? [];
+        $inventory = is_array($denominator) && is_array($denominator['inventory'] ?? null)
+            ? $denominator['inventory']
+            : [];
+        $declared = (int) ($inventory['permutationSuitesDeclared'] ?? 0);
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $relativeSource = '.upstream-cache/libsqlite/test/permutations.test';
+        $source = $root . '/' . $relativeSource;
+
+        if (!is_file($source)) {
+            return [
+                'status' => 'blocked-missing-permutation-source',
+                'declared_suite_count' => $declared,
+                'mapped_suite_count' => 0,
+                'unmapped_suite_count' => $declared,
+                'source' => $relativeSource,
+                'source_ready' => false,
+                'suites' => [],
+                'next_gate' => 'hydrate .upstream-cache/libsqlite/test/permutations.test, then parse concrete permutation suite names and commands before counting release/all closure',
+                'dependency_closure' => 'no new support component needed; permutation map uses only the lane-local manifest and hydrated SQLite test harness sources',
+            ];
+        }
+
+        $text = file_get_contents($source);
+        if ($text === false) {
+            throw new \RuntimeException("Unable to read SQLite permutation source: {$source}");
+        }
+
+        $suites = $this->extractPermutationSuiteNames($text);
+        $mapped = count($suites);
+
+        return [
+            'status' => $mapped >= $declared && $declared > 0 ? 'ready' : 'partial',
+            'declared_suite_count' => $declared,
+            'mapped_suite_count' => $mapped,
+            'unmapped_suite_count' => max(0, $declared - $mapped),
+            'source' => $relativeSource,
+            'source_ready' => true,
+            'suites' => $suites,
+            'next_gate' => $mapped >= $declared && $declared > 0
+                ? 'turn parsed permutation suite names into explicit testfixture run records with pass/fail counts'
+                : 'complete the permutation parser against the hydrated upstream source before counting all declared suites',
+            'dependency_closure' => 'no new support component needed; permutation map uses only the lane-local manifest and hydrated SQLite test harness sources',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();
@@ -615,6 +666,33 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return ['tests' => 0, 'errors' => 0];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractPermutationSuiteNames(string $text): array
+    {
+        $names = [];
+        $patterns = [
+            '/^\s*test_suite\s+([A-Za-z0-9_.-]+)/m',
+            '/^\s*permutation\s+([A-Za-z0-9_.-]+)/m',
+            '/^\s*run_tests\s+([A-Za-z0-9_.-]+)/m',
+            '/^\s*([A-Za-z0-9_.-]+)\s+\{[^}\n]*(?:-files|-description|-initialize|-shutdown)/m',
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match_all($pattern, $text, $matches) !== false) {
+                foreach ($matches[1] as $name) {
+                    $names[$name] = true;
+                }
+            }
+        }
+
+        $suiteNames = array_keys($names);
+        sort($suiteNames);
+
+        return $suiteNames;
     }
 
     private function descriptionUsesCachedEvidence(string $description): bool

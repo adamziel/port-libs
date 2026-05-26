@@ -1,5 +1,47 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite permutation suite map - 2026-05-26 06:16 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T060404Z.ready`.
+
+Source marker evidence:
+- `lane=libsqlite`, `slice=closure-libsqlite-upstream-suite-20260526T060404Z`.
+- Marker base was stale at `6aac41d9bb082ca8cb0403cc020509c1d0223985`; current
+  `main` was `d4b444433d81ce6d533260e2bfd017c21fac4451`.
+- Patch SHA-256 matched the marker:
+  `aef34c5d19377a6e8166d7e860e57c248b0b3f5a5fc79f83b902a3f8a914c0e2`.
+- Code, tests, and notes applied cleanly with `git apply --3way`; manifest and
+  lane-status conflicts were resolved by preserving newer accepted table-leaf
+  rowid freeblock evidence from `main` and adding only the permutation-suite
+  map evidence from this marker.
+
+Focused verification in the detached candidate worktree:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 217 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification under
+`.tmux-team/tmp/clean-integrator-run.lock`:
+- `php tools/run-tests.php` passed with `215 test files, 27149 assertions, 0
+  failures`.
+
+Runtime/dashboard gates before acceptance:
+- Cache-busted live `porting-summary.json` reported
+  `sourceCommit=d4b444433d81ce6d533260e2bfd017c21fac4451`, matching current
+  `main`, so the dashboard guard was open.
+- Before focused checks, `df -Pk /` briefly fell below the required
+  `86000000` KiB threshold, so verification waited outside the lock. The gate
+  reopened at `86826344` KiB available; load was below `25`, and no duplicate
+  no-argument root harness was running.
+
+Decision: accepted after bounded stale metadata resolution and full
+verification. Dashboard publication should run next for the new accepted source
+commit.
+
 ## Clean-patch intake accepted - libsqlite table leaf rowid freeblocks - 2026-05-26 06:02 UTC
 
 Accepted isolated marker:

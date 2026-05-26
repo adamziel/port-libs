@@ -1,5 +1,40 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Permutation Suite Map
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::permutationSuiteMap()`. The helper turns the
+previous opaque `58` declared permutation-suite denominator into an explicit
+map gate: when `.upstream-cache/libsqlite/test/permutations.test` is absent it
+records a blocked missing-source result, and when that upstream source is
+hydrated it parses concrete suite names before any release/all permutation
+coverage can be counted.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite/test/permutations.test` source, so no new upstream
+`testfixture`, `make test`, `mptest`, or release/all runner was started. Prior
+applicable runner evidence remains the complete SQLite `veryquick` run: 1235
+scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses the
+lane-local manifest inventory and the hydrated SQLite Tcl harness source when
+available; it performs no shell-out and counts no shared support-library
+progress.
+
 ## Focused Native Mapping: REGEXP-Style Option Name Matching
 
 Date: 2026-05-26

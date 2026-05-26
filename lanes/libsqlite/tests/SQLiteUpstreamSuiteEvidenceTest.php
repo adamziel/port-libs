@@ -373,6 +373,53 @@ return [
             @rmdir($root);
         }
     },
+    'builds an honest permutation suite map with explicit missing source blocker' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $map = $evidence->permutationSuiteMap(dirname(__DIR__, 3));
+
+        $t->same('blocked-missing-permutation-source', $map['status']);
+        $t->same(58, $map['declared_suite_count']);
+        $t->same(0, $map['mapped_suite_count']);
+        $t->same(58, $map['unmapped_suite_count']);
+        $t->same('.upstream-cache/libsqlite/test/permutations.test', $map['source']);
+        $t->same(false, $map['source_ready']);
+        $t->same([], $map['suites']);
+        $t->contains('hydrate .upstream-cache/libsqlite/test/permutations.test', $map['next_gate']);
+        $t->contains('no new support component needed', $map['dependency_closure']);
+    },
+    'parses permutation suite names from a hydrated local fixture source' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-permutation-map-' . bin2hex(random_bytes(4));
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        mkdir($testDirectory, 0777, true);
+        file_put_contents(
+            $testDirectory . '/permutations.test',
+            "test_suite full\npermutation memsubsys1\nrun_tests quick\njournaltest {-files {pager.test} -description {journal mode}}\n"
+        );
+
+        try {
+            $map = $evidence->permutationSuiteMap($root);
+
+            $t->same('partial', $map['status']);
+            $t->same(58, $map['declared_suite_count']);
+            $t->same(4, $map['mapped_suite_count']);
+            $t->same(54, $map['unmapped_suite_count']);
+            $t->same(true, $map['source_ready']);
+            $t->same([
+                'full',
+                'journaltest',
+                'memsubsys1',
+                'quick',
+            ], $map['suites']);
+            $t->contains('complete the permutation parser', $map['next_gate']);
+        } finally {
+            @unlink($testDirectory . '/permutations.test');
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
     'expands wildcard upstream scripts when a hydrated test directory is available' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $root = sys_get_temp_dir() . '/libsqlite-upstream-wildcards-' . bin2hex(random_bytes(4));
