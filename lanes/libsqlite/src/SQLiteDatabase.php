@@ -5679,6 +5679,50 @@ final class SQLiteDatabase
     /**
      * @return list<SQLiteWordPressOption>
      */
+    public function wordpressOptionsOrdered(
+        string $orderBy,
+        bool $descending = false,
+        ?int $limit = null,
+        int $offset = 0,
+    ): array {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options ordered scan limit cannot be negative');
+        }
+        if ($offset < 0) {
+            throw new \InvalidArgumentException('SQLite wp_options ordered scan offset cannot be negative');
+        }
+        if ($limit === 0) {
+            return [];
+        }
+
+        $column = self::normalizeWordPressOptionOrderColumn($orderBy);
+        $options = [];
+        foreach ($this->tableRowsByName('wp_options', null) as $row) {
+            $options[] = SQLiteWordPressOption::fromTableRow($row);
+        }
+
+        usort($options, static function (SQLiteWordPressOption $left, SQLiteWordPressOption $right) use ($column, $descending): int {
+            $comparison = self::compareWordPressOptionOrderValues(
+                self::wordPressOptionOrderValue($left, $column),
+                self::wordPressOptionOrderValue($right, $column),
+            );
+            if ($comparison === 0) {
+                return $left->rowId <=> $right->rowId;
+            }
+
+            return $descending ? -$comparison : $comparison;
+        });
+
+        if ($offset !== 0 || $limit !== null) {
+            $options = array_slice($options, $offset, $limit);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @return list<SQLiteWordPressOption>
+     */
     public function wordpressOptionsByRowIdRange(
         ?int $lowerInclusive,
         ?int $upperBound,
@@ -5766,6 +5810,38 @@ final class SQLiteDatabase
         }
 
         return $options;
+    }
+
+    private static function normalizeWordPressOptionOrderColumn(string $orderBy): string
+    {
+        $column = strtolower($orderBy);
+        return match ($column) {
+            'option_id', 'option_name', 'option_value', 'autoload', 'rowid' => $column,
+            default => throw new \InvalidArgumentException("SQLite wp_options ordered scan cannot order by {$orderBy}"),
+        };
+    }
+
+    private static function wordPressOptionOrderValue(SQLiteWordPressOption $option, string $column): int|string|null
+    {
+        return match ($column) {
+            'option_id' => $option->optionId,
+            'option_name' => $option->optionName,
+            'option_value' => $option->optionValue,
+            'autoload' => $option->autoload,
+            'rowid' => $option->rowId,
+        };
+    }
+
+    private static function compareWordPressOptionOrderValues(int|string|null $left, int|string|null $right): int
+    {
+        if ($left === null || $right === null) {
+            return $left === $right ? 0 : ($left === null ? -1 : 1);
+        }
+        if (is_int($left) && is_int($right)) {
+            return $left <=> $right;
+        }
+
+        return strcmp((string) $left, (string) $right);
     }
 
     /**

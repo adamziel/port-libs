@@ -7681,3 +7681,34 @@ Dependency closure: no new support component is needed. This reuses lane-local
 WAL header/frame parsing, committed-frame tracking, SQLite header page-size
 parsing, and WordPress page fixtures without activating shared support-library
 work.
+
+## Focused Native Mapping: `ORDER BY ... LIMIT/OFFSET` Result Rows
+
+This isolated SQL execution/planner micro-slice adds a bounded decoded-row
+result ordering path for `wp_options`: native `SQLiteDatabase` can sort decoded
+option rows by `option_id`, `option_name`, `option_value`, `autoload`, or
+`rowid`, then apply SQLite-style result `OFFSET` and `LIMIT` after ordering.
+NULL sort keys compare before non-NULL values in ascending order, and rowid is
+used as a stable tie-breaker for deterministic local result plans.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedWordPressOptionOrderLimitScripts: 1`. This reuses
+accepted decoded table-scan and WordPress fixture evidence; this isolated
+worktree did not contain the hydrated upstream cache, so no fresh upstream
+`testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T06:35Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-order-limit.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-options-order-limit.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+table traversal, record decoding, WordPress option mapping, and PHP scalar
+comparison helpers without activating shared support-library work.

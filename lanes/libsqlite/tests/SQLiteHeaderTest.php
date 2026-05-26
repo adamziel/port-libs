@@ -1472,6 +1472,36 @@ return [
         $t->same(1, count($bounded));
         $t->same('siteurl', $bounded[0]->optionName);
     },
+    'orders decoded wordpress options before applying offset and limit' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),
+        ], 512, 100, $makeFirstPage(512, 5));
+        $page2 = $tableInteriorPage([[3, 2], [4, 4]], 5);
+        $page3 = $tableLeafPage([
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 1),
+            $schemaCell([null, 'home', 'https://example.test/blog', 'yes'], 2),
+        ]);
+        $page4 = $tableLeafPage([
+            $schemaCell([null, 'blogname', 'Ported SQLite', 'yes'], 3),
+            $schemaCell([null, 'template', 'twentytwentysix', null], 4),
+        ]);
+        $page5 = $tableLeafPage([
+            $schemaCell([null, 'rewrite_rules', 'a:0:{}', 'no'], 5),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3 . $page4 . $page5);
+
+        $byName = $database->wordpressOptionsOrdered('option_name', false, 3, 1);
+        $byAutoloadDesc = $database->wordpressOptionsOrdered('autoload', true, 2);
+        $byRowIdDesc = $database->wordpressOptionsOrdered('rowid', true, 2, 1);
+
+        $t->same(['home', 'rewrite_rules', 'siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $byName));
+        $t->same(['siteurl', 'home'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $byAutoloadDesc));
+        $t->same([4, 3], array_map(static fn (SQLiteWordPressOption $option): int => $option->rowId, $byRowIdDesc));
+        $t->same([], $database->wordpressOptionsOrdered('option_name', false, 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsOrdered('missing_column'));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsOrdered('option_name', false, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->wordpressOptionsOrdered('option_name', false, null, -1));
+    },
     'reads wordpress options by bounded rowid range across table interior pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)'], 1),

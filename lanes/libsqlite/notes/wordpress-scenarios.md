@@ -2437,3 +2437,22 @@ and master-journal coordination remain separate follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 WAL frame parsing, committed transaction summaries, SQLite header parsing, and
 WordPress page fixture helpers.
+
+## Ordered Option Result Window Scenario
+
+Native `wp_options` imports now include a bounded result-ordering helper for
+local SQL-style scans. The `examples/wordpress-options-order-limit.php` smoke
+builds a small copied options database, orders decoded rows by `option_name`,
+then applies `LIMIT 2 OFFSET 1` after sorting so WordPress migration previews
+can page deterministic option lists without the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner slice: added
+`SQLiteDatabase::wordpressOptionsOrdered()`, focused assertions for
+`ORDER BY option_name`, descending `autoload`, descending `rowid`, limit zero,
+offset, invalid column, and invalid bounds, plus a WordPress-visible smoke.
+Full SELECT parsing, multi-column ORDER BY, collation-aware ordering, and
+index-backed sort elision remain separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+table traversal, record decoding, WordPress option mapping, and scalar
+comparison helpers.

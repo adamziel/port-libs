@@ -1,5 +1,50 @@
 # Integration Status
 
+## Accepted libsqlite ordered option result windows - 2026-05-26 06:36 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T062514Z.ready`.
+
+Accepted source base: `05ddd67ad5bb8b425317b0dd578cdb283d3bb4c5`
+(`Integrate libsqlite WAL reader page map`).
+
+Decision: accepted. The marker was complete (`lane=libsqlite`, `patch=...`,
+`metadata=...`, `log=...`), patch SHA-256 matched
+`eddff8d812e85da0891d9e88c90fe8ed8158cfc7a03d24abac7d3d2bba057bc9`.
+Source/test/example hunks applied cleanly in detached clean worktree
+`.tmux-team/tmp/clean-integrator-20260526T063152Z`; manifest/status/notes
+conflicts were a bounded stale evidence merge preserving the already accepted
+WAL reader page-map status.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-options-order-limit.php`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed
+  with `1 test files, 2543 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-options-order-limit.php`: passed and
+  emitted ordered `wp_options` rows for
+  `ORDER BY option_name LIMIT 2 OFFSET 1`.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` decoded as valid JSON.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Serialized root verification:
+- Runtime gates before root were open: `df -Pk /` reported `88802544` KiB
+  available, `/proc/loadavg` first field was `2.38`, and
+  `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`:
+  passed with `215 test files, 27180 assertions, 0 failures`.
+
+Dashboard guard:
+- Before candidate work, cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=05ddd67ad5bb8b425317b0dd578cdb283d3bb4c5`, matching current
+  `refs/heads/main`.
+
+No new support-library dependency was activated. Dashboard publication should
+run next after this accepted source commit reaches `main`.
+
 ## Accepted libsqlite WAL reader page map - 2026-05-26 06:29 UTC
 
 Accepted marker:
