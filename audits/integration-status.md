@@ -1,5 +1,44 @@
 # Integration Status
 
+## Accepted - libsqlite savepoint diagnostics - 2026-05-26 02:08 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T015713Z.ready`.
+
+Committed a bounded current-base libsqlite closure slice adding native
+`SQLiteSavepointStack` page-dirty diagnostics plus a WordPress option-import
+example, focused test coverage, and lane status/manifest notes. The marker
+base was current `a46651b35a57d3a11dcda222a5df44bd44826601`, the patch hash
+matched `e139381520591ed4e75e19a90182134f69aaa2d4199fab8b4b5820f9c42ae0b3`,
+and `git apply --check` passed in a detached clean worktree.
+
+Focused verification in the clean candidate worktree:
+- `php -l lanes/libsqlite/src/SQLiteSavepointStack.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`:
+  passed.
+- `php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`:
+  passed.
+- Manifest/status JSON validation: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`:
+  passed with `1 test files, 2380 assertions, 0 failures`.
+
+Serialized root verification under `.tmux-team/tmp/clean-integrator-run.lock`
+passed with `215 test files, 26835 assertions, 0 failures`.
+
+Resource/dashboard gates before acceptance:
+- Live cache-busted `porting-summary.json` matched current source
+  `a46651b35a57d3a11dcda222a5df44bd44826601`.
+- `df -Pk /` was above the required `86000000` KiB before focused and root
+  checks.
+- Load average stayed below `25`.
+- No exact no-argument root harness process was active before starting the
+  serialized root run.
+
+Dashboard publication should run next because this accepted commit advances
+`refs/heads/main` beyond the currently published source.
+
 ## Accepted - libsqlite B-tree rebalance diagnostics - 2026-05-26 02:02 UTC
 
 Accepted marker:

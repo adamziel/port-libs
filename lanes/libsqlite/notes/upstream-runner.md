@@ -6590,3 +6590,45 @@ failures.
 Dependency closure: no new support component is needed. The slice reuses
 lane-local binary parsing, page-image assembly, `SQLiteDatabase` traversal,
 and WordPress option decoding; it counts no shared support-library progress.
+
+## Focused Native Mapping: Savepoint State Diagnostics
+
+Date: 2026-05-26
+
+This isolated dependency-closure micro-slice adds bounded SQLite savepoint
+state tracking for recovery/import diagnostics. Native `SQLiteSavepointStack`
+tracks an active transaction plus nested `SAVEPOINT` frames, records dirty
+page numbers per frame, implements SQLite-style `ROLLBACK TO` by discarding
+younger frames while keeping the named savepoint active, and implements
+`RELEASE` by merging child dirty-page state upward or ending the outer
+transaction.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice maps against the existing static pager/journal and
+transaction-state inventories and records one native savepoint-state mapping
+unit. Prior applicable runner evidence remains the complete SQLite `veryquick`
+run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSavepointStack.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the WordPress savepoint smoke reported nested
+`wp_options` import frames before rollback, preserved the named savepoint after
+`ROLLBACK TO`, merged surviving page writes on `RELEASE`, and kept the outer
+transaction active with pending pages `[1, 2, 6]`; focused lane tests passed
+with 1 selected file, 2380 assertions, and 0 failures.
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local transaction/page-number bookkeeping for storage diagnostics and
+counts no shared support-library progress.

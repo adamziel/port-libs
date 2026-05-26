@@ -43,6 +43,7 @@ use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
 use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
+use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
@@ -9996,6 +9997,71 @@ return [
         $t->same([1], array_keys($journal->pageImages()));
         $t->same($page, $journal->pageImages()[1]);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(substr_replace($journalBytes, 'X', -1), true));
+    },
+    'tracks sqlite savepoint rollback and release page diagnostics' => static function (TestRunner $t): void {
+        $stack = new SQLiteSavepointStack();
+
+        $stack->beginTransaction('outer');
+        $stack->recordPageWrite(2);
+        $stack->savepoint('plugin-import');
+        $stack->recordPageWrite(5);
+        $stack->recordPageWrite(7);
+        $stack->savepoint('option-row');
+        $stack->recordPageWrite(8);
+
+        $t->same(true, $stack->transactionActive());
+        $t->same(3, $stack->depth());
+        $t->same(['outer', 'plugin-import', 'option-row'], $stack->names());
+        $t->same([2, 5, 7, 8], $stack->pendingPageNumbers());
+
+        $stack->rollbackTo('plugin-import');
+        $t->same(2, $stack->depth());
+        $t->same(['outer', 'plugin-import'], $stack->names());
+        $t->same([
+            [
+                'name' => 'outer',
+                'transaction' => true,
+                'page_numbers' => [2],
+            ],
+            [
+                'name' => 'plugin-import',
+                'transaction' => false,
+                'page_numbers' => [],
+            ],
+        ], $stack->toArray());
+
+        $stack->recordPageWrite(6);
+        $stack->release('plugin-import');
+        $t->same(1, $stack->depth());
+        $t->same([2, 6], $stack->pendingPageNumbers());
+        $t->same([
+            [
+                'name' => 'outer',
+                'transaction' => true,
+                'page_numbers' => [2, 6],
+            ],
+        ], $stack->toArray());
+
+        $stack->release('outer');
+        $t->same(false, $stack->transactionActive());
+        $t->same([], $stack->pendingPageNumbers());
+
+        $stack->savepoint('implicit');
+        $stack->recordPageWrite(3);
+        $t->same([
+            [
+                'name' => 'implicit',
+                'transaction' => true,
+                'page_numbers' => [3],
+            ],
+        ], $stack->toArray());
+        $stack->commit();
+        $t->same(false, $stack->transactionActive());
+
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->savepoint(''));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->recordPageWrite(0));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackTo('missing'));
+        $t->throws(LogicException::class, static fn () => $stack->commit());
     },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 27)));

@@ -2039,3 +2039,17 @@ restores the pre-transaction option page image, and reads the recovered
 This is intentionally not a full pager recovery engine yet. Master-journal
 handling, multi-sector journal edge cases, journal file writing, savepoints,
 and transaction orchestration remain separate slices.
+
+## Savepoint Option Import Diagnostics
+
+Native transaction diagnostics now include bounded SQLite savepoint state
+tracking for copied WordPress database imports. The new
+`examples/wordpress-savepoint-option-import-diagnostics.php` smoke simulates a
+`wp_options` import transaction, records dirty database pages under nested
+savepoints, rolls back a failed option-row savepoint, releases the surviving
+plugin-settings savepoint, and reports the remaining pending page numbers
+without requiring the SQLite extension.
+
+This is intentionally not a full pager transaction engine yet. WAL-index
+shared-memory state, master-journal coordination, durable journal writing, and
+general SQL execution remain separate slices.
