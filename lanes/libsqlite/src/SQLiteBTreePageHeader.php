@@ -189,6 +189,41 @@ final class SQLiteBTreePageHeader
         return $freeBytes - $cellContentFloor;
     }
 
+    /**
+     * @return array{status:string,page_type:string,cell_count:int,cell_content_area_start:int,first_freeblock_offset:int,fragmented_free_bytes:int,freeblock_count:int,freeblock_bytes:int,free_space_bytes:?int,freeblocks:list<array{offset:int,size:int,end_offset:int,next_offset:?int}>,error:?string}
+     */
+    public function freeblockIntegrityReport(string $page, ?int $usableSize = null): array
+    {
+        $freeblocks = [];
+        $freeblockBytes = 0;
+        $freeSpaceBytes = null;
+        $error = null;
+
+        try {
+            foreach ($this->freeblocks($page, $usableSize) as $freeblock) {
+                $freeblocks[] = $freeblock->toArray();
+                $freeblockBytes += $freeblock->size;
+            }
+            $freeSpaceBytes = $this->freeSpaceBytes($page, $usableSize);
+        } catch (\InvalidArgumentException $exception) {
+            $error = $exception->getMessage();
+        }
+
+        return [
+            'status' => $error === null ? 'ok' : 'corrupt',
+            'page_type' => $this->pageType,
+            'cell_count' => $this->cellCount,
+            'cell_content_area_start' => $this->cellContentAreaStart,
+            'first_freeblock_offset' => $this->firstFreeblockOffset,
+            'fragmented_free_bytes' => $this->fragmentedFreeBytes,
+            'freeblock_count' => count($freeblocks),
+            'freeblock_bytes' => $freeblockBytes,
+            'free_space_bytes' => $freeSpaceBytes,
+            'freeblocks' => $freeblocks,
+            'error' => $error,
+        ];
+    }
+
     public function isLeaf(): bool
     {
         return ($this->pageTypeFlag & 0x08) !== 0;

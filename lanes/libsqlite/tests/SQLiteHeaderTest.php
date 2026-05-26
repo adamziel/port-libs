@@ -661,6 +661,23 @@ return [
             ['offset' => 470, 'size' => 16, 'end_offset' => 486, 'next_offset' => null],
         ], array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $freeblocks));
         $t->same(429, $header->freeSpaceBytes($page));
+
+        $t->same([
+            'status' => 'ok',
+            'page_type' => 'table-leaf',
+            'cell_count' => 1,
+            'cell_content_area_start' => 400,
+            'first_freeblock_offset' => 420,
+            'fragmented_free_bytes' => 3,
+            'freeblock_count' => 2,
+            'freeblock_bytes' => 36,
+            'free_space_bytes' => 429,
+            'freeblocks' => [
+                ['offset' => 420, 'size' => 20, 'end_offset' => 440, 'next_offset' => 470],
+                ['offset' => 470, 'size' => 16, 'end_offset' => 486, 'next_offset' => null],
+            ],
+            'error' => null,
+        ], $header->freeblockIntegrityReport($page));
     },
     'parses sqlite freelist trunk pages and allocation order' => static function (TestRunner $t) use ($makeFirstPage): void {
         $firstPage = $makeFirstPage(512, 8);
@@ -813,6 +830,10 @@ return [
         $overlap = substr_replace($overlap, pack('n', 430) . pack('n', 20), 420, 4);
         $overlapHeader = SQLiteBTreePageHeader::parsePage($overlap, 512);
         $t->throws(InvalidArgumentException::class, static fn () => $overlapHeader->freeblocks($overlap));
+        $overlapReport = $overlapHeader->freeblockIntegrityReport($overlap);
+        $t->same('corrupt', $overlapReport['status']);
+        $t->same(0, $overlapReport['freeblock_count']);
+        $t->contains('ascending non-overlapping order', (string) $overlapReport['error']);
 
         $reserved = str_repeat("\0", 512);
         $reserved[0] = "\x0d";
@@ -821,6 +842,9 @@ return [
         $reserved = substr_replace($reserved, pack('n', 0) . pack('n', 20), 490, 4);
         $reservedHeader = SQLiteBTreePageHeader::parsePage($reserved, 512);
         $t->throws(InvalidArgumentException::class, static fn () => $reservedHeader->freeblocks($reserved, 500));
+        $reservedReport = $reservedHeader->freeblockIntegrityReport($reserved, 500);
+        $t->same('corrupt', $reservedReport['status']);
+        $t->contains('usable page space', (string) $reservedReport['error']);
 
         $badAccounting = str_repeat("\0", 512);
         $badAccounting[0] = "\x0d";
@@ -828,6 +852,9 @@ return [
         $badAccounting[7] = "\x14";
         $badAccountingHeader = SQLiteBTreePageHeader::parsePage($badAccounting, 512);
         $t->throws(InvalidArgumentException::class, static fn () => $badAccountingHeader->freeSpaceBytes($badAccounting));
+        $badAccountingReport = $badAccountingHeader->freeblockIntegrityReport($badAccounting);
+        $t->same('corrupt', $badAccountingReport['status']);
+        $t->contains('free-space accounting is corrupt', (string) $badAccountingReport['error']);
     },
     'parses sqlite table interior cells with child page and rowid separator' => static function (TestRunner $t) use ($tableInteriorPage): void {
         $page = $tableInteriorPage([[2, 200]], 3);

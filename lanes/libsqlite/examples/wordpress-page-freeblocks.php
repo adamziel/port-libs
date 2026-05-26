@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteIndexLeafPage;
@@ -22,12 +21,14 @@ $header = $database->pageHeader($pageNumber);
 $page = $database->page($pageNumber);
 $usableSize = $database->usablePageSize();
 
+$integrity = $header->freeblockIntegrityReport($page, $usableSize);
+$freeblocks = $integrity['freeblocks'];
+$freeSpaceBytes = $integrity['free_space_bytes'];
+
 try {
-    $freeblocks = array_map(
-        static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(),
-        $header->freeblocks($page, $usableSize),
-    );
-    $freeSpaceBytes = $header->freeSpaceBytes($page, $usableSize);
+    if ($integrity['status'] !== 'ok') {
+        throw new InvalidArgumentException((string) $integrity['error']);
+    }
     $defragmentation = null;
     if ($header->pageType === 'table-leaf') {
         $compactedPage = SQLiteTableLeafPage::defragment($page, $database->header->pageSize, $header->headerOffset, $usableSize, true);
@@ -50,8 +51,6 @@ try {
     }
     $corruption = null;
 } catch (InvalidArgumentException $exception) {
-    $freeblocks = [];
-    $freeSpaceBytes = null;
     $defragmentation = null;
     $corruption = $exception->getMessage();
 }
@@ -65,6 +64,7 @@ echo json_encode([
     'cellContentAreaStart' => $header->cellContentAreaStart,
     'firstFreeblockOffset' => $header->firstFreeblockOffset,
     'fragmentedFreeBytes' => $header->fragmentedFreeBytes,
+    'freeblockIntegrity' => $integrity,
     'freeSpaceBytes' => $freeSpaceBytes,
     'freeblocks' => $freeblocks,
     'defragmentation' => $defragmentation,
