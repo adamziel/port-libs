@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 07:20:30 UTC",
-    "sourceCommit": "901e6a21bd5a743610361d9d08dbf45b363d24b5",
-    "sourceCommitShort": "901e6a21bd5a",
+    "generated": "2026-05-26 07:28:53 UTC",
+    "sourceCommit": "f5d9ec3bf0589c932ebb9954c60981e69e4180d3",
+    "sourceCommitShort": "f5d9ec3bf058",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "cc49a7cbf7f7b6b53b13bc27f9d116ee68c45fdb",
-    "dashboardCommitShort": "cc49a7cbf7f7",
+    "dashboardCommit": "c2c4ef08f75958e2d4e067a2400df7a2edab3dbd",
+    "dashboardCommitShort": "c2c4ef08f759",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,12 +83,12 @@
             "denominator": "1589",
             "mapped": "312",
             "coverage": "312 / 1589",
-            "php": "314 pass / 0 fail",
+            "php": "315 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated SQL execution/planner scalar sli...",
-            "currentWork": "Latest bounded SQL execution/planner scalar integration preserves accepted recorded runne...",
-            "nextTarget": "Hydrate .upstream-cache/libsqlite including test/permutations.test plus .upstream-cache/l...",
+            "audit": "isolated B-tree delete/rebalance slice 20...",
+            "currentWork": "Latest bounded B-tree delete/rebalance integration preserves accepted scalar-dispatch, re...",
+            "nextTarget": "Implement the next bounded B-tree closure gap: pair table-row deletion with secondary-ind...",
             "blocker": "Full SQLite all/release runner parity remains pending; this isolated work...",
             "commit": "pending"
         },
