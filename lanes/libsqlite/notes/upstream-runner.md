@@ -10140,3 +10140,33 @@ micro-slice.
 
 Dependency closure: no new support component is needed; this reuses existing
 lane-local JSON table row generation and residual filtering.
+
+## Focused Native Mapping: SELECT EXISTS/IN Subquery Filters
+
+Date: 2026-05-26
+
+This isolated SQL execution/planner micro-slice adds bounded native result-row
+filters for subquery-style SELECT predicates after row production: `EXISTS`,
+`NOT EXISTS`, `IN`, and `NOT IN`. The helper preserves SQLite's important NULL
+edges for `IN`/`NOT IN`: NULL left-hand values do not match, and `NOT IN` with a
+NULL in the subquery result filters out non-matching rows as UNKNOWN.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedCoreSelectSubqueryFilterScripts: 1`. No fresh
+upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
+started from this isolated worktree.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectResult.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-subquery-preview.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-options-subquery-preview.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This slice reuses
+lane-local SQL value keys, BLOB wrappers, and pure PHP result-array dispatch.

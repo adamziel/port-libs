@@ -3457,3 +3457,19 @@ and invalid-count errors.
 
 Dependency closure: no new shared support component is needed; this reuses
 lane-local SQLite header and freelist trunk parsing/assembly.
+
+## SELECT Subquery Option Filter Scenario
+
+Copied WordPress option import previews can now model bounded SQLite subquery
+filters without requiring the SQLite extension. The new smoke
+`examples/wordpress-options-subquery-preview.php` reports correlated `EXISTS`
+metadata filters, selected-name `IN` filters, and NULL-sensitive `NOT IN`
+anti-filter behavior before final result ordering.
+
+Status delta 2026-05-26 isolated SQL execution/planner slice: added
+`SQLiteSelectResult::whereExists()` and `SQLiteSelectResult::whereIn()` with
+focused tests for correlated rows, NOT EXISTS, scalar/BLOB equality, empty
+subqueries, NULL left-hand values, NULL values inside `NOT IN` subqueries,
+composition with existing ORDER/LIMIT result semantics, and strict malformed
+column/value guards. Dependency closure: no new support component is needed;
+this reuses lane-local SQL value keys and pure PHP result arrays.

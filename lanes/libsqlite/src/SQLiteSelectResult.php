@@ -128,6 +128,75 @@ final class SQLiteSelectResult
         return array_slice($rows, $offset, $limit);
     }
 
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param callable(array<string,mixed>):iterable<array<string,mixed>> $subquery
+     * @return list<array<string,mixed>>
+     */
+    public static function whereExists(array $rows, callable $subquery, bool $negate = false): array
+    {
+        $result = [];
+        foreach ($rows as $row) {
+            $exists = false;
+            foreach ($subquery($row) as $unused) {
+                $exists = true;
+                break;
+            }
+
+            if ($exists !== $negate) {
+                $result[] = $row;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param iterable<mixed> $subqueryValues
+     * @return list<array<string,mixed>>
+     */
+    public static function whereIn(array $rows, string $column, iterable $subqueryValues, bool $negate = false): array
+    {
+        if ($column === '') {
+            throw new \InvalidArgumentException('SQLite IN subquery filter needs a column');
+        }
+
+        $set = [];
+        $hasNull = false;
+        foreach ($subqueryValues as $value) {
+            self::valueKey($value);
+            if ($value === null) {
+                $hasNull = true;
+                continue;
+            }
+            $set[self::valueKey($value)] = true;
+        }
+
+        $result = [];
+        foreach ($rows as $row) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite IN subquery filter row is missing column {$column}");
+            }
+
+            $value = $row[$column];
+            self::valueKey($value);
+            $matched = $value !== null && isset($set[self::valueKey($value)]);
+            if ($negate) {
+                if (!$matched && !$hasNull && $value !== null) {
+                    $result[] = $row;
+                }
+                continue;
+            }
+
+            if ($matched) {
+                $result[] = $row;
+            }
+        }
+
+        return $result;
+    }
+
     private static function valueKey(mixed $value): string
     {
         if ($value === null) {

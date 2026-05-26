@@ -117357,3 +117357,34 @@ Decision: accepted. After commit publication, remove the accepted ready marker, 
 Cleanup debt:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T212226Z` still contains modified lane files after the accepted patch was verified, so it is preserved and left registered. Do not remove it without worker cleanup or explicit reauthorization.
 - Clean integrator candidate worktree `.tmux-team/tmp/clean-integrator-wal-snapshot-20260526T2132Z` contains root-run `.tmp-root` output and is preserved as cleanup debt rather than force-removed.
+## Accepted libsqlite SQL subquery result filters - 2026-05-26T21:45:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T213637Z.ready`
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate worktree creation was `11c5661f4e26d5ade83b2f7a5f08ddc68baf7008` (`Integrate libsqlite WAL reader snapshots`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `11c5661f4e26d5ade83b2f7a5f08ddc68baf7008`, `generated` `2026-05-26 21:38:02 UTC`, and `dashboardCommit` `acc75af8b065f616ae21ec91bd5ad21a3e582b8b`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- Marker lane was `libsqlite`, base SHA was current accepted HEAD `11c5661f4e26d5ade83b2f7a5f08ddc68baf7008`, and the detached clean candidate worktree was created from that source.
+- Selected over older-base libsqlite markers because it was current-base, non-overlapping with accepted WAL reader snapshots, and added SQL execution/planner-visible subquery result behavior.
+- Patch added bounded `SQLiteSelectResult::whereExists()` and `whereIn()` helpers, focused EXISTS/NOT EXISTS/IN/NOT IN assertions, and a WordPress copied `wp_options` subquery preview smoke.
+- Expected visible lane movement: focused `SQLiteHeaderTest.php` assertions `3633 -> 3666` (`+33`), `lane-status.json` `phpPass` `722 -> 723`, and manifest mapped coverage `386 -> 387`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSelectResult.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-options-subquery-preview.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 3666 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-options-subquery-preview.php`: passed and emitted valid JSON.
+- Manifest/status JSON decode: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Root verification:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock env TMPDIR=$candidate/.tmp-root php tools/run-tests.php`: `215 test files, 28800 assertions, 0 failures`.
+
+Cleanup note:
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T213637Z` still contains the same modified/untracked handoff files, so it is preserved as cleanup debt instead of being removed.

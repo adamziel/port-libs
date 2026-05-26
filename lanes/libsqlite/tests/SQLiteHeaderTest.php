@@ -13486,4 +13486,83 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::orderBy([['bytes' => []]], [['column' => 'bytes']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::limitOffset($rows, 1, -1));
     },
+    'filters sqlite select rows with exists and in subquery semantics' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('same')],
+            ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('same')],
+            ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'payload' => new SQLiteBlobValue('blog')],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'autoload' => 'no', 'payload' => null],
+            ['option_id' => 5, 'option_name' => 'orphaned', 'autoload' => null, 'payload' => true],
+        ];
+        $metadata = [
+            ['option_id' => 1, 'meta_key' => 'network'],
+            ['option_id' => 1, 'meta_key' => 'public'],
+            ['option_id' => 3, 'meta_key' => 'public'],
+            ['option_id' => null, 'meta_key' => 'ignored-null'],
+            ['option_id' => 8, 'meta_key' => 'unused'],
+        ];
+
+        $public = SQLiteSelectResult::whereExists(
+            $options,
+            static fn (array $row): array => array_values(array_filter(
+                $metadata,
+                static fn (array $meta): bool => $meta['option_id'] === $row['option_id'] && $meta['meta_key'] === 'public'
+            ))
+        );
+        $t->same(['siteurl', 'blogname'], array_column($public, 'option_name'));
+
+        $withoutMetadata = SQLiteSelectResult::whereExists(
+            $options,
+            static fn (array $row): array => array_values(array_filter(
+                $metadata,
+                static fn (array $meta): bool => $meta['option_id'] === $row['option_id']
+            )),
+            true
+        );
+        $t->same(['home', '_transient_feed', 'orphaned'], array_column($withoutMetadata, 'option_name'));
+
+        $networkOrPublicIds = SQLiteSelectResult::whereIn($options, 'option_id', array_column($metadata, 'option_id'));
+        $t->same(['siteurl', 'blogname'], array_column($networkOrPublicIds, 'option_name'));
+        $t->same([1, 3], array_column($networkOrPublicIds, 'option_id'));
+
+        $allowedNames = SQLiteSelectResult::whereIn($options, 'option_name', ['home', '_transient_feed', 'missing']);
+        $t->same(['home', '_transient_feed'], array_column($allowedNames, 'option_name'));
+
+        $binaryPayloads = SQLiteSelectResult::whereIn($options, 'payload', [new SQLiteBlobValue('same')]);
+        $t->same(['siteurl', 'home'], array_column($binaryPayloads, 'option_name'));
+
+        $notSelectedWithoutNull = SQLiteSelectResult::whereIn($options, 'option_name', ['siteurl', 'blogname'], true);
+        $t->same(['home', '_transient_feed', 'orphaned'], array_column($notSelectedWithoutNull, 'option_name'));
+
+        $notSelectedWithNull = SQLiteSelectResult::whereIn($options, 'option_name', ['siteurl', null], true);
+        $t->same([], $notSelectedWithNull);
+
+        $notSelectedNullableLhs = SQLiteSelectResult::whereIn($options, 'autoload', ['yes'], true);
+        $t->same(['_transient_feed'], array_column($notSelectedNullableLhs, 'option_name'));
+
+        $emptyIn = SQLiteSelectResult::whereIn($options, 'option_name', []);
+        $t->same([], $emptyIn);
+
+        $emptyNotIn = SQLiteSelectResult::whereIn($options, 'option_name', [], true);
+        $t->same(['siteurl', 'home', 'blogname', '_transient_feed', 'orphaned'], array_column($emptyNotIn, 'option_name'));
+
+        $emptyExists = SQLiteSelectResult::whereExists($options, static fn (array $row): array => []);
+        $t->same([], $emptyExists);
+
+        $constantExists = SQLiteSelectResult::whereExists($options, static fn (array $row): array => [['ignored' => null]]);
+        $t->same(['siteurl', 'home', 'blogname', '_transient_feed', 'orphaned'], array_column($constantExists, 'option_name'));
+
+        $executed = SQLiteSelectResult::execute(
+            SQLiteSelectResult::whereIn($public, 'option_name', ['siteurl', 'blogname']),
+            null,
+            [['column' => 'option_name', 'direction' => 'DESC']],
+            1
+        );
+        $t->same(['siteurl'], array_column($executed, 'option_name'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn($options, '', ['siteurl']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn([['option_name' => 'siteurl']], 'missing', ['siteurl']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn($options, 'option_name', [['bad']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::whereIn([['option_name' => []]], 'option_name', ['siteurl']));
+    },
 ];
