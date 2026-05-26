@@ -2542,3 +2542,11 @@ the accepted rollback preview remain separate follow-up work.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local rollback journal parsing, checksum validation, SQLite page headers,
 and WordPress fixture helpers.
+
+## WAL Checkpoint Plan Scenario
+
+Native `wp_options` WAL diagnostics can now preview checkpoint provenance before a filesystem checkpoint writer exists. The `examples/wordpress-wal-option-frame-diagnostics.php` smoke reports a checkpoint plan that applies committed frames, marks superseded frames, ignores uncommitted tail frames, and excludes frames beyond the committed database size.
+
+Status delta 2026-05-26 isolated WAL slice: added `SQLiteWal::checkpointPlan()` with focused assertions for applied, superseded, beyond-size, uncommitted-tail, empty-WAL, and malformed base-image cases. Filesystem checkpoint writes, WAL-index/shared-memory state, and durability orchestration remain separate follow-up work.
+
+Dependency closure: no new shared support component is needed; this reuses lane-local WAL parsing, checksum validation, checkpoint overlay, SQLite header parsing, and WordPress fixture helpers.

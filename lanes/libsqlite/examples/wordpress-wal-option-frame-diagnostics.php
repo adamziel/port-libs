@@ -72,11 +72,13 @@ $wal = SQLiteWal::parse($walBytes, null, true);
 $database = SQLiteDatabase::fromBytes($wal->checkpointDatabaseImage($baseDatabaseBytes));
 $readerPageMap = $wal->readerPageMap($baseDatabaseBytes);
 $readerOptionPage = $wal->readerPageImage($baseDatabaseBytes, 2);
+$checkpointPlan = $wal->checkpointPlan($baseDatabaseBytes);
 
 echo json_encode([
     'wal' => $wal->toArray(),
     'committedTransactions' => $wal->committedTransactions(),
     'uncommittedFrameCount' => $wal->uncommittedFrameCount(),
+    'checkpointPlan' => $checkpointPlan,
     'readerPageMap' => $readerPageMap,
     'readerOptionPage' => [
         'page_number' => $readerOptionPage['page_number'],

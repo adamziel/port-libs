@@ -10566,6 +10566,89 @@ SQL;
         $t->same([], $uncommittedWal->committedTransactions());
         $t->same(1, $uncommittedWal->uncommittedFrameCount());
     },
+    'plans sqlite wal checkpoint frame application diagnostics' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x21212121;
+        $salt2 = 0x34343434;
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 5, $salt1, $salt2, 0, 0);
+        $baseDatabase = $makeFirstPage($pageSize, 4)
+            . str_repeat('B', $pageSize)
+            . str_repeat('C', $pageSize)
+            . str_repeat('D', $pageSize);
+        $pageTwoOld = str_repeat('o', $pageSize);
+        $pageTwoNew = str_repeat('n', $pageSize);
+        $pageThree = str_repeat('3', $pageSize);
+        $pageFive = str_repeat('5', $pageSize);
+        $tailPage = str_repeat('t', $pageSize);
+        $walBytes = $walHeader
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $pageTwoOld
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $pageTwoNew
+            . pack('N*', 3, 4, $salt1, $salt2, 0, 0) . $pageThree
+            . pack('N*', 5, 4, $salt1, $salt2, 0, 0) . $pageFive
+            . pack('N*', 4, 0, $salt1, $salt2, 0, 0) . $tailPage;
+
+        $wal = SQLiteWal::parse($walBytes);
+
+        $t->same([
+            'database_page_count' => 4,
+            'final_database_bytes' => 2048,
+            'last_commit_frame' => 4,
+            'frames' => [
+                [
+                    'frame_index' => 1,
+                    'page_number' => 2,
+                    'database_offset' => 512,
+                    'applied' => false,
+                    'reason' => 'superseded_by_later_committed_frame',
+                ],
+                [
+                    'frame_index' => 2,
+                    'page_number' => 2,
+                    'database_offset' => 512,
+                    'applied' => true,
+                    'reason' => 'checkpointed_to_database',
+                ],
+                [
+                    'frame_index' => 3,
+                    'page_number' => 3,
+                    'database_offset' => 1024,
+                    'applied' => true,
+                    'reason' => 'checkpointed_to_database',
+                ],
+                [
+                    'frame_index' => 4,
+                    'page_number' => 5,
+                    'database_offset' => 2048,
+                    'applied' => false,
+                    'reason' => 'beyond_committed_database_size',
+                ],
+                [
+                    'frame_index' => 5,
+                    'page_number' => 4,
+                    'database_offset' => 1536,
+                    'applied' => false,
+                    'reason' => 'after_last_commit',
+                ],
+            ],
+        ], $wal->checkpointPlan($baseDatabase));
+
+        $checkpointed = $wal->checkpointDatabaseImage($baseDatabase);
+        $t->same($pageTwoNew, substr($checkpointed, 512, $pageSize));
+        $t->same($pageThree, substr($checkpointed, 1024, $pageSize));
+        $t->same(str_repeat('D', $pageSize), substr($checkpointed, 1536, $pageSize));
+        $t->same(2048, strlen($checkpointed));
+        $t->same('', substr($checkpointed, 2048, $pageSize));
+
+        $emptyWal = SQLiteWal::parse($walHeader);
+        $t->same([
+            'database_page_count' => 4,
+            'final_database_bytes' => 2048,
+            'last_commit_frame' => null,
+            'frames' => [],
+        ], $emptyWal->checkpointPlan($baseDatabase));
+
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->checkpointPlan(substr($baseDatabase, 1)));
+    },
     'resolves sqlite wal reader page images through the last committed frame' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $salt1 = 0x33333333;

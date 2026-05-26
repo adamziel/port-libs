@@ -1,5 +1,42 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite WAL checkpoint plan - 2026-05-26 07:55 UTC
+
+Accepted isolated marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T074252Z.ready`.
+
+Current `refs/heads/main` before acceptance: `f8a9e96936de7878c6ac71d04c577fb12d389261`
+(`Integrate libsqlite full suite command manifest`).
+
+Dashboard guard evidence:
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit=f8a9e96936de7878c6ac71d04c577fb12d389261`.
+- Live dashboard commit reported `35b8761ae428b9b0517ed24a93091b6be1789c96`.
+- The dashboard guard was open before candidate verification.
+
+Resource and process gate evidence:
+- `df -Pk /` reported at least `87275324` KiB available before the root run, above the required `86000000` KiB threshold.
+- `/proc/loadavg` first field was below `25` during focused and root checks.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before starting the serialized root harness.
+
+Candidate evidence:
+- The marker declared `lane=libsqlite`, `patch=...port-dev-libsqlite-wal-20260526T074252Z.patch`, `metadata=...port-dev-libsqlite-wal-20260526T074252Z.md`, and `base_sha=e3a871e04f0e42708f60491860def3768c4f1145`.
+- Full patch apply against current `main` was stale in libsqlite manifest/status/notes only; code/test/example hunks applied cleanly with those coordination files excluded.
+- The accepted snapshot bounded-merged the manifest/status/notes entries to preserve already accepted full-suite command-manifest evidence while adding the WAL checkpoint-plan evidence.
+
+Focused verification passed in a detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteWal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 2632 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php` passed and reported `checkpointPlan`, `last_commit_frame=2`, `checkpointImageBytes=1024`, and uncommitted tail exclusion.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` from the exact accepted snapshot:
+- `php tools/run-tests.php` passed with `215 test files, 27348 assertions, 0 failures`.
+
+Decision: accepted. The slice adds `SQLiteWal::checkpointPlan()` and focused coverage for committed checkpoint application, superseded frames, frames beyond committed database size, uncommitted tail frames, empty WAL files, and malformed base images. No new shared support-library component was activated.
+
+Dashboard publication should run next because accepted source moved beyond the live dashboard source.
 ## Accepted - libsqlite full suite command manifest - 2026-05-26 07:42 UTC
 
 Accepted marker:

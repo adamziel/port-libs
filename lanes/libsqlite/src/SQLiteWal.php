@@ -201,6 +201,70 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{database_page_count:int,final_database_bytes:int,last_commit_frame:int|null,frames:list<array{frame_index:int,page_number:int,database_offset:int,applied:bool,reason:string}>}
+     */
+    public function checkpointPlan(string $databaseBytes): array
+    {
+        $pageSize = $this->header->pageSize;
+        if ($pageSize === 0) {
+            $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
+        }
+        if ($pageSize < 512 || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint plan requires a database image aligned to the page size');
+        }
+
+        $lastCommitFrame = $this->lastCommitFrame();
+        if ($lastCommitFrame === null) {
+            return [
+                'database_page_count' => intdiv(strlen($databaseBytes), $pageSize),
+                'final_database_bytes' => strlen($databaseBytes),
+                'last_commit_frame' => null,
+                'frames' => [],
+            ];
+        }
+
+        $lastCommittedFrameByPage = [];
+        foreach ($this->frames as $frame) {
+            if ($frame->index > $lastCommitFrame->index) {
+                break;
+            }
+            $lastCommittedFrameByPage[$frame->pageNumber] = $frame->index;
+        }
+
+        $frames = [];
+        foreach ($this->frames as $frame) {
+            if ($frame->index > $lastCommitFrame->index) {
+                $reason = 'after_last_commit';
+                $applied = false;
+            } elseif ($frame->pageNumber > $lastCommitFrame->databasePageCountAfterCommit) {
+                $reason = 'beyond_committed_database_size';
+                $applied = false;
+            } elseif ($lastCommittedFrameByPage[$frame->pageNumber] !== $frame->index) {
+                $reason = 'superseded_by_later_committed_frame';
+                $applied = false;
+            } else {
+                $reason = 'checkpointed_to_database';
+                $applied = true;
+            }
+
+            $frames[] = [
+                'frame_index' => $frame->index,
+                'page_number' => $frame->pageNumber,
+                'database_offset' => ($frame->pageNumber - 1) * $pageSize,
+                'applied' => $applied,
+                'reason' => $reason,
+            ];
+        }
+
+        return [
+            'database_page_count' => $lastCommitFrame->databasePageCountAfterCommit,
+            'final_database_bytes' => $lastCommitFrame->databasePageCountAfterCommit * $pageSize,
+            'last_commit_frame' => $lastCommitFrame->index,
+            'frames' => $frames,
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array
