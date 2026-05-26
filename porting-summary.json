@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 14:16:16 UTC",
-    "sourceCommit": "faa9907b2d641d2a481c7c95d8cd20d6d8d4302a",
-    "sourceCommitShort": "faa9907b2d64",
+    "generated": "2026-05-26 14:25:10 UTC",
+    "sourceCommit": "941b7ee1ead7bbfb64ee31e3e76499c3848382b1",
+    "sourceCommitShort": "941b7ee1ead7",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "ae2e99fd2cdfd481cc65c7d72545c2e224e7662f",
-    "dashboardCommitShort": "ae2e99fd2cdf",
+    "dashboardCommit": "7ae54f9fd1c53d0b1e17e4dd4751a820a6f95698",
+    "dashboardCommitShort": "7ae54f9fd1c5",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,12 +83,12 @@
             "denominator": "1589",
             "mapped": "338",
             "coverage": "338 / 1589",
-            "php": "338 pass / 0 fail",
+            "php": "339 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated upstream-suite foreground-runner...",
-            "currentWork": "Latest upstream-suite runner work improves activeFullSuiteRunnerGate() so current foregro...",
-            "nextTarget": "Wait for libsqlite-release-rerun-foreground-20260526T134619Z to finish, then parse its gu...",
+            "audit": "isolated encoding/collation slice 2026-05...",
+            "currentWork": "Latest encoding/collation work adds wordpressOptionsByIndexedNameLikePrefixRangeNoCase()...",
+            "nextTarget": "Continue encoding/collation closure with broader affinity/comparison edge parity, especia...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
         },
