@@ -117178,3 +117178,40 @@ Decision: accepted after focused checks, WordPress smoke, `git diff --check`, an
 Cleanup:
 - Accepted ready/patch/metadata handoff artifacts were removed after commit publication.
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-scalar-20260526T204442Z` still contains modified/added copies of the accepted lane files, so it was preserved as cleanup debt rather than removed.
+## Integration accepted - libsqlite open admission preflight - 2026-05-26T20:58:00Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T204850Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `8417829800f515acde575587db3278d71e56f547` (`Integrate libsqlite SQL select result semantics`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact `sourceCommit` `8417829800f515acde575587db3278d71e56f547`, `generated` `2026-05-26 20:53:08 UTC`, and `dashboardCommit` `43925125109a5655bae2fa0006fe2ccedd7891e0`.
+- The dashboard guard was open before candidate processing.
+
+Candidate scope:
+- Replayed the implementation, focused test, WordPress smoke, manifest, and notes from an older-base dependency-suite marker onto current `84178298`; the only direct apply failure was stale `lanes/libsqlite/lane-status.json`, which was reconciled minimally from current accepted status.
+- Added bounded `SQLiteOpenPlan` admission decisions for file URI mode/cache/VFS/immutable/nolock/psow and busy-lock handling without touching the filesystem or requiring ext/sqlite.
+- Added `wordpress-open-plan-preflight.php` copied wp_options smoke diagnostics.
+- Added manifest/status evidence for `focusedOpenAdmissionPlanScripts`.
+
+Focused verification in clean detached candidate:
+- Runtime gates before focused checks: `/` free `87325432` KiB; load `1.08`; no exact `php tools/run-tests.php` root harness process.
+- `php -l lanes/libsqlite/src/SQLiteOpenPlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-open-plan-preflight.php` passed.
+- Selected focused test `plans sqlite file open admission without ext sqlite dependency` passed with `50` assertions and `0` failures.
+- WordPress open-plan smoke passed.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates before root: `/` free `87323964` KiB; load `1.31`; no exact `php tools/run-tests.php` root harness process; `refs/heads/main` still `8417829800f515acde575587db3278d71e56f547`.
+- `git diff --check` passed before root.
+- Locked no-argument root harness passed with `215 test files, 28624 assertions, 0 failures`.
+
+Decision: accepted for commit. Dashboard publication should run next after this source-moving commit lands.
+
+Cleanup:
+- Accepted marker artifacts may be removed after commit publication.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T204850Z` remains dirty with the accepted lane files, so it is preserved as cleanup debt instead of being removed.

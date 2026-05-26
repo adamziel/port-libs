@@ -46,6 +46,7 @@ use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteNumericAggregate;
 use PortLibs\LibSqlite\SQLiteNumericAggregateState;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
+use PortLibs\LibSqlite\SQLiteOpenPlan;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -12783,6 +12784,75 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBusyHandler::timeout(-1));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteBusyHandler::withDelays(10, [1, -1]));
         $t->throws(InvalidArgumentException::class, static fn () => $timeout->lockedOperationPlan('', false));
+    },
+    'plans sqlite file open admission without ext sqlite dependency' => static function (TestRunner $t): void {
+        $ready = SQLiteOpenPlan::forFilename('file:/srv/wp/site.db?mode=rw&cache=shared', true, false);
+        $t->same('ready', $ready['status']);
+        $t->same(true, $ready['can_open']);
+        $t->same(false, $ready['can_create']);
+        $t->same(false, $ready['read_only']);
+        $t->same(false, $ready['memory']);
+        $t->same('/srv/wp/site.db', $ready['path']);
+        $t->same('rw', $ready['mode']);
+        $t->same('shared', $ready['cache']);
+        $t->same(['file-uri-parser', 'shared-cache-coordination'], $ready['dependencies']);
+
+        $create = SQLiteOpenPlan::forFilename('file:/srv/wp/site-copy.db?mode=rwc', false, true);
+        $t->same('create', $create['status']);
+        $t->same(true, $create['can_open']);
+        $t->same(true, $create['can_create']);
+        $t->same(false, $create['read_only']);
+        $t->same('rwc', $create['mode']);
+
+        $cannotCreate = SQLiteOpenPlan::forFilename('file:/srv/wp/site-copy.db?mode=rwc', false, false);
+        $t->same('cannot-create', $cannotCreate['status']);
+        $t->same(false, $cannotCreate['can_open']);
+        $t->same(true, $cannotCreate['can_create']);
+        $t->same('database directory is not writable', $cannotCreate['reason']);
+
+        $missingRo = SQLiteOpenPlan::forFilename('file:/srv/wp/site.db?mode=ro', false, true);
+        $t->same('missing', $missingRo['status']);
+        $t->same(false, $missingRo['can_open']);
+        $t->same(false, $missingRo['can_create']);
+        $t->same(true, $missingRo['read_only']);
+        $t->same('database file does not exist', $missingRo['reason']);
+
+        $immutable = SQLiteOpenPlan::forFilename('file:/srv/wp/archive.db?mode=rw&immutable=1&vfs=unix-none', true, false);
+        $t->same('ready', $immutable['status']);
+        $t->same(true, $immutable['read_only']);
+        $t->same(true, $immutable['immutable']);
+        $t->same('unix-none', $immutable['vfs']);
+        $t->same(['file-uri-parser', 'vfs-admission', 'immutable-readonly-open'], $immutable['dependencies']);
+
+        $memory = SQLiteOpenPlan::forFilename('file::memory:?mode=memory&cache=private', false, false, false);
+        $t->same('ready', $memory['status']);
+        $t->same(true, $memory['can_open']);
+        $t->same(true, $memory['memory']);
+        $t->same(false, $memory['read_only']);
+        $t->same('memory', $memory['mode']);
+        $t->same(null, $memory['busy']);
+
+        $busy = SQLiteOpenPlan::forFilename('file:/srv/wp/site.db?mode=rw', true, false, false, SQLiteBusyHandler::withDelays(6, [2, 2, 2]));
+        $t->same('busy-timeout', $busy['status']);
+        $t->same(false, $busy['can_open']);
+        $t->same('database lock is busy', $busy['reason']);
+        $t->same(6, $busy['busy']['total_sleep_ms']);
+        $t->same(3, $busy['busy']['retry_count']);
+        $t->same(['file-uri-parser', 'busy-handler'], $busy['dependencies']);
+
+        $cancelled = SQLiteOpenPlan::forFilename('file:/srv/wp/site.db?mode=rw', true, false, false, SQLiteBusyHandler::withDelays(6, [2, 2]));
+        $t->same('busy-cancelled', $cancelled['status']);
+        $t->same(4, $cancelled['busy']['total_sleep_ms']);
+        $t->same(2, $cancelled['busy']['retry_count']);
+        $t->same([2, 2, 2], array_column($busy['busy']['attempts'], 'sleep_ms'));
+
+        $nolock = SQLiteOpenPlan::forFilename('file:/srv/wp/site.db?mode=rw&nolock=1&psow=0', true, false, false);
+        $t->same('ready', $nolock['status']);
+        $t->same(true, $nolock['can_open']);
+        $t->same(true, $nolock['nolock']);
+        $t->same(false, $nolock['psow']);
+        $t->same(null, $nolock['busy']);
+        $t->same(['file-uri-parser', 'nolock-open'], $nolock['dependencies']);
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];

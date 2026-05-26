@@ -1430,3 +1430,29 @@ Dependency closure: no new shared support component is needed; this is a
 lane-local busy/open dependency helper that reuses the existing file URI
 preflight surface and does not activate a shared VFS, URL, or sleep/timer
 support row.
+
+## Dependency-suite Open-admission Preflight Slice
+
+Focused lane verification for the dependency-suite open-admission slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteOpenPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-open-plan-preflight.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["plans sqlite file open admission without ext sqlite dependency"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-open-plan-preflight.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` selected test
+passed with 50 assertions and 0 failures. The WordPress smoke reported copied
+database open admission for shared-cache rw opens blocked by a busy lock,
+immutable read-only VFS opens, and rwc create admission. Manifest/status JSON
+decoded successfully; lane diff check passed. The root harness was not run
+because this was an isolated micro-slice.
+
+Dependency closure: no new shared support component is needed. This is a
+lane-local open/VFS admission helper that composes the existing file URI parser
+and busy-handler planner without opening files, depending on ext/sqlite, or
+activating a shared filesystem/VFS component.
