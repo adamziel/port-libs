@@ -73,6 +73,22 @@ final class SQLiteJsonAggregate
     /**
      * @param iterable<array{0:mixed,1:mixed}> $rows
      */
+    public static function jsonGroupArrayDistinctOrderBySqlFunction(string $function, iterable $rows): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupArrayDistinctOrderBy($rows);
+        if (strcasecmp($function, 'json_group_array') === 0) {
+            return $json;
+        }
+        if (strcasecmp($function, 'jsonb_group_array') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_array or jsonb_group_array');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed}> $rows
+     */
     public static function jsonGroupArrayFilterSqlFunction(string $function, iterable $rows): string|SQLiteBlobValue
     {
         $json = self::jsonGroupArrayFilter($rows);
@@ -188,6 +204,48 @@ final class SQLiteJsonAggregate
 
         $values = [];
         foreach ($ordered as $row) {
+            $values[] = $row['value'];
+        }
+
+        return self::jsonGroupArray($values);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed}> $rows
+     */
+    public static function jsonGroupArrayDistinctOrderBy(iterable $rows): string
+    {
+        $ordered = [];
+        $position = 0;
+        foreach ($rows as $row) {
+            if (!is_array($row) || !array_key_exists(0, $row) || !array_key_exists(1, $row)) {
+                throw new \InvalidArgumentException('json_group_array() DISTINCT ORDER BY rows must be [value, orderKey] pairs');
+            }
+            $ordered[] = [
+                'value' => $row[0],
+                'orderKey' => $row[1],
+                'position' => $position++,
+            ];
+        }
+
+        usort($ordered, static function (array $left, array $right): int {
+            $comparison = self::compareOrderKeys($left['orderKey'], $right['orderKey']);
+            if ($comparison === 0) {
+                return $left['position'] <=> $right['position'];
+            }
+
+            return $comparison;
+        });
+
+        $values = [];
+        $seen = [];
+        foreach ($ordered as $row) {
+            $key = self::distinctKey($row['value']);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
             $values[] = $row['value'];
         }
 

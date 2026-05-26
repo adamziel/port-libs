@@ -3258,6 +3258,17 @@ return [
             ]),
         );
         $t->same(
+            '["blogname","siteurl",[{"name":"seo"},{"name":"cache"}],{"count":2,"autoload":true}]',
+            SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBy([
+                ['siteurl', 20],
+                ['siteurl', 40],
+                ['blogname', 10],
+                [$jsonRules, 30],
+                [$jsonRules, 50],
+                [$jsonbSummary, 30],
+            ]),
+        );
+        $t->same(
             '["siteurl",[{"name":"seo"},{"name":"cache"}],{"count":2,"autoload":true}]',
             SQLiteJsonAggregate::jsonGroupArrayFilter([
                 ['siteurl', 1],
@@ -3284,6 +3295,15 @@ return [
         ]);
         $t->true($orderedJsonb instanceof SQLiteBlobValue);
         $t->same(['blogname', 'siteurl', [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($orderedJsonb->bytes));
+        $distinctOrderedJsonb = SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBySqlFunction('JSONB_GROUP_ARRAY', [
+            ['siteurl', 20],
+            ['siteurl', 30],
+            ['blogname', 10],
+            [$jsonRules, 40],
+            [$jsonRules, 50],
+        ]);
+        $t->true($distinctOrderedJsonb instanceof SQLiteBlobValue);
+        $t->same(['blogname', 'siteurl', [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($distinctOrderedJsonb->bytes));
         $filteredJsonb = SQLiteJsonAggregate::jsonGroupArrayFilterSqlFunction('JSONB_GROUP_ARRAY', [
             ['siteurl', 1],
             ['home', 0],
@@ -3310,19 +3330,23 @@ return [
         $t->same(['siteurl', null, [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($distinctVectorJsonb->bytes));
         $t->same('[]', SQLiteJsonAggregate::jsonGroupArrayDistinct([]));
         $t->same('[]', SQLiteJsonAggregate::jsonGroupArrayOrderBy([]));
+        $t->same('[]', SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBy([]));
         $t->same('[]', SQLiteJsonAggregate::jsonGroupArrayFilter([['siteurl', 0], ['home', null]]));
         $t->same('{}', SQLiteJsonAggregate::jsonGroupObjectFilter([['siteurl', 'https://example.test', 0]]));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArray([new SQLiteBlobValue("\xab\xcd")]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinct([new SQLiteBlobValue("\xab\xcd")]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayOrderBy([[new SQLiteBlobValue("\xab\xcd"), 1]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBy([[new SQLiteBlobValue("\xab\xcd"), 1]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayFilter([[new SQLiteBlobValue("\xab\xcd"), 1]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunction('json_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinctSqlFunctionArguments('json_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayOrderBySqlFunction('json_group', []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBySqlFunction('json_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayFilterSqlFunction('json_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObjectFilterSqlFunction('json_group', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayOrderBy([['missing-order-key']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBy([['missing-order-key']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupArrayFilter([['missing-filter']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([[null, 5]]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonAggregate::jsonGroupObject([['a']]));
@@ -3405,6 +3429,11 @@ return [
         $state->stepArrayOrderBy(new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'), 30);
         $state->stepArrayOrderBy(null, null);
         $state->stepArrayOrderBy('blogname', 10);
+        $state->stepArrayDistinctOrderBy('siteurl', 20);
+        $state->stepArrayDistinctOrderBy('siteurl', 40);
+        $state->stepArrayDistinctOrderBy(new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'), 30);
+        $state->stepArrayDistinctOrderBy(new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'), 50);
+        $state->stepArrayDistinctOrderBy('blogname', 10);
         $state->stepArrayFilter('siteurl', 1);
         $state->stepArrayFilter('home', 0);
         $state->stepArrayFilter(new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'), '1');
@@ -3415,7 +3444,7 @@ return [
         $state->stepObjectFilter('home', 'https://example.test', 0);
         $state->stepObjectFilter('rules', new SQLiteJsonSubtypeValue('[{"name":"seo"},{"name":"cache"}]'), true);
 
-        $t->same(['arrayRows' => 4, 'distinctArrayRows' => 8, 'orderedArrayRows' => 4, 'filteredArrayRows' => 3, 'objectRows' => 3, 'filteredObjectRows' => 3], $state->summary());
+        $t->same(['arrayRows' => 4, 'distinctArrayRows' => 8, 'orderedArrayRows' => 4, 'distinctOrderedArrayRows' => 5, 'filteredArrayRows' => 3, 'objectRows' => 3, 'filteredObjectRows' => 3], $state->summary());
         $t->same(
             '["siteurl",null,[{"name":"seo"},{"name":"cache"}],{"count":2,"autoload":true}]',
             $state->finalizeArray(),
@@ -3427,6 +3456,10 @@ return [
         $t->same(
             '[null,"blogname","siteurl",[{"name":"seo"},{"name":"cache"}]]',
             $state->finalizeOrderedArray('JSON_GROUP_ARRAY'),
+        );
+        $t->same(
+            '["blogname","siteurl",[{"name":"seo"},{"name":"cache"}]]',
+            $state->finalizeDistinctOrderedArray('JSON_GROUP_ARRAY'),
         );
         $t->same(
             '["siteurl",[{"name":"seo"},{"name":"cache"}]]',
@@ -3444,18 +3477,21 @@ return [
         $jsonbArray = $state->finalizeArray('JSONB_GROUP_ARRAY');
         $jsonbDistinctArray = $state->finalizeDistinctArray('JSONB_GROUP_ARRAY');
         $jsonbOrderedArray = $state->finalizeOrderedArray('JSONB_GROUP_ARRAY');
+        $jsonbDistinctOrderedArray = $state->finalizeDistinctOrderedArray('JSONB_GROUP_ARRAY');
         $jsonbFilteredArray = $state->finalizeFilteredArray('JSONB_GROUP_ARRAY');
         $jsonbObject = $state->finalizeObject('jsonb_group_object');
         $jsonbFilteredObject = $state->finalizeFilteredObject('JSONB_GROUP_OBJECT');
         $t->true($jsonbArray instanceof SQLiteBlobValue);
         $t->true($jsonbDistinctArray instanceof SQLiteBlobValue);
         $t->true($jsonbOrderedArray instanceof SQLiteBlobValue);
+        $t->true($jsonbDistinctOrderedArray instanceof SQLiteBlobValue);
         $t->true($jsonbFilteredArray instanceof SQLiteBlobValue);
         $t->true($jsonbObject instanceof SQLiteBlobValue);
         $t->true($jsonbFilteredObject instanceof SQLiteBlobValue);
         $t->same(['siteurl', null, [['name' => 'seo'], ['name' => 'cache']], ['count' => 2, 'autoload' => true]], SQLiteJsonB::decode($jsonbArray->bytes));
         $t->same(['siteurl', null, 1, [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($jsonbDistinctArray->bytes));
         $t->same([null, 'blogname', 'siteurl', [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($jsonbOrderedArray->bytes));
+        $t->same(['blogname', 'siteurl', [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($jsonbDistinctOrderedArray->bytes));
         $t->same(['siteurl', [['name' => 'seo'], ['name' => 'cache']]], SQLiteJsonB::decode($jsonbFilteredArray->bytes));
         $t->same([
             'siteurl' => 'https://example.test',

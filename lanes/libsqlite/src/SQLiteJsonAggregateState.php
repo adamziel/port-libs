@@ -16,6 +16,9 @@ final class SQLiteJsonAggregateState
     private array $orderedArrayValues = [];
 
     /** @var list<array{0:mixed,1:mixed}> */
+    private array $distinctOrderedArrayValues = [];
+
+    /** @var list<array{0:mixed,1:mixed}> */
     private array $filteredArrayValues = [];
 
     /** @var list<array{0:mixed,1:mixed}> */
@@ -37,6 +40,11 @@ final class SQLiteJsonAggregateState
     public function stepArrayOrderBy(mixed $value, mixed $orderKey): void
     {
         $this->orderedArrayValues[] = [$value, $orderKey];
+    }
+
+    public function stepArrayDistinctOrderBy(mixed $value, mixed $orderKey): void
+    {
+        $this->distinctOrderedArrayValues[] = [$value, $orderKey];
     }
 
     public function stepArrayFilter(mixed $value, mixed $filter): void
@@ -69,6 +77,11 @@ final class SQLiteJsonAggregateState
         return SQLiteJsonAggregate::jsonGroupArrayOrderBySqlFunction($function, $this->orderedArrayValues);
     }
 
+    public function finalizeDistinctOrderedArray(string $function = 'json_group_array'): string|SQLiteBlobValue
+    {
+        return SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBySqlFunction($function, $this->distinctOrderedArrayValues);
+    }
+
     public function finalizeFilteredArray(string $function = 'json_group_array'): string|SQLiteBlobValue
     {
         return SQLiteJsonAggregate::jsonGroupArrayFilterSqlFunction($function, $this->filteredArrayValues);
@@ -85,7 +98,7 @@ final class SQLiteJsonAggregateState
     }
 
     /**
-     * @return array{arrayRows:int,distinctArrayRows:int,orderedArrayRows:int,filteredArrayRows:int,objectRows:int,filteredObjectRows:int}
+     * @return array{arrayRows:int,distinctArrayRows:int,orderedArrayRows:int,distinctOrderedArrayRows:int,filteredArrayRows:int,objectRows:int,filteredObjectRows:int}
      */
     public function summary(): array
     {
@@ -93,6 +106,7 @@ final class SQLiteJsonAggregateState
             'arrayRows' => count($this->arrayValues),
             'distinctArrayRows' => count($this->distinctArrayValues),
             'orderedArrayRows' => count($this->orderedArrayValues),
+            'distinctOrderedArrayRows' => count($this->distinctOrderedArrayValues),
             'filteredArrayRows' => count($this->filteredArrayValues),
             'objectRows' => count($this->objectPairs),
             'filteredObjectRows' => count($this->filteredObjectPairs),

@@ -2396,3 +2396,23 @@ auto-vacuum pointer-map cleanup remain separate follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 table leaf cell parsing, B-tree page headers, freeblock parsing, and WordPress
 fixture helpers.
+
+## JSON Aggregate DISTINCT ORDER BY Option Summary Scenario
+
+Native `wp_options` import summaries now include the combined SQLite
+`json_group_array(DISTINCT X ORDER BY option_name)` aggregate boundary. The
+`examples/wordpress-json-aggregate-option-summary.php` smoke records both text
+and JSONB decoded results for copied option values, preserving accepted JSON
+subtype fragments, JSONB blobs, SQL NULLs, and stable ordered de-duplication.
+
+Status delta 2026-05-26 isolated SQL execution/planner slice: added
+`SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBy()`, JSONB dispatch,
+`SQLiteJsonAggregateState::stepArrayDistinctOrderBy()` and
+`finalizeDistinctOrderedArray()`, focused aggregate assertions, and a
+WordPress-visible aggregate summary smoke. Full SELECT aggregate scheduling,
+window frames, multi-term collations, and full SQL parser integration remain
+separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+JSON aggregate coercion, JSON subtype handling, JSONB encode/decode, and
+ordered row scheduling helpers.

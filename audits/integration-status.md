@@ -1,5 +1,57 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite JSON aggregate distinct order - 2026-05-26 06:18 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T061214Z.ready`.
+
+Accepted source base:
+`2b89c0a16c71d1aaaeb68656facdfd1eb9506b78`
+(`Integrate libsqlite permutation suite map`).
+
+Decision evidence:
+- Libsqlite priority override applied; non-libsqlite and Dolt markers were not
+  considered.
+- Cache-busted live dashboard guard was open before candidate verification:
+  live `porting-summary.json` reported source
+  `2b89c0a16c71d1aaaeb68656facdfd1eb9506b78`, matching current `main`.
+- The marker patch was based on stale accepted head
+  `d4b444433d81ce6d533260e2bfd017c21fac4451`, but applied cleanly in a detached
+  current-`main` worktree after excluding only the stale
+  `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` hunks. Those metadata files were then
+  bounded-merged to preserve already accepted permutation-suite evidence.
+- Functional slice adds combined
+  `json_group_array(DISTINCT X ORDER BY Y)` / `jsonb_group_array` helper and
+  aggregate-state finalization behavior, plus WordPress option-summary smoke
+  evidence.
+
+Focused verification:
+- `php -l` passed for `SQLiteJsonAggregate.php`,
+  `SQLiteJsonAggregateState.php`, `SQLiteHeaderTest.php`, and
+  `wordpress-json-aggregate-option-summary.php`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+  `1 test files, 2522 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php`
+  passed and emitted distinct ordered option arrays plus JSONB decoded output.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates before root were open: disk above `86000000` KiB, load below
+  `25`, and no duplicate `php tools/run-tests.php` process.
+- Under `.tmux-team/tmp/clean-integrator-run.lock`,
+  `php tools/run-tests.php` passed:
+  `215 test files, 27159 assertions, 0 failures`.
+
+Cleanup/resource notes:
+- Disk gate briefly closed after candidate worktree creation. No lock was held
+  while waiting. A bounded non-forced cleanup attempted to remove several old
+  libsqlite worktrees; Git refused dirty worktrees, preserving their contents,
+  and `git worktree prune` reopened the disk gate.
+
+Dashboard publication should run next for the accepted source.
+
 ## Clean-patch intake accepted - libsqlite permutation suite map - 2026-05-26 06:16 UTC
 
 Accepted isolated marker:

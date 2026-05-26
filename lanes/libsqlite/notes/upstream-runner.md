@@ -7616,3 +7616,36 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 table leaf cell parsing, B-tree page headers, freeblock parsing, and WordPress
 fixture helpers without activating shared support-library work.
+
+## Focused Native Mapping: `json_group_array(DISTINCT X ORDER BY Y)`
+
+This isolated SQL execution/planner micro-slice adds the combined aggregate
+boundary for SQLite's `json_group_array(DISTINCT X ORDER BY Y)` behavior.
+Native `SQLiteJsonAggregate::jsonGroupArrayDistinctOrderBy()` sorts rows by
+the aggregate `ORDER BY` key with stable input-position ties, then applies
+SQLite-style DISTINCT de-duplication to the aggregate argument before final
+JSON text or JSONB dispatch. `SQLiteJsonAggregateState` now records the same
+combined step/final path for aggregate executor-style scheduling.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedJsonAggregateDistinctOrderByScripts: 1`. This
+reuses accepted static JSON aggregate evidence over the SQLite JSON aggregate
+tests; this isolated worktree did not contain the hydrated upstream cache, so
+no fresh upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T06:12Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonAggregate.php
+php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+JSON aggregate coercion, JSON subtype handling, JSONB encode/decode, and
+ordered row scheduling helpers without activating shared support-library work.
