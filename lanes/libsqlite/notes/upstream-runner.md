@@ -8011,3 +8011,34 @@ Dependency closure: no new support component is needed. This reuses lane-local
 SQL scalar coercion, SQLite storage-class comparison, `SQLiteBlobValue`, and
 existing expression-semantics helpers without activating shared
 support-library work.
+
+## Focused Native Mapping: WAL Reset Plan
+
+This isolated WAL/rollback/savepoint micro-slice adds bounded WAL reset and
+truncation eligibility diagnostics. Native PHP can now report whether a parsed
+WAL may be truncated or restarted after checkpoint, when uncommitted tail frames
+or the absence of a committed transaction require preserving the WAL, how many
+frames were actually checkpointed, and the next header salt value a restart
+would use.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused WAL reset-plan script while preserving the current accepted
+static SQLite upstream denominator and full-suite command-manifest evidence.
+This isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T08:22Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+WAL parsing, checkpoint planning, SQLite header parsing, and WordPress fixture
+helpers without activating shared support-library work.

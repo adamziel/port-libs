@@ -1,5 +1,62 @@
 # Integration Status
 
+## Accepted libsqlite WAL reset plan - 2026-05-26 08:27 UTC
+
+Accepted
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T082226Z.ready`
+as the `Integrate libsqlite WAL reset plan` commit.
+
+`refs/heads/main` was advanced by this accepted integration.
+
+Dashboard guard evidence before acceptance:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=64df183f7c0fddfcdc3530bdb3cd0520eb85023d`, matching the
+  then-current source head.
+- Live dashboard commit reported
+  `48a5d9926b625bff0bd0748b8b4722a5380163fd`, so the dashboard guard was open
+  before the source move.
+
+Resource and process gate evidence:
+- Before focused checks, `/` reported `86648572` KiB available, load was
+  `4.91`, and no no-argument root harness was running.
+- Before serialized root verification, `/` reported `86602676` KiB available,
+  load was `4.39`, and no no-argument root harness was running.
+
+Focused verification in a detached clean worktree from
+`64df183f7c0fddfcdc3530bdb3cd0520eb85023d`:
+- Patch hash matched
+  `f5e90fa83457c1ede8d7a54a4a89b0e5be61997be82b68e00e6675a64364b51b`.
+- `git apply --check` passed in the detached clean worktree.
+- `php -l lanes/libsqlite/src/SQLiteWal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`
+  passed.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` decoded as valid JSON.
+- `php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`
+  passed and reported `resetPlan` with
+  `reason=uncommitted_frames_after_last_commit`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2653 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot with
+  `215 test files, 27382 assertions, 0 failures`.
+
+Cleanup:
+- Removed accepted marker files:
+  `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T082226Z.ready`,
+  `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T082226Z.patch`,
+  and
+  `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T082226Z.md`.
+- Removed the clean integrator temp worktree. The accepted worker worktree was
+  preserved because it contains the worker's dirty handoff state.
+
+Dashboard publication should run next after the source move.
+
 ## Accepted libsqlite upstream runner gate - 2026-05-26 08:18 UTC
 
 Accepted

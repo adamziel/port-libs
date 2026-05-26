@@ -345,6 +345,7 @@
             "focusedUpstreamActiveRunnerGateScripts": 1,
             "focusedCoreNullNumericScalarFunctionScripts": 1,
             "focusedWalCheckpointPlanScripts": 1,
+            "focusedWalResetPlanScripts": 1,
             "focusedCoreMinMaxTextScalarFunctionScripts": 1
         },
         "runnerStatus": {
@@ -626,6 +627,7 @@
             "focusedResults": {
                 "focusedUpstreamFullSuiteReadinessRecord": "Run on 2026-05-26 did not start upstream testfixture because this isolated worktree has no hydrated .upstream-cache/libsqlite checkout, configured build directory, testfixture, Makefile, mptest directory, or permutations.test source. Native evidence now builds a single full-suite readiness record that composes the accepted veryquick baseline, focused ledger summary, release-tier matrix, wildcard expansion gate, permutation suite-map gate, closure blocker ids, exact ready commands when local harness inputs are hydrated, and missing-cache/build next gates without claiming fresh upstream execution.",
                 "focusedWalCheckpointPlan": "Run on 2026-05-26 reused accepted static WAL/pager evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers committed checkpoint planning, superseded frame reporting, frames beyond committed database size, uncommitted tail-frame exclusion, empty WAL handling, and aligned base-image validation.",
+                "focusedWalResetPlan": "Run on 2026-05-26 reused accepted static WAL/pager evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers checkpoint reset/truncation eligibility after committed WAL frames, preserving WAL files with uncommitted tail frames, preserving WAL files with no committed transaction, empty-WAL handling, next-header salt rollover, and aligned base-image validation.",
                 "focusedUpstreamActiveRunnerGate": "Run on 2026-05-26 did not start a duplicate all/release/mptest attempt because process evidence showed an active shared bounded all runner. Native evidence records the active-runner gate as blocked-active-runner and keeps the next acceptance step as waiting for the shared runner artifact/log before parsing pass/fail counts."
             }
         }

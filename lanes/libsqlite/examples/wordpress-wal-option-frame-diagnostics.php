@@ -73,12 +73,14 @@ $database = SQLiteDatabase::fromBytes($wal->checkpointDatabaseImage($baseDatabas
 $readerPageMap = $wal->readerPageMap($baseDatabaseBytes);
 $readerOptionPage = $wal->readerPageImage($baseDatabaseBytes, 2);
 $checkpointPlan = $wal->checkpointPlan($baseDatabaseBytes);
+$resetPlan = $wal->resetPlan($baseDatabaseBytes);
 
 echo json_encode([
     'wal' => $wal->toArray(),
     'committedTransactions' => $wal->committedTransactions(),
     'uncommittedFrameCount' => $wal->uncommittedFrameCount(),
     'checkpointPlan' => $checkpointPlan,
+    'resetPlan' => $resetPlan,
     'readerPageMap' => $readerPageMap,
     'readerOptionPage' => [
         'page_number' => $readerOptionPage['page_number'],
@@ -103,5 +105,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes while ignoring uncommitted WAL tail frames.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes, checkpoint provenance, and reset eligibility while preserving uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

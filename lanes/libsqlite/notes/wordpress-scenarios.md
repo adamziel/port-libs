@@ -2571,3 +2571,22 @@ full SELECT expression evaluator or collation-aware comparison engine.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
+
+## WAL Reset Plan Scenario
+
+Native `wp_options` WAL diagnostics now include reset eligibility after a
+checkpoint preview. The `examples/wordpress-wal-option-frame-diagnostics.php`
+smoke reports that the copied WAL must be preserved when an uncommitted tail
+frame follows the last committed WordPress option update, while fully
+checkpointed WAL input can be truncated or restarted by a future filesystem
+writer.
+
+Status delta 2026-05-26 isolated WAL slice: added
+`SQLiteWal::resetPlan()` with focused assertions for committed WAL reset,
+uncommitted-tail preservation, no-commit preservation, empty-WAL handling,
+salt rollover, and malformed base-image rejection. This is intentionally a
+diagnostic plan, not a durable checkpoint writer or WAL-index implementation.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local WAL parsing, checkpoint planning, SQLite header parsing, and
+WordPress fixture helpers.

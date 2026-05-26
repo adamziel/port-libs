@@ -265,6 +265,49 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{can_reset:bool,action:string,reason:string,checkpointed_frame_count:int,uncommitted_frame_count:int,last_commit_frame:int|null,next_wal_header_salt:array{0:int,1:int}}
+     */
+    public function resetPlan(string $databaseBytes): array
+    {
+        $checkpointPlan = $this->checkpointPlan($databaseBytes);
+        $lastCommitFrame = $this->lastCommitFrame();
+        $uncommittedFrameCount = $this->uncommittedFrameCount();
+        $checkpointedFrameCount = 0;
+        foreach ($checkpointPlan['frames'] as $frame) {
+            if ($frame['applied']) {
+                $checkpointedFrameCount++;
+            }
+        }
+
+        if ($lastCommitFrame === null) {
+            $canReset = count($this->frames) === 0;
+            $action = $canReset ? 'leave_empty_wal' : 'preserve_uncommitted_wal';
+            $reason = $canReset ? 'wal_has_no_frames' : 'no_committed_transaction';
+        } elseif ($uncommittedFrameCount > 0) {
+            $canReset = false;
+            $action = 'preserve_wal_tail';
+            $reason = 'uncommitted_frames_after_last_commit';
+        } else {
+            $canReset = true;
+            $action = 'truncate_or_restart_wal';
+            $reason = 'all_committed_frames_checkpointed';
+        }
+
+        return [
+            'can_reset' => $canReset,
+            'action' => $action,
+            'reason' => $reason,
+            'checkpointed_frame_count' => $checkpointedFrameCount,
+            'uncommitted_frame_count' => $uncommittedFrameCount,
+            'last_commit_frame' => $lastCommitFrame?->index,
+            'next_wal_header_salt' => [
+                ($this->header->salt1 + 1) & 0xffffffff,
+                $this->header->salt2,
+            ],
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

@@ -10649,6 +10649,71 @@ SQL;
 
         $t->throws(InvalidArgumentException::class, static fn () => $wal->checkpointPlan(substr($baseDatabase, 1)));
     },
+    'plans sqlite wal reset and truncation eligibility after checkpoint' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0xffffffff;
+        $salt2 = 0x12121212;
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 8, $salt1, $salt2, 0, 0);
+        $baseDatabase = $makeFirstPage($pageSize, 2) . str_repeat('B', $pageSize);
+        $pageTwo = str_repeat('2', $pageSize);
+        $tailPage = str_repeat('T', $pageSize);
+
+        $committedWal = SQLiteWal::parse(
+            $walHeader
+            . pack('N*', 2, 2, $salt1, $salt2, 0, 0) . $pageTwo
+        );
+        $t->same([
+            'can_reset' => true,
+            'action' => 'truncate_or_restart_wal',
+            'reason' => 'all_committed_frames_checkpointed',
+            'checkpointed_frame_count' => 1,
+            'uncommitted_frame_count' => 0,
+            'last_commit_frame' => 1,
+            'next_wal_header_salt' => [0, $salt2],
+        ], $committedWal->resetPlan($baseDatabase));
+
+        $tailWal = SQLiteWal::parse(
+            $walHeader
+            . pack('N*', 2, 2, $salt1, $salt2, 0, 0) . $pageTwo
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $tailPage
+        );
+        $t->same([
+            'can_reset' => false,
+            'action' => 'preserve_wal_tail',
+            'reason' => 'uncommitted_frames_after_last_commit',
+            'checkpointed_frame_count' => 1,
+            'uncommitted_frame_count' => 1,
+            'last_commit_frame' => 1,
+            'next_wal_header_salt' => [0, $salt2],
+        ], $tailWal->resetPlan($baseDatabase));
+
+        $uncommittedWal = SQLiteWal::parse(
+            $walHeader
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $tailPage
+        );
+        $t->same([
+            'can_reset' => false,
+            'action' => 'preserve_uncommitted_wal',
+            'reason' => 'no_committed_transaction',
+            'checkpointed_frame_count' => 0,
+            'uncommitted_frame_count' => 1,
+            'last_commit_frame' => null,
+            'next_wal_header_salt' => [0, $salt2],
+        ], $uncommittedWal->resetPlan($baseDatabase));
+
+        $emptyWal = SQLiteWal::parse($walHeader);
+        $t->same([
+            'can_reset' => true,
+            'action' => 'leave_empty_wal',
+            'reason' => 'wal_has_no_frames',
+            'checkpointed_frame_count' => 0,
+            'uncommitted_frame_count' => 0,
+            'last_commit_frame' => null,
+            'next_wal_header_salt' => [0, $salt2],
+        ], $emptyWal->resetPlan($baseDatabase));
+
+        $t->throws(InvalidArgumentException::class, static fn () => $committedWal->resetPlan(substr($baseDatabase, 1)));
+    },
     'resolves sqlite wal reader page images through the last committed frame' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $salt1 = 0x33333333;
