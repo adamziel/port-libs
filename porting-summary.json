@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 09:29:53 UTC",
-    "sourceCommit": "5623f52d01fc569fc9d25f7a8573f46cdb17e559",
-    "sourceCommitShort": "5623f52d01fc",
+    "generated": "2026-05-26 09:34:28 UTC",
+    "sourceCommit": "63ed46b427a5d014ef6523ea9f4b80793712a91f",
+    "sourceCommitShort": "63ed46b427a5",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "ff10387ecbcc072e8bfd3ffc959a772250e7e974",
-    "dashboardCommitShort": "ff10387ecbcc",
+    "dashboardCommit": "666cb760dc2a81d8245cbedff41882f81aa88588",
+    "dashboardCommitShort": "666cb760dc2a",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,12 +83,12 @@
             "denominator": "1589",
             "mapped": "319",
             "coverage": "319 / 1589",
-            "php": "322 pass / 0 fail",
+            "php": "323 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated upstream-suite slice 2026-05-26T...",
+            "audit": "isolated planner/WAL/B-tree closure slice...",
             "currentWork": "Latest SQL execution/planner work preserves accepted veryquick, runner ledgers, release-t...",
-            "nextTarget": "For SQL execution/planner closure, wire bounded scalar dispatch into a real SELECT expres...",
+            "nextTarget": "Wire leaf defragmentation into bounded write-plan paths that decide between reuse, rebala...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
         },
