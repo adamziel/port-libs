@@ -183,6 +183,55 @@ final class SQLiteSavepointStack
         $this->frames = [];
     }
 
+    public function rollback(): void
+    {
+        if ($this->frames === []) {
+            throw new \LogicException('SQLite transaction is not active');
+        }
+
+        $this->frames = [];
+    }
+
+    /**
+     * @return array{rolled_back_frame_names:list<string>,rollback_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool}
+     */
+    public function rollbackWithPlan(): array
+    {
+        $plan = $this->rollbackPlan();
+        $this->rollback();
+
+        return $plan;
+    }
+
+    /**
+     * @return array{rolled_back_frame_names:list<string>,rollback_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool}
+     */
+    public function rollbackPlan(): array
+    {
+        if ($this->frames === []) {
+            throw new \LogicException('SQLite transaction is not active');
+        }
+
+        $frameNames = [];
+        $pages = [];
+        foreach ($this->frames as $frame) {
+            $frameNames[] = $frame['name'];
+            foreach ($frame['pages'] as $pageNumber => $_) {
+                $pages[$pageNumber] = true;
+            }
+        }
+
+        $pageNumbers = array_keys($pages);
+        sort($pageNumbers, SORT_NUMERIC);
+
+        return [
+            'rolled_back_frame_names' => $frameNames,
+            'rollback_page_numbers' => $pageNumbers,
+            'released_savepoint_count' => max(0, count($this->frames) - 1),
+            'transaction_active_after' => false,
+        ];
+    }
+
     /**
      * @return array{committed_frame_names:list<string>,committed_page_numbers:list<int>,released_savepoint_count:int,transaction_active_after:bool}
      */

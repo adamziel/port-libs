@@ -11829,6 +11829,53 @@ SQL;
         $t->same([], $stack->names());
         $t->same([], $stack->pendingPageNumbers());
     },
+    'plans sqlite full transaction rollback across nested savepoints' => static function (TestRunner $t): void {
+        $stack = new SQLiteSavepointStack();
+        $stack->beginTransaction('wp-import');
+        $stack->recordPageWrite(1);
+        $stack->recordPageWrite(3);
+        $stack->savepoint('plugin-batch');
+        $stack->recordPageWrite(5);
+        $stack->savepoint('option-row');
+        $stack->recordPageWrite(5);
+        $stack->recordPageWrite(8);
+
+        $t->same(true, $stack->transactionActive());
+        $t->same(3, $stack->depth());
+        $t->same(['wp-import', 'plugin-batch', 'option-row'], $stack->names());
+        $t->same([1, 3, 5, 8], $stack->pendingPageNumbers());
+        $t->same([
+            'rolled_back_frame_names' => ['wp-import', 'plugin-batch', 'option-row'],
+            'rollback_page_numbers' => [1, 3, 5, 8],
+            'released_savepoint_count' => 2,
+            'transaction_active_after' => false,
+        ], $stack->rollbackPlan());
+        $t->same(true, $stack->transactionActive());
+
+        $t->same([
+            'rolled_back_frame_names' => ['wp-import', 'plugin-batch', 'option-row'],
+            'rollback_page_numbers' => [1, 3, 5, 8],
+            'released_savepoint_count' => 2,
+            'transaction_active_after' => false,
+        ], $stack->rollbackWithPlan());
+        $t->same(false, $stack->transactionActive());
+        $t->same(0, $stack->depth());
+        $t->same([], $stack->names());
+        $t->same([], $stack->pendingPageNumbers());
+
+        $stack->savepoint('implicit-rollback');
+        $stack->recordPageWrite(2);
+        $t->same([
+            'rolled_back_frame_names' => ['implicit-rollback'],
+            'rollback_page_numbers' => [2],
+            'released_savepoint_count' => 0,
+            'transaction_active_after' => false,
+        ], $stack->rollbackWithPlan());
+        $t->same(false, $stack->transactionActive());
+        $t->throws(LogicException::class, static fn () => $stack->rollbackPlan());
+        $t->throws(LogicException::class, static fn () => $stack->rollbackWithPlan());
+        $t->throws(LogicException::class, static fn () => $stack->rollback());
+    },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 27)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalHeader::parse(str_repeat("\0", 28)));

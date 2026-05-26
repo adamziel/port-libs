@@ -42,6 +42,17 @@ $commitPreview->recordPageWrite(7);
 $commitPlan = $commitPreview->commitPlan();
 $commitWithPlan = $commitPreview->commitWithPlan();
 
+$fullRollbackStack = new SQLiteSavepointStack();
+$fullRollbackStack->beginTransaction('wp_option_import_rollback');
+$fullRollbackStack->recordPageWrite(1);
+$fullRollbackStack->recordPageWrite(2);
+$fullRollbackStack->savepoint('plugin_settings_rollback');
+$fullRollbackStack->recordPageWrite(5);
+$fullRollbackStack->savepoint('single_option_row_rollback');
+$fullRollbackStack->recordPageWrite(9);
+$fullRollbackPlan = $fullRollbackStack->rollbackPlan();
+$fullRollbackWithPlan = $fullRollbackStack->rollbackWithPlan();
+
 echo json_encode([
     'beforeRollbackToPluginSettings' => $beforeRollback,
     'rollbackToPluginSettingsPlan' => $rollbackPlan,
@@ -57,7 +68,10 @@ echo json_encode([
     'commitPlan' => $commitPlan,
     'commitWithPlan' => $commitWithPlan,
     'commitTransactionActiveAfter' => $commitPreview->transactionActive(),
+    'fullRollbackPlan' => $fullRollbackPlan,
+    'fullRollbackWithPlan' => $fullRollbackWithPlan,
+    'fullRollbackTransactionActiveAfter' => $fullRollbackStack->transactionActive(),
     'pendingPageNumbers' => $savepoints->pendingPageNumbers(),
     'transactionActive' => $savepoints->transactionActive(),
-    'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE plans and page-dirty state for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages would roll back, merge upward, or remain pending after a failed option-row import.',
+    'wordpressUse' => 'Preview nested SAVEPOINT/ROLLBACK TO/RELEASE/ROLLBACK plans and page-dirty state for wp_options imports without the SQLite extension, so recovery tooling can explain which database pages would roll back, merge upward, or remain pending after a failed option-row import.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

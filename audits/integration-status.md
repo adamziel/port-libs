@@ -1,5 +1,48 @@
 # Integration Status
 
+## Integration accepted - libsqlite full rollback savepoint plans - 2026-05-26T17:59:18Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T175335Z.ready`.
+
+Commit: this commit (`Integrate libsqlite full rollback savepoint plans`).
+
+Scope:
+- Lane-local `SQLiteSavepointStack` full transaction `ROLLBACK` diagnostics via `rollbackPlan()`, `rollbackWithPlan()`, and `rollback()`.
+- WordPress savepoint option-import diagnostics smoke update for full rollback frame/page output.
+- Libsqlite manifest/status/root-harness notes update for the WAL/rollback/savepoint closure slice.
+
+Dashboard guard evidence:
+- Pre-integration `refs/heads/main` was `2176f12e0c06fde81e9b44ab856b31c7a7377a1a`.
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `2176f12e0c06fde81e9b44ab856b31c7a7377a1a`, so the guard was open.
+
+Runtime gate evidence:
+- Before focused checks/root, `/` free space was above the `86000000` KiB floor (`113780052` KiB before focused checks, `113501676` KiB before root).
+- One-minute load was below `25` (`1.72` before focused checks, `1.66` before root).
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before root.
+- Before the final ref update, `/` free space was `113382828` KiB and one-minute load was `2.54`.
+
+Verification:
+- Patch SHA-256 matched marker metadata: `f8ccdb20241b1047e3f8a91cb121aa13526f14e26aadc38bc3bdc4c2c908f0d3`.
+- `git apply --check` passed in detached clean worktree `.tmux-team/tmp/clean-integrator-wal-full-rollback-20260526T175335Z`.
+- `php -l lanes/libsqlite/src/SQLiteSavepointStack.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php` passed.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 3097 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php` passed and reported full rollback frame/page diagnostics.
+- Serialized clean-candidate root passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 28077 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker payloads `.ready`, `.patch`, and `.md` were removed only after `refs/heads/main` was safely advanced.
+- The accepted worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260526T175335Z` still contains modified lane-local files matching the accepted slice, so it was preserved and left registered as cleanup debt rather than removed.
+
+Ready queue evidence:
+- Ready-marker count after accepted-marker artifact removal was `5986` total ready markers, including `2718` libsqlite ready markers and `172` Dolt ready markers.
+- Dolt remains parked.
+
+Dashboard publication should run next because `refs/heads/main` moved to this commit and the live dashboard must catch up before the next clean integration pass accepts another marker.
+
 ## Integration accepted - libsqlite JSON table ORDER/LIMIT previews - 2026-05-26T16:53:03Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T164419Z.ready`.

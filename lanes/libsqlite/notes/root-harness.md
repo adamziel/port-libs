@@ -1213,3 +1213,25 @@ coalesced secure-delete freeblocks for deleting a large transient option and
 its option_name index entry. Manifest/status JSON decoded successfully; lane
 diff check passed. The root harness was not run because this was an isolated
 micro-slice.
+
+## Savepoint Full Transaction Rollback Diagnostics Slice
+
+Focused lane verification for the WAL/rollback/savepoint full-rollback slice
+passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSavepointStack.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3097 assertions, and 0 failures, adding 17 focused assertions.
+The WordPress savepoint smoke now reports full transaction rollback page
+numbers, frame names, released savepoint count, and inactive transaction state
+after rollback. Manifest/status JSON decoded successfully; lane diff check
+passed. The root harness was not run because this was an isolated micro-slice.
