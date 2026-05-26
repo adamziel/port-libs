@@ -9830,3 +9830,37 @@ root harness was not run because this was an isolated micro-slice.
 
 Dependency closure: no new support component is needed. This reuses
 lane-local binary index range traversal and accepted GLOB residual matching.
+
+## Upstream Runner: Release Rerun Admission Decision
+
+This isolated upstream-suite micro-slice did not start a duplicate broad
+`testfixture`, `release`, `all`, `make test`, or `mptest` run. It adds a
+machine-readable release rerun-admission decision record over the existing
+release admission ledger. The record keeps four handoff states distinct:
+countable zero-error release/all parity means no rerun is needed, active broad
+runner snapshots block duplicate launches, unresolved admission blockers remain
+visible, and supervisor exclusion-only closure still does not count as
+release/all parity or justify another broad run by itself.
+
+Focused upstream denominator impact: one additional upstream-runner
+rerun-admission decision gate is mapped in `UPSTREAM_TEST_MANIFEST.json`. No
+fresh upstream runner evidence is claimed by this slice.
+
+Verification run 2026-05-26T18:45Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteUpstreamSuiteEvidenceTest.php`
+passed with 1 selected file, 652 assertions, and 0 failures, adding 48 focused
+assertions for release rerun-admission decisions. Manifest/status JSON decoded
+successfully and lane diff check passed. The root harness was not run because
+this was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This composes
+lane-local admission ledger records and supplied active-runner snapshots only.

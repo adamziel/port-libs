@@ -1829,6 +1829,93 @@ TXT;
         $t->same(false, $blockedOnly['release_blocker_closed']);
         $t->same(2, count($blockedOnly['blockers']));
     },
+    'decides whether another release all rerun is admissible from admission ledger evidence' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $zeroError = [
+            'status' => 'admissible',
+            'closure_mode' => 'zero-error-release-artifact',
+            'release_blocker_closed' => true,
+            'counts_as_zero_error_release_parity' => true,
+            'artifact_status' => 'passed',
+            'artifact_tests' => 22000,
+            'artifact_errors' => 0,
+            'blocker_count' => 0,
+            'blockers' => [],
+        ];
+        $excluded = [
+            'status' => 'admissible',
+            'closure_mode' => 'supervisor-non-portability-exclusion',
+            'release_blocker_closed' => true,
+            'counts_as_zero_error_release_parity' => false,
+            'artifact_status' => 'failed',
+            'blocker_count' => 0,
+            'blockers' => [],
+        ];
+        $blocked = [
+            'status' => 'blocked',
+            'closure_mode' => 'blocked',
+            'release_blocker_closed' => false,
+            'counts_as_zero_error_release_parity' => false,
+            'artifact_status' => 'failed',
+            'blocker_count' => 2,
+            'blockers' => [
+                [
+                    'id' => 'artifact-not-passed',
+                    'source' => 'countability',
+                    'evidence' => 'bounded runner artifact has not produced parsed zero-error pass evidence',
+                ],
+                [
+                    'id' => 'exclusion-decision-missing',
+                    'source' => 'exclusion',
+                    'evidence' => 'no supervisor exclusion decision gate was supplied',
+                ],
+            ],
+        ];
+
+        $alreadyCounted = $evidence->releaseRerunDecisionRecord(['release-zero-error' => $zeroError], '', true);
+
+        $t->same('rerun-not-needed-zero-error-parity', $alreadyCounted['status']);
+        $t->same(false, $alreadyCounted['rerun_allowed']);
+        $t->same('zero-error-release-parity-countable', $alreadyCounted['ledger_status']);
+        $t->same(1, $alreadyCounted['zero_error_release_artifacts']);
+        $t->same(0, $alreadyCounted['blocker_count']);
+        $t->contains('do not launch another broad runner', $alreadyCounted['next_gate']);
+        $t->contains('no new support component needed', $alreadyCounted['dependency_closure']);
+
+        $snapshot = '3843839 3843838 04:42 /home/claude/port-libs/scripts/run-sqlite-tcl-bounded-runner.sh --testset release --pattern release';
+        $blockedDecision = $evidence->releaseRerunDecisionRecord(['failed-rerun' => $blocked], $snapshot, false);
+
+        $t->same('blocked', $blockedDecision['status']);
+        $t->same(false, $blockedDecision['rerun_allowed']);
+        $t->same('blocked', $blockedDecision['ledger_status']);
+        $t->same(1, $blockedDecision['blocked_admissions']);
+        $t->same('blocked-active-runner', $blockedDecision['active_gate']['status']);
+        $t->same(['release'], $blockedDecision['active_gate']['active_tiers']);
+        $t->same([
+            'supervisor-approval-required',
+            'active-runner-still-running',
+            'admission-artifact-not-passed',
+            'admission-exclusion-decision-missing',
+        ], array_column($blockedDecision['blockers'], 'id'));
+        $t->same('failed-rerun', $blockedDecision['blockers'][2]['admission']);
+        $t->same('countability', $blockedDecision['blockers'][2]['source']);
+        $t->contains('do not launch another broad release/all runner', $blockedDecision['next_gate']);
+
+        $allowed = $evidence->releaseRerunDecisionRecord([], '', true);
+
+        $t->same('rerun-allowed', $allowed['status']);
+        $t->same(true, $allowed['rerun_allowed']);
+        $t->same('blocked', $allowed['ledger_status']);
+        $t->same(0, $allowed['blocker_count']);
+        $t->contains('launch at most one guarded broad release/all rerun', $allowed['next_gate']);
+
+        $exclusionOnly = $evidence->releaseRerunDecisionRecord(['sanitizer-exclusion' => $excluded], '', true);
+
+        $t->same('blocked', $exclusionOnly['status']);
+        $t->same(false, $exclusionOnly['rerun_allowed']);
+        $t->same('release-blocker-closed-by-exclusion', $exclusionOnly['ledger_status']);
+        $t->same('release-blocker-closed-by-exclusion', $exclusionOnly['blockers'][0]['id']);
+    },
     'does not duplicate the permutation release tier blocker once hydrated suites are parsed' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/libsqlite-permutation-readiness-' . bin2hex(random_bytes(4));
         $build = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';

@@ -116643,3 +116643,32 @@ Verification:
 Decision: accepted after final serialized root verification and atomic ref publication. Dashboard publication should run next after the accepted source commit lands.
 
 Cleanup debt: the originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T182508Z` still contains modified accepted lane files after publication, so it was preserved and left registered instead of being removed.
+
+## Integration accepted - libsqlite release rerun admission decision - 2026-05-26T18:50:24Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T184559Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `f7a64504861a2fc52162679900dcf5e9230a79ac` (`Integrate libsqlite indexed LIKE/GLOB prefix ranges`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `f7a64504861a2fc52162679900dcf5e9230a79ac`, generated `2026-05-26 18:47:26 UTC`, and dashboard commit `f1dcbf74764356881b083ce236816d44c22d875f`, so the dashboard guard was open.
+
+Candidate evidence:
+- The marker was lane-local to `libsqlite`, current-base at `f7a64504861a2fc52162679900dcf5e9230a79ac`, and referenced patch, metadata, and log files with matching ready metadata.
+- Scope: upstream-suite release/all rerun admission decision plumbing via `SQLiteUpstreamSuiteEvidence::releaseRerunDecisionRecord()`, including zero-error parity no-rerun, exclusion-only closure, active duplicate-runner, supervisor-approval, unresolved admission blocker, and single allowed rerun states.
+- Dashboard-visible delta from worker evidence: focused upstream-suite assertions `604 -> 652` (`+48`), `lane-status.json` `phpPass` `521 -> 522`, and mapped coverage `368 -> 369`.
+
+Verification:
+- Runtime gates before focused checks: `/` had `104382408` KiB available, load was `1.60`, and no exact no-argument `php tools/run-tests.php` process was active.
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Manifest/status JSON decode passed.
+- Focused: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed with `1 test files, 652 assertions, 0 failures`.
+- `git diff --check` passed.
+
+Decision: accepted pending final serialized root verification and atomic ref publication. No WordPress smoke was required because this is upstream-suite admission/countability evidence plumbing, not a user-facing WordPress execution path. Dashboard publication should run next after the accepted source commit lands.
+
+Serialized root verification under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=$candidate/.tmp-root` passed: `215 test files, 28196 assertions, 0 failures`.
+
+Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-suite-20260526T184559Z` still contains modified accepted libsqlite files after publication, so it was preserved and left registered instead of being removed. Accepted ready/patch/metadata marker artifacts were removed after `main` advanced.

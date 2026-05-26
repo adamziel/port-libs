@@ -1880,6 +1880,89 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $admissionRecords
+     * @return array<string, mixed>
+     */
+    public function releaseRerunDecisionRecord(array $admissionRecords, string $processSnapshot, bool $supervisorApproved = false): array
+    {
+        $ledger = $this->releaseAdmissionLedger($admissionRecords);
+        $activeGate = $this->activeFullSuiteRunnerGate($processSnapshot);
+        $blockers = [];
+
+        if (($ledger['counts_as_zero_error_release_parity'] ?? false) === true) {
+            return [
+                'status' => 'rerun-not-needed-zero-error-parity',
+                'rerun_allowed' => false,
+                'supervisor_approved' => $supervisorApproved,
+                'ledger_status' => $ledger['status'],
+                'zero_error_release_artifacts' => $ledger['zero_error_release_artifacts'],
+                'exclusion_only_closures' => $ledger['exclusion_only_closures'],
+                'blocked_admissions' => $ledger['blocked_admissions'],
+                'active_gate' => $activeGate,
+                'blocker_count' => 0,
+                'blockers' => [],
+                'next_gate' => 'do not launch another broad runner for closure; record the countable zero-error release/all admission evidence instead',
+                'dependency_closure' => 'no new support component needed; rerun decision composes release admission ledger records and supplied active-runner snapshots only',
+            ];
+        }
+
+        if (($ledger['release_blocker_closed'] ?? false) === true && ($ledger['counts_as_zero_error_release_parity'] ?? false) !== true) {
+            $blockers[] = [
+                'id' => 'release-blocker-closed-by-exclusion',
+                'evidence' => 'supervisor exclusion-only closure is already recorded; a new broad runner requires explicit parity-refresh approval',
+            ];
+        }
+
+        if (!$supervisorApproved) {
+            $blockers[] = [
+                'id' => 'supervisor-approval-required',
+                'evidence' => 'another guarded release/all attempt requires explicit supervisor approval after reviewing admission ledger blockers',
+            ];
+        }
+
+        if (($activeGate['status'] ?? null) === 'blocked-active-runner') {
+            $blockers[] = [
+                'id' => 'active-runner-still-running',
+                'evidence' => 'supplied process snapshot already contains a broad SQLite runner',
+                'active_tiers' => $activeGate['active_tiers'] ?? [],
+                'active_count' => $activeGate['active_count'] ?? 0,
+            ];
+        }
+
+        foreach (is_array($ledger['blockers'] ?? null) ? $ledger['blockers'] : [] as $blocker) {
+            if (!is_array($blocker)) {
+                continue;
+            }
+
+            $blockers[] = [
+                'id' => 'admission-' . (string) ($blocker['id'] ?? 'unknown'),
+                'admission' => $blocker['admission'] ?? null,
+                'source' => $blocker['source'] ?? null,
+                'evidence' => $blocker['evidence'] ?? null,
+            ];
+        }
+
+        $allowed = $blockers === [];
+
+        return [
+            'status' => $allowed ? 'rerun-allowed' : 'blocked',
+            'rerun_allowed' => $allowed,
+            'supervisor_approved' => $supervisorApproved,
+            'ledger_status' => $ledger['status'],
+            'zero_error_release_artifacts' => $ledger['zero_error_release_artifacts'],
+            'exclusion_only_closures' => $ledger['exclusion_only_closures'],
+            'blocked_admissions' => $ledger['blocked_admissions'],
+            'active_gate' => $activeGate,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => $allowed
+                ? 'launch at most one guarded broad release/all rerun, then count the result only through artifact provenance and admission gates'
+                : 'do not launch another broad release/all runner until admission blockers, duplicate-runner state, and supervisor approval are clear',
+            'dependency_closure' => 'no new support component needed; rerun decision composes release admission ledger records and supplied active-runner snapshots only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array
