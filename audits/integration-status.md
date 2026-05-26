@@ -1,5 +1,66 @@
 # Integration Status
 
+## Accepted - libsqlite core scalar dispatch - 2026-05-26 07:23 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T071056Z.ready`.
+
+Current `refs/heads/main` before acceptance:
+`f820702c231923f1c98de1e684779818e75c2b01` (`Integrate libsqlite runner result
+ledger`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json?cache_bust=1779779738`
+  reported `sourceCommit=f820702c231923f1c98de1e684779818e75c2b01`.
+- Local `refs/heads/main` matched that source, so the live dashboard guard was
+  open.
+- Live dashboard commit reported
+  `2064a5a7aebda97aa7a8bbad5aa7e4514e3ee008`.
+
+Resource and process gate evidence:
+- `df -Pk /` reported `91195320` KiB available before root verification,
+  above the required `86000000` KiB threshold.
+- `/proc/loadavg` first field was `1.60`, below the required `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before starting the
+  serialized no-argument root harness.
+
+Candidate handling:
+- The marker declared stale base
+  `d8724bbcccfb2c0312710d610e05a72b0be9b277`, but its code, example, test, and
+  WordPress notes changes were lane-scoped and applied cleanly onto current
+  `main`.
+- The original patch failed only on bounded libsqlite
+  `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` context after newer
+  runner-ledger acceptance. Those files were merged manually to preserve
+  accepted recorded-runner evidence while adding the scalar-dispatch evidence.
+- Patch hash in the marker matched the sampled patch:
+  `7ad2bab2a4358a8a6a44159e846ac20a821cd24115cd008a9edc460f673b2f85`.
+
+Focused verification passed in the detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php`
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php`
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php --self-test`
+  returned `published`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2599 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification passed under
+`.tmux-team/tmp/clean-integrator-run.lock`:
+- `php tools/run-tests.php` passed with
+  `215 test files, 27285 assertions, 0 failures`.
+
+Decision: accepted. The slice adds native core SQLite scalar dispatch for
+`abs`, `round`, `typeof`, `quote`, `coalesce`, `ifnull`, and `nullif`, plus a
+WordPress option default preview smoke, without adding any support-library
+dependency.
+
+Dashboard publication should run next because accepted source moved beyond the
+currently published source.
+
 ## Accepted - libsqlite recorded upstream runner ledger - 2026-05-26 07:10 UTC
 
 Accepted marker:

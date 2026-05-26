@@ -9,6 +9,7 @@ use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteCreateIndex;
 use PortLibs\LibSqlite\SQLiteCreateTable;
+use PortLibs\LibSqlite\SQLiteCoreScalarFunction;
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteFreelistAllocationPlan;
 use PortLibs\LibSqlite\SQLiteFreelistTrunkPage;
@@ -10787,5 +10788,41 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(substr_replace($journalBytes, pack('N', 0), 512, 4)));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse(substr_replace($journalBytes, pack('N', 0), 512 + 4 + 512, 4), true));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournal::parse($journalBytes, true)->rollbackDatabaseImage(str_repeat('D', 511)));
+    },
+    'dispatches core sqlite null numeric type and literal scalar functions' => static function (TestRunner $t): void {
+        $t->same(7, SQLiteCoreScalarFunction::sqlFunctionArguments('ABS', [-7]));
+        $t->same(12.5, SQLiteCoreScalarFunction::sqlFunctionArguments('abs', [' -12.5ms']));
+        $t->same(0, SQLiteCoreScalarFunction::sqlFunctionArguments('abs', ['not numeric']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('abs', [null]));
+
+        $t->same(3.0, SQLiteCoreScalarFunction::sqlFunctionArguments('round', [2.5]));
+        $t->same(-3.0, SQLiteCoreScalarFunction::sqlFunctionArguments('round', [-2.5]));
+        $t->same(3.14, SQLiteCoreScalarFunction::sqlFunctionArguments('round', [3.14159, 2]));
+        $t->same(3.0, SQLiteCoreScalarFunction::sqlFunctionArguments('round', [3.14159, -2]));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('round', [3.14159, null]));
+
+        $t->same('null', SQLiteCoreScalarFunction::sqlFunctionArguments('typeof', [null]));
+        $t->same('integer', SQLiteCoreScalarFunction::sqlFunctionArguments('typeof', [1]));
+        $t->same('real', SQLiteCoreScalarFunction::sqlFunctionArguments('typeof', [1.25]));
+        $t->same('text', SQLiteCoreScalarFunction::sqlFunctionArguments('typeof', ['1']));
+        $t->same('blob', SQLiteCoreScalarFunction::sqlFunctionArguments('typeof', [new SQLiteBlobValue("\x00A")]));
+
+        $t->same('NULL', SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [null]));
+        $t->same("'wp_options'' autoload'", SQLiteCoreScalarFunction::sqlFunctionArguments('quote', ["wp_options' autoload"]));
+        $t->same("X'0041'", SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [new SQLiteBlobValue("\x00A")]));
+        $t->same('42', SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [42]));
+
+        $blob = new SQLiteBlobValue('fallback');
+        $t->same('published', SQLiteCoreScalarFunction::sqlFunctionArguments('coalesce', [null, null, 'published']));
+        $t->same($blob, SQLiteCoreScalarFunction::sqlFunctionArguments('ifnull', [null, $blob]));
+        $t->same('configured', SQLiteCoreScalarFunction::sqlFunctionArguments('ifnull', ['configured', 'fallback']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('nullif', ['autoload', 'autoload']));
+        $t->same('autoload', SQLiteCoreScalarFunction::sqlFunctionArguments('nullif', ['autoload', 'manual']));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('nullif', [1, 1.0]));
+        $t->same(null, SQLiteCoreScalarFunction::sqlFunctionArguments('nullif', [new SQLiteBlobValue('a'), new SQLiteBlobValue('a')]));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('coalesce', [null]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('quote', [['not' => 'scalar']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteCoreScalarFunction::sqlFunctionArguments('missing', [1]));
     },
 ];

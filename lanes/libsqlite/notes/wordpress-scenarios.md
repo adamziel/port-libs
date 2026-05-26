@@ -2479,3 +2479,23 @@ index-backed sort elision remain separate follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 table traversal, record decoding, WordPress option mapping, and scalar
 comparison helpers.
+
+## Core Scalar Option Default Scenario
+
+Native SQL execution helpers now include a bounded core scalar dispatch boundary
+for `abs()`, `round()`, `typeof()`, `quote()`, `coalesce()`, `ifnull()`, and
+`nullif()`. The `examples/wordpress-core-scalar-option-default.php` smoke
+reports local-only function arguments and results for copied `wp_options` values,
+including a `--self-test` path that resolves `coalesce(NULL, 'published')`.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added
+`SQLiteCoreScalarFunction::sqlFunctionArguments()` with case-insensitive
+function lookup, SQL NULL propagation/defaulting, SQLite-style text numeric
+coercion for numeric functions, half-away rounding, storage-class labels, BLOB
+and text literal quoting, and strict arity/type errors. This is intentionally a
+scalar dispatch helper, not a full SELECT expression evaluator or VDBE opcode
+implementation.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local scalar coercion and `SQLiteBlobValue` without activating shared
+support-library work.
