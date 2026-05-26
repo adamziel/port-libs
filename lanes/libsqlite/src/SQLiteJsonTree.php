@@ -57,7 +57,8 @@ final class SQLiteJsonTree
 
         $rows = [];
         $nextId = 0;
-        self::appendRows($rows, $nextId, null, $located['value'], $path, $path, $value, $path);
+        $rootLocation = self::rootLocation($path);
+        self::appendRows($rows, $nextId, $rootLocation['key'], $located['value'], $path, $rootLocation['path'], $value, $path);
 
         return $rows;
     }
@@ -173,5 +174,50 @@ final class SQLiteJsonTree
         }
 
         return $path . '.' . SQLiteJsonQuote::jsonQuote($key);
+    }
+
+    /**
+     * @return array{key:int|string|null,path:string}
+     */
+    private static function rootLocation(string $path): array
+    {
+        if ($path === '$') {
+            return ['key' => null, 'path' => '$'];
+        }
+
+        $lastDot = strrpos($path, '.');
+        $lastBracket = strrpos($path, '[');
+        if ($lastBracket !== false && ($lastDot === false || $lastBracket > $lastDot)) {
+            $endBracket = strrpos($path, ']');
+            if ($endBracket !== strlen($path) - 1) {
+                return ['key' => null, 'path' => $path];
+            }
+
+            $index = substr($path, $lastBracket + 1, -1);
+            if (ctype_digit($index)) {
+                return ['key' => (int) $index, 'path' => substr($path, 0, $lastBracket)];
+            }
+
+            return ['key' => null, 'path' => $path];
+        }
+
+        if ($lastDot === false) {
+            return ['key' => null, 'path' => '$'];
+        }
+
+        $label = substr($path, $lastDot + 1);
+        $parentPath = substr($path, 0, $lastDot);
+        if ($parentPath === '') {
+            $parentPath = '$';
+        }
+
+        if (str_starts_with($label, '"') && str_ends_with($label, '"')) {
+            $decoded = json_decode($label, true);
+            if (is_string($decoded)) {
+                return ['key' => $decoded, 'path' => $parentPath];
+            }
+        }
+
+        return ['key' => $label, 'path' => $parentPath];
     }
 }

@@ -1,5 +1,49 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: `json_tree(X, root)` Selected-Root Rows
+
+Date: 2026-05-26
+
+This isolated micro-slice aligns a bounded SQLite JSON table-valued edge:
+`json_tree(X, root)` now reports the selected root row with the selected
+node's `key` and parent `path` instead of always treating that row as the
+absolute document root. Examples covered include `$.plugin`,
+`$.plugin.rules`, JSONB subtrees, and scalar roots such as
+`$.plugin.title`. Hidden `json` and `root` columns remain preserved.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused SQLite JSON table evidence for the
+same behavior cluster:
+
+```sh
+json101.test json102.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: syntax checks passed; the WordPress smoke reported
+`selectedRootShape`; focused lane tests passed with 1 file, 2319 assertions,
+and 0 failures.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local JSON path lookup, JSON5 parser, JSONB decoder, table row
+shape helpers, hidden-column output, and SQL NULL handling; it counts no
+shared support-library progress.
+
 ## Focused Native Mapping: `json_group_array(X ORDER BY Y)`
 
 Date: 2026-05-26

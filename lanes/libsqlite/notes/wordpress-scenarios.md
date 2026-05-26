@@ -2,6 +2,24 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Tree Selected-Root Option Review Scenario
+
+Native recursive JSON option expansion now mirrors SQLite's
+`json_tree(X, root)` selected-root row shape for copied `wp_options`
+subtrees. The example `examples/wordpress-json-tree-option-settings.php`
+reports `selectedRootShape` for strict JSON, JSON5 text, and JSONB blobs so
+import tooling can distinguish the selected node key, full path, parent path,
+and hidden root argument before plugin settings are migrated without requiring
+the SQLite extension.
+
+Status delta 2026-05-26 isolated refill: updated `SQLiteJsonTree` to derive
+the selected root row key and parent path from the supplied root path while
+preserving hidden `json` and `root` columns, added focused tests for object,
+array, JSONB, quoted-label, and scalar selected roots, and updated the
+WordPress smoke output. Dependency closure: no new support component is
+needed; the slice reuses existing lane-local JSON path lookup, JSON5/JSONB
+decoding, table row shaping, and SQL NULL support.
+
 ## JSON Aggregate ORDER BY Option Summary Scenario
 
 Native JSON aggregate summaries now include a bounded

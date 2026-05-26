@@ -1,5 +1,46 @@
 # Integration Status
 
+## Accepted - libsqlite json_tree selected-root rows - 2026-05-26 01:18 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T010633Z.ready`.
+
+Decision evidence:
+- Libsqlite priority override was applied before non-libsqlite intake.
+- Live dashboard guard was open before processing: cache-busted
+  `porting-summary.json` reported source
+  `225653cc004e0c23b419bdafaa16c0fa43b53436`, matching current
+  `refs/heads/main`.
+- The marker was based on `2ac765f5b9332a22ec9567c38958f4043ba5c4c0`, one
+  accepted commit behind current `main`; full patch apply failed only in
+  current-head manifest/status/notes context. Implementation, test, and
+  example hunks applied cleanly, and bookkeeping files were reconciled as a
+  bounded stale metadata merge.
+- Accepted scope: `json_tree(X, root)` selected-root row `key` and `path`
+  parity for object, array, quoted-label, JSONB, and scalar selected roots,
+  plus WordPress smoke/report metadata.
+
+Verification:
+- `php -l lanes/libsqlite/src/SQLiteJsonTree.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php`
+  passed.
+- `php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php`
+  passed and reported `selectedRootShape`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+  `1 test files, 2319 assertions, 0 failures`.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json
+  lanes/libsqlite/lane-status.json` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized no-argument root harness under
+  `.tmux-team/tmp/clean-integrator-run.lock` passed:
+  `214 test files, 26739 assertions, 0 failures`.
+
+Ready-marker count at acceptance sample: `3625`.
+
+Dashboard publication should run next for this accepted source commit before
+another clean-patch intake pass accepts additional libsqlite work.
+
 ## Clean-patch intake accepted - libsqlite WAL checksum validation - 2026-05-26 01:00 UTC
 
 Accepted

@@ -3648,33 +3648,38 @@ return [
         $t->same('$', $rootRows[8]['root']);
 
         $pluginRows = SQLiteJsonTree::jsonTreeSqlFunction('Json_TrEe', $json5, '$.plugin');
-        $t->same([null, 'enabled', 'title', 'rules', 0, 1], array_column($pluginRows, 'key'));
+        $t->same(['plugin', 'enabled', 'title', 'rules', 0, 1], array_column($pluginRows, 'key'));
         $t->same(['object', 'false', 'text', 'array', 'text', 'text'], array_column($pluginRows, 'type'));
         $t->same([null, 0, 0, 0, 3, 3], array_column($pluginRows, 'parent'));
+        $t->same('$', $pluginRows[0]['path']);
         $t->same('$.plugin.rules[1]', $pluginRows[5]['fullkey']);
         $t->same('cache', $pluginRows[5]['atom']);
         $t->same([$json5, $json5, $json5, $json5, $json5, $json5], array_column($pluginRows, 'json'));
         $t->same(['$.plugin', '$.plugin', '$.plugin', '$.plugin', '$.plugin', '$.plugin'], array_column($pluginRows, 'root'));
 
         $argumentRows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('JSON_TREE', [$json5, '$.plugin.rules']);
-        $t->same([null, 0, 1], array_column($argumentRows, 'key'));
+        $t->same(['rules', 0, 1], array_column($argumentRows, 'key'));
         $t->same(['array', 'text', 'text'], array_column($argumentRows, 'type'));
+        $t->same('$.plugin', $argumentRows[0]['path']);
         $t->same(['$.plugin.rules', '$.plugin.rules', '$.plugin.rules'], array_column($argumentRows, 'root'));
         $t->same([null, 'plugin', 'enabled'], array_slice(array_column(SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$settings]), 'key'), 0, 3));
         $t->same([], SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [null, '$.plugin']));
 
         $rulesRows = SQLiteJsonTree::jsonTree($jsonb, '$.plugin.rules');
-        $t->same([null, 0, 'name', 1, 'name'], array_column($rulesRows, 'key'));
+        $t->same(['rules', 0, 'name', 1, 'name'], array_column($rulesRows, 'key'));
         $t->same(['array', 'object', 'text', 'object', 'text'], array_column($rulesRows, 'type'));
+        $t->same('$.plugin', $rulesRows[0]['path']);
         $t->same('$.plugin.rules[1].name', $rulesRows[4]['fullkey']);
         $t->same([$jsonb, $jsonb, $jsonb, $jsonb, $jsonb], array_column($rulesRows, 'json'));
         $t->same(['$.plugin.rules', '$.plugin.rules', '$.plugin.rules', '$.plugin.rules', '$.plugin.rules'], array_column($rulesRows, 'root'));
 
         $quotedRows = SQLiteJsonTree::jsonTree($jsonb, '$.plugin');
         $t->same('$.plugin."dotted.key"', $quotedRows[7]['fullkey']);
+        $t->same('plugin', $quotedRows[0]['key']);
+        $t->same('$', $quotedRows[0]['path']);
 
         $scalarRows = SQLiteJsonTree::jsonTree($settings, '$.plugin.title');
-        $t->same([[null, 'Cache', 'text', 'Cache', 0, null, '$.plugin.title', '$.plugin.title']], array_map(
+        $t->same([['title', 'Cache', 'text', 'Cache', 0, null, '$.plugin.title', '$.plugin']], array_map(
             static fn (array $row): array => [
                 $row['key'],
                 $row['value'],
