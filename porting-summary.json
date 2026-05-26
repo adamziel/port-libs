@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 12:52:19 UTC",
-    "sourceCommit": "a24d7d4a52ab8bdfa36c97dae60d8a943ff6362d",
-    "sourceCommitShort": "a24d7d4a52ab",
+    "generated": "2026-05-26 13:02:03 UTC",
+    "sourceCommit": "a0628fc72cabb5811e6c1498424fae0d5b5a787b",
+    "sourceCommitShort": "a0628fc72cab",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "fdfe35d0a6cd95e1b83622026526a5cc59834a8f",
-    "dashboardCommitShort": "fdfe35d0a6cd",
+    "dashboardCommit": "d41c7dcc1ea4d8644120064547e4524a24b16f7f",
+    "dashboardCommitShort": "d41c7dcc1ea4",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,12 +83,12 @@
             "denominator": "1589",
             "mapped": "329",
             "coverage": "329 / 1589",
-            "php": "330 pass / 0 fail",
+            "php": "331 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated upstream-suite hydrated-runner f...",
-            "currentWork": "Latest upstream-runner work preserves accepted veryquick, runner ledgers, release-tier, c...",
-            "nextTarget": "Make a supervisor-approved sanitizer/transient-failure decision from the failed release a...",
+            "audit": "isolated dependency-suite scalar native-U...",
+            "currentWork": "Latest dependency-suite work preserves accepted veryquick, runner ledgers, release-tier,...",
+            "nextTarget": "After accepting the scalar dependency-closure patch, make a supervisor-approved sanitizer...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
             "commit": "pending"
         },
