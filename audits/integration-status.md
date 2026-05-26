@@ -112263,3 +112263,32 @@ Files staged:
 - `lanes/libsqlite/src/SQLiteWal.php`
 - `lanes/libsqlite/tests/SQLiteHeaderTest.php`
 - `audits/integration-status.md`
+
+## Integration accepted - libsqlite focused upstream subset run records - 2026-05-26 02:36 UTC
+
+Ready marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T022814Z.ready`.
+Patch: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T022814Z.patch` (`sha256 25f886ae88638ddf88a6e0309536373a886406b26694ca01d2e2d75cb0925b48`, verified).
+Lane/slice/session: `libsqlite` / `closure-libsqlite-upstream-suite-20260526T022814Z` / `port-dev-libsqlite-suite`.
+
+Apply note: the marker was based on `ad2bdefcb5c870f9a5ddce87ca20879d77e76441` and did not apply directly to current `main` (`f944979142592720a72fddfed1760fe001e1793a`) because the libsqlite manifest/status files had moved through later accepted evidence. Code/test/notes hunks applied cleanly; the accepted integration is a bounded manifest/status merge preserving accepted `json_tree` quoted-root evidence and adding focused upstream subset run-record evidence.
+
+Focused verification in clean detached worktree from current `main`:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed: 1 test file, 50 assertions, 0 failures.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json` passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification: `php tools/run-tests.php` passed under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` in the same clean worktree: 215 test files, 26861 assertions, 0 failures.
+
+Support-library/dependency closure: no new support-library activation. This evidence helper reuses the lane-local manifest reader and upstream runner command planner; no upstream `testfixture` run was started because the isolated worktree lacks the hydrated `.upstream-cache/libsqlite` checkout.
+
+Live-service exclusions: none; no live-service provider tests were run.
+
+Files staged:
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json`
+- `lanes/libsqlite/lane-status.json`
+- `lanes/libsqlite/notes/upstream-runner.md`
+- `lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`
+- `lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+- `audits/integration-status.md`

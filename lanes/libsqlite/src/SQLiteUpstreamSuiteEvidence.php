@@ -130,6 +130,41 @@ final class SQLiteUpstreamSuiteEvidence
      * @param list<string> $scripts
      * @return array<string, mixed>
      */
+    public function focusedSubsetRunRecord(
+        string $name,
+        array $scripts,
+        int $jobs = 1,
+        ?string $repoRoot = null,
+        ?string $result = null
+    ): array {
+        if ($name === '') {
+            throw new \InvalidArgumentException('Focused upstream subset run name must be non-empty');
+        }
+
+        $plan = $this->buildFocusedSubsetPlan($scripts, $jobs, $repoRoot);
+        $parsed = $this->parseVeryquickResult($result);
+        $completed = $result !== null && $parsed['scripts'] > 0;
+
+        return [
+            'name' => $name,
+            'status' => $completed ? ($parsed['errors'] === 0 ? 'passed' : 'failed') : ($plan['runnable'] ? 'ready' : 'skipped'),
+            'command' => $plan['command'],
+            'scripts' => $plan['scripts'],
+            'script_count' => $plan['script_count'],
+            'jobs' => $plan['jobs'],
+            'runnable' => $plan['runnable'],
+            'skip_reason' => $completed || $plan['runnable'] ? null : $plan['skip_reason'],
+            'result' => $result,
+            'result_scripts' => $parsed['scripts'],
+            'result_tests' => $parsed['tests'],
+            'result_errors' => $parsed['errors'],
+        ];
+    }
+
+    /**
+     * @param list<string> $scripts
+     * @return array<string, mixed>
+     */
     private function buildFocusedSubsetPlan(array $scripts, int $jobs, ?string $repoRoot): array
     {
         $denominator = $this->manifest['benchmarkDenominator'] ?? [];

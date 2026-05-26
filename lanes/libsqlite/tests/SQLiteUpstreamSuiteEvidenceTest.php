@@ -72,4 +72,47 @@ return [
             $t->contains('SQLite .test names', $exception->getMessage());
         }
     },
+    'builds machine readable focused upstream subset run records' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $skipped = $evidence->focusedSubsetRunRecord(
+            'json-table',
+            ['json101.test', 'json102.test', 'jsonb01.test'],
+            2,
+            dirname(__DIR__, 3)
+        );
+
+        $t->same('json-table', $skipped['name']);
+        $t->same('skipped', $skipped['status']);
+        $t->same(false, $skipped['runnable']);
+        $t->same(3, $skipped['script_count']);
+        $t->same(0, $skipped['result_scripts']);
+        $t->same(0, $skipped['result_tests']);
+        $t->same(0, $skipped['result_errors']);
+        $t->contains('upstream cache/testfixture not hydrated in this worktree', (string) $skipped['skip_reason']);
+
+        $passed = $evidence->focusedSubsetRunRecord(
+            'json-table',
+            ['json101.test', 'json102.test', 'jsonb01.test'],
+            2,
+            dirname(__DIR__, 3),
+            'Passed 3 scripts with 0 errors out of 650 tests in 00:00.'
+        );
+
+        $t->same('passed', $passed['status']);
+        $t->same(null, $passed['skip_reason']);
+        $t->same(3, $passed['result_scripts']);
+        $t->same(650, $passed['result_tests']);
+        $t->same(0, $passed['result_errors']);
+
+        $failed = $evidence->focusedSubsetRunRecord(
+            'wal-pager',
+            ['wal*.test', 'pager*.test'],
+            1,
+            dirname(__DIR__, 3),
+            'Passed 2 scripts with 1 errors out of 729 tests in 00:01.'
+        );
+
+        $t->same('failed', $failed['status']);
+        $t->same(1, $failed['result_errors']);
+    },
 ];
