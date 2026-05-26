@@ -105,6 +105,32 @@ final class SQLiteJsonTablePlan
         ));
     }
 
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return list<array<string,mixed>>
+     */
+    public static function orderedRows(string $function, array $constraints, array $orderBy, ?int $limit = null, int $offset = 0): array
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite JSON table ORDER BY limit must be non-negative');
+        }
+        if ($offset < 0) {
+            throw new \InvalidArgumentException('SQLite JSON table ORDER BY offset must be non-negative');
+        }
+
+        $rows = self::filteredRows($function, $constraints);
+        if ($orderBy !== []) {
+            usort($rows, static fn (array $left, array $right): int => self::compareRowsForOrderBy($left, $right, $orderBy));
+        }
+
+        if ($offset > 0 || $limit !== null) {
+            return array_slice($rows, $offset, $limit);
+        }
+
+        return $rows;
+    }
+
     private static function normalizeFunction(string $function): string
     {
         if (strcasecmp($function, 'json_each') === 0) {
@@ -334,6 +360,31 @@ final class SQLiteJsonTablePlan
         }
 
         throw new \InvalidArgumentException('SQLite JSON table residual ordered comparison supports only NULL, numeric, and text values');
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string}> $orderBy
+     */
+    private static function compareRowsForOrderBy(array $left, array $right, array $orderBy): int
+    {
+        foreach ($orderBy as $term) {
+            $column = strtolower($term['column']);
+            if (!array_key_exists($column, $left) || !array_key_exists($column, $right)) {
+                throw new \InvalidArgumentException("SQLite JSON table ORDER BY column {$column} is not available");
+            }
+
+            $direction = strtoupper($term['direction'] ?? 'ASC');
+            if ($direction !== 'ASC' && $direction !== 'DESC') {
+                throw new \InvalidArgumentException('SQLite JSON table ORDER BY direction must be ASC or DESC');
+            }
+
+            $comparison = self::compareResidualOrdered($left[$column], $right[$column]);
+            if ($comparison !== 0) {
+                return $direction === 'DESC' ? -$comparison : $comparison;
+            }
+        }
+
+        return 0;
     }
 
     private static function sqliteSortClass(mixed $value): int

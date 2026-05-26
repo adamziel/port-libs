@@ -4528,6 +4528,27 @@ return [
         $t->same(['name'], array_column($matchRows, 'key'));
         $t->same(['cache'], array_column($matchRows, 'atom'));
 
+        $orderedNameRows = SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+        ], [
+            ['column' => 'atom', 'direction' => 'DESC'],
+            ['column' => 'fullkey', 'direction' => 'ASC'],
+        ]);
+        $t->same(['seo', 'cache'], array_column($orderedNameRows, 'atom'));
+        $t->same(['$.plugin.rules[0].name', '$.plugin.rules[1].name'], array_column($orderedNameRows, 'fullkey'));
+
+        $pagedRows = SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ], [
+            ['column' => 'type', 'direction' => 'ASC'],
+            ['column' => 'id', 'direction' => 'DESC'],
+        ], 2, 1);
+        $t->same(['object', 'object'], array_column($pagedRows, 'type'));
+        $t->same(['$.plugin.rules[1]', '$.plugin.rules[0]'], array_column($pagedRows, 'fullkey'));
+
         $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$'],
@@ -4605,6 +4626,18 @@ return [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'value', 'operator' => '>', 'value' => new stdClass()],
         ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+        ], [['column' => 'missing']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+        ], [['column' => 'id', 'direction' => 'SIDEWAYS']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+        ], [], -1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+        ], [], null, -1));
 
         $missingJson = SQLiteJsonTablePlan::plan('json_tree', [
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],

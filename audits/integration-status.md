@@ -1,5 +1,45 @@
 # Integration Status
 
+## Integration accepted - libsqlite JSON table ORDER/LIMIT previews - 2026-05-26T16:53:03Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T164419Z.ready`.
+
+Accepted commit: this commit (`Integrate libsqlite JSON table ORDER previews`).
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Pre-integration current `refs/heads/main` was `f8b9605eb349ac1efd332977af40d909788c97e7` (`Integrate libsqlite text aggregate helpers`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `f8b9605eb349ac1efd332977af40d909788c97e7`, so the normal dashboard guard was open.
+
+Marker/apply evidence:
+- The marker declared lane `libsqlite`, patch, metadata, log, and patch SHA fields.
+- Marker base `fc67215b1e1c4283fd390eafac073ee8b02eec36` was one accepted source behind current `HEAD`.
+- Patch SHA matched: `807875cfee47ec5ff12f400146b73c9cbdb1652feac744a8dddc1e8baa9f8bd9`.
+- The implementation, focused test, and WordPress smoke hunks applied cleanly with a three-way apply in detached clean candidate worktree `.tmux-team/tmp/clean-candidates/libsqlite-json-table-20260526T164419Z-integrator`.
+- Stale manifest/status/notes hunks conflicted with newer accepted bookkeeping and were not replayed over current `HEAD`; the accepted effective delta is limited to three lane-local behavior files.
+
+Focused verification:
+- Runtime gates before focused checks were open: `/` had `94621300` KiB available and load was `1.07`.
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed.
+- Manifest and lane-status JSON decoding passed.
+- `git diff --check --cached -- lanes/libsqlite` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2945 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php` passed and emitted JSON reports including the new ordered/paged preview rows.
+
+Serialized root verification:
+- Runtime gates before root were open: `/` had `94568216` KiB available, load was `1.38`, and no exact no-argument `php tools/run-tests.php` was active.
+- Root was run under `.tmux-team/tmp/clean-integrator-run.lock` from the clean candidate snapshot.
+- `php tools/run-tests.php` passed: `215 test files, 27921 assertions, 0 failures`.
+
+Cleanup:
+- Ready-marker count before accepted artifact cleanup: `5833` total ready markers, including `2565` libsqlite ready markers and `172` Dolt ready markers.
+- Dolt markers were not considered or removed.
+
+Decision: accepted one bounded libsqlite JSON table behavior slice adding `SQLiteJsonTablePlan::orderedRows()` with `ORDER BY`, `LIMIT`, and offset preview support plus focused assertions and the WordPress JSON-table smoke. Dashboard publication should run next after the accepted source moves.
+
 ## Integration accepted - libsqlite NOCASE uppercase LIKE prefix bound - 2026-05-26 14:53 UTC
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T144856Z.ready`.
