@@ -8265,6 +8265,40 @@ Dependency closure: no new support component is needed. This reuses lane-local
 scalar coercion, UTF-8 helpers when available, `SQLiteBlobValue`, and existing
 expression-semantics dispatch without activating shared support-library work.
 
+## Focused Native Mapping: Bulk Secondary-Index Leaf Deletes
+
+This isolated B-tree delete/rebalance micro-slice tightens the accepted
+secondary-index deletion boundary. The native index leaf bulk-delete path is
+now covered for multiple wp_options option_name records on the same page:
+adjacent deleted cells coalesce into one reusable freeblock, non-adjacent
+deleted cells remain a sorted freeblock chain, surviving index records stay
+readable in key order, and secure-delete clearing removes stale payload bytes
+before the freeblock headers are written.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional lane-local focused evidence row,
+`focusedWordPressBulkIndexLeafDeleteFreeblockScripts: 1`. This reuses accepted
+static B-tree delete/rebalance evidence over `delete.test`, `delete2.test`,
+`delete3.test`, `delete4.test`, `btree01.test`, and `index.test`; this
+isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T10:09Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+B-tree page headers, index leaf cell parsing, record decoding, freeblock
+parsing/mutation, secure-delete clearing, and WordPress fixture helpers without
+activating shared support-library work.
+
 ## Focused Native Mapping: WAL Checkpoint Mode Plan
 
 This isolated WAL/rollback/savepoint micro-slice extends read-only checkpoint

@@ -1108,6 +1108,43 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellsByRecordValues($page, []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteIndexLeafPage::deleteCellsByRecordValues($page, [['missing', 99]]));
     },
+    'bulk deletes non-adjacent sqlite index leaf records into sorted freeblocks' => static function (TestRunner $t): void {
+        $cells = [
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['_transient_cache', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 3])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['_transient_timeout_cache', 4])),
+        ];
+        $page = SQLiteIndexLeafPage::assemble($cells);
+        $beforeHeader = SQLiteBTreePageHeader::parsePage($page, 512);
+        $beforeCells = SQLiteIndexCell::parsePageCells($page, $beforeHeader);
+
+        $deletedPage = SQLiteIndexLeafPage::deleteCellsByRecordValues($page, [
+            ['_transient_cache', 2],
+            ['_transient_timeout_cache', 4],
+        ], secureDelete: true);
+        $header = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
+        $remainingCells = SQLiteIndexCell::parsePageCells($deletedPage, $header);
+
+        $t->same(2, $header->cellCount);
+        $t->same([['siteurl', 1], ['home', 3]], array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $remainingCells));
+        $t->same([
+            [
+                'offset' => $beforeCells[3]->offset,
+                'size' => $beforeCells[3]->bytesRead,
+                'end_offset' => $beforeCells[3]->offset + $beforeCells[3]->bytesRead,
+                'next_offset' => $beforeCells[1]->offset,
+            ],
+            [
+                'offset' => $beforeCells[1]->offset,
+                'size' => $beforeCells[1]->bytesRead,
+                'end_offset' => $beforeCells[1]->offset + $beforeCells[1]->bytesRead,
+                'next_offset' => null,
+            ],
+        ], array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $header->freeblocks($deletedPage)));
+        $t->same(str_repeat("\0", $beforeCells[1]->bytesRead - 4), substr($deletedPage, $beforeCells[1]->offset + 4, $beforeCells[1]->bytesRead - 4));
+        $t->same(str_repeat("\0", $beforeCells[3]->bytesRead - 4), substr($deletedPage, $beforeCells[3]->offset + 4, $beforeCells[3]->bytesRead - 4));
+    },
     'deletes sqlite table leaf cells by rowid into sorted coalesced freeblocks' => static function (TestRunner $t): void {
         $siteurlCell = SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([
             null,

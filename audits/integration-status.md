@@ -1,5 +1,56 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite bulk index leaf deletes - 2026-05-26 10:16 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T100934Z.ready`.
+
+Accepted commit: this integration commit
+(`Integrate libsqlite bulk index leaf deletes`).
+
+Decision evidence:
+- Dashboard guard was open before intake. Cache-busted live
+  `porting-summary.json` reported
+  `sourceCommit=a8bea4ccafe075d2b74d933bcbc6f082b93c7620`, matching current
+  `refs/heads/main`.
+- Runtime gates before focused/root work were open: `/` stayed above the
+  required `86000000` KiB floor, load stayed below `25`, and no existing
+  no-argument root harness was active.
+- The marker was lane-scoped to `libsqlite` with required `lane=`, `patch=`,
+  and `metadata=` fields. Its base SHA was not an ancestor of current `main`,
+  but its patch applied cleanly in a detached clean worktree from current
+  `refs/heads/main`, so it was accepted as a bounded clean replay.
+- The accepted slice tightens secondary-index bulk delete evidence for
+  wp_options option_name index leaf pages, covering adjacent coalesced
+  freeblocks, non-adjacent sorted freeblock chains, surviving record order, and
+  secure-delete clearing.
+
+Focused verification:
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2723 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-delete-option-index-leaf-freeblock.php`
+  passed and reported bulk deletion of `_transient_cache` and
+  `_transient_timeout_cache`, remaining `siteurl`/`home` records, one
+  coalesced freeblock, and zeroed secure-delete bytes.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `php tools/run-tests.php` ran under
+  `.tmux-team/tmp/clean-integrator-run.lock` from the exact clean candidate
+  snapshot and passed with `215 test files, 27529 assertions, 0 failures`.
+
+Cleanup:
+- Removed the accepted ready marker, patch, metadata, isolated worker prompt,
+  isolated worker log, and detached candidate worktrees after `main` was
+  updated.
+
+Dashboard publication should run next after this commit because the live
+dashboard source will trail the accepted source head.
+
 ## Clean-patch intake accepted - libsqlite selected script inventory - 2026-05-26 10:09 UTC
 
 Accepted isolated marker:

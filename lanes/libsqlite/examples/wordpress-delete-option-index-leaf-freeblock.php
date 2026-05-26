@@ -12,22 +12,28 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $siteurlCell = SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1]));
 $transientCell = SQLiteIndexCell::encode(SQLiteRecord::encode(['_transient_cache', 2]));
-$homeCell = SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 3]));
+$transientTimeoutCell = SQLiteIndexCell::encode(SQLiteRecord::encode(['_transient_timeout_cache', 3]));
+$homeCell = SQLiteIndexCell::encode(SQLiteRecord::encode(['home', 4]));
 
-$indexPage = SQLiteIndexLeafPage::assemble([$siteurlCell, $transientCell, $homeCell]);
+$indexPage = SQLiteIndexLeafPage::assemble([$siteurlCell, $transientCell, $transientTimeoutCell, $homeCell]);
 $beforeHeader = SQLiteBTreePageHeader::parsePage($indexPage, 512);
 $beforeCells = SQLiteIndexCell::parsePageCells($indexPage, $beforeHeader);
 
-$deletedPage = SQLiteIndexLeafPage::deleteCellByRecordValues($indexPage, ['_transient_cache', 2], secureDelete: true);
+$deletedRecords = [
+    ['_transient_cache', 2],
+    ['_transient_timeout_cache', 3],
+];
+$deletedPage = SQLiteIndexLeafPage::deleteCellsByRecordValues($indexPage, $deletedRecords, secureDelete: true);
 $afterHeader = SQLiteBTreePageHeader::parsePage($deletedPage, 512);
 $afterCells = SQLiteIndexCell::parsePageCells($deletedPage, $afterHeader);
+$deletedBytes = $beforeCells[1]->bytesRead + $beforeCells[2]->bytesRead;
 
 echo json_encode([
-    'wordpressUse' => 'Delete an obsolete wp_options option_name index entry locally and expose the page freeblock that a later writer can reuse.',
-    'deletedIndexRecord' => ['_transient_cache', 2],
+    'wordpressUse' => 'Bulk delete obsolete wp_options option_name index entries locally and expose the coalesced page freeblock that a later writer can reuse.',
+    'deletedIndexRecords' => $deletedRecords,
     'beforeRecords' => array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $beforeCells),
     'afterRecords' => array_map(static fn (SQLiteIndexCell $cell): array => $cell->record()->values, $afterCells),
     'afterCellCount' => $afterHeader->cellCount,
     'freeblocks' => array_map(static fn (SQLiteBTreeFreeblock $freeblock): array => $freeblock->toArray(), $afterHeader->freeblocks($deletedPage)),
-    'secureDeletedBytes' => bin2hex(substr($deletedPage, $beforeCells[1]->offset + 4, max(0, $beforeCells[1]->bytesRead - 4))),
+    'secureDeletedBytes' => bin2hex(substr($deletedPage, $beforeCells[2]->offset + 4, max(0, $deletedBytes - 4))),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";
