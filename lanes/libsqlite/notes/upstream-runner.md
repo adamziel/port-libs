@@ -10302,6 +10302,37 @@ without requiring ext/sqlite.
 Dependency closure: no new shared support component is needed. This is a
 lane-local bounded file-header helper that composes accepted file URI,
 open-admission, busy-handler, and SQLite header parsing surfaces.
+
+## Focused Native Mapping: Page Cache Preflight
+
+Date: 2026-05-26
+
+This isolated dependency-suite micro-slice maps one additional focused
+file/open support row for bounded page-size-aligned SQLite page loading after
+URI parsing, open admission, immutable/VFS propagation, busy-handler gating,
+and header validation. It does not launch a fresh upstream `testfixture`,
+`make test`, `mptest`, `all`, or `release` run from this worktree.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 398 to 399 by adding `focusedPageCacheLoaderScripts=1`.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLitePageCache.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-page-cache-preflight.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["loads sqlite pages through a bounded page cache after open admission"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-page-cache-preflight.php
+```
+
+Result: focused selected PHP passed with 48 assertions and 0 failures. The
+WordPress page-cache smoke passed and reports copied `wp_options` database
+pages loaded by page number without requiring ext/sqlite.
+
+Dependency closure: no new support component is needed. This is lane-local
+bounded page-cache dispatch and reuses accepted file URI, open-plan,
+busy-handler, file-header loader, and SQLite header parsing helpers.
 ### 2026-05-26 JSON table malformed JSONB planner diagnostic slice
 
 This isolated JSON table/window micro-slice maps one additional focused

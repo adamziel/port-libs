@@ -1564,6 +1564,33 @@ lane-local bounded file-header helper that composes existing file URI parsing,
 open-admission planning, busy-handler planning, and SQLite header parsing
 without activating a shared filesystem/VFS component.
 
+## Dependency-suite Page Cache Slice
+
+Focused lane verification for the dependency-suite page-cache slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLitePageCache.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-page-cache-preflight.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["loads sqlite pages through a bounded page cache after open admission"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-page-cache-preflight.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` selected test
+passed with 48 assertions and 0 failures. The WordPress smoke reported copied
+`wp_options` root/index page previews loaded through a bounded page-size-aligned
+cache, declared page-count completeness, immutable read-only VFS propagation,
+cache count diagnostics, and dependency tags without requiring ext/sqlite.
+Manifest/status JSON decoded successfully; lane diff check passed. The root
+harness was not run because this was an isolated micro-slice.
+
+Dependency closure: no new shared support component is needed. This is a
+lane-local bounded page-cache helper that composes accepted file URI parsing,
+open-admission planning, busy-handler planning, file-header loading, and SQLite
+header parsing without activating a shared filesystem/VFS component.
+
 ## B-tree Incremental-vacuum Tail Truncation Slice
 
 Focused lane verification for the B-tree incremental-vacuum tail truncation

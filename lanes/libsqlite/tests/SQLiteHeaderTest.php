@@ -49,6 +49,7 @@ use PortLibs\LibSqlite\SQLiteNumericAggregate;
 use PortLibs\LibSqlite\SQLiteNumericAggregateState;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteOpenPlan;
+use PortLibs\LibSqlite\SQLitePageCache;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
 use PortLibs\LibSqlite\SQLiteRecord;
@@ -14209,6 +14210,89 @@ SQL;
         $t->same('in-memory databases do not have a file header', $memory['reason']);
 
         foreach ([$validPath, $plainPath, $shortPath, $invalidPath, $incompletePath] as $path) {
+            @unlink($path);
+        }
+    },
+    'loads sqlite pages through a bounded page cache after open admission' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $uriForPath = static fn (string $path): string => 'file:' . str_replace('%2F', '/', rawurlencode($path));
+        $writeTemp = static function (string $prefix, string $bytes): string {
+            $path = tempnam(sys_get_temp_dir(), $prefix);
+            if ($path === false) {
+                throw new RuntimeException('Unable to create temporary SQLite page-cache fixture');
+            }
+            file_put_contents($path, $bytes);
+
+            return $path;
+        };
+
+        $pageOne = $makeFirstPage(512, 3);
+        $pageTwo = str_repeat('W', 512);
+        $pageThree = str_repeat('P', 512);
+        $validPath = $writeTemp('wp-sqlite-page-cache-', $pageOne . $pageTwo . $pageThree);
+
+        $cache = SQLitePageCache::open($uriForPath($validPath) . '?mode=ro&immutable=1&vfs=unix-none');
+        $summary = $cache->summary();
+        $t->same('ready', $summary['status']);
+        $t->same($validPath, $summary['path']);
+        $t->same(512, $summary['page_size']);
+        $t->same(1536, $summary['file_size']);
+        $t->same(3, $summary['available_pages']);
+        $t->same(3, $summary['declared_pages']);
+        $t->same(true, $summary['complete_declared_pages']);
+        $t->same(true, $summary['read_only']);
+        $t->same('unix-none', $summary['vfs']);
+        $t->same(['file-uri-parser', 'vfs-admission', 'immutable-readonly-open', 'bounded-file-header-read', 'sqlite-header-parse', 'sqlite-file-size-check', 'bounded-page-cache', 'page-size-aligned-read'], $summary['dependencies']);
+        $t->same($validPath, $cache->path);
+        $t->same(512, $cache->header->pageSize);
+        $t->same(1536, $cache->fileSize);
+        $t->same(3, $cache->availablePages);
+        $t->same(3, $cache->declaredPages);
+        $t->same(true, $cache->readOnly);
+        $t->same('unix-none', $cache->vfs);
+        $t->same(false, $cache->hasCachedPage(2));
+        $t->same(0, $cache->cachedPageCount());
+        $t->same($pageTwo, $cache->page(2));
+        $t->same(true, $cache->hasCachedPage(2));
+        $t->same(1, $cache->cachedPageCount());
+        $t->same($pageTwo, $cache->page(2));
+        $t->same(1, $cache->cachedPageCount());
+        $selected = $cache->pages([1, 3]);
+        $t->same([1, 3], array_keys($selected));
+        $t->same($pageOne, $selected[1]);
+        $t->same($pageThree, $selected[3]);
+        $t->same(3, $cache->cachedPageCount());
+        $t->same('ro', $cache->open['mode']);
+        $t->same(true, $cache->open['immutable']);
+
+        $oversizedPath = $writeTemp('wp-sqlite-page-cache-extra-', $makeFirstPage(512, 2) . str_repeat('A', 512) . str_repeat('B', 512));
+        $oversized = SQLitePageCache::open($oversizedPath);
+        $t->same(3, $oversized->availablePages);
+        $t->same(2, $oversized->declaredPages);
+        $t->same('ready', $oversized->summary()['status']);
+        $t->same(str_repeat('A', 512), $oversized->page(2));
+        $t->throws(OutOfBoundsException::class, static fn () => $oversized->page(3));
+
+        $incompletePath = $writeTemp('wp-sqlite-page-cache-incomplete-', $makeFirstPage(512, 3) . str_repeat('I', 512));
+        $incomplete = SQLitePageCache::open($incompletePath);
+        $incompleteSummary = $incomplete->summary();
+        $t->same('incomplete-declared-pages', $incompleteSummary['status']);
+        $t->same(2, $incompleteSummary['available_pages']);
+        $t->same(3, $incompleteSummary['declared_pages']);
+        $t->same(false, $incompleteSummary['complete_declared_pages']);
+        $t->same(str_repeat('I', 512), $incomplete->page(2));
+        $t->throws(OutOfBoundsException::class, static fn () => $incomplete->page(3));
+
+        $shortPath = $writeTemp('wp-sqlite-page-cache-short-', substr($makeFirstPage(512, 1), 0, 128));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePageCache::open($shortPath));
+        $invalidPath = $writeTemp('wp-sqlite-page-cache-invalid-', str_repeat('x', 128));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePageCache::open($invalidPath));
+        $t->throws(InvalidArgumentException::class, static fn () => $cache->page(0));
+        $t->throws(OutOfBoundsException::class, static fn () => $cache->page(4));
+        $t->throws(InvalidArgumentException::class, static fn () => $cache->pages(['2']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePageCache::open($uriForPath($validPath) . '?mode=rw', false, SQLiteBusyHandler::timeout(0)));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePageCache::open('file::memory:?mode=memory'));
+
+        foreach ([$validPath, $oversizedPath, $incompletePath, $shortPath, $invalidPath] as $path) {
             @unlink($path);
         }
     },

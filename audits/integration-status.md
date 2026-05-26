@@ -117731,3 +117731,37 @@ Cleanup:
 - Remove accepted marker artifacts only after the commit is safely on `main`.
 - Preserve dirty shared-checkout and worker output not part of this marker.
 - Cleanup debt: the originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-priority-20260526T230420Z` still contains the same libsqlite modifications after acceptance, so it was preserved instead of removed.
+## Integration accepted - libsqlite page cache preflight - 2026-05-26T23:23:10Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T231801Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence before candidate verification:
+- Current `refs/heads/main` was `cc288456bc4b283ffae2bea0c69e335113177c4a` (`Integrate libsqlite SELECT wildcard projections`).
+- Cache-busted live Pages reported matching `sourceCommit` `cc288456bc4b283ffae2bea0c69e335113177c4a`, generated `2026-05-26 23:19:53 UTC`, dashboard commit `fc4c35690e0b83cc38ad66f0feb297b93fbc03a7`.
+
+Candidate evidence:
+- Marker lane `libsqlite`, base `cc288456bc4b283ffae2bea0c69e335113177c4a`, patch sha256 `64bcd7547c3d5ec14116059794d5d97fd4cf193b9a1c17de4e856b3a5d389032`.
+- Selected over lower-yield current-base release-blocker evidence and stale-base SQL/WAL/JSON/encoding markers because it is current-base, non-overlapping dependency/open work, adds native page-cache behavior, a WordPress smoke, and focused assertion growth.
+- Clean candidate worktree: `.tmux-team/tmp/clean-candidates/clean-libsqlite-page-cache-20260526T2322`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLitePageCache.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-page-cache-preflight.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4175 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-page-cache-preflight.php` passed and emitted valid JSON for copied WordPress page-cache preflight.
+- Manifest/status JSON decode passed.
+- `git diff --cached --check` passed.
+
+Root verification:
+- Runtime gate before root: `/` had `142092560` KiB available, load average was `1.20`, and no exact no-argument root harness was running.
+- Serialized root command under clean-integrator lock passed with repo-local temp space: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` => `215 test files, 29309 assertions, 0 failures`.
+
+Decision: accepted. Commit pending at note completion time; after commit the dashboard guard should close until live Pages publishes the new source.
+
+Post-commit cleanup note for `60bb8bdcd4dc522cf1a2fe4c1347ef445717f2ec`:
+- Removed accepted marker artifacts: ready marker, patch, metadata, isolated worker prompt, and isolated worker log for `port-dev-libsqlite-deps-20260526T231801Z`.
+- Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T231801Z` because it still contains the accepted modified/add files. Cleanup debt: remove or prune only after a later operator confirms no active worker owns it and no dirty work must be preserved.
+- An unrelated pre-existing detached worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T232141Z` also remains registered with dirty/untracked content and was not removed.
