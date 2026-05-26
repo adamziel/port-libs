@@ -1,5 +1,45 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Embedded NUL Encoding and Pattern Text
+
+Date: 2026-05-26
+
+This isolated encoding/collation micro-slice adds focused native evidence for
+SQLite text values containing U+0000. `SQLiteRecord` already stores SQLite text
+as length-delimited fields rather than C strings; the new assertions guard that
+UTF-16LE and UTF-16BE record round-trips preserve embedded NUL codepoints, and
+that LIKE/GLOB single-character wildcards match the NUL as a character rather
+than truncating the value.
+
+Focused upstream runner:
+
+No new upstream `testfixture` run was started from this isolated worktree.
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors. The manifest mapped count increases
+by 1 for the bounded `focusedUtf16EmbeddedNulTextScripts` evidence.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php -l lanes/libsqlite/src/SQLiteRecord.php
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused lane tests passed with 1 file, 2477
+assertions, and 0 failures; the WordPress UTF-16 smoke reported
+`embeddedNulTextRoundTrip=true`; manifest/status JSON validation passed; lane
+diff check passed.
+
+Dependency closure: no new shared support component is needed. The slice reuses
+existing lane-local record encoding/decoding, UTF-16 native fallback
+validation, decoded text pattern splitting, and ASCII LIKE/GLOB helpers.
+
 ## Focused Native Mapping: Native UTF-16 Record Conversion Fallback
 
 Date: 2026-05-26

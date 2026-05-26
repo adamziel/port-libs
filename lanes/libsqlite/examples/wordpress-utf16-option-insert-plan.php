@@ -62,12 +62,14 @@ try {
 } catch (InvalidArgumentException) {
     $malformedUtf16Rejected = true;
 }
+$embeddedNulRecord = SQLiteRecord::parse(SQLiteRecord::encode(['site' . "\0" . 'url'], $textEncoding), $textEncoding);
 
 echo json_encode([
     'wordpressUse' => 'Plan a bounded generated wp_options row insert in a UTF-16LE SQLite image without the SQLite extension or a hard mbstring dependency.',
     'textEncoding' => $postDatabase->header->textEncoding,
     'utf16ConversionDependency' => 'native-php-fallback',
     'malformedUtf16Rejected' => $malformedUtf16Rejected,
+    'embeddedNulTextRoundTrip' => $embeddedNulRecord->values[0] === 'site' . "\0" . 'url',
     'plan' => $plan->toArray(),
     'updatedPageNumbers' => array_keys($plan->pageImages()),
     'options' => $options,

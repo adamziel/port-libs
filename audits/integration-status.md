@@ -1,5 +1,57 @@
 # Integration Status
 
+## Accepted libsqlite encoding embedded-NUL text slice - 2026-05-26 05:07 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T050138Z.ready`.
+
+Current `refs/heads/main` before acceptance:
+`cc4dd3d269fcbb452a4c41f56d9e499804301fd0` (`Integrate libsqlite JSON rework closure parity`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=cc4dd3d269fcbb452a4c41f56d9e499804301fd0`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `2a0530e1fd0e37e96c9ddb8adf6bd194709e980b`.
+
+Resource and process gate evidence:
+- Before candidate worktree creation, `df -Pk /` reported `86101324` KiB
+  available, above the required `86000000` KiB threshold; load was `3.30` and
+  no no-argument root harness was active.
+- Before focused checks, `df -Pk /` reported `86048604` KiB available; load
+  was `3.11` and no no-argument root harness was active.
+- Before serialized root verification, `df -Pk /` reported `86047300` KiB
+  available; load was `2.87` and no no-argument root harness was active.
+
+Verification evidence:
+- Patch sha256 matched
+  `cde92338188e684d4308a08bc0519adabae4b8bda02c571028def19b2f0dddd5`.
+- The patch applied cleanly to a detached current-main worktree with no bounded
+  metadata merge required.
+- Focused syntax checks passed for
+  `lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php`,
+  `lanes/libsqlite/src/SQLiteRecord.php`, and
+  `lanes/libsqlite/src/SQLiteDatabase.php`.
+- Focused `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+  passed with `1 test files, 2477 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php` passed
+  and reported `embeddedNulTextRoundTrip=true`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized root `php tools/run-tests.php` passed under
+  `.tmux-team/tmp/clean-integrator-run.lock` with `215 test files, 27062
+  assertions, 0 failures`.
+
+Decision: accepted. This slice records UTF-16LE/UTF-16BE embedded-NUL SQLite
+text round-trip coverage, LIKE/GLOB single-character matching over embedded
+NUL text, and WordPress UTF-16 smoke/status notes. No new shared support
+component was needed.
+
+Dashboard publication should run next because the accepted source head moved
+past the currently published dashboard source.
+
 ## Clean-patch intake accepted - libsqlite JSON rework closure parity - 2026-05-26 04:54 UTC
 
 Accepted marker:

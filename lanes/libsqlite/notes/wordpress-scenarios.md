@@ -2,6 +2,22 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## UTF-16 Embedded NUL Option Text Scenario
+
+Copied SQLite text fields can legally contain embedded U+0000 codepoints
+because record payloads are length-delimited. The UTF-16 WordPress smoke now
+reports `embeddedNulTextRoundTrip` while still reporting malformed UTF-16
+rejection, so import and repair tooling can distinguish valid NUL-containing
+option text from corrupt text instead of silently truncating at the first NUL.
+
+Status delta 2026-05-26 isolated encoding/collation slice: added focused
+UTF-16LE/UTF-16BE embedded-NUL record round-trip assertions, LIKE/GLOB
+single-character pattern assertions over embedded NUL, and updated
+`examples/wordpress-utf16-option-insert-plan.php` to report the round-trip
+smoke field. Dependency closure: no new support component is needed; the slice
+reuses lane-local record encoding/decoding, UTF-16 fallback validation, decoded
+text pattern splitting, and ASCII pattern helpers.
+
 ## UTF-16 Option Insert Native Conversion Scenario
 
 Copied UTF-16 WordPress SQLite databases can now be inspected and written

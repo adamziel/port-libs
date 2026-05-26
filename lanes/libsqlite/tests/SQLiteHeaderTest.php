@@ -1176,18 +1176,27 @@ return [
     },
     'encodes sqlite text records using utf16le and utf16be database encodings' => static function (TestRunner $t): void {
         $text = 'A' . "\u{1234}";
+        $textWithNul = 'site' . "\0" . 'url';
         $utf16le = SQLiteRecord::encode([$text, 'siteurl'], 2);
         $utf16be = SQLiteRecord::encode([$text, 'siteurl'], 3);
+        $utf16leWithNul = SQLiteRecord::encode([$textWithNul], 2);
+        $utf16beWithNul = SQLiteRecord::encode([$textWithNul], 3);
 
         $leRecord = SQLiteRecord::parse($utf16le, 2);
         $beRecord = SQLiteRecord::parse($utf16be, 3);
+        $leNulRecord = SQLiteRecord::parse($utf16leWithNul, 2);
+        $beNulRecord = SQLiteRecord::parse($utf16beWithNul, 3);
 
         $t->same([21, 41], $leRecord->serialTypes);
         $t->same([21, 41], $beRecord->serialTypes);
         $t->same([$text, 'siteurl'], $leRecord->values);
         $t->same([$text, 'siteurl'], $beRecord->values);
+        $t->same([$textWithNul], $leNulRecord->values);
+        $t->same([$textWithNul], $beNulRecord->values);
         $t->contains(hex2bin('41003412'), $utf16le);
         $t->contains(hex2bin('00411234'), $utf16be);
+        $t->contains(hex2bin('73006900740065000000750072006c00'), $utf16leWithNul);
+        $t->contains(hex2bin('0073006900740065000000750072006c'), $utf16beWithNul);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::encode(['x'], 4));
     },
     'utf16 record conversion has a native fallback for non-mbstring runtimes' => static function (TestRunner $t): void {
@@ -2123,10 +2132,14 @@ return [
         $t->same(false, SQLiteDatabase::likeMatches('SiteURL', 'site%', null, true));
         $t->true(SQLiteDatabase::likeMatches('literal_percent_%', 'literal\_percent\_\%', '\\'));
         $t->true(SQLiteDatabase::likeMatches('emoji_é', 'emoji__'));
+        $t->true(SQLiteDatabase::likeMatches("site\0url", "site_url"));
+        $t->same(false, SQLiteDatabase::likeMatches("site\0url", 'siteurl'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteDatabase::likeMatches('x', 'x', 'xx'));
         $t->true(SQLiteDatabase::globMatches('_Transient_API', '_Transient_[A-Z][A-Z][A-Z]'));
         $t->same(false, SQLiteDatabase::globMatches('_transient_api', '_Transient_[A-Z][A-Z][A-Z]'));
         $t->true(SQLiteDatabase::globMatches('siteurl[', 'siteurl['));
+        $t->true(SQLiteDatabase::globMatches("site\0url", 'site?url'));
+        $t->same(false, SQLiteDatabase::globMatches("site\0url", 'siteurl'));
         $t->same(['_transient_feed', '_Transient_API'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $likeTransient));
         $t->same(['_transient_feed'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $caseSensitiveLike));
         $t->same(['literal_percent_%'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $escapedPercent));
