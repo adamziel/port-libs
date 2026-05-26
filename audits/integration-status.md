@@ -115337,3 +115337,29 @@ Verification:
 Decision: accepted as commit pending final ref update. The slice adds lane-local escaped LIKE literal-prefix range bounds and an indexed WordPress `option_name` LIKE prefix helper with residual LIKE filtering. It does not claim broader SQL planner lowering or a new support-library dependency.
 
 Dashboard publication should run next after the accepted source commit is visible on `main`.
+
+## Integration accepted - libsqlite printf format scalars - 2026-05-26T13:56:40Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T134852Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before acceptance was `574a600b1436dac2d9cb73d2ac0b69886caf979f` (`Integrate libsqlite indexed LIKE prefix range`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `574a600b1436dac2d9cb73d2ac0b69886caf979f`.
+
+Runtime gate evidence:
+- `df -Pk /` reported at least `120969108` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was at most `3.28`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Verification:
+- Detached clean worktree: `.tmux-team/tmp/clean-integrator-scalar-20260526T134852Z` at `574a600b1436dac2d9cb73d2ac0b69886caf979f`.
+- Patch sha256 matched marker metadata: `9eea50c1cf0347572472aba4ba3792d86399d38ab262d616c4ef119b2c8a9ab5`.
+- Focused checks passed: `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php`, `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php`, `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` (`1 test files, 2810 assertions, 0 failures`), WordPress scalar example command for `format 'option=%Q autoload=%s rowid=%04d'`, manifest/status JSON validation, and `git diff --check -- lanes/libsqlite`.
+- Full clean-candidate diff check passed with `git diff --check`.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 27717 assertions, 0 failures`.
+
+Decision: accepted as commit `7d7a03b41f1189cd11286ac492e48a92b6f41744` (`Integrate libsqlite printf format scalars`). The slice adds lane-local `printf()` and `format()` scalar dispatch, including SQLite `%q`, `%Q`, `%w`, numeric, text, character, and literal-percent handling, plus focused WordPress scalar preview evidence. It did not start a fresh upstream runner and did not add a support-library dependency.
+
+Dashboard publication should run next after the accepted source commit is visible on `main`.

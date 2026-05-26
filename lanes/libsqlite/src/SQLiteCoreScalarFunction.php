@@ -33,6 +33,7 @@ final class SQLiteCoreScalarFunction
             'instr' => self::instr($arguments),
             'concat' => self::concat($arguments),
             'concat_ws' => self::concatWithSeparator($arguments),
+            'printf', 'format' => self::formatSql($normalized, $arguments),
             'hex' => self::hex($arguments),
             'unhex' => self::unhex($arguments),
             'char' => self::char($arguments),
@@ -414,6 +415,78 @@ final class SQLiteCoreScalarFunction
     /**
      * @param list<mixed> $arguments
      */
+    private static function formatSql(string $functionName, array $arguments): ?string
+    {
+        self::assertArity($functionName, $arguments, 1, null);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $format = self::coerceText($functionName, $arguments[0], 'format');
+        $argumentIndex = 1;
+        $result = '';
+        $length = strlen($format);
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = $format[$offset];
+            if ($byte !== '%') {
+                $result .= $byte;
+                continue;
+            }
+            if ($offset + 1 >= $length) {
+                $result .= '%';
+                continue;
+            }
+            if ($format[$offset + 1] === '%') {
+                $result .= '%';
+                $offset++;
+                continue;
+            }
+
+            $start = $offset;
+            $offset++;
+            while ($offset < $length && str_contains('-+ #0,', $format[$offset])) {
+                $offset++;
+            }
+            while ($offset < $length && ctype_digit($format[$offset])) {
+                $offset++;
+            }
+            if ($offset < $length && $format[$offset] === '.') {
+                $offset++;
+                while ($offset < $length && ctype_digit($format[$offset])) {
+                    $offset++;
+                }
+            }
+            if ($offset >= $length) {
+                $result .= substr($format, $start);
+                break;
+            }
+
+            $type = $format[$offset];
+            $specifier = substr($format, $start, $offset - $start + 1);
+            $argument = $argumentIndex < count($arguments) ? $arguments[$argumentIndex] : null;
+            if ($type !== '%') {
+                $argumentIndex++;
+            }
+
+            $result .= match ($type) {
+                's', 'z' => self::sprintfText($specifier, $argument),
+                'q' => self::sqliteQuoteEscaped($argument, false, $specifier),
+                'Q' => $argument === null ? 'NULL' : "'" . self::sqliteQuoteEscaped($argument, false, $specifier) . "'",
+                'w' => self::sqliteQuoteEscaped($argument, true, $specifier),
+                'd', 'i', 'u', 'x', 'X', 'o' => self::sprintfInteger($specifier, $argument),
+                'f', 'F', 'e', 'E', 'g', 'G' => self::sprintfFloat($specifier, $argument),
+                'c' => self::sprintfCharacter($specifier, $argument),
+                default => $specifier,
+            };
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
     private static function hex(array $arguments): ?string
     {
         self::assertArity('hex', $arguments, 1, 1);
@@ -660,6 +733,44 @@ final class SQLiteCoreScalarFunction
         }
 
         throw new \InvalidArgumentException("SQLite {$functionName}() {$position} argument must be scalar, BLOB, or NULL");
+    }
+
+    private static function sprintfText(string $specifier, mixed $value): string
+    {
+        return sprintf(self::phpSprintfSpecifier($specifier, 's'), $value === null ? '' : self::coerceText('format', $value, 'argument'));
+    }
+
+    private static function sprintfInteger(string $specifier, mixed $value): string
+    {
+        return sprintf(self::phpSprintfSpecifier($specifier, substr($specifier, -1)), $value === null ? 0 : self::coerceInteger($value));
+    }
+
+    private static function sprintfFloat(string $specifier, mixed $value): string
+    {
+        return sprintf(self::phpSprintfSpecifier($specifier, substr($specifier, -1)), $value === null ? 0.0 : (float) self::coerceNumeric($value));
+    }
+
+    private static function sprintfCharacter(string $specifier, mixed $value): string
+    {
+        $character = $value === null ? "\0" : self::utf8Codepoint(self::coerceInteger($value));
+
+        return sprintf(self::phpSprintfSpecifier($specifier, 's'), $character);
+    }
+
+    private static function sqliteQuoteEscaped(mixed $value, bool $identifier, string $specifier): string
+    {
+        $text = $value === null ? '' : self::coerceText('format', $value, 'argument');
+        $escaped = str_replace($identifier ? '"' : "'", $identifier ? '""' : "''", $text);
+
+        return sprintf(self::phpSprintfSpecifier($specifier, 's'), $escaped);
+    }
+
+    private static function phpSprintfSpecifier(string $specifier, string $type): string
+    {
+        $body = substr($specifier, 1, -1);
+        $body = str_replace(',', '', $body);
+
+        return '%' . $body . $type;
     }
 
     /**

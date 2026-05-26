@@ -2838,3 +2838,24 @@ SELECT expression evaluator or VDBE projection engine.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
+
+## Core Format Scalar Scenario
+
+Native SQL execution helpers now include `printf()` and `format()` in the
+bounded core scalar dispatch surface used by local WordPress option repair and
+expression planning. The `examples/wordpress-core-scalar-option-default.php`
+smoke reports local-only formatted option diagnostics for copied `wp_options`
+values, including `%q`/`%Q` SQL literal escaping, `%w` identifier escaping,
+text/integer/hex/octal/float/character formatting, missing argument defaults,
+and literal percent escapes without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added
+SQLite-style printf/format dispatch with focused assertions for NULL format
+propagation, aliasing, quote escaping, bounded width/precision formatting,
+missing argument defaults, and strict arity/type errors. This is intentionally
+a scalar dispatch helper, not a full SELECT expression evaluator or VDBE
+projection engine.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
+helpers.

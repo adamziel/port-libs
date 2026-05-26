@@ -8973,3 +8973,35 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses
 lane-local JSON table planning, JSON path/table-valued helpers, and accepted
 LIKE/GLOB scalar matching without activating shared support-library work.
+
+## Focused Native Mapping: Core printf()/format() Scalar Dispatch
+
+This isolated SQL execution/planner scalar micro-slice adds bounded native
+`printf()`/`format()` dispatch to `SQLiteCoreScalarFunction` for WordPress
+option diagnostics and future expression planning. It covers SQL NULL format
+propagation, `printf`/`format` aliasing, `%s`, `%z`, `%d`, `%i`, `%u`, `%x`,
+`%X`, `%o`, `%f`/`%g`-family numeric formatting through PHP's formatter,
+SQLite-specific `%q`, `%Q`, and `%w` escaping, `%c` UTF-8 character output,
+missing argument defaults, and literal `%%` output.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused core format scalar evidence row while preserving the current
+accepted static SQLite upstream denominator and runner evidence. This isolated
+worktree did not contain the hydrated upstream cache, so no fresh upstream
+`testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T13:48Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php format 'option=%Q autoload=%s rowid=%04d' plugin_cache yes 7
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local scalar coercion, `SQLiteBlobValue`, and existing
+expression-semantics dispatch without activating shared support-library work.
