@@ -2,6 +2,22 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## UTF-16 Option Insert Malformed Text Guard Scenario
+
+Native UTF-16 record decoding now rejects malformed copied database text before
+WordPress option rows are inspected or mutated. The example
+`examples/wordpress-utf16-option-insert-plan.php` reports
+`malformedUtf16Rejected` while planning a UTF-16LE `wp_options` insert, so
+import and repair tooling can fail fast on odd-length or invalid-surrogate
+record text instead of silently normalizing corrupted names or values.
+
+Status delta 2026-05-26 isolated encoding/collation: updated
+`SQLiteRecord::parse()` to validate UTF-16LE and UTF-16BE text fields before
+conversion, added focused malformed-record tests, and extended the UTF-16
+WordPress smoke. Dependency closure: no new support component is needed; the
+slice reuses PHP mbstring already required by lane-local UTF-16 record
+encoding/decoding.
+
 ## Rollback Journal Sector-Padded Option Recovery Scenario
 
 Native rollback-journal diagnostics now accept copied rollback journals that

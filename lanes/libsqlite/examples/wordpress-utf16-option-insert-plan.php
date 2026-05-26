@@ -6,6 +6,7 @@ use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
+use PortLibs\LibSqlite\SQLiteVarint;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -55,10 +56,17 @@ $options = array_map(
     static fn (SQLiteWordPressOption $option): array => $option->toArray(),
     $postDatabase->wordpressOptions(),
 );
+$malformedUtf16Rejected = false;
+try {
+    SQLiteRecord::parse(SQLiteVarint::encode(2) . SQLiteVarint::encode(15) . "\x41", $textEncoding);
+} catch (InvalidArgumentException) {
+    $malformedUtf16Rejected = true;
+}
 
 echo json_encode([
     'wordpressUse' => 'Plan a bounded generated wp_options row insert in a UTF-16LE SQLite image without the SQLite extension.',
     'textEncoding' => $postDatabase->header->textEncoding,
+    'malformedUtf16Rejected' => $malformedUtf16Rejected,
     'plan' => $plan->toArray(),
     'updatedPageNumbers' => array_keys($plan->pageImages()),
     'options' => $options,

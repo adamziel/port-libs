@@ -1189,6 +1189,16 @@ return [
         $t->contains(hex2bin('00411234'), $utf16be);
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::encode(['x'], 4));
     },
+    'rejects malformed utf16 sqlite record text fields' => static function (TestRunner $t): void {
+        $oddLengthUtf16le = SQLiteVarint::encode(2) . SQLiteVarint::encode(15) . "\x41";
+        $loneHighSurrogateUtf16le = SQLiteVarint::encode(2) . SQLiteVarint::encode(17) . "\x00\xd8";
+        $loneLowSurrogateUtf16be = SQLiteVarint::encode(2) . SQLiteVarint::encode(17) . "\xdc\x00";
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::parse($oddLengthUtf16le, 2));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::parse($loneHighSurrogateUtf16le, 2));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::parse($loneLowSurrogateUtf16be, 3));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::parse($oddLengthUtf16le, 4));
+    },
     'encodes sqlite table leaf cells including overflow pointers and minimum cell size' => static function (TestRunner $t): void {
         $tiny = SQLiteTableLeafCell::encode(1, '');
         $overflowPayload = str_repeat('x', 586);

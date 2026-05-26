@@ -1,5 +1,47 @@
 # Integration Status
 
+## Accepted - libsqlite malformed UTF-16 record text - 2026-05-26 02:15 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T015257Z.ready`.
+
+Committed a bounded stale-merged libsqlite encoding slice that validates
+UTF-16LE/UTF-16BE record text bytes before conversion, rejecting odd byte
+lengths and invalid surrogate sequences. The marker base was
+`d2218aa9c456d8e434cafa10e247a2b3a521da29`; the patch hash matched
+`73610079bc7481bd5510b4e78df477bd67da2d0011c3232492972de47df7567f`.
+The code, test, example, and notes hunks applied cleanly with `git apply -3`
+onto current `50c0d7d9f49e89e47e595d23df2cb9f79efe89cb`; the
+manifest/status JSON hunks were bounded-merged to preserve already accepted
+savepoint evidence.
+
+Focused verification in the clean candidate worktree:
+- `php -l lanes/libsqlite/src/SQLiteRecord.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php`:
+  passed.
+- `php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php`:
+  passed and reported `malformedUtf16Rejected=true`.
+- Manifest/status JSON validation: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`:
+  passed with `1 test files, 2384 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Serialized root verification under `.tmux-team/tmp/clean-integrator-run.lock`
+passed with `215 test files, 26839 assertions, 0 failures`.
+
+Resource/dashboard gates before acceptance:
+- Live cache-busted `porting-summary.json` matched current source
+  `50c0d7d9f49e89e47e595d23df2cb9f79efe89cb`.
+- `df -Pk /` reported at least `88527380` KiB available before root
+  verification, above the required `86000000` KiB floor.
+- Load average stayed below `25`.
+- No exact no-argument root harness process was active before starting the
+  serialized root run.
+
+Dashboard publication should run next because this accepted commit advances
+`refs/heads/main` beyond the currently published source.
+
 ## Accepted - libsqlite savepoint diagnostics - 2026-05-26 02:08 UTC
 
 Accepted marker:

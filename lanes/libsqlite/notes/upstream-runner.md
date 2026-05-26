@@ -1,5 +1,45 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Malformed UTF-16 Record Text
+
+Date: 2026-05-26
+
+This isolated encoding/collation micro-slice aligns a bounded SQLite record
+text edge. `SQLiteRecord::parse()` now validates UTF-16LE and UTF-16BE text
+fields before conversion, rejecting odd byte lengths and unpaired surrogate
+sequences instead of silently normalizing malformed copied database bytes.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses the accepted encoding/file-format cluster evidence:
+
+```sh
+enc*.test utf*.test corrupt*.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteRecord.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: syntax checks passed; the WordPress smoke reported
+`malformedUtf16Rejected`; focused lane tests passed with malformed UTF-16
+record fields covered.
+
+Dependency closure: no new support component is needed. The slice reuses PHP
+mbstring, which is already required by the lane-local UTF-16 record
+encoder/decoder, and counts no shared support-library progress.
+
 ## Focused Native Mapping: Rollback Journal Sector Padding
 
 Date: 2026-05-26

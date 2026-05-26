@@ -244,6 +244,7 @@ final class SQLiteRecord
         if (!function_exists('mb_convert_encoding')) {
             throw new \InvalidArgumentException('UTF-16 SQLite text requires mbstring for decoding');
         }
+        self::assertValidUtf16Text($bytes, $textEncoding);
 
         return match ($textEncoding) {
             2 => mb_convert_encoding($bytes, 'UTF-8', 'UTF-16LE'),
@@ -270,5 +271,17 @@ final class SQLiteRecord
             2 => mb_convert_encoding($value, 'UTF-16LE', 'UTF-8'),
             3 => mb_convert_encoding($value, 'UTF-16BE', 'UTF-8'),
         };
+    }
+
+    private static function assertValidUtf16Text(string $bytes, int $textEncoding): void
+    {
+        if ((strlen($bytes) % 2) !== 0) {
+            throw new \InvalidArgumentException('Malformed UTF-16 SQLite text has an odd byte length');
+        }
+
+        $encoding = $textEncoding === 2 ? 'UTF-16LE' : 'UTF-16BE';
+        if (function_exists('mb_check_encoding') && !mb_check_encoding($bytes, $encoding)) {
+            throw new \InvalidArgumentException("Malformed {$encoding} SQLite text");
+        }
     }
 }
