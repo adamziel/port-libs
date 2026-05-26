@@ -9899,3 +9899,36 @@ harness was not run because this was an isolated micro-slice.
 Dependency closure: no new support component is needed. This reuses lane-local
 write-plan and savepoint evidence and adds only a bounded native PHP
 connection-state helper.
+
+## Upstream Runner: Mixed Bounded Artifact Set Gate
+
+This isolated upstream-suite micro-slice did not start a duplicate broad
+`testfixture`, `release`, `all`, `make test`, or `mptest` run. It adds a
+machine-readable artifact-set record over existing bounded runner audit/log
+gates, so an integrator can supply multiple guarded artifacts and get one
+countability summary: zero-error accepted-HEAD artifacts are publishable,
+while missing files, active runners, failed sanitizer artifacts, and timeout
+artifacts remain explicit blocked evidence.
+
+Focused upstream denominator impact: one additional upstream-runner
+artifact-set countability gate is mapped in `UPSTREAM_TEST_MANIFEST.json`. No
+fresh upstream runner evidence is claimed by this slice.
+
+Verification run 2026-05-26T19:25Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteUpstreamSuiteEvidenceTest.php`
+passed with 1 selected file, 679 assertions, and 0 failures, adding 27
+focused assertions for mixed bounded artifact-set classification. Manifest/status
+JSON decoded successfully and lane diff check passed. The root harness was not
+run because this was an isolated micro-slice.
+
+Dependency closure: no new support component is needed. This composes existing
+lane-local bounded runner file/countability gates only.

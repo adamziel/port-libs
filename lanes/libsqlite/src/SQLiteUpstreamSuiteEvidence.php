@@ -1234,6 +1234,104 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, array{audit:string, stdout?:string|null, process_snapshot?:string}> $artifacts
+     * @return array<string, mixed>
+     */
+    public function boundedRunnerArtifactSetRecord(array $artifacts, string $acceptedRepositoryHead): array
+    {
+        $entries = [];
+        $countable = [];
+        $blocked = [];
+        $missing = [];
+        $active = [];
+        $failed = [];
+        $timedOut = [];
+        $testsTotal = 0;
+        $errorsTotal = 0;
+
+        foreach ($artifacts as $label => $artifact) {
+            if (!is_string($label) || !is_array($artifact) || !is_string($artifact['audit'] ?? null)) {
+                continue;
+            }
+
+            $gate = $this->boundedRunnerCountabilityGateFromFiles(
+                $artifact['audit'],
+                is_string($artifact['stdout'] ?? null) ? $artifact['stdout'] : null,
+                $acceptedRepositoryHead,
+                is_string($artifact['process_snapshot'] ?? null) ? $artifact['process_snapshot'] : ''
+            );
+            $artifactStatus = is_string($gate['artifact_status'] ?? null) ? $gate['artifact_status'] : 'unknown';
+            $acceptance = is_array($gate['acceptance'] ?? null) ? $gate['acceptance'] : [];
+            $tests = is_int($acceptance['tests'] ?? null) ? $acceptance['tests'] : null;
+            $errors = is_int($acceptance['errors'] ?? null) ? $acceptance['errors'] : null;
+
+            if (($gate['countable'] ?? false) === true) {
+                $countable[] = $label;
+                $testsTotal += $tests ?? 0;
+                $errorsTotal += $errors ?? 0;
+            } else {
+                $blocked[] = $label;
+            }
+            if ($artifactStatus === 'blocked-missing-artifact-files') {
+                $missing[] = $label;
+            } elseif ($artifactStatus === 'active-runner-in-progress') {
+                $active[] = $label;
+            } elseif ($artifactStatus === 'failed') {
+                $failed[] = $label;
+            } elseif ($artifactStatus === 'timed-out-incomplete') {
+                $timedOut[] = $label;
+            }
+
+            $entries[] = [
+                'label' => $label,
+                'status' => $gate['status'],
+                'countable' => (bool) ($gate['countable'] ?? false),
+                'artifact_status' => $artifactStatus,
+                'tests' => $tests,
+                'errors' => $errors,
+                'blocker_count' => (int) ($gate['blocker_count'] ?? 0),
+                'blocker_ids' => array_values(array_filter(array_map(
+                    static fn ($blocker): ?string => is_array($blocker) && is_string($blocker['id'] ?? null) ? $blocker['id'] : null,
+                    is_array($gate['blockers'] ?? null) ? $gate['blockers'] : []
+                ))),
+                'gate' => $gate,
+            ];
+        }
+
+        $status = 'blocked';
+        if ($entries === []) {
+            $status = 'blocked-empty-artifact-set';
+        } elseif ($countable !== []) {
+            $status = $blocked === [] ? 'countable' : 'partially-countable';
+        }
+
+        return [
+            'status' => $status,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'artifact_count' => count($entries),
+            'countable_count' => count($countable),
+            'blocked_count' => count($blocked),
+            'missing_count' => count($missing),
+            'active_count' => count($active),
+            'failed_count' => count($failed),
+            'timed_out_count' => count($timedOut),
+            'countable_labels' => $countable,
+            'blocked_labels' => $blocked,
+            'missing_labels' => $missing,
+            'active_labels' => $active,
+            'failed_labels' => $failed,
+            'timed_out_labels' => $timedOut,
+            'tests_total' => $testsTotal,
+            'errors_total' => $errorsTotal,
+            'entries' => $entries,
+            'next_gate' => $countable !== []
+                ? 'publish only the countable zero-error bounded runner artifacts, and keep blocked artifacts as explicit follow-up evidence'
+                : 'do not count this artifact set until at least one guarded runner artifact has zero-error results, accepted HEAD provenance, matching SQLite manifest UUID, and no active runner',
+            'dependency_closure' => 'no new support component needed; artifact-set records compose existing bounded runner file/countability gates only',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $failureBlocker
      * @return array<string, mixed>
      */

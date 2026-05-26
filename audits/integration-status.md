@@ -116814,3 +116814,40 @@ Decision: accepted and ready for locked publication to `refs/heads/main`. Dashbo
 Cleanup:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T191411Z` still has modified lane-local files after acceptance, so it is preserved as cleanup debt rather than removed.
 - Accepted ready/patch/metadata artifacts may be removed after locked publication.
+
+## Integration accepted - libsqlite bounded runner artifact set - 2026-05-26T19:31:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T192553Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before this pass was `42c00f04465c2d5c1acc82bcfa172ee1ca28512e` (`Integrate libsqlite connection counters`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `42c00f04465c2d5c1acc82bcfa172ee1ca28512e`, `generated` `2026-05-26 19:26:48 UTC`, and dashboard commit `dbdd1ef909ad9d65e5d337de3c11201069a1ca23`.
+
+Candidate evidence:
+- Selected the current-base upstream-suite marker because it removes a concrete release/full-suite countability blocker by classifying mixed bounded runner artifact sets, adds 27 focused assertions, and maps one additional upstream-suite evidence row (`373 -> 374`).
+- Newer sampled older-base behavior markers were stale or duplicate of already-accepted connection-counter work, while this marker was based on the current accepted source and applied cleanly.
+- The patch is lane-local to `lanes/libsqlite/**` and updates only the upstream manifest, lane status, upstream-runner note, `SQLiteUpstreamSuiteEvidence.php`, and `SQLiteUpstreamSuiteEvidenceTest.php`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed.
+- Manifest/status JSON decode: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`: passed, `1 test files, 679 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Runtime gate evidence before focused/root checks:
+- `df -Pk /` reported `97950212` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.37`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before candidate checks.
+
+Root verification and publication:
+- Serialized no-argument root harness under `.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR=$candidate/.tmp-root`: passed, `215 test files, 28305 assertions, 0 failures`.
+- Accepted commit: pending locked publication.
+
+Decision: accepted and ready for locked publication to `refs/heads/main`. Dashboard publication should run next because accepted source moves beyond `42c00f04465c2d5c1acc82bcfa172ee1ca28512e`.
+
+Cleanup:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-suite-20260526T192553Z` still has modified lane-local files after acceptance, so it is preserved as cleanup debt rather than removed.
+- Accepted ready/patch/metadata artifacts may be removed after locked publication.

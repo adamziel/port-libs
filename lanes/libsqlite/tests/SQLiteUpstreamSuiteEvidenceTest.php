@@ -1916,6 +1916,133 @@ TXT;
         $t->same('release-blocker-closed-by-exclusion', $exclusionOnly['ledger_status']);
         $t->same('release-blocker-closed-by-exclusion', $exclusionOnly['blockers'][0]['id']);
     },
+    'summarizes mixed bounded runner artifact sets before release evidence is counted' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-bounded-runner-artifact-set-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        $passedAudit = $root . '/sqlite-release-pass.md';
+        $passedLog = $root . '/sqlite-release-pass.log';
+        $activeAudit = $root . '/sqlite-release-active.md';
+        $activeLog = $root . '/sqlite-release-active.log';
+        $failedAudit = $root . '/sqlite-release-failed.md';
+        $timeoutAudit = $root . '/sqlite-release-timeout.md';
+        $timeoutLog = $root . '/sqlite-release-timeout.log';
+
+        file_put_contents($passedAudit, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-pass-20260526T200000Z
+
+- Repository HEAD: `abc123accepted`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Exit: `0`
+- Parsed summary: `0 errors out of 22000 tests`
+- Parsed errors: `0`
+- Parsed tests: `22000`
+MD);
+        file_put_contents($passedLog, "03:00 tcl(22000/22000) r0\n");
+
+        file_put_contents($activeAudit, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-active-20260526T200100Z
+
+- Repository HEAD: `abc123accepted`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+MD);
+        file_put_contents($activeLog, "05:40 tcl(3840/22000) r2 ETC 01:12:20\n");
+
+        file_put_contents($failedAudit, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-failed-20260526T200200Z
+
+- Repository HEAD: `abc123accepted`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Exit: `1`
+
+## Tail
+
+```text
+FAILED: Sanitize ext/fts5/test/fts5aux.test (1)
+OUTPUT: fts5aux-3.1.../tmp/src/ext/fts5/fts5_tcl.c:429:59: runtime error: applying non-zero offset 1 to null pointer
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /tmp/src/ext/fts5/fts5_tcl.c:429:59
+```
+MD);
+
+        file_put_contents($timeoutAudit, <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-timeout-20260526T200300Z
+
+- Repository HEAD: `abc123accepted`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Exit: `124`
+- Parsed errors: `unknown`
+- Parsed tests: `unknown`
+MD);
+        file_put_contents($timeoutLog, "29:58 tcl(18142/22000) r2 ETC 06:21\n");
+
+        try {
+            $set = $evidence->boundedRunnerArtifactSetRecord(
+                [
+                    'zero-error-release' => [
+                        'audit' => $passedAudit,
+                        'stdout' => $passedLog,
+                    ],
+                    'missing-release' => [
+                        'audit' => $root . '/missing-audit.md',
+                        'stdout' => $root . '/missing-log.log',
+                    ],
+                    'active-release' => [
+                        'audit' => $activeAudit,
+                        'stdout' => $activeLog,
+                        'process_snapshot' => '577297 577296 05:40 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error release',
+                    ],
+                    'failed-release' => [
+                        'audit' => $failedAudit,
+                    ],
+                    'timeout-release' => [
+                        'audit' => $timeoutAudit,
+                        'stdout' => $timeoutLog,
+                    ],
+                ],
+                'abc123accepted'
+            );
+
+            $t->same('partially-countable', $set['status']);
+            $t->same(5, $set['artifact_count']);
+            $t->same(1, $set['countable_count']);
+            $t->same(4, $set['blocked_count']);
+            $t->same(1, $set['missing_count']);
+            $t->same(1, $set['active_count']);
+            $t->same(1, $set['failed_count']);
+            $t->same(1, $set['timed_out_count']);
+            $t->same(['zero-error-release'], $set['countable_labels']);
+            $t->same(['missing-release'], $set['missing_labels']);
+            $t->same(['active-release'], $set['active_labels']);
+            $t->same(['failed-release'], $set['failed_labels']);
+            $t->same(['timeout-release'], $set['timed_out_labels']);
+            $t->same(22000, $set['tests_total']);
+            $t->same(0, $set['errors_total']);
+            $t->contains('publish only the countable zero-error bounded runner artifacts', $set['next_gate']);
+            $t->contains('artifact-set records compose existing bounded runner file/countability gates only', $set['dependency_closure']);
+            $t->same('countable', $set['entries'][0]['status']);
+            $t->same(['artifact-files-missing'], $set['entries'][1]['blocker_ids']);
+            $t->same('active-runner-in-progress', $set['entries'][2]['artifact_status']);
+            $t->true(in_array('active-runner-still-running', $set['entries'][2]['blocker_ids'], true), 'Expected active runner blocker in artifact set');
+            $t->same('failed', $set['entries'][3]['artifact_status']);
+            $t->same('timed-out-incomplete', $set['entries'][4]['artifact_status']);
+
+            $empty = $evidence->boundedRunnerArtifactSetRecord([], 'abc123accepted');
+            $t->same('blocked-empty-artifact-set', $empty['status']);
+            $t->same(0, $empty['artifact_count']);
+            $t->same(0, $empty['countable_count']);
+            $t->contains('at least one guarded runner artifact', $empty['next_gate']);
+        } finally {
+            foreach ([$passedAudit, $passedLog, $activeAudit, $activeLog, $failedAudit, $timeoutAudit, $timeoutLog] as $file) {
+                @unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
     'does not duplicate the permutation release tier blocker once hydrated suites are parsed' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/libsqlite-permutation-readiness-' . bin2hex(random_bytes(4));
         $build = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
