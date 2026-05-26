@@ -9760,3 +9760,39 @@ this was an isolated micro-slice.
 Dependency closure: no new support component is needed. This composes existing
 lane-local runner artifact, persistent blocker, focused repro, and supervisor
 decision evidence only.
+
+## Upstream Runner: Release Blocker Admission Record
+
+This isolated release-blocker micro-slice did not start a duplicate broad
+`testfixture`, `release`, `all`, `make test`, or `mptest` run. The
+implementation adds the final machine-readable admission record for the
+persistent `ext/fts5/test/fts5aux.test` release/all blocker. It composes the
+existing bounded-runner countability gate with the supervisor exclusion decision
+gate so an integrator has exactly two closure routes: a countable zero-error
+release/all artifact, or an explicit supervisor non-portability exclusion. The
+second route closes only the blocker and still does not count as zero-error
+release/all parity.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional upstream-runner admission gate while preserving the accepted static
+SQLite denominator and veryquick evidence. No fresh upstream runner evidence is
+claimed by this slice.
+
+Verification run 2026-05-26T18:14Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteUpstreamSuiteEvidenceTest.php`
+passed with 1 selected file, 604 assertions, and 0 failures, adding 28 focused
+assertions for the admission record. Manifest/status JSON decoded successfully
+and lane diff check passed. The root harness was not run because this was an
+isolated micro-slice.
+
+Dependency closure: no new support component is needed. This composes existing
+lane-local countability and explicit exclusion gates only.

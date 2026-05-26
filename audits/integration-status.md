@@ -116507,3 +116507,41 @@ Decision:
 - Dolt remains parked.
 
 Dashboard publication should run next because accepted source moved.
+## Integration accepted - libsqlite release blocker admission record - 2026-05-26T18:27:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-release-blocker-20260526T181450Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate verification was `a38f74b9001cc419681c7e2d57044e00ce1f745e` (`Integrate libsqlite GLOB reversed ranges`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `a38f74b9001cc419681c7e2d57044e00ce1f745e`, so the dashboard guard was open.
+
+Candidate evidence:
+- The marker was lane-local to `libsqlite` and referenced patch, metadata, and log files.
+- The marker base `f1b4aac72e1c4c9219e3df007a9a8dd852018393` was stale by the accepted GLOB reversed-ranges slice, but source/test/manifest/notes hunks applied cleanly to current `main`.
+- `lanes/libsqlite/lane-status.json` required a bounded status merge to preserve the current GLOB slice while adding the release-blocker admission record.
+- The accepted slice adds `SQLiteUpstreamSuiteEvidence::releaseBlockerAdmissionRecord()` plus focused assertions for zero-error release artifacts, explicit supervisor non-portability exclusions, blocked countability/exclusion provenance, parity non-credit for exclusions, and dependency-closure notes.
+
+Runtime gate evidence:
+- Before focused checks, `df -Pk /` reported `109618416` KiB available, above the `86000000` KiB floor.
+- Before focused checks, `/proc/loadavg` one-minute load was `1.02`, below the `25` limit.
+- Before the serialized root run, `df -Pk /` reported `109564048` KiB available and `/proc/loadavg` one-minute load was `1.00`.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+- Focused and root checks used repo-local `TMPDIR=$candidate/.tmp-root`.
+
+Focused verification passed in the clean candidate worktree:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed: `1 test files, 604 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root result:
+- Command: `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+- Result: passed, `215 test files, 28131 assertions, 0 failures`.
+
+Decision: accepted after focused and serialized root verification. Dashboard publication should run next because accepted source moved from `a38f74b9001cc419681c7e2d57044e00ce1f745e`.
+
+Cleanup debt:
+- The accepted marker's worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-release-blocker-20260526T181450Z` still had modified lane files after the committed patch was safely on `main`, so it was preserved and left registered. Accepted marker files were removed separately.

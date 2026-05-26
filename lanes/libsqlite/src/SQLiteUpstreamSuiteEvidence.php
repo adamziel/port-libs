@@ -1721,6 +1721,78 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $countabilityGate
+     * @param array<string, mixed>|null $exclusionDecisionGate
+     * @return array<string, mixed>
+     */
+    public function releaseBlockerAdmissionRecord(array $countabilityGate, ?array $exclusionDecisionGate = null): array
+    {
+        $countable = ($countabilityGate['status'] ?? null) === 'countable'
+            && ($countabilityGate['countable'] ?? false) === true;
+        $exclusionAccepted = is_array($exclusionDecisionGate)
+            && ($exclusionDecisionGate['status'] ?? null) === 'accepted-non-portability-exclusion'
+            && ($exclusionDecisionGate['counts_as_release_blocker_closure'] ?? false) === true;
+
+        $blockers = [];
+        if (!$countable && !$exclusionAccepted) {
+            $countabilityBlockers = is_array($countabilityGate['blockers'] ?? null) ? $countabilityGate['blockers'] : [];
+            foreach ($countabilityBlockers as $blocker) {
+                if (is_array($blocker)) {
+                    $blocker['source'] = 'countability';
+                    $blockers[] = $blocker;
+                }
+            }
+
+            if (is_array($exclusionDecisionGate)) {
+                $exclusionBlockers = is_array($exclusionDecisionGate['blockers'] ?? null) ? $exclusionDecisionGate['blockers'] : [];
+                foreach ($exclusionBlockers as $blocker) {
+                    if (is_array($blocker)) {
+                        $blocker['source'] = 'exclusion';
+                        $blockers[] = $blocker;
+                    }
+                }
+            } else {
+                $blockers[] = [
+                    'id' => 'exclusion-decision-missing',
+                    'source' => 'exclusion',
+                    'evidence' => 'no supervisor exclusion decision gate was supplied for non-portability closure',
+                ];
+            }
+        }
+
+        $closureMode = 'blocked';
+        if ($countable) {
+            $closureMode = 'zero-error-release-artifact';
+        } elseif ($exclusionAccepted) {
+            $closureMode = 'supervisor-non-portability-exclusion';
+        }
+
+        $acceptance = is_array($countabilityGate['acceptance'] ?? null) ? $countabilityGate['acceptance'] : [];
+
+        return [
+            'status' => $closureMode === 'blocked' ? 'blocked' : 'admissible',
+            'closure_mode' => $closureMode,
+            'release_blocker_closed' => $closureMode !== 'blocked',
+            'counts_as_zero_error_release_parity' => $countable,
+            'countable_artifact' => $countable,
+            'exclusion_accepted' => $exclusionAccepted,
+            'artifact_status' => $countabilityGate['artifact_status'] ?? 'unknown',
+            'artifact_tests' => $acceptance['tests'] ?? null,
+            'artifact_errors' => $acceptance['errors'] ?? null,
+            'exclusion_script' => is_array($exclusionDecisionGate) ? ($exclusionDecisionGate['script'] ?? null) : null,
+            'exclusion_case' => is_array($exclusionDecisionGate) ? ($exclusionDecisionGate['case'] ?? null) : null,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => $closureMode === 'zero-error-release-artifact'
+                ? 'integrator may count this release/all artifact as zero-error parity after recording the accepted evidence'
+                : ($closureMode === 'supervisor-non-portability-exclusion'
+                    ? 'integrator may close the release blocker by explicit exclusion only; release/all zero-error parity remains uncounted'
+                    : 'keep the release blocker open until a zero-error countable artifact or explicit supervisor non-portability exclusion is recorded'),
+            'dependency_closure' => 'no new support component needed; admission record composes countability and explicit exclusion gates only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array

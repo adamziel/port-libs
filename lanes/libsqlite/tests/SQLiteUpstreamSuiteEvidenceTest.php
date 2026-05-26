@@ -1682,6 +1682,75 @@ TXT;
         $t->true(in_array('supervisor-approval-required', array_column($gate['blockers'], 'id'), true), 'Expected explicit approval blocker');
         $t->true(in_array('command-manifest-not-ready', array_column($gate['blockers'], 'id'), true), 'Expected missing hydrated command manifest blocker');
     },
+    'builds a final release blocker admission record from countability and exclusion gates' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $countable = [
+            'status' => 'countable',
+            'countable' => true,
+            'artifact_status' => 'passed',
+            'acceptance' => [
+                'tests' => 401234,
+                'errors' => 0,
+            ],
+            'blockers' => [],
+        ];
+
+        $zeroError = $evidence->releaseBlockerAdmissionRecord($countable);
+
+        $t->same('admissible', $zeroError['status']);
+        $t->same('zero-error-release-artifact', $zeroError['closure_mode']);
+        $t->same(true, $zeroError['release_blocker_closed']);
+        $t->same(true, $zeroError['counts_as_zero_error_release_parity']);
+        $t->same(true, $zeroError['countable_artifact']);
+        $t->same(false, $zeroError['exclusion_accepted']);
+        $t->same(401234, $zeroError['artifact_tests']);
+        $t->same(0, $zeroError['artifact_errors']);
+        $t->same(0, $zeroError['blocker_count']);
+        $t->contains('count this release/all artifact as zero-error parity', $zeroError['next_gate']);
+
+        $blockedCountability = [
+            'status' => 'blocked',
+            'countable' => false,
+            'artifact_status' => 'failed',
+            'blockers' => [
+                [
+                    'id' => 'artifact-not-passed',
+                    'evidence' => 'bounded runner artifact has not produced parsed zero-error pass evidence',
+                ],
+            ],
+        ];
+        $acceptedExclusion = [
+            'status' => 'accepted-non-portability-exclusion',
+            'counts_as_release_blocker_closure' => true,
+            'script' => 'ext/fts5/test/fts5aux.test',
+            'case' => 'fts5aux-3.1',
+            'blockers' => [],
+        ];
+
+        $excluded = $evidence->releaseBlockerAdmissionRecord($blockedCountability, $acceptedExclusion);
+
+        $t->same('admissible', $excluded['status']);
+        $t->same('supervisor-non-portability-exclusion', $excluded['closure_mode']);
+        $t->same(true, $excluded['release_blocker_closed']);
+        $t->same(false, $excluded['counts_as_zero_error_release_parity']);
+        $t->same(false, $excluded['countable_artifact']);
+        $t->same(true, $excluded['exclusion_accepted']);
+        $t->same('ext/fts5/test/fts5aux.test', $excluded['exclusion_script']);
+        $t->same('fts5aux-3.1', $excluded['exclusion_case']);
+        $t->contains('zero-error parity remains uncounted', $excluded['next_gate']);
+
+        $blocked = $evidence->releaseBlockerAdmissionRecord($blockedCountability);
+
+        $t->same('blocked', $blocked['status']);
+        $t->same('blocked', $blocked['closure_mode']);
+        $t->same(false, $blocked['release_blocker_closed']);
+        $t->same(false, $blocked['counts_as_zero_error_release_parity']);
+        $t->same(2, $blocked['blocker_count']);
+        $t->same(['artifact-not-passed', 'exclusion-decision-missing'], array_column($blocked['blockers'], 'id'));
+        $t->same(['countability', 'exclusion'], array_column($blocked['blockers'], 'source'));
+        $t->contains('keep the release blocker open', $blocked['next_gate']);
+        $t->contains('no new support component needed', $blocked['dependency_closure']);
+    },
     'does not duplicate the permutation release tier blocker once hydrated suites are parsed' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/libsqlite-permutation-readiness-' . bin2hex(random_bytes(4));
         $build = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
