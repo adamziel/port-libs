@@ -34,6 +34,7 @@ final class SQLiteCoreScalarFunction
             'concat' => self::concat($arguments),
             'concat_ws' => self::concatWithSeparator($arguments),
             'printf', 'format' => self::formatSql($normalized, $arguments),
+            'likely', 'unlikely', 'likelihood' => self::plannerLikelihood($normalized, $arguments),
             'hex' => self::hex($arguments),
             'unhex' => self::unhex($arguments),
             'char' => self::char($arguments),
@@ -482,6 +483,26 @@ final class SQLiteCoreScalarFunction
         }
 
         return $result;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function plannerLikelihood(string $functionName, array $arguments): mixed
+    {
+        if ($functionName === 'likelihood') {
+            self::assertArity($functionName, $arguments, 2, 2);
+            $probability = self::coerceLosslessNumeric($arguments[1]);
+            if ($probability === null || $probability < 0.0 || $probability > 1.0) {
+                throw new \InvalidArgumentException('SQLite likelihood() probability must be between 0.0 and 1.0');
+            }
+
+            return $arguments[0];
+        }
+
+        self::assertArity($functionName, $arguments, 1, 1);
+
+        return $arguments[0];
     }
 
     /**

@@ -2,6 +2,22 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Planner Hint Scalar Predicate Scenario
+
+WordPress migrations and plugin-maintained SQL can include SQLite planner hint
+functions around option predicates. The scalar smoke
+`examples/wordpress-core-scalar-option-default.php` now reports
+`plannerHintPreview`, showing that `likely()`, `unlikely()`, and
+`likelihood()` preserve the wrapped runtime value while validating the
+likelihood probability argument.
+
+Status delta 2026-05-26 isolated sql-exec/planner slice: added
+`SQLiteCoreScalarFunction` dispatch for `likely()`, `unlikely()`, and
+`likelihood()`, focused pass-through and probability validation tests, and
+updated the WordPress scalar diagnostic smoke. Dependency closure: no new
+support component is needed; this reuses lane-local scalar expression dispatch
+and numeric coercion helpers.
+
 ## B-tree Leaf Defragmentation Diagnostics Scenario
 
 Native B-tree deletion diagnostics can now compact table-leaf and index-leaf

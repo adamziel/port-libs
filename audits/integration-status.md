@@ -115480,3 +115480,37 @@ Verification:
 Decision: accepted. The slice adds lane-local `SQLiteSavepointStack::releaseWithPlan()` so WordPress recovery diagnostics can return RELEASE provenance and apply nested or outer savepoint transitions in one call. It did not start a fresh upstream runner and did not add a support-library dependency.
 
 Dashboard publication should run next after the accepted source commit is visible on `main`.
+## Integration accepted - libsqlite planner hint scalar dispatch - 2026-05-26T14:30:07Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T142343Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `941b7ee1ead7bbfb64ee31e3e76499c3848382b1` (`Integrate libsqlite NOCASE LIKE prefix range`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `941b7ee1ead7bbfb64ee31e3e76499c3848382b1`, so the dashboard guard was open.
+
+Marker evidence:
+- Marker declared `lane=libsqlite`, `base_sha=941b7ee1ead7bbfb64ee31e3e76499c3848382b1`, `patch=...port-dev-libsqlite-sql-exec-20260526T142343Z.patch`, and `metadata=...port-dev-libsqlite-sql-exec-20260526T142343Z.md`.
+- Patch sha256 matched marker metadata: `3a3f4225dbdc6696ea09a6a4d2150665939d0433a96d31a530c266aa1e5e90f0`.
+- Worker log reported completion with focused checks and no root harness run by the worker.
+- Patch applied cleanly in detached clean worktree `.tmux-team/tmp/clean-integrator-candidates/libsqlite-sql-exec-20260526T142343Z` based on current `refs/heads/main`.
+
+Scope:
+- Added native `likely()`, `unlikely()`, and `likelihood()` dispatch to `SQLiteCoreScalarFunction`, preserving pass-through value semantics and validating `likelihood()` probability arguments.
+- Added focused scalar tests, WordPress scalar smoke output, manifest/status evidence, and WordPress scenario notes.
+- No new dependency/support-library component was introduced.
+
+Verification:
+- Runtime gates before focused checks: `/` had `115187016` KiB available, load was `3.00`, and no exact no-argument root harness process was running.
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2828 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php likelihood 'autoload = yes' 0.9375` passed and reported `plannerHintPreview`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Runtime gates before serialized root: `/` had `115186724` KiB available, load was `3.00`, and no exact no-argument root harness process was running.
+- Serialized clean-candidate root under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27759 assertions, 0 failures`.
+
+Decision: accepted one marker. After the commit is published on `refs/heads/main`, remove the accepted marker artifacts and inactive worktree. Dashboard publication should run next for the new accepted source head.
