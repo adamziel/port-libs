@@ -1,5 +1,67 @@
 # Integration Status
 
+## Accepted - libsqlite recorded upstream runner ledger - 2026-05-26 07:10 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T070137Z.ready`.
+
+Current `refs/heads/main` before acceptance:
+`d8724bbcccfb2c0312710d610e05a72b0be9b277` (`Integrate libsqlite RTRIM
+collation lookup`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=d8724bbcccfb2c0312710d610e05a72b0be9b277`.
+- Local `refs/heads/main` matched that source, so the live dashboard guard was
+  open.
+- Live dashboard commit reported
+  `2c509ea5ab1110b5b0949271cae8f3fed0d6772e`.
+
+Resource and process gate evidence:
+- `df -Pk /` reported `92358408` KiB available before root verification,
+  above the required `86000000` KiB threshold.
+- `/proc/loadavg` first field was `1.55`, below the required `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before starting the
+  serialized no-argument root harness.
+
+Candidate handling:
+- The marker declared stale base
+  `ffa23153e2eb784f1ea141c16d045bf6851acf47`, but its source/test changes
+  were lane-scoped and replayed cleanly onto current `main`.
+- The original full patch failed only on bounded libsqlite manifest/status and
+  upstream-runner note context. Those files were merged manually to preserve
+  already accepted RTRIM collation evidence while adding the recorded runner
+  ledger evidence.
+- Patch hash in the marker matched the sampled patch:
+  `91475ad73c0e2b4874847eb8f4a32f69cc8871df9275120de3f087188a6ec226`.
+
+Focused verification passed in the detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 266 assertions, 0 failures`.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification passed under
+`.tmux-team/tmp/clean-integrator-run.lock`:
+`php tools/run-tests.php` reported `215 test files, 27257 assertions, 0
+failures`.
+
+Decision: accepted. This slice adds
+`SQLiteUpstreamSuiteEvidence::recordedRunnerResultLedger()`, parses accepted
+SQLite runner result history including singular `Tcl script` wording, feeds the
+upstream acceptance checklist with recorded runner pass/fail/test totals, and
+records the lane-local dependency closure evidence. No fresh upstream
+`testfixture`, `make test`, `mptest`, or release/all run was performed because
+the isolated worktree lacked the hydrated upstream cache/build tree.
+
+Remaining ready-marker count at acceptance sample: `4487`.
+
+Dashboard publication should run next because this pass moves the accepted
+source head.
+
 ## Accepted libsqlite RTRIM collation handoff - 2026-05-26 07:04 UTC
 
 Accepted marker:

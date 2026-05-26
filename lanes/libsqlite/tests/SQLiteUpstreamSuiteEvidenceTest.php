@@ -168,6 +168,32 @@ return [
         $t->same(true, $subsetRunRecords['uses_cached_or_missing_cache_evidence']);
         $t->contains('isolated worktree lacked a hydrated upstream cache', (string) $subsetRunRecords['skip_reason']);
     },
+    'builds a recorded runner result ledger from accepted upstream run history' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $ledger = $evidence->recordedRunnerResultLedger();
+
+        $t->true($ledger['entry_count'] >= 80, 'Expected accepted runner result history to be inventoried');
+        $t->true($ledger['passed_count'] >= 30, 'Expected parseable zero-error runner results to be counted');
+        $t->same(0, $ledger['failed_count']);
+        $t->same(0, $ledger['errors_total']);
+        $t->true($ledger['scripts_total'] >= 1200, 'Expected recorded runner script counts to include veryquick and focused runs');
+        $t->true($ledger['tests_total'] >= 329670, 'Expected recorded runner test counts to include the full veryquick baseline');
+
+        $fullVeryquick = $ledger['entries']['fullVeryquick'] ?? null;
+        $t->true(is_array($fullVeryquick), 'Expected fullVeryquick recorded runner entry');
+        $t->same('passed', $fullVeryquick['status']);
+        $t->same(1235, $fullVeryquick['scripts']);
+        $t->same(329670, $fullVeryquick['tests']);
+        $t->same(0, $fullVeryquick['errors']);
+
+        $withSelections = 0;
+        foreach ($ledger['entries'] as $entry) {
+            if (is_array($entry) && ($entry['selected_scripts'] ?? []) !== []) {
+                $withSelections++;
+            }
+        }
+        $t->true($withSelections >= 20, 'Expected focused recorded results to retain selected .test tokens');
+    },
     'builds an upstream suite acceptance checklist from runner and ledger evidence' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $checklist = $evidence->upstreamSuiteAcceptanceChecklist();
@@ -179,6 +205,10 @@ return [
         $t->same(true, $checklist['veryquick_zero_error']);
         $t->same(1235, $checklist['veryquick_scripts']);
         $t->same(329670, $checklist['veryquick_tests']);
+        $t->true($checklist['recorded_runner_entries'] >= 80, 'Expected recorded runner entries in checklist');
+        $t->true($checklist['recorded_runner_passed'] >= 30, 'Expected recorded runner pass count in checklist');
+        $t->same(0, $checklist['recorded_runner_failed']);
+        $t->true($checklist['recorded_runner_tests'] >= 329670, 'Expected recorded runner test total in checklist');
         $t->true($checklist['focused_entries'] >= 30, 'Expected focused ledger entries to be counted');
         $t->true($checklist['focused_passed'] >= 14, 'Expected focused passed ledger entries');
         $t->same(0, $checklist['focused_failed']);

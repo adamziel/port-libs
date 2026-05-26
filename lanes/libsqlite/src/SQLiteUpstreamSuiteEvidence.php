@@ -207,11 +207,76 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function recordedRunnerResultLedger(): array
+    {
+        $denominator = $this->manifest['benchmarkDenominator'] ?? [];
+        $runner = is_array($denominator) && is_array($denominator['runnerStatus'] ?? null)
+            ? $denominator['runnerStatus']
+            : [];
+        $results = is_array($runner['results'] ?? null) ? $runner['results'] : [];
+
+        $entries = [];
+        $passed = 0;
+        $failed = 0;
+        $notCounted = 0;
+        $scriptsTotal = 0;
+        $testsTotal = 0;
+        $errorsTotal = 0;
+
+        foreach ($results as $name => $description) {
+            if (!is_string($name) || !is_string($description)) {
+                continue;
+            }
+
+            $parsed = $this->parseVeryquickResult($description);
+            $status = 'not-counted';
+            if ($parsed['scripts'] > 0) {
+                $status = $parsed['errors'] === 0 ? 'passed' : 'failed';
+            }
+
+            if ($status === 'passed') {
+                $passed++;
+            } elseif ($status === 'failed') {
+                $failed++;
+            } else {
+                $notCounted++;
+            }
+
+            $scriptsTotal += $parsed['scripts'];
+            $testsTotal += $parsed['tests'];
+            $errorsTotal += $parsed['errors'];
+            $entries[$name] = [
+                'status' => $status,
+                'scripts' => $parsed['scripts'],
+                'tests' => $parsed['tests'],
+                'errors' => $parsed['errors'],
+                'selected_scripts' => $this->extractTestScriptTokens($description),
+            ];
+        }
+
+        ksort($entries);
+
+        return [
+            'entry_count' => count($entries),
+            'passed_count' => $passed,
+            'failed_count' => $failed,
+            'not_counted_count' => $notCounted,
+            'scripts_total' => $scriptsTotal,
+            'tests_total' => $testsTotal,
+            'errors_total' => $errorsTotal,
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function upstreamSuiteAcceptanceChecklist(): array
     {
         $summary = $this->denominatorSummary();
         $coverage = $this->runnerCoverageAudit();
         $ledger = $this->focusedResultLedger();
+        $runnerLedger = $this->recordedRunnerResultLedger();
 
         $inventoryUnits = 0;
         foreach ($summary['inventory_units'] as $count) {
@@ -233,6 +298,10 @@ final class SQLiteUpstreamSuiteEvidence
             'veryquick_zero_error' => $coverage['veryquick']['scripts'] > 0 && $coverage['veryquick']['errors'] === 0,
             'veryquick_scripts' => $coverage['veryquick']['scripts'],
             'veryquick_tests' => $coverage['veryquick']['tests'],
+            'recorded_runner_entries' => $runnerLedger['entry_count'],
+            'recorded_runner_passed' => $runnerLedger['passed_count'],
+            'recorded_runner_failed' => $runnerLedger['failed_count'],
+            'recorded_runner_tests' => $runnerLedger['tests_total'],
             'focused_entries' => $ledger['entry_count'],
             'focused_passed' => $ledger['passed_count'],
             'focused_failed' => $ledger['failed_count'],
@@ -747,7 +816,7 @@ final class SQLiteUpstreamSuiteEvidence
             return ['scripts' => 0, 'tests' => 0, 'errors' => 0];
         }
 
-        if (preg_match('/Passed\s+(\d+)\s+scripts\s+with\s+(\d+)\s+errors\s+out\s+of\s+(\d+)\s+tests/', $result, $matches) !== 1) {
+        if (preg_match('/Passed\s+(\d+)\s+(?:Tcl\s+)?scripts?\s+with\s+(\d+)\s+errors?\s+out\s+of\s+(\d+)\s+tests?/i', $result, $matches) !== 1) {
             return ['scripts' => 0, 'tests' => 0, 'errors' => 0];
         }
 
