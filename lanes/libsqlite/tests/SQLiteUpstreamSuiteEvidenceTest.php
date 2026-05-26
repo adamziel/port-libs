@@ -675,4 +675,78 @@ TXT;
         $t->same([], $clear['active']);
         $t->contains('may start if other gates pass', $clear['next_gate']);
     },
+    'builds a bounded upstream runner artifact record from audit and stdout text' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $audit = <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-all-runner-20260526T080745Z
+
+- Repository HEAD: `9d333e5c97980b320e4b8a5a17d18aee22af135a`
+- Scratch: `/tmp/sqlite-full-suite-all-runner-20260526T080745Z`
+- Log: `/tmp/sqlite-full-suite-all-runner-20260526T080745Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `all`
+- Jobs: `2`
+- Timeout seconds: `1800`
+- Patterns: none
+- Exit: `0`
+- Elapsed seconds: `48`
+- Parsed summary: `0 errors out of 10785 tests`
+- Parsed errors: `0`
+- Parsed tests: `10785`
+- Runner time: `00:00:48`
+MD;
+        $stdout = "00:10 tcl(80/10785) r2 ETC 01:33:27\n00:48 tcl(10785/10785) r0\n";
+
+        $record = $evidence->boundedRunnerArtifactRecord($audit, $stdout);
+
+        $t->same('passed', $record['status']);
+        $t->same('libsqlite-all-runner-20260526T080745Z', $record['label']);
+        $t->same('9d333e5c97980b320e4b8a5a17d18aee22af135a', $record['repository_head']);
+        $t->same('8f70ec615f4cd247d36f92a22c99f65ebbcc22a7', $record['sqlite_commit']);
+        $t->same('3.54.0', $record['sqlite_version']);
+        $t->same('all', $record['requested']['testset']);
+        $t->same(2, $record['requested']['jobs']);
+        $t->same(1800, $record['requested']['timeout_seconds']);
+        $t->same([], $record['requested']['patterns']);
+        $t->same(0, $record['results']['exit']);
+        $t->same(10785, $record['results']['tests']);
+        $t->same(0, $record['results']['errors']);
+        $t->same(10785, $record['progress']['completed']);
+        $t->same(10785, $record['progress']['total']);
+        $t->contains('integrator confirms the artifact checkout matches', $record['next_gate']);
+        $t->contains('no new support component needed', $record['dependency_closure']);
+    },
+    'keeps incomplete bounded runner artifacts explicit while a broad runner is active' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $audit = <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-all-runner-20260526T083945Z
+
+- Repository HEAD: `5daeeb21a5c773aa5ab600e19580a47fafe28202`
+- Scratch: `.tmux-team/tmp/sqlite-full-suite-all-runner-20260526T083945Z`
+- Log: `.tmux-team/logs/sqlite-full-suite-all-runner-20260526T083945Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `all`
+- Jobs: `2`
+- Timeout seconds: `5400`
+- Patterns: none
+MD;
+        $snapshot = '4083544       02:15 ./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error all';
+        $stdout = "02:15 tcl(4018/10785) r2 ETC 21:30\n";
+
+        $record = $evidence->boundedRunnerArtifactRecord($audit, $stdout, $snapshot);
+
+        $t->same('active-runner-in-progress', $record['status']);
+        $t->same('libsqlite-all-runner-20260526T083945Z', $record['label']);
+        $t->same(null, $record['results']['exit']);
+        $t->same(null, $record['results']['tests']);
+        $t->same(null, $record['results']['errors']);
+        $t->same(4018, $record['progress']['completed']);
+        $t->same(10785, $record['progress']['total']);
+        $t->same('blocked-active-runner', $record['active_gate']['status']);
+        $t->contains('wait for the active bounded runner', $record['next_gate']);
+    },
 ];

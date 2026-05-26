@@ -1,5 +1,50 @@
 # Integration Status
 
+## Accepted - libsqlite bounded upstream runner artifact record - 2026-05-26 08:49 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260526T084025Z.ready`.
+
+Accepted source base: `5daeeb21a5c773aa5ab600e19580a47fafe28202`
+(`Integrate libsqlite WAL reset plan`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=5daeeb21a5c773aa5ab600e19580a47fafe28202`, matching the
+  accepted source head before this integration.
+- Live dashboard commit reported
+  `099ba4c334d10801f1892b60cfb8d31a4730ff76`.
+
+Resource and process gate evidence:
+- Initial gate sample was closed at `/` `85433828` KiB available, load `5.62`,
+  and no no-argument root harness. After waiting outside the lock, `/` reported
+  `86930720` KiB available, load `4.28`, and no no-argument root harness.
+- Pre-root gate from the clean candidate snapshot reported `/` `86852428` KiB
+  available, load `3.06`, and no no-argument root harness.
+
+Focused verification from detached clean worktree
+`.tmux-team/tmp/clean-integrator-candidate-upstream-runner-20260526T084025Z`:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 334 assertions, 0 failures`.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot with
+  `215 test files, 27407 assertions, 0 failures`.
+
+Decision: accepted. This slice adds lane-local bounded SQLite upstream runner
+artifact parsing for guarded audit/stdout evidence and records active-runner
+in-progress state without launching a duplicate broad upstream runner. No new
+support-library component was activated.
+
+Dashboard publication should run next because accepted source moved beyond the
+live dashboard source.
+
 ## Accepted libsqlite WAL reset plan - 2026-05-26 08:27 UTC
 
 Accepted

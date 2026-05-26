@@ -1,5 +1,49 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Bounded Runner Artifact Record
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::boundedRunnerArtifactRecord()`. The helper parses
+a guarded SQLite bounded-runner audit note plus stdout/progress text into a
+machine-readable artifact record: label, repository HEAD, SQLite commit/version
+and manifest UUID, requested testset/jobs/timeout/patterns, parsed exit/test
+and error counts, last Tcl progress line, active-runner gate, and
+pass/fail/in-progress status.
+
+Focused upstream runner:
+
+No new broad upstream `testfixture`, `make test`, or `mptest` run was started
+from this isolated worktree. Process evidence already showed an active shared
+bounded all runner:
+
+```text
+scripts/run-sqlite-tcl-bounded-runner.sh libsqlite-all-runner-20260526T083945Z ... all 2 5400
+./testfixture ../src/test/testrunner.tcl --jobs 2 --stop-on-error all
+```
+
+The new record helper is intended for the integrator to parse that guarded
+artifact after it exits. Incomplete or active artifacts remain
+`active-runner-in-progress`/`running-or-incomplete` and are not counted as full
+all/release parity. Prior applicable runner evidence remains the complete
+SQLite `veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local manifest evidence and supplied bounded-runner audit/stdout text
+only; it performs no upstream runner shell-out and counts no shared
+support-library progress.
+
 ## Focused Native Mapping: Active Broad-Runner Gate
 
 Date: 2026-05-26

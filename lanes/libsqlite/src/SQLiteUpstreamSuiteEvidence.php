@@ -881,6 +881,80 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function boundedRunnerArtifactRecord(string $auditText, string $stdoutText = '', string $processSnapshot = ''): array
+    {
+        $label = $this->extractMarkdownHeadingLabel($auditText);
+        $repositoryHead = $this->extractBacktickField($auditText, 'Repository HEAD');
+        $sqliteCommit = $this->extractBacktickField($auditText, 'SQLite git commit');
+        $sqliteVersion = $this->extractBacktickField($auditText, 'SQLite VERSION');
+        $manifestUuid = $this->extractBacktickField($auditText, 'SQLite manifest UUID');
+        $scratch = $this->extractBacktickField($auditText, 'Scratch');
+        $log = $this->extractBacktickField($auditText, 'Log');
+        $testset = $this->extractBacktickField($auditText, 'Testset');
+        $patterns = $this->extractBacktickField($auditText, 'Patterns');
+        $exit = $this->extractIntegerBacktickField($auditText, 'Exit');
+        $elapsed = $this->extractIntegerBacktickField($auditText, 'Elapsed seconds');
+        $errors = $this->extractIntegerBacktickField($auditText, 'Parsed errors');
+        $tests = $this->extractIntegerBacktickField($auditText, 'Parsed tests');
+        $runnerTime = $this->extractBacktickField($auditText, 'Runner time');
+        $jobs = $this->extractIntegerBacktickField($auditText, 'Jobs');
+        $timeout = $this->extractIntegerBacktickField($auditText, 'Timeout seconds');
+
+        if (($errors === null || $tests === null) && preg_match('/Parsed summary:\s+`(\d+)\s+errors?\s+out\s+of\s+(\d+)\s+tests?/i', $auditText, $matches) === 1) {
+            $errors = (int) $matches[1];
+            $tests = (int) $matches[2];
+        }
+
+        $progress = $this->parseRunnerProgress($stdoutText);
+        $activeGate = $processSnapshot === '' ? $this->activeFullSuiteRunnerGate('') : $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $status = 'running-or-incomplete';
+        if (($activeGate['status'] ?? null) === 'blocked-active-runner' && $exit === null) {
+            $status = 'active-runner-in-progress';
+        } elseif ($exit === null && $tests === null && $errors === null) {
+            $status = 'blocked-before-run';
+        } elseif (($exit !== null && $exit !== 0) || ($errors ?? 0) > 0) {
+            $status = 'failed';
+        } elseif ($exit === 0 && $tests !== null && $errors === 0) {
+            $status = 'passed';
+        }
+
+        return [
+            'status' => $status,
+            'label' => $label,
+            'repository_head' => $repositoryHead,
+            'sqlite_commit' => $sqliteCommit,
+            'sqlite_version' => $sqliteVersion,
+            'sqlite_manifest_uuid' => $manifestUuid,
+            'scratch' => $scratch,
+            'log' => $log,
+            'requested' => [
+                'testset' => $testset,
+                'jobs' => $jobs,
+                'timeout_seconds' => $timeout,
+                'patterns' => $patterns === null || strtolower($patterns) === 'none'
+                    ? []
+                    : array_values(array_filter(preg_split('/\s+/', $patterns) ?: [], 'strlen')),
+            ],
+            'results' => [
+                'exit' => $exit,
+                'elapsed_seconds' => $elapsed,
+                'tests' => $tests,
+                'errors' => $errors,
+                'runner_time' => $runnerTime,
+            ],
+            'progress' => $progress,
+            'active_gate' => $activeGate,
+            'next_gate' => $status === 'passed'
+                ? 'integrator confirms the artifact checkout matches the accepted base, then records this bounded runner as accepted evidence'
+                : 'wait for the active bounded runner or rerun with a supervisor-approved timeout, then replace incomplete evidence with parsed pass/fail counts',
+            'dependency_closure' => 'no new support component needed; bounded runner artifact records parse guarded audit/stdout text only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();
@@ -1079,6 +1153,64 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return $missing;
+    }
+
+    private function extractMarkdownHeadingLabel(string $text): ?string
+    {
+        if (preg_match('/^#\s+SQLite Tcl Bounded Runner Evidence\s+-\s+([^\r\n]+)/m', $text, $matches) !== 1) {
+            return null;
+        }
+
+        return trim($matches[1]);
+    }
+
+    private function extractBacktickField(string $text, string $field): ?string
+    {
+        $quotedField = preg_quote($field, '/');
+        if (preg_match('/-\s+' . $quotedField . ':\s+`([^`]*)`/i', $text, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
+    }
+
+    private function extractIntegerBacktickField(string $text, string $field): ?int
+    {
+        $value = $this->extractBacktickField($text, $field);
+        if ($value === null || !preg_match('/^-?\d+$/', $value)) {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
+    /**
+     * @return array{completed: int|null, total: int|null, last_line: string|null}
+     */
+    private function parseRunnerProgress(string $stdoutText): array
+    {
+        $completed = null;
+        $total = null;
+        $lastLine = null;
+
+        foreach (preg_split('/\R/', $stdoutText) ?: [] as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                continue;
+            }
+
+            if (preg_match('/tcl\((\d+)\/(\d+)\)/', $trimmed, $matches) === 1) {
+                $completed = (int) $matches[1];
+                $total = (int) $matches[2];
+                $lastLine = $trimmed;
+            }
+        }
+
+        return [
+            'completed' => $completed,
+            'total' => $total,
+            'last_line' => $lastLine,
+        ];
     }
 
     /**
