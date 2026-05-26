@@ -1,5 +1,48 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Upstream Subset Matrix Planner
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds a bounded native evidence helper
+for repeatable SQLite upstream subset runs. `SQLiteUpstreamSuiteEvidence` now
+builds a focused subset matrix for named closure clusters, reporting exact
+`testfixture` commands, selected script counts, requested job count,
+`runnable` status, and an honest skip reason when the hydrated upstream cache,
+testfixture, or Tcl runner is absent. Script names are validated as SQLite
+`.test` names before command construction.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. The native matrix records the exact commands that would run when the
+accepted upstream cache is present:
+
+```sh
+cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick json101.test json102.test jsonb01.test
+cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick wal*.test pager*.test
+cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick delete2.test delete3.test btree01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+```
+
+Result: syntax checks passed; focused lane tests passed with the matrix
+planner, missing-cache skip reason, and unsafe script-name rejection covered.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local manifest reader and records upstream runner commands only;
+it counts no shared support-library progress.
+
 ## Focused Native Mapping: WAL Committed Transaction Boundaries
 
 Date: 2026-05-26

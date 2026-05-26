@@ -1,5 +1,48 @@
 # Integration Status
 
+## Accepted - libsqlite upstream focused subset matrix evidence - 2026-05-26 01:48 UTC
+
+Accepted isolated marker
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T013215Z.ready`.
+
+Commit: this acceptance entry is included in
+`Integrate libsqlite upstream focused subset matrix`.
+
+Selection and apply evidence:
+- Libsqlite priority override was applied; non-libsqlite and Dolt markers were
+  not considered for acceptance.
+- Dashboard guard was open before candidate processing: cache-busted live
+  `porting-summary.json` reported
+  `sourceCommit=6f16242f0bbd50c91e510f3cf096e78e8542ddd9`, matching current
+  `refs/heads/main`.
+- Marker fields were coherent for `lane=libsqlite`, `patch=...`, and
+  `metadata=...`; patch sha256 matched
+  `4b3282ab81cd0a27233fe18a7c181525ab325830ba1d1ebb32371c81e82e6c85`.
+- The full lane-scoped patch applied cleanly in a detached worktree from
+  current `main`.
+
+Verification:
+- Resource gates before focused checks were open: `/` had `86848660` KiB
+  available, load average first field was `2.60`, and no exact no-argument root
+  harness process was active.
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Focused lane test passed:
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  reported `1 test files, 35 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Resource gates before serialized root were open: `/` had `86741912` KiB
+  available, load average first field was `3.43`, and no exact no-argument root
+  harness process was active.
+- Serialized root verification passed under
+  `.tmux-team/tmp/clean-integrator-run.lock`:
+  `215 test files, 26812 assertions, 0 failures`.
+
+Decision: accepted. The accepted marker artifacts were removed after the commit
+was safely on `main`. Dashboard publication should run next after the source
+ref advances.
+
 ## Clean-patch intake accepted - libsqlite rollback journal diagnostics - 2026-05-26 01:21 UTC
 
 Accepted isolated marker

@@ -37,9 +37,39 @@ return [
             'jsonb01.test',
         ], $plan['scripts']);
         $t->same('cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick json101.test json102.test jsonb01.test', $plan['command']);
+        $t->same(3, $plan['script_count']);
+        $t->same(1, $plan['jobs']);
         $t->same(false, $plan['runnable']);
         $t->contains('upstream cache/testfixture not hydrated in this worktree', (string) $plan['skip_reason']);
         $t->contains('.upstream-cache/libsqlite-build-port-libsqlite/testfixture', (string) $plan['skip_reason']);
         $t->contains('.upstream-cache/libsqlite/test/testrunner.tcl', (string) $plan['skip_reason']);
+    },
+    'builds an honest focused upstream subset matrix for closure clusters' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $matrix = $evidence->focusedSubsetMatrix([
+            'json-table' => ['json101.test', 'json102.test', 'jsonb01.test'],
+            'wal-pager' => ['wal*.test', 'pager*.test'],
+            'btree-delete' => ['delete2.test', 'delete3.test', 'btree01.test'],
+        ], 2, dirname(__DIR__, 3));
+
+        $t->same(['json-table', 'wal-pager', 'btree-delete'], array_keys($matrix));
+        $t->same(3, $matrix['json-table']['script_count']);
+        $t->same(2, $matrix['wal-pager']['script_count']);
+        $t->same(3, $matrix['btree-delete']['script_count']);
+        $t->same(2, $matrix['json-table']['jobs']);
+        $t->same('cd .upstream-cache/libsqlite-build-port-libsqlite && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 2 --stop-on-error veryquick wal*.test pager*.test', $matrix['wal-pager']['command']);
+        $t->same(false, $matrix['json-table']['runnable']);
+        $t->same(false, $matrix['wal-pager']['runnable']);
+        $t->contains('upstream cache/testfixture not hydrated in this worktree', (string) $matrix['btree-delete']['skip_reason']);
+    },
+    'rejects unsafe focused upstream subset script names' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+
+        try {
+            $evidence->focusedSubsetPlan(['json101.test; rm -rf /'], dirname(__DIR__, 3));
+            $t->fail('Expected unsafe focused subset script name to be rejected');
+        } catch (InvalidArgumentException $exception) {
+            $t->contains('SQLite .test names', $exception->getMessage());
+        }
     },
 ];

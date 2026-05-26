@@ -101,6 +101,37 @@ final class SQLiteUpstreamSuiteEvidence
      */
     public function focusedSubsetPlan(array $scripts, ?string $repoRoot = null): array
     {
+        return $this->buildFocusedSubsetPlan($scripts, 1, $repoRoot);
+    }
+
+    /**
+     * @param array<string, list<string>> $groups
+     * @return array<string, array<string, mixed>>
+     */
+    public function focusedSubsetMatrix(array $groups, int $jobs = 1, ?string $repoRoot = null): array
+    {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('Focused upstream subset jobs must be at least 1');
+        }
+
+        $matrix = [];
+        foreach ($groups as $name => $scripts) {
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('Focused upstream subset group names must be non-empty strings');
+            }
+
+            $matrix[$name] = $this->buildFocusedSubsetPlan($scripts, $jobs, $repoRoot);
+        }
+
+        return $matrix;
+    }
+
+    /**
+     * @param list<string> $scripts
+     * @return array<string, mixed>
+     */
+    private function buildFocusedSubsetPlan(array $scripts, int $jobs, ?string $repoRoot): array
+    {
         $denominator = $this->manifest['benchmarkDenominator'] ?? [];
         $runner = is_array($denominator) && is_array($denominator['runnerStatus'] ?? null)
             ? $denominator['runnerStatus']
@@ -113,11 +144,18 @@ final class SQLiteUpstreamSuiteEvidence
         $absoluteBuildDirectory = $root . '/' . $buildDirectory;
         $testfixture = $absoluteBuildDirectory . '/testfixture';
         $testrunner = $root . '/.upstream-cache/libsqlite/test/testrunner.tcl';
+        $normalizedScripts = [];
+        foreach ($scripts as $script) {
+            if (!is_string($script) || !preg_match('/^[A-Za-z0-9_.*?-]+\.test$/', $script)) {
+                throw new \InvalidArgumentException('Focused upstream subset scripts must be SQLite .test names');
+            }
+            $normalizedScripts[] = $script;
+        }
 
         $command = 'cd ' . $buildDirectory
-            . ' && ./testfixture ../libsqlite/test/testrunner.tcl --jobs 1 --stop-on-error veryquick';
-        if ($scripts !== []) {
-            $command .= ' ' . implode(' ', $scripts);
+            . ' && ./testfixture ../libsqlite/test/testrunner.tcl --jobs ' . $jobs . ' --stop-on-error veryquick';
+        if ($normalizedScripts !== []) {
+            $command .= ' ' . implode(' ', $normalizedScripts);
         }
 
         $missing = [];
@@ -133,7 +171,9 @@ final class SQLiteUpstreamSuiteEvidence
 
         return [
             'command' => $command,
-            'scripts' => array_values($scripts),
+            'scripts' => $normalizedScripts,
+            'script_count' => count($normalizedScripts),
+            'jobs' => $jobs,
             'runnable' => $missing === [],
             'skip_reason' => $missing === [] ? null : 'upstream cache/testfixture not hydrated in this worktree: missing ' . implode(', ', $missing),
         ];
