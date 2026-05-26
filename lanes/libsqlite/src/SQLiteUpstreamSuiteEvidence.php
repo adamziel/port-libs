@@ -1015,6 +1015,8 @@ final class SQLiteUpstreamSuiteEvidence
             $status = 'active-runner-in-progress';
         } elseif ($exit === null && $tests === null && $errors === null) {
             $status = 'blocked-before-run';
+        } elseif ($exit === 124 && $failures === [] && ($tests === null || $errors === null)) {
+            $status = 'timed-out-incomplete';
         } elseif (($exit !== null && $exit !== 0) || ($errors ?? 0) > 0) {
             $status = 'failed';
         } elseif ($exit === 0 && $tests !== null && $errors === 0) {
@@ -1052,9 +1054,11 @@ final class SQLiteUpstreamSuiteEvidence
             'active_gate' => $activeGate,
             'next_gate' => $status === 'passed'
                 ? 'integrator confirms the artifact checkout matches the accepted base, then records this bounded runner as accepted evidence'
-                : ($failures === []
-                    ? 'wait for the active bounded runner or rerun with a supervisor-approved timeout, then replace incomplete evidence with parsed pass/fail counts'
-                    : 'record the failed upstream runner artifact with exact failed script diagnostics, then rerun only after the upstream/runtime blocker is resolved'),
+                : ($status === 'timed-out-incomplete'
+                    ? 'record timeout as incomplete broad-suite evidence with parsed progress only; rerun with supervisor-approved timeout before counting release/all parity'
+                    : ($failures === []
+                        ? 'wait for the active bounded runner or rerun with a supervisor-approved timeout, then replace incomplete evidence with parsed pass/fail counts'
+                        : 'record the failed upstream runner artifact with exact failed script diagnostics, then rerun only after the upstream/runtime blocker is resolved')),
             'dependency_closure' => 'no new support component needed; bounded runner artifact records parse guarded audit/stdout text only',
         ];
     }

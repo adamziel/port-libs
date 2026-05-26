@@ -1,5 +1,36 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Bounded Runner Timeout Artifact Classification
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice strengthens
+`SQLiteUpstreamSuiteEvidence::boundedRunnerArtifactRecord()` so guarded
+release/all artifacts that exit with timeout code 124 and no `FAILED:` script
+diagnostic are classified as `timed-out-incomplete`, not as failed SQLite
+suite parity. The record preserves partial `tcl(N/M)` progress counters,
+keeps `failure_blockers` empty, and leaves acceptance/countability blocked
+until a supervisor-approved rerun produces parsed zero-error release/all
+counts with accepted HEAD and SQLite manifest provenance.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice. The change only parses supplied bounded
+audit/log text.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This composes
+lane-local guarded-runner audit/log parsing, progress counters, and existing
+provenance/countability gates only.
+
 ## Focused Native Mapping: Core Date/Time Modifier Dispatch
 
 Date: 2026-05-26

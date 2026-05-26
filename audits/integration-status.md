@@ -115963,3 +115963,24 @@ Serialized root evidence: after disk/load/root-process gates passed (`98959928` 
 Artifact cleanup: accepted marker artifacts may be removed after commit publication. The worker handoff worktree still contains its expected lane-local modified files, so it is preserved rather than forcibly removed; cleanup debt remains to remove the inactive registered worktree only when it is confirmed safe and clean.
 
 Dashboard publication should run next for the new accepted source once the commit is on `main`.
+
+## Accepted libsqlite upstream-suite timeout classification - 2026-05-26T16:31:16Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T162536Z.ready`.
+
+Decision: accepted one current-base libsqlite marker from base `1c42866b067d21d71744a23a8094f10193a8da3f` after the live dashboard guard opened. Cache-busted live `porting-summary.json` reported matching `sourceCommit` `1c42866b067d21d71744a23a8094f10193a8da3f`; no Pages-outage override was used. The shared checkout apply check failed because unrelated dirty libsqlite files are present there, so the patch was applied and verified in detached clean worktree `.tmux-team/worktrees/clean-integrator-libsqlite-suite-20260526T162536Z`.
+
+Scope: bounded upstream-suite evidence handling that classifies guarded runner artifacts with `Exit: 124`, no parsed summary, and partial `tcl(N/M)` progress as `timed-out-incomplete`, preserving progress counters while blocking parity/countability until a supervisor-approved rerun produces countable evidence.
+
+Focused checks:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed: `1 test files, 556 assertions, 0 failures`.
+- JSON validation passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root evidence: after disk/load/root-process gates passed (`98015948` KiB available, load `1.24`, no exact no-argument root harness already running), `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php` passed from the clean candidate snapshot with `215 test files, 27884 assertions, 0 failures`.
+
+Artifact cleanup: accepted marker artifacts may be removed after commit publication. The worker handoff worktree still contains its expected lane-local modified files, so it is preserved rather than forcibly removed; cleanup debt remains to remove the inactive registered worktree only when it is confirmed safe and clean.
+
+Dashboard publication should run next for the new accepted source once the commit is on `main`.
