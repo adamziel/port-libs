@@ -1,5 +1,40 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Bounded Runner Acceptance Provenance Gate
+
+Date: 2026-05-26
+
+This isolated dependency-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::boundedRunnerAcceptanceGate()`. The helper takes a
+parsed bounded-runner artifact record and blocks it from counting as accepted
+lane evidence unless it has parsed zero-error pass evidence, the artifact
+repository HEAD matches the accepted integration HEAD supplied by the
+integrator, and the artifact SQLite manifest UUID matches the lane manifest
+upstream UUID.
+
+Focused upstream runner:
+
+No new broad upstream `testfixture`, `make test`, or `mptest` run was started
+from this isolated worktree. This slice only adds the provenance gate that must
+be applied after `boundedRunnerArtifactRecordFromFiles()` parses a guarded
+audit/log pair. Prior applicable runner evidence remains the complete SQLite
+`veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses
+lane-local manifest metadata and parsed bounded-runner artifact records only;
+it performs no upstream runner shell-out and counts no shared support-library
+progress.
+
 ## Focused Native Mapping: Hydrated Permutation Suite Source Map
 
 Date: 2026-05-26

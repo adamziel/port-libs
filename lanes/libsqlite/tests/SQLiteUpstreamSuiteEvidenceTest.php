@@ -845,4 +845,50 @@ MD);
         $t->contains('wait for the guarded bounded-runner audit/log artifacts', $record['next_gate']);
         $t->contains('no new support component needed', $record['dependency_closure']);
     },
+    'gates bounded runner artifacts on accepted checkout and SQLite manifest provenance' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $artifact = [
+            'status' => 'passed',
+            'repository_head' => '53fd0318c00e3e05f1f9fc9de7e9c67b3dc26fe2',
+            'sqlite_manifest_uuid' => '9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353',
+            'results' => [
+                'exit' => 0,
+                'tests' => 10785,
+                'errors' => 0,
+            ],
+        ];
+
+        $accepted = $evidence->boundedRunnerAcceptanceGate(
+            $artifact,
+            '53fd0318c00e3e05f1f9fc9de7e9c67b3dc26fe2'
+        );
+
+        $t->same('accepted-for-lane-evidence', $accepted['status']);
+        $t->same(0, $accepted['blocker_count']);
+        $t->same(10785, $accepted['tests']);
+        $t->same(0, $accepted['errors']);
+        $t->contains('record this bounded runner artifact', $accepted['next_gate']);
+        $t->contains('no new support component needed', $accepted['dependency_closure']);
+
+        $mismatched = $artifact;
+        $mismatched['repository_head'] = 'different-head';
+        $mismatched['sqlite_manifest_uuid'] = 'different-manifest';
+        $mismatched['status'] = 'running-or-incomplete';
+        $mismatched['results']['exit'] = null;
+        $mismatched['results']['tests'] = null;
+
+        $blocked = $evidence->boundedRunnerAcceptanceGate(
+            $mismatched,
+            '53fd0318c00e3e05f1f9fc9de7e9c67b3dc26fe2'
+        );
+
+        $t->same('blocked', $blocked['status']);
+        $t->same(3, $blocked['blocker_count']);
+        $t->same([
+            'artifact-not-passed',
+            'repository-head-mismatch',
+            'sqlite-manifest-uuid-mismatch',
+        ], array_column($blocked['blockers'], 'id'));
+        $t->contains('matching SQLite manifest', $blocked['next_gate']);
+    },
 ];

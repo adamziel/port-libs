@@ -1,5 +1,56 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite bounded runner acceptance gate - 2026-05-26 10:01 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T095426Z.ready`.
+
+Accepted commit: this integration commit
+(`Integrate libsqlite bounded runner acceptance gate`).
+
+Decision evidence:
+- Dashboard guard was open before intake. Cache-busted live
+  `porting-summary.json` reported
+  `sourceCommit=ef23c67153bbcc5e17120b09c2732c3e15c3d6c1`, matching the then
+  current `refs/heads/main`.
+- The marker was a lane-scoped libsqlite isolated handoff with all required
+  `lane=`, `patch=`, and `metadata=` fields. Its full patch was stale only in
+  manifest/status JSON after later accepted WAL work, so the bounded
+  source/test/notes hunks were applied cleanly on a detached current-`main`
+  worktree and the manifest/status text was merged narrowly onto the current
+  accepted libsqlite metadata.
+- The accepted slice adds
+  `SQLiteUpstreamSuiteEvidence::boundedRunnerAcceptanceGate()`, which blocks
+  bounded SQLite all/release runner artifacts unless they have parsed
+  zero-error pass evidence and match both the accepted repository HEAD and the
+  lane SQLite manifest UUID. It does not launch or count a new broad upstream
+  runner.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 369 assertions, 0 failures`.
+- Manifest/status JSON decode passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates before root were open: `/` free space above the `86000000` KiB
+  floor, load below `25`, and no existing no-argument root harness.
+- `php tools/run-tests.php` ran under
+  `.tmux-team/tmp/clean-integrator-run.lock` from the exact clean candidate
+  snapshot and passed with `215 test files, 27507 assertions, 0 failures`.
+
+Cleanup:
+- Removed the accepted ready marker, patch, metadata, isolated worker prompt,
+  isolated worker log, and inactive candidate/clean-integrator worktrees after
+  `main` was updated.
+- Remaining top-level ready-marker count after cleanup: `4855`; libsqlite
+  ready-marker count: `1587`.
+
+Dashboard publication should run next because live dashboard source now trails
+this accepted `refs/heads/main` integration commit.
+
 ## Accepted libsqlite WAL checkpoint-mode planning - 2026-05-26 09:52 UTC
 
 Accepted marker:

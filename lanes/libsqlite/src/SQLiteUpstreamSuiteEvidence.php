@@ -1002,6 +1002,67 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, mixed> $artifactRecord
+     * @return array<string, mixed>
+     */
+    public function boundedRunnerAcceptanceGate(array $artifactRecord, string $acceptedRepositoryHead): array
+    {
+        $expectedManifestUuid = $this->manifest['upstream']['officialManifestUuid'] ?? null;
+        $actualManifestUuid = is_string($artifactRecord['sqlite_manifest_uuid'] ?? null)
+            ? $artifactRecord['sqlite_manifest_uuid']
+            : null;
+        $actualHead = is_string($artifactRecord['repository_head'] ?? null)
+            ? $artifactRecord['repository_head']
+            : null;
+        $results = is_array($artifactRecord['results'] ?? null) ? $artifactRecord['results'] : [];
+        $tests = is_int($results['tests'] ?? null) ? $results['tests'] : null;
+        $errors = is_int($results['errors'] ?? null) ? $results['errors'] : null;
+        $exit = is_int($results['exit'] ?? null) ? $results['exit'] : null;
+
+        $blockers = [];
+        if (($artifactRecord['status'] ?? null) !== 'passed' || $exit !== 0 || $tests === null || $errors !== 0) {
+            $blockers[] = [
+                'id' => 'artifact-not-passed',
+                'evidence' => 'bounded runner artifact has not produced parsed zero-error pass evidence',
+            ];
+        }
+        if ($actualHead !== $acceptedRepositoryHead) {
+            $blockers[] = [
+                'id' => 'repository-head-mismatch',
+                'evidence' => 'artifact repository head does not match the accepted integration base',
+                'expected' => $acceptedRepositoryHead,
+                'actual' => $actualHead,
+            ];
+        }
+        if (!is_string($expectedManifestUuid) || $actualManifestUuid !== $expectedManifestUuid) {
+            $blockers[] = [
+                'id' => 'sqlite-manifest-uuid-mismatch',
+                'evidence' => 'artifact SQLite manifest UUID does not match the lane manifest upstream UUID',
+                'expected' => $expectedManifestUuid,
+                'actual' => $actualManifestUuid,
+            ];
+        }
+
+        return [
+            'status' => $blockers === [] ? 'accepted-for-lane-evidence' : 'blocked',
+            'artifact_status' => $artifactRecord['status'] ?? 'unknown',
+            'repository_head' => $actualHead,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'sqlite_manifest_uuid' => $actualManifestUuid,
+            'expected_sqlite_manifest_uuid' => $expectedManifestUuid,
+            'tests' => $tests,
+            'errors' => $errors,
+            'exit' => $exit,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => $blockers === []
+                ? 'record this bounded runner artifact as accepted upstream-suite evidence in manifest/status'
+                : 'rerun or reparse the bounded runner from the accepted checkout and matching SQLite manifest before counting it',
+            'dependency_closure' => 'no new support component needed; acceptance gate validates lane-local artifact provenance before dependency-suite evidence is counted',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
