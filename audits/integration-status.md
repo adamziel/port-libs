@@ -1,5 +1,53 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite JSON rework closure parity - 2026-05-26 04:54 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T045031Z.ready`.
+
+Current base at selection: `43e9963b79cff83664bf5fc9a4f3896683073f76`
+(`Integrate libsqlite JSON table pattern residuals`). The marker was a
+current-base isolated libsqlite handoff with patch SHA-256
+`f7f8b53063fd3e2c01bf17dd4598f79dd4107bf4091d142add0e67650a73a10a`.
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=43e9963b79cff83664bf5fc9a4f3896683073f76`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `6223d9c42d8910acd58e24c6f82b9415a075bea9`.
+
+Runtime gate evidence before focused checks/root:
+- `df -Pk /` reported `86089624` KiB available before focused checks and
+  `86087932` KiB available before root, both above the required `86000000`.
+- `/proc/loadavg` first field was `1.27` before focused checks and `1.28`
+  before root, below the required `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before root.
+
+Focused verification in detached clean worktree:
+- `php -l` passed for the relevant JSON source, test, and WordPress smoke
+  files.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+  `1 test files, 2469 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-pretty-option-review.php`
+  passed.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot:
+  `215 test files, 27054 assertions, 0 failures`.
+
+Decision: accepted. The slice documents that stale libsqlite JSON dispatch
+rework markers are superseded by accepted lane behavior and adds one focused
+JSON_PRETTY parity assertion for direct vs argument-vector dispatch on JSONB
+BLOB input with BLOB indentation. No new support-library component was
+activated.
+
+Dashboard publication should run next after this accepted source move.
+
 ## Clean-patch intake accepted - libsqlite JSON table LIKE/GLOB residuals - 2026-05-26 04:47 UTC
 
 Accepted isolated marker

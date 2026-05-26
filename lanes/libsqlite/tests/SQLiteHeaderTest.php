@@ -3536,6 +3536,10 @@ return [
         $t->same("{\n1\"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', ['{"a":1}', true]));
         $t->same("{\n2.5\"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', ['{"a":1}', 2.5]));
         $t->same("{\n3.0\"a\": 1\n}", SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', ['{"a":1}', 3.0]));
+        $t->same(
+            SQLiteJsonPretty::jsonPrettySqlFunction('JSON_PRETTY', new SQLiteBlobValue($jsonb), new SQLiteBlobValue('--')),
+            SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [new SQLiteBlobValue($jsonb), new SQLiteBlobValue('--')]),
+        );
         $t->same('42', SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [42]));
         $t->same('-7', SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [-7]));
         $t->same('3.5', SQLiteJsonPretty::jsonPrettySqlFunctionArguments('json_pretty', [3.5]));
