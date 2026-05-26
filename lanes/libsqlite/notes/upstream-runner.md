@@ -7751,3 +7751,37 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 table traversal, record decoding, WordPress option mapping, and PHP scalar
 comparison helpers without activating shared support-library work.
+
+## Focused Native Mapping: RTRIM Collation Option-Name Lookup
+
+This isolated encoding/collation micro-slice makes SQLite's built-in `RTRIM`
+collation boundary explicit for WordPress option recovery. `SQLiteDatabase`
+now routes the `RTRIM` text comparison through a named helper and focused
+coverage proves that an automatic `UNIQUE(option_name COLLATE RTRIM)` index can
+recover a stored `option_name` with trailing U+0020 spaces from an unpadded
+lookup key. The same slice checks exclusive versus inclusive range boundaries
+where the lower and upper keys compare equal after SQLite RTRIM collation
+normalization.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedWordPressRtrimCollationScripts: 1`. This reuses
+accepted static encoding/collation evidence over SQLite `collate*.test` and
+`index*.test`; this isolated worktree did not contain the hydrated upstream
+cache, so no fresh upstream `testfixture`, `make test`, or `mptest` run was
+started.
+
+Verification run 2026-05-26T06:48Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-rtrim-collation-option-lookup.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-rtrim-collation-option-lookup.php --self-test cache_token --inclusive
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+automatic index metadata parsing, SQLite scalar comparison, record decoding,
+and WordPress option traversal without activating shared support-library work.

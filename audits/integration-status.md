@@ -1,5 +1,48 @@
 # Integration Status
 
+## Accepted libsqlite RTRIM collation handoff - 2026-05-26 07:04 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260526T064848Z.ready`.
+
+Accepted from stale base `3dcd5c6fa54036d3380a1631adad33153959cada` after a
+bounded manifest/status merge onto current `main`
+`ffa23153e2eb784f1ea141c16d045bf6851acf47`.
+
+Candidate summary:
+- Lane: `libsqlite`.
+- Slice: `closure-libsqlite-encoding-collation-20260526T064848Z`.
+- Patch SHA-256 matched marker metadata:
+  `2a42177d6dc825195bfef24405683ba5c8ab480f265239bca8b4fb4998272d80`.
+- Source/test/example/notes hunks applied cleanly in a detached current-head
+  worktree; only `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` required a bounded stale metadata merge to
+  preserve the accepted full-suite readiness record.
+
+Verification:
+- Dashboard guard was open before candidate selection: cache-busted live
+  `porting-summary.json` reported `sourceCommit=ffa23153e2eb784f1ea141c16d045bf6851acf47`,
+  matching current `refs/heads/main`.
+- Runtime gates were open before focused checks and root verification:
+  disk stayed above `86000000` KiB free, load stayed below `25`, and no
+  no-argument root harness was active before the serialized run.
+- `php -l` passed for `lanes/libsqlite/src/SQLiteDatabase.php`,
+  `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+  `lanes/libsqlite/examples/wordpress-rtrim-collation-option-lookup.php`.
+- `php lanes/libsqlite/examples/wordpress-rtrim-collation-option-lookup.php --self-test cache_token --inclusive`
+  passed and returned the padded `cache_token  ` option plus the inclusive
+  range row.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+  `1 test files, 2571 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --cached --check -- lanes/libsqlite` passed.
+- Serialized no-argument root verification under
+  `.tmux-team/tmp/clean-integrator-run.lock` passed:
+  `215 test files, 27241 assertions, 0 failures`.
+
+Decision: accepted. Dashboard publication should run next for the accepted
+source commit.
+
 ## Accepted libsqlite full-suite readiness handoff - 2026-05-26 06:57 UTC
 
 Accepted marker:

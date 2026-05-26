@@ -10222,9 +10222,14 @@ final class SQLiteDatabase
         return match (strtoupper($collation)) {
             'BINARY' => strcmp($left, $right),
             'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
-            'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
+            'RTRIM' => strcmp(self::sqliteRtrimCollationKey($left), self::sqliteRtrimCollationKey($right)),
             default => throw new \InvalidArgumentException("Unsupported SQLite index collation: {$collation}"),
         };
+    }
+
+    private static function sqliteRtrimCollationKey(string $value): string
+    {
+        return rtrim($value, ' ');
     }
 
     public static function likeMatches(

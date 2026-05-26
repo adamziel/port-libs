@@ -6518,6 +6518,36 @@ SQL;
         $t->same('blogname', $option->optionName);
         $t->same('Ported SQLite', $option->optionValue);
     },
+    'uses sqlite rtrim collation for wordpress option_name lookup and range boundaries' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $indexCell, $indexLeafPage): void {
+        $page1 = $tableLeafPage([
+            $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer primary key, option_name text COLLATE RTRIM UNIQUE, option_value text, autoload text)'], 1),
+            $schemaCell(['index', 'sqlite_autoindex_wp_options_1', 'wp_options', 3, null], 2),
+        ], 512, 100, $makeFirstPage(512, 3));
+        $page2 = $tableLeafPage([
+            $schemaCell([null, 'cache_token  ', 'padded option key', 'no'], 1),
+            $schemaCell([null, 'cache_tokenized', 'not equal', 'no'], 2),
+            $schemaCell([null, 'siteurl', 'https://example.test', 'yes'], 3),
+        ]);
+        $page3 = $indexLeafPage([
+            $indexCell(['cache_token  ', 1]),
+            $indexCell(['cache_tokenized', 2]),
+            $indexCell(['siteurl', 3]),
+        ]);
+        $database = SQLiteDatabase::fromBytes($page1 . $page2 . $page3);
+
+        $option = $database->wordpressOptionByIndexedName('cache_token');
+        $exclusiveRange = $database->wordpressOptionsByIndexedNameRange('cache_token', 'cache_token');
+        $inclusiveRange = $database->wordpressOptionsByIndexedNameRange('cache_token', 'cache_token', null, true);
+
+        $t->true($option instanceof SQLiteWordPressOption);
+        $t->same(1, $option->optionId);
+        $t->same('cache_token  ', $option->optionName);
+        $t->same([], $exclusiveRange);
+        $t->same(['cache_token  '], array_map(
+            static fn (SQLiteWordPressOption $option): string => $option->optionName,
+            $inclusiveRange,
+        ));
+    },
     'uses sqlite automatic primary key index rows after earlier unique autoindexes' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableInteriorPage, $tableLeafPage, $indexCell, $indexLeafPage): void {
         $page1 = $tableLeafPage([
             $schemaCell(['table', 'wp_options', 'wp_options', 2, 'CREATE TABLE wp_options(option_id integer, option_name text, option_value text, autoload text UNIQUE, PRIMARY KEY(option_name))'], 1),
