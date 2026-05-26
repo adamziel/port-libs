@@ -28,6 +28,7 @@ foreach ($copiedOptions as [$name, $value, $autoload]) {
     $autoloadSummary[] = [$name, $autoload === 'yes'];
     $state->stepArray($value);
     $state->stepArrayDistinct($value);
+    $state->stepArrayOrderBy($value, $name);
     $state->stepObject($name, $autoload === 'yes');
 }
 
@@ -36,8 +37,12 @@ echo json_encode([
     'distinctOptionValueArray' => SQLiteJsonAggregate::jsonGroupArrayDistinct($optionValues),
     'optionValueArrayFromSteps' => $state->finalizeArray('JSON_GROUP_ARRAY'),
     'distinctOptionValueArrayFromSteps' => $state->finalizeDistinctArray('JSON_GROUP_ARRAY'),
+    'nameOrderedOptionValueArrayFromSteps' => $state->finalizeOrderedArray('JSON_GROUP_ARRAY'),
     'distinctOptionValueJsonbDecoded' => SQLiteJsonB::decode(
         $state->finalizeDistinctArray('JSONB_GROUP_ARRAY')->bytes,
+    ),
+    'nameOrderedOptionValueJsonbDecoded' => SQLiteJsonB::decode(
+        $state->finalizeOrderedArray('JSONB_GROUP_ARRAY')->bytes,
     ),
     'optionValueJsonbDecoded' => SQLiteJsonB::decode(
         $state->finalizeArray('JSONB_GROUP_ARRAY')->bytes,
@@ -48,5 +53,5 @@ echo json_encode([
         $state->finalizeObject('JSONB_GROUP_OBJECT')->bytes,
     ),
     'aggregateStepRows' => $state->summary(),
-    'wordpressUse' => 'Local-only wp_options import summary that mirrors SQLite json_group_array()/json_group_array(DISTINCT)/json_group_object() step/final results and uppercase JSONB/result dispatch for copied option values, JSON subtype fragments, JSONB blobs, booleans, and NULLs without requiring the SQLite extension.',
+    'wordpressUse' => 'Local-only wp_options import summary that mirrors SQLite json_group_array()/json_group_array(DISTINCT)/json_group_array(ORDER BY option_name)/json_group_object() step/final results and uppercase JSONB/result dispatch for copied option values, JSON subtype fragments, JSONB blobs, booleans, and NULLs without requiring the SQLite extension.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

@@ -2,6 +2,28 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Aggregate ORDER BY Option Summary Scenario
+
+Native JSON aggregate summaries now include a bounded
+`json_group_array(X ORDER BY option_name)` ordering helper for copied option
+values. The example `examples/wordpress-json-aggregate-option-summary.php`
+now streams copied `wp_options.option_value` rows with `option_name` order
+keys, reports ordered text aggregate output, and decodes the ordered JSONB
+result for review. This gives WordPress import tooling a local-only way to
+produce deterministic option summaries before migration without requiring the
+SQLite extension.
+
+Status delta 2026-05-26 isolated refill: added
+`SQLiteJsonAggregate::jsonGroupArrayOrderBy()`,
+`SQLiteJsonAggregateState::stepArrayOrderBy()`, and
+`SQLiteJsonAggregateState::finalizeOrderedArray()` with focused tests for
+NULL-low ascending ordering, stable equal-key ties, text and numeric order
+keys, SQL NULL values, JSON subtype fragments, JSONB BLOB values, empty
+aggregate finalization, invalid function names, malformed raw BLOB rejection,
+and JSONB output decoding. Dependency closure: no new support component is
+needed; the slice reuses existing lane-local JSON aggregate, constructor
+value coercion, JSON subtype, JSONB, BLOB, and SQL NULL support.
+
 ## JSON Aggregate Distinct Option Summary Scenario
 
 Native JSON aggregate summaries now include a bounded

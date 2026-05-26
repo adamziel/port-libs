@@ -1,5 +1,44 @@
 # Integration Status
 
+## Clean-patch accepted - libsqlite JSON aggregate ORDER BY - 2026-05-26 00:25 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T001530Z.ready`.
+
+Published commit: this integration commit
+(`Integrate libsqlite JSON aggregate ORDER BY`). The accepted patch was
+verified from a detached clean worktree at source `6fe117f3` and is scoped to
+`lanes/libsqlite/**` plus this integration-status entry. Patch sha256 matched
+the ready marker:
+`6461cdb6d90a2e631b99592f5884923643343d33b6a7a87ad8fd3341eef5844a`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l` passed for changed libsqlite source, test, and example files.
+- `php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php`
+  passed and reported `nameOrderedOptionValueArrayFromSteps`,
+  `nameOrderedOptionValueJsonbDecoded`, and `orderedArrayRows`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed:
+  `1 test files, 2260 assertions, 0 failures`.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`
+  passed.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=95694732` KiB and `load1=4.70`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26680 assertions, 0 failures`.
+
+Cleanup:
+- Removed the accepted ready marker, patch, metadata file, referenced worker
+  log, prompt file, inactive source worktree, and temporary verification
+  worktree after the commit was safely on `main`.
+- Remaining top-level ready-marker count after cleanup: `3510`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted libsqlite commit.
+
 ## Clean-patch accepted - libsqlite JSON aggregate DISTINCT - 2026-05-26 00:16 UTC
 
 Accepted one isolated marker:
