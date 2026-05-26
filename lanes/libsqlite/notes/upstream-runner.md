@@ -7445,3 +7445,36 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 index cell parsing, record decoding, B-tree page headers, freeblock parsing,
 and WordPress fixture helpers without activating shared support-library work.
+
+## Focused Native Mapping: JSON Table Residual IN Lists
+
+This bounded sql-exec/planner integration maps another SQLite JSON table
+residual predicate case: after hidden `json` and `root` constraints make a
+`json_each()` or `json_tree()` scan runnable, visible columns can be filtered
+with SQL `IN` and `NOT IN` predicates. The native helper validates that the RHS
+is a list, uses strict scalar membership for JSON table row values, treats SQL
+NULL as a non-match for `IN`, and suppresses `NOT IN` when the RHS list
+contains NULL.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedJsonTableResidualInListScripts: 1`. This reuses
+accepted static JSON table/window evidence over `json101.test`, `json102.test`,
+`json501.test`, `json107.test`, and `jsonb01.test`; this clean integration
+worktree did not contain the hydrated upstream cache, so no fresh upstream
+`testfixture` run was started.
+
+Verification run 2026-05-26T05:30Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+JSON table row assembly, hidden-column planning, JSONB wrappers, and scalar
+residual comparison semantics without activating shared support-library work.

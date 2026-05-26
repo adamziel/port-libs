@@ -3959,6 +3959,28 @@ return [
         $t->same(['name'], array_column($nameLikeRows, 'key'));
         $t->same(['cache'], array_column($nameLikeRows, 'atom'));
 
+        $nameInRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'key', 'operator' => 'IN', 'value' => ['name', 'enabled', null]],
+            ['column' => 'atom', 'operator' => 'IN', 'value' => ['cache', 'missing']],
+        ]);
+        $t->same(['name'], array_column($nameInRows, 'key'));
+        $t->same(['cache'], array_column($nameInRows, 'atom'));
+
+        $notInRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => 'NOT IN', 'value' => ['array', 'object']],
+        ]);
+        $t->same(['name', 'name'], array_column($notInRows, 'key'));
+        $t->same(['text', 'text'], array_column($notInRows, 'type'));
+        $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => 'NOT IN', 'value' => ['array', null]],
+        ]));
+
         $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.enabled'],
@@ -3983,6 +4005,10 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'type', 'operator' => 'REGEXP', 'value' => 'object'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'key', 'operator' => 'IN', 'value' => 'name'],
         ]));
 
         $missingJson = SQLiteJsonTablePlan::plan('json_tree', [

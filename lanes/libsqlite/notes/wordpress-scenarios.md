@@ -2322,3 +2322,23 @@ delete, and auto-vacuum pointer-map cleanup remain separate follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 index cell parsing, record decoding, B-tree page headers, freeblock parsing,
 and WordPress fixture helpers.
+
+## JSON Option Settings IN-List Filtering
+
+Native `wp_options` JSON setting diagnostics now include residual `IN` and
+`NOT IN` predicates for JSON table rows after hidden `json` and `root`
+planning. The `examples/wordpress-json-each-option-settings.php` smoke reports
+`filteredRuleInRows` for strict JSON, JSON5 text, and JSONB inputs, so local
+plugin-setting import tools can explain bounded `WHERE key IN (...)` or
+`WHERE value IN (...)` filters without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated sql-exec/planner slice: updated
+`SQLiteJsonTablePlan::filteredRows()` to execute residual `IN` and `NOT IN`
+comparisons with SQLite NULL behavior, added focused JSON table assertions, and
+extended the WordPress option-settings smoke output. Full virtual-table cursor
+lifecycle, join-order costing, and full SQL WHERE execution remain separate
+follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+JSON table row assembly, hidden-column planning, JSONB wrappers, and scalar
+residual comparison semantics.

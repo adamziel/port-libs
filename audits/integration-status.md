@@ -1,5 +1,52 @@
 # Integration Status
 
+## Accepted libsqlite JSON table IN-list residuals - 2026-05-26 05:35 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T052520Z.ready`.
+
+Current `refs/heads/main` before acceptance:
+`02a35870c52730a2a3ea58518f32f2889f9b7d58` (`Integrate libsqlite release tier matrix`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=02a35870c52730a2a3ea58518f32f2889f9b7d58`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `c5fe68cb1feaa49f078b4bf39e19766baf3246a0`, generated
+  `2026-05-26 05:29:00 UTC`.
+
+Runtime gate evidence:
+- Before focused checks, `df -Pk /` reported `86598684` KiB available, load
+  was `1.48`, and no no-argument root harness was active.
+- Before serialized root verification, `df -Pk /` reported `86595968` KiB
+  available, load was `1.59`, and no no-argument root harness was active.
+
+Verification evidence:
+- The behavior files applied cleanly to a detached current-main worktree; the
+  stale manifest/status/notes changes were bounded-merged to preserve newer
+  release-tier matrix evidence.
+- `php -l` passed for `lanes/libsqlite/src/SQLiteJsonTablePlan.php`,
+  `lanes/libsqlite/tests/SQLiteHeaderTest.php`, and
+  `lanes/libsqlite/examples/wordpress-json-each-option-settings.php`.
+- Focused
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2490 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php`
+  passed and reported `filteredRuleInRows` for strict JSON, JSON5, and JSONB
+  option-setting inputs.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized root `php tools/run-tests.php` passed under
+  `.tmux-team/tmp/clean-integrator-run.lock` with `215 test files, 27111
+  assertions, 0 failures`.
+
+Decision: accepted. Commit: pending at entry creation.
+
+Dashboard publication should run next because accepted source will move beyond
+the currently live dashboard source.
+
 ## Accepted libsqlite release tier matrix slice - 2026-05-26 05:34 UTC
 
 Accepted marker:

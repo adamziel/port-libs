@@ -44,6 +44,11 @@ foreach ($inputs as $name => $value) {
         ['column' => 'fullkey', 'operator' => 'LIKE', 'value' => '$.plugin.rules[%]'],
         ['column' => 'value', 'operator' => 'GLOB', 'value' => '*cache*'],
     ];
+    $ruleInConstraints = [
+        ['column' => 'json', 'operator' => '=', 'value' => $value],
+        ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+        ['column' => 'key', 'operator' => 'IN', 'value' => [0, 1]],
+    ];
     $reports[] = [
         'name' => $name,
         'rootRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $value)),
@@ -52,9 +57,11 @@ foreach ($inputs as $name => $value) {
         'plannedRulesRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::rows('JSON_EACH', $plannerConstraints)),
         'filteredObjectRuleRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $objectRuleConstraints)),
         'filteredCachePatternRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $namePatternConstraints)),
+        'filteredRuleInRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::filteredRows('JSON_EACH', $ruleInConstraints)),
         'planner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $plannerConstraints)),
         'filteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $objectRuleConstraints)),
         'patternFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $namePatternConstraints)),
+        'inFilteredPlanner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $ruleInConstraints)),
         'dispatch' => [
             'sqlFunction' => 'JSON_EACH',
             'caseInsensitive' => true,
@@ -65,7 +72,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, and visible type plus LIKE/GLOB residual filtering for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows, hidden json/root constraint planning, and visible type, LIKE/GLOB, and IN-list residual filtering for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**

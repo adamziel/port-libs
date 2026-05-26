@@ -155,8 +155,40 @@ final class SQLiteJsonTablePlan
             'IS NOT' => !self::valuesAreNotDistinct($actual, $expected),
             'LIKE' => self::compareResidualLike($actual, $expected),
             'GLOB' => self::compareResidualGlob($actual, $expected),
+            'IN' => self::compareResidualIn($actual, $expected),
+            'NOT IN' => self::compareResidualNotIn($actual, $expected),
             default => throw new \InvalidArgumentException("SQLite JSON table residual operator {$operator} is not supported"),
         };
+    }
+
+    private static function compareResidualIn(mixed $actual, mixed $expected): bool
+    {
+        if (!is_array($expected)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator IN expects a list value');
+        }
+        if ($actual === null) {
+            return false;
+        }
+
+        foreach ($expected as $value) {
+            if ($value !== null && $actual === $value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function compareResidualNotIn(mixed $actual, mixed $expected): bool
+    {
+        if (!is_array($expected)) {
+            throw new \InvalidArgumentException('SQLite JSON table residual operator NOT IN expects a list value');
+        }
+        if ($actual === null || in_array(null, $expected, true)) {
+            return false;
+        }
+
+        return !self::compareResidualIn($actual, $expected);
     }
 
     private static function compareResidualLike(mixed $actual, mixed $expected): bool
