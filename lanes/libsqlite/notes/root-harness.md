@@ -1380,3 +1380,30 @@ smoke reports obsolete table/index overflow chains by walking actual next-page
 pointers before deletion release planning. Manifest/status JSON decoded
 successfully; lane diff check passed. The root harness was not run because this
 was an isolated micro-slice.
+
+## Dependency-suite Busy-handler Open Preflight Slice
+
+Focused lane verification for the dependency-suite busy-handler slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBusyHandler.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-busy-open-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-busy-open-preflight.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 3420 assertions, and 0 failures, adding 57 focused assertions
+over the prior accepted focused count of 3363. The WordPress smoke reported a
+copied database URI, busy-timeout retry sleeps, busy-timeout status, and
+callback-cancelled checkpoint status. Manifest/status JSON decoded
+successfully; lane diff check passed. The root harness was not run because this
+was an isolated micro-slice.
+
+Dependency closure: no new shared support component is needed; this is a
+lane-local busy/open dependency helper that reuses the existing file URI
+preflight surface and does not activate a shared VFS, URL, or sleep/timer
+support row.

@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteAutoincrementState;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBlobValue;
+use PortLibs\LibSqlite\SQLiteBusyHandler;
 use PortLibs\LibSqlite\SQLiteCreateIndex;
 use PortLibs\LibSqlite\SQLiteCreateTable;
 use PortLibs\LibSqlite\SQLiteConnectionCounters;
@@ -12722,6 +12723,65 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file:wp.db?immutable=true'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file:wp%ZZ.db'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteFileUri::parse('file:wp.db?=empty'));
+    },
+    'plans sqlite busy timeout and cancellation retries for open blockers' => static function (TestRunner $t): void {
+        $timeout = SQLiteBusyHandler::timeout(35);
+        $plan = $timeout->plan();
+
+        $t->same(35, $plan['timeout_ms']);
+        $t->same(true, $plan['will_retry']);
+        $t->same(true, $plan['will_timeout']);
+        $t->same(35, $plan['total_sleep_ms']);
+        $t->same(6, $plan['retry_count']);
+        $t->same([1, 2, 4, 8, 16, 4], array_column($plan['attempts'], 'sleep_ms'));
+        $t->same([0, 1, 3, 7, 15, 31], array_column($plan['attempts'], 'prior_elapsed_ms'));
+        $t->same([1, 3, 7, 15, 31, 35], array_column($plan['attempts'], 'elapsed_after_sleep_ms'));
+
+        $zero = SQLiteBusyHandler::timeout(0)->plan();
+        $t->same(false, $zero['will_retry']);
+        $t->same(false, $zero['will_timeout']);
+        $t->same(0, $zero['retry_count']);
+        $t->same([], $zero['attempts']);
+
+        $custom = SQLiteBusyHandler::withDelays(12, [5, 5, 5]);
+        $customPlan = $custom->plan();
+        $t->same([5, 5, 2], array_column($customPlan['attempts'], 'sleep_ms'));
+        $t->same(12, $customPlan['total_sleep_ms']);
+        $t->same(true, $customPlan['will_timeout']);
+
+        $callbacks = [];
+        $cancelled = $custom->plan(static function (int $attempt, int $elapsed, int $sleep) use (&$callbacks): bool {
+            $callbacks[] = [$attempt, $elapsed, $sleep];
+
+            return $attempt < 1;
+        });
+        $t->same([[0, 0, 5], [1, 5, 5]], $callbacks);
+        $t->same(false, $cancelled['will_timeout']);
+        $t->same(5, $cancelled['total_sleep_ms']);
+        $t->same(1, $cancelled['retry_count']);
+        $t->same([true, false], array_column($cancelled['attempts'], 'continue'));
+
+        $ready = $timeout->lockedOperationPlan('open wp_options copy', true);
+        $t->same('ready', $ready['status']);
+        $t->same(false, $ready['busy']);
+        $t->same(0, $ready['total_sleep_ms']);
+        $t->same([], $ready['attempts']);
+
+        $blocked = $custom->lockedOperationPlan('open wp_options copy', false);
+        $t->same('busy-timeout', $blocked['status']);
+        $t->same(true, $blocked['busy']);
+        $t->same('open wp_options copy', $blocked['operation']);
+        $t->same(12, $blocked['total_sleep_ms']);
+        $t->same(3, $blocked['retry_count']);
+
+        $cancelledOperation = $custom->lockedOperationPlan('checkpoint wp_options wal', false, static fn (int $attempt): bool => $attempt === 0);
+        $t->same('busy-cancelled', $cancelledOperation['status']);
+        $t->same(5, $cancelledOperation['total_sleep_ms']);
+        $t->same(1, $cancelledOperation['retry_count']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBusyHandler::timeout(-1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBusyHandler::withDelays(10, [1, -1]));
+        $t->throws(InvalidArgumentException::class, static fn () => $timeout->lockedOperationPlan('', false));
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];

@@ -117112,3 +117112,36 @@ Decision: accepted after focused checks, WordPress smoke, `git diff --check`, an
 Cleanup:
 - Accepted ready/patch/metadata handoff artifacts were removed after commit publication.
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T202319Z` still contains modified copies of the accepted lane files, so it was preserved as cleanup debt rather than removed.
+
+## Integration accepted - libsqlite busy open preflight - 2026-05-26T20:44:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T203539Z.ready`
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `469a2eedd9e796476d85f8b012fbcdbab2d8dbe3` (`Integrate libsqlite JSON table projection`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `469a2eedd9e796476d85f8b012fbcdbab2d8dbe3`, `generated` `2026-05-26 20:36:10 UTC`, and `dashboardCommit` `929049eb314308e70863445413702f25f2575cd6`.
+
+Candidate decision:
+- Selected the current-base dependency/open blocker marker from the bounded recent sample because it adds lane-local native `SQLiteBusyHandler` behavior, a WordPress busy-open preflight smoke, a concrete open/VFS/busy blocker path, and the strongest sampled behavior assertion delta.
+- Scope: busy timeout retry plans, custom retry delays, callback cancellation, locked-operation status classification, and WordPress copied-database open/checkpoint diagnostics.
+
+Focused verification in detached candidate `.tmux-team/tmp/clean-integrator-candidate-busy-20260526T204211` with repo-local `TMPDIR=.tmp-root`:
+- Runtime gates before focused checks: `df -Pk /` reported `90104824` KiB available; `/proc/loadavg` one-minute load was `2.31`; no exact no-argument root process was running.
+- `php -l` passed for `SQLiteBusyHandler.php`, `SQLiteHeaderTest.php`, and `wordpress-busy-open-preflight.php`.
+- Manifest/status JSON decode passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3420 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-busy-open-preflight.php` passed and emitted busy-timeout plus callback-cancelled checkpoint diagnostics.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Runtime gates before root: `df -Pk /` reported `90100412` KiB available; `/proc/loadavg` one-minute load was `2.18`; no exact `php tools/run-tests.php` no-argument root process was already running.
+- Serialized no-argument root run under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=.tmp-root` passed: `215 test files, 28554 assertions, 0 failures`.
+- Root assertion delta versus current accepted source `469a2eed` evidence (`28519`) is `+35`.
+
+Decision: accepted after focused checks, WordPress smoke, `git diff --check`, and serialized root verification. Dashboard publication should run next after commit because this pass moves source beyond the currently live `469a2eed` dashboard.
+
+Cleanup:
+- Accepted ready/patch/metadata handoff artifacts were removed after commit publication.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T203539Z` still contains modified/added copies of the accepted lane files, so it was preserved as cleanup debt rather than removed.

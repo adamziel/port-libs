@@ -3374,3 +3374,22 @@ bounded result-semantics helper, not a full SELECT/VDBE executor.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local numeric/text aggregate helpers, SQLiteBlobValue wrappers, and
 SQL-style comparison/group-key semantics.
+
+## Busy Open Preflight Scenario
+
+Native dependency helpers now include bounded SQLite busy-handler planning for
+copied WordPress database open and WAL checkpoint preflights. The
+`examples/wordpress-busy-open-preflight.php` smoke reports decoded file URI
+metadata plus busy-timeout retry sleeps, timeout status, and callback-cancelled
+checkpoint status without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated dependency-suite busy-handler slice: added 57
+focused assertions for default busy_timeout scheduling, custom retry delays,
+zero-timeout behavior, callback cancellation, ready-lock bypass, busy timeout
+classification, strict invalid timeout/delay/operation errors, and copied
+wp_options open/checkpoint diagnostics.
+
+Dependency closure: no new shared support component is needed; this is a
+lane-local busy/open dependency helper that reuses the existing file URI
+preflight surface and does not activate a shared VFS, URL, or sleep/timer
+support row.
