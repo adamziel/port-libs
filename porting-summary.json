@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-26 05:14:33 UTC",
-    "sourceCommit": "9aad62825d04f048b46ee873c77fba27bbd3bfc7",
-    "sourceCommitShort": "9aad62825d04",
+    "generated": "2026-05-26 05:22:52 UTC",
+    "sourceCommit": "1095d2a7ea20abbd721050e8aed0cdc45122be15",
+    "sourceCommitShort": "1095d2a7ea20",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "94703371f475124782170285dd7649fea60ebe18",
-    "dashboardCommitShort": "94703371f475",
+    "dashboardCommit": "7db0dd73011957ae56da8b5ce4d2517e6c5b2a9d",
+    "dashboardCommitShort": "7db0dd730119",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -86,8 +86,8 @@
             "php": "302 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated planner/WAL/B-tree closure slice...",
-            "currentWork": "Latest isolated closure slice preserves accepted JSON/WAL/planner/B-tree evidence and add...",
+            "audit": "isolated btree-delete/rebalance slice 202...",
+            "currentWork": "Latest isolated btree-delete/rebalance slice preserves accepted JSON/WAL/planner/B-tree a...",
             "nextTarget": "After integrator acceptance, hydrate .upstream-cache/libsqlite plus .upstream-cache/libsq...",
             "blocker": "Full SQLite all/release runner parity remains pending; this isolated work...",
             "commit": "pending"
