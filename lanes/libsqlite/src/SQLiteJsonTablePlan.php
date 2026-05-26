@@ -18,6 +18,7 @@ final class SQLiteJsonTablePlan
         $json = null;
         $root = '$';
         $hasJson = false;
+        $hasRoot = false;
         $used = [];
         $residual = [];
 
@@ -38,7 +39,7 @@ final class SQLiteJsonTablePlan
                 continue;
             }
 
-            if ($column === 'root') {
+            if ($column === 'root' && !$hasRoot) {
                 if (!is_string($constraint['value'])) {
                     throw new \InvalidArgumentException('SQLite JSON table root constraint must be text');
                 }
@@ -46,6 +47,7 @@ final class SQLiteJsonTablePlan
                     throw new \InvalidArgumentException('SQLite JSON table root constraint is not a well-formed path');
                 }
                 $root = $constraint['value'];
+                $hasRoot = true;
                 $used[] = $constraint + ['argvIndex' => 2, 'omit' => true];
                 continue;
             }

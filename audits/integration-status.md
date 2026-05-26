@@ -117598,3 +117598,43 @@ Decision:
 - Published commit: this audit entry is included in `Integrate libsqlite B-tree rebalance summaries`.
 - Accepted ready marker, patch, and metadata files will be removed after ref publication.
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260526T223103Z` still contains the accepted lane diff as dirty state, so it will be preserved and left registered rather than removed.
+
+## Integration accepted - libsqlite JSON table duplicate hidden constraints - 2026-05-26T22:50:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T223951Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `dc585044b8518ccf56a48d36830c7e6e8afd53b6` (`Integrate libsqlite B-tree rebalance summaries`).
+- Cache-busted live Pages JSON reported exact matching `sourceCommit` `dc585044b8518ccf56a48d36830c7e6e8afd53b6`, generated `2026-05-26 22:43:17 UTC`, dashboard commit `99bbe71480925503d371888f949b3cf8d6f23cb1`.
+- Dashboard guard was open; no Pages-outage exception was used.
+
+Runtime gate evidence:
+- `df -Pk /` reported `147689316` KiB available before focused verification, above the `86000000` KiB floor.
+- `/proc/loadavg` reported `2.21`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before focused verification.
+
+Candidate evidence:
+- Marker base was `6cae41dd885adc380e49cc5df2afa3092241011f`, one accepted source behind current `main`.
+- Direct full apply failed only on moved `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` counters. The implementation, test, example, and notes hunks applied cleanly to a detached current-`main` candidate when stale manifest/status hunks were excluded.
+- The newer B-tree marker from the bounded sample conflicted in implementation with accepted B-tree work, so this non-overlapping JSON planner marker was selected over SQL residual WHERE (`+41` assertions), encoding negated pattern scans (`+41` assertions), and upstream-runner source audit evidence.
+- The reconciled candidate keeps libsqlite `phpPass` at `729` and increments mapped coverage from `393 / 1589` to `394 / 1589`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`, `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `php -l lanes/libsqlite/examples/wordpress-json-table-duplicate-hidden-constraints.php` passed.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` decoded with `JSON_THROW_ON_ERROR`.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3961 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-table-duplicate-hidden-constraints.php` passed and emitted valid JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- Serialized no-argument `php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR` set to the candidate-local `.tmp-root` directory.
+- Root passed with `215 test files, 29095 assertions, 0 failures`.
+
+Decision:
+- Accepted for commit as a small source-moving libsqlite behavior/test-growth slice.
+- Dashboard publication should run next after the commit lands on `main`.
+- Published commit: this audit entry is included in `Integrate libsqlite JSON table duplicate constraints`.
+- Accepted ready marker, patch, and metadata files will be removed after ref publication.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T223951Z` still contains the accepted lane diff as dirty state, so it will be preserved and left registered rather than removed.

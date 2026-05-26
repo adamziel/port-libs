@@ -5468,6 +5468,117 @@ return [
         $t->same([$settings, '$'], $unusableRoot['arguments']);
         $t->same(['root'], array_column($unusableRoot['residual'], 'column'));
 
+        $duplicateRootPlan = SQLiteJsonTablePlan::plan('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'array'],
+        ]);
+        $t->same('json_tree', $duplicateRootPlan['function']);
+        $t->same(true, $duplicateRootPlan['runnable']);
+        $t->same([$settings, '$.plugin'], $duplicateRootPlan['arguments']);
+        $t->same(['json', 'root'], array_column($duplicateRootPlan['used'], 'column'));
+        $t->same([1, 2], array_column($duplicateRootPlan['used'], 'argvIndex'));
+        $t->same(['root', 'type'], array_column($duplicateRootPlan['residual'], 'column'));
+        $t->same(['=', '='], array_column($duplicateRootPlan['residual'], 'operator'));
+        $t->same(['$.plugin.rules', 'array'], array_column($duplicateRootPlan['residual'], 'value'));
+        $t->same(20, $duplicateRootPlan['estimatedCost']);
+        $t->same(10, $duplicateRootPlan['estimatedRows']);
+        $t->same([], SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'array'],
+        ]));
+
+        $matchingDuplicateRootRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+        ]);
+        $t->same([0, 1], array_column($matchingDuplicateRootRows, 'key'));
+        $t->same(['object', 'object'], array_column($matchingDuplicateRootRows, 'type'));
+        $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($matchingDuplicateRootRows, 'root'));
+        $t->same(['$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($matchingDuplicateRootRows, 'fullkey'));
+
+        $duplicateRootProjectedRows = SQLiteJsonTablePlan::projectedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+        ], ['rowid', 'key', 'atom', 'root']);
+        $t->same(['rowid', 'key', 'atom', 'root'], array_keys($duplicateRootProjectedRows[0]));
+        $t->same([2, 4], array_column($duplicateRootProjectedRows, 'rowid'));
+        $t->same(['name', 'name'], array_column($duplicateRootProjectedRows, 'key'));
+        $t->same(['seo', 'cache'], array_column($duplicateRootProjectedRows, 'atom'));
+        $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($duplicateRootProjectedRows, 'root'));
+
+        $duplicateJsonPlan = SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'json', 'operator' => '=', 'value' => '{"plugin":{"enabled":false}}'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]);
+        $t->same([$settings, '$.plugin'], $duplicateJsonPlan['arguments']);
+        $t->same(['json', 'root'], array_column($duplicateJsonPlan['used'], 'column'));
+        $t->same(['json'], array_column($duplicateJsonPlan['residual'], 'column'));
+        $t->same(['{"plugin":{"enabled":false}}'], array_column($duplicateJsonPlan['residual'], 'value'));
+        $t->same([], SQLiteJsonTablePlan::filteredRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'json', 'operator' => '=', 'value' => '{"plugin":{"enabled":false}}'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]));
+
+        $matchingDuplicateJsonRows = SQLiteJsonTablePlan::filteredRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]);
+        $t->same(['enabled', 'rules'], array_column($matchingDuplicateJsonRows, 'key'));
+        $t->same(['true', 'array'], array_column($matchingDuplicateJsonRows, 'type'));
+        $t->same(['$.plugin', '$.plugin'], array_column($matchingDuplicateJsonRows, 'root'));
+
+        $orderedDuplicateRootRows = SQLiteJsonTablePlan::orderedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+        ], [
+            ['column' => 'atom', 'direction' => 'ASC'],
+        ]);
+        $t->same(['cache', 'seo'], array_column($orderedDuplicateRootRows, 'atom'));
+        $t->same(['name', 'name'], array_column($orderedDuplicateRootRows, 'key'));
+        $t->same([4, 2], array_column($orderedDuplicateRootRows, 'id'));
+        $t->same(['$.plugin.rules[1].name', '$.plugin.rules[0].name'], array_column($orderedDuplicateRootRows, 'fullkey'));
+
+        $conflictingDuplicateJsonPlan = SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'json', 'operator' => 'IS', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]);
+        $t->same([$settings, '$.plugin'], $conflictingDuplicateJsonPlan['arguments']);
+        $t->same(['json', 'root'], array_column($conflictingDuplicateJsonPlan['used'], 'column'));
+        $t->same(['json'], array_column($conflictingDuplicateJsonPlan['residual'], 'column'));
+        $t->same(['IS'], array_column($conflictingDuplicateJsonPlan['residual'], 'operator'));
+        $t->same([$settings], array_column($conflictingDuplicateJsonPlan['residual'], 'value'));
+
+        $usableAfterUnusableHiddenPlan = SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => '{"plugin":{"enabled":false}}', 'usable' => false],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.missing', 'usable' => false],
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]);
+        $t->same([$settings, '$.plugin'], $usableAfterUnusableHiddenPlan['arguments']);
+        $t->same(['json', 'root'], array_column($usableAfterUnusableHiddenPlan['used'], 'column'));
+        $t->same(['json', 'root'], array_column($usableAfterUnusableHiddenPlan['residual'], 'column'));
+        $t->same(['{"plugin":{"enabled":false}}', '$.plugin.missing'], array_column($usableAfterUnusableHiddenPlan['residual'], 'value'));
+        $t->same([], SQLiteJsonTablePlan::filteredRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => '{"plugin":{"enabled":false}}', 'usable' => false],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.missing', 'usable' => false],
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]));
+
         $t->same([], SQLiteJsonTablePlan::rows('json_each', [
             ['column' => 'json', 'operator' => '=', 'value' => null],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],

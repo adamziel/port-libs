@@ -76,3 +76,35 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses the
 lane-local SQL NULL propagation path plus existing BLOB and JSON subtype wrapper
 coercion for the optional indentation argument.
+
+## 2026-05-26 JSON Table Duplicate Hidden Constraints
+
+This isolated JSON table/window slice adds planner behavior for repeated hidden
+`json` and `root` constraints on `json_each`/`json_tree`: only the first usable
+hidden equality is consumed as the virtual-table argument vector, while later
+duplicate hidden constraints remain residual filters. That keeps composed
+WordPress query-builder predicates from silently retargeting expansion when a
+second hidden `root` or `json` predicate conflicts with the selected argv.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 3918 assertions,
+up from the lane-status recorded 3876 baseline (`+42`). The new assertions cover
+duplicate `root` plan shape, conflicting residual suppression, matching
+duplicate roots, projection/order after residual filtering, duplicate `json`
+residuals, and unusable hidden predicates before later usable hidden argv
+selection.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-table-duplicate-hidden-constraints.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-table-duplicate-hidden-constraints.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses existing
+lane-local JSON table planning, JSON path validation, JSONB/BLOB wrappers, and
+residual predicate evaluation.
