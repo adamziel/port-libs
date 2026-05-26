@@ -7050,3 +7050,38 @@ git diff --check -- lanes/libsqlite
 ```
 
 Dependency closure: no new support component is needed. This reuses lane-local JSON table helpers, JSON path validation, and JSONB wrappers without shelling out or activating shared support-library work.
+
+## Focused Native Mapping: Interior Right-Most Pointer Rebalance Diagnostics
+
+This isolated btree-delete/rebalance micro-slice maps a bounded SQLite B-tree
+delete/rebalance diagnostic boundary: when a replacement deletes an old
+composite-index entry, underfills a leaf, merges that leaf with a sibling,
+then merges adjacent non-root index parents under a multi-child root, the
+surviving interior parent may keep the same page number while its right-most
+pointer changes. `SQLiteDatabase::btreeRebalanceActionsForPageImages()` now
+reports that pointer repair explicitly as
+`index-interior-rightmost-pointer-update`.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped
+count increases by 1 with `focusedWordPressInteriorRightmostPointerRebalanceScripts: 1`.
+This reuses accepted upstream delete/rebalance evidence over `update.test`,
+`index.test`, `btree01.test`, `delete2.test`, `delete3.test`, and
+`delete4.test`; this isolated worktree did not contain the hydrated upstream
+cache, so no fresh upstream `testfixture` run was started.
+
+Verification run 2026-05-26T03:38Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteDatabase.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+B-tree page headers, index replacement planning, page image overlays, freelist
+mutation, and WordPress fixtures without shelling out or activating shared
+support-library work.

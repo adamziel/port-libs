@@ -8710,6 +8710,13 @@ SQL;
                 'delta_cells' => -1,
             ],
             [
+                'action' => 'index-interior-rightmost-pointer-update',
+                'page' => 4,
+                'page_type' => 'index-interior',
+                'before_rightmost_pointer' => 7,
+                'after_rightmost_pointer' => 10,
+            ],
+            [
                 'action' => 'index-interior-divider-insert',
                 'page' => 4,
                 'page_type' => 'index-interior',

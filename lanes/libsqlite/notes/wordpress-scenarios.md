@@ -2159,3 +2159,27 @@ The `wordpress-json-each-option-settings.php` smoke now reports `plannedRulesRow
 Status delta 2026-05-26 isolated json-table/window slice: added `SQLiteJsonTablePlan`, focused native assertions for usable/unusable hidden constraints, SQL NULL empty-row execution, residual predicates, invalid function/json/root constraints, and a WordPress smoke update. Full virtual-table cursor lifecycle, join-order costing, visible-column pushdown, and broader planner integration remain separate follow-up work.
 
 Dependency closure: no new support component is needed; this reuses lane-local JSON table helpers and path validation.
+
+## Composite Index Parent Pointer Repair Scenario
+
+Native `wp_options` replacement diagnostics now expose right-most pointer
+repair when a delete-triggered composite-index leaf merge also merges adjacent
+non-root index parents. The
+`examples/wordpress-index-parent-merge-option-replacement-plan.php` smoke
+reports `index-interior-rightmost-pointer-update` on the surviving parent
+beside root divider removal, parent divider insertion, leaf-entry merges, and
+freelist pages, so local repair tooling can audit that the merged interior
+parent still points at the correct right-most child without requiring the
+SQLite extension.
+
+Status delta 2026-05-26 isolated btree-delete/rebalance slice: updated
+`SQLiteDatabase::btreeRebalanceActionsForPageImages()` to report interior
+right-most pointer changes for index/table interior pages, extended the
+focused multi-child composite-index parent merge assertion, and reused the
+existing WordPress smoke output. Full row deletion, table-leaf delete/merge,
+and auto-vacuum pointer-map cleanup after arbitrary delete remain separate
+follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+B-tree page headers, replacement planning, index page assembly, freelist
+mutation, and WordPress fixture helpers.

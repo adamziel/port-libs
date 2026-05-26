@@ -1,5 +1,47 @@
 # Integration Status
 
+## Accepted libsqlite B-tree right-most pointer diagnostics - 2026-05-26 03:43 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T033828Z.ready`
+from current-base libsqlite handoff
+`closure-libsqlite-btree-delete-rebalance-20260526T033828Z`.
+
+Current-base and dashboard guard evidence:
+- Candidate `base_sha` was
+  `da94ca96b8835de54403a3a6b8279b2e48314303`, matching current
+  `refs/heads/main` before integration.
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=da94ca96b8835de54403a3a6b8279b2e48314303`, so dashboard
+  publication was current before this source move.
+- Runtime gates before focused/root work were open: `/` had at least
+  `87186316` KiB available, load was below `25`, and no
+  `php tools/run-tests.php` root harness was already running.
+
+Focused verification in detached clean worktree
+`.tmux-team/tmp/clean-integrator-worktrees/libsqlite-btree-20260526T033828Z`:
+- `php -l lanes/libsqlite/src/SQLiteDatabase.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php`
+  passed.
+- `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`
+  passed.
+- `php lanes/libsqlite/examples/wordpress-index-parent-merge-option-replacement-plan.php`
+  passed and emitted `index-interior-rightmost-pointer-update`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2442 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 26980 assertions, 0 failures`.
+
+Decision: accepted. The slice reports interior right-most pointer repairs from
+replacement-driven B-tree rebalance diagnostics, with manifest/status/notes
+updated to keep the remaining full-delete and upstream-suite blockers honest.
+Dashboard publication should run next for the accepted source commit.
+
 ## Accepted libsqlite JSON table hidden-column planner - 2026-05-26 03:42 UTC
 
 Accepted marker `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T033039Z.ready` from current-base libsqlite worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T033039Z`. Patch sha256 matched `417eca2cb10c430ca53268f7bab16ddad65419ea0a788e6037f4dd49061a7d71` and applied cleanly in detached clean worktree `.tmux-team/tmp/clean-integrator-libsqlite-json-table-20260526T033039Z` at `083927fe2acf9c37b37768334d3fd1b399a16d2a`.

@@ -850,6 +850,21 @@ final class SQLiteDatabase
                 continue;
             }
 
+            if (
+                ($after->pageType === 'index-interior' || $after->pageType === 'table-interior')
+                && $before->rightMostPointer !== $after->rightMostPointer
+            ) {
+                $actions[] = [
+                    'action' => $after->pageType === 'index-interior'
+                        ? 'index-interior-rightmost-pointer-update'
+                        : 'table-interior-rightmost-pointer-update',
+                    'page' => $pageNumber,
+                    'page_type' => $after->pageType,
+                    'before_rightmost_pointer' => $before->rightMostPointer,
+                    'after_rightmost_pointer' => $after->rightMostPointer,
+                ];
+            }
+
             if ($before->cellCount === $after->cellCount) {
                 continue;
             }
