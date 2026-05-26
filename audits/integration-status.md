@@ -1,5 +1,45 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite table leaf rowid freeblocks - 2026-05-26 06:02 UTC
+
+Accepted isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260526T055510Z.ready`.
+
+Source marker evidence:
+- `lane=libsqlite`, `slice=closure-libsqlite-btree-delete-rebalance-20260526T055510Z`.
+- Marker base was stale at `7af0c98063b00673f101d5cf04aab7071e827b06`; current
+  `main` was `6aac41d9bb082ca8cb0403cc020509c1d0223985`.
+- Patch SHA-256 matched the marker and applied to a detached clean worktree with
+  a bounded three-way merge. Only `lanes/libsqlite/lane-status.json` required
+  status-field conflict resolution; code, tests, example, manifest, and notes
+  hunks applied cleanly.
+
+Focused verification in the detached candidate worktree:
+- `php -l lanes/libsqlite/src/SQLiteTableLeafPage.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2512 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php`
+  passed and reported deleted rowids `[1,3]`, one reusable freeblock, and
+  secure-deleted payload bytes.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- Runtime gates were open before the root run: `/` had `86211448` KiB
+  available, load was `1.16`, and no no-argument root harness was active.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed with `215 test files, 27133 assertions, 0 failures`.
+
+Decision: accepted. This ports a bounded native table-leaf rowid deletion helper
+that removes a cell pointer, records a sorted/coalesced page-local freeblock,
+and optionally clears deleted payload bytes for secure-delete style diagnostics.
+No new support-library row was needed.
+
+Dashboard publication should run next because `main` will move past the live
+dashboard source after this commit.
+
 ## Clean-patch intake accepted - libsqlite json_pretty NULL wrapper indentation - 2026-05-26 05:54 UTC
 
 Accepted isolated libsqlite marker

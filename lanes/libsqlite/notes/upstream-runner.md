@@ -7550,3 +7550,34 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 transaction frame and page-number bookkeeping without activating shared
 support-library work.
+
+## Focused Native Mapping: Table Leaf Delete Freeblock Reuse
+
+This isolated B-tree delete/rebalance micro-slice maps a bounded SQLite table
+leaf delete behavior: removing one rowid entry updates the cell pointer array,
+releases the deleted table cell bytes into the page-local freeblock chain,
+coalesces adjacent freeblocks, and can clear the released payload bytes for
+secure-delete diagnostics.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedWordPressTableLeafDeleteFreeblockScripts: 1`. This
+reuses accepted static B-tree/delete evidence over `delete*.test`,
+`btree01.test`, pager freeblock behavior, and corrupt freeblock coverage; this
+isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T05:55Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteTableLeafPage.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-delete-option-table-leaf-freeblock.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+table leaf cell parsing, B-tree page headers, freeblock parsing, and WordPress
+fixture helpers without activating shared support-library work.

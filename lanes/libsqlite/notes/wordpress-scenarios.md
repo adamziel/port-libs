@@ -2376,3 +2376,23 @@ transaction execution remain separate follow-up work.
 
 Dependency closure: no new support component is needed; this reuses lane-local
 transaction frame and page-number bookkeeping.
+
+## Table Leaf Delete Freeblock Scenario
+
+Native `wp_options` table maintenance diagnostics now include a page-local
+table-row delete primitive. The
+`examples/wordpress-delete-option-table-leaf-freeblock.php` smoke builds a
+minimal table leaf, deletes an obsolete `_transient_cache` row by rowid,
+reports the remaining rowids, exposes the reusable freeblock created by the
+deleted cell, and shows the secure-deleted payload bytes.
+
+Status delta 2026-05-26 isolated B-tree delete/rebalance slice: added
+`SQLiteTableLeafPage::deleteCellByRowId()`, focused table-leaf
+freeblock/coalescing/secure-delete assertions, and a WordPress-visible smoke
+for local option-table repair tooling. Full SQL `DELETE`, paired arbitrary
+secondary-index maintenance, sibling merge/redistribution after delete, and
+auto-vacuum pointer-map cleanup remain separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+table leaf cell parsing, B-tree page headers, freeblock parsing, and WordPress
+fixture helpers.
