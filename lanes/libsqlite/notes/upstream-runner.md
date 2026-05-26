@@ -7649,3 +7649,35 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 JSON aggregate coercion, JSON subtype handling, JSONB encode/decode, and
 ordered row scheduling helpers without activating shared support-library work.
+
+## Focused Native Mapping: WAL Reader Page Map
+
+This isolated WAL/rollback/savepoint micro-slice adds bounded read-side WAL
+resolution diagnostics. `SQLiteWal::readerPageImage()` resolves one database
+page as a SQLite reader would see it through the last committed WAL frame,
+returning base-database versus WAL source provenance and the committed frame
+index. `SQLiteWal::readerPageMap()` summarizes all committed pages while
+excluding uncommitted tail frames.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedWalReaderPageMapScripts: 1`. This reuses accepted
+static WAL/pager evidence over `wal*.test`; this isolated worktree did not
+contain the hydrated upstream cache, so no fresh upstream `testfixture`, `make
+test`, or `mptest` run was started.
+
+Verification run 2026-05-26T06:22Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+WAL header/frame parsing, committed-frame tracking, SQLite header page-size
+parsing, and WordPress page fixtures without activating shared support-library
+work.

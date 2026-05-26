@@ -70,11 +70,21 @@ $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 0, str_repeat('P', $pageSi
 
 $wal = SQLiteWal::parse($walBytes, null, true);
 $database = SQLiteDatabase::fromBytes($wal->checkpointDatabaseImage($baseDatabaseBytes));
+$readerPageMap = $wal->readerPageMap($baseDatabaseBytes);
+$readerOptionPage = $wal->readerPageImage($baseDatabaseBytes, 2);
 
 echo json_encode([
     'wal' => $wal->toArray(),
     'committedTransactions' => $wal->committedTransactions(),
     'uncommittedFrameCount' => $wal->uncommittedFrameCount(),
+    'readerPageMap' => $readerPageMap,
+    'readerOptionPage' => [
+        'page_number' => $readerOptionPage['page_number'],
+        'source' => $readerOptionPage['source'],
+        'frame_index' => $readerOptionPage['frame_index'],
+        'database_offset' => $readerOptionPage['database_offset'],
+        'containsUncommittedTail' => str_contains($readerOptionPage['image'], 'P'),
+    ],
     'schema' => array_map(
         static fn (SQLiteSchemaRecord $record): array => [
             'type' => $record->type,
@@ -91,5 +101,5 @@ echo json_encode([
         $database->wordpressOptions(),
     ),
     'checkpointImageBytes' => strlen($wal->checkpointDatabaseImage($baseDatabaseBytes)),
-    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect pending WordPress option writes before checkpointing.',
+    'wordpressUse' => 'Read committed wp_options page images from a SQLite WAL fixture without the SQLite extension so repair/import tooling can inspect reader-visible WordPress option writes while ignoring uncommitted WAL tail frames.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

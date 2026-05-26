@@ -2416,3 +2416,24 @@ separate follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 JSON aggregate coercion, JSON subtype handling, JSONB encode/decode, and
 ordered row scheduling helpers.
+
+## WAL Reader Page Map Option Diagnostics
+
+Native `wp_options` WAL diagnostics now report page-level provenance for the
+reader-visible database image before a checkpoint writer exists. The
+`examples/wordpress-wal-option-frame-diagnostics.php` smoke includes a
+`readerPageMap` and `readerOptionPage` summary showing that the option page is
+served from the committed WAL frame and that a later uncommitted tail frame is
+ignored.
+
+Status delta 2026-05-26 isolated WAL/rollback/savepoint slice: added
+`SQLiteWal::readerPageImage()` and `readerPageMap()`, focused assertions for
+base-database pages, WAL pages, repeated page-number overwrite selection,
+uncommitted tail exclusion, committed-size bounds, and aligned database image
+validation, plus a refreshed WordPress-visible WAL smoke. WAL-index
+shared-memory read marks, durable checkpoint writing, rollback journal writing,
+and master-journal coordination remain separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+WAL frame parsing, committed transaction summaries, SQLite header parsing, and
+WordPress page fixture helpers.

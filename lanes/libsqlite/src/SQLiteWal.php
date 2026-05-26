@@ -201,6 +201,97 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
+     */
+    public function readerPageImage(string $databaseBytes, int $pageNumber): array
+    {
+        if ($pageNumber < 1) {
+            throw new \InvalidArgumentException('SQLite WAL reader page numbers are one-based');
+        }
+
+        $pageSize = $this->header->pageSize;
+        if ($pageSize === 0) {
+            $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
+        }
+        if ($pageSize < 512 || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL reader requires a database image aligned to the page size');
+        }
+
+        $lastCommitFrame = $this->lastCommitFrame();
+        $databasePageCount = $lastCommitFrame?->databasePageCountAfterCommit ?? intdiv(strlen($databaseBytes), $pageSize);
+        if ($pageNumber > $databasePageCount) {
+            throw new \OutOfBoundsException("SQLite WAL reader page {$pageNumber} is beyond the committed database size");
+        }
+
+        $frame = $this->lastCommittedFrameForPage($pageNumber);
+        if ($frame !== null) {
+            return [
+                'page_number' => $pageNumber,
+                'source' => 'wal',
+                'frame_index' => $frame->index,
+                'database_offset' => ($pageNumber - 1) * $pageSize,
+                'image' => $frame->pageImage,
+            ];
+        }
+
+        $offset = ($pageNumber - 1) * $pageSize;
+        $image = substr($databaseBytes, $offset, $pageSize);
+        if (strlen($image) !== $pageSize) {
+            throw new \OutOfBoundsException("SQLite WAL reader base page {$pageNumber} is missing from the database image");
+        }
+
+        return [
+            'page_number' => $pageNumber,
+            'source' => 'database',
+            'frame_index' => null,
+            'database_offset' => $offset,
+            'image' => $image,
+        ];
+    }
+
+    /**
+     * @return list<array{page_number:int,source:string,frame_index:int|null,database_offset:int}>
+     */
+    public function readerPageMap(string $databaseBytes): array
+    {
+        $pageSize = $this->header->pageSize;
+        if ($pageSize === 0) {
+            $pageSize = SQLiteHeader::parse($databaseBytes)->pageSize;
+        }
+        if ($pageSize < 512 || strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL reader requires a database image aligned to the page size');
+        }
+
+        $lastCommitFrame = $this->lastCommitFrame();
+        $databasePageCount = $lastCommitFrame?->databasePageCountAfterCommit ?? intdiv(strlen($databaseBytes), $pageSize);
+        $map = [];
+        for ($pageNumber = 1; $pageNumber <= $databasePageCount; $pageNumber++) {
+            $entry = $this->readerPageImage($databaseBytes, $pageNumber);
+            unset($entry['image']);
+            $map[] = $entry;
+        }
+
+        return $map;
+    }
+
+    private function lastCommittedFrameForPage(int $pageNumber): ?SQLiteWalFrame
+    {
+        $lastCommitFrame = $this->lastCommitFrame();
+        if ($lastCommitFrame === null) {
+            return null;
+        }
+
+        for ($index = $lastCommitFrame->index - 1; $index >= 0; $index--) {
+            $frame = $this->frames[$index];
+            if ($frame->pageNumber === $pageNumber) {
+                return $frame;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

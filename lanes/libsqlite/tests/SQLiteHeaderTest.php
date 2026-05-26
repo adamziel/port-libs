@@ -10394,6 +10394,64 @@ SQL;
         $t->same([], $uncommittedWal->committedTransactions());
         $t->same(1, $uncommittedWal->uncommittedFrameCount());
     },
+    'resolves sqlite wal reader page images through the last committed frame' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x33333333;
+        $salt2 = 0x44444444;
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 4, $salt1, $salt2, 0, 0);
+        $basePageOne = $makeFirstPage($pageSize, 3);
+        $basePageTwo = str_repeat('B', $pageSize);
+        $basePageThree = str_repeat('C', $pageSize);
+        $walPageTwoCommitted = str_repeat('W', $pageSize);
+        $walPageThreeCommitted = str_repeat('Z', $pageSize);
+        $walPageTwoTail = str_repeat('T', $pageSize);
+        $walBytes = $walHeader
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . str_repeat('A', $pageSize)
+            . pack('N*', 2, 3, $salt1, $salt2, 0, 0) . $walPageTwoCommitted
+            . pack('N*', 3, 3, $salt1, $salt2, 0, 0) . $walPageThreeCommitted
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $walPageTwoTail;
+
+        $wal = SQLiteWal::parse($walBytes);
+        $baseDatabase = $basePageOne . $basePageTwo . $basePageThree;
+
+        $pageOne = $wal->readerPageImage($baseDatabase, 1);
+        $pageTwo = $wal->readerPageImage($baseDatabase, 2);
+        $pageThree = $wal->readerPageImage($baseDatabase, 3);
+
+        $t->same('database', $pageOne['source']);
+        $t->same(null, $pageOne['frame_index']);
+        $t->same($basePageOne, $pageOne['image']);
+        $t->same('wal', $pageTwo['source']);
+        $t->same(2, $pageTwo['frame_index']);
+        $t->same($walPageTwoCommitted, $pageTwo['image']);
+        $t->same('wal', $pageThree['source']);
+        $t->same(3, $pageThree['frame_index']);
+        $t->same($walPageThreeCommitted, $pageThree['image']);
+        $t->same(false, str_contains($pageTwo['image'], 'T'));
+        $t->same([
+            [
+                'page_number' => 1,
+                'source' => 'database',
+                'frame_index' => null,
+                'database_offset' => 0,
+            ],
+            [
+                'page_number' => 2,
+                'source' => 'wal',
+                'frame_index' => 2,
+                'database_offset' => 512,
+            ],
+            [
+                'page_number' => 3,
+                'source' => 'wal',
+                'frame_index' => 3,
+                'database_offset' => 1024,
+            ],
+        ], $wal->readerPageMap($baseDatabase));
+        $t->throws(OutOfBoundsException::class, static fn () => $wal->readerPageImage($baseDatabase, 4));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->readerPageImage($baseDatabase, 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $wal->readerPageMap(substr($baseDatabase, 1)));
+    },
     'validates sqlite wal header and frame checksums when requested' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
         $salt1 = 0x01020304;

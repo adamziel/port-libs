@@ -1,5 +1,54 @@
 # Integration Status
 
+## Accepted libsqlite WAL reader page map - 2026-05-26 06:29 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T062224Z.ready`.
+
+Accepted source base: `bfbaba1d775751f73ce8dd0c63c516058005ae56`
+(`Integrate libsqlite JSON aggregate distinct order`).
+
+Decision: accepted. The marker was complete (`lane=libsqlite`, `patch=...`,
+`metadata=...`, `log=...`), patch SHA-256 matched
+`2a4e45ec098df3fa29e36bbd8ac8320c14346db37ecf6a926c4635f766a496a2`, and the
+patch applied cleanly in detached clean worktree
+`.tmux-team/tmp/clean-integrator-wal-20260526T062740Z` from current `main`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteWal.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`:
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed
+  with `1 test files, 2536 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php`:
+  passed and reported a reader page map whose option page came from committed
+  WAL frame `2` with `containsUncommittedTail=false`.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` decoded as valid JSON.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Serialized root verification:
+- Runtime gates before root were open: `df -Pk /` reported `89694808` KiB
+  available, `/proc/loadavg` first field was `2.18`, and
+  `pgrep -af '^php tools/run-tests\.php$'` was empty.
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`:
+  passed with `215 test files, 27173 assertions, 0 failures`.
+
+Dashboard guard:
+- Before candidate work, cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=bfbaba1d775751f73ce8dd0c63c516058005ae56`, matching current
+  `refs/heads/main`; dashboard guard was open.
+
+Cleanup:
+- Accepted marker artifacts should be removed after the commit is safely on
+  `main`: the `.ready`, `.patch`, and `.md` handoff files. The isolated worker
+  worktree may be removed only if inactive and clean; preserve it if Git
+  refuses non-forced removal.
+
+Dashboard publication should run next after this accepted source move.
+
 ## Clean-patch intake accepted - libsqlite JSON aggregate distinct order - 2026-05-26 06:18 UTC
 
 Accepted isolated marker:
