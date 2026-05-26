@@ -2219,3 +2219,26 @@ follow-up work.
 Dependency closure: no new support component is needed; this reuses lane-local
 B-tree page headers, index cell parsing, replacement planning, page-image
 overlays, freelist mutation, and WordPress fixture helpers.
+
+## Partial IN-List Option Lookup Scenario
+
+Native `wp_options` name-list lookup planning now recognizes that a partial
+index such as `WHERE option_name IN ('siteurl','home','blogname')` can satisfy
+a narrower copied-option query such as `option_name IN ('home','siteurl')`.
+The `examples/wordpress-options-by-name-list.php` smoke documents this planner
+behavior in its JSON output, so WordPress import or migration tools can explain
+why a partial option-name index is usable for a bounded subset of core option
+names without requiring the SQLite extension.
+
+Status delta 2026-05-26 isolated planner slice: updated
+`SQLiteIndexPredicate::isImpliedByInListLookup()` to compare covered non-null
+lookup values against partial IN-list predicate values, refreshed the existing
+exact-list assertion to the subset behavior, added focused `wp_options`
+coverage for subset, single-value, null-containing, and uncovered lists, and
+updated the options-by-name smoke output. General SQL WHERE normalization,
+costing, join order, expression rewrite, and virtual-table planner behavior
+remain separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local
+schema parsing, partial-index predicate metadata, index b-tree traversal, and
+scalar comparison semantics.

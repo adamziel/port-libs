@@ -176,12 +176,22 @@ final class SQLiteIndexPredicate
             return false;
         }
 
-        if ($this->operator !== self::IN_LIST || !is_array($this->value) || count($this->value) !== count($values)) {
+        if ($this->operator !== self::IN_LIST || !is_array($this->value)) {
             return false;
         }
 
-        foreach ($this->value as $index => $value) {
-            if (!array_key_exists($index, $values) || $value !== $values[$index]) {
+        foreach ($values as $lookupValue) {
+            if ($lookupValue === null) {
+                continue;
+            }
+            $matched = false;
+            foreach ($this->value as $predicateValue) {
+                if (self::valuesEqual($predicateValue, $lookupValue)) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (!$matched) {
                 return false;
             }
         }

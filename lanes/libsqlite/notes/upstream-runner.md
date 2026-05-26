@@ -7199,3 +7199,34 @@ Dependency closure: no new support component is needed. This reuses lane-local
 B-tree page headers, index cell parsing, replacement planning, page image
 overlays, freelist mutation, and WordPress fixtures without shelling out or
 activating shared support-library work.
+
+## Focused Native Mapping: Partial IN-List Subset Planner Implication
+
+This isolated planner micro-slice maps a bounded SQLite partial-index predicate
+case: a query constrained by `option_name IN (...)` may use a partial index
+declared as `WHERE option_name IN (...)` when every requested non-null lookup
+name is covered by the partial predicate. `SQLiteIndexPredicate` now evaluates
+that implication as a set/subset check instead of requiring identical list
+order and cardinality.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedPartialInListSubsetIndexScripts: 1`. This reuses
+accepted upstream planner/index coverage (`index.test`, `where*.test`, and
+partial-index evidence already inventoried for this lane). This isolated
+worktree did not contain the hydrated upstream cache, so no fresh upstream
+`testfixture` run was started.
+
+Verification run 2026-05-26T04:15Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteIndexPredicate.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-by-name-list.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+schema parsing, partial-index predicate metadata, index b-tree traversal, and
+scalar comparison semantics without activating shared support-library work.

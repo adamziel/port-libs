@@ -1,5 +1,68 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite partial IN-list planner subset - 2026-05-26 04:18 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-closure-20260526T040946Z.ready`
+(`closure-libsqlite-planner-wal-btree-20260526T040946Z`).
+
+Base and dashboard guard evidence:
+- Current accepted source before integration:
+  `a590820ba8a90498d9bdc7402c6a900729859d61`
+  (`Integrate libsqlite B-tree child diagnostics`).
+- Cache-busted live `porting-summary.json` reported matching
+  `sourceCommit=a590820ba8a90498d9bdc7402c6a900729859d61` before marker
+  processing, so dashboard intake guard was open.
+
+Runtime gate evidence:
+- Before focused checks, `df -Pk /` reported `86289796` KiB available and
+  `/proc/loadavg` first field was `1.96`.
+- Before serialized root, `df -Pk /` reported `86234520` KiB available,
+  `/proc/loadavg` first field was `2.20`, and
+  `pgrep -af '^php tools/run-tests\.php$'` was empty.
+
+Patch evidence:
+- Marker fields were complete: `lane=libsqlite`, `patch=...`,
+  `metadata=...`, and `log=...`.
+- Patch sha256 matched marker metadata:
+  `8984534385272f072077aae7c9b75af99b8aeb6297a4b9d59766fe970f86b71a`.
+- The marker was based on older accepted source
+  `fe4090fa411f79fb08498cb9745bf02f6b798cc4`; source/test/example hunks
+  applied cleanly in a detached clean worktree from current `main`, while
+  manifest/status/notes required a bounded stale metadata merge.
+- Accepted scope was limited to eight libsqlite files:
+  `UPSTREAM_TEST_MANIFEST.json`,
+  `examples/wordpress-options-by-name-list.php`, `lane-status.json`,
+  `notes/root-harness.md`, `notes/upstream-runner.md`,
+  `notes/wordpress-scenarios.md`, `src/SQLiteIndexPredicate.php`, and
+  `tests/SQLiteHeaderTest.php`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteIndexPredicate.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-options-by-name-list.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+  passed with `1 test files, 2459 assertions, 0 failures`.
+- Manifest/status JSON validation passed.
+- `git diff --cached --check -- lanes/libsqlite` passed.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot with
+  `215 test files, 27022 assertions, 0 failures`.
+
+Decision: accepted. The slice lets `SQLiteIndexPredicate` treat requested
+non-null `IN` lookup values as a covered subset of a partial `IN` predicate,
+adds focused WordPress option-name coverage, and updates lane evidence without
+claiming a fresh upstream `testfixture` run.
+
+Remaining ready-marker count before accepted-marker cleanup:
+`4080` total, including `884` libsqlite markers.
+
+Dashboard publication should run next after the accepted source commit is
+published to `refs/heads/main`.
+
 ## Clean-patch intake accepted - libsqlite B-tree left-child rebalance diagnostics - 2026-05-26 04:10 UTC
 
 Accepted marker:

@@ -924,3 +924,24 @@ multi-child composite-index parent merge, alongside the accepted right-most
 pointer update and freed pages `[7,8]`; manifest/status JSON decoded
 successfully; lane diff check passed. The root harness was not run because
 this was an isolated micro-slice.
+
+## Partial IN-List Planner Subset Slice
+
+Focused lane verification for the partial IN-list planner subset slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteIndexPredicate.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-by-name-list.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-options-by-name-list.php /tmp/libsqlite-options-*.sqlite home,siteurl
+php -r "json_decode(file_get_contents('lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json'), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents('lanes/libsqlite/lane-status.json'), true, 512, JSON_THROW_ON_ERROR);"
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with 1
+selected file, 2459 assertions, and 0 failures. The WordPress smoke was run
+against a temporary native fixture and reported
+`wpOptionsOptionNameInListIndexRootPage: 3` for `home,siteurl`; manifest/status
+JSON decoded successfully; lane diff check passed. The root harness was not
+run because this was an isolated micro-slice.
