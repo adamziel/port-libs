@@ -115588,6 +115588,45 @@ Verification:
 
 Decision: accepted one marker. After the commit is published on `refs/heads/main`, remove the accepted marker artifacts and inactive worktree. Dashboard publication should run next for the new accepted source head.
 
+## Integration accepted - libsqlite conditional scalar dispatch - 2026-05-26T14:59:32Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T145416Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before the pass was `813031c88f919817e63bce18ab3ebc0f4067aa90` (`Integrate libsqlite NOCASE uppercase LIKE prefix bound`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `813031c88f919817e63bce18ab3ebc0f4067aa90`; `generatedAt` was absent from the returned JSON shape.
+- The dashboard guard was open; no Pages-outage override was used.
+
+Ready queue evidence:
+- Remaining ready-marker count before acceptance was `5561`.
+- The selected marker had coherent `lane=libsqlite`, `patch=`, `metadata=`, `log=`, and `patch_sha256=` fields.
+- Marker `base_sha=813031c88f919817e63bce18ab3ebc0f4067aa90` matched current `HEAD`, and the patch sha256 matched `c98a0e88def199306df751a2d2e5228762421ee4491fbdd3ee6eb643f3cf9340`.
+- Stale storage-data group-integrator notes were treated as hints only. Dolt remained parked.
+
+Scope:
+- Added bounded native `iif()`/`if()` dispatch in `SQLiteCoreScalarFunction`.
+- Added SQLite numeric-truthiness branch tests for true, false, NULL, numeric-text, variadic pair scanning, fallback, BLOB result, and strict error cases.
+- Updated the WordPress scalar smoke, manifest/status evidence, and libsqlite notes.
+- No new dependency/support-library component was introduced. This does not claim full lazy VDBE short-circuit expression evaluation.
+
+Verification:
+- Runtime gates before focused checks: `/` had `110771000` KiB available, load was `1.43`, and no exact no-argument root harness process was running.
+- Patch applied cleanly in detached clean worktree `.tmux-team/worktrees/clean-integrator-libsqlite-sql-exec-20260526T145416Z` based on current `refs/heads/main`.
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2848 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php iif 0 network 1 site fallback` passed and returned result `"site"`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- `git diff --check` passed.
+- Runtime gates before serialized root: `/` had `110661488` KiB available, load was `0.97`, and no exact no-argument root harness process was running.
+- Serialized clean-candidate root under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27779 assertions, 0 failures`.
+
+Decision: accepted one marker. Dashboard publication should run next for the new accepted source head.
+
 ## Integration accepted - libsqlite JSON table REGEXP residuals - 2026-05-26T14:52:00Z
 
 Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T143936Z.ready`.

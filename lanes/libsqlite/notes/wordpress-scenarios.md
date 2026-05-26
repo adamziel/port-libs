@@ -2,6 +2,24 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Conditional Scalar Default Scenario
+
+Copied WordPress option migration SQL can use SQLite's compact conditional
+functions to select site, network, or fallback defaults inline. The scalar
+smoke `examples/wordpress-core-scalar-option-default.php` now reports
+`conditionalDefaultPreview`, showing bounded `iif()`/`if()` dispatch with
+SQLite numeric truthiness, pair scanning, optional fallback results, and SQL
+NULL false conditions.
+
+Status delta 2026-05-26 isolated sql-exec/planner slice: added
+`SQLiteCoreScalarFunction` dispatch for `iif()` and `if()`, focused tests for
+true, false, NULL, numeric-text, variadic-pair, fallback, BLOB-result, and
+strict arity/type behavior, and updated the WordPress scalar diagnostic smoke.
+This helper evaluates already-supplied arguments and does not claim full VDBE
+short-circuit expression evaluation. Dependency closure: no new support
+component is needed; this reuses lane-local scalar expression dispatch and
+numeric coercion helpers.
+
 ## Planner Hint Scalar Predicate Scenario
 
 WordPress migrations and plugin-maintained SQL can include SQLite planner hint

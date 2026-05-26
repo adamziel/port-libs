@@ -35,6 +35,7 @@ final class SQLiteCoreScalarFunction
             'concat_ws' => self::concatWithSeparator($arguments),
             'printf', 'format' => self::formatSql($normalized, $arguments),
             'likely', 'unlikely', 'likelihood' => self::plannerLikelihood($normalized, $arguments),
+            'iif', 'if' => self::conditionalValue($normalized, $arguments),
             'hex' => self::hex($arguments),
             'unhex' => self::unhex($arguments),
             'char' => self::char($arguments),
@@ -510,6 +511,27 @@ final class SQLiteCoreScalarFunction
     /**
      * @param list<mixed> $arguments
      */
+    private static function conditionalValue(string $functionName, array $arguments): mixed
+    {
+        self::assertArity($functionName, $arguments, 2, null);
+
+        $lastIndex = count($arguments) - 1;
+        for ($index = 0; $index + 1 <= $lastIndex; $index += 2) {
+            if (self::sqliteTruthValue($arguments[$index])) {
+                return $arguments[$index + 1];
+            }
+        }
+
+        if (count($arguments) % 2 === 1) {
+            return $arguments[$lastIndex];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
     private static function hex(array $arguments): ?string
     {
         self::assertArity('hex', $arguments, 1, 1);
@@ -678,6 +700,15 @@ final class SQLiteCoreScalarFunction
         $number = self::coerceNumeric($value);
 
         return (int) $number;
+    }
+
+    private static function sqliteTruthValue(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        return self::coerceNumeric($value) != 0;
     }
 
     private static function coerceLosslessNumeric(mixed $value): int|float|null

@@ -1,5 +1,38 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Core iif()/if() Conditional Scalar Dispatch
+
+This isolated SQL execution/planner micro-slice adds bounded `iif()` and
+`if()` dispatch to `SQLiteCoreScalarFunction`. Native PHP now scans
+condition/value pairs using SQLite numeric truthiness, returns the first value
+whose condition is true, returns the optional odd trailing fallback when no
+condition matches, and returns SQL NULL when an even-arity form has no match.
+
+This is a scalar dispatch helper over already-supplied arguments, not a full
+VDBE expression engine, so it does not claim lazy branch evaluation.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused core conditional scalar evidence row while preserving the
+current accepted static SQLite upstream denominator and runner evidence. This
+isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T14:54Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php iif 0 network 1 site fallback
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses
+lane-local scalar coercion and existing expression-semantics dispatch without
+activating shared support-library work.
+
 ## Focused Native Mapping: Make-Test Duplicate Runner Gate
 
 Date: 2026-05-26
