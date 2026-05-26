@@ -10710,6 +10710,24 @@ SQL;
         $t->same($pageTwo, substr($rolledBack, $pageSize, $pageSize));
         $t->same(false, str_contains($rolledBack, 'X'));
         $t->same([
+            'initial_database_page_count' => 2,
+            'final_database_bytes' => 1024,
+            'pages' => [
+                [
+                    'page_number' => 1,
+                    'database_offset' => 0,
+                    'applied' => true,
+                    'reason' => 'restored_from_journal',
+                ],
+                [
+                    'page_number' => 2,
+                    'database_offset' => 512,
+                    'applied' => true,
+                    'reason' => 'restored_from_journal',
+                ],
+            ],
+        ], $journal->recoveryPlan($dirtyDatabase));
+        $t->same([
             'header' => $journal->header->toArray(),
             'page_count' => 2,
             'checksums_validated' => true,
@@ -10727,6 +10745,49 @@ SQL;
                 ],
             ],
         ], $journal->toArray());
+    },
+    'plans sqlite rollback journal recovery truncation and skipped pages' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $sectorSize = 512;
+        $nonce = 0x31323334;
+        $pageOne = $makeFirstPage($pageSize, 2);
+        $pageThree = str_repeat('Y', $pageSize);
+        $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', 2, $nonce, 2, $sectorSize, $pageSize);
+        $journalBytes = str_pad($header, $sectorSize, "\0")
+            . pack('N', 1) . $pageOne . pack('N', SQLiteRollbackJournal::pageChecksum($pageOne, $nonce))
+            . pack('N', 3) . $pageThree . pack('N', SQLiteRollbackJournal::pageChecksum($pageThree, $nonce));
+
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+        $dirtyDatabase = $makeFirstPage($pageSize, 4)
+            . str_repeat('D', $pageSize)
+            . str_repeat('E', $pageSize)
+            . str_repeat('F', $pageSize);
+
+        $t->same([
+            'initial_database_page_count' => 2,
+            'final_database_bytes' => 1024,
+            'pages' => [
+                [
+                    'page_number' => 1,
+                    'database_offset' => 0,
+                    'applied' => true,
+                    'reason' => 'restored_from_journal',
+                ],
+                [
+                    'page_number' => 3,
+                    'database_offset' => 1024,
+                    'applied' => false,
+                    'reason' => 'beyond_initial_database_size',
+                ],
+            ],
+        ], $journal->recoveryPlan($dirtyDatabase));
+
+        $rolledBack = $journal->rollbackDatabaseImage($dirtyDatabase);
+        $t->same($pageSize * 2, strlen($rolledBack));
+        $t->same($pageOne, substr($rolledBack, 0, $pageSize));
+        $t->same(str_repeat('D', $pageSize), substr($rolledBack, $pageSize, $pageSize));
+        $t->same(false, str_contains($rolledBack, 'Y'));
+        $t->throws(InvalidArgumentException::class, static fn () => $journal->recoveryPlan(substr($dirtyDatabase, 1)));
     },
     'parses sqlite rollback journals with unknown page counts through eof' => static function (TestRunner $t): void {
         $pageSize = 512;

@@ -2521,3 +2521,24 @@ separate follow-up work.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local B-tree page headers, table/index cell parsing, record decoding,
 freeblock accounting, and WordPress fixture helpers.
+
+## Rollback Journal Recovery Plan Scenario
+
+Native `wp_options` rollback diagnostics can now preview recovery before a
+filesystem writer exists. The
+`examples/wordpress-rollback-journal-option-diagnostics.php` smoke reports a
+rollback recovery plan that restores the first page from the journal, skips a
+journal page beyond the initial database size, and truncates the dirty image
+back to the original page count.
+
+Status delta 2026-05-26 isolated WAL/rollback/savepoint slice: added
+`SQLiteRollbackJournal::recoveryPlan()` and `rollbackDatabaseImage()` with
+focused assertions for restored pages, skipped pages, original-size
+truncation, checksum-validated journal input, and misaligned dirty image
+rejection. Hot-journal master-journal coordination, durable journal/WAL file
+writes, WAL-index shared-memory state, and multi-sector edge handling beyond
+the accepted rollback preview remain separate follow-up work.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local rollback journal parsing, checksum validation, SQLite page headers,
+and WordPress fixture helpers.

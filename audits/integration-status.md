@@ -1,5 +1,57 @@
 # Integration Status
 
+## Clean-patch intake accepted - libsqlite rollback journal recovery plan - 2026-05-26 07:40 UTC
+
+Accepted isolated marker
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260526T072641Z.ready`.
+
+Accepted source base before integration: `f5d9ec3bf0589c932ebb9954c60981e69e4180d3`
+(`Integrate libsqlite bulk leaf deletes`). The marker declared stale
+`base_sha=901e6a21bd5a743610361d9d08dbf45b363d24b5`, so the integration used a
+bounded stale merge: source/test/example/manifest hunks applied cleanly, while
+already-moved `lane-status.json`, `notes/upstream-runner.md`, and
+`notes/wordpress-scenarios.md` were updated on the current base without
+replaying stale context.
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json?cache_bust=1779780717`
+  reported current `sourceCommit=f5d9ec3bf0589c932ebb9954c60981e69e4180d3`.
+- Live dashboard commit reported
+  `c2c4ef08f75958e2d4e067a2400df7a2edab3dbd`, generated
+  `2026-05-26 07:28:53 UTC`.
+
+Resource and process gate evidence before focused/root checks:
+- `df -Pk /` reported `89309864` KiB available, above the required
+  `86000000` KiB threshold.
+- `/proc/loadavg` first field was `2.04`, below the required `25`.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before the no-argument
+  root run.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteRollbackJournal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php`
+  passed.
+- `php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php`
+  passed and reported a rollback plan restoring page 2, final image size
+  `1024`, `checksums_validated=true`, and `rolledBackImageBytes=1024`.
+- Manifest/status JSON validation passed.
+- `git diff --check -- lanes/libsqlite` passed.
+- Focused `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`
+  passed with `1 test files, 2624 assertions, 0 failures`.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`
+  passed from the exact clean candidate snapshot with
+  `215 test files, 27310 assertions, 0 failures`.
+
+Decision: accepted. The slice adds rollback-journal recovery-plan diagnostics
+for truncating to the initial database size and skipping journal pages beyond
+the original database image. Dependency closure remains lane-local; no shared
+support component was activated. Dashboard publication should run next because
+the accepted source head moved after the live dashboard guard check.
+
 ## Clean-patch intake accepted - libsqlite bulk leaf delete freeblocks - 2026-05-26 07:24 UTC
 
 Accepted marker:

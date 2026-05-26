@@ -113,6 +113,34 @@ final class SQLiteRollbackJournal
     }
 
     /**
+     * @return array{initial_database_page_count:int,final_database_bytes:int,pages:list<array{page_number:int,database_offset:int,applied:bool,reason:string}>}
+     */
+    public function recoveryPlan(string $databaseBytes): array
+    {
+        $pageSize = $this->header->pageSize;
+        if (strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite rollback journal recovery plan requires a database image aligned to the page size');
+        }
+
+        $pages = [];
+        foreach ($this->pages as $page) {
+            $applied = $page->pageNumber <= $this->header->initialDatabasePageCount;
+            $pages[] = [
+                'page_number' => $page->pageNumber,
+                'database_offset' => ($page->pageNumber - 1) * $pageSize,
+                'applied' => $applied,
+                'reason' => $applied ? 'restored_from_journal' : 'beyond_initial_database_size',
+            ];
+        }
+
+        return [
+            'initial_database_page_count' => $this->header->initialDatabasePageCount,
+            'final_database_bytes' => $this->header->initialDatabasePageCount * $pageSize,
+            'pages' => $pages,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

@@ -64,9 +64,11 @@ $journalBytes = str_pad($journalHeader, $sectorSize, "\0")
 
 $journal = SQLiteRollbackJournal::parse($journalBytes, true);
 $database = SQLiteDatabase::fromBytes($journal->rollbackDatabaseImage($dirtyDatabaseBytes));
+$recoveryPlan = $journal->recoveryPlan($dirtyDatabaseBytes);
 
 echo json_encode([
     'rollbackJournal' => $journal->toArray(),
+    'recoveryPlan' => $recoveryPlan,
     'schema' => array_map(
         static fn (SQLiteSchemaRecord $record): array => [
             'type' => $record->type,
@@ -84,5 +86,5 @@ echo json_encode([
     ),
     'rolledBackImageBytes' => strlen($journal->rollbackDatabaseImage($dirtyDatabaseBytes)),
     'sectorPaddingBytes' => 128,
-    'wordpressUse' => 'Preview wp_options page recovery from a sector-padded SQLite rollback journal without the SQLite extension so import/repair tooling can inspect pre-transaction option values before accepting a copied database.',
+    'wordpressUse' => 'Preview wp_options page recovery from a sector-padded SQLite rollback journal without the SQLite extension so import/repair tooling can inspect pre-transaction option values, applied page offsets, and final truncation size before accepting a copied database.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

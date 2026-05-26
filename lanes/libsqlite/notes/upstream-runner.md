@@ -7856,3 +7856,34 @@ Dependency closure: no new support component is needed. This reuses lane-local
 B-tree page headers, table/index leaf cell parsing, record decoding, freeblock
 accounting, and WordPress fixture helpers without activating shared
 support-library work.
+
+## Focused Native Mapping: Rollback Journal Recovery Plan
+
+This isolated WAL/rollback/savepoint micro-slice adds bounded rollback journal
+recovery diagnostics. Native PHP can now produce a recovery plan for a dirty
+database image, restore pages captured by a rollback journal, skip journal
+pages beyond the original database size, and truncate the rolled-back image to
+the original page count.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional WordPress rollback recovery diagnostic script while preserving the
+current accepted static SQLite upstream denominator. This reuses accepted
+rollback/pager evidence over SQLite pager and journal tests; this isolated
+worktree did not contain the hydrated upstream cache, so no fresh upstream
+`testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T07:26Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+rollback journal parsing, checksum validation, SQLite page headers, and
+WordPress fixture helpers without activating shared support-library work.
