@@ -115866,3 +115866,39 @@ Ready queue evidence:
 Decision: accepted. Dashboard publication should run next after this commit because accepted source moved beyond the currently live dashboard source.
 
 Cleanup debt: the original worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T155014Z` still contains modified lane files after the patch was committed to `main`, so it was preserved and left registered. Only accepted marker files and the clean integrator candidate worktree are eligible for cleanup in this pass.
+## Integration accepted - libsqlite LIKE/GLOB scalar dispatch - 2026-05-26T16:03:30Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260526T155753Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current clean-candidate base and accepted source before this pass was `4a2023702cc108fbd39611d7a81ca5ab2e32a0e8` (`Integrate libsqlite JSON table MATCH residuals`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `4a2023702cc108fbd39611d7a81ca5ab2e32a0e8`, so the dashboard guard was open.
+
+Marker evidence:
+- Marker fields were complete: `lane=libsqlite`, `patch=...port-dev-libsqlite-sql-exec-20260526T155753Z.patch`, `metadata=...port-dev-libsqlite-sql-exec-20260526T155753Z.md`, and `log=...port-dev-libsqlite-sql-exec-20260526T155753Z.log`.
+- Marker `base_sha=4a2023702cc108fbd39611d7a81ca5ab2e32a0e8` matched the clean detached candidate base.
+- Patch sha256 verified as `24e956c2c33bbb797a04ad578a707f6bdeeb469e3589b9221dda9e7d47c45e84`.
+- Scope was lane-local libsqlite scalar SQL dispatch for `like()` and `glob()`, plus focused WordPress scalar smoke/status/manifest notes. It did not claim full SELECT/VDBE execution.
+
+Focused verification from clean detached candidate:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php` passed.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` parsed with `JSON_THROW_ON_ERROR`.
+- `git diff --check -- lanes/libsqlite` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 2885 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php like 'plugin%' plugin_cache` passed with `result: 1` and predicate previews.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php glob 'plugin_[a-z]*' plugin_cache` passed with `result: 1` and predicate previews.
+
+Runtime/root evidence:
+- Runtime gate before root: `/` free space `101857800` KiB, load `0.77`, and no exact `php tools/run-tests.php` root harness process was running.
+- Serialized no-argument root under `.tmux-team/tmp/clean-integrator-run.lock` passed: `215 test files, 27850 assertions, 0 failures`.
+
+Decision: accepted. Commit to be published as `Integrate libsqlite LIKE/GLOB scalar dispatch`. Remove accepted marker artifacts only after the commit is safely on `main`; preserve dirty shared-checkout worker state.
+
+Cleanup debt:
+- Accepted worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T155753Z` still contains the six lane-local patch modifications after the commit was published, so it was preserved and left registered.
+
+Dashboard publication should run next after this accepted source move so live Pages catches up before another clean integration pass.

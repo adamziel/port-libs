@@ -34,6 +34,8 @@ final class SQLiteCoreScalarFunction
             'concat' => self::concat($arguments),
             'concat_ws' => self::concatWithSeparator($arguments),
             'printf', 'format' => self::formatSql($normalized, $arguments),
+            'like' => self::like($arguments),
+            'glob' => self::glob($arguments),
             'likely', 'unlikely', 'likelihood' => self::plannerLikelihood($normalized, $arguments),
             'iif', 'if' => self::conditionalValue($normalized, $arguments),
             'hex' => self::hex($arguments),
@@ -506,6 +508,43 @@ final class SQLiteCoreScalarFunction
         self::assertArity($functionName, $arguments, 1, 1);
 
         return $arguments[0];
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function like(array $arguments): ?int
+    {
+        self::assertArity('like', $arguments, 2, 3);
+        if ($arguments[0] === null || $arguments[1] === null || (array_key_exists(2, $arguments) && $arguments[2] === null)) {
+            return null;
+        }
+
+        $escape = array_key_exists(2, $arguments)
+            ? self::coerceText('like', $arguments[2], 'escape')
+            : null;
+
+        return SQLiteDatabase::likeMatches(
+            self::coerceText('like', $arguments[1], 'value'),
+            self::coerceText('like', $arguments[0], 'pattern'),
+            $escape
+        ) ? 1 : 0;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function glob(array $arguments): ?int
+    {
+        self::assertArity('glob', $arguments, 2, 2);
+        if ($arguments[0] === null || $arguments[1] === null) {
+            return null;
+        }
+
+        return SQLiteDatabase::globMatches(
+            self::coerceText('glob', $arguments[1], 'value'),
+            self::coerceText('glob', $arguments[0], 'pattern')
+        ) ? 1 : 0;
     }
 
     /**

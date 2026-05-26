@@ -3017,3 +3017,23 @@ projection engine.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
+
+## Core Pattern Scalar Scenario
+
+Native SQL execution helpers now include scalar `like()` and `glob()` dispatch
+for bounded SQL expression evaluation. The implementation reuses the accepted
+SQLite LIKE/GLOB pattern engines used by decoded `wp_options` scans, preserving
+SQLite's SQL function argument order: `like(pattern, value[, escape])` and
+`glob(pattern, value)`.
+
+Status delta 2026-05-26 isolated SQL execution/planner scalar slice: added
+focused assertions for SQL NULL propagation, case-folded LIKE matching, escaped
+literal LIKE patterns, UTF-8 pattern units, embedded-NUL matching,
+case-sensitive GLOB ranges, and strict arity/type errors. The WordPress scalar
+smoke now reports local option-name predicate previews for copied option data
+without requiring the SQLite extension. This is intentionally scalar dispatch
+coverage, not a full SELECT/VDBE executor.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion and the existing lane-local LIKE/GLOB pattern
+helpers already accepted for WordPress option-name scans.
