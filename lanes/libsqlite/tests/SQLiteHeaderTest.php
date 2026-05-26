@@ -54,6 +54,7 @@ use PortLibs\LibSqlite\SQLiteRollbackJournalHeader;
 use PortLibs\LibSqlite\SQLiteRollbackJournalPage;
 use PortLibs\LibSqlite\SQLiteSavepointStack;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
+use PortLibs\LibSqlite\SQLiteSelectResult;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableInteriorCell;
@@ -12942,5 +12943,69 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::summarize([['autoload' => [] , 'bytes' => 1]], 'autoload', 'bytes'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::orderBy($summary, 'missing'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::orderBy($summary, 'sum', 'SIDEWAYS'));
+    },
+    'applies sqlite select distinct order by limit and offset result semantics' => static function (TestRunner $t): void {
+        $rows = [
+            ['autoload' => 'yes', 'option_name' => 'siteurl', 'bytes' => 20, 'payload' => new SQLiteBlobValue('b')],
+            ['autoload' => 'yes', 'option_name' => 'home', 'bytes' => 20, 'payload' => new SQLiteBlobValue('a')],
+            ['autoload' => 'yes', 'option_name' => 'home', 'bytes' => 20, 'payload' => new SQLiteBlobValue('a')],
+            ['autoload' => 'no', 'option_name' => '_transient_feed', 'bytes' => 12, 'payload' => null],
+            ['autoload' => 'no', 'option_name' => 'empty_cache_key', 'bytes' => 0, 'payload' => false],
+            ['autoload' => null, 'option_name' => 'orphaned', 'bytes' => null, 'payload' => true],
+            ['autoload' => null, 'option_name' => 'orphaned', 'bytes' => null, 'payload' => true],
+        ];
+
+        $distinct = SQLiteSelectResult::distinct($rows, ['autoload', 'option_name', 'bytes', 'payload']);
+        $t->same(5, count($distinct));
+        $t->same(['siteurl', 'home', '_transient_feed', 'empty_cache_key', 'orphaned'], array_column($distinct, 'option_name'));
+
+        $ordered = SQLiteSelectResult::orderBy($distinct, [
+            ['column' => 'autoload'],
+            ['column' => 'bytes', 'direction' => 'DESC'],
+            ['column' => 'option_name'],
+        ]);
+        $t->same(['orphaned', '_transient_feed', 'empty_cache_key', 'home', 'siteurl'], array_column($ordered, 'option_name'));
+        $t->same([null, 'no', 'no', 'yes', 'yes'], array_column($ordered, 'autoload'));
+        $t->same([null, 12, 0, 20, 20], array_column($ordered, 'bytes'));
+
+        $descending = SQLiteSelectResult::orderBy($distinct, [
+            ['column' => 'bytes', 'direction' => 'DESC'],
+            ['column' => 'option_name', 'direction' => 'ASC'],
+        ]);
+        $t->same(['home', 'siteurl', '_transient_feed', 'empty_cache_key', 'orphaned'], array_column($descending, 'option_name'));
+
+        $blobOrder = SQLiteSelectResult::orderBy($distinct, [['column' => 'payload']]);
+        $payloads = array_map(
+            static fn (mixed $value): mixed => $value instanceof SQLiteBlobValue ? $value->bytes : $value,
+            array_column($blobOrder, 'payload')
+        );
+        $t->same([null, false, true, 'a', 'b'], $payloads);
+
+        $paged = SQLiteSelectResult::limitOffset($ordered, 2, 1);
+        $t->same(['_transient_feed', 'empty_cache_key'], array_column($paged, 'option_name'));
+        $t->same(['home', 'siteurl'], array_column(SQLiteSelectResult::limitOffset($ordered, -1, 3), 'option_name'));
+        $t->same([], SQLiteSelectResult::limitOffset($ordered, 2, 20));
+
+        $executed = SQLiteSelectResult::execute($rows, ['autoload', 'option_name'], [
+            ['column' => 'autoload', 'direction' => 'DESC'],
+            ['column' => 'option_name'],
+        ], 3, 1);
+        $t->same(['siteurl', '_transient_feed', 'empty_cache_key'], array_column($executed, 'option_name'));
+        $t->same(['yes', 'no', 'no'], array_column($executed, 'autoload'));
+
+        $stableRows = [
+            ['name' => 'first', 'rank' => 1],
+            ['name' => 'second', 'rank' => 1],
+            ['name' => 'third', 'rank' => 1],
+        ];
+        $t->same(['first', 'second', 'third'], array_column(SQLiteSelectResult::orderBy($stableRows, [['column' => 'rank']]), 'name'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::distinct($rows, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::distinct([['autoload' => []]], ['autoload']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::distinct([['autoload' => 'yes']], ['missing']));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::orderBy($rows, [['column' => 'missing']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::orderBy($rows, [['column' => 'bytes', 'direction' => 'SIDEWAYS']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::orderBy([['bytes' => []]], [['column' => 'bytes']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectResult::limitOffset($rows, 1, -1));
     },
 ];

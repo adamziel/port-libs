@@ -2,6 +2,23 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT Result Preview Scenario
+
+Copied WordPress option import previews can now model the final SELECT result
+row phase without requiring the SQLite extension. The smoke
+`examples/wordpress-options-order-limit.php` still exercises decoded
+`wp_options` `ORDER BY option_name LIMIT/OFFSET`, and now also reports a
+bounded result-set preview for `DISTINCT`, multi-term `ORDER BY`, `LIMIT`, and
+`OFFSET` over copied option rows.
+
+Status delta 2026-05-26 isolated SQL execution/planner slice: added
+`SQLiteSelectResult` with focused DISTINCT, SQL sort-class ordering, stable
+tie ordering, BLOB/NULL/numeric/text comparison, negative LIMIT, empty-page
+OFFSET, and strict missing-column/type assertions. The focused lane test count
+moves from 3410 to 3440 assertions. Dependency closure: no new support
+component is needed; this reuses lane-local SQL value ordering and pure PHP
+result arrays.
+
 ## Builtin Window Option Ranking Scenario
 
 Copied WordPress option result previews can now model SQLite builtin window

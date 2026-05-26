@@ -1,5 +1,38 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: SELECT DISTINCT/ORDER BY/LIMIT Results
+
+Date: 2026-05-26
+
+This isolated SQL execution/planner micro-slice adds a bounded native
+result-row helper for SQLite SELECT output semantics after row production:
+`DISTINCT`, multi-term `ORDER BY`, `LIMIT`, and `OFFSET`. The helper is
+intentionally a result-semantics primitive; it does not claim parser-level
+SELECT execution or a fresh upstream `testfixture` run.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+increases by 1 with `focusedCoreSelectResultScripts: 1`. No fresh upstream
+`testfixture`, `make test`, `mptest`, `all`, or `release` run was started from
+this isolated worktree.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectResult.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-order-limit.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-options-order-limit.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Focused assertion delta: 3410 to 3440 assertions, +30.
+
+Dependency closure: no new support component is needed. This slice reuses
+lane-local SQL sort-class comparison, BLOB wrappers, and pure PHP result-array
+dispatch.
+
 ## Focused Native Mapping: Builtin Window Ranking and Value Helpers
 
 Date: 2026-05-26

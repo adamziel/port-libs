@@ -1,5 +1,28 @@
 # libsqlite Root Harness Notes
 
+## Isolated SQL SELECT Result Slice
+
+Date: 2026-05-26
+
+Focused lane verification for the SQL execution/planner SELECT result
+semantics slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectResult.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-options-order-limit.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-options-order-limit.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused test count moved from 3410 to 3440 assertions, +30. Root
+harness status: not run - isolated micro-slice.
+
+Dependency closure: no new support component is needed. The native helper
+reuses lane-local SQL value ordering, BLOB wrappers, and pure PHP result arrays.
+
 ## B-tree Auto-vacuum Page-reuse Pointer-map Slice
 
 Date: 2026-05-26

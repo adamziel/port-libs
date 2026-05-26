@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
 use PortLibs\LibSqlite\SQLiteRecord;
+use PortLibs\LibSqlite\SQLiteSelectResult;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
 use PortLibs\LibSqlite\SQLiteWordPressOption;
@@ -49,11 +50,30 @@ $options = array_map(
     static fn (SQLiteWordPressOption $option): array => $option->toArray(),
     $database->wordpressOptionsOrdered('option_name', false, 2, 1),
 );
+$resultRows = [
+    ['autoload' => 'yes', 'option_name' => 'siteurl', 'bytes' => 20],
+    ['autoload' => 'yes', 'option_name' => 'home', 'bytes' => 20],
+    ['autoload' => 'yes', 'option_name' => 'home', 'bytes' => 20],
+    ['autoload' => 'no', 'option_name' => '_transient_feed', 'bytes' => 12],
+    ['autoload' => 'no', 'option_name' => 'empty_cache_key', 'bytes' => 0],
+    ['autoload' => null, 'option_name' => 'orphaned', 'bytes' => null],
+];
+$selectPreview = SQLiteSelectResult::execute(
+    $resultRows,
+    ['autoload', 'option_name'],
+    [
+        ['column' => 'autoload', 'direction' => 'DESC'],
+        ['column' => 'option_name'],
+    ],
+    3,
+    1
+);
 
 echo json_encode([
-    'plannerBehavior' => 'Decoded wp_options rows are sorted by option_name before OFFSET/LIMIT is applied, mirroring ORDER BY option_name LIMIT 2 OFFSET 1 result semantics for local WordPress SQLite imports.',
+    'plannerBehavior' => 'Decoded wp_options rows are sorted by option_name before OFFSET/LIMIT is applied, and bounded SELECT result previews can apply DISTINCT, multi-term ORDER BY, LIMIT, and OFFSET before local WordPress SQLite imports.',
     'orderBy' => 'option_name ASC',
     'limit' => 2,
     'offset' => 1,
     'options' => $options,
+    'distinctOrderLimitPreview' => $selectPreview,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

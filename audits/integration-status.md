@@ -117145,3 +117145,36 @@ Decision: accepted after focused checks, WordPress smoke, `git diff --check`, an
 Cleanup:
 - Accepted ready/patch/metadata handoff artifacts were removed after commit publication.
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260526T203539Z` still contains modified/added copies of the accepted lane files, so it was preserved as cleanup debt rather than removed.
+
+## Integration accepted - libsqlite SQL select result semantics - 2026-05-26T20:52:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-scalar-20260526T204442Z.ready`
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `a805204bd840f6e09283a9067925b32995d04012` (`Integrate libsqlite busy open preflight`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `a805204bd840f6e09283a9067925b32995d04012`, `generated` `2026-05-26 20:46:16 UTC`, and `dashboardCommit` `dc958699cc566801cc8d3a83b89ec49af234c5eb`.
+
+Candidate decision:
+- Selected the current-base SQL result-semantics marker from the bounded recent sample because it adds native `SQLiteSelectResult` behavior, a WordPress options order/limit smoke, and `+30` focused assertions. It is not a duplicate of the already accepted scalar helper, grouped aggregate, window helper, JSON projection, B-tree auto-vacuum/page-reuse, file URI, or busy-open clusters.
+- Scope: `DISTINCT`, multi-term `ORDER BY`, stable tie ordering, SQL value sort classes including `NULL`/BLOB/boolean/numeric/text values, `LIMIT`, `OFFSET`, and invalid input guards for bounded result arrays.
+
+Focused verification in detached candidate `.tmux-team/worktrees/clean-integrator-libsqlite-scalar-20260526T204442Z` with repo-local `TMPDIR=.tmp-root`:
+- Runtime gates before focused checks: `df -Pk /` reported `88914780` KiB available; `/proc/loadavg` one-minute load was below `25`; no exact no-argument root process was running.
+- `php -l` passed for `SQLiteSelectResult.php`, `SQLiteHeaderTest.php`, and `wordpress-options-order-limit.php`.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 3440 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-options-order-limit.php` passed and emitted a DISTINCT/ORDER/LIMIT preview.
+- Manifest/status JSON decode passed.
+- `git diff --check` passed.
+
+Root verification:
+- Runtime gates before root: `df -Pk /` reported `88802568` KiB available; `/proc/loadavg` one-minute load was `1.27`; no exact no-argument root process was already running.
+- Serialized no-argument root run under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=.tmp-root` passed: `215 test files, 28574 assertions, 0 failures`.
+- Root assertion delta versus current accepted source `a805204b` evidence (`28554`) is `+20`.
+
+Decision: accepted after focused checks, WordPress smoke, `git diff --check`, and serialized root verification. Dashboard publication should run next after commit because this pass moves source beyond the currently live `a805204b` dashboard.
+
+Cleanup:
+- Accepted ready/patch/metadata handoff artifacts were removed after commit publication.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-scalar-20260526T204442Z` still contains modified/added copies of the accepted lane files, so it was preserved as cleanup debt rather than removed.
