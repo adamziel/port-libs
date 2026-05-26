@@ -287,6 +287,92 @@ return [
         $t->contains('hydrate .upstream-cache/libsqlite/test', $plan['next_gate']);
         $t->contains('no new support component needed', $plan['dependency_closure']);
     },
+    'builds a release tier matrix with explicit missing cache blockers' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $matrix = $evidence->releaseTierMatrix(2, dirname(__DIR__, 3));
+
+        $t->same('blocked', $matrix['status']);
+        $t->same(2, $matrix['jobs']);
+        $t->same(4, $matrix['tier_count']);
+        $t->same(0, $matrix['ready_tiers']);
+        $t->same(0, $matrix['accepted_tiers']);
+        $t->same(4, $matrix['blocked_tiers']);
+        $t->contains('not run', $matrix['full_release_reason']);
+        $t->contains('hydrate .upstream-cache/libsqlite', $matrix['next_gate']);
+        $t->contains('no new support component needed', $matrix['dependency_closure']);
+
+        $tiers = [];
+        foreach ($matrix['tiers'] as $tier) {
+            $tiers[$tier['id']] = $tier;
+        }
+
+        $t->same([
+            'release-all',
+            'permutation-suites',
+            'make-test',
+            'mptest',
+        ], array_keys($tiers));
+        $t->same('blocked-missing-cache', $tiers['release-all']['status']);
+        $t->same(false, $tiers['release-all']['runnable']);
+        $t->contains('--stop-on-error all', $tiers['release-all']['command']);
+        $t->true(in_array('.upstream-cache/libsqlite-build-port-libsqlite/testfixture', $tiers['release-all']['missing'], true), 'Expected missing testfixture in release-all tier');
+        $t->same(28, $tiers['release-all']['inventory_units']);
+        $t->same('blocked-missing-cache', $tiers['permutation-suites']['status']);
+        $t->same(null, $tiers['permutation-suites']['command']);
+        $t->same(58, $tiers['permutation-suites']['inventory_units']);
+        $t->same('blocked-missing-build', $tiers['make-test']['status']);
+        $t->same('make -C .upstream-cache/libsqlite-build-port-libsqlite test', $tiers['make-test']['command']);
+        $t->same(79, $tiers['make-test']['inventory_units']);
+        $t->same('blocked-missing-build', $tiers['mptest']['status']);
+        $t->same(6, $tiers['mptest']['inventory_units']);
+    },
+    'marks release tier commands ready against a hydrated local fixture tree' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-release-tiers-' . bin2hex(random_bytes(4));
+        $buildDirectory = $root . '/.upstream-cache/libsqlite-build-port-libsqlite';
+        $testDirectory = $root . '/.upstream-cache/libsqlite/test';
+        $mptestDirectory = $root . '/.upstream-cache/libsqlite/mptest';
+        mkdir($buildDirectory, 0777, true);
+        mkdir($testDirectory, 0777, true);
+        mkdir($mptestDirectory, 0777, true);
+        file_put_contents($buildDirectory . '/testfixture', '');
+        file_put_contents($buildDirectory . '/Makefile', "test:\n\t@true\nmptest:\n\t@true\n");
+        file_put_contents($testDirectory . '/testrunner.tcl', '# focused release tier fixture');
+
+        try {
+            $matrix = $evidence->releaseTierMatrix(3, $root);
+
+            $t->same('blocked', $matrix['status']);
+            $t->same(3, $matrix['jobs']);
+            $t->same(3, $matrix['ready_tiers']);
+            $t->same(1, $matrix['blocked_tiers']);
+            $t->contains('keep tier commands explicit', $matrix['next_gate']);
+
+            $tiers = [];
+            foreach ($matrix['tiers'] as $tier) {
+                $tiers[$tier['id']] = $tier;
+            }
+
+            $t->same('ready', $tiers['release-all']['status']);
+            $t->same(true, $tiers['release-all']['runnable']);
+            $t->same([], $tiers['release-all']['missing']);
+            $t->contains('--jobs 3 --stop-on-error all', $tiers['release-all']['command']);
+            $t->same('blocked-needs-suite-map', $tiers['permutation-suites']['status']);
+            $t->same(['concrete permutation suite command map'], $tiers['permutation-suites']['missing']);
+            $t->same('ready', $tiers['make-test']['status']);
+            $t->same('ready', $tiers['mptest']['status']);
+        } finally {
+            @unlink($buildDirectory . '/testfixture');
+            @unlink($buildDirectory . '/Makefile');
+            @unlink($testDirectory . '/testrunner.tcl');
+            @rmdir($mptestDirectory);
+            @rmdir($testDirectory);
+            @rmdir($root . '/.upstream-cache/libsqlite');
+            @rmdir($buildDirectory);
+            @rmdir($root . '/.upstream-cache');
+            @rmdir($root);
+        }
+    },
     'expands wildcard upstream scripts when a hydrated test directory is available' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $root = sys_get_temp_dir() . '/libsqlite-upstream-wildcards-' . bin2hex(random_bytes(4));

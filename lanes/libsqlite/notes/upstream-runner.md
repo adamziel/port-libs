@@ -1,5 +1,43 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Release Tier Matrix
+
+Date: 2026-05-26
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::releaseTierMatrix()`. The helper turns the
+remaining SQLite release/all closure tiers into a machine-readable matrix for
+`release-all`, declared `permutation-suites`, `make-test`, and `mptest` stress
+coverage. Each tier records its known local command, inventory-unit count,
+runnable flag, accepted/ready/blocked status, missing cache/build inputs, and
+next hydration gate; declared permutation suites stay blocked until concrete
+upstream suite commands are mapped instead of inventing a runner mode. It does
+not claim fresh upstream execution.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout or configured
+`.upstream-cache/libsqlite-build-port-libsqlite` build directory, so no new
+upstream `testfixture`, `make test`, or `mptest` run was started. Prior
+applicable runner evidence remains the complete SQLite `veryquick` run: 1235
+scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. The slice reuses the
+lane-local manifest inventory, accepted runner metadata, and SQLite
+testfixture/make command planning; it performs no shell-out and counts no
+shared support-library progress.
+
 ## Focused Native Mapping: Embedded NUL Encoding and Pattern Text
 
 Date: 2026-05-26

@@ -1,5 +1,52 @@
 # Integration Status
 
+## Accepted libsqlite release tier matrix slice - 2026-05-26 05:34 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T052200Z.ready`.
+
+Current `refs/heads/main` before acceptance:
+`1095d2a7ea20abbd721050e8aed0cdc45122be15` (`Integrate libsqlite B-tree free-space diagnostics`).
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=1095d2a7ea20abbd721050e8aed0cdc45122be15`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported
+  `7db0dd73011957ae56da8b5ce4d2517e6c5b2a9d`.
+
+Runtime gate evidence:
+- Before detached candidate worktree creation, `df -Pk /` reported
+  `87710336` KiB available, load was `4.34`, and no no-argument root harness
+  was active.
+- Before serialized root verification, `df -Pk /` reported `87549220` KiB
+  available, load was `4.17`, and no no-argument root harness was active.
+
+Verification evidence:
+- Patch sha256 matched
+  `dfe9fa6cf216d6b5e62e53c25d40e629895175d4763017775332756e2c479d4e`.
+- The patch applied cleanly to a detached current-main worktree. Shared-checkout
+  `git apply --check` was ignored as polluted by unrelated dirty deletions.
+- `php -l` passed for `lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php`
+  and `lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`.
+- Manifest/status JSON validation passed.
+- Focused
+  `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php`
+  passed with `1 test files, 201 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized root `php tools/run-tests.php` passed under
+  `.tmux-team/tmp/clean-integrator-run.lock` with `215 test files, 27105
+  assertions, 0 failures`.
+
+Decision: accepted. This slice adds an explicit libsqlite release-tier matrix
+for `releasetest`, `make test`, and `mptest` closure, preserving honest blockers
+for missing hydrated upstream cache/build artifacts and the still-unmapped
+permutation suite command map. No new support-library component was needed.
+
+Dashboard publication should run next because the accepted source head moved
+past the currently published dashboard source.
+
 ## Accepted libsqlite encoding embedded-NUL text slice - 2026-05-26 05:07 UTC
 
 Accepted marker:

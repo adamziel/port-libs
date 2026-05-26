@@ -408,6 +408,106 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function releaseTierMatrix(int $jobs = 1, ?string $repoRoot = null): array
+    {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite release tier jobs must be at least 1');
+        }
+
+        $denominator = $this->manifest['benchmarkDenominator'] ?? [];
+        $runner = is_array($denominator) && is_array($denominator['runnerStatus'] ?? null)
+            ? $denominator['runnerStatus']
+            : [];
+        $buildDirectory = is_string($runner['buildDirectory'] ?? null)
+            ? $runner['buildDirectory']
+            : '.upstream-cache/libsqlite-build-port-libsqlite';
+        $fullReleaseStatus = is_array($runner['fullReleaseStatus'] ?? null) ? $runner['fullReleaseStatus'] : [];
+        $inventory = is_array($denominator) && is_array($denominator['inventory'] ?? null)
+            ? $denominator['inventory']
+            : [];
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $absoluteBuildDirectory = $root . '/' . $buildDirectory;
+        $testfixture = $absoluteBuildDirectory . '/testfixture';
+        $testrunner = $root . '/.upstream-cache/libsqlite/test/testrunner.tcl';
+        $makefile = $absoluteBuildDirectory . '/Makefile';
+        $mptest = $root . '/.upstream-cache/libsqlite/mptest';
+
+        $missingTestfixture = $this->missingRunnerInputs($absoluteBuildDirectory, $testfixture, $testrunner, $buildDirectory);
+        $makeReady = is_dir($absoluteBuildDirectory) && is_file($makefile);
+        $mptestReady = is_dir($mptest);
+
+        $tiers = [
+            [
+                'id' => 'release-all',
+                'label' => 'full release/all permutations',
+                'status' => ($fullReleaseStatus['executed'] ?? false) === true ? 'accepted' : ($missingTestfixture === [] ? 'ready' : 'blocked-missing-cache'),
+                'command' => 'cd ' . $buildDirectory . ' && ./testfixture ../libsqlite/test/testrunner.tcl --jobs ' . $jobs . ' --stop-on-error all',
+                'runnable' => $missingTestfixture === [],
+                'missing' => $missingTestfixture,
+                'inventory_units' => (int) ($inventory['allTestSuiteRuns'] ?? 0),
+            ],
+            [
+                'id' => 'permutation-suites',
+                'label' => 'declared permutation suites',
+                'status' => $missingTestfixture === [] ? 'blocked-needs-suite-map' : 'blocked-missing-cache',
+                'command' => null,
+                'runnable' => false,
+                'missing' => $missingTestfixture === [] ? ['concrete permutation suite command map'] : $missingTestfixture,
+                'inventory_units' => (int) ($inventory['permutationSuitesDeclared'] ?? 0),
+            ],
+            [
+                'id' => 'make-test',
+                'label' => 'multi-configuration make test suites',
+                'status' => $makeReady ? 'ready' : 'blocked-missing-build',
+                'command' => 'make -C ' . $buildDirectory . ' test',
+                'runnable' => $makeReady,
+                'missing' => $makeReady ? [] : [$buildDirectory . '/Makefile'],
+                'inventory_units' => (int) ($inventory['testDirectoryTclHarnessFiles'] ?? 0) + (int) ($inventory['srcTestCOrHeaderHelpers'] ?? 0),
+            ],
+            [
+                'id' => 'mptest',
+                'label' => 'long-running stress/permutation tiers beyond veryquick',
+                'status' => $mptestReady && $makeReady ? 'ready' : 'blocked-missing-build',
+                'command' => 'make -C ' . $buildDirectory . ' mptest',
+                'runnable' => $mptestReady && $makeReady,
+                'missing' => array_values(array_filter([
+                    $mptestReady ? null : '.upstream-cache/libsqlite/mptest',
+                    $makeReady ? null : $buildDirectory . '/Makefile',
+                ])),
+                'inventory_units' => (int) ($inventory['mptestFiles'] ?? 0),
+            ],
+        ];
+
+        $ready = 0;
+        $accepted = 0;
+        foreach ($tiers as $tier) {
+            if ($tier['status'] === 'ready') {
+                $ready++;
+            } elseif ($tier['status'] === 'accepted') {
+                $accepted++;
+            }
+        }
+
+        return [
+            'status' => $ready + $accepted === count($tiers) ? 'ready' : 'blocked',
+            'jobs' => $jobs,
+            'tier_count' => count($tiers),
+            'ready_tiers' => $ready,
+            'accepted_tiers' => $accepted,
+            'blocked_tiers' => count($tiers) - $ready - $accepted,
+            'full_release_reason' => is_string($fullReleaseStatus['reason'] ?? null) ? $fullReleaseStatus['reason'] : '',
+            'tiers' => $tiers,
+            'next_gate' => $ready + $accepted === count($tiers)
+                ? 'run the release tiers and replace blocked status with parsed pass/fail records'
+                : 'hydrate .upstream-cache/libsqlite, configure/build testfixture, and keep tier commands explicit before counting release/all closure',
+            'dependency_closure' => 'no new support component needed; release-tier matrix reuses lane-local manifest inventory and SQLite testfixture/make commands',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();
@@ -559,6 +659,29 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return list<string>
+     */
+    private function missingRunnerInputs(
+        string $absoluteBuildDirectory,
+        string $testfixture,
+        string $testrunner,
+        string $buildDirectory
+    ): array {
+        $missing = [];
+        if (!is_dir($absoluteBuildDirectory)) {
+            $missing[] = $buildDirectory;
+        }
+        if (!is_file($testfixture)) {
+            $missing[] = $buildDirectory . '/testfixture';
+        }
+        if (!is_file($testrunner)) {
+            $missing[] = '.upstream-cache/libsqlite/test/testrunner.tcl';
+        }
+
+        return $missing;
+    }
+
+    /**
      * @param list<string> $scripts
      * @return array<string, mixed>
      */
@@ -656,16 +779,7 @@ final class SQLiteUpstreamSuiteEvidence
             $command .= ' ' . implode(' ', $normalizedScripts);
         }
 
-        $missing = [];
-        if (!is_dir($absoluteBuildDirectory)) {
-            $missing[] = $buildDirectory;
-        }
-        if (!is_file($testfixture)) {
-            $missing[] = $buildDirectory . '/testfixture';
-        }
-        if (!is_file($testrunner)) {
-            $missing[] = '.upstream-cache/libsqlite/test/testrunner.tcl';
-        }
+        $missing = $this->missingRunnerInputs($absoluteBuildDirectory, $testfixture, $testrunner, $buildDirectory);
 
         return [
             'command' => $command,
