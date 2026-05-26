@@ -31,6 +31,8 @@ final class SQLiteCoreScalarFunction
             'trim', 'ltrim', 'rtrim' => self::trim($normalized, $arguments),
             'replace' => self::replace($arguments),
             'instr' => self::instr($arguments),
+            'concat' => self::concat($arguments),
+            'concat_ws' => self::concatWithSeparator($arguments),
             'hex' => self::hex($arguments),
             'unhex' => self::unhex($arguments),
             'char' => self::char($arguments),
@@ -370,6 +372,43 @@ final class SQLiteCoreScalarFunction
         }
 
         return $position + 1;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function concat(array $arguments): string
+    {
+        self::assertArity('concat', $arguments, 1, null);
+        $text = '';
+        foreach ($arguments as $argument) {
+            if ($argument !== null) {
+                $text .= self::coerceText('concat', $argument, 'argument');
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function concatWithSeparator(array $arguments): ?string
+    {
+        self::assertArity('concat_ws', $arguments, 2, null);
+        if ($arguments[0] === null) {
+            return null;
+        }
+
+        $separator = self::coerceText('concat_ws', $arguments[0], 'separator');
+        $parts = [];
+        foreach (array_slice($arguments, 1) as $argument) {
+            if ($argument !== null) {
+                $parts[] = self::coerceText('concat_ws', $argument, 'argument');
+            }
+        }
+
+        return implode($separator, $parts);
     }
 
     /**

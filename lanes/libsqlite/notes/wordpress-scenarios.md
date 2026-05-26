@@ -2750,3 +2750,55 @@ evaluator or VDBE projection engine.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
 helpers.
+
+## Focused Native Mapping: `json_each()`/`json_tree()` Hidden Columns
+
+Date: 2026-05-25
+
+This isolated micro-slice maps the bounded SQLite JSON table-valued hidden-column boundary for `json_each(X[,P])` and `json_tree(X[,P])`. Native row arrays now include the hidden `json` column as the original text/JSONB argument and the hidden `root` column as the effective root path used for the scan, while preserving the accepted visible `key`, `value`, `type`, `atom`, `id`, `parent`, `fullkey`, and `path` columns.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated `.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was started. This slice reuses prior focused JSON1/JSONB table-valued evidence for the same upstream behavior cluster:
+
+```sh
+json101.test json102.test json501.test json107.test jsonb01.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run: 1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonEach.php
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php lanes/libsqlite/examples/wordpress-json-tree-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed, the WordPress example reported recursive root/plugin/rules rows with hidden `json`/`root` summaries, focused PHP passed 1 selected test file, 2116 assertions, and 0 failures, and final diff/json checks are recorded in `lane-status.json`. This worker did not start the root aggregate harness because root verification was not assigned.
+
+Dependency closure: no new support component is needed. The slice reuses existing lane-local JSON path, JSON5, JSONB, BLOB, canonical encoding, and SQL value typing support; it counts no shared support-library progress.
+
+## Core Concat Scalar Scenario
+
+Native SQL execution helpers now include `concat()` and `concat_ws()` in the
+bounded core scalar dispatch surface used by local WordPress option repair and
+expression planning. The `examples/wordpress-core-scalar-option-default.php`
+smoke reports local-only option-key assembly for copied `wp_options` values,
+including SQLite NULL-as-empty concat behavior, concat_ws NULL separator
+propagation, skipped NULL fields, and BLOB byte text coercion without requiring
+the SQLite extension.
+
+Status delta 2026-05-26 isolated dependency-suite scalar slice: added
+SQLite-style concat/concat_ws dispatch with focused assertions for NULL
+handling, skipped NULL fields, separator behavior, BLOB coercion, and strict
+arity/type errors. This is intentionally a scalar dispatch helper, not a full
+SELECT expression evaluator or VDBE projection engine.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local scalar coercion, SQLiteBlobValue, and existing expression-semantics
+helpers.

@@ -8843,3 +8843,35 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 scalar coercion, UTF-8 helpers when available, `SQLiteBlobValue`, and existing
 expression-semantics dispatch without activating shared support-library work.
+
+## Focused Native Mapping: Core Concat Scalar Functions
+
+This isolated dependency-suite scalar micro-slice adds another bounded core
+text-scalar dispatch cluster. Native PHP now supports `concat()` and
+`concat_ws()` through `SQLiteCoreScalarFunction::sqlFunctionArguments()`,
+including concat NULL-as-empty behavior, all-NULL empty-string output,
+concat_ws NULL separator propagation, skipped NULL fields, BLOB byte text
+coercion, and strict arity/type errors.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused core concat scalar evidence row while preserving the current
+accepted static SQLite upstream denominator and full-suite runner evidence.
+This isolated worktree did not contain the hydrated upstream cache, so no fresh
+upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T13:13Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php concat plugin - cache null :v 2
+php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php concat_ws / plugin null cache v2
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+scalar coercion, `SQLiteBlobValue`, and existing expression-semantics dispatch
+without activating shared support-library work.

@@ -1,5 +1,47 @@
 # Integration Status
 
+## Integration accepted - libsqlite concat scalar dispatch - 2026-05-26 13:17 UTC
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T131307Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before integration was `129b07f7f6a9f8ff455decdaadb65a389bc7abfa` (`Integrate libsqlite release rerun decision gate`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported `sourceCommit` `129b07f7f6a9f8ff455decdaadb65a389bc7abfa`; `commit`, `generatedAt`, and `averageProgress` were absent/empty in the returned JSON shape.
+- The live dashboard was not behind the current accepted source head, so no Pages-outage override was used.
+- Existing Pages-outage override files through `20260526T1246Z` were already consumed.
+- `gh api repos/adamziel/port-libs/pages` reported legacy Pages source `gh-pages` `/` and site status `built`.
+- `gh api repos/adamziel/port-libs/pages/builds/latest` reported latest build commit `dffc56be1645ebc25137f6c7203ec931f4632e44`, status `built`, created `2026-05-26T12:43:35Z`, updated `2026-05-26T12:53:38Z`, with no error message.
+- `git ls-remote origin` reported remote `main` at `99e2cea3e804fa36f291ddcc196ecd3f630ce0f1` and remote `gh-pages` at `dffc56be1645ebc25137f6c7203ec931f4632e44`.
+
+Runtime gate evidence:
+- `df -Pk /` reported `126320160` KiB available before the root run, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `5.54`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows before the serialized root run.
+
+Marker evidence:
+- Marker fields included `lane=libsqlite`, `patch=...`, and `metadata=...`.
+- Marker `base_sha` matched current `refs/heads/main` at `129b07f7f6a9f8ff455decdaadb65a389bc7abfa`.
+- Patch SHA-256 matched `1b5bba040e2454b2af7810b6fe1df72e401146b43c6e200fc423d3a00766eff9`.
+- Patch was lane-local under `lanes/libsqlite/**`, with focused core scalar `concat()` / `concat_ws()` dispatch, tests, WordPress smoke, manifest/status, and notes.
+
+Focused checks from detached clean worktree:
+- `php -l lanes/libsqlite/src/SQLiteCoreScalarFunction.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-core-scalar-option-default.php`: passed.
+- Manifest/status JSON validation: passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 2779 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php concat plugin - cache null :v 2`: passed.
+- `php lanes/libsqlite/examples/wordpress-core-scalar-option-default.php concat_ws / plugin null cache v2`: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+- `git diff --check`: passed.
+
+Serialized root result:
+- `flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`: passed, `215 test files, 27669 assertions, 0 failures`.
+
+Decision: accepted. The clean candidate will be committed to `refs/heads/main`, then the accepted marker artifacts will be removed. Dashboard publication should run next because the accepted source head moved.
+
 ## Integration accepted - libsqlite release rerun decision gate - 2026-05-26 13:10 UTC
 
 Accepted source: supervisor-rebased from
