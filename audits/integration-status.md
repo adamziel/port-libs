@@ -115701,3 +115701,33 @@ Verification:
 Decision: accepted after a bounded stale-status merge. The marker was based on `e5897b4ac75ee1bf7a45063194c84592ccf26996`; code/test/manifest/notes applied cleanly to current `04564d2dd7e2cd263295596c8bb9fbd6054c551a`, while `lane-status.json` was merged narrowly to preserve the accepted foreground rerun blocker snapshot from `04564d2d` and record the new stdout-summary parser slice.
 
 Dashboard publication should run next for the new accepted source after this commit reaches `main`.
+
+## Integration accepted - libsqlite persistent fts5aux blocker gate - 2026-05-26T15:30:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T151730Z.ready`.
+
+Scope:
+- Lane-local `libsqlite` upstream-suite blocker evidence only.
+- Added `SQLiteUpstreamSuiteEvidence::persistentReleaseRuntimeBlockerGate()` to classify the repeated guarded SQLite release-runner `fts5aux` sanitizer/runtime failure as a persistent upstream-runtime blocker only when two matching release artifacts and an exact focused repro gate are present.
+- Keeps `counts_as_release_parity` false; this records blocker/exclusion evidence and does not claim release/all parity.
+- Manifest, status, and upstream-runner notes record the blocker-gate evidence without launching a fresh broad SQLite runner.
+
+Dashboard guard evidence:
+- Current source before integration: `6bdb5106139aa3ace1375323a7033150f2cffa87` (`Integrate libsqlite runner stdout summaries`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `6bdb5106139aa3ace1375323a7033150f2cffa87`.
+- Pages-outage override files were already consumed and were not used.
+
+Runtime gate evidence:
+- Before the serialized root check, `df -Pk /` reported `107401436` KiB available, `/proc/loadavg` one-minute load was `2.11`, and no exact no-argument root harness was running.
+
+Verification:
+- `php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- Manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed with `1 test files, 535 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+- Serialized clean-candidate `php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 27807 assertions, 0 failures`.
+
+Decision: accepted one current-base libsqlite marker from a detached clean worktree based on `6bdb5106139aa3ace1375323a7033150f2cffa87`.
+
+Dashboard publication should run next for the new accepted source after this commit reaches `main`.

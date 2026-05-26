@@ -1496,6 +1496,125 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int, array<string, mixed>> $failedReleaseArtifacts
+     * @param array<string, mixed> $focusedReproGate
+     * @return array<string, mixed>
+     */
+    public function persistentReleaseRuntimeBlockerGate(
+        array $failedReleaseArtifacts,
+        array $focusedReproGate
+    ): array {
+        $focusedScript = is_string($focusedReproGate['script'] ?? null) ? $focusedReproGate['script'] : null;
+        $focusedCase = is_string($focusedReproGate['case'] ?? null) ? $focusedReproGate['case'] : null;
+        $focusedArtifact = is_array($focusedReproGate['artifact'] ?? null) ? $focusedReproGate['artifact'] : [];
+        $focusedResults = is_array($focusedArtifact['results'] ?? null) ? $focusedArtifact['results'] : [];
+
+        $matches = [];
+        $blockers = [];
+        foreach ($failedReleaseArtifacts as $index => $artifact) {
+            if (!is_array($artifact)) {
+                $blockers[] = [
+                    'id' => 'release-artifact-invalid',
+                    'evidence' => 'failed release artifact entry is not an object',
+                    'index' => $index,
+                ];
+                continue;
+            }
+
+            $results = is_array($artifact['results'] ?? null) ? $artifact['results'] : [];
+            if (($artifact['status'] ?? null) !== 'failed') {
+                $blockers[] = [
+                    'id' => 'release-artifact-not-failed',
+                    'evidence' => 'persistent runtime blocker classification only accepts failed guarded release/all artifacts',
+                    'index' => $index,
+                    'artifact_status' => $artifact['status'] ?? 'unknown',
+                ];
+                continue;
+            }
+
+            $failureBlockers = is_array($results['failure_blockers'] ?? null) ? $results['failure_blockers'] : [];
+            $matched = null;
+            foreach ($failureBlockers as $failureBlocker) {
+                if (!is_array($failureBlocker)) {
+                    continue;
+                }
+                if (($failureBlocker['category'] ?? null) !== 'upstream-runtime-environment') {
+                    continue;
+                }
+                if ($focusedScript !== null && ($failureBlocker['script'] ?? null) !== $focusedScript) {
+                    continue;
+                }
+                if ($focusedCase !== null && ($failureBlocker['case'] ?? null) !== $focusedCase) {
+                    continue;
+                }
+
+                $matched = $failureBlocker;
+                break;
+            }
+
+            if ($matched === null) {
+                $blockers[] = [
+                    'id' => 'release-artifact-missing-matching-runtime-blocker',
+                    'evidence' => 'failed release artifact does not contain the focused upstream runtime/environment blocker',
+                    'index' => $index,
+                    'artifact_status' => $artifact['status'] ?? 'unknown',
+                ];
+                continue;
+            }
+
+            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+            $matches[] = [
+                'label' => $artifact['label'] ?? null,
+                'repository_head' => $artifact['repository_head'] ?? null,
+                'testset' => $requested['testset'] ?? null,
+                'exit' => $results['exit'] ?? null,
+                'elapsed_seconds' => $results['elapsed_seconds'] ?? null,
+                'script' => $matched['script'] ?? null,
+                'case' => $matched['case'] ?? null,
+                'category' => $matched['category'] ?? null,
+                'blocker_id' => $matched['id'] ?? null,
+            ];
+        }
+
+        if (($focusedReproGate['status'] ?? null) !== 'focused-repro-passed') {
+            $blockers[] = [
+                'id' => 'focused-repro-not-passed',
+                'evidence' => 'persistent release-failure classification requires an exact focused repro with zero errors',
+                'focused_status' => $focusedReproGate['status'] ?? 'unknown',
+            ];
+        }
+
+        if (count($matches) < 2) {
+            $blockers[] = [
+                'id' => 'insufficient-repeated-release-failures',
+                'evidence' => 'persistent classification requires at least two guarded release artifacts with the same upstream runtime/environment blocker',
+                'matching_release_artifacts' => count($matches),
+            ];
+        }
+
+        $persistent = $blockers === [];
+
+        return [
+            'status' => $persistent ? 'persistent-upstream-runtime-blocker' : 'blocked',
+            'persistent' => $persistent,
+            'script' => $focusedScript,
+            'case' => $focusedCase,
+            'matching_release_artifact_count' => count($matches),
+            'matching_release_artifacts' => $matches,
+            'focused_repro_status' => $focusedReproGate['status'] ?? 'unknown',
+            'focused_tests' => is_int($focusedResults['tests'] ?? null) ? $focusedResults['tests'] : null,
+            'focused_errors' => is_int($focusedResults['errors'] ?? null) ? $focusedResults['errors'] : null,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_as_release_parity' => false,
+            'next_gate' => $persistent
+                ? 'supervisor may record the repeated release failure as persistent upstream-runtime blocker evidence; release/all parity remains uncounted until a zero-error release artifact passes provenance gates or the sanitizer blocker is explicitly accepted as a non-portability exclusion'
+                : 'collect two matching guarded release artifacts plus an exact focused zero-error repro before classifying the release/all blocker as persistent',
+            'dependency_closure' => 'no new support component needed; persistent failure gate composes lane-local release artifacts and focused repro evidence only',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function selectedScriptInventory(?string $repoRoot = null): array
