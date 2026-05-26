@@ -9736,6 +9736,15 @@ return [
         $t->same([1, 2], array_keys($wal->pageImagesThroughLastCommit()));
         $t->same($pageOne, $wal->pageImagesThroughLastCommit()[1]);
         $t->same($pageTwo, $wal->pageImagesThroughLastCommit()[2]);
+        $t->same([
+            [
+                'first_frame' => 1,
+                'last_frame' => 2,
+                'database_page_count' => 2,
+                'page_numbers' => [1, 2],
+            ],
+        ], $wal->committedTransactions());
+        $t->same(1, $wal->uncommittedFrameCount());
         $baseDatabase = $makeFirstPage($pageSize, 3) . str_repeat('B', $pageSize) . str_repeat('C', $pageSize);
         $checkpointDatabase = $wal->checkpointDatabaseImage($baseDatabase);
         $t->same($pageSize * 2, strlen($checkpointDatabase));
@@ -9746,9 +9755,67 @@ return [
             'header' => $wal->header->toArray(),
             'frame_count' => 3,
             'checksums_validated' => false,
+            'committed_transactions' => [
+                [
+                    'first_frame' => 1,
+                    'last_frame' => 2,
+                    'database_page_count' => 2,
+                    'page_numbers' => [1, 2],
+                ],
+            ],
+            'uncommitted_frame_count' => 1,
             'committed_page_numbers' => [1, 2],
             'last_commit_frame' => $lastCommitFrame->toArray(),
         ], $wal->toArray());
+    },
+    'summarizes sqlite wal committed transaction boundaries' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x11111111;
+        $salt2 = 0x22222222;
+        $walHeader = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 3, $salt1, $salt2, 0x33333333, 0x44444444);
+        $pageOne = $makeFirstPage($pageSize, 3);
+        $pageTwoA = str_repeat('A', $pageSize);
+        $pageTwoB = str_repeat('B', $pageSize);
+        $pageThree = str_repeat('C', $pageSize);
+        $tailPage = str_repeat('T', $pageSize);
+        $walBytes = $walHeader
+            . pack('N*', 1, 0, $salt1, $salt2, 0, 0) . $pageOne
+            . pack('N*', 2, 2, $salt1, $salt2, 0, 0) . $pageTwoA
+            . pack('N*', 2, 0, $salt1, $salt2, 0, 0) . $pageTwoB
+            . pack('N*', 3, 3, $salt1, $salt2, 0, 0) . $pageThree
+            . pack('N*', 1, 0, $salt1, $salt2, 0, 0) . $tailPage;
+
+        $wal = SQLiteWal::parse($walBytes);
+
+        $t->same([
+            [
+                'first_frame' => 1,
+                'last_frame' => 2,
+                'database_page_count' => 2,
+                'page_numbers' => [1, 2],
+            ],
+            [
+                'first_frame' => 3,
+                'last_frame' => 4,
+                'database_page_count' => 3,
+                'page_numbers' => [2, 3],
+            ],
+        ], $wal->committedTransactions());
+        $t->same(1, $wal->uncommittedFrameCount());
+        $t->same([1, 2, 3], array_keys($wal->pageImagesThroughLastCommit()));
+        $t->same($pageOne, $wal->pageImagesThroughLastCommit()[1]);
+        $t->same($pageTwoB, $wal->pageImagesThroughLastCommit()[2]);
+        $t->same($pageThree, $wal->pageImagesThroughLastCommit()[3]);
+
+        $emptyWal = SQLiteWal::parse($walHeader);
+        $t->same([], $emptyWal->committedTransactions());
+        $t->same(0, $emptyWal->uncommittedFrameCount());
+
+        $uncommittedWal = SQLiteWal::parse(
+            $walHeader . pack('N*', 1, 0, $salt1, $salt2, 0, 0) . $pageOne
+        );
+        $t->same([], $uncommittedWal->committedTransactions());
+        $t->same(1, $uncommittedWal->uncommittedFrameCount());
     },
     'validates sqlite wal header and frame checksums when requested' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;

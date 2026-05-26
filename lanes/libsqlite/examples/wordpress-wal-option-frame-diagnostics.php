@@ -73,6 +73,8 @@ $database = SQLiteDatabase::fromBytes($wal->checkpointDatabaseImage($baseDatabas
 
 echo json_encode([
     'wal' => $wal->toArray(),
+    'committedTransactions' => $wal->committedTransactions(),
+    'uncommittedFrameCount' => $wal->uncommittedFrameCount(),
     'schema' => array_map(
         static fn (SQLiteSchemaRecord $record): array => [
             'type' => $record->type,

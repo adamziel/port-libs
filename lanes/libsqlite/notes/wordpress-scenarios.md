@@ -2,6 +2,24 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## WAL Committed Transaction Option Diagnostics Scenario
+
+Native WAL diagnostics now expose committed transaction batches for copied
+WordPress database WAL files. The example
+`examples/wordpress-wal-option-frame-diagnostics.php` reports
+`committedTransactions` and `uncommittedFrameCount` beside the accepted
+checkpoint overlay result so import and repair tooling can distinguish
+committed wp_options writes from uncommitted tail frames without requiring the
+SQLite extension.
+
+Status delta 2026-05-26 isolated refill: added
+`SQLiteWal::committedTransactions()` and `uncommittedFrameCount()` with
+focused tests for multi-transaction WAL files, page-number summaries,
+replacement page images, zero-frame WAL files, and uncommitted tails.
+Dependency closure: no new support component is needed; the slice reuses
+existing lane-local WAL frame parsing, checksum validation, checkpoint overlay,
+and WordPress option decoding.
+
 ## JSON Tree Selected-Root Option Review Scenario
 
 Native recursive JSON option expansion now mirrors SQLite's

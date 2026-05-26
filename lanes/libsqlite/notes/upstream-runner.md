@@ -1,5 +1,49 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: WAL Committed Transaction Boundaries
+
+Date: 2026-05-26
+
+This isolated micro-slice adds a bounded native summary for SQLite WAL
+transaction boundaries. `SQLiteWal::committedTransactions()` groups parsed
+frames into committed batches ending at commit frames, reports the first and
+last frame indexes, final database page count, and touched page numbers, and
+`uncommittedFrameCount()` reports tail frames after the last commit. Checkpoint
+overlay behavior remains unchanged and still ignores uncommitted tail frames.
+
+Focused upstream runner:
+
+The detached worktree for this isolated lane did not contain the hydrated
+`.upstream-cache/libsqlite` checkout, so no new upstream `testfixture` run was
+started. This slice reuses prior focused SQLite WAL/pager evidence for the
+same behavior cluster:
+
+```sh
+wal*.test pager*.test
+```
+
+Prior applicable runner evidence remains the complete SQLite `veryquick` run:
+1235 scripts, 329670 tests, and 0 errors.
+
+Native PHP evidence:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteWal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php lanes/libsqlite/examples/wordpress-wal-option-frame-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+```
+
+Result: syntax checks passed; the WordPress smoke reported
+`committedTransactions` and `uncommittedFrameCount`; focused lane tests passed
+with 1 file and 0 failures.
+
+Dependency closure: no new support component is needed. The slice reuses the
+existing lane-local WAL header/frame parser, checksum validator, page-image
+overlay, and WordPress option decoding; it counts no shared support-library
+progress.
+
 ## Focused Native Mapping: `json_tree(X, root)` Selected-Root Rows
 
 Date: 2026-05-26

@@ -132,6 +132,47 @@ final class SQLiteWal
         return $pageImages;
     }
 
+    /**
+     * @return list<array{first_frame:int,last_frame:int,database_page_count:int,page_numbers:list<int>}>
+     */
+    public function committedTransactions(): array
+    {
+        $transactions = [];
+        $firstFrame = null;
+        $pageNumbers = [];
+
+        foreach ($this->frames as $frame) {
+            $firstFrame ??= $frame->index;
+            $pageNumbers[$frame->pageNumber] = true;
+
+            if (!$frame->isCommitFrame()) {
+                continue;
+            }
+
+            $orderedPageNumbers = array_keys($pageNumbers);
+            sort($orderedPageNumbers, SORT_NUMERIC);
+            $transactions[] = [
+                'first_frame' => $firstFrame,
+                'last_frame' => $frame->index,
+                'database_page_count' => $frame->databasePageCountAfterCommit,
+                'page_numbers' => $orderedPageNumbers,
+            ];
+            $firstFrame = null;
+            $pageNumbers = [];
+        }
+
+        return $transactions;
+    }
+
+    public function uncommittedFrameCount(): int
+    {
+        $lastCommitFrame = $this->lastCommitFrame();
+
+        return $lastCommitFrame === null
+            ? count($this->frames)
+            : count($this->frames) - $lastCommitFrame->index;
+    }
+
     public function checkpointDatabaseImage(string $databaseBytes): string
     {
         $lastCommitFrame = $this->lastCommitFrame();
@@ -170,6 +211,8 @@ final class SQLiteWal
             'header' => $this->header->toArray(),
             'frame_count' => $this->frameCount(),
             'checksums_validated' => $this->checksumsValidated,
+            'committed_transactions' => $this->committedTransactions(),
+            'uncommitted_frame_count' => $this->uncommittedFrameCount(),
             'committed_page_numbers' => array_keys($this->pageImagesThroughLastCommit()),
             'last_commit_frame' => $lastCommitFrame?->toArray(),
         ];
