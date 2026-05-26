@@ -62,6 +62,28 @@ final class SQLiteSavepointStack
         $this->frames[$index]['pages'] = [];
     }
 
+    /**
+     * @return array{savepoint:string,found_index:int,retained_depth:int,discarded_frame_names:list<string>,rollback_page_numbers:list<int>,target_frame_cleared:bool,transaction_active_after:bool}
+     */
+    public function rollbackToPlan(string $name): array
+    {
+        $index = $this->findFrame($name);
+        $discardedFrameNames = [];
+        for ($frameIndex = $index + 1; $frameIndex < count($this->frames); $frameIndex++) {
+            $discardedFrameNames[] = $this->frames[$frameIndex]['name'];
+        }
+
+        return [
+            'savepoint' => $name,
+            'found_index' => $index,
+            'retained_depth' => $index + 1,
+            'discarded_frame_names' => $discardedFrameNames,
+            'rollback_page_numbers' => $this->rollbackToPageNumbers($name),
+            'target_frame_cleared' => true,
+            'transaction_active_after' => true,
+        ];
+    }
+
     public function release(string $name): void
     {
         $index = $this->findFrame($name);
@@ -80,6 +102,35 @@ final class SQLiteSavepointStack
         foreach ($releasedPages as $pageNumber => $_) {
             $this->frames[array_key_last($this->frames)]['pages'][$pageNumber] = true;
         }
+    }
+
+    /**
+     * @return array{savepoint:string,found_index:int,released_frame_names:list<string>,merged_page_numbers:list<int>,target_is_transaction:bool,result_depth:int,transaction_active_after:bool}
+     */
+    public function releasePlan(string $name): array
+    {
+        $index = $this->findFrame($name);
+        $releasedFrameNames = [];
+        $releasedPages = [];
+        for ($frameIndex = $index; $frameIndex < count($this->frames); $frameIndex++) {
+            $releasedFrameNames[] = $this->frames[$frameIndex]['name'];
+            foreach ($this->frames[$frameIndex]['pages'] as $pageNumber => $_) {
+                $releasedPages[$pageNumber] = true;
+            }
+        }
+
+        $pageNumbers = array_keys($releasedPages);
+        sort($pageNumbers, SORT_NUMERIC);
+
+        return [
+            'savepoint' => $name,
+            'found_index' => $index,
+            'released_frame_names' => $releasedFrameNames,
+            'merged_page_numbers' => $pageNumbers,
+            'target_is_transaction' => $this->frames[$index]['transaction'],
+            'result_depth' => $index,
+            'transaction_active_after' => $index > 0,
+        ];
     }
 
     /**

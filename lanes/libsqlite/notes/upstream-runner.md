@@ -8086,3 +8086,33 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new support component is needed. This reuses lane-local
 WAL parsing, checkpoint planning, SQLite header parsing, and WordPress fixture
 helpers without activating shared support-library work.
+
+## Focused Native Mapping: Savepoint Rollback/Release Plans
+
+This isolated WAL/rollback/savepoint micro-slice adds read-only nested
+savepoint planning diagnostics. Native PHP can now report the most-recent
+matching savepoint frame, frames discarded by `ROLLBACK TO`, page numbers that
+would be restored, frames released by `RELEASE`, dirty pages merged into the
+parent frame, and whether releasing the target closes the outer transaction.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` maps one
+additional focused savepoint rollback/release planning script while preserving
+the current accepted static SQLite upstream denominator and full-suite runner
+evidence. This isolated worktree did not contain the hydrated upstream cache,
+so no fresh upstream `testfixture`, `make test`, or `mptest` run was started.
+
+Verification run 2026-05-26T09:05Z in the isolated worker:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSavepointStack.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+savepoint state tracking and WordPress fixture diagnostics without activating
+shared transaction, pager, or filesystem durability support.

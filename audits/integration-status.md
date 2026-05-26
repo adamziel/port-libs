@@ -1,5 +1,52 @@
 # Integration Status
 
+## Accepted port-dev-libsqlite-priority-20260526T085538Z - 2026-05-26 09:04 UTC
+
+Accepted marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-priority-20260526T085538Z.ready`.
+
+Commit: pending at record time.
+
+Decision: accepted. This current-base libsqlite priority marker applied
+cleanly in a detached clean worktree from `3eca315981608dc7341457d6feba69461a58a74e`
+and adds bounded savepoint rollback/release diagnostic planning evidence.
+
+Dashboard guard evidence:
+- Cache-busted live
+  `https://adamziel.github.io/port-libs/porting-summary.json` reported
+  `sourceCommit=3eca315981608dc7341457d6feba69461a58a74e`, matching current
+  `refs/heads/main`.
+- Live dashboard commit reported `3d53ab6c7aa25bef2780cf64c574a349e1965081`.
+
+Resource and process gate evidence:
+- Pre-focused gate reported `/` at `86730900` KiB available, load `6.19`, and
+  no no-argument root harness process.
+- Pre-root gate reported `/` at `86724412` KiB available, load `5.85`, and no
+  no-argument root harness process.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteSavepointStack.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`
+  passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed
+  with `1 test files, 2658 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-savepoint-option-import-diagnostics.php`
+  passed and emitted rollback/release diagnostic JSON.
+- `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and
+  `lanes/libsqlite/lane-status.json` parsed as JSON.
+- `git diff --check -- lanes/libsqlite` and full `git diff --check` passed.
+
+Serialized root verification:
+- `php tools/run-tests.php` ran under
+  `.tmux-team/tmp/clean-integrator-run.lock` from the exact candidate snapshot
+  and passed with `215 test files, 27412 assertions, 0 failures`.
+
+Cleanup:
+- Accepted marker artifacts may be removed after the final commit is safely on
+  `refs/heads/main`.
+- Dashboard publication should run next after the accepted source commit lands.
+
 ## Accepted - libsqlite bounded upstream runner artifact record - 2026-05-26 08:49 UTC
 
 Accepted marker:

@@ -10987,6 +10987,15 @@ SQL;
         $t->same([5, 7, 8], $stack->rollbackToPageNumbers('plugin-import'));
         $t->same([8], $stack->rollbackToPageNumbers('option-row'));
         $t->same([2, 5, 7, 8], $stack->rollbackToPageNumbers('outer'));
+        $t->same([
+            'savepoint' => 'plugin-import',
+            'found_index' => 1,
+            'retained_depth' => 2,
+            'discarded_frame_names' => ['option-row'],
+            'rollback_page_numbers' => [5, 7, 8],
+            'target_frame_cleared' => true,
+            'transaction_active_after' => true,
+        ], $stack->rollbackToPlan('plugin-import'));
 
         $stack->rollbackTo('plugin-import');
         $t->same(2, $stack->depth());
@@ -11006,6 +11015,15 @@ SQL;
         ], $stack->toArray());
 
         $stack->recordPageWrite(6);
+        $t->same([
+            'savepoint' => 'plugin-import',
+            'found_index' => 1,
+            'released_frame_names' => ['plugin-import'],
+            'merged_page_numbers' => [6],
+            'target_is_transaction' => false,
+            'result_depth' => 1,
+            'transaction_active_after' => true,
+        ], $stack->releasePlan('plugin-import'));
         $stack->release('plugin-import');
         $t->same(1, $stack->depth());
         $t->same([2, 6], $stack->pendingPageNumbers());
@@ -11017,6 +11035,15 @@ SQL;
             ],
         ], $stack->toArray());
 
+        $t->same([
+            'savepoint' => 'outer',
+            'found_index' => 0,
+            'released_frame_names' => ['outer'],
+            'merged_page_numbers' => [2, 6],
+            'target_is_transaction' => true,
+            'result_depth' => 0,
+            'transaction_active_after' => false,
+        ], $stack->releasePlan('outer'));
         $stack->release('outer');
         $t->same(false, $stack->transactionActive());
         $t->same([], $stack->pendingPageNumbers());
@@ -11037,6 +11064,8 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => $stack->recordPageWrite(0));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackTo('missing'));
         $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackToPageNumbers('missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->rollbackToPlan('missing'));
+        $t->throws(InvalidArgumentException::class, static fn () => $stack->releasePlan('missing'));
         $t->throws(LogicException::class, static fn () => $stack->commit());
     },
     'rejects malformed sqlite rollback journals' => static function (TestRunner $t): void {

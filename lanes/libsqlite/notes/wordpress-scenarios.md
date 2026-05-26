@@ -2590,3 +2590,22 @@ diagnostic plan, not a durable checkpoint writer or WAL-index implementation.
 Dependency closure: no new shared support component is needed; this reuses
 lane-local WAL parsing, checkpoint planning, SQLite header parsing, and
 WordPress fixture helpers.
+
+## Savepoint Rollback/Release Plan Scenario
+
+Native `wp_options` import diagnostics now preview nested savepoint effects
+before mutating the transaction stack. The
+`examples/wordpress-savepoint-option-import-diagnostics.php` smoke reports a
+`ROLLBACK TO plugin_settings` plan with discarded frame names and page numbers,
+then reports `RELEASE plugin_settings` and outer transaction release plans with
+the dirty pages that would merge upward or close the transaction.
+
+Status delta 2026-05-26 isolated WAL/rollback/savepoint slice: added
+`SQLiteSavepointStack::rollbackToPlan()` and `releasePlan()` with focused
+assertions for nested rollback, nested release, outer transaction release, and
+missing-savepoint errors. This is intentionally diagnostic state tracking, not
+a durable pager transaction writer, rollback journal writer, WAL-index
+implementation, or master-journal coordinator.
+
+Dependency closure: no new shared support component is needed; this reuses
+lane-local savepoint state tracking and WordPress fixture diagnostics.
