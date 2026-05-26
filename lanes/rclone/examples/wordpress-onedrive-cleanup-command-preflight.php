@@ -128,6 +128,15 @@ $rcCleanup = OneDriveCleanupCommand::runRemoteControl([
     'fs' => 'onedrive:',
     'remoteArgs' => [],
 ]);
+$rcCleanupWithCommandArgs = OneDriveCleanupCommand::runRemoteControl([
+    [
+        'remote' => 'exports/site.wxr',
+        'versions' => ['current', 'old-review'],
+    ],
+], [
+    'fs' => 'onedrive:',
+    'remoteArgs' => ['not', 'used', 'by', 'rc'],
+]);
 $rcDisabledCommandArgs = OneDriveCleanupCommand::runRemoteControl($objects, [
     'fs' => 'onedrive:',
     'noVersions' => false,
@@ -182,6 +191,9 @@ return [
     'rcMissingFsDisabledError' => $rcMissingFsDisabled['error'],
     'rcMissingFsDisabledProviderCalled' => $rcMissingFsDisabled['providerCalled'],
     'rcDeletedVersions' => $rcCleanup['deletedVersions'],
+    'rcCommandArgsDeletedVersions' => $rcCleanupWithCommandArgs['deletedVersions'],
+    'rcCommandArgsError' => $rcCleanupWithCommandArgs['error'],
+    'rcCommandArgsProviderCalled' => $rcCleanupWithCommandArgs['providerCalled'],
     'rcDisabledCommandArgsError' => $rcDisabledCommandArgs['error'],
     'rcDisabledCommandArgsStoppedAt' => $rcDisabledCommandArgs['stoppedAt'],
     'rcDisabledCommandArgsProviderCalled' => $rcDisabledCommandArgs['providerCalled'],

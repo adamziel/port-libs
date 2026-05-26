@@ -1,5 +1,42 @@
 # Integration Status
 
+## Clean-patch accepted - rclone cleanup RC command args - 2026-05-26 00:04 UTC
+
+Accepted one isolated marker:
+`.tmux-team/tmp/handoff-candidates/port-dev-rclone-20260525T235434Z.ready`.
+
+Published commit: this integration commit
+(`Integrate rclone cleanup RC command args`). The accepted patch was verified
+from a detached clean worktree at source `0c1d77d9d64a` and is scoped to
+`lanes/rclone/**` plus this integration-status entry. Patch sha256 matched the
+ready marker: `2f5120b2b3ebcc8bc003ee950e899d9758745bd901197d7815c1949d7013fb3e`.
+
+Focused verification on the clean candidate snapshot:
+- `php -l lanes/rclone/tests/OneDriveCleanupCommandTest.php` passed.
+- `php -l lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php` passed.
+- Rclone manifest/status JSON validation passed.
+- `php tools/run-tests.php lanes/rclone/tests/OneDriveCleanupCommandTest.php`
+  passed: `1 test files, 180 assertions, 0 failures`.
+- `php lanes/rclone/examples/wordpress-onedrive-cleanup-command-preflight.php`
+  passed.
+- `php tools/run-tests.php lanes/rclone/tests` passed:
+  `35 test files, 4137 assertions, 0 failures`.
+- `git diff --check -- lanes/rclone` passed.
+
+Root verification:
+- Pre-root gate under the clean-integrator lock reported
+  `df_free=98544060` KiB and `load1=2.63`; no exact no-argument root harness
+  was active.
+- `php tools/run-tests.php` passed from the exact clean candidate snapshot:
+  `214 test files, 26642 assertions, 0 failures`.
+
+Cleanup removed the accepted ready marker, patch, metadata file, referenced
+worker log, inactive source worktree, and temporary verification worktree after
+the commit was safely on `main`.
+
+Dashboard publication should run next so `porting.html` and summary artifacts
+can reflect the accepted rclone commit.
+
 ## Clean-patch accepted - Gitoxide malformed redirect cookie path quarantine - 2026-05-26 00:00 UTC
 
 Accepted one isolated marker:
