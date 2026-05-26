@@ -35,6 +35,7 @@ use PortLibs\LibSqlite\SQLiteJsonPretty;
 use PortLibs\LibSqlite\SQLiteJsonQuote;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
+use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
@@ -3842,6 +3843,65 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$settings, 1]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTree($settings, '$.plugin[#-]'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTree::jsonTree('{"plugin":,}', '$.plugin'));
+    },
+    'plans sqlite json table-valued hidden-column constraints' => static function (TestRunner $t): void {
+        $settings = '{"plugin":{"enabled":true,"rules":[{"name":"seo"},{"name":"cache"}]},"priority":7}';
+        $constraints = [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'object'],
+        ];
+
+        $plan = SQLiteJsonTablePlan::plan('JSON_EACH', $constraints);
+        $t->same('json_each', $plan['function']);
+        $t->same(true, $plan['runnable']);
+        $t->same([$settings, '$.plugin.rules'], $plan['arguments']);
+        $t->same(['json', 'root'], array_column($plan['used'], 'column'));
+        $t->same([1, 2], array_column($plan['used'], 'argvIndex'));
+        $t->same([true, true], array_column($plan['used'], 'omit'));
+        $t->same(['type'], array_column($plan['residual'], 'column'));
+        $t->same(20, $plan['estimatedCost']);
+        $t->same(10, $plan['estimatedRows']);
+
+        $eachRows = SQLiteJsonTablePlan::rows('json_each', $constraints);
+        $t->same([0, 1], array_column($eachRows, 'key'));
+        $t->same(['$.plugin.rules[0]', '$.plugin.rules[1]'], array_column($eachRows, 'fullkey'));
+        $t->same(['$.plugin.rules', '$.plugin.rules'], array_column($eachRows, 'root'));
+
+        $treeRows = SQLiteJsonTablePlan::rows('Json_TrEe', $constraints);
+        $t->same(['rules', 0, 'name', 1, 'name'], array_column($treeRows, 'key'));
+        $t->same(['array', 'object', 'text', 'object', 'text'], array_column($treeRows, 'type'));
+
+        $missingJson = SQLiteJsonTablePlan::plan('json_tree', [
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]);
+        $t->same(false, $missingJson['runnable']);
+        $t->same([], $missingJson['arguments']);
+        $t->same(1000000, $missingJson['estimatedCost']);
+
+        $unusableRoot = SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin', 'usable' => false],
+        ]);
+        $t->same([$settings, '$'], $unusableRoot['arguments']);
+        $t->same(['root'], array_column($unusableRoot['residual'], 'column'));
+
+        $t->same([], SQLiteJsonTablePlan::rows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => null],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin'],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::plan('json_group_array', $constraints));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => 7],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => 7],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin[#-]'],
+        ]));
     },
     'extracts sqlite json values with SQL result typing for text json5 and jsonb' => static function (TestRunner $t): void {
         $json = '{"plugin":{"enabled":true,"title":"Cache","priority":7,"ratio":1.5,"rules":[{"name":"seo"},{"name":"cache"}],"empty":null}}';

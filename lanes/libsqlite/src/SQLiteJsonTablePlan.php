@@ -1,0 +1,103 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\LibSqlite;
+
+final class SQLiteJsonTablePlan
+{
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return array{function:string,runnable:bool,arguments:list<mixed>,json:mixed,root:string,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int}
+     */
+    public static function plan(string $function, array $constraints): array
+    {
+        $function = self::normalizeFunction($function);
+        $json = null;
+        $root = '$';
+        $hasJson = false;
+        $used = [];
+        $residual = [];
+
+        foreach ($constraints as $constraint) {
+            $column = strtolower($constraint['column']);
+            $operator = strtoupper($constraint['operator']);
+            $usable = $constraint['usable'] ?? true;
+            if (!$usable || $operator !== '=') {
+                $residual[] = $constraint;
+                continue;
+            }
+
+            if ($column === 'json' && !$hasJson) {
+                self::assertJsonValue($constraint['value']);
+                $json = $constraint['value'];
+                $hasJson = true;
+                $used[] = $constraint + ['argvIndex' => 1, 'omit' => true];
+                continue;
+            }
+
+            if ($column === 'root') {
+                if (!is_string($constraint['value'])) {
+                    throw new \InvalidArgumentException('SQLite JSON table root constraint must be text');
+                }
+                if (!SQLiteJsonPath::isWellFormed($constraint['value'])) {
+                    throw new \InvalidArgumentException('SQLite JSON table root constraint is not a well-formed path');
+                }
+                $root = $constraint['value'];
+                $used[] = $constraint + ['argvIndex' => 2, 'omit' => true];
+                continue;
+            }
+
+            $residual[] = $constraint;
+        }
+
+        return [
+            'function' => $function,
+            'runnable' => $hasJson,
+            'arguments' => $hasJson ? [$json, $root] : [],
+            'json' => $json,
+            'root' => $root,
+            'used' => $used,
+            'residual' => $residual,
+            'estimatedCost' => $hasJson ? ($root === '$' ? 100 : 20) : 1000000,
+            'estimatedRows' => $hasJson ? ($root === '$' ? 100 : 10) : 0,
+        ];
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
+     * @return list<array<string,mixed>>
+     */
+    public static function rows(string $function, array $constraints): array
+    {
+        $plan = self::plan($function, $constraints);
+        if (!$plan['runnable']) {
+            return [];
+        }
+
+        return $plan['function'] === 'json_each'
+            ? SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', $plan['arguments'])
+            : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', $plan['arguments']);
+    }
+
+    private static function normalizeFunction(string $function): string
+    {
+        if (strcasecmp($function, 'json_each') === 0) {
+            return 'json_each';
+        }
+        if (strcasecmp($function, 'json_tree') === 0) {
+            return 'json_tree';
+        }
+
+        throw new \InvalidArgumentException('SQLite JSON table plan function must be json_each or json_tree');
+    }
+
+    private static function assertJsonValue(mixed $value): void
+    {
+        if ($value instanceof SQLiteBlobValue || $value === null || is_string($value)) {
+            return;
+        }
+
+        throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, or NULL');
+    }
+}

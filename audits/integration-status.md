@@ -1,5 +1,15 @@
 # Integration Status
 
+## Accepted libsqlite JSON table hidden-column planner - 2026-05-26 03:42 UTC
+
+Accepted marker `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260526T033039Z.ready` from current-base libsqlite worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260526T033039Z`. Patch sha256 matched `417eca2cb10c430ca53268f7bab16ddad65419ea0a788e6037f4dd49061a7d71` and applied cleanly in detached clean worktree `.tmux-team/tmp/clean-integrator-libsqlite-json-table-20260526T033039Z` at `083927fe2acf9c37b37768334d3fd1b399a16d2a`.
+
+Dashboard guard evidence: cache-busted live `porting-summary.json` reported `sourceCommit=083927fe2acf9c37b37768334d3fd1b399a16d2a`, matching current `refs/heads/main`, with dashboard commit `3a5f48a27ef5f5fb4caa9a0de97c490097fe09bd`. Runtime gates before focused/root work were open: `/` available samples stayed above `86000000` KiB (`87135924`, `87312200`, `87471560`), load samples were below `25` (`3.69`, `4.11`, `4.02`), and no no-argument root harness was already running.
+
+Focused verification passed: `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`; `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`; `php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php`; `jq empty lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json lanes/libsqlite/lane-status.json`; `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` (`1 test files, 2442 assertions, 0 failures`); `php lanes/libsqlite/examples/wordpress-json-each-option-settings.php`; and `git diff --check -- lanes/libsqlite`. Serialized root verification passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 26980 assertions, 0 failures`.
+
+Decision: accepted. This slice adds `SQLiteJsonTablePlan` for bounded `json_each`/`json_tree` hidden `json` and `root` equality planning, a WordPress option-settings smoke, and manifest/status/notes evidence. No support-library activation was needed; the slice reuses lane-local JSON table, JSON path, and JSONB helpers. Dashboard publication should run next after this source move.
+
 ## Accepted libsqlite upstream suite closure gap report - 2026-05-26 03:27 UTC
 
 Accepted marker `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-suite-20260526T032209Z.ready` from current-base libsqlite worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-suite-20260526T032209Z`. Patch sha256 matched `49b2998a666d766f69382faf1ed6fc79a4179a5ea35659e1d20192fe722009d6` and applied cleanly in detached clean worktree `.tmux-team/tmp/clean-integrator-libsqlite-suite-20260526T032209Z` at `be3229f536e91d82dc259300ff79fefc1e4ccc73`.

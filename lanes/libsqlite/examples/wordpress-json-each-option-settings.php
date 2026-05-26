@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonEach;
+use PortLibs\LibSqlite\SQLiteJsonTablePlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -28,11 +29,17 @@ $inputs = [
 
 $reports = [];
 foreach ($inputs as $name => $value) {
+    $plannerConstraints = [
+        ['column' => 'json', 'operator' => '=', 'value' => $value],
+        ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+    ];
     $reports[] = [
         'name' => $name,
         'rootRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunction('JSON_EACH', $value)),
         'pluginRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$value, '$.plugin'])),
         'rulesRows' => normalizeJsonEachRows(SQLiteJsonEach::jsonEachSqlFunctionArguments('JSON_EACH', [$value, '$.plugin.rules'])),
+        'plannedRulesRows' => normalizeJsonEachRows(SQLiteJsonTablePlan::rows('JSON_EACH', $plannerConstraints)),
+        'planner' => normalizeJsonTablePlan(SQLiteJsonTablePlan::plan('JSON_EACH', $plannerConstraints)),
         'dispatch' => [
             'sqlFunction' => 'JSON_EACH',
             'caseInsensitive' => true,
@@ -43,7 +50,7 @@ foreach ($inputs as $name => $value) {
 
 echo json_encode([
     'reports' => $reports,
-    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
+    'wordpressUse' => 'Local-only wp_options option_value expansion that mirrors bounded SQLite json_each() rows and hidden json/root constraint planning for strict JSON, JSON5 text, JSONB blobs, missing paths, and SQL NULL before copied plugin settings are imported.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";
 
 /**
@@ -65,4 +72,33 @@ function normalizeJsonEachRows(array $rows): array
         },
         $rows,
     );
+}
+
+/**
+ * @param array<string, mixed> $plan
+ * @return array<string, mixed>
+ */
+function normalizeJsonTablePlan(array $plan): array
+{
+    return normalizeJsonTableValue($plan);
+}
+
+function normalizeJsonTableValue(mixed $value): mixed
+{
+    if ($value instanceof SQLiteBlobValue) {
+        return [
+            'type' => 'blob',
+            'hexPrefix' => strtoupper(substr(bin2hex($value->bytes), 0, 24)),
+        ];
+    }
+
+    if (!is_array($value)) {
+        return $value;
+    }
+
+    foreach ($value as $key => $child) {
+        $value[$key] = normalizeJsonTableValue($child);
+    }
+
+    return $value;
 }

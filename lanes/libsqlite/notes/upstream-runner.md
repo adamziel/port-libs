@@ -7031,3 +7031,22 @@ failures. The WordPress smoke reports automatic index metadata for commented
 Dependency closure: no new support component is needed. The slice reuses the
 lane-local `CREATE TABLE` parser and schema/index metadata helpers; it does not
 activate shared parser-generator, SQL engine, or SQLite-extension support.
+## Focused Native Mapping: `json_each()`/`json_tree()` Hidden Constraint Planning
+
+This isolated json-table/window micro-slice maps a bounded SQLite JSON table-valued planner boundary for the hidden `json` and `root` columns. `SQLiteJsonTablePlan` now accepts usable equality constraints on hidden `json`/`root`, turns them into `json_each`/`json_tree` argument vectors, marks those constraints as omitted, preserves non-hidden or unusable predicates as residual constraints, and can execute the planned rows through the accepted native table-valued helpers.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count increases by 1 with `focusedJsonTableHiddenConstraintPlanScripts: 1`. This is a native planner-constraint helper only; it does not claim full virtual-table cursor lifecycle, join-order integration, visible-column pushdown, or broader SQL planner execution.
+
+Verification run 2026-05-26T03:33Z:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-each-option-settings.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local JSON table helpers, JSON path validation, and JSONB wrappers without shelling out or activating shared support-library work.

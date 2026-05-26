@@ -2150,3 +2150,12 @@ string literals that contain comment-looking text, and a commented
 This is intentionally a bounded schema metadata parser improvement, not a full
 SQL parser. Trigger bodies, generated-column expression planning, view
 expansion, and general DDL execution remain separate slices.
+## JSON Table Hidden Constraint Planning Scenario
+
+Local-only WordPress option import tooling can now preflight `json_each`/`json_tree` scans using the same hidden-column shape SQLite exposes for table-valued JSON functions. `SQLiteJsonTablePlan` maps hidden `json = option_value` and `root = '$.plugin.rules'` constraints into a two-argument table-valued call, reports which constraints can be omitted by the virtual table, leaves visible-column filters as residual predicates, and returns planned rows through the accepted native `json_each`/`json_tree` helpers.
+
+The `wordpress-json-each-option-settings.php` smoke now reports `plannedRulesRows` and a normalized planner record for strict JSON text, JSON5 text, JSONB blobs, and SQL NULL option values. This keeps copied `wp_options` plugin-settings expansion deterministic on hosts where the SQLite extension is unavailable while staying bounded to hidden `json`/`root` equality planning.
+
+Status delta 2026-05-26 isolated json-table/window slice: added `SQLiteJsonTablePlan`, focused native assertions for usable/unusable hidden constraints, SQL NULL empty-row execution, residual predicates, invalid function/json/root constraints, and a WordPress smoke update. Full virtual-table cursor lifecycle, join-order costing, visible-column pushdown, and broader planner integration remain separate follow-up work.
+
+Dependency closure: no new support component is needed; this reuses lane-local JSON table helpers and path validation.
