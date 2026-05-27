@@ -370,6 +370,43 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
+     * @return array{position:int,currentRowid:mixed,nextRowid:mixed,partitionKey:list<mixed>,orderKey:list<mixed>,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,nextSamePartition:bool,nextSamePeer:bool,rawFrameRowids:list<mixed>,frameRowids:list<mixed>,excludedRowids:list<mixed>,filteredRowids:list<mixed>,frameValues:list<mixed>,filteredValues:list<mixed>,countAll:int,countValue:int,sum:int|float|null,total:float,groupConcat:?string}
+     */
+    public function currentYieldSummary(string $rowidColumn = 'rowid', mixed $separator = ','): array
+    {
+        $row = $this->requireCurrentRow();
+        $rawIndexes = $this->currentRawFrameIndexes();
+        $frameIndexes = $this->applyExcludeMode($rawIndexes);
+        $excludedIndexes = array_values(array_diff($rawIndexes, $frameIndexes));
+        $filteredRows = $this->currentFrameRows(true);
+        $filteredValues = array_map(fn (array $frameRow): mixed => $frameRow[$this->valueColumn], $filteredRows);
+        $nextRow = $this->peekNextRow();
+
+        return [
+            'position' => $this->position,
+            'currentRowid' => $row[$rowidColumn] ?? null,
+            'nextRowid' => $nextRow[$rowidColumn] ?? null,
+            'partitionKey' => $this->currentPartitionKey(),
+            'orderKey' => $this->currentOrderKey(),
+            'nextPartitionKey' => $this->peekNextPartitionKey(),
+            'nextOrderKey' => $this->peekNextOrderKey(),
+            'nextSamePartition' => $nextRow !== null && $this->samePartition($this->position, $this->position + 1),
+            'nextSamePeer' => $nextRow !== null && $this->samePeer($this->position, $this->position + 1),
+            'rawFrameRowids' => $this->rowidsForIndexes($rawIndexes, $rowidColumn),
+            'frameRowids' => $this->rowidsForIndexes($frameIndexes, $rowidColumn),
+            'excludedRowids' => $this->rowidsForIndexes($excludedIndexes, $rowidColumn),
+            'filteredRowids' => array_map(static fn (array $frameRow): mixed => $frameRow[$rowidColumn] ?? null, $filteredRows),
+            'frameValues' => array_map(fn (int $index): mixed => $this->orderedRows[$index][$this->valueColumn], $frameIndexes),
+            'filteredValues' => $filteredValues,
+            'countAll' => count($frameIndexes),
+            'countValue' => SQLiteNumericAggregate::countValue($filteredValues),
+            'sum' => SQLiteNumericAggregate::sum($filteredValues),
+            'total' => SQLiteNumericAggregate::total($filteredValues),
+            'groupConcat' => SQLiteTextAggregate::groupConcat($filteredValues, $separator),
+        ];
+    }
+
+    /**
      * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,value:mixed,total:float,groupConcat:?string,firstValue:mixed,lastValue:mixed,nthValue:mixed}>
      */
     public function drainSummaries(mixed $separator = ',', bool $applyValueFilter = false): array
@@ -506,9 +543,17 @@ final class SQLiteVdbeWindowAggregateCursor
      */
     private function currentFrameIndexesForCurrentPosition(): array
     {
+        return $this->applyExcludeMode($this->currentRawFrameIndexes());
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function currentRawFrameIndexes(): array
+    {
         [$start, $end] = $this->currentFrameRange();
 
-        return $this->applyExcludeMode(range($start, $end));
+        return range($start, $end);
     }
 
     /**
@@ -672,6 +717,15 @@ final class SQLiteVdbeWindowAggregateCursor
         }
 
         throw new \InvalidArgumentException('SQLite VDBE window aggregate RANGE frame requires numeric ORDER BY values');
+    }
+
+    /**
+     * @param list<int> $indexes
+     * @return list<mixed>
+     */
+    private function rowidsForIndexes(array $indexes, string $rowidColumn): array
+    {
+        return array_map(fn (int $index): mixed => $this->orderedRows[$index][$rowidColumn] ?? null, $indexes);
     }
 
     /**

@@ -241,7 +241,6 @@ final class SQLiteGeneratedJsonPathIndexPlan
             $nextEntries = self::coveringBtreeEntries($after, $index, $coveringColumns);
             $currentLeafPage = self::coveringIndexLeafPage($currentEntries, $pageSize);
             $nextLeafPage = self::coveringIndexLeafPage($nextEntries, $pageSize);
-
             $btreeIndexes[$index['name']] = [
                 'rootPage' => $index['rootPage'],
                 'column' => $index['column'],
@@ -302,6 +301,140 @@ final class SQLiteGeneratedJsonPathIndexPlan
             'deleted_rows' => array_values($deletedRows),
             'missing_rowids' => $missingRowids,
             'delete_entries' => $deleteEntries,
+            'btree_indexes' => $btreeIndexes,
+            'btree_actions' => $actions,
+            'btree_action_count' => count($actions),
+            'changes' => count($deletedRows),
+            'pageSize' => $pageSize,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array{name?:string,sql:string,rootPage?:int,unique?:bool}> $indexes
+     * @param list<int|string> $deleteRowids
+     * @return array<string,mixed>
+     */
+    public static function deleteBtreeYieldPlan(string $createTableSql, array $rows, array $indexes, array $deleteRowids, int $pageSize = 512): array
+    {
+        if ($pageSize < 512) {
+            throw new \InvalidArgumentException('SQLite generated JSON path DELETE B-tree yield plan requires a page size of at least 512 bytes');
+        }
+
+        $analysis = SQLiteGeneratedColumnDependencyPlan::analyze($createTableSql);
+        if ($analysis['status'] !== 'ok') {
+            throw new \InvalidArgumentException($analysis['message'] ?? 'SQLite generated JSON path DELETE index plan cannot evaluate cyclic generated columns');
+        }
+
+        $generatedColumns = self::generatedJsonColumns($analysis['columns'], $analysis['order']);
+        if ($generatedColumns === []) {
+            throw new \InvalidArgumentException('SQLite generated JSON path DELETE index plan requires at least one json_extract generated column');
+        }
+
+        $indexPlans = self::indexPlans($indexes, $generatedColumns);
+        if ($indexPlans === []) {
+            throw new \InvalidArgumentException('SQLite generated JSON path DELETE index plan requires an index on a generated JSON path column');
+        }
+
+        $current = array_map(static fn (array $row): array => self::evaluateGeneratedColumns($row, $generatedColumns), array_values($rows));
+        $positions = self::rowPositions($current);
+        $deleteSet = [];
+        foreach ($deleteRowids as $rowid) {
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException('SQLite generated JSON path DELETE rowid must be integer or text');
+            }
+            $deleteSet[(string) $rowid] = $rowid;
+        }
+
+        $next = [];
+        $deletedRows = [];
+        $skippedRowids = [];
+        foreach ($deleteSet as $key => $rowid) {
+            if (!array_key_exists($key, $positions)) {
+                $skippedRowids[] = $rowid;
+            }
+        }
+
+        foreach ($current as $row) {
+            $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException('SQLite generated JSON path DELETE rows need option_id or rowid');
+            }
+
+            if (array_key_exists((string) $rowid, $deleteSet)) {
+                $deletedRows[] = $row;
+                continue;
+            }
+            $next[] = $row;
+        }
+
+        self::assertUniqueNextKeys($next, $indexPlans);
+
+        $indexDeletes = [];
+        foreach ($deletedRows as $deletedRow) {
+            $rowid = $deletedRow['option_id'] ?? $deletedRow['rowid'];
+            foreach ($indexPlans as $index) {
+                $entry = self::indexEntry($deletedRow, $index);
+                if (!$entry['present']) {
+                    continue;
+                }
+
+                $indexDeletes[] = [
+                    'index' => $index['name'],
+                    'rootPage' => $index['rootPage'],
+                    'rowid' => $rowid,
+                    'column' => $index['column'],
+                    'path' => $index['path'],
+                    'current' => $entry['key'],
+                    'next' => null,
+                    'delete' => true,
+                    'insert' => false,
+                    'partial' => $index['partial'],
+                    'collation' => $index['collation'],
+                    'descending' => $index['descending'],
+                    'unique' => $index['unique'],
+                ];
+            }
+        }
+
+        $btreeIndexes = [];
+        foreach ($indexPlans as $index) {
+            $currentEntries = self::btreeEntries($current, $index);
+            $nextEntries = self::btreeEntries($next, $index);
+            $currentLeafPage = self::indexLeafPage($currentEntries, $pageSize);
+            $nextLeafPage = self::indexLeafPage($nextEntries, $pageSize);
+            $btreeIndexes[$index['name']] = [
+                'rootPage' => $index['rootPage'],
+                'column' => $index['column'],
+                'path' => $index['path'],
+                'collation' => $index['collation'],
+                'descending' => $index['descending'],
+                'partial' => $index['partial'],
+                'unique' => $index['unique'],
+                'current_entries' => $currentEntries,
+                'next_entries' => $nextEntries,
+                'current_leaf_page_hex' => bin2hex($currentLeafPage),
+                'next_leaf_page_hex' => bin2hex($nextLeafPage),
+                'current_cell_count' => count($currentEntries),
+                'next_cell_count' => count($nextEntries),
+                'deleted_cell_count' => max(0, count($currentEntries) - count($nextEntries)),
+                'leaf_page_changed' => $currentLeafPage !== $nextLeafPage,
+            ];
+        }
+
+        $actions = [];
+        foreach ($indexDeletes as $delete) {
+            $actions[] = self::btreeAction('delete', $delete, $pageSize);
+        }
+
+        return [
+            'table' => $analysis['table'],
+            'generated_columns' => array_values($generatedColumns),
+            'current' => $current,
+            'next' => $next,
+            'deleted_rows' => $deletedRows,
+            'skipped_rowids' => $skippedRowids,
+            'index_deletes' => $indexDeletes,
             'btree_indexes' => $btreeIndexes,
             'btree_actions' => $actions,
             'btree_action_count' => count($actions),

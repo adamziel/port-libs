@@ -19,7 +19,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,coveringExpressions?:list<array<string,string>>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array<string,string>> $orderBy
      * @param list<string> $neededColumns
@@ -34,7 +34,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,coveringExpressions?:list<array<string,string>>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array<string,string>> $orderBy
      * @param list<string> $neededColumns
@@ -50,7 +50,7 @@ final class SQLiteSelectExpressionIndexPlan
      * Build a bounded SQLite OR-clause plan where every OR arm is independently
      * usable through a partial covering expression index.
      *
-     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
+     * @param list<array{sql:string,rootPage?:int,name?:string,estimatedRows?:int,coveringColumns?:list<string>,coveringExpressions?:list<array<string,string>>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array<string,string>> $orderBy
      * @param list<string> $neededColumns
@@ -196,7 +196,7 @@ final class SQLiteSelectExpressionIndexPlan
                     'stat4CurrentNext' => $estimated['stat4CurrentNext'],
                     'orderBySatisfied' => $orderCompatible,
                     'covering' => $covering,
-                    'coveringExpressions' => self::coveredExpressionNames($expression, $constraint['type'], $neededExpressions),
+                    'coveringExpressions' => self::coveredExpressionNames($index, $expression, $constraint['type'], $neededExpressions),
                     'trailingColumns' => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $trailingColumns),
                 ];
             }
@@ -1136,7 +1136,7 @@ final class SQLiteSelectExpressionIndexPlan
     }
 
     /**
-     * @param array{coveringColumns?:list<string>} $index
+     * @param array{coveringColumns?:list<string>,coveringExpressions?:list<array<string,string>>} $index
      * @param list<string> $neededColumns
      * @param list<array<string,string>> $neededExpressions
      * @param list<SQLiteIndexColumn> $trailingColumns
@@ -1148,7 +1148,7 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         return self::columnsCovered($index, $neededColumns, $trailingColumns)
-            && self::expressionsCovered($expression, $expressionType, $neededExpressions);
+            && self::expressionsCovered($index, $expression, $expressionType, $neededExpressions);
     }
 
     /**
@@ -1192,26 +1192,16 @@ final class SQLiteSelectExpressionIndexPlan
     /**
      * @param list<array<string,string>> $neededExpressions
      */
-    private static function expressionsCovered(SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType, array $neededExpressions): bool
+    private static function expressionsCovered(array $index, SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType, array $neededExpressions): bool
     {
+        $available = self::availableExpressionCoverage($index, $expression, $expressionType);
         foreach ($neededExpressions as $neededExpression) {
             $normalized = self::neededExpressionOperand($neededExpression);
             if ($normalized === null) {
                 throw new \InvalidArgumentException('SQLite SELECT expression-index needed expressions must be supported expression operands');
             }
-            if (
-                strcasecmp($normalized['type'], $expressionType) !== 0
-                || strcasecmp($normalized['column'], $expression->columnName) !== 0
-            ) {
+            if (!isset($available[self::expressionCoverageKey($normalized)])) {
                 return false;
-            }
-            if ($expression instanceof SQLiteJsonExtractIndexExpression) {
-                if (($normalized['path'] ?? null) !== $expression->path) {
-                    return false;
-                }
-                if (!self::jsonExpressionKindMatches($normalized['type'], $expression->functionName)) {
-                    return false;
-                }
             }
         }
 
@@ -1222,16 +1212,69 @@ final class SQLiteSelectExpressionIndexPlan
      * @param list<array<string,string>> $neededExpressions
      * @return list<string>
      */
-    private static function coveredExpressionNames(SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType, array $neededExpressions): array
+    private static function coveredExpressionNames(array $index, SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType, array $neededExpressions): array
     {
-        if (!self::expressionsCovered($expression, $expressionType, $neededExpressions)) {
+        if (!self::expressionsCovered($index, $expression, $expressionType, $neededExpressions)) {
             return [];
         }
 
         return array_map(
-            static fn (array $neededExpression): string => strtolower($neededExpression['function']) . '(' . $neededExpression['column'] . ')',
+            static fn (array $neededExpression): string => self::expressionDisplayName($neededExpression),
             $neededExpressions
         );
+    }
+
+    /**
+     * @param array{coveringExpressions?:list<array<string,string>>} $index
+     * @return array<string,true>
+     */
+    private static function availableExpressionCoverage(array $index, SQLiteIndexColumn|SQLiteJsonExtractIndexExpression $expression, string $expressionType): array
+    {
+        $available = [];
+        $first = [
+            'type' => $expressionType,
+            'column' => $expression->columnName,
+        ];
+        if ($expression instanceof SQLiteJsonExtractIndexExpression) {
+            $first['path'] = $expression->path;
+        }
+        $available[self::expressionCoverageKey($first)] = true;
+
+        $extra = $index['coveringExpressions'] ?? [];
+        if (!is_array($extra) || !array_is_list($extra)) {
+            throw new \InvalidArgumentException('SQLite SELECT expression-index coveringExpressions must be a list');
+        }
+        foreach ($extra as $operand) {
+            if (!is_array($operand)) {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index coveringExpressions must contain expression operands');
+            }
+            $normalized = self::neededExpressionOperand($operand);
+            if ($normalized === null) {
+                throw new \InvalidArgumentException('SQLite SELECT expression-index coveringExpressions must be supported expression operands');
+            }
+            $available[self::expressionCoverageKey($normalized)] = true;
+        }
+
+        return $available;
+    }
+
+    /**
+     * @param array{type:string,column:string,path?:string} $expression
+     */
+    private static function expressionCoverageKey(array $expression): string
+    {
+        return strtolower($expression['type']) . ':' . strtolower($expression['column']) . ':' . (string) ($expression['path'] ?? '');
+    }
+
+    private static function expressionDisplayName(array $operand): string
+    {
+        $function = strtolower($operand['function']);
+        $name = $function . '(' . $operand['column'];
+        if (isset($operand['path'])) {
+            $name .= ',' . $operand['path'];
+        }
+
+        return $name . ')';
     }
 
     /**

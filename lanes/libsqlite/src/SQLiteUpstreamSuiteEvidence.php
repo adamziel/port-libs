@@ -1739,6 +1739,131 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $suiteRows
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerSuiteGapBurnupCurrentNext51(
+        array $suiteRows,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        int $targetCountable = 0
+    ): array {
+        $progress = $this->releaseRunnerSuiteProgressMapCurrentNext48(
+            $suiteRows,
+            $currentAcceptedHead,
+            $nextAcceptedHead,
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $entries = $progress['entries'];
+        $burnupEntries = [];
+        $openBlockers = [];
+        $nextCountableTests = 0;
+        $countableRows = 0;
+        $tierBurnup = [];
+
+        foreach ($entries as $entry) {
+            $tier = is_string($entry['tier'] ?? null) && $entry['tier'] !== '' ? $entry['tier'] : 'unclassified';
+            if (!isset($tierBurnup[$tier])) {
+                $tierBurnup[$tier] = [
+                    'tier' => $tier,
+                    'rows' => 0,
+                    'countable_rows' => 0,
+                    'open_rows' => 0,
+                    'tests' => 0,
+                    'blocker_count' => 0,
+                ];
+            }
+            $tierBurnup[$tier]['rows']++;
+
+            $nextCountable = (bool) ($entry['next_countable'] ?? false);
+            $tests = max(0, (int) ($entry['next_tests'] ?? 0));
+            $blockers = is_array($entry['blockers'] ?? null) ? array_values(array_filter(
+                $entry['blockers'],
+                static fn ($blocker): bool => is_string($blocker) && $blocker !== ''
+            )) : [];
+
+            if ($nextCountable) {
+                $countableRows++;
+                $nextCountableTests += $tests;
+                $tierBurnup[$tier]['countable_rows']++;
+                $tierBurnup[$tier]['tests'] += $tests;
+            } else {
+                $tierBurnup[$tier]['open_rows']++;
+                $blocker = $blockers[0] ?? 'next artifact not countable for this suite row';
+                $openBlockers[] = [
+                    'id' => (string) ($entry['id'] ?? ('row-' . count($openBlockers))),
+                    'tier' => $tier,
+                    'status' => is_string($entry['next_status'] ?? null) ? $entry['next_status'] : 'missing',
+                    'blocker' => $blocker,
+                ];
+            }
+            $tierBurnup[$tier]['blocker_count'] += count($blockers);
+
+            $burnupEntries[] = [
+                'id' => (string) ($entry['id'] ?? ('row-' . count($burnupEntries))),
+                'tier' => $tier,
+                'next_countable' => $nextCountable,
+                'tests' => $nextCountable ? $tests : 0,
+                'movement' => is_string($entry['movement'] ?? null) ? $entry['movement'] : 'open',
+                'blocker_count' => count($blockers) + ($nextCountable ? 0 : 1),
+            ];
+        }
+
+        ksort($tierBurnup);
+        usort($openBlockers, static function (array $left, array $right): int {
+            return [$left['tier'], $left['id']] <=> [$right['tier'], $right['id']];
+        });
+
+        $target = $targetCountable > 0 ? $targetCountable : max(1, count($entries));
+        $remaining = max(0, $target - $countableRows);
+        $burnupRatio = $target === 0 ? 0.0 : $countableRows / $target;
+        $status = 'blocked';
+        if (($progress['php_pass_admission']['status'] ?? null) !== 'admitted' || ($progress['regressed_count'] ?? 0) > 0) {
+            $status = 'blocked';
+        } elseif ($remaining === 0) {
+            $status = 'current-next51-suite-gap-burnup-complete';
+        } elseif ($countableRows > 0 && ($progress['regressed_count'] ?? 0) === 0) {
+            $status = 'current-next51-suite-gap-burnup-open';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'target_countable' => $target,
+            'next_countable_count' => $countableRows,
+            'remaining_countable_gap' => $remaining,
+            'burnup_ratio' => $burnupRatio,
+            'burnup_percent' => round($burnupRatio * 100, 2),
+            'next_countable_tests' => $nextCountableTests,
+            'php_pass_admission' => $progress['php_pass_admission'],
+            'php_pass_delta' => $progress['php_pass_delta'],
+            'next_php_pass' => $progress['next_php_pass'],
+            'progress_status' => $progress['status'],
+            'progress_blocker_count' => $progress['blocker_count'],
+            'entries' => $burnupEntries,
+            'tiers' => array_values($tierBurnup),
+            'open_blocker_count' => count($openBlockers),
+            'open_blockers' => $openBlockers,
+            'counts_suite_burnup' => $status !== 'blocked' && $countableRows > 0,
+            'next_gate' => match ($status) {
+                'current-next51-suite-gap-burnup-complete' => 'publish current-next51 only when every target suite row is next-countable and focused PHP admission is clean',
+                'current-next51-suite-gap-burnup-open' => 'count the next-countable suite rows and keep the remaining release/all blockers explicit before another guarded broad run',
+                default => 'repair focused PHP admission, regressed rows, or missing next-countable artifacts before counting current-next51 burnup',
+            },
+            'dependency_closure' => 'no new support component needed; current-next51 suite gap burnup composes existing suite progress rows, focused PHP TestRunner admission, and accepted artifact countability only',
+        ];
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRecords
      * @return array<string, mixed>
      */

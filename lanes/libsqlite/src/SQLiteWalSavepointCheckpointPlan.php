@@ -437,6 +437,105 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,before_reader_end_frame:int,after_release_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,release:array<string,mixed>,before_reader:list<array<string,mixed>>,after_release_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,before_reader_sources:list<string>,after_release_reader_sources:list<string>,next_reader_sources:list<string>,before_reader_frame_indexes:list<int|null>,after_release_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,before_to_release_images_match:bool,release_to_next_images_match:bool,merged_page_numbers:list<int>,released_frame_names:list<string>,yield_count:int,dependencies:list<string>}
+     */
+    public static function releaseReaderCheckpointCurrentNext(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart',
+        ?int $beforeReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release checkpoint requires at least one page number');
+        }
+        if ($databaseBytes === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release checkpoint requires database bytes');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite checkpoint mode after savepoint release: {$mode}");
+        }
+
+        $release = $savepoints->releasePlan($savepoint);
+        $readerWasExplicit = $beforeReaderEndFrame !== null;
+        $beforeReaderEndFrame ??= $wal->frameCount();
+        if ($beforeReaderEndFrame < 0) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint release reader frame must be non-negative');
+        }
+        $afterReleaseReaderEndFrame = $wal->frameCount();
+        $checkpointReaderEndFrame = $readerWasExplicit && $beforeReaderEndFrame < $wal->frameCount()
+            ? $beforeReaderEndFrame
+            : null;
+        $durable = $wal->durableCheckpointResult($databaseBytes, $mode, $checkpointReaderEndFrame);
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame ??= $nextWal?->frameCount() ?? 0;
+
+        $before = [];
+        $afterRelease = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint release checkpoint pages must be integers');
+            }
+
+            $before[] = $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $beforeReaderEndFrame);
+            $afterRelease[] = $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $afterReleaseReaderEndFrame);
+            $next[] = $nextWal === null
+                ? self::databasePageVisibility($durable['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage($durable['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $beforeSources = self::visibilityColumn($before, 'source');
+        $afterReleaseSources = self::visibilityColumn($afterRelease, 'source');
+        $nextSources = self::visibilityColumn($next, 'source');
+        $beforeFrames = self::visibilityColumn($before, 'frame_index');
+        $afterReleaseFrames = self::visibilityColumn($afterRelease, 'frame_index');
+        $nextFrames = self::visibilityColumn($next, 'frame_index');
+        $beforeImages = self::visibilityColumn($before, 'image');
+        $afterReleaseImages = self::visibilityColumn($afterRelease, 'image');
+        $nextImages = self::visibilityColumn($next, 'image');
+
+        return [
+            'status' => $durable['busy'] ? 'busy' : 'ready',
+            'savepoint' => $savepoint,
+            'mode' => $durable['mode'],
+            'before_reader_end_frame' => $beforeReaderEndFrame,
+            'after_release_reader_end_frame' => $afterReleaseReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $durable['wal_action'],
+            'checkpoint_busy' => $durable['busy'],
+            'checkpoint_reason' => $durable['reason'],
+            'release' => $release,
+            'before_reader' => $before,
+            'after_release_reader' => $afterRelease,
+            'next_reader' => $next,
+            'before_reader_sources' => $beforeSources,
+            'after_release_reader_sources' => $afterReleaseSources,
+            'next_reader_sources' => $nextSources,
+            'before_reader_frame_indexes' => $beforeFrames,
+            'after_release_reader_frame_indexes' => $afterReleaseFrames,
+            'next_reader_frame_indexes' => $nextFrames,
+            'before_to_release_images_match' => $beforeImages === $afterReleaseImages,
+            'release_to_next_images_match' => $afterReleaseImages === $nextImages,
+            'merged_page_numbers' => $release['merged_page_numbers'],
+            'released_frame_names' => $release['released_frame_names'],
+            'yield_count' => 3 * count($pageNumbers),
+            'dependencies' => array_values(array_unique(array_merge(
+                $durable['dependencies'],
+                ['sqlite-wal-savepoint-release-checkpoint-current-next', 'wordpress-import-release-savepoint-current-next']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @param list<string> $sources
      * @param list<int|null> $frameIndexes
      * @param list<string> $images
