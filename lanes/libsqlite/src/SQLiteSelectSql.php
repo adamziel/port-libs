@@ -1934,7 +1934,48 @@ final class SQLiteSelectSql
             return [$join, $remaining];
         }
         if ($boundary === null) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL JOIN needs ON or USING');
+            $nextJoin = self::firstJoinOffset($rest);
+            $tableSql = $nextJoin === null ? $rest : trim(substr($rest, 0, $nextJoin));
+            $remaining = $nextJoin === null ? '' : trim(substr($rest, $nextJoin));
+            $table = self::tableReference($tableSql, $tables, [], $jsonErrorBoundaryColumns, $outerRow);
+            $rightRows = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
+                ? self::qualifiedJsonRows($table['rows'], $table['alias'])
+                : self::qualifiedRows($table['rows'], $table['alias']);
+
+            if ($type === 'INNER') {
+                $join = [
+                    'type' => 'CROSS',
+                    'rows' => $rightRows,
+                ];
+                if (isset($table['dynamicRows']) && is_callable($table['dynamicRows'])) {
+                    $join['dynamicRows'] = $table['dynamicRows'];
+                    if ($table['name'] === 'json_each' || $table['name'] === 'json_tree') {
+                        $join['rightColumns'] = self::qualifiedJsonTableColumns($table['alias']);
+                    }
+                }
+
+                return [$join, $remaining];
+            }
+
+            $join = [
+                'type' => $type,
+                'rows' => $rightRows,
+                'predicate' => static fn (array $_left, array $_right): bool => true,
+            ];
+            if (isset($table['dynamicRows']) && is_callable($table['dynamicRows'])) {
+                $join['dynamicRows'] = $table['dynamicRows'];
+                if ($table['name'] === 'json_each' || $table['name'] === 'json_tree') {
+                    $join['rightColumns'] = self::qualifiedJsonTableColumns($table['alias']);
+                }
+            }
+            if ($type === 'LEFT' || $type === 'FULL') {
+                $join['rightColumns'] = self::collectColumns($rightRows);
+                if ($join['rightColumns'] === [] && ($table['name'] === 'json_each' || $table['name'] === 'json_tree')) {
+                    $join['rightColumns'] = self::qualifiedJsonTableColumns($table['alias']);
+                }
+            }
+
+            return [$join, $remaining];
         }
 
         $table = self::tableReference(trim(substr($rest, 0, $boundary)), $tables, [], $jsonErrorBoundaryColumns, $outerRow);

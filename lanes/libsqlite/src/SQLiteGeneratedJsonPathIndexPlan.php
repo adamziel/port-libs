@@ -167,6 +167,150 @@ final class SQLiteGeneratedJsonPathIndexPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array{name?:string,sql:string,rootPage?:int,unique?:bool,coveringColumns?:list<string>}> $indexes
+     * @param list<int|string> $deleteRowids
+     * @return array<string,mixed>
+     */
+    public static function coveringDeleteYieldPlan(string $createTableSql, array $rows, array $indexes, array $deleteRowids, int $pageSize = 512): array
+    {
+        if ($pageSize < 256) {
+            throw new \InvalidArgumentException('SQLite generated JSON path covering-index DELETE yield plan requires a page size of at least 256 bytes');
+        }
+
+        $analysis = SQLiteGeneratedColumnDependencyPlan::analyze($createTableSql);
+        if ($analysis['status'] !== 'ok') {
+            throw new \InvalidArgumentException($analysis['message'] ?? 'SQLite generated JSON path covering-index DELETE plan cannot evaluate cyclic generated columns');
+        }
+
+        $generatedColumns = self::generatedJsonColumns($analysis['columns'], $analysis['order']);
+        if ($generatedColumns === []) {
+            throw new \InvalidArgumentException('SQLite generated JSON path covering-index DELETE plan requires at least one json_extract generated column');
+        }
+
+        $indexPlans = self::indexPlans($indexes, $generatedColumns);
+        if ($indexPlans === []) {
+            throw new \InvalidArgumentException('SQLite generated JSON path covering-index DELETE plan requires an index on a generated JSON path column');
+        }
+
+        $before = array_map(static fn (array $row): array => self::evaluateGeneratedColumns($row, $generatedColumns), array_values($rows));
+        $positions = self::rowPositions($before);
+        $deletedKeys = [];
+        foreach ($deleteRowids as $rowid) {
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException('SQLite generated JSON path covering-index DELETE rowids must be integer or text');
+            }
+            $deletedKeys[(string) $rowid] = $rowid;
+        }
+
+        $deletedRows = [];
+        $after = [];
+        foreach ($before as $row) {
+            $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException('SQLite generated JSON path covering-index DELETE rows need option_id or rowid');
+            }
+
+            if (array_key_exists((string) $rowid, $deletedKeys)) {
+                $deletedRows[(string) $rowid] = $row;
+                continue;
+            }
+
+            $after[] = $row;
+        }
+
+        $missingRowids = [];
+        foreach ($deletedKeys as $key => $rowid) {
+            if (!array_key_exists($key, $positions)) {
+                $missingRowids[] = $rowid;
+            }
+        }
+
+        $coveringByIndex = [];
+        foreach ($indexes as $definition) {
+            $name = is_string($definition['name'] ?? null) ? $definition['name'] : self::indexName((string) ($definition['sql'] ?? ''));
+            $coveringByIndex[$name] = array_values(array_map('strval', $definition['coveringColumns'] ?? []));
+        }
+
+        $btreeIndexes = [];
+        $deleteEntries = [];
+        $actions = [];
+        foreach ($indexPlans as $index) {
+            $coveringColumns = $coveringByIndex[$index['name']] ?? [];
+            $currentEntries = self::coveringBtreeEntries($before, $index, $coveringColumns);
+            $nextEntries = self::coveringBtreeEntries($after, $index, $coveringColumns);
+            $currentLeafPage = self::coveringIndexLeafPage($currentEntries, $pageSize);
+            $nextLeafPage = self::coveringIndexLeafPage($nextEntries, $pageSize);
+
+            $btreeIndexes[$index['name']] = [
+                'rootPage' => $index['rootPage'],
+                'column' => $index['column'],
+                'path' => $index['path'],
+                'collation' => $index['collation'],
+                'descending' => $index['descending'],
+                'partial' => $index['partial'],
+                'unique' => $index['unique'],
+                'coveringColumns' => $coveringColumns,
+                'current_entries' => $currentEntries,
+                'next_entries' => $nextEntries,
+                'current_leaf_page_hex' => bin2hex($currentLeafPage),
+                'next_leaf_page_hex' => bin2hex($nextLeafPage),
+                'current_cell_count' => count($currentEntries),
+                'next_cell_count' => count($nextEntries),
+                'leaf_page_changed' => $currentLeafPage !== $nextLeafPage,
+            ];
+
+            foreach ($deletedRows as $rowid => $row) {
+                $entry = self::coveringIndexEntry($row, $index, $coveringColumns);
+                if (!$entry['present']) {
+                    continue;
+                }
+
+                $delete = [
+                    'operation' => 'delete-current',
+                    'index' => $index['name'],
+                    'rootPage' => $index['rootPage'],
+                    'rowid' => is_numeric($rowid) ? (int) $rowid : $rowid,
+                    'column' => $index['column'],
+                    'path' => $index['path'],
+                    'key' => $entry['key'],
+                    'coveringColumns' => $coveringColumns,
+                    'coveringValues' => $entry['coveringValues'],
+                    'record' => $entry['record'],
+                    'record_hex' => bin2hex(SQLiteRecord::encode($entry['record'])),
+                    'partial' => $index['partial'],
+                    'collation' => $index['collation'],
+                    'descending' => $index['descending'],
+                    'unique' => $index['unique'],
+                ];
+                $cell = SQLiteIndexCell::encode(SQLiteRecord::encode($entry['record']));
+                $deleteEntries[] = $delete;
+                $actions[] = $delete + [
+                    'action' => 'delete',
+                    'cell_hex' => bin2hex($cell),
+                    'cell_bytes' => strlen($cell),
+                    'pageSize' => $pageSize,
+                ];
+            }
+        }
+
+        return [
+            'table' => $analysis['table'],
+            'generated_columns' => array_values($generatedColumns),
+            'before' => $before,
+            'after' => $after,
+            'deleted_rows' => array_values($deletedRows),
+            'missing_rowids' => $missingRowids,
+            'delete_entries' => $deleteEntries,
+            'btree_indexes' => $btreeIndexes,
+            'btree_actions' => $actions,
+            'btree_action_count' => count($actions),
+            'changes' => count($deletedRows),
+            'pageSize' => $pageSize,
+        ];
+    }
+
+    /**
      * @param list<array{name:string,generated:bool,storage:string|null,expression:string|null,dependencies:list<string>}> $columns
      * @param list<string> $order
      * @return array<string,array{name:string,source:string,path:string,storage:string}>
@@ -426,6 +570,80 @@ final class SQLiteGeneratedJsonPathIndexPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $rows
+     * @param array{name:string,rootPage:int|null,column:string,path:string,partial:bool,partialPredicate:?SQLiteIndexPredicate,collation:string,descending:bool,unique:bool} $index
+     * @param list<string> $coveringColumns
+     * @return list<array{key:mixed,rowid:int|string,coveringValues:array<string,mixed>,record:list<mixed>,record_hex:string}>
+     */
+    private static function coveringBtreeEntries(array $rows, array $index, array $coveringColumns): array
+    {
+        $entries = [];
+        foreach ($rows as $row) {
+            $entry = self::coveringIndexEntry($row, $index, $coveringColumns);
+            if (!$entry['present']) {
+                continue;
+            }
+
+            $entries[] = [
+                'key' => $entry['key'],
+                'rowid' => $entry['rowid'],
+                'coveringValues' => $entry['coveringValues'],
+                'record' => $entry['record'],
+                'record_hex' => bin2hex(SQLiteRecord::encode($entry['record'])),
+            ];
+        }
+
+        usort($entries, static fn (array $left, array $right): int => self::compareBtreeEntries($left, $right, $index));
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array{name:string,rootPage:int|null,column:string,path:string,partial:bool,partialPredicate:?SQLiteIndexPredicate,collation:string,descending:bool,unique:bool} $index
+     * @param list<string> $coveringColumns
+     * @return array{present:bool,key:mixed,rowid:int|string,coveringValues:array<string,mixed>,record:list<mixed>}
+     */
+    private static function coveringIndexEntry(array $row, array $index, array $coveringColumns): array
+    {
+        $entry = self::indexEntry($row, $index);
+        $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
+        if (!is_int($rowid) && !is_string($rowid)) {
+            throw new \InvalidArgumentException('SQLite generated JSON path covering-index DELETE rows need option_id or rowid');
+        }
+
+        $coveringValues = [];
+        foreach ($coveringColumns as $column) {
+            if (strcasecmp($column, $index['column']) === 0) {
+                continue;
+            }
+            if (strcasecmp($column, 'rowid') === 0 || strcasecmp($column, 'option_id') === 0) {
+                continue;
+            }
+
+            $matched = false;
+            foreach ($row as $rowColumn => $value) {
+                if (strcasecmp((string) $rowColumn, $column) === 0) {
+                    $coveringValues[$column] = $value;
+                    $matched = true;
+                    break;
+                }
+            }
+            if (!$matched) {
+                throw new \InvalidArgumentException("SQLite generated JSON path covering-index DELETE row is missing covering column {$column}");
+            }
+        }
+
+        return [
+            'present' => $entry['present'],
+            'key' => $entry['key'],
+            'rowid' => $rowid,
+            'coveringValues' => $coveringValues,
+            'record' => array_merge([$entry['key']], array_values($coveringValues), [$rowid]),
+        ];
+    }
+
+    /**
      * @param array{key:mixed,rowid:int|string} $left
      * @param array{key:mixed,rowid:int|string} $right
      * @param array{name:string,rootPage:int|null,column:string,path:string,partial:bool,partialPredicate:?SQLiteIndexPredicate,collation:string,descending:bool,unique:bool} $index
@@ -468,6 +686,14 @@ final class SQLiteGeneratedJsonPathIndexPlan
             static fn (array $entry): string => SQLiteIndexCell::encode(SQLiteRecord::encode($entry['record'])),
             $entries,
         ), $pageSize);
+    }
+
+    /**
+     * @param list<array{record:list<mixed>}> $entries
+     */
+    private static function coveringIndexLeafPage(array $entries, int $pageSize): string
+    {
+        return self::indexLeafPage($entries, $pageSize);
     }
 
     /**

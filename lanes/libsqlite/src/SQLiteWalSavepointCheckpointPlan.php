@@ -350,6 +350,93 @@ final class SQLiteWalSavepointCheckpointPlan
 
     /**
      * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,truncated_wal_bytes:int,restarted_wal_bytes:int,restarted_checkpoint_sequence:int|null,restarted_salt1:int|null,restarted_salt2:int|null,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_images:list<string>,next_reader_images:list<string>,current_reader_kept_retained_wal:bool,next_reader_uses_checkpoint_database:bool,next_reader_uses_restarted_header:bool,images_match:bool,dependencies:list<string>}
+     */
+    public static function readerRestartCurrentNextAfterRollbackTo(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'restart'
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint reader restart requires at least one page number');
+        }
+
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['restart', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint reader restart requires restart or truncate mode');
+        }
+
+        $checkpoint = self::afterRollbackTo($savepoints, $savepoint, $wal, $walBytes, $databaseBytes, $mode);
+        $currentWal = SQLiteWal::parse($checkpoint['current_wal_bytes'], $wal->header->pageSize, true);
+        $currentReaderEndFrame = $currentWal->frameCount();
+        $durable = $checkpoint['current_durable'];
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame = $nextWal?->frameCount() ?? 0;
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint reader restart pages must be integers');
+            }
+
+            $current[] = $currentWal->readerSnapshotPageImage($databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = $nextWal === null || $nextReaderEndFrame === 0
+                ? self::databasePageVisibility($durable['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage($durable['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $currentSources = self::visibilityColumn($current, 'source');
+        $nextSources = self::visibilityColumn($next, 'source');
+        $currentFrames = self::visibilityColumn($current, 'frame_index');
+        $nextFrames = self::visibilityColumn($next, 'frame_index');
+        $currentImages = self::visibilityColumn($current, 'image');
+        $nextImages = self::visibilityColumn($next, 'image');
+        $restartedHeader = $durable['wal_header'];
+
+        return [
+            'status' => $checkpoint['status'],
+            'savepoint' => $savepoint,
+            'mode' => $mode,
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $durable['wal_action'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'retained_frame_count' => $checkpoint['retained_frame_count'],
+            'discarded_frame_count' => $checkpoint['discarded_frame_count'],
+            'truncated_wal_bytes' => $checkpoint['current_wal_bytes_length'],
+            'restarted_wal_bytes' => $durable['wal_bytes_length'],
+            'restarted_checkpoint_sequence' => is_array($restartedHeader) ? (int) $restartedHeader['checkpoint_sequence'] : null,
+            'restarted_salt1' => is_array($restartedHeader) ? (int) $restartedHeader['salt1'] : null,
+            'restarted_salt2' => is_array($restartedHeader) ? (int) $restartedHeader['salt2'] : null,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => $currentSources,
+            'next_reader_sources' => $nextSources,
+            'current_reader_frame_indexes' => $currentFrames,
+            'next_reader_frame_indexes' => $nextFrames,
+            'current_reader_images' => $currentImages,
+            'next_reader_images' => $nextImages,
+            'current_reader_kept_retained_wal' => in_array('wal', $currentSources, true),
+            'next_reader_uses_checkpoint_database' => !in_array('wal', $nextSources, true),
+            'next_reader_uses_restarted_header' => $durable['wal_action'] === 'restart_wal' && $nextWal !== null && $nextWal->frameCount() === 0,
+            'images_match' => $currentImages === $nextImages,
+            'dependencies' => array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                ['sqlite-wal-savepoint-reader-restart-current-next']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
      * @param list<string> $sources
      * @param list<int|null> $frameIndexes
      * @param list<string> $images

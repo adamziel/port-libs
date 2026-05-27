@@ -10,7 +10,7 @@ final class SQLiteAttachTempWalViewTriggerPlan
      * @param array<string,array{wal:SQLiteWal,database_bytes:string,database_path:string,transactions:list<array{pages:array<int,string>,database_page_count?:int|null,commit?:bool}>,watch_pages:list<int>,mode?:string,reader_end_frame?:int|null}> $schemaWal
      * @param array<string,mixed> $newRow
      * @param array<string,mixed>|null $oldRow
-     * @return array{status:string,trigger:string,trigger_schema:string,target:string,target_schema:string,operation_count:int,read_count:int,wal_schema_count:int,temp_write_count:int,rollback_schema_count:int,wal_schemas:list<string>,temp_schemas:list<string>,rollback_schemas:list<string>,writes_by_schema:array<string,int>,operations:list<array<string,mixed>>,wal_plans:array<string,array<string,mixed>>,temp_operations:list<array<string,mixed>>,rollback_operations:list<array<string,mixed>>,current_reader_sources:array<string,list<string>>,next_reader_sources:array<string,list<string>>,next_reader_frame_indexes:array<string,list<int|null>>,dependencies:list<string>}
+     * @return array{status:string,trigger:string,trigger_schema:string,target:string,target_schema:string,operation_count:int,read_count:int,wal_schema_count:int,temp_write_count:int,rollback_schema_count:int,wal_schemas:list<string>,temp_schemas:list<string>,rollback_schemas:list<string>,writes_by_schema:array<string,int>,operations:list<array<string,mixed>>,wal_plans:array<string,array<string,mixed>>,temp_operations:list<array<string,mixed>>,rollback_operations:list<array<string,mixed>>,operation_routes:list<array<string,mixed>>,current_next_boundaries:array<string,array<string,mixed>>,current_reader_sources:array<string,list<string>>,next_reader_sources:array<string,list<string>>,next_reader_frame_indexes:array<string,list<int|null>>,dependencies:list<string>}
      */
     public static function plan(
         SQLiteAttachedSchemaCatalog $catalog,
@@ -80,6 +80,8 @@ final class SQLiteAttachTempWalViewTriggerPlan
             'wal_plans' => $walPlans,
             'temp_operations' => $tempOperations,
             'rollback_operations' => $rollbackOperations,
+            'operation_routes' => self::operationRoutes($operations, $walPlans, $tempOperations, $rollbackOperations),
+            'current_next_boundaries' => self::currentNextBoundaries($walPlans, $tempOperations, $rollbackOperations),
             'current_reader_sources' => self::walColumn($walPlans, 'current_reader_sources'),
             'next_reader_sources' => self::walColumn($walPlans, 'next_reader_sources'),
             'next_reader_frame_indexes' => self::walColumn($walPlans, 'next_reader_frame_indexes'),
@@ -121,6 +123,153 @@ final class SQLiteAttachTempWalViewTriggerPlan
         }
 
         return $values;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $operations
+     * @param array<string,array<string,mixed>> $walPlans
+     * @param list<array<string,mixed>> $tempOperations
+     * @param list<array<string,mixed>> $rollbackOperations
+     * @return list<array<string,mixed>>
+     */
+    private static function operationRoutes(array $operations, array $walPlans, array $tempOperations, array $rollbackOperations): array
+    {
+        $tempKeys = self::operationKeySet($tempOperations);
+        $rollbackKeys = self::operationKeySet($rollbackOperations);
+        $routes = [];
+
+        foreach ($operations as $index => $operation) {
+            $schema = (string) ($operation['schema'] ?? '');
+            $kind = (string) ($operation['kind'] ?? 'unknown');
+            $key = self::operationKey($operation);
+            $readerBoundary = 'current';
+            $journal = 'none';
+            $commitVisible = false;
+            $walFrameIndexes = [];
+
+            if ($kind === 'select') {
+                $journal = 'read';
+            } elseif (isset($tempKeys[$key])) {
+                $journal = 'temp-rollback';
+                $readerBoundary = 'connection-local-next';
+                $commitVisible = true;
+            } elseif (isset($walPlans[$schema])) {
+                $journal = 'wal';
+                $readerBoundary = 'next';
+                $commitVisible = true;
+                $walFrameIndexes = $walPlans[$schema]['next_reader_frame_indexes'] ?? [];
+            } elseif (isset($rollbackKeys[$key])) {
+                $journal = 'rollback';
+                $readerBoundary = 'next';
+                $commitVisible = true;
+            }
+
+            $routes[] = [
+                'operation_index' => $index,
+                'kind' => $kind,
+                'schema' => $schema,
+                'journal' => $journal,
+                'reader_boundary' => $readerBoundary,
+                'commit_visible' => $commitVisible,
+                'wal_frame_indexes' => $walFrameIndexes,
+            ];
+        }
+
+        return $routes;
+    }
+
+    /**
+     * @param array<string,array<string,mixed>> $walPlans
+     * @param list<array<string,mixed>> $tempOperations
+     * @param list<array<string,mixed>> $rollbackOperations
+     * @return array<string,array<string,mixed>>
+     */
+    private static function currentNextBoundaries(array $walPlans, array $tempOperations, array $rollbackOperations): array
+    {
+        $boundaries = [];
+
+        foreach ($walPlans as $schema => $plan) {
+            $boundaries[$schema] = [
+                'journal' => 'wal',
+                'current_reader' => 'database-or-existing-wal',
+                'next_reader' => 'appended-wal',
+                'commit_visible' => (bool) ($plan['next_uses_appended_wal'] ?? false),
+                'watched_pages' => count($plan['next_reader_sources'] ?? []),
+                'frame_indexes' => $plan['next_reader_frame_indexes'] ?? [],
+            ];
+        }
+
+        foreach (self::schemaCounts($tempOperations) as $schema => $count) {
+            $boundaries[$schema] = [
+                'journal' => 'temp-rollback',
+                'current_reader' => 'temp-btree-before-trigger',
+                'next_reader' => 'connection-local-temp-btree',
+                'commit_visible' => true,
+                'operation_count' => $count,
+                'frame_indexes' => [],
+            ];
+        }
+
+        foreach (self::schemaCounts($rollbackOperations) as $schema => $count) {
+            $boundaries[$schema] = [
+                'journal' => 'rollback',
+                'current_reader' => 'database-before-trigger',
+                'next_reader' => 'rollback-journal-commit',
+                'commit_visible' => true,
+                'operation_count' => $count,
+                'frame_indexes' => [],
+            ];
+        }
+
+        ksort($boundaries);
+
+        return $boundaries;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $operations
+     * @return array<string,true>
+     */
+    private static function operationKeySet(array $operations): array
+    {
+        $keys = [];
+        foreach ($operations as $operation) {
+            $keys[self::operationKey($operation)] = true;
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string,mixed> $operation
+     */
+    private static function operationKey(array $operation): string
+    {
+        return md5(serialize([
+            $operation['kind'] ?? null,
+            $operation['schema'] ?? null,
+            $operation['table'] ?? null,
+            $operation['row'] ?? null,
+            $operation['set'] ?? null,
+            $operation['where'] ?? null,
+            $operation['values'] ?? null,
+        ]));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $operations
+     * @return array<string,int>
+     */
+    private static function schemaCounts(array $operations): array
+    {
+        $counts = [];
+        foreach ($operations as $operation) {
+            $schema = (string) ($operation['schema'] ?? '');
+            $counts[$schema] = ($counts[$schema] ?? 0) + 1;
+        }
+        ksort($counts);
+
+        return $counts;
     }
 
     /**
