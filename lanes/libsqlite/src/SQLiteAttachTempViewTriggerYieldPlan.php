@@ -11,7 +11,7 @@ final class SQLiteAttachTempViewTriggerYieldPlan
     /**
      * @param array<string,mixed> $newRow
      * @param array<string,mixed>|null $oldRow
-     * @return array{trigger:string,triggerSchema:string,target:string,targetSchema:string,operations:list<array<string,mixed>>,operationCount:int,writesBySchema:array<string,int>,readCount:int,status:string}
+     * @return array{trigger:string,triggerSchema:string,target:string,targetSchema:string,operations:list<array<string,mixed>>,operationCount:int,writesBySchema:array<string,int>,readCount:int,when:?string,whenMatched:bool,status:string}
      */
     public static function yield(SQLiteAttachedSchemaCatalog $catalog, string $triggerName, array $newRow = [], ?array $oldRow = null): array
     {
@@ -24,6 +24,24 @@ final class SQLiteAttachTempViewTriggerYieldPlan
         $sql = $trigger['record']->sql;
         if ($sql === null || trim($sql) === '') {
             throw new InvalidArgumentException('SQLite attached trigger yield requires CREATE TRIGGER SQL');
+        }
+
+        $when = self::whenExpression($sql);
+        $whenMatched = $when === null || self::whenMatches($when, $newRow, $oldRow);
+        if (!$whenMatched) {
+            return [
+                'trigger' => $resolved['trigger'],
+                'triggerSchema' => $resolved['triggerSchema'],
+                'target' => $resolved['target'],
+                'targetSchema' => $resolved['targetSchema'],
+                'operations' => [],
+                'operationCount' => 0,
+                'writesBySchema' => [],
+                'readCount' => 0,
+                'when' => $when,
+                'whenMatched' => false,
+                'status' => 'skipped',
+            ];
         }
 
         $operations = [];
@@ -52,6 +70,8 @@ final class SQLiteAttachTempViewTriggerYieldPlan
             'operationCount' => count($operations),
             'writesBySchema' => $writesBySchema,
             'readCount' => $readCount,
+            'when' => $when,
+            'whenMatched' => true,
             'status' => 'yielded',
         ];
     }
@@ -74,6 +94,110 @@ final class SQLiteAttachTempViewTriggerYieldPlan
         }
 
         return array_values(array_filter(array_map('trim', self::splitStatements($matches['body'])), static fn (string $statement): bool => $statement !== ''));
+    }
+
+    private static function whenExpression(string $sql): ?string
+    {
+        if (!preg_match('/\bwhen\b(?<when>.*?)\bbegin\b/is', $sql, $matches)) {
+            return null;
+        }
+
+        $when = trim($matches['when']);
+        return $when === '' ? null : $when;
+    }
+
+    private static function whenMatches(string $when, array $newRow, ?array $oldRow): bool
+    {
+        $orTerms = preg_split('/\s+or\s+/i', $when);
+        if ($orTerms === false || $orTerms === []) {
+            throw new InvalidArgumentException('SQLite trigger WHEN clause cannot be empty');
+        }
+
+        foreach ($orTerms as $orTerm) {
+            $andTerms = preg_split('/\s+and\s+/i', trim($orTerm));
+            if ($andTerms === false || $andTerms === []) {
+                throw new InvalidArgumentException('SQLite trigger WHEN clause cannot be empty');
+            }
+
+            $matched = true;
+            foreach ($andTerms as $andTerm) {
+                $term = trim($andTerm);
+                if ($term === '') {
+                    throw new InvalidArgumentException('SQLite trigger WHEN clause cannot be empty');
+                }
+                if (!self::whenTermMatches($term, $newRow, $oldRow)) {
+                    $matched = false;
+                    break;
+                }
+            }
+
+            if ($matched) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function whenTermMatches(string $term, array $newRow, ?array $oldRow): bool
+    {
+        if (preg_match('/^(?<left>.+?)\s+(?<operator>is\s+not|is)\s+(?<right>.+)$/is', $term, $matches)) {
+            $left = self::value($matches['left'], $newRow, $oldRow);
+            $right = self::value($matches['right'], $newRow, $oldRow);
+
+            return strtolower((string) preg_replace('/\s+/', ' ', $matches['operator'])) === 'is not'
+                ? !self::sqliteIs($left, $right)
+                : self::sqliteIs($left, $right);
+        }
+
+        if (preg_match('/^(?<left>.+?)\s*(?<operator><>|!=|=)\s*(?<right>.+)$/s', $term, $matches)) {
+            $left = self::value($matches['left'], $newRow, $oldRow);
+            $right = self::value($matches['right'], $newRow, $oldRow);
+            if ($left === null || $right === null) {
+                return false;
+            }
+            $equal = self::sqliteEquals($left, $right);
+
+            return $matches['operator'] === '=' ? $equal : !$equal;
+        }
+
+        return self::sqliteTruthy(self::value($term, $newRow, $oldRow));
+    }
+
+    private static function sqliteIs(mixed $left, mixed $right): bool
+    {
+        if ($left === null || $right === null) {
+            return $left === null && $right === null;
+        }
+
+        return self::sqliteEquals($left, $right);
+    }
+
+    private static function sqliteEquals(mixed $left, mixed $right): bool
+    {
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return $left == $right;
+        }
+
+        return (string) $left === (string) $right;
+    }
+
+    private static function sqliteTruthy(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value != 0;
+        }
+        if (is_string($value) && is_numeric($value)) {
+            return (float) $value != 0.0;
+        }
+
+        return $value !== '';
     }
 
     /**

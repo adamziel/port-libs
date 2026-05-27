@@ -189,6 +189,72 @@ final class SQLiteWindowFunction
     }
 
     /**
+     * @param iterable<mixed> $values
+     * @param iterable<mixed> $orderKeys
+     * @return list<mixed>
+     */
+    public static function valueFrameValues(
+        string $function,
+        iterable $values,
+        iterable $orderKeys,
+        string $frameUnit,
+        int|float $preceding,
+        int|float $following,
+        string $exclude = 'NO OTHERS',
+        ?int $nth = null,
+    ): array {
+        $function = strtolower($function);
+        if (!in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
+            throw new \InvalidArgumentException("SQLite window value function {$function} is not supported");
+        }
+        if ($function === 'nth_value' && ($nth === null || $nth <= 0)) {
+            throw new \InvalidArgumentException('SQLite nth_value() index must be positive');
+        }
+        if ($preceding < 0 || $following < 0) {
+            throw new \InvalidArgumentException('SQLite window frame offsets must be non-negative');
+        }
+
+        $rows = self::rows($values);
+        $keys = self::rows($orderKeys);
+        if (count($rows) !== count($keys)) {
+            throw new \InvalidArgumentException('SQLite window values and ORDER BY keys must have the same row count');
+        }
+
+        $excludeMode = strtoupper(trim($exclude));
+        if (!in_array($excludeMode, ['NO OTHERS', 'CURRENT ROW', 'GROUP', 'TIES'], true)) {
+            throw new \InvalidArgumentException('SQLite window EXCLUDE mode is not supported');
+        }
+
+        $unit = strtoupper(trim($frameUnit));
+        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite window frame unit is not supported');
+        }
+        if ($unit === 'RANGE') {
+            foreach ($keys as $key) {
+                if (!is_int($key) && !is_float($key) && !is_bool($key)) {
+                    throw new \InvalidArgumentException('SQLite RANGE frame offsets require numeric ORDER BY keys');
+                }
+            }
+        }
+
+        $result = [];
+        foreach (array_keys($rows) as $index) {
+            $frameIndexes = self::frameIndexes($keys, $index, $preceding, $following, $unit);
+            $frameIndexes = self::applyExclude($frameIndexes, $keys, $index, $excludeMode);
+
+            $target = match ($function) {
+                'first_value' => $frameIndexes[0] ?? null,
+                'last_value' => $frameIndexes === [] ? null : $frameIndexes[count($frameIndexes) - 1],
+                'nth_value' => $frameIndexes[($nth ?? 1) - 1] ?? null,
+                default => null,
+            };
+            $result[] = $target === null ? null : $rows[$target];
+        }
+
+        return $result;
+    }
+
+    /**
      * @param iterable<mixed> $rows
      * @return array{rowNumber:list<int>,rank:list<int>,denseRank:list<int>,percentRank:list<float>,cumeDist:list<float>,ntile:list<int>}
      */

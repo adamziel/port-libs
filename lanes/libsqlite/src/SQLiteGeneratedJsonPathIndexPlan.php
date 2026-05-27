@@ -106,6 +106,67 @@ final class SQLiteGeneratedJsonPathIndexPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array{name?:string,sql:string,rootPage?:int,unique?:bool}> $indexes
+     * @param list<array{rowid:int|string,mutations:list<array{function:string,path:string,value:mixed}>}> $updates
+     * @return array<string,mixed>
+     */
+    public static function btreeYieldPlan(string $createTableSql, array $rows, array $indexes, array $updates, int $pageSize = 512): array
+    {
+        if ($pageSize < 256) {
+            throw new \InvalidArgumentException('SQLite generated JSON path B-tree yield plan requires a page size of at least 256 bytes');
+        }
+
+        $plan = self::plan($createTableSql, $rows, $indexes, $updates);
+        $generatedColumns = [];
+        foreach ($plan['generated_columns'] as $column) {
+            $generatedColumns[strtolower((string) $column['name'])] = $column;
+        }
+        $indexPlans = self::indexPlans($indexes, $generatedColumns);
+
+        $btreeIndexes = [];
+        $actions = [];
+        foreach ($indexPlans as $index) {
+            $currentEntries = self::btreeEntries($plan['before'], $index);
+            $nextEntries = self::btreeEntries($plan['after'], $index);
+            $currentLeafPage = self::indexLeafPage($currentEntries, $pageSize);
+            $nextLeafPage = self::indexLeafPage($nextEntries, $pageSize);
+            $btreeIndexes[$index['name']] = [
+                'rootPage' => $index['rootPage'],
+                'column' => $index['column'],
+                'path' => $index['path'],
+                'collation' => $index['collation'],
+                'descending' => $index['descending'],
+                'partial' => $index['partial'],
+                'unique' => $index['unique'],
+                'current_entries' => $currentEntries,
+                'next_entries' => $nextEntries,
+                'current_leaf_page_hex' => bin2hex($currentLeafPage),
+                'next_leaf_page_hex' => bin2hex($nextLeafPage),
+                'current_cell_count' => count($currentEntries),
+                'next_cell_count' => count($nextEntries),
+                'leaf_page_changed' => $currentLeafPage !== $nextLeafPage,
+            ];
+        }
+
+        foreach ($plan['index_updates'] as $update) {
+            if ($update['delete']) {
+                $actions[] = self::btreeAction('delete', $update, $pageSize);
+            }
+            if ($update['insert']) {
+                $actions[] = self::btreeAction('insert', $update, $pageSize);
+            }
+        }
+
+        return $plan + [
+            'btree_indexes' => $btreeIndexes,
+            'btree_actions' => $actions,
+            'btree_action_count' => count($actions),
+            'pageSize' => $pageSize,
+        ];
+    }
+
+    /**
      * @param list<array{name:string,generated:bool,storage:string|null,expression:string|null,dependencies:list<string>}> $columns
      * @param list<string> $order
      * @return array<string,array{name:string,source:string,path:string,storage:string}>
@@ -329,5 +390,113 @@ final class SQLiteGeneratedJsonPathIndexPlan
                 $seen[$fingerprint] = true;
             }
         }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array{name:string,rootPage:int|null,column:string,path:string,partial:bool,partialPredicate:?SQLiteIndexPredicate,collation:string,descending:bool,unique:bool} $index
+     * @return list<array{key:mixed,rowid:int|string,record:list<mixed>,record_hex:string}>
+     */
+    private static function btreeEntries(array $rows, array $index): array
+    {
+        $entries = [];
+        foreach ($rows as $row) {
+            $entry = self::indexEntry($row, $index);
+            if (!$entry['present']) {
+                continue;
+            }
+
+            $rowid = $row['option_id'] ?? $row['rowid'] ?? null;
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException('SQLite generated JSON path B-tree rows need option_id or rowid');
+            }
+
+            $record = [$entry['key'], $rowid];
+            $entries[] = [
+                'key' => $entry['key'],
+                'rowid' => $rowid,
+                'record' => $record,
+                'record_hex' => bin2hex(SQLiteRecord::encode($record)),
+            ];
+        }
+
+        usort($entries, static fn (array $left, array $right): int => self::compareBtreeEntries($left, $right, $index));
+
+        return $entries;
+    }
+
+    /**
+     * @param array{key:mixed,rowid:int|string} $left
+     * @param array{key:mixed,rowid:int|string} $right
+     * @param array{name:string,rootPage:int|null,column:string,path:string,partial:bool,partialPredicate:?SQLiteIndexPredicate,collation:string,descending:bool,unique:bool} $index
+     */
+    private static function compareBtreeEntries(array $left, array $right, array $index): int
+    {
+        $keyComparison = self::compareIndexKeys($left['key'], $right['key'], $index['collation']);
+        if ($keyComparison !== 0) {
+            return $index['descending'] ? -$keyComparison : $keyComparison;
+        }
+
+        return self::compareIndexKeys($left['rowid'], $right['rowid'], 'BINARY');
+    }
+
+    private static function compareIndexKeys(mixed $left, mixed $right, string $collation): int
+    {
+        if ($left === null || $right === null) {
+            return $left === $right ? 0 : ($left === null ? -1 : 1);
+        }
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return $left <=> $right;
+        }
+
+        $leftText = (string) $left;
+        $rightText = (string) $right;
+        if (strtoupper($collation) === 'NOCASE') {
+            $leftText = strtolower($leftText);
+            $rightText = strtolower($rightText);
+        }
+
+        return $leftText <=> $rightText;
+    }
+
+    /**
+     * @param list<array{record:list<mixed>}> $entries
+     */
+    private static function indexLeafPage(array $entries, int $pageSize): string
+    {
+        return SQLiteIndexLeafPage::assemble(array_map(
+            static fn (array $entry): string => SQLiteIndexCell::encode(SQLiteRecord::encode($entry['record'])),
+            $entries,
+        ), $pageSize);
+    }
+
+    /**
+     * @param array<string,mixed> $update
+     * @return array<string,mixed>
+     */
+    private static function btreeAction(string $action, array $update, int $pageSize): array
+    {
+        $key = $action === 'delete' ? $update['current'] : $update['next'];
+        $record = [$key, $update['rowid']];
+        $cell = SQLiteIndexCell::encode(SQLiteRecord::encode($record));
+
+        return [
+            'action' => $action,
+            'index' => $update['index'],
+            'rootPage' => $update['rootPage'],
+            'rowid' => $update['rowid'],
+            'column' => $update['column'],
+            'path' => $update['path'],
+            'key' => $key,
+            'record' => $record,
+            'record_hex' => bin2hex(SQLiteRecord::encode($record)),
+            'cell_hex' => bin2hex($cell),
+            'cell_bytes' => strlen($cell),
+            'pageSize' => $pageSize,
+            'collation' => $update['collation'],
+            'descending' => $update['descending'],
+            'partial' => $update['partial'],
+            'unique' => $update['unique'],
+        ];
     }
 }

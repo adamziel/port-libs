@@ -124,6 +124,54 @@ final class SQLiteVdbeWindowAggregateCursor
         return $this->record($row, $this->orderColumns);
     }
 
+    public function currentFilterValue(): mixed
+    {
+        $row = $this->requireCurrentRow();
+
+        return $this->filterColumn === null ? null : $row[$this->filterColumn];
+    }
+
+    public function currentFilterPassed(): bool
+    {
+        $this->requireCurrentRow();
+
+        return $this->filterColumn === null || self::isSqlTrue($this->currentFilterValue());
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    public function peekNextRow(): ?array
+    {
+        return $this->orderedRows[$this->position + 1] ?? null;
+    }
+
+    /**
+     * @return list<mixed>|null
+     */
+    public function peekNextPartitionKey(): ?array
+    {
+        $row = $this->peekNextRow();
+        if ($row === null) {
+            return null;
+        }
+
+        return $this->record($row, $this->partitionColumns);
+    }
+
+    /**
+     * @return list<mixed>|null
+     */
+    public function peekNextOrderKey(): ?array
+    {
+        $row = $this->peekNextRow();
+        if ($row === null) {
+            return null;
+        }
+
+        return $this->record($row, $this->orderColumns);
+    }
+
     /**
      * @return list<array<string,mixed>>
      */
@@ -249,7 +297,7 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
-     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,eof:bool}
+     * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}
      */
     public function currentSummary(): array
     {
@@ -264,12 +312,15 @@ final class SQLiteVdbeWindowAggregateCursor
             'frameEnd' => $indexes[count($indexes) - 1] ?? null,
             'frameRows' => count($indexes),
             'filteredRows' => count($this->currentFrameRows(true)),
+            'currentFilterPassed' => $this->currentFilterPassed(),
+            'nextPartitionKey' => $this->peekNextPartitionKey(),
+            'nextOrderKey' => $this->peekNextOrderKey(),
             'eof' => false,
         ];
     }
 
     /**
-     * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int,frameEnd:int,frameRows:int,filteredRows:int,value:mixed,total:float,groupConcat:?string}>
+     * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,value:mixed,total:float,groupConcat:?string}>
      */
     public function drainSummaries(mixed $separator = ','): array
     {
@@ -541,6 +592,9 @@ final class SQLiteVdbeWindowAggregateCursor
         if ($this->filterColumn !== null && !array_key_exists($this->filterColumn, $row)) {
             throw new \InvalidArgumentException("SQLite VDBE window aggregate row is missing filter column {$this->filterColumn}");
         }
+        if ($this->filterColumn !== null) {
+            self::assertFilterValue($row[$this->filterColumn]);
+        }
     }
 
     /**
@@ -593,6 +647,15 @@ final class SQLiteVdbeWindowAggregateCursor
         }
 
         throw new \InvalidArgumentException('SQLite VDBE window aggregate sort values must be scalar, BLOB, or NULL');
+    }
+
+    private static function assertFilterValue(mixed $value): void
+    {
+        if ($value === null || is_bool($value) || is_int($value) || is_float($value) || is_string($value)) {
+            return;
+        }
+
+        throw new \InvalidArgumentException('SQLite VDBE window aggregate FILTER values must be scalar or NULL');
     }
 
     private static function isIntegerOffset(int|float $offset): bool

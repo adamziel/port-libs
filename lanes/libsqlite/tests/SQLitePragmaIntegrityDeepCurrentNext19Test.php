@@ -196,7 +196,7 @@ $cases = [
     'deep catches interior right pointer map mismatch' => ['PRAGMA integrity_check', $tableInterior(static function (array $pages) use ($putPointerMapEntry): array {
         $pages[2] = $putPointerMapEntry($pages[2], 5, SQLitePointerMapEntry::FREE_PAGE, 0);
         return $pages;
-    }), 'pointer-map type free-page for page 5 does not match expected btree-page'],
+    }), 'btree page 3 right-most child page 5 pointer-map type free-page does not match expected btree-page'],
     'integrity limit truncates deep errors' => ['PRAGMA integrity_check(1)', $autoVacuumWithTableLeaf(static function (array $pages) use ($putPointerMapEntry): array {
         $pages[2] = $putPointerMapEntry($pages[2], 3, SQLitePointerMapEntry::FREE_PAGE, 0);
         $pages[3][7] = "\x3d";
