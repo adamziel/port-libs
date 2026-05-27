@@ -71,7 +71,7 @@ final class SQLiteSelectSql
             ? self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'), $tables)
             : null;
         $jsonConstraints = self::jsonTableHiddenConstraints($fromSql, $where);
-        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints);
+        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints, self::jsonTableErrorBoundaryColumns($where));
 
         $groupBySql = isset($clauseOffsets['GROUP BY'])
             ? self::clauseText($tail, $clauseOffsets, 'GROUP BY')
@@ -635,37 +635,126 @@ final class SQLiteSelectSql
         if ($columns === []) {
             throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs anchor columns");
         }
-        $rows = self::normalizeRecursiveRows($anchorRows, $columns, $name);
+        $queueOrder = self::recursiveQueueOrder($recursiveSql, $columns);
+        $queue = self::normalizeRecursiveRows($anchorRows, $columns, $name);
         if ($operator === 'UNION') {
-            $rows = self::deduplicateRecursiveRows($rows);
+            $queue = self::deduplicateRecursiveRows($queue);
         }
-        $frontier = $rows;
+        if ($queueOrder !== []) {
+            $queue = self::sortRecursiveQueue($queue, $queueOrder);
+        }
+        $rows = [];
         $seen = [];
-        foreach ($rows as $row) {
+        foreach ($queue as $row) {
             $seen[self::recursiveRowKey($row)] = true;
         }
 
-        for ($iteration = 0; $iteration < 1000 && $frontier !== []; $iteration++) {
+        for ($iteration = 0; $iteration < 1000 && $queue !== []; $iteration++) {
+            $current = array_shift($queue);
+            if (!is_array($current)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} queue row is malformed");
+            }
+            $rows[] = $current;
             $stepTables = $tables;
-            $stepTables[$name] = $frontier;
+            $stepTables[$name] = [$current];
             $stepRows = self::normalizeRecursiveRows(self::executeCteArm($recursiveSql, $stepTables), $columns, $name);
-            $nextFrontier = [];
             foreach ($stepRows as $row) {
                 $key = self::recursiveRowKey($row);
                 if ($operator === 'UNION' && isset($seen[$key])) {
                     continue;
                 }
-                $rows[] = $row;
-                $nextFrontier[] = $row;
+                $queue[] = $row;
                 $seen[$key] = true;
             }
-            $frontier = $nextFrontier;
+            if ($queueOrder !== []) {
+                $queue = self::sortRecursiveQueue($queue, $queueOrder);
+            }
         }
-        if ($frontier !== []) {
+        if ($queue !== []) {
             throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} exceeded iteration limit");
         }
 
         return $rows;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return list<array{column:string,direction:string}>
+     */
+    private static function recursiveQueueOrder(string $recursiveSql, array $columns): array
+    {
+        $orderOffset = self::keywordOffset($recursiveSql, 'ORDER BY');
+        if ($orderOffset === null) {
+            return [];
+        }
+
+        $limitOffset = self::keywordOffset($recursiveSql, 'LIMIT');
+        $orderSql = $limitOffset !== null && $limitOffset > $orderOffset
+            ? trim(substr($recursiveSql, $orderOffset + strlen('ORDER BY'), $limitOffset - ($orderOffset + strlen('ORDER BY'))))
+            : trim(substr($recursiveSql, $orderOffset + strlen('ORDER BY')));
+        if ($orderSql === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE ORDER BY term cannot be empty');
+        }
+
+        $order = [];
+        foreach (self::splitTopLevel($orderSql, ',') as $term) {
+            [$expression, $direction] = self::orderByExpressionDirection($term);
+            if (preg_match('/^[1-9][0-9]*$/', $expression) === 1) {
+                $ordinal = (int) $expression;
+                if (!isset($columns[$ordinal - 1])) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE ORDER BY ordinal is out of range');
+                }
+                $column = $columns[$ordinal - 1];
+            } else {
+                self::assertIdentifier($expression, 'SQLite SELECT SQL recursive CTE ORDER BY column');
+                $column = str_contains($expression, '.') ? substr($expression, strrpos($expression, '.') + 1) : $expression;
+                if (!in_array($column, $columns, true)) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE ORDER BY column is not in the result set');
+                }
+            }
+            $order[] = ['column' => $column, 'direction' => $direction ?? 'ASC'];
+        }
+
+        return $order;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $queue
+     * @param list<array{column:string,direction:string}> $order
+     * @return list<array<string,mixed>>
+     */
+    private static function sortRecursiveQueue(array $queue, array $order): array
+    {
+        $indexed = [];
+        foreach ($queue as $index => $row) {
+            $indexed[] = ['index' => $index, 'row' => $row];
+        }
+        usort($indexed, static function (array $left, array $right) use ($order): int {
+            foreach ($order as $term) {
+                $comparison = self::compareRecursiveQueueValues($left['row'][$term['column']] ?? null, $right['row'][$term['column']] ?? null);
+                if ($comparison === 0) {
+                    continue;
+                }
+
+                return $term['direction'] === 'DESC' ? -$comparison : $comparison;
+            }
+
+            return $left['index'] <=> $right['index'];
+        });
+
+        return array_map(static fn (array $entry): array => $entry['row'], $indexed);
+    }
+
+    private static function compareRecursiveQueueValues(mixed $left, mixed $right): int
+    {
+        if ($left === null || $right === null) {
+            return $left === $right ? 0 : ($left === null ? -1 : 1);
+        }
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return $left <=> $right;
+        }
+
+        return strcmp((string) $left, (string) $right);
     }
 
     /**
@@ -878,9 +967,10 @@ final class SQLiteSelectSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $jsonConstraints
+     * @param list<string> $jsonErrorBoundaryColumns
      * @return array{from:list<array<string,mixed>>,joins:list<array<string,mixed>>}
      */
-    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = []): array
+    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = []): array
     {
         $commaSources = self::splitTopLevel($sql, ',');
         if (count($commaSources) > 1) {
@@ -892,14 +982,14 @@ final class SQLiteSelectSql
 
         $joinOffset = self::firstJoinOffset($sql);
         $baseSql = $joinOffset === null ? $sql : trim(substr($sql, 0, $joinOffset));
-        $base = self::tableReference($baseSql, $tables, $jsonConstraints);
+        $base = self::tableReference($baseSql, $tables, $jsonConstraints, $jsonErrorBoundaryColumns);
         $joins = [];
 
         if ($joinOffset !== null) {
             $joinSql = trim(substr($sql, $joinOffset));
             $currentRows = self::qualifiedRows($base['rows'], $base['alias']);
             while ($joinSql !== '') {
-                [$join, $joinSql] = self::consumeJoin($joinSql, $tables, $currentRows);
+                [$join, $joinSql] = self::consumeJoin($joinSql, $tables, $currentRows, $jsonErrorBoundaryColumns);
                 $joins[] = $join;
                 $currentRows = [array_fill_keys(array_merge(self::collectColumns($currentRows), self::collectColumns($join['rows'])), null)];
             }
@@ -921,16 +1011,17 @@ final class SQLiteSelectSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $jsonConstraints
+     * @param list<string> $jsonErrorBoundaryColumns
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}
      */
-    private static function tableReference(string $sql, array $tables, array $jsonConstraints = []): array
+    private static function tableReference(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = []): array
     {
         $valuesTable = self::valuesTableReference($sql);
         if ($valuesTable !== null) {
             return $valuesTable;
         }
 
-        $jsonTable = self::jsonTableReference($sql);
+        $jsonTable = self::jsonTableReference($sql, $jsonErrorBoundaryColumns);
         if ($jsonTable !== null) {
             return $jsonTable;
         }
@@ -1021,9 +1112,10 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @param list<string> $jsonErrorBoundaryColumns
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
      */
-    private static function jsonTableReference(string $sql): ?array
+    private static function jsonTableReference(string $sql, array $jsonErrorBoundaryColumns = []): ?array
     {
         if (preg_match('/^(json_each|json_tree)\s*\((.*)\)(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?$/i', trim($sql), $match) !== 1) {
             return null;
@@ -1052,16 +1144,23 @@ final class SQLiteSelectSql
         }
 
         if ($hasDynamicArguments) {
+            $guardedJsonArgument = self::jsonTableArgumentGuardedByErrorBoundary($argumentExpressions[0], $jsonErrorBoundaryColumns);
+
             return [
                 'name' => $function,
                 'alias' => $alias,
                 'rows' => [],
-                'dynamicRows' => static function (array $row) use ($function, $alias, $argumentExpressions): array {
+                'dynamicRows' => static function (array $row) use ($function, $alias, $argumentExpressions, $guardedJsonArgument): array {
+                    $jsonValue = SQLiteSelectExpression::evaluate($row, $argumentExpressions[0]);
+                    if ($guardedJsonArgument && SQLiteJsonTablePlan::invalidInputCanBeSkipped($jsonValue)) {
+                        return [];
+                    }
+
                     $constraints = [
                         [
                             'column' => 'json',
                             'operator' => '=',
-                            'value' => SQLiteSelectExpression::evaluate($row, $argumentExpressions[0]),
+                            'value' => $jsonValue,
                         ],
                     ];
                     if (isset($argumentExpressions[1])) {
@@ -1160,6 +1259,75 @@ final class SQLiteSelectSql
         }
 
         return $constraints;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function jsonTableErrorBoundaryColumns(?array $where): array
+    {
+        if ($where === null) {
+            return [];
+        }
+
+        $columns = [];
+        foreach (self::flattenAndPredicate($where) as $term) {
+            $column = self::jsonTableErrorBoundaryColumn($term);
+            if ($column !== null && !in_array($column, $columns, true)) {
+                $columns[] = $column;
+            }
+        }
+
+        return $columns;
+    }
+
+    private static function jsonTableErrorBoundaryColumn(array $predicate): ?string
+    {
+        if (!isset($predicate['operator'], $predicate['left'], $predicate['right']) || !is_array($predicate['left']) || !is_array($predicate['right'])) {
+            return null;
+        }
+        if (!in_array($predicate['operator'], ['=', 'IS', 'IS NOT DISTINCT FROM'], true)) {
+            return null;
+        }
+
+        $functionExpression = $predicate['left'];
+        $literalExpression = $predicate['right'];
+        if (($functionExpression['type'] ?? null) !== 'function') {
+            $functionExpression = $predicate['right'];
+            $literalExpression = $predicate['left'];
+        }
+        if (($functionExpression['type'] ?? null) !== 'function' || ($literalExpression['type'] ?? null) !== 'literal') {
+            return null;
+        }
+
+        $function = strtolower((string) ($functionExpression['name'] ?? ''));
+        $expected = $literalExpression['value'] ?? null;
+        if (($function === 'json_valid' && $expected !== 1) || ($function === 'json_error_position' && $expected !== 0)) {
+            return null;
+        }
+        if ($function !== 'json_valid' && $function !== 'json_error_position') {
+            return null;
+        }
+
+        $arguments = $functionExpression['arguments'] ?? null;
+        if (!is_array($arguments) || count($arguments) !== 1 || !is_array($arguments[0]) || ($arguments[0]['type'] ?? null) !== 'column') {
+            return null;
+        }
+
+        return strtolower((string) $arguments[0]['name']);
+    }
+
+    /**
+     * @param array<string,mixed> $argument
+     * @param list<string> $jsonErrorBoundaryColumns
+     */
+    private static function jsonTableArgumentGuardedByErrorBoundary(array $argument, array $jsonErrorBoundaryColumns): bool
+    {
+        if (($argument['type'] ?? null) !== 'column' || !isset($argument['name']) || !is_string($argument['name'])) {
+            return false;
+        }
+
+        return in_array(strtolower($argument['name']), $jsonErrorBoundaryColumns, true);
     }
 
     private static function removeJsonTableHiddenConstraints(string $fromSql, array $where): ?array
@@ -1314,7 +1482,7 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{0:array<string,mixed>,1:string}
      */
-    private static function consumeJoin(string $sql, array $tables, array $leftRows = []): array
+    private static function consumeJoin(string $sql, array $tables, array $leftRows = [], array $jsonErrorBoundaryColumns = []): array
     {
         if (preg_match('/^((?:natural\s+)?(?:(?:left|right|full)(?:\s+outer)?\s+join|inner\s+join|cross\s+join|join))\s+/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN clause is not supported');
@@ -1346,7 +1514,7 @@ final class SQLiteSelectSql
             $nextJoin = self::firstJoinOffset($rest);
             $tableSql = $nextJoin === null ? $rest : trim(substr($rest, 0, $nextJoin));
             $remaining = $nextJoin === null ? '' : trim(substr($rest, $nextJoin));
-            $table = self::tableReference($tableSql, $tables);
+            $table = self::tableReference($tableSql, $tables, [], $jsonErrorBoundaryColumns);
             $rightRows = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
                 ? self::qualifiedJsonRows($table['rows'], $table['alias'])
                 : self::qualifiedRows($table['rows'], $table['alias']);
@@ -1377,7 +1545,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN needs ON or USING');
         }
 
-        $table = self::tableReference(trim(substr($rest, 0, $boundary)), $tables);
+        $table = self::tableReference(trim(substr($rest, 0, $boundary)), $tables, [], $jsonErrorBoundaryColumns);
         $conditionSql = trim(substr($rest, $boundary));
         $nextJoin = self::nextJoinAfterCondition($conditionSql);
         $condition = $nextJoin === null ? $conditionSql : trim(substr($conditionSql, 0, $nextJoin));

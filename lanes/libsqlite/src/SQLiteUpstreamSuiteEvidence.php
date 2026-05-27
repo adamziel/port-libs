@@ -2920,6 +2920,76 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function acceptedHeadArtifactProvenanceDirectoryRecord(
+        string $artifactDirectory,
+        string $acceptedRepositoryHead,
+        string $processSnapshot = ''
+    ): array {
+        if (!is_dir($artifactDirectory)) {
+            return [
+                'status' => 'blocked-missing-artifact-directory',
+                'artifact_directory' => $artifactDirectory,
+                'accepted_repository_head' => $acceptedRepositoryHead,
+                'artifact_count' => 0,
+                'current_accepted_count' => 0,
+                'blocked_count' => 0,
+                'stale_head_count' => 0,
+                'manifest_mismatch_count' => 0,
+                'missing_log_count' => 0,
+                'entries' => [],
+                'next_gate' => 'wait for guarded bounded-runner audit/log artifacts from the current accepted checkout before counting upstream runner evidence',
+                'dependency_closure' => 'no new support component needed; accepted-HEAD directory provenance scans bounded runner audit/log artifacts only',
+            ];
+        }
+
+        $auditPaths = glob(rtrim($artifactDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.md');
+        if ($auditPaths === false) {
+            $auditPaths = [];
+        }
+        sort($auditPaths);
+
+        $artifactRecords = [];
+        $missingLogs = [];
+        foreach ($auditPaths as $auditPath) {
+            if (!is_file($auditPath)) {
+                continue;
+            }
+
+            $auditText = file_get_contents($auditPath);
+            if ($auditText === false) {
+                throw new \RuntimeException("Unable to read SQLite bounded runner audit artifact: {$auditPath}");
+            }
+
+            $label = $this->extractMarkdownHeadingLabel($auditText) ?? pathinfo($auditPath, PATHINFO_FILENAME);
+            $stdoutPath = $this->pairedRunnerLogPath($auditText, $auditPath, $artifactDirectory);
+            if ($stdoutPath === null) {
+                $missingLogs[] = $label;
+            }
+
+            $artifactRecords[$label] = $this->boundedRunnerArtifactRecordFromFiles(
+                $auditPath,
+                $stdoutPath ?? $auditPath,
+                $processSnapshot
+            );
+        }
+
+        $batch = $this->acceptedHeadArtifactProvenanceBatch($artifactRecords, $acceptedRepositoryHead);
+        $batch['artifact_directory'] = $artifactDirectory;
+        $batch['missing_log_count'] = count($missingLogs);
+        $batch['missing_log_labels'] = $missingLogs;
+        $batch['next_gate'] = ($batch['current_accepted_count'] ?? 0) > 0 && ($batch['blocked_count'] ?? 0) === 0
+            ? 'record current accepted-HEAD directory provenance, then route focused artifacts to focused evidence and release-like artifacts to release countability gates'
+            : (($batch['artifact_count'] ?? 0) === 0
+                ? 'place guarded bounded-runner audit/log artifact pairs in the directory before counting accepted-HEAD runner evidence'
+                : 'rerun or repair stale, mismatched, missing-log, or failed bounded-runner artifacts from the current accepted checkout before counting them');
+        $batch['dependency_closure'] = 'no new support component needed; accepted-HEAD directory provenance composes bounded runner audit/log parsing and manifest UUID gates only';
+
+        return $batch;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function selectedScriptInventory(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();

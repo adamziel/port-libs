@@ -256,6 +256,9 @@ final class SQLiteSelectExpression
 
             return $valid === null ? null : ($valid ? 1 : 0);
         }
+        if ($normalized === 'json_error_position') {
+            return SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments($normalized, $evaluated);
+        }
         if ($normalized === 'json_pretty') {
             return SQLiteJsonPretty::jsonPrettySqlFunctionArguments($normalized, $evaluated);
         }

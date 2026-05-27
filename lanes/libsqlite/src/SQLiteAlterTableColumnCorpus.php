@@ -9,9 +9,10 @@ use InvalidArgumentException;
 final class SQLiteAlterTableColumnCorpus
 {
     /**
-     * @return array{status:string, table:string, column:string, column_count:int, sql:string, added:list<string>, dependencies:list<string>}
+     * @param list<array<string,mixed>> $currentRows
+     * @return array{status:string, table:string, column:string, column_count:int, sql:string, added:list<string>, dependencies:list<string>, current_row_count:int, checked_rows:int, generated:bool}
      */
-    public static function addColumn(SQLiteSchemaRecord $table, string $alterSql): array
+    public static function addColumn(SQLiteSchemaRecord $table, string $alterSql, array $currentRows = []): array
     {
         self::assertTableRecord($table);
         if (!preg_match('/\A\s*ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:(?:"[^"]+"|`[^`]+`|\[[^\]]+\]|\w+)\s*\.\s*)?(?:"([^"]+)"|`([^`]+)`|\[([^\]]+)\]|(\w+))\s+ADD\s+(?:COLUMN\s+)?(.+?)\s*;?\s*\z/is', $alterSql, $matches)) {
@@ -30,6 +31,7 @@ final class SQLiteAlterTableColumnCorpus
             throw new InvalidArgumentException("SQLite duplicate column name: {$column}");
         }
         self::assertAddColumnDefinition($definition);
+        $scan = self::validateAddColumnCurrentRows($definition, $column, $currentRows);
 
         $sql = rtrim((string) $table->sql);
         $close = strrpos($sql, ')');
@@ -47,6 +49,9 @@ final class SQLiteAlterTableColumnCorpus
             'sql' => self::normalizeSql($rewritten),
             'added' => [$column],
             'dependencies' => [],
+            'current_row_count' => count($currentRows),
+            'checked_rows' => $scan['checked_rows'],
+            'generated' => $scan['generated'],
         ];
     }
 
@@ -116,7 +121,7 @@ final class SQLiteAlterTableColumnCorpus
         if (preg_match('/\b(PRIMARY\s+KEY|UNIQUE)\b/i', $tail)) {
             throw new InvalidArgumentException('SQLite cannot add a PRIMARY KEY or UNIQUE column');
         }
-        if (preg_match('/\bGENERATED\s+ALWAYS\b.+\bSTORED\b/i', $tail)) {
+        if (preg_match('/(?:\bGENERATED\s+ALWAYS\b.+\bSTORED\b|\bAS\s*\(.+\)\s*STORED\b)/i', $tail)) {
             throw new InvalidArgumentException('SQLite cannot add a STORED generated column');
         }
         if (preg_match('/\bNOT\s+NULL\b/i', $tail) && !preg_match('/\bDEFAULT\b/i', $tail)) {
@@ -125,6 +130,266 @@ final class SQLiteAlterTableColumnCorpus
         if (preg_match('/\bDEFAULT\s*\(\s*(CURRENT_TIME|CURRENT_DATE|CURRENT_TIMESTAMP)\s*\)/i', $tail) || preg_match('/\bDEFAULT\s+(CURRENT_TIME|CURRENT_DATE|CURRENT_TIMESTAMP)\b/i', $tail)) {
             throw new InvalidArgumentException('SQLite cannot add a column with a non-constant default');
         }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array{checked_rows:int, generated:bool}
+     */
+    private static function validateAddColumnCurrentRows(string $definition, string $column, array $rows): array
+    {
+        $tail = self::definitionTail($definition);
+        $generatedExpression = self::generatedExpression($tail);
+        $checkExpressions = self::checkExpressions($tail);
+        $notNull = preg_match('/\bNOT\s+NULL\b/i', $tail) === 1;
+        if ($rows === [] || ($generatedExpression === null && $checkExpressions === [] && !$notNull)) {
+            return ['checked_rows' => 0, 'generated' => $generatedExpression !== null];
+        }
+
+        $defaultValue = $generatedExpression === null ? self::defaultValue($tail) : null;
+        foreach ($rows as $rowIndex => $row) {
+            $rowWithColumn = $row;
+            $rowWithColumn[$column] = $generatedExpression === null
+                ? $defaultValue
+                : self::evaluateAddColumnExpression($generatedExpression, $rowWithColumn);
+
+            if ($notNull && $rowWithColumn[$column] === null) {
+                throw new InvalidArgumentException("SQLite ADD COLUMN {$column} NOT NULL constraint failed on existing row " . ($rowIndex + 1));
+            }
+
+            foreach ($checkExpressions as $checkExpression) {
+                $result = self::evaluateAddColumnExpression($checkExpression, $rowWithColumn);
+                if ($result === 0 || $result === false) {
+                    throw new InvalidArgumentException("SQLite ADD COLUMN {$column} CHECK constraint failed on existing row " . ($rowIndex + 1));
+                }
+            }
+        }
+
+        return ['checked_rows' => count($rows), 'generated' => $generatedExpression !== null];
+    }
+
+    private static function generatedExpression(string $tail): ?string
+    {
+        if (preg_match('/\bAS\s*\(/i', $tail, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+        $open = strpos($tail, '(', $matches[0][1]);
+        if ($open === false) {
+            return null;
+        }
+        $close = self::matchingParen($tail, $open);
+        if ($close === null) {
+            return null;
+        }
+
+        return trim(substr($tail, $open + 1, $close - $open - 1));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function checkExpressions(string $tail): array
+    {
+        $expressions = [];
+        if (preg_match_all('/\bCHECK\s*\(/i', $tail, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return [];
+        }
+        foreach ($matches[0] as $match) {
+            $open = strpos($tail, '(', $match[1]);
+            if ($open === false) {
+                continue;
+            }
+            $close = self::matchingParen($tail, $open);
+            if ($close === null) {
+                continue;
+            }
+            $expressions[] = trim(substr($tail, $open + 1, $close - $open - 1));
+        }
+
+        return $expressions;
+    }
+
+    private static function matchingParen(string $sql, int $open): ?int
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($sql);
+        for ($i = $open; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if ($i + 1 < $length && $sql[$i + 1] === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+            } elseif ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static function defaultValue(string $tail): mixed
+    {
+        if (preg_match('/\bDEFAULT\s+((?:\'(?:\'\'|[^\'])*\')|(?:"(?:""|[^"])*")|(?:[+-]?\d+(?:\.\d+)?)|NULL)(?![A-Za-z0-9_])/i', $tail, $matches) !== 1) {
+            return null;
+        }
+        $value = $matches[1];
+        if (strcasecmp($value, 'NULL') === 0) {
+            return null;
+        }
+        if ($value[0] === "'" || $value[0] === '"') {
+            return str_replace($value[0] . $value[0], $value[0], substr($value, 1, -1));
+        }
+        return str_contains($value, '.') ? (float) $value : (int) $value;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function evaluateAddColumnExpression(string $expression, array $row): mixed
+    {
+        $expression = trim($expression);
+        $parts = preg_split('/\s+AND\s+/i', $expression);
+        if (is_array($parts) && count($parts) > 1) {
+            foreach ($parts as $part) {
+                $value = self::evaluateAddColumnExpression($part, $row);
+                if ($value === 0 || $value === false) {
+                    return 0;
+                }
+            }
+
+            return 1;
+        }
+        if (preg_match('/^(.+?)\s+IS\s+(NOT\s+)?NULL$/i', $expression, $matches) === 1) {
+            $value = self::evaluateAddColumnExpression($matches[1], $row);
+            $isNull = $value === null;
+            return ($matches[2] ?? '') === '' ? ($isNull ? 1 : 0) : (!$isNull ? 1 : 0);
+        }
+        if (preg_match('/^(.+?)\s*(<>|!=|>=|<=|=|>|<)\s*(.+)$/s', $expression, $matches) === 1) {
+            $left = self::evaluateAddColumnExpression($matches[1], $row);
+            $right = self::evaluateAddColumnExpression($matches[3], $row);
+            if ($left === null || $right === null) {
+                return null;
+            }
+            return match ($matches[2]) {
+                '<>', '!=' => $left != $right ? 1 : 0,
+                '=' => $left == $right ? 1 : 0,
+                '>' => $left > $right ? 1 : 0,
+                '<' => $left < $right ? 1 : 0,
+                '>=' => $left >= $right ? 1 : 0,
+                '<=' => $left <= $right ? 1 : 0,
+            };
+        }
+        $concat = self::splitOperator($expression, '||');
+        if ($concat !== null) {
+            return (string) self::evaluateAddColumnExpression($concat[0], $row) . (string) self::evaluateAddColumnExpression($concat[1], $row);
+        }
+        if (preg_match('/^lower\s*\((.*)\)$/is', $expression, $matches) === 1) {
+            return strtolower((string) self::evaluateAddColumnExpression($matches[1], $row));
+        }
+        if (preg_match('/^length\s*\((.*)\)$/is', $expression, $matches) === 1) {
+            $value = self::evaluateAddColumnExpression($matches[1], $row);
+            return $value === null ? null : strlen((string) $value);
+        }
+        if (preg_match('/^\((.*)\)$/s', $expression, $matches) === 1 && self::matchingParen($expression, 0) === strlen($expression) - 1) {
+            return self::evaluateAddColumnExpression($matches[1], $row);
+        }
+        if (preg_match('/^\'((?:\'\'|[^\'])*)\'$/s', $expression, $matches) === 1) {
+            return str_replace("''", "'", $matches[1]);
+        }
+        if (preg_match('/^[+-]?\d+(?:\.\d+)?$/', $expression) === 1) {
+            return str_contains($expression, '.') ? (float) $expression : (int) $expression;
+        }
+        if (strcasecmp($expression, 'NULL') === 0) {
+            return null;
+        }
+
+        $identifier = self::unquoteIdentifierExpression($expression);
+        if ($identifier !== null) {
+            foreach ($row as $name => $value) {
+                if (strcasecmp((string) $name, $identifier) === 0) {
+                    return $value;
+                }
+            }
+
+            return null;
+        }
+
+        throw new InvalidArgumentException("SQLite ADD COLUMN expression is not supported: {$expression}");
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private static function splitOperator(string $expression, string $operator): ?array
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($expression);
+        for ($i = 0; $i < $length - strlen($operator) + 1; $i++) {
+            $char = $expression[$i];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if ($i + 1 < $length && $expression[$i + 1] === $quote) {
+                        $i++;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0 && substr($expression, $i, strlen($operator)) === $operator) {
+                return [substr($expression, 0, $i), substr($expression, $i + strlen($operator))];
+            }
+        }
+
+        return null;
+    }
+
+    private static function unquoteIdentifierExpression(string $expression): ?string
+    {
+        $expression = trim($expression);
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1) {
+            return $expression;
+        }
+        if (preg_match('/^"((?:""|[^"])*)"$/s', $expression, $matches) === 1) {
+            return str_replace('""', '"', $matches[1]);
+        }
+        if (preg_match('/^`([^`]*)`$/s', $expression, $matches) === 1) {
+            return $matches[1];
+        }
+        if (preg_match('/^\[([^\]]*)\]$/s', $expression, $matches) === 1) {
+            return $matches[1];
+        }
+
+        return null;
     }
 
     /**

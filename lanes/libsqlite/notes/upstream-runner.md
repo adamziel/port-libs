@@ -11012,3 +11012,49 @@ constraint work, JSON host joins, malformed JSONB planner diagnostics,
 Unicode GLOB, VFS write/sync/lock/rollback clusters, WAL checkpoint/savepoint
 clusters, B-tree page move/overflow/root-collapse clusters, and parser-level
 SELECT SQL text/subquery/group/order work.
+
+## Upstream Runner Evidence: Accepted-HEAD Artifact Directory Provenance current-next19
+
+Date: 2026-05-27
+
+This isolated upstream-runner micro-slice did not launch a broad SQLite
+`testfixture`, `make test`, `mptest`, `all`, or `release` run. It adds
+`SQLiteUpstreamSuiteEvidence::acceptedHeadArtifactProvenanceDirectoryRecord()`,
+which scans a bounded-runner artifact directory for audit Markdown files,
+pairs logs when available, parses each artifact, then feeds the records through
+the existing accepted-HEAD and SQLite manifest UUID provenance gates.
+
+The new record lets the integrator classify a whole current-source artifact
+directory at once: current focused artifacts can be routed to focused evidence,
+current release-like artifacts can be routed to release countability gates,
+stale repository-head artifacts remain blocked, SQLite manifest mismatches
+remain blocked, and missing log pairs stay explicit. Release/all parity is not
+credited by this directory provenance gate.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 456 to 457 by adding
+`focusedUpstreamAcceptedHeadArtifactDirectoryScripts=1`. No fresh upstream
+runner evidence is claimed.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Result: the focused upstream-suite evidence test passed with `1 test files,
+894 assertions, 0 failures`. The pre-change baseline for the same file was
+`1 test files, 859 assertions, 0 failures`, so this patch adds one verified
+TestRunner PASS case and 35 focused assertions. `lane-status.json` `phpPass`
+moves from 6444 to 6445.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+bounded runner audit/log parsing, accepted-HEAD provenance, SQLite manifest
+UUID gates, and release/focused countability routing. Non-overlap: it avoids
+accepted release-blocker closure-record, artifact-set admission, focused-runner
+admission, active-runner pgrep filtering, foreground snapshot parsing, and
+release rerun/exclusion ledger work by covering only directory-level
+accepted-HEAD provenance over already produced bounded-runner artifacts.
