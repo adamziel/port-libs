@@ -114,7 +114,7 @@ final class SQLiteSelectSql
             );
         }
         if (isset($clauseOffsets['LIMIT'])) {
-            [$limit, $offset] = self::limitOffset(self::clauseText($tail, $clauseOffsets, 'LIMIT'));
+            [$limit, $offset] = self::limitOffset(self::clauseText($tail, $clauseOffsets, 'LIMIT'), $tables);
             $plan['limit'] = $limit;
             $plan['offset'] = $offset;
         }
@@ -184,7 +184,7 @@ final class SQLiteSelectSql
             );
         }
         if (isset($clauseOffsets['LIMIT'])) {
-            [$limit, $offset] = self::limitOffset(self::clauseText($sql, $clauseOffsets, 'LIMIT'));
+            [$limit, $offset] = self::limitOffset(self::clauseText($sql, $clauseOffsets, 'LIMIT'), $tables);
             $plan['limit'] = $limit;
             $plan['offset'] = $offset;
         }
@@ -349,7 +349,7 @@ final class SQLiteSelectSql
             $plan['compound']['orderBy'] = self::compoundOrderBy($orderSql, $arms[0]['select'] ?? []);
         }
         if ($limitSql !== null) {
-            [$limit, $offset] = self::limitOffset($limitSql);
+            [$limit, $offset] = self::limitOffset($limitSql, $tables);
             $plan['compound']['limit'] = $limit;
             $plan['compound']['offset'] = $offset;
         }
@@ -535,7 +535,7 @@ final class SQLiteSelectSql
                 $rows = $armRows;
                 continue;
             }
-            $rows = SQLiteSelectCompound::combine($rows, $armRows, (string) $compound['operators'][$index - 1]);
+            $rows = SQLiteSelectCompound::combine($rows, $armRows, (string) $compound['operators'][$index - 1], self::compoundSelectCollations($compound['arms'][0]));
         }
 
         return SQLiteSelectResult::execute(
@@ -545,6 +545,31 @@ final class SQLiteSelectSql
             isset($compound['limit']) && is_int($compound['limit']) ? $compound['limit'] : null,
             isset($compound['offset']) && is_int($compound['offset']) ? $compound['offset'] : 0,
         );
+    }
+
+    /**
+     * @param array<string,mixed> $arm
+     * @return array<string,string>
+     */
+    private static function compoundSelectCollations(array $arm): array
+    {
+        $select = $arm['select'] ?? null;
+        if (!is_array($select) || !array_is_list($select)) {
+            return [];
+        }
+
+        $collations = [];
+        foreach ($select as $term) {
+            if (!is_array($term) || ($term['type'] ?? null) !== 'collate' || !isset($term['collation']) || !is_string($term['collation'])) {
+                continue;
+            }
+            $column = $term['alias'] ?? null;
+            if (is_string($column) && $column !== '') {
+                $collations[$column] = strtoupper($term['collation']);
+            }
+        }
+
+        return $collations;
     }
 
     /**
@@ -611,6 +636,9 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} needs anchor columns");
         }
         $rows = self::normalizeRecursiveRows($anchorRows, $columns, $name);
+        if ($operator === 'UNION') {
+            $rows = self::deduplicateRecursiveRows($rows);
+        }
         $frontier = $rows;
         $seen = [];
         foreach ($rows as $row) {
@@ -684,6 +712,26 @@ final class SQLiteSelectSql
     private static function recursiveRowKey(array $row): string
     {
         return serialize(array_values($row));
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function deduplicateRecursiveRows(array $rows): array
+    {
+        $deduplicated = [];
+        $seen = [];
+        foreach ($rows as $row) {
+            $key = self::recursiveRowKey($row);
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $deduplicated[] = $row;
+        }
+
+        return $deduplicated;
     }
 
     /**
@@ -827,6 +875,14 @@ final class SQLiteSelectSql
      */
     private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = []): array
     {
+        $commaSources = self::splitTopLevel($sql, ',');
+        if (count($commaSources) > 1) {
+            $sql = trim(array_shift($commaSources));
+            foreach ($commaSources as $source) {
+                $sql .= ' CROSS JOIN ' . $source;
+            }
+        }
+
         $joinOffset = self::firstJoinOffset($sql);
         $baseSql = $joinOffset === null ? $sql : trim(substr($sql, 0, $joinOffset));
         $base = self::tableReference($baseSql, $tables, $jsonConstraints);
@@ -1620,6 +1676,19 @@ final class SQLiteSelectSql
             return self::valueExpression($unwrapped, $tables);
         }
 
+        if (preg_match('/^(.+)\s+COLLATE\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $sql, $match) === 1) {
+            $collation = strtoupper($match[2]);
+            if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+                throw new \InvalidArgumentException("Unsupported SQLite SELECT SQL collation: {$match[2]}");
+            }
+
+            return [
+                'type' => 'collate',
+                'operand' => self::valueExpression($match[1], $tables),
+                'collation' => $collation,
+            ];
+        }
+
         foreach ([['&', '|', '<<', '>>'], ['+', '-'], ['*', '/', '%'], ['||']] as $operators) {
             $operator = self::topLevelExpressionOperator($sql, $operators);
             if ($operator === null) {
@@ -2091,11 +2160,11 @@ final class SQLiteSelectSql
     /**
      * @return array{0:int,1:int}
      */
-    private static function limitOffset(string $sql): array
+    private static function limitOffset(string $sql, array $tables = []): array
     {
         $commaParts = self::splitTopLevel($sql, ',');
         if (count($commaParts) === 2) {
-            return [self::limitInteger($commaParts[1]), self::limitInteger($commaParts[0])];
+            return [self::limitInteger($commaParts[1], $tables), self::limitInteger($commaParts[0], $tables)];
         }
         if (count($commaParts) > 2) {
             throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT comma form must have offset and limit');
@@ -2107,17 +2176,14 @@ final class SQLiteSelectSql
         }
 
         return [
-            self::limitInteger($offsetParts[0]),
-            isset($offsetParts[1]) && $offsetParts[1] !== '' ? self::limitInteger($offsetParts[1]) : 0,
+            self::limitInteger($offsetParts[0], $tables),
+            isset($offsetParts[1]) && $offsetParts[1] !== '' ? self::limitInteger($offsetParts[1], $tables) : 0,
         ];
     }
 
-    private static function limitInteger(string $sql): int
+    private static function limitInteger(string $sql, array $tables = []): int
     {
-        $expression = self::valueExpression($sql, []);
-        if (($expression['type'] ?? null) === 'subquery') {
-            throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT scalar subqueries are not supported');
-        }
+        $expression = self::valueExpression($sql, $tables);
         $value = SQLiteSelectExpression::evaluate([], $expression);
         if (!is_int($value) && !is_float($value) && !is_bool($value)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT expression must evaluate to numeric');

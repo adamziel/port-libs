@@ -67,7 +67,7 @@ final class SQLitePragmaForeignKeyCheck
 
     /**
      * @param array<string,mixed> $foreignKey
-     * @return array{table:string,parent:string,columns:list<array{child:string,parent:string}>,id:int,withoutRowid:bool}
+     * @return array{table:string,parent:string,columns:list<array{child:string,parent:string,affinity:string,collation:string}>,id:int,withoutRowid:bool}
      */
     private static function normalizeForeignKey(array $foreignKey, int $ordinal): array
     {
@@ -84,6 +84,8 @@ final class SQLitePragmaForeignKeyCheck
                 $pairs[] = [
                     'child' => self::identifier($parentColumn['child'] ?? null, 'child column'),
                     'parent' => self::identifier($parentColumn['parent'] ?? null, 'parent column'),
+                    'affinity' => self::affinity($parentColumn['affinity'] ?? 'none'),
+                    'collation' => self::collation($parentColumn['collation'] ?? 'binary'),
                 ];
                 continue;
             }
@@ -91,6 +93,8 @@ final class SQLitePragmaForeignKeyCheck
             $pairs[] = [
                 'child' => self::identifier($child, 'child column'),
                 'parent' => self::identifier($parentColumn, 'parent column'),
+                'affinity' => 'none',
+                'collation' => 'binary',
             ];
         }
 
@@ -105,7 +109,7 @@ final class SQLitePragmaForeignKeyCheck
 
     /**
      * @param array<string,mixed> $row
-     * @param list<array{child:string,parent:string}> $columns
+     * @param list<array{child:string,parent:string,affinity:string,collation:string}> $columns
      */
     private static function hasNullChildKey(array $row, array $columns): bool
     {
@@ -125,7 +129,7 @@ final class SQLitePragmaForeignKeyCheck
     /**
      * @param array<string,mixed> $child
      * @param list<array<string,mixed>> $parentRows
-     * @param list<array{child:string,parent:string}> $columns
+     * @param list<array{child:string,parent:string,affinity:string,collation:string}> $columns
      */
     private static function hasParentMatch(array $child, array $parentRows, array $columns): bool
     {
@@ -135,7 +139,7 @@ final class SQLitePragmaForeignKeyCheck
                     throw new InvalidArgumentException("SQLite foreign_key_check parent row is missing column {$column['parent']}");
                 }
 
-                if ($child[$column['child']] !== $parent[$column['parent']]) {
+                if (!self::valuesMatch($child[$column['child']], $parent[$column['parent']], $column['affinity'], $column['collation'])) {
                     continue 2;
                 }
             }
@@ -144,6 +148,90 @@ final class SQLitePragmaForeignKeyCheck
         }
 
         return false;
+    }
+
+    private static function valuesMatch(mixed $child, mixed $parent, string $affinity, string $collation): bool
+    {
+        [$child, $parent] = self::applyParentAffinity($child, $parent, $affinity);
+
+        if (is_string($child) && is_string($parent)) {
+            return match ($collation) {
+                'nocase' => strcasecmp($child, $parent) === 0,
+                'rtrim' => rtrim($child, " \t\r\n\0\x0B") === rtrim($parent, " \t\r\n\0\x0B"),
+                default => $child === $parent,
+            };
+        }
+
+        if ((is_int($child) || is_float($child)) && (is_int($parent) || is_float($parent))) {
+            return (float) $child === (float) $parent;
+        }
+
+        return $child === $parent;
+    }
+
+    /**
+     * SQLite compares child values after applying the parent key column affinity.
+     *
+     * @return array{0:mixed,1:mixed}
+     */
+    private static function applyParentAffinity(mixed $child, mixed $parent, string $affinity): array
+    {
+        return match ($affinity) {
+            'integer' => [self::integerAffinity($child), self::integerAffinity($parent)],
+            'numeric' => [self::numericAffinity($child), self::numericAffinity($parent)],
+            'real' => [self::realAffinity($child), self::realAffinity($parent)],
+            'text' => [self::textAffinity($child), self::textAffinity($parent)],
+            default => [$child, $parent],
+        };
+    }
+
+    private static function integerAffinity(mixed $value): mixed
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+        if (is_float($value) && is_finite($value) && floor($value) === $value) {
+            return (int) $value;
+        }
+        if (is_string($value) && preg_match('/^[+-]?\d+$/', trim($value)) === 1) {
+            return (int) trim($value);
+        }
+
+        return $value;
+    }
+
+    private static function numericAffinity(mixed $value): mixed
+    {
+        if (is_int($value) || is_float($value)) {
+            return $value;
+        }
+        if (is_string($value) && is_numeric(trim($value))) {
+            $numeric = trim($value);
+            return preg_match('/^[+-]?\d+$/', $numeric) === 1 ? (int) $numeric : (float) $numeric;
+        }
+
+        return $value;
+    }
+
+    private static function realAffinity(mixed $value): mixed
+    {
+        if (is_int($value) || is_float($value)) {
+            return (float) $value;
+        }
+        if (is_string($value) && is_numeric(trim($value))) {
+            return (float) trim($value);
+        }
+
+        return $value;
+    }
+
+    private static function textAffinity(mixed $value): mixed
+    {
+        if (is_int($value) || is_float($value) || is_string($value)) {
+            return (string) $value;
+        }
+
+        return $value;
     }
 
     /**
@@ -200,6 +288,34 @@ final class SQLitePragmaForeignKeyCheck
         }
 
         return $value;
+    }
+
+    private static function affinity(mixed $value): string
+    {
+        if (!is_string($value)) {
+            throw new InvalidArgumentException('SQLite foreign_key_check parent affinity is malformed');
+        }
+
+        $affinity = strtolower($value);
+        if (!in_array($affinity, ['none', 'integer', 'numeric', 'real', 'text', 'blob'], true)) {
+            throw new InvalidArgumentException("SQLite foreign_key_check parent affinity {$value} is unsupported");
+        }
+
+        return $affinity === 'blob' ? 'none' : $affinity;
+    }
+
+    private static function collation(mixed $value): string
+    {
+        if (!is_string($value)) {
+            throw new InvalidArgumentException('SQLite foreign_key_check parent collation is malformed');
+        }
+
+        $collation = strtolower($value);
+        if (!in_array($collation, ['binary', 'nocase', 'rtrim'], true)) {
+            throw new InvalidArgumentException("SQLite foreign_key_check parent collation {$value} is unsupported");
+        }
+
+        return $collation;
     }
 
     private static function unquoteIdentifier(string $identifier): string

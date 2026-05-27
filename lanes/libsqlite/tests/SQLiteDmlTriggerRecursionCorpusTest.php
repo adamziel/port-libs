@@ -155,6 +155,207 @@ $tests = [
         $trigger[0]['conflict_action'] = 'ignore';
         $t->same(1, $run($trigger)['changes']);
     },
+    'dml trigger recursion corpus statement ignore overrides recursive trigger fail conflict' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same(['plugin_seed'], array_column($run($trigger, null, 'ignore')['rows'], 'option_name'));
+    },
+    'dml trigger recursion corpus statement ignore records ignored child under trigger fail' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same(['plugin_seed'], array_column($run($trigger, null, 'ignore')['ignored'], 'option_name'));
+    },
+    'dml trigger recursion corpus statement ignore changes exclude failed child override' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same(1, $run($trigger, null, 'ignore')['changes']);
+    },
+    'dml trigger recursion corpus statement ignore effect records effective ignore' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'fail';
+        $effects = $run($trigger, null, 'ignore')['effects'];
+        $t->same(['ignore', 'ignore', 'ignore'], array_column($effects, 'effective_conflict_action'));
+    },
+    'dml trigger recursion corpus statement ignore suppresses trigger rollback conflict' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'rollback';
+        $t->same(1, $run($trigger, null, 'ignore')['changes']);
+    },
+    'dml trigger recursion corpus statement ignore suppresses trigger abort conflict' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'abort';
+        $t->same(['ignored-conflict'], array_values(array_filter(array_column($run($trigger, null, 'ignore')['effects'], 'result'), static fn (string $result): bool => $result === 'ignored-conflict')));
+    },
+    'dml trigger recursion corpus statement replace overrides recursive trigger fail conflict' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 7;
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same([7], array_column($run($trigger, null, 'replace')['rows'], 'level'));
+    },
+    'dml trigger recursion corpus statement replace counts replacement despite trigger fail' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 7;
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same(2, $run($trigger, null, 'replace')['changes']);
+    },
+    'dml trigger recursion corpus statement replace records replaced child under trigger fail' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 7;
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same(['replaced-conflict'], array_values(array_filter(array_column($run($trigger, null, 'replace')['effects'], 'result'), static fn (string $result): bool => $result === 'replaced-conflict')));
+    },
+    'dml trigger recursion corpus statement replace effect records effective replace' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 7;
+        $trigger[0]['conflict_action'] = 'fail';
+        $effects = $run($trigger, null, 'replace')['effects'];
+        $t->same(['replace'], array_values(array_unique(array_column($effects, 'effective_conflict_action'))));
+    },
+    'dml trigger recursion corpus statement replace suppresses trigger rollback conflict' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 9;
+        $trigger[0]['conflict_action'] = 'rollback';
+        $t->same([9], array_column($run($trigger, null, 'replace')['rows'], 'level'));
+    },
+    'dml trigger recursion corpus statement fail overrides trigger ignore on recursive duplicate' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'ignore';
+        $result = $run($trigger, null, 'fail');
+        $t->same(['failed-conflict'], array_values(array_filter(array_column($result['effects'], 'result'), static fn (string $result): bool => $result === 'failed-conflict')));
+    },
+    'dml trigger recursion corpus statement fail skips outer before row despite trigger ignore' => static function (TestRunner $t) use ($run, $beforeTrigger): void {
+        $trigger = $beforeTrigger;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'ignore';
+        $result = SQLiteDmlTriggerRecursionPlan::insertRows(
+            [['option_id' => 99, 'option_name' => 'plugin_seed', 'level' => 0, 'autoload' => 'old']],
+            [['option_id' => 1, 'option_name' => 'plugin_seed', 'level' => 1, 'autoload' => 'yes']],
+            $trigger,
+            ['option_name'],
+            'fail'
+        );
+        $t->same([0], array_column($result['rows'], 'level'));
+    },
+    'dml trigger recursion corpus statement fail records effective fail despite trigger ignore' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'ignore';
+        $effects = $run($trigger, null, 'fail')['effects'];
+        $t->same(['fail'], array_values(array_unique(array_column($effects, 'effective_conflict_action'))));
+    },
+    'dml trigger recursion corpus statement rollback overrides trigger ignore on recursive duplicate' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'ignore';
+        $t->throws(InvalidArgumentException::class, static fn () => $run($trigger, null, 'rollback'));
+    },
+    'dml trigger recursion corpus default abort still lets trigger ignore handle duplicate' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'ignore';
+        $t->same(['ignored-conflict'], array_values(array_filter(array_column($run($trigger)['effects'], 'result'), static fn (string $result): bool => $result === 'ignored-conflict')));
+    },
+    'dml trigger recursion corpus default abort still lets trigger replace handle duplicate' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 5;
+        $trigger[0]['conflict_action'] = 'replace';
+        $t->same([5], array_column($run($trigger)['rows'], 'level'));
+    },
+    'dml trigger recursion corpus default abort still lets trigger fail skip before duplicate' => static function (TestRunner $t) use ($beforeTrigger): void {
+        $trigger = $beforeTrigger;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'fail';
+        $result = SQLiteDmlTriggerRecursionPlan::insertRows(
+            [['option_id' => 99, 'option_name' => 'plugin_seed', 'level' => 0, 'autoload' => 'old']],
+            [['option_id' => 1, 'option_name' => 'plugin_seed', 'level' => 1, 'autoload' => 'yes']],
+            $trigger,
+            ['option_name'],
+            'abort'
+        );
+        $t->same([0], array_column($result['rows'], 'level'));
+    },
+    'dml trigger recursion corpus outer ignore applies through multiple recursive duplicate rows' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 4;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same(1, $run($trigger, null, 'ignore')['changes']);
+    },
+    'dml trigger recursion corpus outer ignore with multiple inputs skips duplicate trigger side effects only' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'rollback';
+        $input = [
+            ['option_id' => 1, 'option_name' => 'plugin_seed', 'level' => 1, 'autoload' => 'yes'],
+            ['option_id' => 2, 'option_name' => 'plugin_next', 'level' => 2, 'autoload' => 'no'],
+        ];
+        $t->same(['plugin_seed', 'plugin_next'], array_column($run($trigger, $input, 'ignore')['rows'], 'option_name'));
+    },
+    'dml trigger recursion corpus outer replace with multiple inputs replaces only current duplicate key' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 8;
+        $trigger[0]['conflict_action'] = 'fail';
+        $input = [
+            ['option_id' => 1, 'option_name' => 'plugin_seed', 'level' => 1, 'autoload' => 'yes'],
+            ['option_id' => 2, 'option_name' => 'plugin_next', 'level' => 2, 'autoload' => 'no'],
+        ];
+        $t->same([8, 2], array_column($run($trigger, $input, 'replace')['rows'], 'level'));
+    },
+    'dml trigger recursion corpus outer replace preserves ignored list empty under trigger fail' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 8;
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same([], $run($trigger, null, 'replace')['ignored']);
+    },
+    'dml trigger recursion corpus outer ignore preserves inserted list at seed row only' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same(['plugin_seed'], array_column($run($trigger, null, 'ignore')['inserted'], 'option_name'));
+    },
+    'dml trigger recursion corpus outer replace preserves inserted list with replacement child' => static function (TestRunner $t) use ($run, $baseTrigger): void {
+        $trigger = $baseTrigger;
+        $trigger[0]['when']['value'] = 2;
+        $trigger[0]['insert_row']['option_name'] = 'plugin_seed';
+        $trigger[0]['insert_row']['level'] = 8;
+        $trigger[0]['conflict_action'] = 'fail';
+        $t->same([1, 8], array_column($run($trigger, null, 'replace')['inserted'], 'level'));
+    },
     'dml trigger recursion corpus trigger conflict fail skips outer before row' => static function (TestRunner $t) use ($run, $beforeTrigger): void {
         $trigger = $beforeTrigger;
         $trigger[0]['insert_row']['option_name'] = 'plugin_seed';

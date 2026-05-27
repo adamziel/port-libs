@@ -199,7 +199,7 @@ final class SQLitePragmaSchemaCatalog
     /**
      * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo', schema: string|null, target: string}
      */
-    private static function parsePragma(string $sql): array
+    public static function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
         if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo)\s*(?:\(\s*(?<paren>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))$/i', $trimmed, $matches)) {

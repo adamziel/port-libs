@@ -13,6 +13,8 @@ final class SQLiteTempStoreSorterBTreePlan
      * @param array<int, string> $pageImages
      * @param list<array{page_number:int,first_key:mixed,last_key:mixed,cell_count:int,bytes:int}> $runs
      * @param list<array{key:list<mixed>,sequence:int,row:array<string, mixed>}> $sortRecords
+     * @param list<array<string, mixed>> $yieldedRows
+     * @param list<string> $distinctColumns
      */
     public function __construct(
         public readonly array $inputRows,
@@ -25,6 +27,12 @@ final class SQLiteTempStoreSorterBTreePlan
         public readonly array $runs,
         public readonly array $sortRecords,
         public readonly int $estimatedMemoryBytes,
+        public readonly array $yieldedRows = [],
+        public readonly array $distinctColumns = [],
+        public readonly ?int $limit = null,
+        public readonly int $offset = 0,
+        public readonly int $distinctRowsSeen = 0,
+        public readonly int $duplicateRowsSkipped = 0,
     ) {
     }
 
@@ -90,7 +98,90 @@ final class SQLiteTempStoreSorterBTreePlan
     }
 
     /**
-     * @return array{action:string,input_rows:int,sorted_rows:int,sort_terms:list<array{column:string,direction:string,collation:string}>,memory_threshold_bytes:int,estimated_memory_bytes:int,spilled_to_temp_btree:bool,temp_page_numbers:list<int>,runs:list<array{page_number:int,first_key:mixed,last_key:mixed,cell_count:int,bytes:int}>}
+     * @param list<array<string, mixed>> $rows
+     * @param list<array{column:string,direction?:string,collation?:string}> $sortTerms
+     * @param list<string> $distinctColumns
+     */
+    public static function forDistinctLimitRows(
+        array $rows,
+        array $sortTerms,
+        array $distinctColumns,
+        ?int $limit,
+        int $offset = 0,
+        int $pageSize = 512,
+        int $memoryThresholdBytes = 512,
+        int $firstTempPageNumber = 2,
+    ): self {
+        if ($distinctColumns === []) {
+            throw new \InvalidArgumentException('SQLite temp sorter DISTINCT yield requires at least one distinct column');
+        }
+        if ($offset < 0) {
+            throw new \InvalidArgumentException('SQLite temp sorter DISTINCT yield OFFSET must be non-negative');
+        }
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('SQLite temp sorter DISTINCT yield LIMIT must be non-negative or NULL');
+        }
+        foreach ($distinctColumns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite temp sorter DISTINCT yield columns must be non-empty strings');
+            }
+        }
+
+        $plan = self::forRows($rows, $sortTerms, $pageSize, $memoryThresholdBytes, $firstTempPageNumber);
+        $seen = [];
+        $yielded = [];
+        $distinctSeen = 0;
+        $duplicateRowsSkipped = 0;
+
+        foreach ($plan->sortRecords as $record) {
+            if ($limit !== null && count($yielded) >= $limit) {
+                break;
+            }
+
+            $parts = [];
+            foreach ($distinctColumns as $column) {
+                if (!array_key_exists($column, $record['row'])) {
+                    throw new \InvalidArgumentException("SQLite temp sorter DISTINCT yield row is missing column: {$column}");
+                }
+                $parts[] = self::valueKey($record['row'][$column]);
+            }
+
+            $key = implode("\0", $parts);
+            if (isset($seen[$key])) {
+                $duplicateRowsSkipped++;
+                continue;
+            }
+            $seen[$key] = true;
+            $distinctSeen++;
+
+            if ($distinctSeen <= $offset) {
+                continue;
+            }
+            $yielded[] = $record['row'];
+        }
+
+        return new self(
+            $plan->inputRows,
+            $plan->sortedRows,
+            $plan->sortTerms,
+            $plan->pageSize,
+            $plan->memoryThresholdBytes,
+            $plan->spilledToTempBTree,
+            $plan->pageImages,
+            $plan->runs,
+            $plan->sortRecords,
+            $plan->estimatedMemoryBytes,
+            $yielded,
+            array_values($distinctColumns),
+            $limit,
+            $offset,
+            $distinctSeen,
+            $duplicateRowsSkipped,
+        );
+    }
+
+    /**
+     * @return array{action:string,input_rows:int,sorted_rows:int,sort_terms:list<array{column:string,direction:string,collation:string}>,memory_threshold_bytes:int,estimated_memory_bytes:int,spilled_to_temp_btree:bool,temp_page_numbers:list<int>,runs:list<array{page_number:int,first_key:mixed,last_key:mixed,cell_count:int,bytes:int}>,distinct_columns:list<string>,limit:int|null,offset:int,distinct_rows_seen:int,duplicate_rows_skipped:int,yielded_rows:int}
      */
     public function toArray(): array
     {
@@ -104,6 +195,12 @@ final class SQLiteTempStoreSorterBTreePlan
             'spilled_to_temp_btree' => $this->spilledToTempBTree,
             'temp_page_numbers' => array_keys($this->pageImages),
             'runs' => $this->runs,
+            'distinct_columns' => $this->distinctColumns,
+            'limit' => $this->limit,
+            'offset' => $this->offset,
+            'distinct_rows_seen' => $this->distinctRowsSeen,
+            'duplicate_rows_skipped' => $this->duplicateRowsSkipped,
+            'yielded_rows' => count($this->yieldedRows),
         ];
     }
 
@@ -169,6 +266,27 @@ final class SQLiteTempStoreSorterBTreePlan
         }
 
         return $leftText <=> $rightText;
+    }
+
+    private static function valueKey(mixed $value): string
+    {
+        if ($value === null) {
+            return 'null:';
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return 'blob:' . $value->bytes;
+        }
+        if (is_bool($value) || is_int($value)) {
+            return 'integer:' . (int) $value;
+        }
+        if (is_float($value)) {
+            return 'real:' . sprintf('%.17G', $value);
+        }
+        if (is_string($value)) {
+            return 'text:' . $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite temp sorter DISTINCT yield values must be scalar, BLOB, or NULL');
     }
 
     private static function asciiLower(string $value): string

@@ -3104,7 +3104,11 @@ final class SQLiteUpstreamSuiteEvidence
         $testrunner = $root . '/.upstream-cache/libsqlite/test/testrunner.tcl';
         $normalizedScripts = [];
         foreach ($scripts as $script) {
-            if (!is_string($script) || !preg_match('/^[A-Za-z0-9_.*?\/-]+\.test$/', $script)) {
+            if (
+                !is_string($script)
+                || str_starts_with($script, '/')
+                || !preg_match('/^[A-Za-z0-9_.*?\/-]+\.test$/', $script)
+            ) {
                 throw new \InvalidArgumentException('Focused upstream subset scripts must be SQLite .test names');
             }
             $normalizedScripts[] = $script;

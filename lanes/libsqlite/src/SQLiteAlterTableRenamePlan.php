@@ -49,6 +49,51 @@ final class SQLiteAlterTableRenamePlan
     }
 
     /**
+     * Rewrite schema SQL for ALTER TABLE table RENAME COLUMN old TO new.
+     *
+     * This bounded pass mirrors SQLite's schema-text rewrite for focused
+     * sqlite_schema rows: table column declarations, index expressions and
+     * predicates, view SELECT text, trigger UPDATE OF lists, and OLD/NEW
+     * trigger references are rewritten while object names, string literals,
+     * and comments are preserved.
+     */
+    public static function renameColumnSql(string $sql, string $tableName, string $oldName, string $newName): string
+    {
+        self::assertIdentifier($tableName, 'table name');
+        self::assertIdentifier($oldName, 'old column name');
+        self::assertIdentifier($newName, 'new column name');
+
+        $tokens = self::tokens($sql);
+        $result = '';
+        $previousKeyword = null;
+
+        foreach ($tokens as $index => $token) {
+            if ($token['type'] === 'identifier') {
+                $identifier = (string) $token['identifier'];
+                if (
+                    strcasecmp($identifier, $oldName) === 0
+                    && !self::isObjectNamePosition($tokens, $index, $previousKeyword)
+                    && !self::isFunctionNamePosition($tokens, $index)
+                ) {
+                    $result .= self::renderIdentifier($newName, $token['quote']);
+                } else {
+                    $result .= $token['text'];
+                }
+            } else {
+                $result .= $token['text'];
+            }
+
+            if ($token['type'] === 'keyword') {
+                $previousKeyword = strtoupper($token['identifier']);
+            } elseif ($token['type'] === 'identifier') {
+                $previousKeyword = null;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * @param list<array{type:string,text:string,identifier?:string,quote?:string|null}> $tokens
      */
     private static function isObjectNamePosition(array $tokens, int $index, ?string $previousKeyword): bool
@@ -93,6 +138,60 @@ final class SQLiteAlterTableRenamePlan
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{type:string,text:string,identifier?:string,quote?:string|null}> $tokens
+     */
+    private static function isFunctionNamePosition(array $tokens, int $index): bool
+    {
+        $next = self::nextSignificant($tokens, $index + 1);
+        if ($next === null || $next['text'] !== '(') {
+            return false;
+        }
+
+        $previous = self::previousSignificant($tokens, $index - 1);
+        return $previous === null || $previous['text'] !== '.';
+    }
+
+    /**
+     * @param list<array{type:string,text:string,identifier?:string,quote?:string|null}> $tokens
+     * @return array{type:string,text:string,identifier?:string,quote?:string|null}|null
+     */
+    private static function nextSignificant(array $tokens, int $offset): ?array
+    {
+        $count = count($tokens);
+        for ($i = $offset; $i < $count; $i++) {
+            if (!self::isTrivia($tokens[$i])) {
+                return $tokens[$i];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{type:string,text:string,identifier?:string,quote?:string|null}> $tokens
+     * @return array{type:string,text:string,identifier?:string,quote?:string|null}|null
+     */
+    private static function previousSignificant(array $tokens, int $offset): ?array
+    {
+        for ($i = $offset; $i >= 0; $i--) {
+            if (!self::isTrivia($tokens[$i])) {
+                return $tokens[$i];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{type:string,text:string,identifier?:string,quote?:string|null} $token
+     */
+    private static function isTrivia(array $token): bool
+    {
+        return $token['type'] === 'comment'
+            || ($token['type'] === 'other' && trim($token['text']) === '');
     }
 
     /**

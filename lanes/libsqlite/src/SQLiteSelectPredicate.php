@@ -354,11 +354,27 @@ final class SQLiteSelectPredicate
         if (!is_string($column) || $column === '') {
             throw new \InvalidArgumentException('SQLite SELECT predicate column expressions need a non-empty name');
         }
-        if (!array_key_exists($column, $row)) {
-            throw new \InvalidArgumentException("SQLite SELECT predicate row is missing column {$column}");
+        if (array_key_exists($column, $row)) {
+            return $row[$column];
         }
 
-        return $row[$column];
+        if (!str_contains($column, '.')) {
+            $matches = [];
+            $suffix = '.' . $column;
+            foreach ($row as $rowColumn => $value) {
+                if (is_string($rowColumn) && str_ends_with($rowColumn, $suffix)) {
+                    $matches[] = $value;
+                }
+            }
+            if (count($matches) === 1) {
+                return $matches[0];
+            }
+            if (count($matches) > 1) {
+                throw new \InvalidArgumentException("SQLite SELECT predicate column {$column} is ambiguous");
+            }
+        }
+
+        throw new \InvalidArgumentException("SQLite SELECT predicate row is missing column {$column}");
     }
 
     private static function compareValues(mixed $left, mixed $right, bool $nullsEqual = false): ?int

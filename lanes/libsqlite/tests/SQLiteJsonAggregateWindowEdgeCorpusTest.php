@@ -29,12 +29,12 @@ $objectRows = [
 ];
 
 $arrayCases = [
-    'array no others keeps filtered peer rows' => ['NO OTHERS', ['["siteurl","home"]', '["siteurl","home",[{"plugin":"seo"}]]', '["home",[{"plugin":"seo"}],"theme_mods"]', '[[{"plugin":"seo"}],"theme_mods"]']],
-    'array current row excludes current only' => ['CURRENT ROW', ['["home"]', '["siteurl",[{"plugin":"seo"}]]', '["home","theme_mods"]', '[[{"plugin":"seo"}]]']],
-    'array group excludes all order peers' => ['GROUP', ['[]', '[[{"plugin":"seo"}]]', '["home","theme_mods"]', '[[{"plugin":"seo"}]]']],
-    'array ties keeps current and removes peer ties' => ['TIES', ['["siteurl"]', '["home",[{"plugin":"seo"}]]', '["home",[{"plugin":"seo"}],"theme_mods"]', '[[{"plugin":"seo"}],"theme_mods"]']],
-    'array lowercase exclude mode is accepted' => ['ties', ['["siteurl"]', '["home",[{"plugin":"seo"}]]', '["home",[{"plugin":"seo"}],"theme_mods"]', '[[{"plugin":"seo"}],"theme_mods"]']],
-    'array blank exclude defaults to no others' => ['', ['["siteurl","home"]', '["siteurl","home",[{"plugin":"seo"}]]', '["home",[{"plugin":"seo"}],"theme_mods"]', '[[{"plugin":"seo"}],"theme_mods"]']],
+    'array no others keeps filtered peer rows' => ['NO OTHERS', ['["siteurl","home"]', '["siteurl","home",[{"plugin":"seo"}]]', '["home",[{"plugin":"seo"}]]', '[[{"plugin":"seo"}],"theme_mods"]', '["theme_mods"]']],
+    'array current row excludes current only' => ['CURRENT ROW', ['["home"]', '["siteurl",[{"plugin":"seo"}]]', '["home"]', '[[{"plugin":"seo"}],"theme_mods"]', '[]']],
+    'array group excludes all order peers' => ['GROUP', ['[]', '[[{"plugin":"seo"}]]', '["home"]', '[[{"plugin":"seo"}]]', '[]']],
+    'array ties keeps current and removes peer ties' => ['TIES', ['["siteurl"]', '["home",[{"plugin":"seo"}]]', '["home",[{"plugin":"seo"}]]', '[[{"plugin":"seo"}]]', '["theme_mods"]']],
+    'array lowercase exclude mode is accepted' => ['ties', ['["siteurl"]', '["home",[{"plugin":"seo"}]]', '["home",[{"plugin":"seo"}]]', '[[{"plugin":"seo"}]]', '["theme_mods"]']],
+    'array blank exclude defaults to no others' => ['', ['["siteurl","home"]', '["siteurl","home",[{"plugin":"seo"}]]', '["home",[{"plugin":"seo"}]]', '[[{"plugin":"seo"}],"theme_mods"]', '["theme_mods"]']],
 ];
 
 foreach ($arrayCases as $name => [$exclude, $expected]) {
@@ -44,12 +44,12 @@ foreach ($arrayCases as $name => [$exclude, $expected]) {
 }
 
 $objectCases = [
-    'object no others keeps filtered peer rows' => ['NO OTHERS', ['{"siteurl":"https://example.test","home":"https://example.test/home"}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}']],
-    'object current row excludes current only' => ['CURRENT ROW', ['{"home":"https://example.test/home"}', '{"siteurl":"https://example.test","rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","theme":"twentytwentyfive"}', '{"rules":[{"plugin":"seo"}]}']],
-    'object group excludes all order peers' => ['GROUP', ['{}', '{"rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","theme":"twentytwentyfive"}', '{"rules":[{"plugin":"seo"}]}']],
-    'object ties keeps current and removes peer ties' => ['TIES', ['{"siteurl":"https://example.test"}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}']],
-    'object lowercase exclude mode is accepted' => ['group', ['{}', '{"rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","theme":"twentytwentyfive"}', '{"rules":[{"plugin":"seo"}]}']],
-    'object blank exclude defaults to no others' => ['', ['{"siteurl":"https://example.test","home":"https://example.test/home"}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}']],
+    'object no others keeps filtered peer rows' => ['NO OTHERS', ['{"siteurl":"https://example.test","home":"https://example.test/home"}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"theme":"twentytwentyfive"}']],
+    'object current row excludes current only' => ['CURRENT ROW', ['{"home":"https://example.test/home"}', '{"siteurl":"https://example.test","rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home"}', '{"rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{}']],
+    'object group excludes all order peers' => ['GROUP', ['{}', '{"rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home"}', '{"rules":[{"plugin":"seo"}]}', '{}']],
+    'object ties keeps current and removes peer ties' => ['TIES', ['{"siteurl":"https://example.test"}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"rules":[{"plugin":"seo"}]}', '{"theme":"twentytwentyfive"}']],
+    'object lowercase exclude mode is accepted' => ['group', ['{}', '{"rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home"}', '{"rules":[{"plugin":"seo"}]}', '{}']],
+    'object blank exclude defaults to no others' => ['', ['{"siteurl":"https://example.test","home":"https://example.test/home"}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"theme":"twentytwentyfive"}']],
 ];
 
 foreach ($objectCases as $name => [$exclude, $expected]) {
@@ -59,23 +59,23 @@ foreach ($objectCases as $name => [$exclude, $expected]) {
 }
 
 $tests['json aggregate window edge array unbounded preceding clamps'] = static function (TestRunner $t) use ($arrayRows): void {
-    $t->same(['["siteurl"]', '["siteurl","home"]', '["siteurl","home",[{"plugin":"seo"}]]', '["siteurl","home",[{"plugin":"seo"}],"theme_mods"]'], SQLiteJsonAggregate::jsonGroupArrayWindowFrameRows($arrayRows, 9, 0));
+    $t->same(['["siteurl"]', '["siteurl","home"]', '["siteurl","home",[{"plugin":"seo"}]]', '["siteurl","home",[{"plugin":"seo"}]]', '["siteurl","home",[{"plugin":"seo"}],"theme_mods"]'], SQLiteJsonAggregate::jsonGroupArrayWindowFrameRows($arrayRows, 9, 0));
 };
 
 $tests['json aggregate window edge array unbounded following clamps'] = static function (TestRunner $t) use ($arrayRows): void {
-    $t->same(['["siteurl","home",[{"plugin":"seo"}],"theme_mods"]', '["home",[{"plugin":"seo"}],"theme_mods"]', '[[{"plugin":"seo"}],"theme_mods"]', '["theme_mods"]'], SQLiteJsonAggregate::jsonGroupArrayWindowFrameRows($arrayRows, 0, 9));
+    $t->same(['["siteurl","home",[{"plugin":"seo"}],"theme_mods"]', '["home",[{"plugin":"seo"}],"theme_mods"]', '[[{"plugin":"seo"}],"theme_mods"]', '["theme_mods"]', '["theme_mods"]'], SQLiteJsonAggregate::jsonGroupArrayWindowFrameRows($arrayRows, 0, 9));
 };
 
 $tests['json aggregate window edge object unbounded preceding clamps'] = static function (TestRunner $t) use ($objectRows): void {
-    $t->same(['{"siteurl":"https://example.test"}', '{"siteurl":"https://example.test","home":"https://example.test/home"}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}'], SQLiteJsonAggregate::jsonGroupObjectWindowFrameRows($objectRows, 9, 0));
+    $t->same(['{"siteurl":"https://example.test"}', '{"siteurl":"https://example.test","home":"https://example.test/home"}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}]}', '{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}'], SQLiteJsonAggregate::jsonGroupObjectWindowFrameRows($objectRows, 9, 0));
 };
 
 $tests['json aggregate window edge object unbounded following clamps'] = static function (TestRunner $t) use ($objectRows): void {
-    $t->same(['{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"theme":"twentytwentyfive"}'], SQLiteJsonAggregate::jsonGroupObjectWindowFrameRows($objectRows, 0, 9));
+    $t->same(['{"siteurl":"https://example.test","home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"home":"https://example.test/home","rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"rules":[{"plugin":"seo"}],"theme":"twentytwentyfive"}', '{"theme":"twentytwentyfive"}', '{"theme":"twentytwentyfive"}'], SQLiteJsonAggregate::jsonGroupObjectWindowFrameRows($objectRows, 0, 9));
 };
 
 $tests['json aggregate window edge false filters produce no output rows'] = static function (TestRunner $t): void {
-    $t->same([], SQLiteJsonAggregate::jsonGroupArrayWindowFrameRows([['siteurl', 1, 0], ['home', 2, null]], 1, 1));
+    $t->same(['[]', '[]'], SQLiteJsonAggregate::jsonGroupArrayWindowFrameRows([['siteurl', 1, 0], ['home', 2, null]], 1, 1));
 };
 
 $tests['json aggregate window edge empty arrays stay empty'] = static function (TestRunner $t): void {
@@ -89,7 +89,7 @@ $tests['json aggregate window edge empty objects stay empty'] = static function 
 $tests['json aggregate window edge jsonb array dispatch decodes frames'] = static function (TestRunner $t) use ($arrayRows): void {
     $frames = SQLiteJsonAggregate::jsonGroupArrayWindowFrameRowsSqlFunction('JSONB_GROUP_ARRAY', $arrayRows, 1, 1, 'TIES');
     $t->true($frames[0] instanceof SQLiteBlobValue);
-    $t->same([['siteurl'], ['home', [['plugin' => 'seo']]], ['home', [['plugin' => 'seo']], 'theme_mods'], [[['plugin' => 'seo']], 'theme_mods']], array_map(static fn (SQLiteBlobValue $frame): mixed => SQLiteJsonB::decode($frame->bytes), $frames));
+    $t->same([['siteurl'], ['home', [['plugin' => 'seo']]], ['home', [['plugin' => 'seo']]], [[['plugin' => 'seo']]], ['theme_mods']], array_map(static fn (SQLiteBlobValue $frame): mixed => SQLiteJsonB::decode($frame->bytes), $frames));
 };
 
 $tests['json aggregate window edge jsonb object dispatch decodes frames'] = static function (TestRunner $t) use ($objectRows): void {
@@ -98,8 +98,9 @@ $tests['json aggregate window edge jsonb object dispatch decodes frames'] = stat
     $t->same([
         ['home' => 'https://example.test/home'],
         ['siteurl' => 'https://example.test', 'rules' => [['plugin' => 'seo']]],
-        ['home' => 'https://example.test/home', 'theme' => 'twentytwentyfive'],
-        ['rules' => [['plugin' => 'seo']]],
+        ['home' => 'https://example.test/home'],
+        ['rules' => [['plugin' => 'seo']], 'theme' => 'twentytwentyfive'],
+        [],
     ], array_map(static fn (SQLiteBlobValue $frame): mixed => SQLiteJsonB::decode($frame->bytes), $frames));
 };
 

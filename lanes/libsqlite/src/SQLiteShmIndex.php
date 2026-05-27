@@ -14,7 +14,8 @@ final class SQLiteShmIndex
 
     /**
      * @param array<string, int|bool|string|array<int, int>> $header
-     * @param list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}> $readMarks
+     * @param list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,read_lock_held:bool,pins_checkpoint:bool,reason:string}> $readMarks
+     * @param list<bool> $readLocks
      */
     public function __construct(
         public readonly array $header,
@@ -23,6 +24,7 @@ final class SQLiteShmIndex
         public readonly int $backfillAttemptedFrameCount,
         public readonly bool $headersMatch,
         public readonly string $byteOrder,
+        public readonly array $readLocks = [],
     ) {
     }
 
@@ -57,9 +59,12 @@ final class SQLiteShmIndex
         }
 
         $readMarks = [];
+        $readLocks = [];
         for ($slot = 0; $slot < self::READER_COUNT; $slot++) {
             $frame = $fields['read' . $slot];
-            $readMarks[] = self::readMark($slot, $frame, $first['mx_frame'], $fields['backfill']);
+            $readLockHeld = ($fields['lock' . $slot] ?? 0) !== 0;
+            $readLocks[] = $readLockHeld;
+            $readMarks[] = self::readMark($slot, $frame, $first['mx_frame'], $fields['backfill'], $readLockHeld);
         }
 
         return new self(
@@ -69,6 +74,7 @@ final class SQLiteShmIndex
             $fields['attempted'],
             $first === $second,
             $byteOrder,
+            $readLocks,
         );
     }
 
@@ -83,7 +89,7 @@ final class SQLiteShmIndex
     }
 
     /**
-     * @return array{status:string,checkpoint_can_finish:bool,reset_blocked:bool,headers_match:bool,mx_frame:int,backfilled_frame_count:int,backfill_attempted_frame_count:int,checkpoint_pinned_frame:int|null,reusable_slots:list<int>,dependencies:list<string>,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}>}
+     * @return array{status:string,checkpoint_can_finish:bool,reset_blocked:bool,headers_match:bool,mx_frame:int,backfilled_frame_count:int,backfill_attempted_frame_count:int,checkpoint_pinned_frame:int|null,reusable_slots:list<int>,read_locks:list<bool>,dependencies:list<string>,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,read_lock_held:bool,pins_checkpoint:bool,reason:string}>}
      */
     public function checkpointPlan(): array
     {
@@ -93,7 +99,7 @@ final class SQLiteShmIndex
             if ($mark['pins_checkpoint']) {
                 $pinned = $pinned === null ? $mark['frame'] : min($pinned, $mark['frame']);
             }
-            if (!$mark['active'] || !$mark['valid']) {
+            if (!$mark['active'] || !$mark['valid'] || !$mark['read_lock_held']) {
                 $reusable[] = $mark['slot'];
             }
         }
@@ -108,7 +114,8 @@ final class SQLiteShmIndex
             'backfill_attempted_frame_count' => $this->backfillAttemptedFrameCount,
             'checkpoint_pinned_frame' => $pinned,
             'reusable_slots' => $reusable,
-            'dependencies' => ['sqlite-shm-index', 'wal-index-read-marks', 'checkpoint-backfill-state'],
+            'read_locks' => $this->readLocks,
+            'dependencies' => ['sqlite-shm-index', 'wal-index-read-marks', 'wal-index-read-locks', 'checkpoint-backfill-state'],
             'read_marks' => $this->readMarks,
         ];
     }
@@ -124,6 +131,7 @@ final class SQLiteShmIndex
             'header' => $this->header,
             'backfilled_frame_count' => $this->backfilledFrameCount,
             'backfill_attempted_frame_count' => $this->backfillAttemptedFrameCount,
+            'read_locks' => $this->readLocks,
             'read_marks' => $this->readMarks,
             'checkpoint_plan' => $this->checkpointPlan(),
         ];
@@ -161,19 +169,20 @@ final class SQLiteShmIndex
     }
 
     /**
-     * @return array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}
+     * @return array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,read_lock_held:bool,pins_checkpoint:bool,reason:string}
      */
-    private static function readMark(int $slot, int $rawFrame, int $mxFrame, int $backfilled): array
+    private static function readMark(int $slot, int $rawFrame, int $mxFrame, int $backfilled, bool $readLockHeld): array
     {
         $frame = $rawFrame === 0xffffffff ? null : $rawFrame;
         $active = $frame !== null;
         $valid = $frame === null || $frame <= $mxFrame;
         $stale = $valid && $frame !== null && $frame < $mxFrame;
-        $pins = $valid && $frame !== null && $frame > $backfilled && $frame < $mxFrame;
+        $pins = $readLockHeld && $valid && $frame !== null && $frame > $backfilled && $frame < $mxFrame;
         $reason = match (true) {
             $frame === null => 'unused_slot',
             !$valid => 'beyond_wal_mx_frame',
             $frame === 0 => 'database_only_reader',
+            !$readLockHeld => 'read_mark_without_read_lock',
             $pins => 'reader_pins_checkpoint_backfill',
             $frame === $mxFrame => 'pins_latest_commit',
             $stale => 'stale_reader_snapshot',
@@ -186,6 +195,7 @@ final class SQLiteShmIndex
             'active' => $active,
             'valid' => $valid,
             'stale' => $stale,
+            'read_lock_held' => $readLockHeld,
             'pins_checkpoint' => $pins,
             'reason' => $reason,
         ];

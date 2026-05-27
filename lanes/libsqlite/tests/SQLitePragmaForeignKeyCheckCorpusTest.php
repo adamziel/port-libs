@@ -196,6 +196,197 @@ $tests = [
         );
         $t->same([1], array_column($rows, 'rowid'));
     },
+    'foreign key check corpus integer affinity matches text child key' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 1, 'parent_id' => '001']], 'parent' => [['id' => 1]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'integer']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus integer affinity keeps nonnumeric text violation' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 2, 'parent_id' => '1x']], 'parent' => [['id' => 1]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'integer']]]]
+        );
+        $t->same([2], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus numeric affinity matches decimal text child key' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 3, 'parent_id' => '1.50']], 'parent' => [['id' => 1.5]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'numeric']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus numeric affinity matches integer and real keys' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 30, 'parent_id' => '1.0']], 'parent' => [['id' => 1]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'numeric']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus real affinity matches integer parent key' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 4, 'parent_id' => '2.0']], 'parent' => [['id' => 2]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'real']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus text affinity matches numeric child to text parent' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 5, 'parent_id' => 42]], 'parent' => [['id' => '42']]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'text']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus blob affinity preserves storage class mismatch' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 6, 'parent_id' => '42']], 'parent' => [['id' => 42]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'blob']]]]
+        );
+        $t->same([6], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus default affinity preserves strict mismatch' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 7, 'parent_id' => '1']], 'parent' => [['id' => 1]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id']]]]
+        );
+        $t->same([7], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus nocase collation matches ascii case' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 8, 'parent_slug' => 'Plugin_Option']], 'parent' => [['slug' => 'plugin_option']]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_slug', 'parent' => 'slug', 'collation' => 'nocase']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus binary collation keeps ascii case violation' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 9, 'parent_slug' => 'Plugin_Option']], 'parent' => [['slug' => 'plugin_option']]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_slug', 'parent' => 'slug', 'collation' => 'binary']]]]
+        );
+        $t->same([9], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus rtrim collation ignores trailing spaces' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 10, 'parent_slug' => 'post_tag   ']], 'parent' => [['slug' => 'post_tag']]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_slug', 'parent' => 'slug', 'collation' => 'rtrim']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus rtrim collation keeps nonspace suffix violation' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 11, 'parent_slug' => 'post_tag-x   ']], 'parent' => [['slug' => 'post_tag']]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_slug', 'parent' => 'slug', 'collation' => 'rtrim']]]]
+        );
+        $t->same([11], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus composite affinity and collation both apply' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 12, 'site_id' => '7', 'slug' => 'Plugin_A']], 'parent' => [['blog_id' => 7, 'option_slug' => 'plugin_a']]],
+            [[
+                'table' => 'child',
+                'parent' => 'parent',
+                'columns' => [
+                    ['child' => 'site_id', 'parent' => 'blog_id', 'affinity' => 'integer'],
+                    ['child' => 'slug', 'parent' => 'option_slug', 'collation' => 'nocase'],
+                ],
+            ]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus composite collation violation reports row' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 13, 'site_id' => '7', 'slug' => 'Plugin_B']], 'parent' => [['blog_id' => 7, 'option_slug' => 'plugin_a']]],
+            [[
+                'table' => 'child',
+                'parent' => 'parent',
+                'columns' => [
+                    ['child' => 'site_id', 'parent' => 'blog_id', 'affinity' => 'integer'],
+                    ['child' => 'slug', 'parent' => 'option_slug', 'collation' => 'nocase'],
+                ],
+            ]]
+        );
+        $t->same([13], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus mixed parent candidates honor affinity' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 14, 'parent_id' => '8']], 'parent' => [['id' => 7], ['id' => 8]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'integer']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus null child still short circuits affinity' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 15, 'parent_id' => null]], 'parent' => [['id' => 8]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'integer']]]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus text affinity does not coerce arrays' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 16, 'parent_id' => []]], 'parent' => [['id' => 'Array']]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'text']]]]
+        );
+        $t->same([16], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus numeric affinity leaves malformed numeric text' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 17, 'parent_id' => '9abc']], 'parent' => [['id' => 9]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'numeric']]]]
+        );
+        $t->same([17], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus real affinity leaves malformed real text' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 18, 'parent_id' => '9.5abc']], 'parent' => [['id' => 9.5]]],
+            [['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'real']]]]
+        );
+        $t->same([18], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus uppercase affinity and collation normalize' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 19, 'parent_id' => '10', 'slug' => 'OPTION_A']], 'parent' => [['id' => 10, 'slug' => 'option_a']]],
+            [[
+                'table' => 'child',
+                'parent' => 'parent',
+                'columns' => [
+                    ['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'INTEGER'],
+                    ['child' => 'slug', 'parent' => 'slug', 'collation' => 'NOCASE'],
+                ],
+            ]]
+        );
+        $t->same([], $rows);
+    },
+    'foreign key check corpus reports fkid with affinity metadata' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 20, 'parent_id' => '20x']], 'parent' => [['id' => 20]]],
+            [['id' => 99, 'table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'integer']]]]
+        );
+        $t->same(99, $rows[0]['fkid']);
+    },
+    'foreign key check corpus filters target with affinity metadata' => static function (TestRunner $t): void {
+        $rows = SQLitePragmaForeignKeyCheck::check(
+            ['child' => [['rowid' => 21, 'parent_id' => '21x']], 'other' => [['rowid' => 22, 'parent_id' => '22x']], 'parent' => [['id' => 21]]],
+            [
+                ['table' => 'child', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'integer']]],
+                ['table' => 'other', 'parent' => 'parent', 'columns' => [['child' => 'parent_id', 'parent' => 'id', 'affinity' => 'integer']]],
+            ],
+            'other'
+        );
+        $t->same([22], array_column($rows, 'rowid'));
+    },
+    'foreign key check corpus rejects unsupported affinity' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaForeignKeyCheck::check([], [['table' => 'c', 'parent' => 'p', 'columns' => [['child' => 'c', 'parent' => 'id', 'affinity' => 'uuid']]]]));
+    },
+    'foreign key check corpus rejects malformed affinity' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaForeignKeyCheck::check([], [['table' => 'c', 'parent' => 'p', 'columns' => [['child' => 'c', 'parent' => 'id', 'affinity' => []]]]]));
+    },
+    'foreign key check corpus rejects unsupported collation' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaForeignKeyCheck::check([], [['table' => 'c', 'parent' => 'p', 'columns' => [['child' => 'c', 'parent' => 'id', 'collation' => 'reverse']]]]));
+    },
+    'foreign key check corpus rejects malformed collation' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaForeignKeyCheck::check([], [['table' => 'c', 'parent' => 'p', 'columns' => [['child' => 'c', 'parent' => 'id', 'collation' => []]]]]));
+    },
     'foreign key check corpus rejects malformed child table' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaForeignKeyCheck::check([], [['table' => 'bad-name', 'parent' => 'p', 'columns' => ['c' => 'id']]]));
     },

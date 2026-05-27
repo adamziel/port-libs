@@ -827,13 +827,10 @@ final class SQLiteJsonAggregate
             if (!is_array($row) || !array_key_exists(0, $row) || !array_key_exists(1, $row)) {
                 throw new \InvalidArgumentException($rowError);
             }
-            if (array_key_exists(2, $row) && !self::sqlFilterPasses($row[2])) {
-                $position++;
-                continue;
-            }
             $ordered[] = [
                 'value' => $row[0],
                 'orderKey' => $row[1],
+                'filter' => array_key_exists(2, $row) ? $row[2] : true,
                 'position' => $position++,
             ];
         }
@@ -864,6 +861,9 @@ final class SQLiteJsonAggregate
                     continue;
                 }
                 if ($excludeMode === 'TIES' && $isPeer && !$isCurrent) {
+                    continue;
+                }
+                if (!self::sqlFilterPasses($candidate['filter'])) {
                     continue;
                 }
                 $frame[] = $candidate;

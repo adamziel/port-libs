@@ -149,9 +149,10 @@ final class SQLiteDmlTriggerRecursionPlan
             }
 
             $childRow = self::triggerRow((array) ($trigger['insert_row'] ?? []), $newRow);
-            $childConflictAction = isset($trigger['conflict_action'])
+            $triggerConflictAction = isset($trigger['conflict_action'])
                 ? self::normalizeConflictAction((string) $trigger['conflict_action'], 'trigger')
                 : $statementConflictAction;
+            $childConflictAction = $statementConflictAction === 'abort' ? $triggerConflictAction : $statementConflictAction;
             $effects[] = self::effect('trigger', 'fired', $childRow, $depth, $childConflictAction, $timing);
 
             if (!$recursiveTriggers && $depth > 0) {

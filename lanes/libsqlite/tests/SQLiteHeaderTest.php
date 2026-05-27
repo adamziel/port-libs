@@ -17372,7 +17372,7 @@ SQL;
             0x66666666
         );
         $checkpoint = pack('V*', 2, 0, 3, 6, 0xffffffff, 9)
-            . "\x00\x01\x00\x00\x01\x00\x00\x00"
+            . "\x00\x01\x01\x00\x01\x00\x00\x00"
             . pack('V*', 5, 0);
         $shmBytes = $header . $header . $checkpoint . str_repeat("\0", 256);
 
@@ -17402,8 +17402,9 @@ SQL;
         $t->same(2, $plan['backfilled_frame_count']);
         $t->same(5, $plan['backfill_attempted_frame_count']);
         $t->same(3, $plan['checkpoint_pinned_frame']);
-        $t->same([3, 4], $plan['reusable_slots']);
-        $t->same(['sqlite-shm-index', 'wal-index-read-marks', 'checkpoint-backfill-state'], $plan['dependencies']);
+        $t->same([0, 3, 4], $plan['reusable_slots']);
+        $t->same(['sqlite-shm-index', 'wal-index-read-marks', 'wal-index-read-locks', 'checkpoint-backfill-state'], $plan['dependencies']);
+        $t->same([false, true, true, false, true], $plan['read_locks']);
         $t->same(5, count($plan['read_marks']));
 
         $t->same(0, $plan['read_marks'][0]['slot']);
@@ -22455,7 +22456,11 @@ SQL;
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE EXISTS (SELECT meta_key FROM missing)', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_id IN (SELECT meta_option_id, meta_key FROM option_meta)', ['wp_options' => $options, 'option_meta' => $metadata]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_id IN (SELECT meta_option_id FROM option_meta JOIN wp_options ON meta_option_id = option_id)', ['wp_options' => $options, 'option_meta' => $metadata]));
+        $joinedSubqueryRows = SQLiteSelectSql::execute(
+            'SELECT option_name FROM wp_options WHERE option_id IN (SELECT meta_option_id FROM option_meta JOIN wp_options ON meta_option_id = option_id)',
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same(['siteurl', 'blogname', '_transient_feed', '_site_transient_update_plugins'], array_column($joinedSubqueryRows, 'option_name'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_id IN (SELECT count(*) FROM option_meta GROUP BY meta_key)', ['wp_options' => $options, 'option_meta' => $metadata]));
     },
     'executes bounded sqlite select sql scalar subquery expressions' => static function (TestRunner $t): void {
@@ -22538,7 +22543,11 @@ SQL;
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT meta_option_id, meta_key FROM option_meta WHERE meta_option_id = option_id) AS bad FROM wp_options', ['wp_options' => $options, 'option_meta' => $metadata]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT meta_key FROM missing WHERE meta_option_id = option_id) AS bad FROM wp_options', ['wp_options' => $options]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT meta_key FROM option_meta JOIN wp_options ON meta_option_id = option_id) AS bad FROM wp_options', ['wp_options' => $options, 'option_meta' => $metadata]));
+        $joinedScalarRows = SQLiteSelectSql::execute(
+            'SELECT (SELECT meta_key FROM option_meta JOIN wp_options ON meta_option_id = option_id) AS joined_meta FROM wp_options',
+            ['wp_options' => $options, 'option_meta' => $metadata],
+        );
+        $t->same(['public', null, 'public', 'expired', 'plugin'], array_column($joinedScalarRows, 'joined_meta'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT (SELECT count(*) FROM option_meta GROUP BY meta_key) AS bad FROM wp_options', ['wp_options' => $options, 'option_meta' => $metadata]));
     },
     'filters sqlite select rows with residual where predicate semantics' => static function (TestRunner $t): void {
@@ -25040,8 +25049,10 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name BETWEEN 1', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name MATCH "site"', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN meta', ['wp_options' => $options]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options RIGHT JOIN option_meta ON wp_options.option_id = option_meta.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta USING (option_id)', ['wp_options' => $options, 'option_meta' => $meta]));
+        $rightJoinRows = SQLiteSelectSql::execute('SELECT option_name FROM wp_options RIGHT JOIN option_meta ON wp_options.option_id = option_meta.option_id', ['wp_options' => $options, 'option_meta' => $meta]);
+        $t->same(['siteurl', 'home', 'blogname', '_site_transient_update_plugins', null], array_column($rightJoinRows, 'option_name'));
+        $usingJoinRows = SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta USING (option_id)', ['wp_options' => $options, 'option_meta' => $meta]);
+        $t->same(['siteurl', 'home', 'blogname', '_site_transient_update_plugins'], array_column($usingJoinRows, 'option_name'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta ON wp_options.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN missing ON wp_options.option_id = missing.option_id', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta AS 1bad ON wp_options.option_id = 1bad.option_id', ['wp_options' => $options, 'option_meta' => $meta]));

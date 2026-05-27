@@ -20,11 +20,27 @@ $tables = [
         ['rowid' => 201, 'comment_ID' => 201, 'comment_post_ID' => 2],
         ['rowid' => 202, 'comment_ID' => 202, 'comment_post_ID' => 999],
     ],
+    'wp_options_expected' => [
+        ['option_name' => 'siteurl'],
+        ['option_name' => 'home'],
+    ],
+    'wp_options_shadow' => [
+        ['rowid' => 301, 'expected_option' => 'SITEURL'],
+        ['rowid' => 302, 'expected_option' => 'missing_plugin_option'],
+    ],
 ];
 
 $result = SQLitePragmaForeignKeyCheck::execute('PRAGMA foreign_key_check', $tables, [
     ['id' => 0, 'table' => 'wp_postmeta', 'parent' => 'wp_posts', 'columns' => ['post_id' => 'ID']],
     ['id' => 1, 'table' => 'wp_comments', 'parent' => 'wp_posts', 'columns' => ['comment_post_ID' => 'ID']],
+    [
+        'id' => 2,
+        'table' => 'wp_options_shadow',
+        'parent' => 'wp_options_expected',
+        'columns' => [
+            ['child' => 'expected_option', 'parent' => 'option_name', 'affinity' => 'text', 'collation' => 'nocase'],
+        ],
+    ],
 ]);
 
 echo json_encode([

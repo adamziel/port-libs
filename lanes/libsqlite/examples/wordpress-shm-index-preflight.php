@@ -24,7 +24,7 @@ $header = pack(
     0x60606060
 );
 $checkpointInfo = pack('V*', 3, 0, 4, 8, 0xffffffff, 10)
-    . str_repeat("\0", 8)
+    . "\x00\x01\x01\x00\x00\x00\x00\x00"
     . pack('V*', 6, 0);
 
 $index = SQLiteShmIndex::parse($header . $header . $checkpointInfo);
@@ -38,6 +38,7 @@ echo json_encode([
     'checkpointPinnedFrame' => $plan['checkpoint_pinned_frame'],
     'checkpointCanFinish' => $plan['checkpoint_can_finish'],
     'resetBlocked' => $plan['reset_blocked'],
+    'readLocks' => $plan['read_locks'],
     'reusableSlots' => $plan['reusable_slots'],
     'dependencies' => $plan['dependencies'],
     'readMarks' => array_map(

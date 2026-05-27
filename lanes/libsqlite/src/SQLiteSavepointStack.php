@@ -694,7 +694,7 @@ final class SQLiteSavepointStack
     private function findFrame(string $name): int
     {
         for ($index = count($this->frames) - 1; $index >= 0; $index--) {
-            if ($this->frames[$index]['name'] === $name) {
+            if (strcasecmp($this->frames[$index]['name'], $name) === 0) {
                 return $index;
             }
         }

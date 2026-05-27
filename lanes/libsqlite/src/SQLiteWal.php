@@ -174,6 +174,76 @@ final class SQLiteWal
     }
 
     /**
+     * @return array{status:string,reason:string,valid_frame_count:int,committed_frame_count:int,total_frame_slots:int,first_invalid_frame:int|null,recovery_end_offset:int,committed_end_offset:int,valid_wal_bytes:string,committed_wal_bytes:string,wal:SQLiteWal,committed_wal:SQLiteWal,last_commit_frame:int|null,last_commit_page_count:int|null,uncommitted_frame_count:int,discarded_valid_tail_frame_count:int,discarded_corrupt_tail_frame_count:int,can_checkpoint:bool,checkpoint_database_bytes:string|null,checkpoint_database_page_count:int|null,dependencies:list<string>}
+     */
+    public static function transactionRecoveryBoundary(string $bytes, string $databaseBytes = '', ?int $databasePageSize = null): array
+    {
+        $boundary = self::checksumRecoveryBoundary($bytes, $databaseBytes, $databasePageSize);
+        $wal = $boundary['wal'];
+        $lastCommitFrame = $wal->lastCommitFrame();
+        $committedFrameCount = $lastCommitFrame?->index ?? 0;
+        $pageSize = $wal->header->pageSize !== 0
+            ? $wal->header->pageSize
+            : ($databasePageSize ?? ($databaseBytes !== '' ? SQLiteHeader::parse($databaseBytes)->pageSize : null));
+        if ($pageSize === null || $pageSize < 512) {
+            throw new \InvalidArgumentException('SQLite WAL transaction recovery requires a page size from the WAL header or database header');
+        }
+
+        $committedEndOffset = 32 + ($committedFrameCount * (24 + $pageSize));
+        $committedWalBytes = substr($boundary['valid_wal_bytes'], 0, $committedEndOffset);
+        $committedWal = $committedFrameCount === 0
+            ? new self($wal->header, [], true)
+            : self::parse($committedWalBytes, $databasePageSize, true);
+        $checkpointDatabaseBytes = null;
+        $checkpointDatabasePageCount = null;
+        if ($databaseBytes !== '' && $lastCommitFrame !== null) {
+            $checkpointDatabaseBytes = $committedWal->checkpointDatabaseImage($databaseBytes);
+            $checkpointDatabasePageCount = intdiv(strlen($checkpointDatabaseBytes), $pageSize);
+        }
+
+        $discardedValidTail = $boundary['valid_frame_count'] - $committedFrameCount;
+        $discardedCorruptTail = max(0, $boundary['total_frame_slots'] - $boundary['valid_frame_count']);
+        $reason = $boundary['reason'];
+        if ($lastCommitFrame === null && $boundary['valid_frame_count'] > 0) {
+            $reason = 'no_committed_transaction_in_valid_prefix';
+        } elseif ($discardedValidTail > 0 && $discardedCorruptTail > 0) {
+            $reason = 'uncommitted_valid_tail_before_corrupt_frame';
+        } elseif ($discardedValidTail > 0) {
+            $reason = 'uncommitted_valid_tail_after_last_commit';
+        } elseif ($discardedCorruptTail > 0) {
+            $reason = 'corrupt_tail_after_committed_prefix';
+        }
+
+        $status = $boundary['status'] === 'corrupt'
+            ? 'corrupt'
+            : ($reason === 'all_frames_valid' ? 'valid' : 'recovered_committed_prefix');
+
+        return [
+            'status' => $status,
+            'reason' => $reason,
+            'valid_frame_count' => $boundary['valid_frame_count'],
+            'committed_frame_count' => $committedFrameCount,
+            'total_frame_slots' => $boundary['total_frame_slots'],
+            'first_invalid_frame' => $boundary['first_invalid_frame'],
+            'recovery_end_offset' => $boundary['recovery_end_offset'],
+            'committed_end_offset' => $committedEndOffset,
+            'valid_wal_bytes' => $boundary['valid_wal_bytes'],
+            'committed_wal_bytes' => $committedWalBytes,
+            'wal' => $wal,
+            'committed_wal' => $committedWal,
+            'last_commit_frame' => $boundary['last_commit_frame'],
+            'last_commit_page_count' => $boundary['last_commit_page_count'],
+            'uncommitted_frame_count' => $committedWal->uncommittedFrameCount(),
+            'discarded_valid_tail_frame_count' => $discardedValidTail,
+            'discarded_corrupt_tail_frame_count' => $discardedCorruptTail,
+            'can_checkpoint' => $lastCommitFrame !== null,
+            'checkpoint_database_bytes' => $checkpointDatabaseBytes,
+            'checkpoint_database_page_count' => $checkpointDatabasePageCount,
+            'dependencies' => ['sqlite-wal-checksum-recovery-boundary', 'sqlite-wal-transaction-recovery-boundary'],
+        ];
+    }
+
+    /**
      * @return array{0:int,1:int}
      */
     public static function checksumPair(string $bytes, bool $littleEndian, int $seed1 = 0, int $seed2 = 0): array

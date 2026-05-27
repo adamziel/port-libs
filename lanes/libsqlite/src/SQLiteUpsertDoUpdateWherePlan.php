@@ -12,7 +12,7 @@ final class SQLiteUpsertDoUpdateWherePlan
      * @param list<string> $uniqueColumns
      * @param array<string,callable(array<string,mixed>,array<string,mixed>):mixed> $assignments
      * @param callable(array<string,mixed>,array<string,mixed>):bool|null $where
-     * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,changes:int}
+     * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,changes:int}
      */
     public static function execute(
         array $rows,
@@ -30,6 +30,7 @@ final class SQLiteUpsertDoUpdateWherePlan
         $inserted = [];
         $updated = [];
         $skipped = [];
+        $returning = [];
         $changes = 0;
 
         foreach ($incomingRows as $incoming) {
@@ -38,6 +39,7 @@ final class SQLiteUpsertDoUpdateWherePlan
             if ($conflictIndex === null) {
                 $rows[] = $incoming;
                 $inserted[] = $incoming;
+                $returning[] = $incoming;
                 ++$changes;
                 continue;
             }
@@ -64,6 +66,7 @@ final class SQLiteUpsertDoUpdateWherePlan
 
             $rows[$conflictIndex] = $updatedRow;
             $updated[] = $updatedRow;
+            $returning[] = $updatedRow;
             ++$changes;
         }
 
@@ -73,8 +76,70 @@ final class SQLiteUpsertDoUpdateWherePlan
             'inserted_rows' => $inserted,
             'updated_rows' => $updated,
             'skipped_rows' => $skipped,
+            'returning_rows' => $returning,
             'changes' => $changes,
         ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string|callable(array<string,mixed>):mixed>|array<string,string|callable(array<string,mixed>):mixed>|null $projection
+     * @return list<array<string,mixed>>
+     */
+    public static function returningRows(array $rows, ?array $projection = null): array
+    {
+        self::validateRows($rows, 'returning');
+
+        if ($projection === null) {
+            return array_map(static fn (array $row): array => $row, $rows);
+        }
+
+        $projected = [];
+        foreach ($rows as $row) {
+            $output = [];
+            foreach ($projection as $alias => $expression) {
+                if ($expression === '*') {
+                    foreach ($row as $column => $value) {
+                        $output[$column] = $value;
+                    }
+                    continue;
+                }
+
+                if (is_int($alias)) {
+                    if (!is_string($expression) || $expression === '') {
+                        throw new \InvalidArgumentException('SQLite UPSERT RETURNING projection columns must be non-empty strings');
+                    }
+                    if (!array_key_exists($expression, $row)) {
+                        throw new \InvalidArgumentException("SQLite UPSERT RETURNING projection column {$expression} is missing");
+                    }
+                    $output[$expression] = $row[$expression];
+                    continue;
+                }
+
+                if (!is_string($alias) || $alias === '') {
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING projection aliases must be non-empty strings');
+                }
+                if (is_string($expression)) {
+                    if ($expression === '') {
+                        throw new \InvalidArgumentException('SQLite UPSERT RETURNING projection columns must be non-empty strings');
+                    }
+                    if (!array_key_exists($expression, $row)) {
+                        throw new \InvalidArgumentException("SQLite UPSERT RETURNING projection column {$expression} is missing");
+                    }
+                    $output[$alias] = $row[$expression];
+                    continue;
+                }
+                if (is_callable($expression)) {
+                    $output[$alias] = $expression($row);
+                    continue;
+                }
+
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING projection expressions must be column names or callables');
+            }
+            $projected[] = $output;
+        }
+
+        return $projected;
     }
 
     /**

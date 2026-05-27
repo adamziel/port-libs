@@ -128,6 +128,33 @@ final class SQLiteAttachedSchemaCatalog
     }
 
     /**
+     * Execute schema-introspection PRAGMAs against the schema that owns the
+     * current source object. Unqualified table PRAGMAs follow SQLite name
+     * resolution order (temp, main, then attached databases); schema-qualified
+     * PRAGMAs stay pinned to the requested catalog.
+     *
+     * @return array{status: string, pragma: string, schema: string, target: string, rows: list<array<string, int|string|null>>}
+     */
+    public function executeSchemaPragma(string $sql): array
+    {
+        $parsed = SQLitePragmaSchemaCatalog::parsePragma($sql);
+        $schemaName = $parsed['schema'];
+
+        if ($schemaName === null) {
+            $resolved = match ($parsed['pragma']) {
+                'table_info', 'table_xinfo', 'index_list' => $this->resolveTable($parsed['target']),
+                'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
+            };
+            $schemaName = $resolved['schema'] ?? 'main';
+        }
+
+        $result = $this->pragmaCatalog($schemaName)->execute($sql);
+        $result['schema'] = $schemaName;
+
+        return $result;
+    }
+
+    /**
      * @return list<string>
      */
     public function searchOrder(): array
@@ -164,7 +191,7 @@ final class SQLiteAttachedSchemaCatalog
                 throw new \InvalidArgumentException("SQLite schema {$schemaName} is not attached");
             }
             foreach ($this->schemas[$schemaName]['records'] as $record) {
-                if ($record->name === $qualified['name'] && $accept($record)) {
+                if (strcasecmp($record->name, $qualified['name']) === 0 && $accept($record)) {
                     return ['schema' => $schemaName, 'record' => $record];
                 }
             }

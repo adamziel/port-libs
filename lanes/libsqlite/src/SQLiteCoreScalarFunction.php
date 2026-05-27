@@ -1086,7 +1086,7 @@ final class SQLiteCoreScalarFunction
         $instant = self::parseDateTimeValue($timeValue, $modifiers);
         foreach ($modifiers as $modifier) {
             $modifierText = strtolower(trim(self::coerceText($functionName, $modifier, 'modifier')));
-            if ($modifierText === 'unixepoch' || $modifierText === 'auto') {
+            if ($modifierText === 'unixepoch' || $modifierText === 'julianday' || $modifierText === 'auto') {
                 continue;
             }
             if (preg_match('/\Astart of (day|month|year)\z/', $modifierText, $matches) === 1) {
@@ -1163,18 +1163,33 @@ final class SQLiteCoreScalarFunction
             $modifiers
         );
 
-        if (in_array('unixepoch', $modifierTexts, true) || in_array('auto', $modifierTexts, true)) {
-            $epoch = self::coerceNumeric($value);
+        $timeInterpretationModifiers = array_intersect($modifierTexts, ['unixepoch', 'julianday', 'auto']);
+        if (count($timeInterpretationModifiers) > 1) {
+            throw new \InvalidArgumentException('Conflicting SQLite date/time interpretation modifiers');
+        }
 
-            return (new \DateTimeImmutable('@' . (string) (int) $epoch))->setTimezone($timezone);
+        if (in_array('unixepoch', $modifierTexts, true)) {
+            return self::dateTimeFromUnixTimestamp(self::coerceNumeric($value), $timezone);
+        }
+        if (in_array('julianday', $modifierTexts, true)) {
+            return self::dateTimeFromJulianDay(self::coerceNumeric($value), $timezone);
+        }
+        if (in_array('auto', $modifierTexts, true)) {
+            $numeric = self::coerceNumeric($value);
+            if ($numeric >= 0.0 && $numeric <= 5373484.499999) {
+                return self::dateTimeFromJulianDay($numeric, $timezone);
+            }
+
+            return self::dateTimeFromUnixTimestamp($numeric, $timezone);
         }
         if (is_int($value) || is_float($value)) {
-            $seconds = (int) round((((float) $value) - 2440587.5) * 86400);
-
-            return (new \DateTimeImmutable('@' . (string) $seconds))->setTimezone($timezone);
+            return self::dateTimeFromJulianDay((float) $value, $timezone);
         }
 
         $text = trim(self::coerceText('date/time', $value, 'time-value'));
+        if (preg_match('/\A[+-]?(?:\d+(?:\.\d*)?|\.\d+)\z/', $text) === 1) {
+            return self::dateTimeFromJulianDay((float) $text, $timezone);
+        }
         if (strcasecmp($text, 'now') === 0) {
             return new \DateTimeImmutable('now', $timezone);
         }
@@ -1186,6 +1201,26 @@ final class SQLiteCoreScalarFunction
         }
 
         throw new \InvalidArgumentException("Unsupported SQLite date/time value: {$text}");
+    }
+
+    private static function dateTimeFromUnixTimestamp(float|int $seconds, \DateTimeZone $timezone): \DateTimeImmutable
+    {
+        $floatSeconds = (float) $seconds;
+        $integerSeconds = (int) floor($floatSeconds);
+        $microseconds = (int) round(($floatSeconds - (float) $integerSeconds) * 1000000.0);
+        if ($microseconds >= 1000000) {
+            $integerSeconds++;
+            $microseconds -= 1000000;
+        }
+
+        return (new \DateTimeImmutable('@' . (string) $integerSeconds))
+            ->setTimezone($timezone)
+            ->modify(sprintf('+%d microseconds', $microseconds));
+    }
+
+    private static function dateTimeFromJulianDay(float|int $julianDay, \DateTimeZone $timezone): \DateTimeImmutable
+    {
+        return self::dateTimeFromUnixTimestamp((((float) $julianDay) - 2440587.5) * 86400.0, $timezone);
     }
 
     private static function strftimeSql(string $format, \DateTimeImmutable $instant): ?string

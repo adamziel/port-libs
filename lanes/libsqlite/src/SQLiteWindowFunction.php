@@ -220,6 +220,24 @@ final class SQLiteWindowFunction
         string $exclude = 'NO OTHERS',
         ?iterable $filters = null,
     ): array {
+        return self::aggregateFrameRows($values, $orderKeys, 'ROWS', $preceding, $following, $exclude, $filters);
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @param iterable<mixed> $orderKeys
+     * @param iterable<bool|int|float|string|null>|null $filters
+     * @return list<array{count:int,sum:int|float|null,groupConcat:string|null,frame:list<int>}>
+     */
+    public static function aggregateFrameRows(
+        iterable $values,
+        iterable $orderKeys,
+        string $frameUnit,
+        int $preceding,
+        int $following,
+        string $exclude = 'NO OTHERS',
+        ?iterable $filters = null,
+    ): array {
         if ($preceding < 0 || $following < 0) {
             throw new \InvalidArgumentException('SQLite window frame offsets must be non-negative');
         }
@@ -244,12 +262,22 @@ final class SQLiteWindowFunction
             self::sortRank($key);
         }
 
+        $unit = strtoupper(trim($frameUnit));
+        if (!in_array($unit, ['ROWS', 'RANGE', 'GROUPS'], true)) {
+            throw new \InvalidArgumentException('SQLite window frame unit is not supported');
+        }
+        if ($unit === 'RANGE') {
+            foreach ($keys as $key) {
+                if (!is_int($key) && !is_float($key) && !is_bool($key)) {
+                    throw new \InvalidArgumentException('SQLite RANGE frame offsets require numeric ORDER BY keys');
+                }
+            }
+        }
+
         $count = count($rows);
         $result = [];
         for ($index = 0; $index < $count; $index++) {
-            $start = max(0, $index - $preceding);
-            $end = min($count - 1, $index + $following);
-            $frameIndexes = range($start, $end);
+            $frameIndexes = self::frameIndexes($keys, $index, $preceding, $following, $unit);
             $frameIndexes = self::applyExclude($frameIndexes, $keys, $index, $excludeMode);
             if ($filterRows !== null) {
                 $frameIndexes = array_values(array_filter(
@@ -280,6 +308,58 @@ final class SQLiteWindowFunction
         }
 
         return $result;
+    }
+
+    /**
+     * @param list<mixed> $orderKeys
+     * @return list<int>
+     */
+    private static function frameIndexes(array $orderKeys, int $currentIndex, int $preceding, int $following, string $unit): array
+    {
+        $count = count($orderKeys);
+        if ($count === 0) {
+            return [];
+        }
+
+        if ($unit === 'ROWS') {
+            $start = max(0, $currentIndex - $preceding);
+            $end = min($count - 1, $currentIndex + $following);
+
+            return range($start, $end);
+        }
+
+        if ($unit === 'RANGE') {
+            $current = (float) $orderKeys[$currentIndex];
+            $lower = $current - $preceding;
+            $upper = $current + $following;
+            $indexes = [];
+            foreach ($orderKeys as $index => $key) {
+                $value = (float) $key;
+                if ($value >= $lower && $value <= $upper) {
+                    $indexes[] = $index;
+                }
+            }
+
+            return $indexes;
+        }
+
+        $groups = self::peerGroups($orderKeys);
+        $groupByIndex = [];
+        foreach ($groups as $groupIndex => $group) {
+            foreach ($group as $rowIndex) {
+                $groupByIndex[$rowIndex] = $groupIndex;
+            }
+        }
+
+        $currentGroup = $groupByIndex[$currentIndex];
+        $startGroup = max(0, $currentGroup - $preceding);
+        $endGroup = min(count($groups) - 1, $currentGroup + $following);
+        $indexes = [];
+        for ($groupIndex = $startGroup; $groupIndex <= $endGroup; $groupIndex++) {
+            array_push($indexes, ...$groups[$groupIndex]);
+        }
+
+        return $indexes;
     }
 
     /**

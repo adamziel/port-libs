@@ -17,14 +17,29 @@ final class SQLiteSelectExpression
         return match ($kind) {
             'column' => self::columnValue($row, self::requiredString($expression, 'name', 'column expression')),
             'literal' => $expression['value'] ?? null,
+            'collate' => self::collateValue($row, $expression),
             'function' => self::functionValue($row, $expression),
             'cast' => self::castValue($row, $expression),
             'unary' => self::unaryValue($row, $expression),
             'binary' => self::binaryValue($row, $expression),
             'row' => self::rowValue($row, $expression),
             'subquery' => self::subqueryValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, function, cast, unary, binary, row, or subquery'),
+            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, collate, function, cast, unary, binary, row, or subquery'),
         };
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function collateValue(array $row, array $expression): mixed
+    {
+        $operand = $expression['operand'] ?? null;
+        if (!is_array($operand)) {
+            throw new \InvalidArgumentException('SQLite SELECT COLLATE expression needs an operand');
+        }
+
+        return self::evaluate($row, $operand);
     }
 
     /**
@@ -141,10 +156,10 @@ final class SQLiteSelectExpression
 
             $paths = [];
             foreach ($evaluated as $path) {
-                if (!is_string($path)) {
-                    throw new \InvalidArgumentException('SQLite SELECT expression json_extract() paths must be text');
+                if ($path === null) {
+                    return null;
                 }
-                $paths[] = $path;
+                $paths[] = self::jsonPathText($path, 'json_extract()');
             }
 
             return SQLiteJsonExtract::extractSqlFunction($normalized, $value, ...$paths);
@@ -160,8 +175,8 @@ final class SQLiteSelectExpression
             }
 
             $path = array_key_exists(1, $evaluated) ? $evaluated[1] : '$';
-            if ($path !== null && !is_string($path)) {
-                throw new \InvalidArgumentException('SQLite SELECT expression JSON inspection path must be text or NULL');
+            if ($path !== null) {
+                $path = self::jsonPathText($path, 'JSON inspection');
             }
 
             return SQLiteJsonInspection::inspectionSqlFunction($normalized, $value, $path);
@@ -314,16 +329,41 @@ final class SQLiteSelectExpression
         throw new \InvalidArgumentException('SQLite SELECT concatenation operands must be scalar, BLOB, or NULL');
     }
 
+    private static function jsonPathText(mixed $value, string $context): string
+    {
+        if ($value instanceof SQLiteBlobValue || is_bool($value) || is_int($value) || is_float($value) || is_string($value)) {
+            return self::textValue($value);
+        }
+
+        throw new \InvalidArgumentException("SQLite SELECT expression {$context} path must have scalar, BLOB, or NULL affinity");
+    }
+
     /**
      * @param array<string,mixed> $row
      */
     private static function columnValue(array $row, string $name): mixed
     {
-        if (!array_key_exists($name, $row)) {
-            throw new \InvalidArgumentException("SQLite SELECT expression row is missing column {$name}");
+        if (array_key_exists($name, $row)) {
+            return $row[$name];
         }
 
-        return $row[$name];
+        if (!str_contains($name, '.')) {
+            $matches = [];
+            $suffix = '.' . $name;
+            foreach ($row as $column => $value) {
+                if (is_string($column) && str_ends_with($column, $suffix)) {
+                    $matches[] = $value;
+                }
+            }
+            if (count($matches) === 1) {
+                return $matches[0];
+            }
+            if (count($matches) > 1) {
+                throw new \InvalidArgumentException("SQLite SELECT expression column {$name} is ambiguous");
+            }
+        }
+
+        throw new \InvalidArgumentException("SQLite SELECT expression row is missing column {$name}");
     }
 
     /**

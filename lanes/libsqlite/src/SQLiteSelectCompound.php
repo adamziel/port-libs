@@ -41,7 +41,7 @@ final class SQLiteSelectCompound
      * @param list<array<string,mixed>> $rightRows
      * @return list<array<string,mixed>>
      */
-    public static function combine(array $leftRows, array $rightRows, string $operator): array
+    public static function combine(array $leftRows, array $rightRows, string $operator, array $collations = []): array
     {
         $operator = strtoupper(trim(preg_replace('/\s+/', ' ', $operator) ?? $operator));
         $columns = self::resultColumns($leftRows, $rightRows);
@@ -50,9 +50,9 @@ final class SQLiteSelectCompound
 
         return match ($operator) {
             'UNION ALL' => array_merge($leftRows, $rightRows),
-            'UNION' => self::distinctRows(array_merge($leftRows, $rightRows), $columns),
-            'INTERSECT' => self::intersectRows($leftRows, $rightRows, $columns),
-            'EXCEPT' => self::exceptRows($leftRows, $rightRows, $columns),
+            'UNION' => self::distinctRows(array_merge($leftRows, $rightRows), $columns, $collations),
+            'INTERSECT' => self::intersectRows($leftRows, $rightRows, $columns, $collations),
+            'EXCEPT' => self::exceptRows($leftRows, $rightRows, $columns, $collations),
             default => throw new \InvalidArgumentException('SQLite compound SELECT operator must be UNION, UNION ALL, INTERSECT, or EXCEPT'),
         };
     }
@@ -126,12 +126,12 @@ final class SQLiteSelectCompound
      * @param list<string> $columns
      * @return list<array<string,mixed>>
      */
-    private static function distinctRows(array $rows, array $columns): array
+    private static function distinctRows(array $rows, array $columns, array $collations = []): array
     {
         $seen = [];
         $result = [];
         foreach ($rows as $row) {
-            $key = self::rowKey($row, $columns);
+            $key = self::rowKey($row, $columns, $collations);
             if (isset($seen[$key])) {
                 continue;
             }
@@ -148,17 +148,17 @@ final class SQLiteSelectCompound
      * @param list<string> $columns
      * @return list<array<string,mixed>>
      */
-    private static function intersectRows(array $leftRows, array $rightRows, array $columns): array
+    private static function intersectRows(array $leftRows, array $rightRows, array $columns, array $collations = []): array
     {
         $right = [];
         foreach ($rightRows as $row) {
-            $right[self::rowKey($row, $columns)] = true;
+            $right[self::rowKey($row, $columns, $collations)] = true;
         }
 
         $result = [];
         $emitted = [];
         foreach ($leftRows as $row) {
-            $key = self::rowKey($row, $columns);
+            $key = self::rowKey($row, $columns, $collations);
             if (isset($right[$key]) && !isset($emitted[$key])) {
                 $emitted[$key] = true;
                 $result[] = $row;
@@ -174,17 +174,17 @@ final class SQLiteSelectCompound
      * @param list<string> $columns
      * @return list<array<string,mixed>>
      */
-    private static function exceptRows(array $leftRows, array $rightRows, array $columns): array
+    private static function exceptRows(array $leftRows, array $rightRows, array $columns, array $collations = []): array
     {
         $right = [];
         foreach ($rightRows as $row) {
-            $right[self::rowKey($row, $columns)] = true;
+            $right[self::rowKey($row, $columns, $collations)] = true;
         }
 
         $result = [];
         $emitted = [];
         foreach ($leftRows as $row) {
-            $key = self::rowKey($row, $columns);
+            $key = self::rowKey($row, $columns, $collations);
             if (!isset($right[$key]) && !isset($emitted[$key])) {
                 $emitted[$key] = true;
                 $result[] = $row;
@@ -198,17 +198,17 @@ final class SQLiteSelectCompound
      * @param array<string,mixed> $row
      * @param list<string> $columns
      */
-    private static function rowKey(array $row, array $columns): string
+    private static function rowKey(array $row, array $columns, array $collations = []): string
     {
         $parts = [];
         foreach ($columns as $column) {
-            $parts[] = self::valueKey($row[$column]);
+            $parts[] = self::valueKey($row[$column], isset($collations[$column]) && is_string($collations[$column]) ? $collations[$column] : 'BINARY');
         }
 
         return implode("\0", $parts);
     }
 
-    private static function valueKey(mixed $value): string
+    private static function valueKey(mixed $value, string $collation = 'BINARY'): string
     {
         if ($value === null) {
             return 'null:';
@@ -230,9 +230,21 @@ final class SQLiteSelectCompound
             return 'numeric:' . sprintf('%.17G', $value);
         }
         if (is_string($value)) {
+            $collation = strtoupper($collation);
+            $value = match ($collation) {
+                'BINARY' => $value,
+                'NOCASE' => self::asciiLower($value),
+                'RTRIM' => rtrim($value, ' '),
+                default => throw new \InvalidArgumentException("Unsupported SQLite compound SELECT collation: {$collation}"),
+            };
             return 'text:' . $value;
         }
 
         throw new \InvalidArgumentException('SQLite compound SELECT result values must be scalar, BLOB, or NULL');
+    }
+
+    private static function asciiLower(string $value): string
+    {
+        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
     }
 }
