@@ -318,10 +318,22 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         if (
-            self::partialPredicateIsSafeNonNull($predicate, $constraint['column'])
+            (
+                self::partialPredicateIsSafeNonNull($predicate, self::constraintLookupName($constraint))
+                || self::partialPredicateIsSafeNonNull($predicate, $constraint['column'])
+            )
             && self::constraintHasNonNullSearchValue($constraint['values'])
         ) {
             return true;
+        }
+        if (self::expressionConstraintImpliesPartialPredicate($predicate, $constraint)) {
+            return true;
+        }
+        foreach ($terms as $term) {
+            $expressionConstraint = self::constraintFromPredicate($term);
+            if ($expressionConstraint !== null && self::expressionConstraintImpliesPartialPredicate($predicate, $expressionConstraint)) {
+                return true;
+            }
         }
         foreach ($terms as $term) {
             $ordinaryConstraint = self::ordinaryConstraintFromPredicate($term);
@@ -334,6 +346,48 @@ final class SQLiteSelectExpressionIndexPlan
         }
 
         return false;
+    }
+
+    /**
+     * @param array{type:string,column:string,operator:string,values:mixed,residualPredicateRequired:bool} $constraint
+     */
+    private static function expressionConstraintImpliesPartialPredicate(SQLiteIndexPredicate $predicate, array $constraint): bool
+    {
+        $lookupName = self::constraintLookupName($constraint);
+        if ($constraint['operator'] === 'point') {
+            return $predicate->isImpliedByPointLookup($lookupName, $constraint['values'])
+                || $predicate->isExpressionInListImpliedByPointLookup($lookupName, $constraint['values']);
+        }
+        if ($constraint['operator'] === 'IN' && is_array($constraint['values'])) {
+            return $predicate->isImpliedByInListLookup($lookupName, $constraint['values']);
+        }
+        if ($constraint['operator'] === 'BETWEEN' && is_array($constraint['values'])) {
+            return $predicate->isImpliedByRangeLookup(
+                $lookupName,
+                $constraint['values']['lower'] ?? null,
+                $constraint['values']['upper'] ?? null,
+                true
+            );
+        }
+        if (str_starts_with($constraint['operator'], 'range-')) {
+            return match ($constraint['operator']) {
+                'range->' => $predicate->isImpliedByRangeLookup($lookupName, $constraint['values'], null, false),
+                'range->=' => $predicate->isImpliedByRangeLookup($lookupName, $constraint['values'], null, true),
+                'range-<' => $predicate->isImpliedByRangeLookup($lookupName, null, $constraint['values'], false),
+                'range-<=' => $predicate->isImpliedByRangeLookup($lookupName, null, $constraint['values'], true),
+                default => false,
+            };
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{type:string,column:string} $constraint
+     */
+    private static function constraintLookupName(array $constraint): string
+    {
+        return '__expr__:' . $constraint['type'] . ':' . strtolower($constraint['column']);
     }
 
     /**

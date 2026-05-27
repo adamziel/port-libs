@@ -3476,11 +3476,7 @@ final class SQLiteUpstreamSuiteEvidence
             ];
         }
 
-        $auditPaths = glob(rtrim($artifactDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.md');
-        if ($auditPaths === false) {
-            $auditPaths = [];
-        }
-        sort($auditPaths);
+        $auditPaths = $this->boundedRunnerAuditArtifactPaths($artifactDirectory);
 
         $artifactSet = [];
         $missingLogs = [];
@@ -3548,11 +3544,7 @@ final class SQLiteUpstreamSuiteEvidence
             ];
         }
 
-        $auditPaths = glob(rtrim($artifactDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.md');
-        if ($auditPaths === false) {
-            $auditPaths = [];
-        }
-        sort($auditPaths);
+        $auditPaths = $this->boundedRunnerAuditArtifactPaths($artifactDirectory);
 
         $artifactRecords = [];
         $missingLogs = [];
@@ -4177,7 +4169,7 @@ final class SQLiteUpstreamSuiteEvidence
             $candidates[] = $artifactDirectory . DIRECTORY_SEPARATOR . basename($logField);
         }
 
-        $candidates[] = preg_replace('/\.md$/', '.log', $auditPath) ?? ($auditPath . '.log');
+        $candidates[] = preg_replace('/\.(?:md|audit)$/i', '.log', $auditPath) ?? ($auditPath . '.log');
         $candidates[] = dirname($auditPath) . DIRECTORY_SEPARATOR . pathinfo($auditPath, PATHINFO_FILENAME) . '.log';
 
         foreach ($candidates as $candidate) {
@@ -4211,6 +4203,31 @@ final class SQLiteUpstreamSuiteEvidence
         $set = is_array($hydration['set'] ?? null) ? $hydration['set'] : [];
 
         return is_int($set['tests_total'] ?? null) ? $set['tests_total'] : 0;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function boundedRunnerAuditArtifactPaths(string $artifactDirectory): array
+    {
+        $paths = [];
+        foreach (['*.md', '*.audit'] as $pattern) {
+            $matches = glob(rtrim($artifactDirectory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $pattern);
+            if ($matches === false) {
+                continue;
+            }
+
+            foreach ($matches as $path) {
+                if (is_file($path)) {
+                    $paths[] = $path;
+                }
+            }
+        }
+
+        $paths = array_values(array_unique($paths));
+        sort($paths, SORT_STRING);
+
+        return $paths;
     }
 
     /**

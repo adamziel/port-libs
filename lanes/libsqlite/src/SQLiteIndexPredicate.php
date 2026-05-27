@@ -76,6 +76,44 @@ final class SQLiteIndexPredicate
         };
     }
 
+    public function isExpressionInListImpliedByPointLookup(string $columnName, mixed $value, string $collation = 'BINARY'): bool
+    {
+        if ($this->operator === self::AND) {
+            return is_array($this->value)
+                && $this->value !== []
+                && array_reduce(
+                    $this->value,
+                    static fn (bool $carry, mixed $predicate): bool => $carry
+                        && $predicate instanceof self
+                        && $predicate->isExpressionInListImpliedByPointLookup($columnName, $value, $collation),
+                    true
+                );
+        }
+        if ($this->operator === self::OR) {
+            return is_array($this->value)
+                && array_reduce(
+                    $this->value,
+                    static fn (bool $carry, mixed $predicate): bool => $carry
+                        || (
+                            $predicate instanceof self
+                            && $predicate->isExpressionInListImpliedByPointLookup($columnName, $value, $collation)
+                        ),
+                    false
+                );
+        }
+        if ($this->operator !== self::IN_LIST || strcasecmp($this->columnName, $columnName) !== 0 || !is_array($this->value)) {
+            return false;
+        }
+
+        foreach ($this->value as $predicateValue) {
+            if (self::valuesEqual($predicateValue, $value, $collation)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function isImpliedByRangeLookup(
         string $columnName,
         mixed $lowerInclusive,

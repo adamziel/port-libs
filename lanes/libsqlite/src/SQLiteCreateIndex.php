@@ -1049,12 +1049,12 @@ final class SQLiteCreateIndex
     private static function parseSinglePartialPredicate(string $where): ?SQLiteIndexPredicate
     {
         $where = trim(self::stripOuterParens($where));
-        $identifier = self::readPossiblyQualifiedIdentifier($where, 0);
-        if ($identifier === null) {
+        $operand = self::readPartialPredicateOperand($where, 0);
+        if ($operand === null) {
             return null;
         }
 
-        $offset = self::skipWhitespace($where, $identifier[1]);
+        $offset = self::skipWhitespace($where, $operand[1]);
         $is = self::readIdentifier($where, $offset);
         if ($is !== null && strcasecmp($is[0], 'IS') === 0) {
             $not = self::readIdentifier($where, $is[1]);
@@ -1071,7 +1071,7 @@ final class SQLiteCreateIndex
                 return null;
             }
 
-            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IS_NOT_NULL);
+            return new SQLiteIndexPredicate($operand[0], SQLiteIndexPredicate::IS_NOT_NULL);
         }
 
         $in = self::readIdentifier($where, $offset);
@@ -1099,7 +1099,7 @@ final class SQLiteCreateIndex
                 $values[] = $literal[0];
             }
 
-            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::IN_LIST, $values);
+            return new SQLiteIndexPredicate($operand[0], SQLiteIndexPredicate::IN_LIST, $values);
         }
 
         $between = self::readIdentifier($where, $offset);
@@ -1119,7 +1119,7 @@ final class SQLiteCreateIndex
                 return null;
             }
 
-            return new SQLiteIndexPredicate($identifier[0], SQLiteIndexPredicate::BETWEEN, [
+            return new SQLiteIndexPredicate($operand[0], SQLiteIndexPredicate::BETWEEN, [
                 'lower' => $lower[0],
                 'upper' => $upper[0],
             ]);
@@ -1134,7 +1134,76 @@ final class SQLiteCreateIndex
             return null;
         }
 
-        return new SQLiteIndexPredicate($identifier[0], $comparison[0], $literal[0]);
+        return new SQLiteIndexPredicate($operand[0], $comparison[0], $literal[0]);
+    }
+
+    /**
+     * @return null|array{0:string,1:int}
+     */
+    private static function readPartialPredicateOperand(string $where, int $offset): ?array
+    {
+        $expression = self::readPartialPredicateExpressionOperand($where, $offset);
+        if ($expression !== null) {
+            return $expression;
+        }
+
+        return self::readPossiblyQualifiedIdentifier($where, $offset);
+    }
+
+    /**
+     * @return null|array{0:string,1:int}
+     */
+    private static function readPartialPredicateExpressionOperand(string $where, int $offset): ?array
+    {
+        $function = self::readIdentifier($where, $offset);
+        if ($function === null) {
+            return null;
+        }
+
+        $functionName = strtolower($function[0]);
+        $open = self::skipWhitespace($where, $function[1]);
+        if (!isset($where[$open]) || $where[$open] !== '(') {
+            return null;
+        }
+
+        $close = self::matchingParen($where, $open);
+        if ($close === null) {
+            return null;
+        }
+
+        $body = trim(substr($where, $open + 1, $close - $open - 1));
+        if (in_array($functionName, ['lower', 'upper', 'length'], true)) {
+            $column = self::readPossiblyQualifiedIdentifier($body, 0);
+            if ($column === null || trim(substr($body, $column[1])) !== '') {
+                return null;
+            }
+
+            return [self::partialExpressionKey($functionName, $column[0]), $close + 1];
+        }
+
+        if ($functionName !== 'cast') {
+            return null;
+        }
+
+        $column = self::readPossiblyQualifiedIdentifier($body, 0);
+        if ($column === null) {
+            return null;
+        }
+        $as = self::readIdentifier($body, $column[1]);
+        if ($as === null || strcasecmp($as[0], 'as') !== 0) {
+            return null;
+        }
+        $type = self::readIdentifier($body, $as[1]);
+        if ($type === null || strcasecmp($type[0], 'integer') !== 0 || trim(substr($body, $type[1])) !== '') {
+            return null;
+        }
+
+        return [self::partialExpressionKey('integer-cast', $column[0]), $close + 1];
+    }
+
+    private static function partialExpressionKey(string $type, string $column): string
+    {
+        return '__expr__:' . $type . ':' . strtolower($column);
     }
 
     /**
