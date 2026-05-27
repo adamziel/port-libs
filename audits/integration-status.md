@@ -118428,3 +118428,42 @@ Cleanup:
 - Accepted marker artifacts were removed after the commit was safely on `main`.
 
 Decision: accepted. Dashboard publication should run next for the final amended integration source.
+## Integration accepted - libsqlite JSON table LIMIT/OFFSET planner - 2026-05-27T02:07:43Z
+
+Marker selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T015656Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate replay was `003f8af199828afbc6abfb266e36265bbb1d38d1` (`Integrate libsqlite focused runner admission`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact source `003f8af199828afbc6abfb266e36265bbb1d38d1`, generated `2026-05-27 02:03:54 UTC`, dashboard commit `1653fba019f3b01266136cc90ba25ab3bb592be5`.
+- The dashboard guard was open for exactly one source-moving libsqlite marker.
+
+Candidate evidence:
+- The ready marker was based on older source `c95b62870cd274ce252aec0e250dcfbbf63e2ba5`, so direct `git apply --check` failed only on `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- A bounded replay on detached current `main` applied the implementation/test/example hunks cleanly while excluding stale manifest/status/notes files.
+- Accepted behavior adds JSON virtual-table hidden `LIMIT`/`OFFSET` planning and applies row slicing for `json_each`/`json_tree` after residual filtering.
+- Current manifest/status reconciliation records libsqlite `phpPass` `751`, mapped coverage `415 / 1589`, and rewrites `latestCommit` to start with exact accepted source `003f8af199828afbc6abfb266e36265bbb1d38d1`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteJsonTablePlan.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-table-limit-offset.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 5183 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-table-limit-offset.php`: passed and emitted valid JSON.
+- Manifest/status JSON decode: passed.
+- `git diff --check -- lanes/libsqlite`: passed.
+
+Runtime gate evidence before root:
+- `df -Pk /` reported `116114988` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.82`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Root verification:
+- Serialized no-argument `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock`: passed, `215 test files, 30348 assertions, 0 failures`.
+
+Decision: accepted after serialized root passed from this exact candidate snapshot. Remove only the accepted marker artifacts after the commit reaches `main`; preserve worker worktree cleanup debt if it is dirty or active.
+
+Post-publication cleanup:
+- Accepted marker artifacts `.ready`, `.patch`, and `.md` were removed after commit publication.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T015656Z` is still dirty (`UPSTREAM_TEST_MANIFEST.json`, `wordpress-json-table-limit-offset.php`, `lane-status.json`, `notes/rework-closure.md`, `SQLiteJsonTablePlan.php`, and `SQLiteHeaderTest.php`), so it was preserved and left registered as cleanup debt.

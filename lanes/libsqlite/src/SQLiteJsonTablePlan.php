@@ -10,7 +10,7 @@ final class SQLiteJsonTablePlan
 
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
-     * @return array{function:string,runnable:bool,arguments:list<mixed>,json:mixed,root:string,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int}
+     * @return array{function:string,runnable:bool,arguments:list<mixed>,json:mixed,root:string,limit:int|null,offset:int,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int}
      */
     public static function plan(string $function, array $constraints): array
     {
@@ -19,6 +19,10 @@ final class SQLiteJsonTablePlan
         $root = '$';
         $hasJson = false;
         $hasRoot = false;
+        $limit = null;
+        $offset = 0;
+        $hasLimit = false;
+        $hasOffset = false;
         $used = [];
         $residual = [];
 
@@ -26,6 +30,29 @@ final class SQLiteJsonTablePlan
             $column = strtolower($constraint['column']);
             $operator = strtoupper($constraint['operator']);
             $usable = $constraint['usable'] ?? true;
+            if ($column === 'limit' || $column === 'offset') {
+                if (!$usable) {
+                    continue;
+                }
+                if ($operator !== '=') {
+                    throw new \InvalidArgumentException("SQLite JSON table {$column} constraint must use equality");
+                }
+                if ($column === 'limit' && !$hasLimit) {
+                    $limit = self::assertLimitValue($constraint['value']);
+                    $hasLimit = true;
+                    $used[] = $constraint + ['argvIndex' => 0, 'omit' => true, 'constraint' => 'LIMIT'];
+                    continue;
+                }
+                if ($column === 'offset' && !$hasOffset) {
+                    $offset = self::assertOffsetValue($constraint['value']);
+                    $hasOffset = true;
+                    $used[] = $constraint + ['argvIndex' => 0, 'omit' => true, 'constraint' => 'OFFSET'];
+                    continue;
+                }
+
+                continue;
+            }
+
             if (!$usable || $operator !== '=') {
                 $residual[] = $constraint;
                 continue;
@@ -55,22 +82,32 @@ final class SQLiteJsonTablePlan
             $residual[] = $constraint;
         }
 
+        $estimatedRows = $hasJson ? ($root === '$' ? 100 : 10) : 0;
+        if ($limit !== null) {
+            $estimatedRows = min($estimatedRows, $limit);
+        }
+        if ($offset > 0) {
+            $estimatedRows = max(0, $estimatedRows - $offset);
+        }
+
         return [
             'function' => $function,
             'runnable' => $hasJson,
             'arguments' => $hasJson ? [$json, $root] : [],
             'json' => $json,
             'root' => $root,
+            'limit' => $limit,
+            'offset' => $offset,
             'used' => $used,
             'residual' => $residual,
             'estimatedCost' => $hasJson ? ($root === '$' ? 100 : 20) : 1000000,
-            'estimatedRows' => $hasJson ? ($root === '$' ? 100 : 10) : 0,
+            'estimatedRows' => $estimatedRows,
         ];
     }
 
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $constraints
-     * @return array{function:string,runnable:bool,arguments:list<mixed>,json:mixed,root:string,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int,jsonValid:bool|null,jsonError:string|null,jsonInputKind:string}
+     * @return array{function:string,runnable:bool,arguments:list<mixed>,json:mixed,root:string,limit:int|null,offset:int,used:list<array<string,mixed>>,residual:list<array<string,mixed>>,estimatedCost:int,estimatedRows:int,jsonValid:bool|null,jsonError:string|null,jsonInputKind:string}
      */
     public static function validatedPlan(string $function, array $constraints): array
     {
@@ -97,9 +134,11 @@ final class SQLiteJsonTablePlan
             return [];
         }
 
-        return $plan['function'] === 'json_each'
+        $rows = $plan['function'] === 'json_each'
             ? SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', $plan['arguments'])
             : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', $plan['arguments']);
+
+        return self::applyLimitOffset($rows, $plan['limit'], $plan['offset']);
     }
 
     /**
@@ -117,14 +156,14 @@ final class SQLiteJsonTablePlan
             ? SQLiteJsonEach::jsonEachSqlFunctionArguments('json_each', $plan['arguments'])
             : SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', $plan['arguments']);
 
-        if ($plan['residual'] === []) {
-            return $rows;
+        if ($plan['residual'] !== []) {
+            $rows = array_values(array_filter(
+                $rows,
+                static fn (array $row): bool => self::rowMatchesResidualConstraints($row, $plan['residual']),
+            ));
         }
 
-        return array_values(array_filter(
-            $rows,
-            static fn (array $row): bool => self::rowMatchesResidualConstraints($row, $plan['residual']),
-        ));
+        return self::applyLimitOffset($rows, $plan['limit'], $plan['offset']);
     }
 
     /**
@@ -214,6 +253,43 @@ final class SQLiteJsonTablePlan
         }
 
         throw new \InvalidArgumentException('SQLite JSON table json constraint must be text, BLOB, JSON subtype, or NULL');
+    }
+
+    private static function assertLimitValue(mixed $value): int
+    {
+        if (!is_int($value)) {
+            throw new \InvalidArgumentException('SQLite JSON table LIMIT constraint must be an integer');
+        }
+        if ($value < 0) {
+            throw new \InvalidArgumentException('SQLite JSON table LIMIT constraint must be non-negative');
+        }
+
+        return $value;
+    }
+
+    private static function assertOffsetValue(mixed $value): int
+    {
+        if (!is_int($value)) {
+            throw new \InvalidArgumentException('SQLite JSON table OFFSET constraint must be an integer');
+        }
+        if ($value < 0) {
+            throw new \InvalidArgumentException('SQLite JSON table OFFSET constraint must be non-negative');
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function applyLimitOffset(array $rows, ?int $limit, int $offset): array
+    {
+        if ($offset === 0 && $limit === null) {
+            return $rows;
+        }
+
+        return array_slice($rows, $offset, $limit);
     }
 
     /**

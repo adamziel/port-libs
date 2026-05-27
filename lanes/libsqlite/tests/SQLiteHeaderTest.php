@@ -5552,6 +5552,110 @@ return [
         $t->same(20, $plan['estimatedCost']);
         $t->same(10, $plan['estimatedRows']);
 
+        $limitedPlan = SQLiteJsonTablePlan::plan('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+            ['column' => 'limit', 'operator' => '=', 'value' => 1],
+            ['column' => 'offset', 'operator' => '=', 'value' => 1],
+        ]);
+        $t->same('json_tree', $limitedPlan['function']);
+        $t->same(true, $limitedPlan['runnable']);
+        $t->same([$settings, '$.plugin.rules'], $limitedPlan['arguments']);
+        $t->same(1, $limitedPlan['limit']);
+        $t->same(1, $limitedPlan['offset']);
+        $t->same(['json', 'root', 'limit', 'offset'], array_column($limitedPlan['used'], 'column'));
+        $t->same([1, 2, 0, 0], array_column($limitedPlan['used'], 'argvIndex'));
+        $t->same(['LIMIT', 'OFFSET'], array_slice(array_map(
+            static fn (array $constraint): ?string => $constraint['constraint'] ?? null,
+            $limitedPlan['used'],
+        ), 2));
+        $t->same([true, true, true, true], array_column($limitedPlan['used'], 'omit'));
+        $t->same(['type'], array_column($limitedPlan['residual'], 'column'));
+        $t->same(20, $limitedPlan['estimatedCost']);
+        $t->same(0, $limitedPlan['estimatedRows']);
+
+        $limitedRows = SQLiteJsonTablePlan::rows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'limit', 'operator' => '=', 'value' => 3],
+            ['column' => 'offset', 'operator' => '=', 'value' => 1],
+        ]);
+        $t->same([0, 'name', 1], array_column($limitedRows, 'key'));
+        $t->same(['object', 'text', 'object'], array_column($limitedRows, 'type'));
+        $t->same(['$.plugin.rules[0]', '$.plugin.rules[0].name', '$.plugin.rules[1]'], array_column($limitedRows, 'fullkey'));
+
+        $limitedFilteredRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'type', 'operator' => '=', 'value' => 'text'],
+            ['column' => 'limit', 'operator' => '=', 'value' => 1],
+            ['column' => 'offset', 'operator' => '=', 'value' => 1],
+        ]);
+        $t->same(['name'], array_column($limitedFilteredRows, 'key'));
+        $t->same(['cache'], array_column($limitedFilteredRows, 'atom'));
+        $t->same(['$.plugin.rules[1].name'], array_column($limitedFilteredRows, 'fullkey'));
+
+        $limitedEachRows = SQLiteJsonTablePlan::projectedRows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'limit', 'operator' => '=', 'value' => 1],
+            ['column' => 'offset', 'operator' => '=', 'value' => 1],
+        ], ['rowid', 'key', 'type', 'fullkey']);
+        $t->same([2], array_column($limitedEachRows, 'rowid'));
+        $t->same([1], array_column($limitedEachRows, 'key'));
+        $t->same(['object'], array_column($limitedEachRows, 'type'));
+        $t->same(['$.plugin.rules[1]'], array_column($limitedEachRows, 'fullkey'));
+
+        $offsetOnlyRows = SQLiteJsonTablePlan::rows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'offset', 'operator' => '=', 'value' => 1],
+        ]);
+        $t->same([1], array_column($offsetOnlyRows, 'key'));
+        $t->same(['$.plugin.rules[1]'], array_column($offsetOnlyRows, 'fullkey'));
+
+        $zeroLimitRows = SQLiteJsonTablePlan::rows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'limit', 'operator' => '=', 'value' => 0],
+        ]);
+        $t->same([], $zeroLimitRows);
+
+        $unusableLimitPlan = SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'limit', 'operator' => '=', 'value' => 1, 'usable' => false],
+            ['column' => 'offset', 'operator' => '=', 'value' => 1, 'usable' => false],
+        ]);
+        $t->same(null, $unusableLimitPlan['limit']);
+        $t->same(0, $unusableLimitPlan['offset']);
+        $t->same(['json', 'root'], array_column($unusableLimitPlan['used'], 'column'));
+        $t->same([], $unusableLimitPlan['residual']);
+        $t->same([0, 1], array_column(SQLiteJsonTablePlan::rows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],
+            ['column' => 'limit', 'operator' => '=', 'value' => 1, 'usable' => false],
+            ['column' => 'offset', 'operator' => '=', 'value' => 1, 'usable' => false],
+        ]), 'key'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'limit', 'operator' => '=', 'value' => -1],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'offset', 'operator' => '=', 'value' => -1],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'limit', 'operator' => '<', 'value' => 1],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteJsonTablePlan::plan('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'offset', 'operator' => '=', 'value' => '1'],
+        ]));
+
         $validJsonb = new SQLiteBlobValue(SQLiteJsonB::encode(['plugin' => ['rules' => [['name' => 'seo']]]]));
         $validJsonbPlan = SQLiteJsonTablePlan::validatedPlan('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $validJsonb],
