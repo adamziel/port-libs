@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 02:10:09 UTC",
-    "sourceCommit": "bc2c66e1424a1111602a59c6b2584f39c294356d",
-    "sourceCommitShort": "bc2c66e1424a",
+    "generated": "2026-05-27 02:16:09 UTC",
+    "sourceCommit": "9742a80abc65079e2a5e5e259e21284af37ba608",
+    "sourceCommitShort": "9742a80abc65",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "fafce8af8d18910c9ecb1bff63562184beea37a4",
-    "dashboardCommitShort": "fafce8af8d18",
+    "dashboardCommit": "898bf759ea2215dc4f0cf03bc79b49d5d7465185",
+    "dashboardCommitShort": "898bf759ea22",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "415",
-            "coverage": "415 / 1589",
-            "php": "751 pass / 0 fail",
+            "mapped": "416",
+            "coverage": "416 / 1589",
+            "php": "752 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "isolated JSON-table LIMIT/OFFSET behavior...",
-            "currentWork": "Latest JSON-table work adds LIMIT/OFFSET hidden-column planning for json_each/json_tree,...",
+            "audit": "isolated scalar SQL execution slice repla...",
+            "currentWork": "Latest scalar SQL execution work wires SQLiteSelectPredicate operands to bounded scalar e...",
             "nextTarget": "Next upstream-runner gap: run or parse a supervisor-approved focused subset through the f...",
             "blocker": "Full SQLite all/release runner parity remains pending.",
-            "commit": "003f8af"
+            "commit": "bc2c66e"
         },
         {
             "library": "LightningCSS",
