@@ -52,6 +52,11 @@ final class SQLiteGroupedAggregate
                 'max' => SQLiteNumericAggregate::max($values),
                 'groupConcat' => SQLiteTextAggregate::groupConcat($values, '|'),
             ];
+            foreach (self::invariantColumns($group['rows']) as $column => $value) {
+                if (!array_key_exists($column, $summary)) {
+                    $summary[$column] = $value;
+                }
+            }
             foreach ($group['groupValues'] as $column => $value) {
                 $summary[$column] = $value;
             }
@@ -179,6 +184,34 @@ final class SQLiteGroupedAggregate
         }
 
         return implode("\0", $parts);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return array<string,mixed>
+     */
+    private static function invariantColumns(array $rows): array
+    {
+        if ($rows === []) {
+            return [];
+        }
+
+        $first = $rows[0];
+        $invariant = [];
+        foreach ($first as $column => $value) {
+            $same = true;
+            foreach ($rows as $row) {
+                if (!array_key_exists($column, $row) || $row[$column] !== $value) {
+                    $same = false;
+                    break;
+                }
+            }
+            if ($same) {
+                $invariant[$column] = $value;
+            }
+        }
+
+        return $invariant;
     }
 
     private static function compareSqlValues(mixed $left, mixed $right): int
