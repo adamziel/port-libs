@@ -112,6 +112,103 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null}
+     */
+    public function applySavepointRollback(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        string $databaseBytes,
+        int $pageSize,
+        string $databasePath,
+        ?SQLiteWal $wal = null,
+        ?string $walBytes = null,
+    ): array {
+        if ($savepoint === '') {
+            throw new \InvalidArgumentException('SQLite savepoint VFS rollback requires a savepoint name');
+        }
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite savepoint VFS rollback requires a database path');
+        }
+
+        $databaseImage = $savepoints->rollbackToDatabaseImage($savepoint, $databaseBytes, $pageSize);
+        $imagePlan = $savepoints->rollbackToImagePlan($savepoint, $pageSize);
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($databaseImage),
+                'durable' => false,
+                'reason' => 'restore_savepoint_database_page_images',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($databaseImage),
+                'durable' => false,
+                'reason' => 'trim_savepoint_database_image',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_database_rollback',
+            ],
+        ];
+        $payloads = [$databasePath => $databaseImage];
+        $walPlan = null;
+
+        if (($wal === null) !== ($walBytes === null)) {
+            throw new \InvalidArgumentException('SQLite savepoint VFS rollback requires both WAL object and WAL bytes');
+        }
+        if ($wal !== null && $walBytes !== null) {
+            $walPath = $databasePath . '-wal';
+            $walImage = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+            $walPlan = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
+            $operations[] = [
+                'op' => 'write',
+                'path' => $walPath,
+                'offset' => 0,
+                'bytes' => strlen($walImage),
+                'durable' => false,
+                'reason' => 'restore_savepoint_wal_prefix',
+            ];
+            $operations[] = [
+                'op' => 'truncate',
+                'path' => $walPath,
+                'bytes' => strlen($walImage),
+                'durable' => false,
+                'reason' => 'truncate_savepoint_wal_frames',
+            ];
+            $operations[] = [
+                'op' => 'sync',
+                'path' => $walPath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_wal_rollback',
+            ];
+            $payloads[$walPath] = $walImage;
+        }
+
+        $operations[] = [
+            'op' => 'sync_directory',
+            'path' => dirname($databasePath),
+            'durable' => true,
+            'reason' => 'persist_savepoint_rollback_sidecars',
+        ];
+
+        $applied = $this->applyOperations(
+            $operations,
+            $payloads,
+            ['sqlite-savepoint-page-image-rollback', 'sqlite-savepoint-wal-rollback', 'vfs-file-write-coordination']
+        );
+        $applied['savepoint'] = $savepoint;
+        $applied['database_image'] = $imagePlan;
+        $applied['wal_truncation'] = $walPlan;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array<string, mixed>> $operations
      * @param array<string, string> $payloads
      * @param list<string> $dependencies

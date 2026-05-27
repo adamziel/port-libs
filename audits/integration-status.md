@@ -119329,9 +119329,37 @@ Focused verification before root:
 - `lane-status.json` and `UPSTREAM_TEST_MANIFEST.json` decoded successfully.
 - `git diff --check`: clean.
 
-Root verification: pending serialized no-argument root harness under clean-integrator lock.
+Root verification completed:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 32347 assertions, 0 failures`.
+- Final action: commit this single source-moving libsqlite marker, then remove only accepted marker files. Dashboard publication should run next for the new source.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T053002Z` still contains modified lane files from the accepted handoff, so it was preserved and left registered rather than removed.
 
 Root verification completed:
 - `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 32276 assertions, 0 failures`.
 - Final action: commit this single source-moving libsqlite marker, then remove only accepted marker files. Dashboard publication should run next for the new source.
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T052515Z` still contains modified lane files from the accepted handoff, so it was preserved and left registered rather than removed.
+
+## Integration accepted - libsqlite VFS savepoint rollback apply - 2026-05-27T05:42:58Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T053002Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` at pass start was `5edeb12d201253acfce49339e03be1d5e30c7aa4` (`Integrate libsqlite bulk overflow freeblocks`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `5edeb12d201253acfce49339e03be1d5e30c7aa4`, `generated` `2026-05-27 05:39:21 UTC`, and `dashboardCommit` `ebe4fc278e7890356a9654cd98344b3b2035c146`.
+- The dashboard guard was open for one source-moving libsqlite marker.
+
+Scope:
+- Bounded-replayed the implementation, test, example, and lane-note hunks from an older-base WAL marker after stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` hunks failed on current source.
+- Added `SQLiteVfsFileWriter::applySavepointRollback()` to apply accepted savepoint page-image rollback and WAL byte truncation plans through repo-local PHP file handles.
+- Added copied WordPress VFS savepoint rollback smoke `lanes/libsqlite/examples/wordpress-vfs-savepoint-rollback-apply.php`.
+- Reconciled libsqlite status/manifest to `780 pass / 0 fail` and mapped coverage `436 / 1589` pending root acceptance.
+
+Focused verification before root:
+- Runtime gates before focused checks: `/` free space `91311656` KiB, load `0.62`, no exact no-argument root runner active.
+- PHP lint passed for changed source, test, and example files.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 7182 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-savepoint-rollback-apply.php`: passed and emitted valid JSON.
+
+Root verification: pending serialized no-argument root harness under clean-integrator lock.

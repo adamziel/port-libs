@@ -19010,6 +19010,160 @@ SQL;
             'reason' => null,
         ], []));
     },
+    'applies sqlite vfs savepoint rollback images and wal truncation to local handles' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-vfs-savepoint-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $localDatabase = $root . '/srv/www/wp-content/database/.ht.sqlite';
+        $localWal = $localDatabase . '-wal';
+        $pageSize = 512;
+
+        $pageOneClean = str_pad('clean schema before import', $pageSize, "\0");
+        $pageTwoClean = str_pad('clean wp_options before import', $pageSize, "\0");
+        $pageThreeBeforePlugin = str_pad('plugin settings before batch', $pageSize, "\0");
+        $pageFourBeforeRow = str_pad('single option before row', $pageSize, "\0");
+        $dirtyDatabase = str_pad('dirty schema after import', $pageSize, "\0")
+            . str_pad('dirty wp_options after import', $pageSize, "\0")
+            . str_pad('plugin settings dirty row', $pageSize, "\0")
+            . str_pad('single option dirty row', $pageSize, "\0");
+
+        $salt1 = 0x12345678;
+        $salt2 = 0x87654321;
+        $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 12, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $walBytes = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+        $appendFrame = static function (string $bytes, array &$seed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $seed[0], $seed[1]);
+
+            return $bytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        };
+        $walFrameOne = str_pad('wal schema before plugin', $pageSize, "\0");
+        $walFrameTwo = str_pad('wal options before plugin', $pageSize, "\0");
+        $walFrameThree = str_pad('wal plugin draft should disappear', $pageSize, "\0");
+        $walFrameFour = str_pad('wal row draft should disappear', $pageSize, "\0");
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 1, 0, $walFrameOne);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 2, 2, $walFrameTwo);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 3, 0, $walFrameThree);
+        $walBytes = $appendFrame($walBytes, $checksumSeed, 4, 4, $walFrameFour);
+        $wal = SQLiteWal::parse($walBytes, null, true);
+
+        $savepoints = new SQLiteSavepointStack();
+        $savepoints->beginTransaction('wp-import');
+        $savepoints->recordPageImageWrite(1, $pageOneClean);
+        $savepoints->recordPageImageWrite(2, $pageTwoClean);
+        $savepoints->recordWalFrameWrite(1, 1);
+        $savepoints->recordWalFrameWrite(2, 2, true);
+        $savepoints->savepoint('plugin-settings');
+        $savepoints->recordPageImageWrite(3, $pageThreeBeforePlugin);
+        $savepoints->recordWalFrameWrite(3, 3);
+        $savepoints->savepoint('single-option-row');
+        $savepoints->recordPageImageWrite(4, $pageFourBeforeRow);
+        $savepoints->recordWalFrameWrite(4, 4, true);
+
+        $writer = new SQLiteVfsFileWriter($root);
+        $applied = $writer->applySavepointRollback(
+            $savepoints,
+            'plugin-settings',
+            $dirtyDatabase,
+            $pageSize,
+            $databasePath,
+            $wal,
+            $walBytes
+        );
+
+        $t->same('applied', $applied['status']);
+        $t->same($root, $applied['root']);
+        $t->same('plugin-settings', $applied['savepoint']);
+        $t->same(7, $applied['applied']);
+        $t->same(strlen($dirtyDatabase) + 32 + (2 * (24 + $pageSize)), $applied['bytes_written']);
+        $t->same(strlen($dirtyDatabase) + 32 + (2 * (24 + $pageSize)), $applied['bytes_truncated']);
+        $t->same(0, $applied['files_deleted']);
+        $t->same(2, $applied['durable_syncs']);
+        $t->same(1, $applied['directory_syncs']);
+        $t->same(true, in_array('sqlite-savepoint-page-image-rollback', $applied['dependencies'], true));
+        $t->same(true, in_array('sqlite-savepoint-wal-rollback', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-file-write-coordination', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-file-handle-write-application', $applied['dependencies'], true));
+
+        $t->same('plugin-settings', $applied['database_image']['savepoint']);
+        $t->same([3, 4], $applied['database_image']['restored_page_numbers']);
+        $t->same([1024, 1536], [
+            $applied['database_image']['restore_pages'][0]['database_offset'],
+            $applied['database_image']['restore_pages'][1]['database_offset'],
+        ]);
+        $t->same([], $applied['database_image']['missing_page_numbers']);
+        $t->same(true, $applied['database_image']['transaction_active_after']);
+        $t->same('plugin-settings', $applied['wal_truncation']['savepoint']);
+        $t->same(2, $applied['wal_truncation']['rollback_to_frame']);
+        $t->same(4, $applied['wal_truncation']['original_frame_count']);
+        $t->same(2, $applied['wal_truncation']['retained_frame_count']);
+        $t->same(2, $applied['wal_truncation']['discarded_frame_count']);
+        $t->same(32 + (2 * (24 + $pageSize)), $applied['wal_truncation']['truncate_to_bytes']);
+        $t->same(true, $applied['wal_truncation']['needs_truncate']);
+        $t->same([3, 4], [
+            $applied['wal_truncation']['discarded_wal_frames'][0]['page_number'],
+            $applied['wal_truncation']['discarded_wal_frames'][1]['page_number'],
+        ]);
+        $t->same([false, true], [
+            $applied['wal_truncation']['discarded_wal_frames'][0]['commit_frame'],
+            $applied['wal_truncation']['discarded_wal_frames'][1]['commit_frame'],
+        ]);
+
+        $t->same('write', $applied['operations'][0]['op']);
+        $t->same('restore_savepoint_database_page_images', $applied['operations'][0]['reason']);
+        $t->same($databasePath, $applied['operations'][0]['path']);
+        $t->same($localDatabase, $applied['operations'][0]['local_path']);
+        $t->same(strlen($dirtyDatabase), $applied['operations'][0]['bytes']);
+        $t->same('truncate', $applied['operations'][1]['op']);
+        $t->same('sync', $applied['operations'][2]['op']);
+        $t->same(true, $applied['operations'][2]['durable']);
+        $t->same('write', $applied['operations'][3]['op']);
+        $t->same($databasePath . '-wal', $applied['operations'][3]['path']);
+        $t->same($localWal, $applied['operations'][3]['local_path']);
+        $t->same(32 + (2 * (24 + $pageSize)), $applied['operations'][3]['bytes']);
+        $t->same('restore_savepoint_wal_prefix', $applied['operations'][3]['reason']);
+        $t->same('truncate', $applied['operations'][4]['op']);
+        $t->same('truncate_savepoint_wal_frames', $applied['operations'][4]['reason']);
+        $t->same('sync', $applied['operations'][5]['op']);
+        $t->same('sync_savepoint_wal_rollback', $applied['operations'][5]['reason']);
+        $t->same('sync_directory', $applied['operations'][6]['op']);
+        $t->same('persist_savepoint_rollback_sidecars', $applied['operations'][6]['reason']);
+
+        $databaseBytes = file_get_contents($localDatabase);
+        $t->same(strlen($dirtyDatabase), strlen($databaseBytes));
+        $t->same(str_pad('dirty schema after import', $pageSize, "\0"), substr($databaseBytes, 0, $pageSize));
+        $t->same(str_pad('dirty wp_options after import', $pageSize, "\0"), substr($databaseBytes, $pageSize, $pageSize));
+        $t->same($pageThreeBeforePlugin, substr($databaseBytes, $pageSize * 2, $pageSize));
+        $t->same($pageFourBeforeRow, substr($databaseBytes, $pageSize * 3, $pageSize));
+        $t->same(false, str_contains($databaseBytes, 'plugin settings dirty row'));
+        $t->same(false, str_contains($databaseBytes, 'single option dirty row'));
+
+        $truncatedWalBytes = file_get_contents($localWal);
+        $truncatedWal = SQLiteWal::parse($truncatedWalBytes, null, true);
+        $t->same(32 + (2 * (24 + $pageSize)), strlen($truncatedWalBytes));
+        $t->same(2, $truncatedWal->frameCount());
+        $t->same($walFrameOne, $truncatedWal->frames[0]->pageImage);
+        $t->same($walFrameTwo, $truncatedWal->frames[1]->pageImage);
+        $t->same(false, str_contains($truncatedWalBytes, 'wal plugin draft should disappear'));
+        $t->same(false, str_contains($truncatedWalBytes, 'wal row draft should disappear'));
+
+        $imageOnlyRoot = sys_get_temp_dir() . '/port-libsqlite-vfs-savepoint-image-' . bin2hex(random_bytes(4));
+        $imageOnly = (new SQLiteVfsFileWriter($imageOnlyRoot))->applySavepointRollback($savepoints, 'single-option-row', $dirtyDatabase, $pageSize, $databasePath);
+        $t->same('applied', $imageOnly['status']);
+        $t->same(4, $imageOnly['applied']);
+        $t->same(1, $imageOnly['durable_syncs']);
+        $t->same(null, $imageOnly['wal_truncation']);
+        $t->same(false, is_file($imageOnlyRoot . $databasePath . '-wal'));
+        $t->same(str_pad('single option before row', $pageSize, "\0"), substr(file_get_contents($imageOnlyRoot . $databasePath), $pageSize * 3, $pageSize));
+
+        $readOnly = new SQLiteVfsFileWriter($root, true);
+        $t->throws(LogicException::class, static fn () => $readOnly->applySavepointRollback($savepoints, 'plugin-settings', $dirtyDatabase, $pageSize, $databasePath, $wal, $walBytes));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySavepointRollback($savepoints, '', $dirtyDatabase, $pageSize, $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySavepointRollback($savepoints, 'plugin-settings', $dirtyDatabase, $pageSize, ''));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySavepointRollback($savepoints, 'plugin-settings', substr($dirtyDatabase, 1), $pageSize, $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySavepointRollback($savepoints, 'plugin-settings', $dirtyDatabase, $pageSize, $databasePath, $wal));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySavepointRollback($savepoints, 'missing', $dirtyDatabase, $pageSize, $databasePath));
+    },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];
 
