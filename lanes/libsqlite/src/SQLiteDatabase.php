@@ -4663,6 +4663,7 @@ final class SQLiteDatabase
                                 $equalityConstraints,
                                 $rangeConstraints,
                                 $allowEqualityPartialPredicate,
+                                [$firstColumn->columnName => $firstColumn->collation],
                             )
                         ) {
                             continue;
@@ -4727,6 +4728,7 @@ final class SQLiteDatabase
                                 [$columnName => $pointLookupValue],
                                 [],
                                 true,
+                                [$firstColumn->columnName => $firstColumn->collation],
                             )
                         )
                     ) {
@@ -4864,6 +4866,7 @@ final class SQLiteDatabase
                                 $firstColumn->partialPredicate,
                                 $columnName,
                                 $values,
+                                $firstColumn->collation,
                             )
                         )
                     ) {
@@ -5077,6 +5080,7 @@ final class SQLiteDatabase
                         [$columnName => $pointLookupValue],
                         [],
                         true,
+                        [$firstExpression->columnName => $firstExpression->collation],
                     )
                 )
             ) {
@@ -5129,6 +5133,7 @@ final class SQLiteDatabase
                         [$columnName => $pointLookupValue],
                         [],
                         true,
+                        [$firstExpression->columnName => $firstExpression->collation],
                     )
                 )
             ) {
@@ -10190,6 +10195,7 @@ final class SQLiteDatabase
         array $columnValues,
         array $rangeConstraints,
         bool $allowEqualityPredicate,
+        array $collationsByColumn = [],
     ): bool {
         if ($predicate->operator === SQLiteIndexPredicate::AND) {
             if (!is_array($predicate->value)) {
@@ -10204,6 +10210,7 @@ final class SQLiteDatabase
                         $columnValues,
                         $rangeConstraints,
                         $allowEqualityPredicate,
+                        $collationsByColumn,
                     )
                 ) {
                     return false;
@@ -10226,6 +10233,7 @@ final class SQLiteDatabase
                         $columnValues,
                         $rangeConstraints,
                         $allowEqualityPredicate,
+                        $collationsByColumn,
                     )
                 ) {
                     return true;
@@ -10240,18 +10248,21 @@ final class SQLiteDatabase
         }
 
         foreach ($columnValues as $columnName => $value) {
-            if ($predicate->isImpliedByPointLookup((string) $columnName, $value)) {
+            $columnName = (string) $columnName;
+            if ($predicate->isImpliedByPointLookup($columnName, $value, $collationsByColumn[$columnName] ?? 'BINARY')) {
                 return true;
             }
         }
         foreach ($rangeConstraints as $columnName => $bounds) {
+            $columnName = (string) $columnName;
             if (
                 is_array($bounds)
                 && $predicate->isImpliedByRangeLookup(
-                    (string) $columnName,
+                    $columnName,
                     $bounds['lowerInclusive'] ?? null,
                     $bounds['upperBound'] ?? null,
                     (bool) ($bounds['upperInclusive'] ?? false),
+                    $collationsByColumn[$columnName] ?? 'BINARY',
                 )
             ) {
                 return true;
@@ -10334,8 +10345,9 @@ final class SQLiteDatabase
         SQLiteIndexPredicate $predicate,
         string $columnName,
         array $values,
+        string $collation = 'BINARY',
     ): bool {
-        return $predicate->isImpliedByInListLookup($columnName, $values);
+        return $predicate->isImpliedByInListLookup($columnName, $values, $collation);
     }
 
     private static function lowerExpressionRangeImpliesPartialPredicate(
