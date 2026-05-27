@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 20:46:18 UTC",
-    "sourceCommit": "f1811cc4298a2c293ae718fb1f1dae1e656bc706",
-    "sourceCommitShort": "f1811cc4298a",
+    "generated": "2026-05-27 20:56:50 UTC",
+    "sourceCommit": "7a09a76884599986e99278f24c9b0afd5bc2e2e5",
+    "sourceCommitShort": "7a09a7688459",
     "sourceBranch": "main",
-    "dashboardCommit": "e111fc984c5845046997c6935d7d64736187d674",
-    "dashboardCommitShort": "e111fc984c58",
+    "dashboardCommit": "01866188c6da35fc755c2bd16bca2cc3879c64fd",
+    "dashboardCommitShort": "01866188c6da",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "461",
             "coverage": "461 / 1589",
-            "php": "11206 pass / 0 fail",
+            "php": "11752 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch27 clean subset accepted in implemen...",
-            "currentWork": "Accepted batch27 closure over SELECT window EXCLUDE/FILTER plus GROUPS PRECEDING regressi...",
-            "nextTarget": "Publish batch27 dashboard status, consume accepted batch27 handoffs, keep 10-11 libsqlite...",
-            "blocker": "No blocker for the accepted batch27 subset: focused, full libsqlite, and...",
-            "commit": "61ecf81"
+            "audit": "Batch28 clean subset accepted in implemen...",
+            "currentWork": "Accepted batch28 closure over recursive DML cycles, JSON table lateral current-root scans...",
+            "nextTarget": "Publish batch28 dashboard status, consume accepted batch28 handoffs, keep 10-11 libsqlite...",
+            "blocker": "No blocker for the accepted batch28 subset: focused, full libsqlite, and...",
+            "commit": "16ef1bf"
         },
         {
             "library": "LightningCSS",
