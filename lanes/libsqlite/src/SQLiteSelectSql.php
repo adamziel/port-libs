@@ -24,6 +24,48 @@ final class SQLiteSelectSql
 
     /**
      * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{name:string,columns:list<string>,operator:string,rows:list<array<string,mixed>>,trace:list<array<string,mixed>>,skipped:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    public static function recursiveCteCycleTrace(string $sql, array $tables, array $parameters = []): array
+    {
+        $sql = trim(rtrim(trim($sql), ';'));
+        if ($parameters !== []) {
+            $sql = self::bindParameters($sql, $parameters);
+        }
+        [$entries, $mainSql, $recursive] = self::withEntries($sql);
+        if (!$recursive) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE trace needs WITH RECURSIVE');
+        }
+
+        foreach ($entries as $entry) {
+            $name = $entry['name'];
+            if (array_key_exists($name, $tables)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} shadows an input table");
+            }
+            if (self::cteSqlReferencesName($entry['sql'], $name)) {
+                $trace = self::executeRecursiveCteWithTrace($entry, $tables, true);
+                $tables[$name] = $trace['rows'];
+                if (!self::cteSqlReferencesName($mainSql, $name)) {
+                    throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} trace must be selected by trailing SELECT");
+                }
+
+                return $trace;
+            }
+
+            $rows = preg_match('/^values\s+/i', $entry['sql']) === 1
+                ? self::executeValuesClause($entry['sql'])
+                : self::execute($entry['sql'], $tables);
+            if ($entry['columns'] !== []) {
+                $rows = self::renameCteColumns($rows, $entry['columns'], $name);
+            }
+            $tables[$name] = $rows;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE trace did not find a recursive entry');
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,mixed>
      */
     public static function plan(string $sql, array $tables, array $parameters = [], ?array $outerRow = null): array
@@ -620,6 +662,16 @@ final class SQLiteSelectSql
      */
     private static function executeRecursiveCte(array $entry, array $tables): array
     {
+        return self::executeRecursiveCteWithTrace($entry, $tables, false)['rows'];
+    }
+
+    /**
+     * @param array{name:string,columns:list<string>,sql:string} $entry
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{name:string,columns:list<string>,operator:string,rows:list<array<string,mixed>>,trace:list<array<string,mixed>>,skipped:list<array<string,mixed>>,dependencies:list<string>}
+     */
+    private static function executeRecursiveCteWithTrace(array $entry, array $tables, bool $collectTrace): array
+    {
         $name = $entry['name'];
         $compound = self::splitCompoundSql($entry['sql']);
         if ($compound === null || count($compound['arms']) !== 2 || count($compound['operators']) !== 1) {
@@ -659,44 +711,98 @@ final class SQLiteSelectSql
         foreach ($queue as $row) {
             $seen[self::recursiveRowKey($row)] = true;
         }
+        $trace = [];
+        $skipped = [];
 
         for ($iteration = 0; $iteration < 1000 && $queue !== []; $iteration++) {
+            $queueBefore = $queue;
             $current = array_shift($queue);
             if (!is_array($current)) {
                 throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} queue row is malformed");
             }
+            $emitted = false;
             if ($queueOffset > 0) {
                 $queueOffset--;
             } elseif ($queueLimit !== 0) {
                 $rows[] = $current;
+                $emitted = true;
                 if ($queueLimit !== null) {
                     $queueLimit--;
                 }
             }
             if ($queueLimit === 0) {
+                if ($collectTrace) {
+                    $trace[] = [
+                        'iteration' => $iteration,
+                        'current' => $current,
+                        'emitted' => $emitted,
+                        'queue_before' => $queueBefore,
+                        'generated' => [],
+                        'accepted_next' => [],
+                        'skipped_duplicates' => [],
+                        'queue_after' => [],
+                        'limit_remaining' => $queueLimit,
+                        'offset_remaining' => $queueOffset,
+                    ];
+                }
                 $queue = [];
                 break;
             }
             $stepTables = $tables;
             $stepTables[$name] = [$current];
             $stepRows = self::normalizeRecursiveRows(self::executeCteArm($recursiveSql, $stepTables), $columns, $name);
+            $acceptedNext = [];
+            $skippedDuplicates = [];
             foreach ($stepRows as $row) {
                 $key = self::recursiveRowKey($row);
                 if ($operator === 'UNION' && isset($seen[$key])) {
+                    if ($collectTrace) {
+                        $skippedRow = [
+                            'iteration' => $iteration,
+                            'current' => $current,
+                            'row' => $row,
+                            'reason' => 'union-duplicate-cycle',
+                        ];
+                        $skipped[] = $skippedRow;
+                        $skippedDuplicates[] = $row;
+                    }
                     continue;
                 }
                 $queue[] = $row;
+                $acceptedNext[] = $row;
                 $seen[$key] = true;
             }
             if ($queueOrder !== []) {
                 $queue = self::sortRecursiveQueue($queue, $queueOrder);
+            }
+            if ($collectTrace) {
+                $trace[] = [
+                    'iteration' => $iteration,
+                    'current' => $current,
+                    'emitted' => $emitted,
+                    'queue_before' => $queueBefore,
+                    'generated' => $stepRows,
+                    'accepted_next' => $acceptedNext,
+                    'skipped_duplicates' => $skippedDuplicates,
+                    'queue_after' => $queue,
+                    'limit_remaining' => $queueLimit,
+                    'offset_remaining' => $queueOffset,
+                ];
             }
         }
         if ($queue !== []) {
             throw new \InvalidArgumentException("SQLite SELECT SQL recursive CTE {$name} exceeded iteration limit");
         }
 
-        return $rows;
+        return [
+            'name' => $name,
+            'columns' => $columns,
+            'operator' => $operator,
+            'rows' => $rows,
+            'trace' => $trace,
+            'skipped' => $skipped,
+            'dependencies' => ['sqlite-recursive-cte-current-row', 'sqlite-recursive-union-cycle-dedup'],
+        ];
     }
 
     /**

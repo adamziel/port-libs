@@ -3681,6 +3681,119 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function releaseRunnerSuiteMapCurrentNext32(
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        ?string $repoRoot = null,
+        ?string $artifactDirectory = null,
+        string $processSnapshot = '',
+        int $jobs = 2
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('Current and next accepted repository HEAD values are required');
+        }
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite release-runner suite map jobs must be at least 1');
+        }
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $base = $this->releaseRunnerUpstreamMapCurrentNext26(
+            $currentAcceptedHead,
+            $nextAcceptedHead,
+            $root,
+            $artifactDirectory,
+            $processSnapshot,
+            $jobs
+        );
+        $readiness = $this->fullSuiteReadinessRecord($jobs, $root);
+        $commandManifest = $this->fullSuiteCommandManifest($jobs, $root);
+        $selected = $this->selectedScriptInventory($root);
+        $wildcards = $this->wildcardExpansionPlan($root);
+        $permutations = $this->permutationSuiteMap($root);
+
+        $readyIds = [];
+        foreach ($readiness['ready'] ?? [] as $ready) {
+            if (is_array($ready) && is_string($ready['id'] ?? null)) {
+                $readyIds[] = $ready['id'];
+            }
+        }
+
+        $blockedIds = [];
+        foreach ($readiness['blocked'] ?? [] as $blocked) {
+            if (is_array($blocked) && is_string($blocked['id'] ?? null)) {
+                $blockedIds[] = $blocked['id'];
+            }
+        }
+
+        $suiteMapBlocked = [];
+        if (($selected['status'] ?? null) !== 'ready') {
+            $suiteMapBlocked[] = 'selected-script-inventory';
+        }
+        if (!in_array(($wildcards['status'] ?? null), ['ready', 'complete-no-wildcards'], true)) {
+            $suiteMapBlocked[] = 'wildcard-expansion';
+        }
+        if (($permutations['status'] ?? null) !== 'ready') {
+            $suiteMapBlocked[] = 'permutation-suite-map';
+        }
+        if (($commandManifest['status'] ?? null) !== 'ready') {
+            $suiteMapBlocked[] = 'command-manifest';
+        }
+        if (($base['active_runner_status'] ?? null) !== 'clear') {
+            $suiteMapBlocked[] = 'duplicate-broad-runner-active';
+        }
+
+        $status = 'blocked';
+        if (($base['status'] ?? null) === 'next-artifact-already-countable') {
+            $status = 'next-artifact-already-countable';
+        } elseif (($base['current_artifact_count'] ?? 0) > 0 && ($base['next_artifact_count'] ?? 0) === 0 && $suiteMapBlocked === []) {
+            $status = 'ready-current-to-next-suite-map';
+        } elseif (($base['current_artifact_count'] ?? 0) > 0) {
+            $status = 'current-artifact-preserved-suite-map-blocked';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'jobs' => $jobs,
+            'upstream_map_status' => $base['status'] ?? 'unknown',
+            'current_artifact_count' => (int) ($base['current_artifact_count'] ?? 0),
+            'next_artifact_count' => (int) ($base['next_artifact_count'] ?? 0),
+            'active_runner_status' => $base['active_runner_status'] ?? 'unknown',
+            'active_runner_count' => (int) ($base['active_runner_count'] ?? 0),
+            'command_manifest_status' => $commandManifest['status'] ?? 'unknown',
+            'command_count' => (int) ($commandManifest['command_count'] ?? 0),
+            'runnable_command_count' => (int) ($commandManifest['runnable_command_count'] ?? 0),
+            'blocked_command_count' => (int) ($commandManifest['blocked_command_count'] ?? 0),
+            'ready_gate_ids' => $readyIds,
+            'blocked_gate_ids' => $blockedIds,
+            'suite_map_blockers' => $suiteMapBlocked,
+            'suite_map_blocker_count' => count($suiteMapBlocked),
+            'selected_script_status' => $selected['status'] ?? 'unknown',
+            'selected_requested_count' => (int) ($selected['requested_selected_script_count'] ?? 0),
+            'selected_resolved_count' => (int) ($selected['resolved_script_count'] ?? 0),
+            'selected_missing_count' => (int) ($selected['missing_script_count'] ?? 0),
+            'wildcard_status' => $wildcards['status'] ?? 'unknown',
+            'wildcard_pattern_count' => (int) ($wildcards['pattern_count'] ?? 0),
+            'wildcard_expanded_script_count' => (int) ($wildcards['expanded_script_count'] ?? 0),
+            'permutation_status' => $permutations['status'] ?? 'unknown',
+            'permutation_mapped_count' => (int) ($permutations['mapped_suite_count'] ?? 0),
+            'permutation_unmapped_count' => (int) ($permutations['unmapped_suite_count'] ?? 0),
+            'counts_current_artifact_only' => (bool) ($base['counts_current_artifact_only'] ?? false),
+            'ready_to_launch_next_guarded_runner' => $status === 'ready-current-to-next-suite-map',
+            'next_gate' => match ($status) {
+                'ready-current-to-next-suite-map' => 'launch at most one guarded next-source runner using the concrete selected, wildcard-expanded, permutation, and release-tier command map',
+                'next-artifact-already-countable' => 'record the next-source artifact and suppress duplicate release/all runner launch',
+                'current-artifact-preserved-suite-map-blocked' => 'preserve current accepted artifact evidence and resolve suite-map blockers before launching a next-source runner',
+                default => 'do not count release/all movement until current artifact provenance and current-to-next suite map gates are explicit',
+            },
+            'dependency_closure' => 'no new support component needed; current-next32 suite map composes existing artifact provenance, command-manifest, selected-script, wildcard, and permutation-suite gates only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function releaseRunnerGapLedgerCurrentNext31(
         string $currentAcceptedHead,
         string $nextAcceptedHead,

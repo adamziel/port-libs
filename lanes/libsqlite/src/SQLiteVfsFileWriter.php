@@ -558,6 +558,118 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<int> $visiblePages
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint_checkpoint:array<string, mixed>,reader_boundary:array<string, mixed>,atomic:bool}
+     */
+    public function applySavepointCheckpointVisibility(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        string $databasePath,
+        array $visiblePages,
+        string $mode = 'truncate',
+        ?int $currentReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null,
+    ): array {
+        if ($databasePath === '') {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint VFS apply requires a database path');
+        }
+
+        $boundary = SQLiteWalSavepointCheckpointPlan::readerBoundaryAfterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $visiblePages,
+            $mode,
+            $currentReaderEndFrame,
+            $nextReaderEndFrame
+        );
+        $checkpoint = SQLiteWalSavepointCheckpointPlan::afterRollbackTo(
+            $savepoints,
+            $savepoint,
+            $wal,
+            $walBytes,
+            $databaseBytes,
+            $mode,
+            $currentReaderEndFrame
+        );
+        $durable = $checkpoint['current_durable'];
+        $walPath = $databasePath . '-wal';
+        $operations = [
+            [
+                'op' => 'write',
+                'path' => $databasePath,
+                'offset' => 0,
+                'bytes' => strlen($durable['database_bytes']),
+                'durable' => false,
+                'reason' => 'apply_savepoint_checkpoint_database_image',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $databasePath,
+                'bytes' => strlen($durable['database_bytes']),
+                'durable' => false,
+                'reason' => 'trim_savepoint_checkpoint_database_image',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $databasePath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_checkpoint_database',
+            ],
+            [
+                'op' => 'write',
+                'path' => $walPath,
+                'offset' => 0,
+                'bytes' => strlen($durable['wal_bytes']),
+                'durable' => false,
+                'reason' => 'apply_savepoint_checkpoint_wal_state',
+            ],
+            [
+                'op' => 'truncate',
+                'path' => $walPath,
+                'bytes' => strlen($durable['wal_bytes']),
+                'durable' => false,
+                'reason' => 'trim_savepoint_checkpoint_wal_state',
+            ],
+            [
+                'op' => 'sync',
+                'path' => $walPath,
+                'durable' => true,
+                'reason' => 'sync_savepoint_checkpoint_wal',
+            ],
+            [
+                'op' => 'sync_directory',
+                'path' => dirname($databasePath),
+                'durable' => true,
+                'reason' => 'persist_savepoint_checkpoint_visibility',
+            ],
+        ];
+
+        $applied = $this->applyAtomicOperations(
+            $operations,
+            [
+                $databasePath => $durable['database_bytes'],
+                $walPath => $durable['wal_bytes'],
+            ],
+            array_values(array_unique(array_merge(
+                $checkpoint['dependencies'],
+                $boundary['dependencies'],
+                ['sqlite-wal-savepoint-checkpoint-vfs-visibility-apply']
+            )))
+        );
+        $applied['savepoint_checkpoint'] = $checkpoint;
+        $applied['reader_boundary'] = $boundary;
+        $applied['atomic'] = true;
+
+        return $applied;
+    }
+
+    /**
      * @param list<array<string, mixed>> $operations
      * @param array<string, string> $payloads
      * @param list<string> $dependencies

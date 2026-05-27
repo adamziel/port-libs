@@ -10,11 +10,12 @@ final class SQLiteMultiColumnRangePlan
      * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>}> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
      * @return null|array<string,mixed>
      */
-    public static function choose(array $indexDefinitions, array $predicate, array $orderBy = []): ?array
+    public static function choose(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = []): ?array
     {
-        $plans = self::rankedPlans($indexDefinitions, $predicate, $orderBy);
+        $plans = self::rankedPlans($indexDefinitions, $predicate, $orderBy, $neededColumns);
 
         return $plans[0] ?? null;
     }
@@ -23,9 +24,10 @@ final class SQLiteMultiColumnRangePlan
      * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>}> $indexDefinitions
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
      * @return list<array<string,mixed>>
      */
-    public static function rankedPlans(array $indexDefinitions, array $predicate, array $orderBy = []): array
+    public static function rankedPlans(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = []): array
     {
         $terms = self::flattenAndTerms($predicate);
         $constraints = self::constraintsByColumn($terms);
@@ -38,6 +40,9 @@ final class SQLiteMultiColumnRangePlan
             }
             $columns = SQLiteCreateIndex::columns($sql);
             if ($columns === null) {
+                continue;
+            }
+            if (!self::partialPredicateIsImplied($columns[0]->partialPredicate, $terms)) {
                 continue;
             }
 
@@ -53,9 +58,16 @@ final class SQLiteMultiColumnRangePlan
             $orderBySatisfied = $prefix['usesSkipScan']
                 ? self::skipScanOrderBySatisfied($columns, $orderBy, $prefix['skippedColumns'], $prefix['equalityPrefix'], $prefix['rangeColumn'])
                 : self::orderBySatisfied($columns, $orderBy, $prefix['equalityPrefix'], $prefix['rangeColumn']);
+            $covering = self::coversNeededColumns($columns, $neededColumns);
             $cost = $estimatedRows + 40 - ($prefix['equalityPrefix'] * 10) + (count($prefix['residualRangeColumns']) * 3) + $prefix['skipScanPenalty'];
             if ($orderBySatisfied) {
                 $cost -= 8;
+            }
+            if ($covering) {
+                $cost -= 16;
+            }
+            if ($columns[0]->partial) {
+                $cost -= 4;
             }
 
             $plans[] = [
@@ -76,6 +88,8 @@ final class SQLiteMultiColumnRangePlan
                 'skipScanPenalty' => $prefix['skipScanPenalty'],
                 'currentIndexColumnOffset' => $prefix['currentIndexColumnOffset'],
                 'orderBySatisfied' => $orderBySatisfied,
+                'covering' => $covering,
+                'partial' => $columns[0]->partial,
                 'estimatedRows' => $estimatedRows,
                 'estimatedCost' => max(1, $cost),
             ];
@@ -392,6 +406,31 @@ final class SQLiteMultiColumnRangePlan
 
     /**
      * @param list<SQLiteIndexColumn> $columns
+     * @param list<string> $neededColumns
+     */
+    private static function coversNeededColumns(array $columns, array $neededColumns): bool
+    {
+        if ($neededColumns === []) {
+            return false;
+        }
+        $available = [];
+        foreach ($columns as $column) {
+            $available[strtolower($column->columnName)] = true;
+        }
+        foreach ($neededColumns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite multicolumn range covering columns must be column names');
+            }
+            if (!isset($available[strtolower($column)])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<SQLiteIndexColumn> $columns
      * @param list<array{column:string,direction?:string}> $orderBy
      */
     private static function orderBySatisfied(array $columns, array $orderBy, int $equalityPrefix, ?string $rangeColumn): bool
@@ -573,6 +612,73 @@ final class SQLiteMultiColumnRangePlan
         }
 
         return $value !== null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $terms
+     */
+    private static function partialPredicateIsImplied(?SQLiteIndexPredicate $predicate, array $terms): bool
+    {
+        if ($predicate === null) {
+            return true;
+        }
+        if ($predicate->operator === SQLiteIndexPredicate::AND && is_array($predicate->value)) {
+            foreach ($predicate->value as $subPredicate) {
+                if (!$subPredicate instanceof SQLiteIndexPredicate || !self::partialPredicateIsImplied($subPredicate, $terms)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        if ($predicate->operator === SQLiteIndexPredicate::OR && is_array($predicate->value)) {
+            foreach ($predicate->value as $subPredicate) {
+                if ($subPredicate instanceof SQLiteIndexPredicate && self::partialPredicateIsImplied($subPredicate, $terms)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        foreach ($terms as $term) {
+            $constraint = self::constraintFromPredicate($term);
+            if ($constraint === null) {
+                continue;
+            }
+            if ($constraint['operator'] === 'point' && $predicate->isImpliedByPointLookup($constraint['column'], $constraint['values'])) {
+                return true;
+            }
+            if ($constraint['operator'] === 'IN' && is_array($constraint['values']) && $predicate->isImpliedByInListLookup($constraint['column'], $constraint['values'])) {
+                return true;
+            }
+            if ($constraint['operator'] === 'BETWEEN' && is_array($constraint['values']) && $predicate->isImpliedByRangeLookup(
+                $constraint['column'],
+                $constraint['values']['lower'] ?? null,
+                $constraint['values']['upper'] ?? null,
+                true
+            )) {
+                return true;
+            }
+            if (str_starts_with($constraint['operator'], 'range-') && self::rangeConstraintImpliesPartialPredicate($predicate, $constraint)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{column:string,operator:string,values:mixed} $constraint
+     */
+    private static function rangeConstraintImpliesPartialPredicate(SQLiteIndexPredicate $predicate, array $constraint): bool
+    {
+        return match ($constraint['operator']) {
+            'range->' => $predicate->isImpliedByRangeLookup($constraint['column'], $constraint['values'], null, false),
+            'range->=' => $predicate->isImpliedByRangeLookup($constraint['column'], $constraint['values'], null, true),
+            'range-<' => $predicate->isImpliedByRangeLookup($constraint['column'], null, $constraint['values'], false),
+            'range-<=' => $predicate->isImpliedByRangeLookup($constraint['column'], null, $constraint['values'], true),
+            default => false,
+        };
     }
 
     private static function literalValue(mixed $value): mixed

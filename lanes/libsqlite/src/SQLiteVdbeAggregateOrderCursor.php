@@ -42,6 +42,14 @@ final class SQLiteVdbeAggregateOrderCursor
         $this->inputRowCount = count($rows);
         $filtered = [];
         foreach ($rows as $row) {
+            if ($filterColumn !== null) {
+                if (!array_key_exists($filterColumn, $row)) {
+                    throw new \InvalidArgumentException("SQLite VDBE aggregate ORDER BY row is missing filter column {$filterColumn}");
+                }
+                if (!self::isSqlTrue($row[$filterColumn])) {
+                    continue;
+                }
+            }
             if (!array_key_exists($valueColumn, $row)) {
                 throw new \InvalidArgumentException("SQLite VDBE aggregate ORDER BY row is missing value column {$valueColumn}");
             }
@@ -54,14 +62,6 @@ final class SQLiteVdbeAggregateOrderCursor
                 $record[] = $row[$column];
             }
             SQLiteVdbeSortCompare::compareRecords($record, $record, $orderAffinities, $orderCollations, $orderDescending, $orderNulls);
-            if ($filterColumn !== null) {
-                if (!array_key_exists($filterColumn, $row)) {
-                    throw new \InvalidArgumentException("SQLite VDBE aggregate ORDER BY row is missing filter column {$filterColumn}");
-                }
-                if (!self::isSqlTrue($row[$filterColumn])) {
-                    continue;
-                }
-            }
 
             $filtered[] = $row;
         }

@@ -15,6 +15,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
      * @param array{parent_key:string,child_key:string,deferred?:bool} $foreignKey
      * @param list<array<string,mixed>> $triggers
      * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string):mixed>|null $returning
+     * @param list<list<string>>|null $uniqueConstraints
      * @return array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,inserted:list<array<string,mixed>>,updated:list<array<string,mixed>>,skipped:list<array<string,mixed>>,yielded:list<array<string,mixed>>,foreign_key_violations:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,changes:int}
      */
     public static function execute(
@@ -27,10 +28,12 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
         array $triggers,
         ?callable $where = null,
         ?array $returning = null,
+        ?array $uniqueConstraints = null,
     ): array {
         $parents = array_values($parentRows);
         $children = array_values($childRows);
         $spec = self::foreignKeySpec($foreignKey);
+        $uniqueConstraints = self::normalizeUniqueConstraints($uniqueColumns, $uniqueConstraints);
         $inserted = [];
         $updated = [];
         $skipped = [];
@@ -63,6 +66,11 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
             $returningImage = $new;
             $children = $before['child'];
             $effects = array_merge($effects, $before['effects']);
+            $otherParents = $parents;
+            if ($conflictIndex !== null) {
+                unset($otherParents[$conflictIndex]);
+            }
+            self::ensureNoUniqueConflict(array_values($otherParents), $new, $uniqueConstraints, $event);
 
             if ($old === null) {
                 $parents[] = $new;
@@ -83,6 +91,13 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
             $new = $after['row'];
             $children = $after['child'];
             $effects = array_merge($effects, $after['effects']);
+            $otherParents = $parents;
+            if ($old === null) {
+                array_pop($otherParents);
+            } else {
+                unset($otherParents[$conflictIndex]);
+            }
+            self::ensureNoUniqueConflict(array_values($otherParents), $new, $uniqueConstraints, $event . ' after trigger');
             if ($old === null) {
                 $parents[array_key_last($parents)] = $new;
                 $inserted[array_key_last($inserted)] = $new;
@@ -135,6 +150,79 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $conflictTarget
+     * @param list<list<string>>|null $uniqueConstraints
+     * @return list<list<string>>
+     */
+    private static function normalizeUniqueConstraints(array $conflictTarget, ?array $uniqueConstraints): array
+    {
+        if ($uniqueConstraints === null) {
+            self::validateUniqueColumns($conflictTarget, 'unique column');
+
+            return [$conflictTarget];
+        }
+        if ($uniqueConstraints === [] || !array_is_list($uniqueConstraints)) {
+            throw new \InvalidArgumentException('SQLite UPSERT trigger/FK unique constraints must be a non-empty list');
+        }
+
+        $normalized = [];
+        foreach ($uniqueConstraints as $columns) {
+            if (!is_array($columns)) {
+                throw new \InvalidArgumentException('SQLite UPSERT trigger/FK unique constraint must be a column list');
+            }
+            self::validateUniqueColumns($columns, 'unique constraint column');
+            $normalized[] = array_values($columns);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<string> $columns
+     */
+    private static function validateUniqueColumns(array $columns, string $label): void
+    {
+        if ($columns === [] || !array_is_list($columns)) {
+            throw new \InvalidArgumentException('SQLite UPSERT trigger/FK unique columns must be a non-empty list');
+        }
+        foreach ($columns as $column) {
+            self::identifier($column, $label);
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function ensureNoUniqueConflict(array $rows, array $candidate, array $uniqueConstraints, string $operation): void
+    {
+        foreach ($uniqueConstraints as $columns) {
+            foreach ($rows as $row) {
+                if (self::rowsConflict($row, $candidate, $columns)) {
+                    throw new \InvalidArgumentException("SQLite UPSERT trigger/FK {$operation} produced a unique constraint conflict");
+                }
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $columns
+     */
+    private static function rowsConflict(array $left, array $right, array $columns): bool
+    {
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $left) || !array_key_exists($column, $right)) {
+                throw new \InvalidArgumentException("SQLite UPSERT trigger/FK unique column {$column} is missing");
+            }
+            if ($left[$column] === null || $right[$column] === null || $left[$column] != $right[$column]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
