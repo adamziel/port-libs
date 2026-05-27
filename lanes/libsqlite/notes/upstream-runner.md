@@ -1,5 +1,39 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Accepted-HEAD Runner Artifact Provenance Batch
+
+Date: 2026-05-27
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::acceptedHeadArtifactProvenanceBatch()`. The
+helper classifies already parsed guarded bounded-runner artifacts against the
+current accepted repository head and SQLite manifest UUID, then separates
+current accepted-head evidence from stale-head and manifest-mismatched
+artifacts. Focused artifacts and release-like artifacts are labeled separately,
+and the batch deliberately keeps `counts_as_release_parity` false so release
+closure still flows through the existing release countability gates.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice. The change removes a concrete suite admission
+blocker for mixed guarded-runner evidence batches: integrators can reject stale
+or wrong-manifest artifacts before they inflate focused or release evidence.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+git diff --check -- lanes/libsqlite
+```
+
+Focused assertion delta: 745 to 788 assertions, +43.
+
+Dependency closure: no new support component is needed. This composes parsed
+bounded-runner artifacts, accepted repository-head checks, SQLite manifest UUID
+checks, and existing focused/release evidence routing only.
+
 ## Focused Native Mapping: JSON Table SELECT SQL Sources
 
 Date: 2026-05-27

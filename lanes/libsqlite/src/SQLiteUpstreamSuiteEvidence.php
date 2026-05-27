@@ -1392,6 +1392,117 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $artifactRecords
+     * @return array<string, mixed>
+     */
+    public function acceptedHeadArtifactProvenanceBatch(array $artifactRecords, string $acceptedRepositoryHead): array
+    {
+        $entries = [];
+        $current = [];
+        $blocked = [];
+        $stale = [];
+        $manifestMismatched = [];
+        $focused = [];
+        $releaseLike = [];
+        $testsTotal = 0;
+        $errorsTotal = 0;
+
+        foreach ($artifactRecords as $label => $artifact) {
+            if (!is_array($artifact)) {
+                continue;
+            }
+
+            $entryLabel = is_string($label) ? $label : 'artifact-' . (string) count($entries);
+            $acceptance = $this->boundedRunnerAcceptanceGate($artifact, $acceptedRepositoryHead);
+            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+            $patterns = array_values(array_filter(
+                is_array($requested['patterns'] ?? null) ? $requested['patterns'] : [],
+                'is_string'
+            ));
+            $testset = is_string($requested['testset'] ?? null) ? $requested['testset'] : null;
+            $blockers = is_array($acceptance['blockers'] ?? null) ? $acceptance['blockers'] : [];
+            $blockerIds = array_values(array_filter(array_map(
+                static fn ($blocker): ?string => is_array($blocker) && is_string($blocker['id'] ?? null) ? $blocker['id'] : null,
+                $blockers
+            )));
+            $accepted = ($acceptance['status'] ?? null) === 'accepted-for-lane-evidence';
+            $tests = is_int($acceptance['tests'] ?? null) ? $acceptance['tests'] : null;
+            $errors = is_int($acceptance['errors'] ?? null) ? $acceptance['errors'] : null;
+            $kind = $patterns !== [] ? 'focused' : (in_array($testset, ['all', 'release'], true) ? 'release-like' : 'unselected');
+
+            if ($accepted) {
+                $current[] = $entryLabel;
+                $testsTotal += $tests ?? 0;
+                $errorsTotal += $errors ?? 0;
+                if ($kind === 'focused') {
+                    $focused[] = $entryLabel;
+                } elseif ($kind === 'release-like') {
+                    $releaseLike[] = $entryLabel;
+                }
+            } else {
+                $blocked[] = $entryLabel;
+            }
+
+            if (in_array('repository-head-mismatch', $blockerIds, true)) {
+                $stale[] = $entryLabel;
+            }
+            if (in_array('sqlite-manifest-uuid-mismatch', $blockerIds, true)) {
+                $manifestMismatched[] = $entryLabel;
+            }
+
+            $entries[] = [
+                'label' => $entryLabel,
+                'status' => $accepted ? 'current-accepted-head' : 'blocked',
+                'kind' => $kind,
+                'repository_head' => $acceptance['repository_head'] ?? null,
+                'accepted_repository_head' => $acceptedRepositoryHead,
+                'sqlite_manifest_uuid' => $acceptance['sqlite_manifest_uuid'] ?? null,
+                'testset' => $testset,
+                'patterns' => $patterns,
+                'pattern_count' => count($patterns),
+                'tests' => $tests,
+                'errors' => $errors,
+                'blocker_count' => count($blockers),
+                'blocker_ids' => $blockerIds,
+                'acceptance' => $acceptance,
+            ];
+        }
+
+        $status = 'blocked';
+        if ($entries !== [] && $blocked === []) {
+            $status = 'all-current-accepted-head';
+        } elseif ($current !== []) {
+            $status = 'partially-current-accepted-head';
+        }
+
+        return [
+            'status' => $status,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'artifact_count' => count($entries),
+            'current_accepted_count' => count($current),
+            'blocked_count' => count($blocked),
+            'stale_head_count' => count($stale),
+            'manifest_mismatch_count' => count($manifestMismatched),
+            'focused_count' => count($focused),
+            'release_like_count' => count($releaseLike),
+            'current_labels' => $current,
+            'blocked_labels' => $blocked,
+            'stale_head_labels' => $stale,
+            'manifest_mismatch_labels' => $manifestMismatched,
+            'focused_labels' => $focused,
+            'release_like_labels' => $releaseLike,
+            'tests_total' => $testsTotal,
+            'errors_total' => $errorsTotal,
+            'counts_as_release_parity' => false,
+            'entries' => $entries,
+            'next_gate' => $blocked === []
+                ? 'record current accepted-HEAD artifact provenance, then route focused artifacts to focused evidence and release-like artifacts to release countability gates'
+                : 'rerun or reparse stale/mismatched bounded runner artifacts from the accepted checkout before counting them',
+            'dependency_closure' => 'no new support component needed; accepted-HEAD provenance batch composes parsed runner artifacts and manifest UUID gates only',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $failureBlocker
      * @return array<string, mixed>
      */

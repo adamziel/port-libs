@@ -2121,6 +2121,125 @@ MD);
         $t->same('different-head', $mismatch['blockers'][0]['expected']);
         $t->same('focused-head', $mismatch['blockers'][0]['actual']);
     },
+    'summarizes accepted head provenance for mixed upstream runner artifacts' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $focused = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-json-20260527T093000Z
+
+- Repository HEAD: `accepted-head`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Patterns: `json101.test` `json102.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 812 tests`
+- Parsed errors: `0`
+- Parsed tests: `812`
+MD);
+        $release = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-20260527T093100Z
+
+- Repository HEAD: `accepted-head`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 22000 tests`
+- Parsed errors: `0`
+- Parsed tests: `22000`
+MD);
+        $stale = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-stale-20260527T093200Z
+
+- Repository HEAD: `stale-head`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Patterns: `wal.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 144 tests`
+- Parsed errors: `0`
+- Parsed tests: `144`
+MD);
+        $wrongManifest = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-wrong-manifest-20260527T093300Z
+
+- Repository HEAD: `accepted-head`
+- SQLite manifest UUID: `wrong-manifest`
+- Testset: `veryquick`
+- Patterns: `btree01.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 91 tests`
+- Parsed errors: `0`
+- Parsed tests: `91`
+MD);
+
+        $batch = $evidence->acceptedHeadArtifactProvenanceBatch(
+            [
+                'focused-json' => $focused,
+                'release-zero-error' => $release,
+                'focused-stale' => $stale,
+                'focused-wrong-manifest' => $wrongManifest,
+            ],
+            'accepted-head'
+        );
+
+        $t->same('partially-current-accepted-head', $batch['status']);
+        $t->same('accepted-head', $batch['accepted_repository_head']);
+        $t->same(4, $batch['artifact_count']);
+        $t->same(2, $batch['current_accepted_count']);
+        $t->same(2, $batch['blocked_count']);
+        $t->same(1, $batch['stale_head_count']);
+        $t->same(1, $batch['manifest_mismatch_count']);
+        $t->same(1, $batch['focused_count']);
+        $t->same(1, $batch['release_like_count']);
+        $t->same(['focused-json', 'release-zero-error'], $batch['current_labels']);
+        $t->same(['focused-stale', 'focused-wrong-manifest'], $batch['blocked_labels']);
+        $t->same(['focused-stale'], $batch['stale_head_labels']);
+        $t->same(['focused-wrong-manifest'], $batch['manifest_mismatch_labels']);
+        $t->same(['focused-json'], $batch['focused_labels']);
+        $t->same(['release-zero-error'], $batch['release_like_labels']);
+        $t->same(22812, $batch['tests_total']);
+        $t->same(0, $batch['errors_total']);
+        $t->same(false, $batch['counts_as_release_parity']);
+        $t->contains('rerun or reparse stale/mismatched bounded runner artifacts', $batch['next_gate']);
+        $t->contains('no new support component needed', $batch['dependency_closure']);
+
+        $entries = [];
+        foreach ($batch['entries'] as $entry) {
+            $entries[$entry['label']] = $entry;
+        }
+
+        $t->same('current-accepted-head', $entries['focused-json']['status']);
+        $t->same('focused', $entries['focused-json']['kind']);
+        $t->same(['json101.test', 'json102.test'], $entries['focused-json']['patterns']);
+        $t->same(2, $entries['focused-json']['pattern_count']);
+        $t->same(812, $entries['focused-json']['tests']);
+        $t->same(0, $entries['focused-json']['errors']);
+        $t->same([], $entries['focused-json']['blocker_ids']);
+        $t->same('release-like', $entries['release-zero-error']['kind']);
+        $t->same('release', $entries['release-zero-error']['testset']);
+        $t->same([], $entries['release-zero-error']['patterns']);
+        $t->same(22000, $entries['release-zero-error']['tests']);
+        $t->same('blocked', $entries['focused-stale']['status']);
+        $t->same(['repository-head-mismatch'], $entries['focused-stale']['blocker_ids']);
+        $t->same('stale-head', $entries['focused-stale']['repository_head']);
+        $t->same('accepted-head', $entries['focused-stale']['accepted_repository_head']);
+        $t->same('blocked', $entries['focused-wrong-manifest']['status']);
+        $t->same(['sqlite-manifest-uuid-mismatch'], $entries['focused-wrong-manifest']['blocker_ids']);
+        $t->same('wrong-manifest', $entries['focused-wrong-manifest']['sqlite_manifest_uuid']);
+
+        $allCurrent = $evidence->acceptedHeadArtifactProvenanceBatch(
+            [
+                'focused-json' => $focused,
+                'release-zero-error' => $release,
+            ],
+            'accepted-head'
+        );
+        $t->same('all-current-accepted-head', $allCurrent['status']);
+        $t->same(2, $allCurrent['artifact_count']);
+        $t->same(2, $allCurrent['current_accepted_count']);
+        $t->same(0, $allCurrent['blocked_count']);
+        $t->contains('route focused artifacts to focused evidence', $allCurrent['next_gate']);
+    },
     'composes artifact-set and exclusion gates into a release blocker closure record' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $root = sys_get_temp_dir() . '/libsqlite-release-blocker-closure-' . bin2hex(random_bytes(4));
