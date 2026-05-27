@@ -63,13 +63,29 @@ $journalBytes = str_pad($journalHeader, $sectorSize, "\0")
     . str_repeat("\0", 128);
 
 $journal = SQLiteRollbackJournal::parse($journalBytes, true);
-$database = SQLiteDatabase::fromBytes($journal->rollbackDatabaseImage($dirtyDatabaseBytes));
+$recoveryResult = $journal->hotJournalRecoveryResult($dirtyDatabaseBytes, $journalBytes);
+$lockedRecoveryResult = $journal->hotJournalRecoveryResult($dirtyDatabaseBytes, $journalBytes, databaseReservedLock: true);
+$database = SQLiteDatabase::fromBytes($recoveryResult['database_bytes']);
 $recoveryPlan = $journal->recoveryPlan($dirtyDatabaseBytes);
 $hotJournal = SQLiteRollbackJournal::hotJournalCandidate($journalBytes);
 
 echo json_encode([
     'rollbackJournal' => $journal->toArray(),
     'hotJournal' => $hotJournal,
+    'hotJournalRecovery' => [
+        'recovered' => $recoveryResult['recovered'],
+        'reason' => $recoveryResult['reason'],
+        'journal_action' => $recoveryResult['journal_action'],
+        'final_database_bytes' => $recoveryResult['final_database_bytes'],
+        'containsCleanSiteUrl' => str_contains($recoveryResult['database_bytes'], 'https://example.test/clean'),
+        'containsDirtySiteUrl' => str_contains($recoveryResult['database_bytes'], 'https://example.test/dirty'),
+    ],
+    'lockedRecovery' => [
+        'recovered' => $lockedRecoveryResult['recovered'],
+        'reason' => $lockedRecoveryResult['reason'],
+        'journal_action' => $lockedRecoveryResult['journal_action'],
+        'preservesDirtySiteUrl' => str_contains($lockedRecoveryResult['database_bytes'], 'https://example.test/dirty'),
+    ],
     'recoveryPlan' => $recoveryPlan,
     'schema' => array_map(
         static fn (SQLiteSchemaRecord $record): array => [
@@ -88,5 +104,5 @@ echo json_encode([
     ),
     'rolledBackImageBytes' => strlen($journal->rollbackDatabaseImage($dirtyDatabaseBytes)),
     'sectorPaddingBytes' => 128,
-    'wordpressUse' => 'Preview wp_options page recovery from a sector-padded SQLite rollback journal without the SQLite extension so import/repair tooling can inspect hot-journal recovery admission, pre-transaction option values, applied page offsets, and final truncation size before accepting a copied database.',
+    'wordpressUse' => 'Preview wp_options page recovery from a sector-padded SQLite rollback journal without the SQLite extension so import/repair tooling can inspect hot-journal recovery admission, pre-transaction option values, lock-preserved dirty pages, applied page offsets, final truncation size, and post-recovery journal deletion before accepting a copied database.',
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n";

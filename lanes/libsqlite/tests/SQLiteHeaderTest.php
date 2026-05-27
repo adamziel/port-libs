@@ -13004,6 +13004,103 @@ SQL;
         $t->same(false, str_contains($rolledBack, 'Y'));
         $t->throws(InvalidArgumentException::class, static fn () => $journal->recoveryPlan(substr($dirtyDatabase, 1)));
     },
+    'applies sqlite hot rollback journal recovery decisions to database images' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $sectorSize = 512;
+        $nonce = 0x51525354;
+        $pageOne = $makeFirstPage($pageSize, 2);
+        $pageTwoClean = str_repeat('C', $pageSize);
+        $pageThreeIgnored = str_repeat('I', $pageSize);
+        $dirtyDatabase = $makeFirstPage($pageSize, 3)
+            . str_repeat('D', $pageSize)
+            . str_repeat('X', $pageSize);
+        $header = SQLiteRollbackJournalHeader::MAGIC . pack('N*', 3, $nonce, 2, $sectorSize, $pageSize);
+        $journalBytes = str_pad($header, $sectorSize, "\0")
+            . pack('N', 1) . $pageOne . pack('N', SQLiteRollbackJournal::pageChecksum($pageOne, $nonce))
+            . pack('N', 2) . $pageTwoClean . pack('N', SQLiteRollbackJournal::pageChecksum($pageTwoClean, $nonce))
+            . pack('N', 3) . $pageThreeIgnored . pack('N', SQLiteRollbackJournal::pageChecksum($pageThreeIgnored, $nonce));
+
+        $journal = SQLiteRollbackJournal::parse($journalBytes, true);
+        $result = $journal->hotJournalRecoveryResult($dirtyDatabase, $journalBytes);
+
+        $t->same(true, $result['hot_journal']['hot']);
+        $t->same('hot_journal_recovery_required', $result['hot_journal']['reason']);
+        $t->same(strlen($journalBytes), $result['hot_journal']['journal_bytes']);
+        $t->same(true, $result['hot_journal']['header_valid']);
+        $t->same(3, $result['hot_journal']['page_count']);
+        $t->same(2, $result['hot_journal']['initial_database_page_count']);
+        $t->same(false, $result['hot_journal']['database_reserved_lock']);
+        $t->same(false, $result['hot_journal']['requires_super_journal']);
+        $t->same(null, $result['hot_journal']['super_journal_exists']);
+        $t->same(true, $result['recovered']);
+        $t->same('hot_journal_recovered', $result['reason']);
+        $t->same('delete_journal_after_recovery', $result['journal_action']);
+        $t->same($pageSize * 2, $result['final_database_bytes']);
+        $t->same($pageOne, substr($result['database_bytes'], 0, $pageSize));
+        $t->same($pageTwoClean, substr($result['database_bytes'], $pageSize, $pageSize));
+        $t->same(false, str_contains($result['database_bytes'], 'D'));
+        $t->same(false, str_contains($result['database_bytes'], 'X'));
+        $t->same(false, str_contains($result['database_bytes'], 'I'));
+        $t->same([
+            'initial_database_page_count' => 2,
+            'final_database_bytes' => 1024,
+            'pages' => [
+                [
+                    'page_number' => 1,
+                    'database_offset' => 0,
+                    'applied' => true,
+                    'reason' => 'restored_from_journal',
+                ],
+                [
+                    'page_number' => 2,
+                    'database_offset' => 512,
+                    'applied' => true,
+                    'reason' => 'restored_from_journal',
+                ],
+                [
+                    'page_number' => 3,
+                    'database_offset' => 1024,
+                    'applied' => false,
+                    'reason' => 'beyond_initial_database_size',
+                ],
+            ],
+        ], $result['recovery_plan']);
+
+        $locked = $journal->hotJournalRecoveryResult($dirtyDatabase, $journalBytes, databaseReservedLock: true);
+        $t->same(false, $locked['hot_journal']['hot']);
+        $t->same('database_has_reserved_lock', $locked['reason']);
+        $t->same(false, $locked['recovered']);
+        $t->same('preserve_journal', $locked['journal_action']);
+        $t->same(strlen($dirtyDatabase), $locked['final_database_bytes']);
+        $t->same($dirtyDatabase, $locked['database_bytes']);
+        $t->same(null, $locked['recovery_plan']);
+
+        $missingSuperJournal = $journal->hotJournalRecoveryResult($dirtyDatabase, $journalBytes, requiresSuperJournal: true, superJournalExists: false);
+        $t->same(false, $missingSuperJournal['hot_journal']['hot']);
+        $t->same(true, $missingSuperJournal['hot_journal']['requires_super_journal']);
+        $t->same(false, $missingSuperJournal['hot_journal']['super_journal_exists']);
+        $t->same('missing_super_journal', $missingSuperJournal['reason']);
+        $t->same(false, $missingSuperJournal['recovered']);
+        $t->same('preserve_journal', $missingSuperJournal['journal_action']);
+        $t->same($dirtyDatabase, $missingSuperJournal['database_bytes']);
+
+        $presentSuperJournal = $journal->hotJournalRecoveryResult($dirtyDatabase, $journalBytes, requiresSuperJournal: true, superJournalExists: true);
+        $t->same(true, $presentSuperJournal['hot_journal']['hot']);
+        $t->same(true, $presentSuperJournal['hot_journal']['requires_super_journal']);
+        $t->same(true, $presentSuperJournal['hot_journal']['super_journal_exists']);
+        $t->same(true, $presentSuperJournal['recovered']);
+        $t->same('delete_journal_after_recovery', $presentSuperJournal['journal_action']);
+        $t->same($pageTwoClean, substr($presentSuperJournal['database_bytes'], $pageSize, $pageSize));
+
+        $shortJournal = $journal->hotJournalRecoveryResult($dirtyDatabase, str_repeat("\0", 512));
+        $t->same(false, $shortJournal['hot_journal']['hot']);
+        $t->same('journal_too_small', $shortJournal['reason']);
+        $t->same(false, $shortJournal['recovered']);
+        $t->same('preserve_journal', $shortJournal['journal_action']);
+        $t->same($dirtyDatabase, $shortJournal['database_bytes']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => $journal->hotJournalRecoveryResult(substr($dirtyDatabase, 1), $journalBytes));
+    },
     'parses sqlite rollback journals with unknown page counts through eof' => static function (TestRunner $t): void {
         $pageSize = 512;
         $sectorSize = 512;

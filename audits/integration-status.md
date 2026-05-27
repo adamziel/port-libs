@@ -117971,3 +117971,40 @@ Focused verification:
 Acceptance status:
 - Serialized no-argument root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` with candidate-local `TMPDIR=.tmp-root`: `215 test files, 29595 assertions, 0 failures`.
 - If `refs/heads/main` still matches `afb46ebfa261b8de114b543a9cf34b8a0389057b`, publish one small commit for this marker and remove only accepted marker artifacts.
+
+## Integration acceptance in progress - libsqlite hot rollback-journal recovery - 2026-05-27T00:15:00Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T000437Z.ready`.
+
+Decision: accepting one bounded libsqlite WAL/rollback behavior slice from a clean detached worktree after replaying implementation, focused test, WordPress smoke, and lane-note hunks over current source `3852f0da5a0554a3b2be2ada1c42a24233ec9b1e`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before focused checks was `3852f0da5a0554a3b2be2ada1c42a24233ec9b1e` (`Integrate libsqlite lock coordination evidence`).
+- Cache-busted live `porting-summary.json` reported source `3852f0da5a0554a3b2be2ada1c42a24233ec9b1e`, generated `2026-05-27 00:10:11 UTC`, so the source-moving guard was open.
+
+Replay evidence:
+- Marker base was older (`afb46ebfa261b8de114b543a9cf34b8a0389057b`), but `git apply --check` failed only on moving `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`.
+- Replayed hunks excluding those JSON files applied cleanly.
+- Reconciled manifest/status minimally from current files with one focused hot rollback-journal recovery mapping row and current-base status wording.
+
+Runtime gate evidence:
+- `df -Pk /` reported `134424900` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.49`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact root harness rows.
+- Focused checks used candidate-local `TMPDIR=.tmp-root`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteRollbackJournal.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 4506 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php` passed and emitted valid JSON.
+- `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` decoded as JSON after bounded status reconciliation.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Acceptance status:
+- Serialized no-argument root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` with candidate-local `TMPDIR=.tmp-root`: `215 test files, 29640 assertions, 0 failures`.
+- Accepted commit: `Integrate libsqlite hot rollback journal recovery` (final hash reported in completion output).
+- Accepted marker artifacts were removed after `refs/heads/main` advanced.
+- Cleanup debt: originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T000437Z` still contains the exported lane modifications, so it was preserved rather than removed.
+- The accepted source-moving guard is now closed until the dashboard publishes the accepted hot rollback-journal recovery source.

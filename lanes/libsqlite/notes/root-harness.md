@@ -1,5 +1,33 @@
 # libsqlite Root Harness Notes
 
+## Isolated WAL Hot Rollback-Journal Recovery Slice
+
+Date: 2026-05-27
+
+Focused lane verification for the hot rollback-journal recovery slice passed:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteRollbackJournal.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-rollback-journal-option-diagnostics.php
+```
+
+Result: focused `SQLiteHeaderTest.php` moved from the current lane-status
+`4343` assertion baseline to `4453 assertions, 0 failures`, a `+110` focused
+assertion delta. The slice adds bounded hot rollback-journal recovery
+application: hot journals restore page images and truncate to the initial
+database size, reserved-lock and missing-super-journal blockers preserve the
+dirty database and journal, present super-journals allow recovery, short
+journals stay non-hot, and successful recovery reports
+`delete_journal_after_recovery`.
+
+Root harness status: not run - isolated micro-slice. Dependency closure: no
+new support component is needed; the work reuses lane-local rollback-journal
+header/page parsing, checksum validation, recovery plans, and WordPress
+rollback diagnostics.
+
 ## Isolated SQL SELECT Projection Scalar Slice
 
 Date: 2026-05-26

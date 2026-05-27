@@ -191,6 +191,43 @@ final class SQLiteRollbackJournal
     }
 
     /**
+     * @return array{hot_journal:array{hot:bool,reason:string,journal_bytes:int,header_valid:bool,page_count:int|null,initial_database_page_count:int|null,requires_super_journal:bool,super_journal_exists:bool|null,database_reserved_lock:bool},recovered:bool,reason:string,database_bytes:string,final_database_bytes:int,journal_action:string,recovery_plan:array{initial_database_page_count:int,final_database_bytes:int,pages:list<array{page_number:int,database_offset:int,applied:bool,reason:string}>}|null}
+     */
+    public function hotJournalRecoveryResult(
+        string $databaseBytes,
+        string $journalBytes,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        $hotJournal = self::hotJournalCandidate($journalBytes, $databaseReservedLock, $requiresSuperJournal, $superJournalExists);
+        if (!$hotJournal['hot']) {
+            return [
+                'hot_journal' => $hotJournal,
+                'recovered' => false,
+                'reason' => $hotJournal['reason'],
+                'database_bytes' => $databaseBytes,
+                'final_database_bytes' => strlen($databaseBytes),
+                'journal_action' => 'preserve_journal',
+                'recovery_plan' => null,
+            ];
+        }
+
+        $recoveryPlan = $this->recoveryPlan($databaseBytes);
+        $recoveredBytes = $this->rollbackDatabaseImage($databaseBytes);
+
+        return [
+            'hot_journal' => $hotJournal,
+            'recovered' => true,
+            'reason' => 'hot_journal_recovered',
+            'database_bytes' => $recoveredBytes,
+            'final_database_bytes' => strlen($recoveredBytes),
+            'journal_action' => 'delete_journal_after_recovery',
+            'recovery_plan' => $recoveryPlan,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

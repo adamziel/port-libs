@@ -2,6 +2,25 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Hot Rollback-Journal Recovery Scenario
+
+Copied WordPress database repair/import previews can now apply a hot SQLite
+rollback journal in pure PHP without requiring the SQLite extension. The smoke
+`examples/wordpress-rollback-journal-option-diagnostics.php` reports recovered
+`wp_options` page bytes, clean-vs-dirty option values, lock-preserved dirty
+images, and the post-recovery `delete_journal_after_recovery` action.
+
+Status delta 2026-05-27 isolated WAL rollback/savepoint slice: added
+`SQLiteRollbackJournal::hotJournalRecoveryResult()` with focused assertions for
+hot recovery, initial-size truncation, skipped beyond-size journal pages,
+reserved-lock blockers, missing and present super-journal gates, short
+non-hot journals, invalid database alignment, and WordPress copied-row smoke
+output. The focused lane test count moves from the current lane-status
+baseline of 4343 assertions to 4453 assertions, +110. Lane `phpPass` moves
+from 738 to 739 and mapped coverage moves from 402 to 403. Dependency closure:
+no new support component is needed; this reuses lane-local rollback-journal
+header/page parsing, checksum validation, and recovery-plan helpers.
+
 ## SELECT Query Plan Preview Scenario
 
 Copied WordPress option import previews can now compose the accepted SELECT
