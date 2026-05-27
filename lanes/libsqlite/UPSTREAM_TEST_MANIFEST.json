@@ -789,13 +789,15 @@
         "focusedMappings": {
             "focusedWalDurableCheckpointWrite": "Run on 2026-05-27 reused accepted static WAL/pager evidence because this bounded replay did not use the hydrated upstream cache. Native smoke covers durable checkpoint database-image materialization plus WAL sidecar preserve/restart/truncate bytes, restart header checksum regeneration, checkpoint-sequence/salt advancement, reader-blocked reset preservation, empty-WAL truncation, invalid mode/read-frame rejection, and copied wp_options WAL diagnostics without requiring ext/sqlite.",
             "focusedSelectCompositeGroupedAggregateQuery": "The 2026-05-27 bounded replayed SQL execution/planner slice maps one additional focused SELECT execution row for composite GROUP BY over copied wp_options aggregate previews. Native smoke covers multi-column grouping keys, projected grouping columns, aggregate ORDER BY/LIMIT, validation guards, and no fresh upstream execution.",
-            "focusedSelectSqlTextExecution": "The 2026-05-27 isolated SQL execution/planner slice maps one additional focused SELECT execution row for bounded SQL text parsed into SQLiteSelectQuery plans over copied wp_options previews. Native smoke covers SELECT projection aliases, wildcard/table-star projection, scalar function expressions, string/integer/NULL literals, WHERE comparison/LIKE/IN/IS NULL boolean composition, ORDER BY, LIMIT/OFFSET, strict unsupported SQL guards, and no fresh upstream execution."
+            "focusedSelectSqlTextExecution": "The 2026-05-27 isolated SQL execution/planner slice maps one additional focused SELECT execution row for bounded SQL text parsed into SQLiteSelectQuery plans over copied wp_options previews. Native smoke covers SELECT projection aliases, wildcard/table-star projection, scalar function expressions, string/integer/NULL literals, WHERE comparison/LIKE/IN/IS NULL boolean composition, ORDER BY, LIMIT/OFFSET, strict unsupported SQL guards, and no fresh upstream execution.",
+            "focusedUtf16MalformedUtf8RecordEncoding": "The 2026-05-27 clean-integrated encoding/collation slice maps one additional focused record-encoding evidence row for rejecting malformed UTF-8 before SQLite UTF-16LE/UTF-16BE record serialization, including WordPress option-name payload guards, without claiming a fresh upstream run."
         },
         "focusedStaticInventory": {
             "focusedWalFileWritePlanScripts": 1,
             "focusedUpstreamActiveRunnerPgrepSnapshotScripts": 1,
             "focusedWordPressSelectCompositeGroupedAggregateQueryScripts": 1,
-            "focusedWordPressSelectSqlTextExecutionScripts": 1
+            "focusedWordPressSelectSqlTextExecutionScripts": 1,
+            "focusedUtf16MalformedUtf8RecordEncodingScripts": 1
         }
     },
     "nativeImplementation": {
@@ -920,7 +922,8 @@
             }
         },
         "focusedSelectSqlJoinTextExecution": "The 2026-05-27 clean-integrated SQL execution/planner slice maps one additional focused SELECT execution row for bounded SELECT SQL JOIN text dispatch over copied wp_options metadata previews, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table aliases, table-qualified ON predicates, table-star projection, ORDER BY, and LIMIT. Native focused coverage reached 5918 assertions and no fresh upstream testfixture/all/release run was launched.",
-        "focusedVfsFileWriterApply": "The 2026-05-27 clean-integrated dependency/storage slice maps one additional focused VFS evidence row for applying accepted WAL checkpoint write plans through bounded native PHP file handles. Native focused coverage reached 6055 assertions and no fresh upstream testfixture/all/release run was launched."
+        "focusedVfsFileWriterApply": "The 2026-05-27 clean-integrated dependency/storage slice maps one additional focused VFS evidence row for applying accepted WAL checkpoint write plans through bounded native PHP file handles. Native focused coverage reached 6055 assertions and no fresh upstream testfixture/all/release run was launched.",
+        "focusedUtf16MalformedUtf8RecordEncoding": "The 2026-05-27 clean-integrated encoding/collation slice maps one additional focused record-encoding evidence row for rejecting malformed UTF-8 before SQLite UTF-16LE/UTF-16BE record serialization, including WordPress option-name payload guards, without claiming a fresh upstream run. Native focused coverage adds 86 assertions for valid UTF-16 round trips, serial-type sizing, malformed UTF-8 rejection with and without mbstring, and UTF-8 encoding preservation."
     },
     "nativePortScope": {
         "focusedCoreDateTimeScalarFunction": "The 2026-05-26 isolated dependency-suite date/time scalar slice adds bounded UTC date(), time(), datetime(), julianday(), unixepoch(), and strftime() dispatch for copied wp_options timestamp diagnostics, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers explicit ISO date/time values, unixepoch modifier input, Julian day output, start-of-day and signed day/hour/minute/second modifiers, NULL propagation, strict unsupported modifier/value errors, and WordPress timestamp preview diagnostics without requiring ext/sqlite or a shared date support component.",
@@ -974,7 +977,8 @@
         "focusedJsonTableWindowRanking": "The 2026-05-27 isolated json-table/window slice maps one additional focused JSON table/window evidence row for ordered json_each/json_tree window annotations over copied wp_options settings. Native smoke covers row_number, rank, dense_rank, percent_rank, cume_dist, ntile, lag, lead, first_value, last_value, optional partitioning, JSONB/subtype inputs, LIMIT/OFFSET composition, strict guards, and no fresh upstream execution.",
         "focusedVfsLockByteRangePlan": "The 2026-05-27 clean-integrated dependency/open lock-byte-range slice maps one additional focused VFS locking evidence row for SQLite pending/reserved/shared byte offsets, shared-slot bounds, nolock suppression, open-admission composition, and copied WordPress lock diagnostics without claiming fresh upstream execution.",
         "focusedBtreeInteriorMergeApplicationPlan": "The 2026-05-27 clean-integrated B-tree table-interior merge slice maps one additional focused B-tree delete/rebalance evidence row for materializing table-interior sibling merge plans, freeing the obsolete sibling page, updating freelist header/trunk state, and rewriting auto-vacuum pointer-map child ownership without claiming a fresh upstream run.",
-        "focusedJsonTableHostJoinRows": "The 2026-05-27 clean-integrated JSON table slice maps one additional focused JSON table/planner evidence row for joining copied host rows to json_each/json_tree scans, reusing accepted JSON table hidden-constraint and residual-predicate evidence without claiming a fresh upstream run."
+        "focusedJsonTableHostJoinRows": "The 2026-05-27 clean-integrated JSON table slice maps one additional focused JSON table/planner evidence row for joining copied host rows to json_each/json_tree scans, reusing accepted JSON table hidden-constraint and residual-predicate evidence without claiming a fresh upstream run.",
+        "focusedUtf16MalformedUtf8RecordEncoding": "The 2026-05-27 clean-integrated encoding/collation slice maps one additional focused record-encoding evidence row for rejecting malformed UTF-8 before SQLite UTF-16LE/UTF-16BE record serialization, including WordPress option-name payload guards, without claiming a fresh upstream run."
     },
     "notes": {
         "focusedFullFreelistTrunkFreePlan": "The 2026-05-26 isolated B-tree delete/rebalance slice adds bounded freePage2-style planning for freeing pages when the first freelist trunk is compatibility-full, reusing accepted B-tree/freelist evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers new trunk promotion, secure-delete leaf clearing, auto-vacuum pointer-map updates, freelist allocation order, and WordPress maintenance diagnostics without requiring ext/sqlite.",
@@ -1179,6 +1183,17 @@
                 "lanes/libsqlite/tests/SQLiteHeaderTest.php"
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-wal-savepoint-evidence"
+        },
+        "focusedUtf16MalformedUtf8RecordEncoding": {
+            "status": "mapped-native-focused",
+            "upstreamScope": "SQLite record text encoding validation for UTF-16 database payloads represented as bounded PHP record serialization/parsing evidence.",
+            "nativeEvidence": "SQLiteRecord UTF-16 encoding focused PHP coverage plus copied WordPress UTF-16 option insert smoke.",
+            "phpAssertions": 86,
+            "wordpressSmoke": "lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php",
+            "tests": [
+                "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+            ],
+            "upstreamRun": "not-run-isolated-slice-reuses-accepted-record-encoding-evidence"
         }
     },
     "wordpress": {

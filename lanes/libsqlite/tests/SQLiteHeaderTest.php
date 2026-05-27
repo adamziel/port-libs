@@ -2649,6 +2649,63 @@ return [
         $t->same($text, $decode->invoke(null, $utf16be, 3));
         $t->throws(InvalidArgumentException::class, static fn () => $encode->invoke(null, "\xc3\x28", 2));
     },
+    'rejects malformed utf8 before sqlite utf16 record encoding' => static function (TestRunner $t): void {
+        $encode = new ReflectionMethod(SQLiteRecord::class, 'encodeUtf16TextWithoutMbstring');
+        $validTexts = [
+            'ascii' => 'siteurl',
+            'embedded-nul' => 'site' . "\0" . 'url',
+            'two-byte' => "\xc2\xa2",
+            'three-byte' => "\xe2\x82\xac",
+            'four-byte' => "\xf0\x9f\x98\x80",
+            'mixed-wordpress' => 'plugin_' . "\xe2\x82\xac" . '_setting_' . "\xf0\x9f\x98\x80",
+        ];
+
+        foreach ($validTexts as $label => $text) {
+            $lePayload = SQLiteRecord::encode([$text], 2);
+            $bePayload = SQLiteRecord::encode([$text], 3);
+            $leRecord = SQLiteRecord::parse($lePayload, 2);
+            $beRecord = SQLiteRecord::parse($bePayload, 3);
+            $expectedLeSerialType = 13 + (strlen($encode->invoke(null, $text, 2)) * 2);
+            $expectedBeSerialType = 13 + (strlen($encode->invoke(null, $text, 3)) * 2);
+
+            $t->same([$text], $leRecord->values, $label . ' utf16le roundtrip');
+            $t->same([$text], $beRecord->values, $label . ' utf16be roundtrip');
+            $t->same($expectedLeSerialType, $leRecord->serialTypes[0], $label . ' utf16le serial type');
+            $t->same($expectedBeSerialType, $beRecord->serialTypes[0], $label . ' utf16be serial type');
+        }
+
+        $malformedUtf8 = [
+            'bad-continuation' => "\xc3\x28",
+            'truncated-two-byte' => "\xc2",
+            'truncated-three-byte' => "\xe2\x82",
+            'truncated-four-byte' => "\xf0\x9f\x98",
+            'overlong-slash' => "\xc0\xaf",
+            'overlong-nul' => "\xe0\x80\x80",
+            'surrogate-codepoint' => "\xed\xa0\x80",
+            'above-unicode-range' => "\xf4\x90\x80\x80",
+            'bare-continuation' => "\x80",
+            'embedded-invalid' => 'site' . "\xc3\x28" . 'url',
+            'wordpress-option-invalid-suffix' => 'plugin_setting_' . "\xf0\x9f\x98",
+            'wordpress-option-invalid-prefix' => "\x80" . '_transient_feed',
+            'wordpress-option-invalid-middle' => 'option_' . "\xed\xa0\x80" . '_name',
+            'wordpress-option-overlong-middle' => 'cache_' . "\xc0\xaf" . '_key',
+            'wordpress-option-above-range-middle' => 'emoji_' . "\xf4\x90\x80\x80" . '_key',
+        ];
+
+        foreach ($malformedUtf8 as $bytes) {
+            $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::encode([$bytes], 2));
+            $t->throws(InvalidArgumentException::class, static fn () => SQLiteRecord::encode([$bytes], 3));
+        }
+
+        foreach ($malformedUtf8 as $bytes) {
+            $t->throws(InvalidArgumentException::class, static fn () => $encode->invoke(null, $bytes, 2));
+            $t->throws(InvalidArgumentException::class, static fn () => $encode->invoke(null, $bytes, 3));
+        }
+
+        $utf8Record = SQLiteRecord::parse(SQLiteRecord::encode(["site\xc3\x28url"], 1), 1);
+        $t->same(["site\xc3\x28url"], $utf8Record->values);
+        $t->same([31], $utf8Record->serialTypes);
+    },
     'rejects malformed utf16 sqlite record text fields' => static function (TestRunner $t): void {
         $oddLengthUtf16le = SQLiteVarint::encode(2) . SQLiteVarint::encode(15) . "\x41";
         $loneHighSurrogateUtf16le = SQLiteVarint::encode(2) . SQLiteVarint::encode(17) . "\x00\xd8";

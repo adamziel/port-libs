@@ -263,6 +263,7 @@ final class SQLiteRecord
         if ($value === '') {
             return '';
         }
+        self::assertValidUtf8Text($value);
         if (function_exists('mb_convert_encoding')) {
             return match ($textEncoding) {
                 2 => mb_convert_encoding($value, 'UTF-16LE', 'UTF-8'),
@@ -271,6 +272,13 @@ final class SQLiteRecord
         }
 
         return self::encodeUtf16TextWithoutMbstring($value, $textEncoding);
+    }
+
+    private static function assertValidUtf8Text(string $value): void
+    {
+        if (preg_match('//u', $value) !== 1) {
+            throw new \InvalidArgumentException('Malformed UTF-8 SQLite text cannot be encoded as UTF-16');
+        }
     }
 
     private static function assertValidUtf16Text(string $bytes, int $textEncoding): void
@@ -325,9 +333,7 @@ final class SQLiteRecord
 
     private static function encodeUtf16TextWithoutMbstring(string $value, int $textEncoding): string
     {
-        if (preg_match('//u', $value) !== 1) {
-            throw new \InvalidArgumentException('Malformed UTF-8 SQLite text cannot be encoded as UTF-16');
-        }
+        self::assertValidUtf8Text($value);
 
         preg_match_all('/./us', $value, $matches);
         $bytes = '';

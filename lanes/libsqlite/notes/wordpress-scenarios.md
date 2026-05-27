@@ -501,6 +501,27 @@ WordPress smoke. Dependency closure: no new support component is needed; the
 slice reuses PHP mbstring already required by lane-local UTF-16 record
 encoding/decoding.
 
+## UTF-8 to UTF-16 Option Insert Guard Scenario
+
+Native UTF-16 record encoding now rejects malformed UTF-8 option text before
+mbstring conversion can normalize replacement characters into copied WordPress
+rows. The example `examples/wordpress-utf16-option-insert-plan.php` reports
+`malformedUtf8RejectedBeforeUtf16Encoding` while planning a UTF-16LE
+`wp_options` insert, so import and repair tooling can distinguish valid
+length-delimited UTF-8 bytes in UTF-8 databases from corrupt text that cannot
+be encoded into UTF-16 database pages.
+
+Status delta 2026-05-27 isolated encoding/collation slice: added
+`SQLiteRecord::assertValidUtf8Text()` before UTF-16LE/UTF-16BE record
+encoding, a focused malformed UTF-8 matrix covering bad continuations,
+truncated sequences, overlong forms, surrogate codepoints, out-of-range
+codepoints, and copied WordPress option-name/value positions, plus the
+updated UTF-16 WordPress smoke. Focused `SQLiteHeaderTest.php` moved from the
+current lane baseline of 5993 assertions to 6079 assertions, +86. Lane
+`phpPass` moves from 763 to 764 and mapped coverage moves from 425 to 426.
+Dependency closure: no new support component is needed; this reuses
+lane-local record encoding/decoding and PHP's UTF-8 validation path.
+
 ## Rollback Journal Sector-Padded Option Recovery Scenario
 
 Native rollback-journal diagnostics now accept copied rollback journals that

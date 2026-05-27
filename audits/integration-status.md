@@ -118859,3 +118859,30 @@ Focused verification before root:
 Root verification: pending serialized no-argument root run from this exact candidate snapshot.
 
 Dashboard publication should run next after commit because this is one source-moving libsqlite acceptance.
+## Integration accepted - libsqlite malformed UTF-8 UTF-16 record encoding - 2026-05-27T03:48:00Z
+
+Marker selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-encoding-20260527T033733Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before replay was `a8b2b074ca812dd9c043eac8d2953a70d5c82716` (`Integrate libsqlite VFS file writer`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported the same `sourceCommit` `a8b2b074ca812dd9c043eac8d2953a70d5c82716`, generated `2026-05-27 03:42:55 UTC`, so the source-moving guard was open.
+
+Replay evidence:
+- The marker was based on `8cfee60141c60e378d4f5583dcd1943c1ca61bf9`; direct current-source apply failed only in `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`.
+- Bounded replay applied the implementation, test, example, and scenario-note hunks on a clean detached `a8b2b074` worktree, then reconciled manifest/status counters from current accepted evidence.
+- Added malformed UTF-8 validation before SQLite UTF-16LE/UTF-16BE record serialization, preserving valid multibyte WordPress option text and rejecting invalid suffix/prefix/middle bytes, overlong forms, surrogate code points, and above-range sequences before UTF-16 encoding.
+
+Verification before root:
+- `php -l lanes/libsqlite/src/SQLiteRecord.php` passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php` passed.
+- `php -r` JSON decode for `lanes/libsqlite/lane-status.json` and `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 6141 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-utf16-option-insert-plan.php` passed and reported `malformedUtf8RejectedBeforeUtf16Encoding: true`.
+- `git diff --check` passed.
+
+Root verification: serialized root passed with `215 test files, 31306 assertions, 0 failures`.
+
+Decision: accepted after serialized root passed; committing one source-moving libsqlite slice and removing only inactive accepted marker artifacts. The originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-encoding-20260527T033733Z` still contains modified lane files, so it is preserved as cleanup debt rather than removed. Dashboard publication should run next after the commit.

@@ -62,6 +62,12 @@ try {
 } catch (InvalidArgumentException) {
     $malformedUtf16Rejected = true;
 }
+$malformedUtf8Rejected = false;
+try {
+    SQLiteRecord::encode(["plugin\xc3\x28setting"], $textEncoding);
+} catch (InvalidArgumentException) {
+    $malformedUtf8Rejected = true;
+}
 $embeddedNulRecord = SQLiteRecord::parse(SQLiteRecord::encode(['site' . "\0" . 'url'], $textEncoding), $textEncoding);
 
 echo json_encode([
@@ -69,6 +75,7 @@ echo json_encode([
     'textEncoding' => $postDatabase->header->textEncoding,
     'utf16ConversionDependency' => 'native-php-fallback',
     'malformedUtf16Rejected' => $malformedUtf16Rejected,
+    'malformedUtf8RejectedBeforeUtf16Encoding' => $malformedUtf8Rejected,
     'embeddedNulTextRoundTrip' => $embeddedNulRecord->values[0] === 'site' . "\0" . 'url',
     'plan' => $plan->toArray(),
     'updatedPageNumbers' => array_keys($plan->pageImages()),
