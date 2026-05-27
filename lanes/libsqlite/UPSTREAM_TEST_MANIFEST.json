@@ -1033,6 +1033,14 @@
                 "nativeEvidence": "SQLiteSelectExpressionIndexPlan focused PHP coverage plus copied wp_options expression-index planner smoke.",
                 "phpPass": 1
             }
+        },
+        "focusedBtreeInteriorRedistributionPlan": {
+            "upstreamScope": "SQLite b-tree delete/rebalance sibling redistribution for table interior pages after child underflow, represented as bounded PHP page-image planning rather than full pager mutation.",
+            "nativeEvidence": "SQLiteBTreeInteriorRedistributionPlan focused PHP coverage plus copied wp_options table-interior redistribution smoke.",
+            "status": "mapped-focused-native",
+            "phpPass": 1,
+            "phpFail": 0,
+            "notes": "No fresh upstream testfixture, all, release, or mptest run was launched; this reuses accepted B-tree delete/rebalance and pointer-map evidence while adding native interior redistribution assertions."
         }
     },
     "wordpressScenarios": {
@@ -1095,6 +1103,7 @@
     "wordpress": {
         "scenarios": {
             "focusedWalDurableCheckpointWrite": "The WAL frame diagnostics smoke reports copied wp_options durable checkpoint write previews, including preserve/restart/truncate sidecar outcomes, restarted WAL header regeneration, reader-blocked reset preservation, and empty-WAL truncation without requiring ext/sqlite."
-        }
+        },
+        "focusedBtreeInteriorRedistributionPlan": "The table-interior redistribution smoke reports copied wp_options table b-tree delete rebalancing where an underfilled interior parent borrows a child pointer from its right sibling, replaces the parent divider key, and rewrites auto-vacuum pointer-map ownership without requiring ext/sqlite."
     }
 }

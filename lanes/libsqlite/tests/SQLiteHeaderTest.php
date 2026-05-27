@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteAutoincrementState;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
+use PortLibs\LibSqlite\SQLiteBTreeInteriorRedistributionPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergeApplicationPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafRedistributionPlan;
@@ -1990,6 +1991,114 @@ return [
             $mergePlan,
             true,
         ));
+    },
+    'redistributes sqlite table interior siblings after delete underflow with child pointer-map rewrites' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = substr_replace($makeFirstPage($pageSize, 10), pack('N', 3), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            5 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            6 => [SQLitePointerMapEntry::BTREE_PAGE, 4],
+            7 => [SQLitePointerMapEntry::BTREE_PAGE, 4],
+            8 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+            9 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+            10 => [SQLitePointerMapEntry::BTREE_PAGE, 5],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace(
+                $pointerMapPage,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $leftPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(6, 100),
+        ], 7, $pageSize);
+        $rightPage = SQLiteTableInteriorPage::assemble([
+            SQLiteTableInteriorCell::encode(8, 300),
+            SQLiteTableInteriorCell::encode(9, 400),
+        ], 10, $pageSize);
+        $database = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $pointerMapPage
+            . SQLiteTableInteriorPage::assemble([SQLiteTableInteriorCell::encode(4, 200)], 5, $pageSize)
+            . $leftPage
+            . $rightPage
+            . str_repeat("\0", $pageSize * 5),
+        );
+
+        $plan = SQLiteBTreeInteriorRedistributionPlan::tableInterior($leftPage, $rightPage, 4, 5, 3, 200, $pageSize);
+        $postPointerMapPages = $database->planPointerMapUpdates($plan->pointerMapUpdates);
+        $postDatabase = SQLiteDatabase::fromBytes(
+            $firstPage
+            . $postPointerMapPages[2]
+            . $database->page(3)
+            . $plan->leftPage
+            . $plan->rightPage
+            . str_repeat("\0", $pageSize * 5),
+        );
+        $leftHeader = $postDatabase->pageHeader(4);
+        $rightHeader = $postDatabase->pageHeader(5);
+        $leftCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(4), $leftHeader);
+        $rightCells = SQLiteTableInteriorCell::parsePageCells($postDatabase->page(5), $rightHeader);
+        $summary = $plan->toArray();
+        $action = $plan->rebalanceAction();
+
+        $t->same(SQLiteBTreeInteriorRedistributionPlan::class, get_class($plan));
+        $t->same('table-interior', $plan->pageType);
+        $t->same(4, $plan->leftPageNumber);
+        $t->same(5, $plan->rightPageNumber);
+        $t->same(3, $plan->parentPageNumber);
+        $t->same(200, $plan->oldDividerKey);
+        $t->same(300, $plan->newDividerKey);
+        $t->same([100, 200], $plan->leftKeys);
+        $t->same([400], $plan->rightKeys);
+        $t->same([6, 7, 8], $plan->leftChildPageNumbers);
+        $t->same([9, 10], $plan->rightChildPageNumbers);
+        $t->same([8], $plan->movedChildPageNumbers);
+        $t->same([6, 7, 8, 9, 10], array_keys($plan->pointerMapUpdates));
+        $t->same([4 => $plan->leftPage, 5 => $plan->rightPage], $plan->pageImages());
+        $t->same('table-interior', $leftHeader->pageType);
+        $t->same('table-interior', $rightHeader->pageType);
+        $t->same(2, $leftHeader->cellCount);
+        $t->same(1, $rightHeader->cellCount);
+        $t->same(8, $leftHeader->rightMostPointer);
+        $t->same(10, $rightHeader->rightMostPointer);
+        $t->same([100, 200], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $leftCells));
+        $t->same([400], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->key, $rightCells));
+        $t->same([6, 7], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $leftCells));
+        $t->same([9], array_map(static fn (SQLiteTableInteriorCell $cell): int => $cell->leftChildPage, $rightCells));
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(8)->typeName());
+        $t->same(4, $postDatabase->pointerMapEntryForPage(8)->parentPageNumber);
+        $t->same(5, $postDatabase->pointerMapEntryForPage(9)->parentPageNumber);
+        $t->same(5, $postDatabase->pointerMapEntryForPage(10)->parentPageNumber);
+        $t->same('table-interior', $summary['page_type']);
+        $t->same(2, $summary['left_cell_count']);
+        $t->same(1, $summary['right_cell_count']);
+        $t->same([4, 5], $summary['updated_page_numbers']);
+        $t->same([], $summary['removed_page_numbers']);
+        $t->same([
+            'action' => 'replace-parent-divider',
+            'old_separator_key' => 200,
+            'new_separator_key' => 300,
+        ], $summary['updated_parent_divider']);
+        $t->same([6, 7, 8, 9, 10], $summary['pointer_map_update_pages']);
+        $t->same([$action], $summary['actions']);
+        $t->same('table-interior-sibling-redistribute', $action['action']);
+        $t->same(['left' => 1, 'right' => 2], $action['before_cells']);
+        $t->same(['left' => 2, 'right' => 1], $action['after_cells']);
+        $t->same([8], $action['moved_child_page_numbers']);
+        $t->same(200, $action['old_divider_key']);
+        $t->same(300, $action['new_divider_key']);
+        $t->true($action['delta_free_space_bytes']['left'] < 0);
+        $t->true($action['delta_free_space_bytes']['right'] > 0);
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorRedistributionPlan::tableInterior($rightPage, $leftPage, 5, 4, 3, 200, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorRedistributionPlan::tableInterior($leftPage, $rightPage, 4, 4, 3, 200, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeInteriorRedistributionPlan::tableInterior(SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize), $rightPage, 4, 5, 3, 200, $pageSize));
     },
     'redistributes sqlite table leaf siblings after delete underflow without freeing pages' => static function (TestRunner $t): void {
         $leftPage = SQLiteTableLeafPage::assemble([

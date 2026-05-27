@@ -3845,3 +3845,26 @@ slice. It reuses lane-local WAL parsing, durable checkpoint byte planning, and
 the WordPress WAL diagnostic smoke. A future native VFS writer remains gated on
 actually applying these ordered writes, syncs, and truncations to filesystem
 handles.
+
+## Table-Interior Delete Rebalance Scenario
+
+Copied WordPress database repair tooling can now preview table b-tree interior
+redistribution after delete underflow without requiring ext/sqlite. The smoke
+`examples/wordpress-table-interior-redistribute-delete-rebalance.php` reports a
+copied `wp_options` table interior parent borrowing a child pointer from its
+right sibling, replacing the parent divider key, materializing updated sibling
+page images, and rewriting auto-vacuum pointer-map parent ownership for the
+moved child page.
+
+Status delta 2026-05-27 isolated B-tree delete/rebalance slice: added
+`SQLiteBTreeInteriorRedistributionPlan` with focused assertions covering
+table-interior key ordering, child-pointer repartitioning, updated sibling page
+images, divider-key replacement, pointer-map update planning, free-space deltas,
+and malformed sibling/page-shape guards. Focused `SQLiteHeaderTest.php` passed
+at 5280 assertions.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local table interior cell/page assembly, b-tree header parsing, database
+page access, and pointer-map mutation helpers. Follow-up should wire the plan
+into native delete/rebalance page-image application or add table-interior merge
+materialization with freelist release.

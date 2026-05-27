@@ -118537,3 +118537,37 @@ Expected dashboard movement after commit: libsqlite `phpPass` becomes `753`, map
 - `git diff --check`: passed before root; audit-only root-result append checked separately after root.
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T020947Z` still contains the accepted lane modifications, so it was preserved and left registered instead of being removed.
 - Accepted ready marker, patch, and metadata files were removed after `refs/heads/main` advanced safely.
+## Integration accepted - libsqlite B-tree interior redistribution - 2026-05-27T02:28:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T021700Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate apply was `131b31693047579eb155516588982b76198a6ce6` (`Integrate libsqlite JSON table windows`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `131b31693047579eb155516588982b76198a6ce6`, generated `2026-05-27 02:22:01 UTC`, dashboard commit `97fc47a36c38982e0bd24dc89c95290001ee586e`.
+- The dashboard guard was therefore open for exactly one source-moving libsqlite marker.
+
+Candidate evidence:
+- Marker lane was `libsqlite`; base was `9742a80abc65079e2a5e5e259e21284af37ba608`, one behavior commit behind the current accepted head.
+- Direct apply failed only on `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, test, example, and notes hunks applied cleanly in a detached clean worktree from current `main`.
+- Chosen because it adds non-overlapping B-tree interior sibling redistribution after delete underflow with pointer-map child ownership rewrites, plus a copied `wp_options` WordPress smoke and the strongest sampled focused delta (`+80` worker-reported assertions).
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteBTreeInteriorRedistributionPlan.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-table-interior-redistribute-delete-rebalance.php`: passed.
+- `php lanes/libsqlite/examples/wordpress-table-interior-redistribute-delete-rebalance.php`: passed and emitted valid JSON.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed, `1 test files, 5340 assertions, 0 failures`.
+- `git diff --check`: passed before the serialized root run.
+
+Runtime gate evidence before root:
+- `/` free space and load were checked before candidate work started: `113933912` KiB available and one-minute load `1.60`, both within policy.
+- `pgrep -af '^php tools/run-tests\.php$'` was empty before candidate work started.
+
+Root verification and final commit evidence:
+- `TMPDIR=$candidate/.tmp-root flock /home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock php tools/run-tests.php`: passed, `215 test files, 30505 assertions, 0 failures`.
+- Accepted commit: `18b10233c326978f7a4910dd79044b98c7002432` (`Integrate libsqlite B-tree interior redistribution`).
+
+Cleanup:
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T021700Z` still contained modified/added lane files matching the handoff, so it was preserved and left registered as cleanup debt.
+- Accepted ready marker, patch, and metadata may be removed after this commit; worker log preserved as evidence.
