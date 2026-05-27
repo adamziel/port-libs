@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 03:13:50 UTC",
-    "sourceCommit": "4c6dff8aaff84109b673edbcc4330ac024fb23f5",
-    "sourceCommitShort": "4c6dff8aaff8",
+    "generated": "2026-05-27 03:25:03 UTC",
+    "sourceCommit": "a708c39bda52c578f2c2844ab2e3d7882f643551",
+    "sourceCommitShort": "a708c39bda52",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "408045038bcf074e7d860078d36cccc003e10f8f",
-    "dashboardCommitShort": "408045038bcf",
+    "dashboardCommit": "9fe7953d684b14d92c59d0c9f84e8c1148ed7844",
+    "dashboardCommitShort": "9fe7953d684b",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "421",
             "coverage": "421 / 1589",
-            "php": "760 pass / 0 fail",
+            "php": "761 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded current-source B-tree table-inter...",
-            "currentWork": "Latest B-tree slice adds table-interior sibling merge planning/application with obsolete-...",
-            "nextTarget": "Next B-tree gap: page-move/pointer-map integration or broader delete/rebalance write appl...",
+            "audit": "bounded current-source JSON table host-ro...",
+            "currentWork": "Latest JSON table slice adds host-row join materialization for json_each/json_tree scans...",
+            "nextTarget": "Next JSON table gap: wire hostJoinRows() into parser-level FROM json_each/json_tree SELEC...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "bab3be4"
+            "commit": "4c6dff8"
         },
         {
             "library": "LightningCSS",
