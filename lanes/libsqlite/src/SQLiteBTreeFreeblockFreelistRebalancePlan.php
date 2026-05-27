@@ -131,6 +131,7 @@ final class SQLiteBTreeFreeblockFreelistRebalancePlan
             'new_freelist_trunk_pages' => $this->freePlan->newTrunkPageNumbers,
             'updated_page_numbers' => $this->updatedPageNumbers(),
             'updated_pointer_map_page_numbers' => array_keys($this->freePlan->updatedPointerMapPages),
+            'freed_pointer_map_entries' => $this->freePlan->freedPointerMapEntries,
             'secure_delete_cleared_pages' => $this->freePlan->clearedPageNumbers,
         ];
     }

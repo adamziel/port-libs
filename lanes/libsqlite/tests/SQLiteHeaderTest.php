@@ -1321,6 +1321,24 @@ return [
             'updated_freelist_page_numbers' => [4],
             'cleared_page_numbers' => [5],
             'updated_pointer_map_page_numbers' => [2],
+            'freed_pointer_map_entries' => [
+                [
+                    'page_number' => 4,
+                    'pointer_map_page' => 2,
+                    'offset' => 5,
+                    'type' => SQLitePointerMapEntry::FREE_PAGE,
+                    'type_name' => 'free-page',
+                    'parent_page_number' => 0,
+                ],
+                [
+                    'page_number' => 5,
+                    'pointer_map_page' => 2,
+                    'offset' => 10,
+                    'type' => SQLitePointerMapEntry::FREE_PAGE,
+                    'type_name' => 'free-page',
+                    'parent_page_number' => 0,
+                ],
+            ],
         ], $plan->toArray());
         $t->same([1, 2, 4, 5], array_keys($plan->pageImages()));
         $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());

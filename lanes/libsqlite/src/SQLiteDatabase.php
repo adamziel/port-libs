@@ -790,6 +790,7 @@ final class SQLiteDatabase
         }
 
         $updatedPointerMapPages = [];
+        $freedPointerMapEntries = [];
         if ($this->isAutoVacuum() && $pageNumbers !== []) {
             $pointerMapUpdates = [];
             foreach ($pageNumbers as $pageNumber) {
@@ -800,6 +801,10 @@ final class SQLiteDatabase
             }
 
             $updatedPointerMapPages = $this->pointerMapPageImagesForUpdates([], $pointerMapUpdates, $databasePageCount);
+            $postPointerMapDatabase = $this->withPageImages($updatedPointerMapPages);
+            foreach ($pageNumbers as $pageNumber) {
+                $freedPointerMapEntries[] = $postPointerMapDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+            }
         }
 
         $firstPage = substr_replace($firstPage, self::uint32Bytes($firstTrunkPage), 32, 4);
@@ -817,6 +822,7 @@ final class SQLiteDatabase
             $updatedPointerMapPages,
             $clearedPageNumbers,
             $clearedPageImages,
+            $freedPointerMapEntries,
         );
     }
 
