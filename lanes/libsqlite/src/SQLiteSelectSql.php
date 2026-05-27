@@ -1231,7 +1231,7 @@ final class SQLiteSelectSql
             return self::valueExpression($unwrapped, $tables);
         }
 
-        foreach ([['+', '-'], ['*', '/', '%'], ['||']] as $operators) {
+        foreach ([['&', '|', '<<', '>>'], ['+', '-'], ['*', '/', '%'], ['||']] as $operators) {
             $operator = self::topLevelExpressionOperator($sql, $operators);
             if ($operator === null) {
                 continue;
@@ -1249,6 +1249,13 @@ final class SQLiteSelectSql
                 'operator' => $token,
                 'left' => self::valueExpression($left, $tables),
                 'right' => self::valueExpression($right, $tables),
+            ];
+        }
+        if (preg_match('/^[+\-~]\s*(.+)$/s', $sql, $match) === 1) {
+            return [
+                'type' => 'unary',
+                'operator' => $sql[0],
+                'operand' => self::valueExpression($match[1], $tables),
             ];
         }
 
@@ -1367,6 +1374,9 @@ final class SQLiteSelectSql
                 if ($offset < 0 || substr($sql, $offset, strlen($operator)) !== $operator) {
                     continue;
                 }
+                if ($operator === '|' && (($sql[$offset - 1] ?? null) === '|' || ($sql[$offset + 1] ?? null) === '|')) {
+                    continue;
+                }
                 if (($operator === '+' || $operator === '-') && self::isUnarySign($sql, $offset)) {
                     continue;
                 }
@@ -1385,7 +1395,7 @@ final class SQLiteSelectSql
             return true;
         }
 
-        return str_contains('+-*/%(', substr($before, -1));
+        return str_contains('+-*/%&|~(<', substr($before, -1));
     }
 
     /**
