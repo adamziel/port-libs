@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteDatabase;
+use PortLibs\LibSqlite\SQLitePragmaLockingMode;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
@@ -14,6 +15,9 @@ if ($databasePath === null) {
 }
 
 $snapshot = SQLitePragmaSnapshot::fromDatabase(SQLiteDatabase::fromFile($databasePath));
+$lockingMode = new SQLitePragmaLockingMode();
+$exclusiveLockingMode = $lockingMode->execute('PRAGMA locking_mode = EXCLUSIVE');
+$normalLockingMode = $lockingMode->execute('PRAGMA locking_mode = NORMAL');
 
 echo json_encode([
     'path' => $databasePath,
@@ -24,6 +28,7 @@ echo json_encode([
         'freelist_count',
         'encoding',
         'journal_mode',
+        'locking_mode',
         'auto_vacuum',
         'incremental_vacuum',
         'application_id',
@@ -31,4 +36,10 @@ echo json_encode([
         'schema_version',
         'data_version',
     ]),
+    'lockingMode' => [
+        'initial' => (new SQLitePragmaLockingMode())->execute('PRAGMA locking_mode'),
+        'exclusive' => $exclusiveLockingMode,
+        'normal' => $normalLockingMode,
+        'temp' => $lockingMode->execute('PRAGMA temp.locking_mode'),
+    ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

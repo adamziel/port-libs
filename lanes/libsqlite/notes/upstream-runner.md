@@ -10801,3 +10801,44 @@ plans, escaped wildcard literals, and ASCII-only non-ASCII matching for copied
 Dependency closure: no new shared support component is needed. This reuses
 lane-local UTF-8 text splitting, ASCII NOCASE folding, LIKE/GLOB matchers, and
 copied WordPress option fixtures.
+
+## Focused Native Mapping: PRAGMA locking_mode Current State
+
+Date: 2026-05-27
+
+This isolated libsqlite micro-slice maps one additional focused PRAGMA behavior
+row for SQLite `PRAGMA locking_mode` current connection state. The bounded
+`SQLitePragmaLockingMode` model reports default `normal`, applies
+`exclusive`/`normal` assignments, preserves schema-qualified PRAGMA forms,
+leaves unknown requested modes as no-ops, and reports the TEMP schema as
+always `exclusive`.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 449 to 450 by adding `focusedPragmaLockingModeScripts=1`. No fresh
+upstream `testfixture`, `make test`, `mptest`, `all`, or `release` run was
+launched from this isolated worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLitePragmaLockingMode.php
+php -l lanes/libsqlite/src/SQLitePragmaSnapshot.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-pragma-preflight.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-pragma-preflight.php /tmp/libsqlite-lockmode-smoke.sqlite
+git diff --check -- lanes/libsqlite
+```
+
+Result: focused `SQLiteHeaderTest.php` passed with 9570 assertions and 0
+failures, up from the prior lane-status focused count of 9516 assertions
+(`+54`). The WordPress pragma smoke passed against a generated SQLite header
+fixture and reports current locking mode transitions without requiring
+ext/sqlite.
+
+Dependency closure: no new shared support component is needed. This slice
+reuses lane-local pragma/header state and pure PHP WordPress copy preflight
+fixtures. Non-overlap: it avoids accepted VFS byte-range, process lock,
+lock-state, locked-writer, pager checkpoint, rollback, WAL, B-tree, JSON, and
+SELECT clusters by covering only `PRAGMA locking_mode` current connection
+state.

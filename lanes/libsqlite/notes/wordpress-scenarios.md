@@ -2,6 +2,27 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## PRAGMA Locking Mode Preflight Scenario
+
+Copied WordPress database preflight can now report SQLite `PRAGMA locking_mode`
+connection state without ext/sqlite. The existing
+`examples/wordpress-pragma-preflight.php` smoke includes current `normal`,
+assigned `exclusive`, restored `normal`, and TEMP schema `exclusive` rows next
+to header-derived pragma metadata.
+
+Status delta 2026-05-27 isolated libsqlite slice: added
+`SQLitePragmaLockingMode` for bounded `PRAGMA locking_mode` current-state
+execution. Focused assertions cover default NORMAL mode, schema-qualified
+queries, EXCLUSIVE and NORMAL assignments, invalid-mode no-op behavior, TEMP
+database EXCLUSIVE behavior, row result shape, and malformed PRAGMA guards.
+Focused `SQLiteHeaderTest.php` passed at 9570 assertions, up from the prior
+lane-status focused count of 9516 assertions (`+54`).
+
+Dependency closure: no new support component is needed. This reuses lane-local
+pragma/header state and pure PHP WordPress copy preflight fixtures. Non-overlap:
+this avoids accepted VFS lock byte-range/process-lock/lock-state work by
+covering only SQLite's connection-level `locking_mode` PRAGMA state.
+
 ## UPDATE/DELETE ORDER BY LIMIT Scenario
 
 Copied WordPress option cleanup previews can now model SQLite builds that

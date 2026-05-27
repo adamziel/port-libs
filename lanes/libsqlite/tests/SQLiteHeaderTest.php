@@ -71,6 +71,7 @@ use PortLibs\LibSqlite\SQLitePageCache;
 use PortLibs\LibSqlite\SQLitePagerJournalOpenPlan;
 use PortLibs\LibSqlite\SQLitePagerCheckpointTransactionPlan;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
+use PortLibs\LibSqlite\SQLitePragmaLockingMode;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
 use PortLibs\LibSqlite\SQLiteRecord;
 use PortLibs\LibSqlite\SQLiteRollbackJournal;
@@ -388,6 +389,7 @@ return [
         $t->same(5, $snapshot->value('freelist_count'));
         $t->same('UTF-16le', $snapshot->value('encoding'));
         $t->same('wal', $snapshot->value('journal_mode'));
+        $t->same('normal', $snapshot->value('locking_mode'));
         $t->same('incremental', $snapshot->value('auto_vacuum'));
         $t->same(1, $snapshot->value('incremental_vacuum'));
         $t->same(0x57505351, $snapshot->value('application_id'));
@@ -398,14 +400,92 @@ return [
         $t->same([
             'page_size' => 1024,
             'journal_mode' => 'wal',
+            'locking_mode' => 'normal',
             'auto_vacuum' => 'incremental',
-        ], $snapshot->toArray(['page-size', 'journal_mode', 'auto_vacuum', 'missing']));
+        ], $snapshot->toArray(['page-size', 'journal_mode', 'locking-mode', 'auto_vacuum', 'missing']));
 
         $plain = SQLitePragmaSnapshot::fromDatabase(SQLiteDatabase::fromBytes($makeFirstPage(512, 1)));
         $t->same('delete', $plain->value('journal_mode'));
+        $t->same('normal', $plain->value('locking_mode'));
         $t->same('none', $plain->value('auto_vacuum'));
         $t->same('UTF-8', $plain->value('encoding'));
         $t->same(0, $plain->value('incremental_vacuum'));
+    },
+    'executes current PRAGMA locking_mode state for wordpress copy connections' => static function (TestRunner $t): void {
+        $pragma = new SQLitePragmaLockingMode();
+
+        $initial = $pragma->execute('PRAGMA locking_mode');
+        $t->same('ok', $initial['status']);
+        $t->same('locking_mode', $initial['pragma']);
+        $t->same('main', $initial['schema']);
+        $t->same(null, $initial['requested_mode']);
+        $t->same('normal', $initial['locking_mode']);
+        $t->same(false, $initial['changed']);
+        $t->same([['locking_mode' => 'normal']], $initial['rows']);
+        $t->same('normal', $pragma->current());
+
+        $hyphenQuery = $pragma->execute(" PRAGMA locking_mode; \n");
+        $t->same('normal', $hyphenQuery['locking_mode']);
+        $t->same([['locking_mode' => 'normal']], $hyphenQuery['rows']);
+
+        $exclusive = $pragma->execute('PRAGMA locking_mode = EXCLUSIVE');
+        $t->same('main', $exclusive['schema']);
+        $t->same('exclusive', $exclusive['requested_mode']);
+        $t->same('exclusive', $exclusive['locking_mode']);
+        $t->true($exclusive['changed']);
+        $t->same([['locking_mode' => 'exclusive']], $exclusive['rows']);
+        $t->same('exclusive', $pragma->current());
+        $t->same('exclusive', $pragma->current('main'));
+        $t->same('exclusive', $pragma->execute('PRAGMA main.locking_mode')['locking_mode']);
+
+        $sameExclusive = $pragma->execute('PRAGMA main.locking_mode(exclusive)');
+        $t->same('exclusive', $sameExclusive['locking_mode']);
+        $t->same(false, $sameExclusive['changed']);
+        $t->same('exclusive', $sameExclusive['rows'][0]['locking_mode']);
+
+        $normal = $pragma->execute('PRAGMA MAIN.locking_mode=NORMAL');
+        $t->same('main', $normal['schema']);
+        $t->same('normal', $normal['requested_mode']);
+        $t->same('normal', $normal['locking_mode']);
+        $t->true($normal['changed']);
+        $t->same('normal', $pragma->current());
+
+        $invalidMode = $pragma->execute('PRAGMA locking_mode = invalid_mode');
+        $t->same('invalid_mode', $invalidMode['requested_mode']);
+        $t->same('normal', $invalidMode['locking_mode']);
+        $t->same(false, $invalidMode['changed']);
+        $t->same('normal', $pragma->current());
+
+        $temp = $pragma->execute('PRAGMA temp.locking_mode');
+        $t->same('temp', $temp['schema']);
+        $t->same('exclusive', $temp['locking_mode']);
+        $t->same(false, $temp['changed']);
+        $t->same([['locking_mode' => 'exclusive']], $temp['rows']);
+        $t->same('exclusive', $pragma->current('temp'));
+
+        $tempNormal = $pragma->execute('PRAGMA temp.locking_mode = normal');
+        $t->same('normal', $tempNormal['requested_mode']);
+        $t->same('exclusive', $tempNormal['locking_mode']);
+        $t->same(false, $tempNormal['changed']);
+        $t->same('normal', $pragma->current('main'));
+
+        $attached = $pragma->execute('PRAGMA wp.locking_mode = exclusive');
+        $t->same('wp', $attached['schema']);
+        $t->same('exclusive', $attached['locking_mode']);
+        $t->true($attached['changed']);
+        $t->same('normal', $pragma->current('main'));
+        $t->same('exclusive', $pragma->execute('PRAGMA wp.locking_mode')['locking_mode']);
+        $t->same('normal', $pragma->execute('PRAGMA locking_mode')['locking_mode']);
+
+        $attachedNormal = $pragma->execute('PRAGMA wp.locking_mode(normal)');
+        $t->same('wp', $attachedNormal['schema']);
+        $t->same('normal', $attachedNormal['locking_mode']);
+        $t->true($attachedNormal['changed']);
+        $t->same('normal', $pragma->current());
+        $t->same('normal', $pragma->current('wp'));
+
+        $t->throws(InvalidArgumentException::class, static fn () => $pragma->execute('PRAGMA journal_mode'));
+        $t->throws(InvalidArgumentException::class, static fn () => $pragma->execute('SELECT PRAGMA locking_mode'));
     },
     'parses sqlite database freelist header fields' => static function (TestRunner $t): void {
         $header = str_repeat("\0", 100);

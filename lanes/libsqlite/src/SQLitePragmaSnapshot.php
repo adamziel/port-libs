@@ -23,6 +23,7 @@ final class SQLitePragmaSnapshot
             'freelist_count' => $header->freelistPageCount,
             'encoding' => self::encodingName($header->textEncoding),
             'journal_mode' => self::journalMode($header),
+            'locking_mode' => 'normal',
             'auto_vacuum' => self::autoVacuumMode($database),
             'incremental_vacuum' => $database->isIncrementalVacuum() ? 1 : 0,
             'application_id' => $header->applicationId,
