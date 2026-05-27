@@ -5145,3 +5145,24 @@ Dependency closure: no new shared support component is needed. This slice
 reuses lane-local JSON parsing/JSONB/path mutation helpers and copied
 WordPress option fixtures only. Follow-up should target non-overlapping JSON
 planner/JSONB behavior rather than this scalar SQL input mutation boundary.
+
+## WAL Reader Checkpoint Boundary current next19 Scenario
+
+`examples/wordpress-wal-reader-checkpoint-boundary.php` previews a copied
+`wp_options` plugin-settings import that rolls back a savepoint, checkpoints
+the retained WAL prefix, and compares current-reader visibility with the next
+reader opened after the checkpoint. The current reader keeps WAL-backed page
+images for retained frames, while the next reader sees the same content from
+the checkpointed database image after `truncate_wal`; rolled-back plugin frames
+remain invisible without requiring `ext/sqlite`.
+
+Status delta 2026-05-27 isolated
+`yield-sqlite-wal-reader-checkpoint-boundary-current-next19` slice: added
+`SQLiteWalSavepointCheckpointPlan::readerBoundaryAfterRollbackTo()` with 58
+focused PASS cases in `SQLiteWalReaderCheckpointBoundaryCurrentNext19Test.php`.
+`lane-status.json` `phpPass` moved from 6444 to 6502. Mapped upstream
+denominator coverage is unchanged because this is focused native PHP WAL
+behavior growth, not a newly hydrated upstream inventory unit.
+
+Dependency closure: no new shared support component is needed. This slice
+reuses lane-local savepoint state, WAL parsing, and durable checkpoint helpers.

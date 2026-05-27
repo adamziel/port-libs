@@ -2483,6 +2483,145 @@ MD);
         $t->same(0, $allCurrent['blocked_count']);
         $t->contains('route focused artifacts to focused evidence', $allCurrent['next_gate']);
     },
+    'summarizes accepted head provenance from a bounded runner artifact directory' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $root = sys_get_temp_dir() . '/libsqlite-current-head-artifacts-' . bin2hex(random_bytes(4));
+        mkdir($root, 0777, true);
+
+        file_put_contents($root . '/focused-json.md', <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-json-current-20260527T193000Z
+
+- Repository HEAD: `current-head`
+- Scratch: `/tmp/libsqlite-focused-json-current-20260527T193000Z`
+- Log: `/tmp/libsqlite-focused-json-current-20260527T193000Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `json101.test` `json102.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 812 tests`
+- Parsed errors: `0`
+- Parsed tests: `812`
+MD);
+        file_put_contents($root . '/focused-json.log', "00:03 tcl(812/812) r0\n");
+        file_put_contents($root . '/release-zero.md', <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-current-20260527T193100Z
+
+- Repository HEAD: `current-head`
+- Scratch: `/tmp/libsqlite-release-current-20260527T193100Z`
+- Log: `/tmp/libsqlite-release-current-20260527T193100Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Jobs: `2`
+- Timeout seconds: `7200`
+- Patterns: none
+- Exit: `0`
+- Parsed summary: `0 errors out of 22000 tests`
+- Parsed errors: `0`
+- Parsed tests: `22000`
+MD);
+        file_put_contents($root . '/release-zero.log', "18:31 tcl(22000/22000) r0\n");
+        file_put_contents($root . '/stale.md', <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-stale-20260527T193200Z
+
+- Repository HEAD: `old-head`
+- Scratch: `/tmp/libsqlite-focused-stale-20260527T193200Z`
+- Log: `/tmp/libsqlite-focused-stale-20260527T193200Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `wal.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 144 tests`
+- Parsed errors: `0`
+- Parsed tests: `144`
+MD);
+        file_put_contents($root . '/stale.log', "00:02 tcl(144/144) r0\n");
+        file_put_contents($root . '/missing-log.md', <<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-missing-log-20260527T193300Z
+
+- Repository HEAD: `current-head`
+- Scratch: `/tmp/libsqlite-focused-missing-log-20260527T193300Z`
+- Log: `/tmp/libsqlite-focused-missing-log-20260527T193300Z.log`
+- SQLite git commit: `8f70ec615f4cd247d36f92a22c99f65ebbcc22a7`
+- SQLite VERSION: `3.54.0`
+- SQLite manifest UUID: `wrong-manifest`
+- Testset: `veryquick`
+- Jobs: `1`
+- Timeout seconds: `900`
+- Patterns: `btree01.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 91 tests`
+- Parsed errors: `0`
+- Parsed tests: `91`
+MD);
+
+        try {
+            $record = $evidence->acceptedHeadArtifactProvenanceDirectoryRecord($root, 'current-head');
+
+            $t->same('partially-current-accepted-head', $record['status']);
+            $t->same($root, $record['artifact_directory']);
+            $t->same('current-head', $record['accepted_repository_head']);
+            $t->same(4, $record['artifact_count']);
+            $t->same(2, $record['current_accepted_count']);
+            $t->same(2, $record['blocked_count']);
+            $t->same(1, $record['stale_head_count']);
+            $t->same(1, $record['manifest_mismatch_count']);
+            $t->same(1, $record['focused_count']);
+            $t->same(1, $record['release_like_count']);
+            $t->same(1, $record['missing_log_count']);
+            $t->same(['libsqlite-focused-missing-log-20260527T193300Z'], $record['missing_log_labels']);
+            $t->same([
+                'libsqlite-focused-json-current-20260527T193000Z',
+                'libsqlite-release-current-20260527T193100Z',
+            ], $record['current_labels']);
+            $t->same([
+                'libsqlite-focused-missing-log-20260527T193300Z',
+                'libsqlite-focused-stale-20260527T193200Z',
+            ], $record['blocked_labels']);
+            $t->same(['libsqlite-focused-stale-20260527T193200Z'], $record['stale_head_labels']);
+            $t->same(['libsqlite-focused-missing-log-20260527T193300Z'], $record['manifest_mismatch_labels']);
+            $t->same(22812, $record['tests_total']);
+            $t->same(0, $record['errors_total']);
+            $t->same(false, $record['counts_as_release_parity']);
+            $t->contains('rerun or repair stale', $record['next_gate']);
+            $t->contains('accepted-HEAD directory provenance', $record['dependency_closure']);
+
+            $entries = [];
+            foreach ($record['entries'] as $entry) {
+                $entries[$entry['label']] = $entry;
+            }
+            $t->same('current-accepted-head', $entries['libsqlite-focused-json-current-20260527T193000Z']['status']);
+            $t->same('focused', $entries['libsqlite-focused-json-current-20260527T193000Z']['kind']);
+            $t->same(['json101.test', 'json102.test'], $entries['libsqlite-focused-json-current-20260527T193000Z']['patterns']);
+            $t->same('release-like', $entries['libsqlite-release-current-20260527T193100Z']['kind']);
+            $t->same('release', $entries['libsqlite-release-current-20260527T193100Z']['testset']);
+            $t->same('blocked', $entries['libsqlite-focused-stale-20260527T193200Z']['status']);
+            $t->same(['repository-head-mismatch'], $entries['libsqlite-focused-stale-20260527T193200Z']['blocker_ids']);
+            $t->same('old-head', $entries['libsqlite-focused-stale-20260527T193200Z']['repository_head']);
+            $t->same(['sqlite-manifest-uuid-mismatch'], $entries['libsqlite-focused-missing-log-20260527T193300Z']['blocker_ids']);
+
+            $missing = $evidence->acceptedHeadArtifactProvenanceDirectoryRecord($root . '-missing', 'current-head');
+            $t->same('blocked-missing-artifact-directory', $missing['status']);
+            $t->same(0, $missing['artifact_count']);
+            $t->same(0, $missing['current_accepted_count']);
+            $t->same(0, $missing['missing_log_count']);
+            $t->contains('wait for guarded bounded-runner audit/log artifacts', $missing['next_gate']);
+        } finally {
+            foreach (glob($root . '/*') ?: [] as $file) {
+                unlink($file);
+            }
+            @rmdir($root);
+        }
+    },
     'composes artifact-set and exclusion gates into a release blocker closure record' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $root = sys_get_temp_dir() . '/libsqlite-release-blocker-closure-' . bin2hex(random_bytes(4));

@@ -27,6 +27,9 @@ final class SQLiteJsonAggregateState
     /** @var list<array{0:mixed,1:mixed}> */
     private array $orderedWindowArrayValues = [];
 
+    /** @var list<array{0:mixed,1:mixed,2:mixed}> */
+    private array $windowArrayFrameRows = [];
+
     /** @var list<array{0:mixed,1:mixed}> */
     private array $objectPairs = [];
 
@@ -47,6 +50,9 @@ final class SQLiteJsonAggregateState
 
     /** @var list<array{0:mixed,1:mixed,2:mixed}> */
     private array $orderedWindowObjectRows = [];
+
+    /** @var list<array{0:mixed,1:mixed,2:mixed,3:mixed}> */
+    private array $windowObjectFrameRows = [];
 
     public function stepArray(mixed $value): void
     {
@@ -83,6 +89,11 @@ final class SQLiteJsonAggregateState
         $this->orderedWindowArrayValues[] = [$value, $orderKey];
     }
 
+    public function stepArrayWindowFrame(mixed $value, mixed $orderKey, mixed $filter = true): void
+    {
+        $this->windowArrayFrameRows[] = [$value, $orderKey, $filter];
+    }
+
     public function stepObject(mixed $label, mixed $value): void
     {
         $this->objectPairs[] = [$label, $value];
@@ -116,6 +127,11 @@ final class SQLiteJsonAggregateState
     public function stepObjectOrderByWindow(mixed $label, mixed $value, mixed $orderKey): void
     {
         $this->orderedWindowObjectRows[] = [$label, $value, $orderKey];
+    }
+
+    public function stepObjectWindowFrame(mixed $label, mixed $value, mixed $orderKey, mixed $filter = true): void
+    {
+        $this->windowObjectFrameRows[] = [$label, $value, $orderKey, $filter];
     }
 
     public function finalizeArray(string $function = 'json_group_array'): string|SQLiteBlobValue
@@ -157,6 +173,14 @@ final class SQLiteJsonAggregateState
     public function finalizeOrderedWindowedArray(int $preceding, int $following = 0, string $function = 'json_group_array'): array
     {
         return SQLiteJsonAggregate::jsonGroupArrayOrderByWindowSqlFunction($function, $this->orderedWindowArrayValues, $preceding, $following);
+    }
+
+    /**
+     * @return list<string|SQLiteBlobValue>
+     */
+    public function finalizeWindowFrameArray(int $preceding, int $following = 0, string $exclude = 'NO OTHERS', string $function = 'json_group_array'): array
+    {
+        return SQLiteJsonAggregate::jsonGroupArrayWindowFrameRowsSqlFunction($function, $this->windowArrayFrameRows, $preceding, $following, $exclude);
     }
 
     public function finalizeObject(string $function = 'json_group_object'): string|SQLiteBlobValue
@@ -201,11 +225,16 @@ final class SQLiteJsonAggregateState
     }
 
     /**
-     * @return array{arrayRows:int,distinctArrayRows:int,orderedArrayRows:int,distinctOrderedArrayRows:int,filteredArrayRows:int,windowArrayRows:int,orderedWindowArrayRows:int,objectRows:int,distinctObjectRows:int,orderedObjectRows:int,distinctOrderedObjectRows:int,filteredObjectRows:int,windowObjectRows:int,orderedWindowObjectRows:int}
+     * @return list<string|SQLiteBlobValue>
      */
+    public function finalizeWindowFrameObject(int $preceding, int $following = 0, string $exclude = 'NO OTHERS', string $function = 'json_group_object'): array
+    {
+        return SQLiteJsonAggregate::jsonGroupObjectWindowFrameRowsSqlFunction($function, $this->windowObjectFrameRows, $preceding, $following, $exclude);
+    }
+
     public function summary(): array
     {
-        return [
+        $summary = [
             'arrayRows' => count($this->arrayValues),
             'distinctArrayRows' => count($this->distinctArrayValues),
             'orderedArrayRows' => count($this->orderedArrayValues),
@@ -221,5 +250,14 @@ final class SQLiteJsonAggregateState
             'windowObjectRows' => count($this->windowObjectPairs),
             'orderedWindowObjectRows' => count($this->orderedWindowObjectRows),
         ];
+
+        if ($this->windowArrayFrameRows !== []) {
+            $summary['windowArrayFrameRows'] = count($this->windowArrayFrameRows);
+        }
+        if ($this->windowObjectFrameRows !== []) {
+            $summary['windowObjectFrameRows'] = count($this->windowObjectFrameRows);
+        }
+
+        return $summary;
     }
 }

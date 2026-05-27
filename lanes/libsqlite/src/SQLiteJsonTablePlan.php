@@ -315,6 +315,13 @@ final class SQLiteJsonTablePlan
         return self::projectedRows($function, $constraints, self::VISIBLE_COLUMNS);
     }
 
+    public static function invalidInputCanBeSkipped(mixed $value): bool
+    {
+        $validation = self::validateJsonInput($value);
+
+        return $validation['jsonValid'] === false;
+    }
+
     /**
      * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $baseConstraints
      * @param list<list<array{column:string,operator:string,value:mixed,usable?:bool}>> $alternatives
