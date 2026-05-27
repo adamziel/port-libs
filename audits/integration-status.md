@@ -119131,4 +119131,32 @@ Follow-up root verification:
 - Serialized no-argument root harness under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` with `TMPDIR=$candidate/.tmp-root`: `215 test files, 31836 assertions, 0 failures`.
 - Post-root `git diff --check`: passed before commit.
 - Accepted commit before audit-only amend: `35c4a39a73afa25095648773fb27c86ca064fc5c` (`Integrate libsqlite VFS lock state`).
-- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T043405Z` still contains the exported marker changes after publication, so it is preserved as cleanup debt rather than removed.
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T043405Z` still contains the exported marker changes after publication, so it is preserved as cleanup debt rather than removed.## Integration accepted pending root - libsqlite JSON hidden constraints - 2026-05-27T04:49:55Z
+
+Marker selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T043959Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence before marker processing:
+- Current `refs/heads/main` was `2afe089e2be73df40d840bb04ddf3c63e4155e76` (`Integrate libsqlite VFS lock state`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `2afe089e2be73df40d840bb04ddf3c63e4155e76`, generated `2026-05-27 04:46:21 UTC`, dashboard `7d334c7538ba6f15485aec7cc6b611945a9737fb`.
+- Runtime gates before focused checks: `df -Pk /` reported `89636500` KiB available; `/proc/loadavg` was `1.50`; `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+
+Replay and verification evidence:
+- Direct patch apply from current `2afe089e` failed only on stale `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` counters.
+- Bounded replay excluded only those stale counter files, applied implementation/test/example/notes hunks cleanly, then reconciled current counters to `phpPass` `774` and mapped coverage `430 / 1589`.
+- Behavior accepted for root: parser-level bare `json_each` / `json_tree` SELECT sources now extract hidden `json` / `root` equality constraints from `WHERE` terms while preserving residual predicates, grouping, ordering, aliases, SQL NULL empty results, and malformed-root guards.
+- Focused lint passed for `SQLiteSelectSql.php`, `SQLiteHeaderTest.php`, and `wordpress-select-sql-json-hidden-constraints.php`.
+- JSON decode passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- Focused test passed: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` -> `1 test files, 6722 assertions, 0 failures`.
+- WordPress smoke passed: `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-json-hidden-constraints.php` emitted expected priority rows and grouped summary rows.
+- `git diff --check` passed before root.
+
+Root verification passed: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock` -> `215 test files, 31887 assertions, 0 failures`. Final commit follows this entry.
+
+Decision: accepted after focused checks, WordPress smoke, `git diff --check`, and serialized root. Dashboard publication should run next after the source move.
+
+Cleanup debt:
+- Accepted marker artifacts were removed after commit publication to local `main`.
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T043959Z` still contains modified accepted lane files, so it was preserved and left registered; no forced worktree removal or destructive cleanup was used.
+- Clean candidate worktree `/home/claude/port-libs/.tmux-team/tmp/clean-candidates/libsqlite-json-hidden-20260527T044834Z` contains repo-local `.tmp-root` output from focused/root verification and is left as cleanup debt rather than force-removed.

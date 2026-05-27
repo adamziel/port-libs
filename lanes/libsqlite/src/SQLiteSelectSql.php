@@ -40,7 +40,11 @@ final class SQLiteSelectSql
         $clauseOffsets = self::tailClauseOffsets($tail);
         $tableEnd = self::firstOffset($clauseOffsets) ?? strlen($tail);
         $fromSql = trim(substr($tail, 0, $tableEnd));
-        $source = self::sourcePlan($fromSql, $tables);
+        $where = isset($clauseOffsets['WHERE'])
+            ? self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'))
+            : null;
+        $jsonConstraints = self::jsonTableHiddenConstraints($fromSql, $where);
+        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints);
 
         $groupBySql = isset($clauseOffsets['GROUP BY'])
             ? self::clauseText($tail, $clauseOffsets, 'GROUP BY')
@@ -54,8 +58,11 @@ final class SQLiteSelectSql
             $plan['joins'] = $source['joins'];
         }
 
-        if (isset($clauseOffsets['WHERE'])) {
-            $plan['where'] = self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'));
+        if ($where !== null) {
+            $where = self::removeJsonTableHiddenConstraints($fromSql, $where);
+            if ($where !== null) {
+                $plan['where'] = $where;
+            }
         }
         if ($groupBySql !== null) {
             $groupBy = self::groupBy($groupBySql, $select);
@@ -82,13 +89,14 @@ final class SQLiteSelectSql
 
     /**
      * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $jsonConstraints
      * @return array{from:list<array<string,mixed>>,joins:list<array<string,mixed>>}
      */
-    private static function sourcePlan(string $sql, array $tables): array
+    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = []): array
     {
         $joinOffset = self::firstJoinOffset($sql);
         $baseSql = $joinOffset === null ? $sql : trim(substr($sql, 0, $joinOffset));
-        $base = self::tableReference($baseSql, $tables);
+        $base = self::tableReference($baseSql, $tables, $jsonConstraints);
         $joins = [];
 
         if ($joinOffset !== null) {
@@ -107,9 +115,10 @@ final class SQLiteSelectSql
 
     /**
      * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<array{column:string,operator:string,value:mixed,usable?:bool}> $jsonConstraints
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}
      */
-    private static function tableReference(string $sql, array $tables): array
+    private static function tableReference(string $sql, array $tables, array $jsonConstraints = []): array
     {
         $jsonTable = self::jsonTableReference($sql);
         if ($jsonTable !== null) {
@@ -126,6 +135,24 @@ final class SQLiteSelectSql
 
         $name = $parts[0];
         self::assertBareIdentifier($name, 'SQLite SELECT SQL table name');
+        if (strcasecmp($name, 'json_each') === 0 || strcasecmp($name, 'json_tree') === 0) {
+            $function = strtolower($name);
+            $alias = $function;
+            if (isset($parts[1])) {
+                if (strcasecmp($parts[1], 'AS') === 0) {
+                    $alias = $parts[2];
+                } else {
+                    $alias = $parts[1];
+                }
+                self::assertBareIdentifier($alias, 'SQLite SELECT SQL JSON table alias');
+            }
+
+            return [
+                'name' => $function,
+                'alias' => $alias,
+                'rows' => SQLiteJsonTablePlan::visibleRows($function, $jsonConstraints),
+            ];
+        }
         if (!array_key_exists($name, $tables) || !is_array($tables[$name]) || !array_is_list($tables[$name])) {
             throw new \InvalidArgumentException("SQLite SELECT SQL table {$name} is not available");
         }
@@ -191,6 +218,118 @@ final class SQLiteSelectSql
         }
 
         return $expression['value'];
+    }
+
+    /**
+     * @return list<array{column:string,operator:string,value:mixed,usable?:bool}>
+     */
+    private static function jsonTableHiddenConstraints(string $fromSql, ?array $where): array
+    {
+        if ($where === null || self::bareJsonTableAlias($fromSql) === null) {
+            return [];
+        }
+
+        $constraints = [];
+        foreach (self::flattenAndPredicate($where) as $term) {
+            $constraint = self::jsonTableHiddenConstraint($term);
+            if ($constraint !== null) {
+                $constraints[] = $constraint;
+            }
+        }
+
+        return $constraints;
+    }
+
+    private static function removeJsonTableHiddenConstraints(string $fromSql, array $where): ?array
+    {
+        if (self::bareJsonTableAlias($fromSql) === null) {
+            return $where;
+        }
+
+        if (($where['operator'] ?? null) === 'AND' && isset($where['terms']) && is_array($where['terms'])) {
+            $terms = [];
+            foreach ($where['terms'] as $term) {
+                if (is_array($term) && self::jsonTableHiddenConstraint($term) !== null) {
+                    continue;
+                }
+                $terms[] = $term;
+            }
+            if ($terms === []) {
+                return null;
+            }
+            if (count($terms) === 1 && is_array($terms[0])) {
+                return $terms[0];
+            }
+
+            return ['operator' => 'AND', 'terms' => $terms];
+        }
+
+        return self::jsonTableHiddenConstraint($where) === null ? $where : null;
+    }
+
+    private static function bareJsonTableAlias(string $fromSql): ?string
+    {
+        if (self::firstJoinOffset($fromSql) !== null) {
+            return null;
+        }
+        if (preg_match('/^(json_each|json_tree)(?:\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*))?$/i', trim($fromSql), $match) !== 1) {
+            return null;
+        }
+
+        return isset($match[2]) && $match[2] !== '' ? $match[2] : strtolower($match[1]);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    private static function flattenAndPredicate(array $predicate): array
+    {
+        if (($predicate['operator'] ?? null) !== 'AND' || !isset($predicate['terms']) || !is_array($predicate['terms'])) {
+            return [$predicate];
+        }
+
+        $terms = [];
+        foreach ($predicate['terms'] as $term) {
+            if (is_array($term)) {
+                array_push($terms, ...self::flattenAndPredicate($term));
+            }
+        }
+
+        return $terms;
+    }
+
+    /**
+     * @return array{column:string,operator:string,value:mixed,usable?:bool}|null
+     */
+    private static function jsonTableHiddenConstraint(array $predicate): ?array
+    {
+        if (($predicate['operator'] ?? null) !== '=') {
+            return null;
+        }
+        if (!isset($predicate['left'], $predicate['right']) || !is_array($predicate['left']) || !is_array($predicate['right'])) {
+            return null;
+        }
+        if (($predicate['right']['type'] ?? null) !== 'literal' || !array_key_exists('value', $predicate['right'])) {
+            return null;
+        }
+        if (($predicate['left']['type'] ?? null) !== 'column' || !isset($predicate['left']['name']) || !is_string($predicate['left']['name'])) {
+            return null;
+        }
+
+        $column = strtolower($predicate['left']['name']);
+        if (str_contains($column, '.')) {
+            $column = substr($column, strrpos($column, '.') + 1);
+        }
+        if ($column !== 'json' && $column !== 'root') {
+            return null;
+        }
+
+        return [
+            'column' => $column,
+            'operator' => '=',
+            'value' => $predicate['right']['value'],
+            'usable' => true,
+        ];
     }
 
     /**

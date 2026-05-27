@@ -20193,12 +20193,91 @@ SQL;
         $nullJsonRows = SQLiteSelectSql::execute("SELECT key FROM json_tree(NULL)", []);
         $t->same([], $nullJsonRows);
 
+        $hiddenJsonRows = SQLiteSelectSql::execute(
+            "SELECT key, atom, fullkey FROM json_tree WHERE json = '{$settingsJson}' AND root = '$.plugin.rules' AND type = 'integer' ORDER BY atom DESC LIMIT 2",
+            [],
+        );
+        $t->same(2, count($hiddenJsonRows));
+        $t->same(['priority', 'priority'], array_column($hiddenJsonRows, 'key'));
+        $t->same([7, 4], array_column($hiddenJsonRows, 'atom'));
+        $t->same(['$.plugin.rules[1].priority', '$.plugin.rules[2].priority'], array_column($hiddenJsonRows, 'fullkey'));
+        $t->same(['key', 'atom', 'fullkey'], array_keys($hiddenJsonRows[0]));
+        $t->same('priority', $hiddenJsonRows[0]['key']);
+        $t->same(7, $hiddenJsonRows[0]['atom']);
+        $t->same('$.plugin.rules[1].priority', $hiddenJsonRows[0]['fullkey']);
+        $t->same('priority', $hiddenJsonRows[1]['key']);
+        $t->same(4, $hiddenJsonRows[1]['atom']);
+        $t->same('$.plugin.rules[2].priority', $hiddenJsonRows[1]['fullkey']);
+
+        $hiddenEachRows = SQLiteSelectSql::execute(
+            "SELECT key AS setting_key, atom AS setting_value FROM json_each AS j WHERE j.json = '[''seo'',''cache'',''forms'']' AND atom NOT IN ('cache') ORDER BY setting_key DESC",
+            [],
+        );
+        $t->same(2, count($hiddenEachRows));
+        $t->same([2, 0], array_column($hiddenEachRows, 'setting_key'));
+        $t->same(['forms', 'seo'], array_column($hiddenEachRows, 'setting_value'));
+        $t->same(['setting_key', 'setting_value'], array_keys($hiddenEachRows[0]));
+        $t->same(2, $hiddenEachRows[0]['setting_key']);
+        $t->same('forms', $hiddenEachRows[0]['setting_value']);
+        $t->same(0, $hiddenEachRows[1]['setting_key']);
+        $t->same('seo', $hiddenEachRows[1]['setting_value']);
+
+        $hiddenPlan = SQLiteSelectSql::plan(
+            "SELECT key, atom FROM json_each WHERE json = '[''seo'',''cache'']' AND type = 'text' ORDER BY key DESC LIMIT 1",
+            [],
+        );
+        $t->same(['from', 'select', 'where', 'orderBy', 'limit', 'offset'], array_keys($hiddenPlan));
+        $t->same(2, count($hiddenPlan['from']));
+        $t->same(0, $hiddenPlan['from'][0]['key']);
+        $t->same('seo', $hiddenPlan['from'][0]['atom']);
+        $t->same('text', $hiddenPlan['from'][0]['type']);
+        $t->same('cache', $hiddenPlan['from'][1]['atom']);
+        $t->same(2, count($hiddenPlan['select']));
+        $t->same('key', $hiddenPlan['select'][0]['name']);
+        $t->same('atom', $hiddenPlan['select'][1]['name']);
+        $t->same('=', $hiddenPlan['where']['operator']);
+        $t->same('type', $hiddenPlan['where']['left']['name']);
+        $t->same('text', $hiddenPlan['where']['right']['value']);
+        $t->same([['column' => 'key', 'direction' => 'DESC']], $hiddenPlan['orderBy']);
+        $t->same(1, $hiddenPlan['limit']);
+        $t->same(0, $hiddenPlan['offset']);
+
+        $hiddenOnlyPlan = SQLiteSelectSql::plan(
+            "SELECT key, atom FROM json_each WHERE json = '[''seo'',''cache'']' ORDER BY key",
+            [],
+        );
+        $t->same(['from', 'select', 'orderBy'], array_keys($hiddenOnlyPlan));
+        $t->same(2, count($hiddenOnlyPlan['from']));
+        $t->same('seo', $hiddenOnlyPlan['from'][0]['atom']);
+        $t->same('cache', $hiddenOnlyPlan['from'][1]['atom']);
+        $t->same([['column' => 'key']], $hiddenOnlyPlan['orderBy']);
+
+        $hiddenGroupedRows = SQLiteSelectSql::execute(
+            "SELECT type, count(*) AS rows, sum(atom) AS atom_sum FROM json_tree WHERE json = '{$settingsJson}' AND root = '$.plugin.rules' GROUP BY type HAVING count(*) >= 2 ORDER BY rows DESC, type ASC LIMIT 2",
+            [],
+        );
+        $t->same(2, count($hiddenGroupedRows));
+        $t->same(['integer', 'object'], array_column($hiddenGroupedRows, 'type'));
+        $t->same([3, 3], array_column($hiddenGroupedRows, 'rows'));
+        $t->same([13, null], array_column($hiddenGroupedRows, 'atom_sum'));
+        $t->same(['type', 'rows', 'atom_sum'], array_keys($hiddenGroupedRows[0]));
+        $t->same('integer', $hiddenGroupedRows[0]['type']);
+        $t->same(13, $hiddenGroupedRows[0]['atom_sum']);
+
+        $hiddenNullRows = SQLiteSelectSql::execute("SELECT key FROM json_each WHERE json = NULL", []);
+        $t->same([], $hiddenNullRows);
+        $missingHiddenRows = SQLiteSelectSql::execute("SELECT key FROM json_each WHERE root = '$.plugin.rules'", []);
+        $t->same([], $missingHiddenRows);
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each()', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_each('[1]', '$', '$.extra')", []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each(7)', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_tree('[1]', 1)", []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_tree('[1]', '$.bad[')", []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_tree('{bad')", []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_tree WHERE json = '{$settingsJson}' AND root = 1", []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_tree WHERE json = '{$settingsJson}' AND root = '$.bad['", []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each AS 1bad WHERE json = "[1]"', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_group_array('[1]')", []));
 
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('DELETE FROM wp_options', ['wp_options' => $options]));

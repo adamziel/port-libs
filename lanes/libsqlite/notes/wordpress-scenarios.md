@@ -4201,3 +4201,26 @@ input, read-only, immutable, and empty-path checkpoint transaction cases.
 Dependency closure: no new shared support component is needed. The slice reuses
 accepted lane-local WAL checkpoint planning, VFS write planning,
 lock-coordinator, and busy-handler behavior.
+
+## JSON Table SQL Hidden-Constraint Scenario
+
+Copied WordPress plugin settings can now be queried through bare
+`json_each`/`json_tree` virtual-table sources in SELECT SQL text when WHERE
+terms provide usable hidden `json` and `root` equality constraints. The smoke
+`examples/wordpress-select-sql-json-hidden-constraints.php` reports priority
+rows and grouped summaries over copied `wp_options` settings JSON without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated JSON-table slice: `SQLiteSelectSql` extracts
+top-level hidden `json`/`root` WHERE equality constraints for bare JSON table
+sources, feeds them into accepted `SQLiteJsonTablePlan` row materialization,
+and preserves remaining WHERE terms as residual predicates. Focused selected
+coverage passed at 334 assertions, adding 51 focused assertions over the
+previous selected-test surface.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local JSON table planning, JSON path validation, SELECT predicate
+filtering, grouped aggregate execution, and JSON row materialization. Follow-up
+should broaden virtual-table planner/VDBE cursor integration without repeating
+accepted JSON cursor, literal function-source SELECT wiring, host joins,
+LIMIT/OFFSET, window ranking, or duplicate hidden-constraint planning.
