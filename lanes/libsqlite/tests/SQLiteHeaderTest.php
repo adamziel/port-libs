@@ -11,6 +11,7 @@ use PortLibs\LibSqlite\SQLiteBTreeInteriorRedistributionPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergeApplicationPlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafMergePlan;
 use PortLibs\LibSqlite\SQLiteBTreeLeafRedistributionPlan;
+use PortLibs\LibSqlite\SQLiteBTreeEmptyLeafFreePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageMovePlan;
 use PortLibs\LibSqlite\SQLiteBTreePageHeader;
 use PortLibs\LibSqlite\SQLiteBTreeRootCollapsePlan;
@@ -22630,5 +22631,126 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes + FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT bytes ** 2 FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT option_name || missing FROM wp_options", ['wp_options' => $options]));
+    },
+    'plans sqlite empty table leaf delete release with overflow and auto-vacuum pointer maps' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $firstPage = $makeFirstPage($pageSize, 6);
+        $firstPage = substr_replace($firstPage, pack('N', 4), 52, 4);
+        $pointerMapPage = str_repeat("\0", $pageSize);
+        foreach ([3 => [SQLitePointerMapEntry::BTREE_PAGE, 4], 4 => [SQLitePointerMapEntry::ROOT_PAGE, 0], 5 => [SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 3], 6 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 5]] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPage = substr_replace($pointerMapPage, chr($type) . pack('N', $parentPageNumber), 5 * ($pageNumber - 3), 5);
+        }
+
+        $payload = SQLiteRecord::encode([null, '_transient_empty_leaf', str_repeat('cache-fragment:', 80), 'no']);
+        $localLength = SQLiteTableLeafCell::localPayloadLength(strlen($payload), $pageSize);
+        $overflowPages = SQLiteOverflowPage::encodeChainAtPages(substr($payload, $localLength), [5, 6], $pageSize);
+        $tablePage = SQLiteTableLeafPage::assemble([SQLiteTableLeafCell::encode(12, $payload, $pageSize, 5)], $pageSize);
+        $overflowNumbers = static function (int $firstOverflowPage, int $byteCount) use ($overflowPages): array {
+            $pageNumbers = [];
+            $pageNumber = $firstOverflowPage;
+            $remaining = $byteCount;
+            while ($pageNumber !== 0 && $remaining > 0) {
+                $pageNumbers[] = $pageNumber;
+                $pageNumber = unpack('N', substr($overflowPages[$pageNumber], 0, 4))[1];
+                $remaining -= min($remaining, 508);
+            }
+
+            return $pageNumbers;
+        };
+        $delete = SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease($tablePage, 12, $overflowNumbers, secureDelete: true);
+        $database = SQLiteDatabase::fromBytes($firstPage . $pointerMapPage . $tablePage . $emptyPage . $overflowPages[5] . $overflowPages[6]);
+
+        $plan = SQLiteBTreeEmptyLeafFreePlan::tableLeafFromDeleteResult($database, 3, $delete, true);
+        $postPages = [1 => $database->page(1), 2 => $database->page(2), 3 => $database->page(3), 4 => $database->page(4), 5 => $database->page(5), 6 => $database->page(6)];
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+
+        $t->same(SQLiteBTreeEmptyLeafFreePlan::class, get_class($plan));
+        $t->same('table-leaf-empty-leaf-free', $plan->toArray()['action']);
+        $t->same(3, $plan->leafPageNumber);
+        $t->same('table-leaf', $plan->leafPageType);
+        $t->same([12], $plan->deletedRowIds);
+        $t->same([], $plan->deletedRecordValues);
+        $t->same([5, 6], $plan->obsoleteOverflowPageNumbers);
+        $t->same([3, 5, 6], $plan->freedPageNumbers);
+        $t->same([1, 2, 3, 5, 6], array_keys($plan->pageImages));
+        $t->same([2], array_keys($plan->freePlan->updatedPointerMapPages));
+        $t->same([5, 6], $plan->freePlan->clearedPageNumbers);
+        $t->same([3, 5, 6], $postDatabase->freelistPageNumbers());
+        $t->same([5, 6, 3], $postDatabase->freelistAllocationOrder());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(3)->typeName());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(6)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(3)->parentPageNumber);
+        $t->same(0, $postDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same(0, $postDatabase->pointerMapEntryForPage(6)->parentPageNumber);
+        $t->same(3, SQLiteHeader::parse($plan->pageImages[1])->firstFreelistTrunkPage);
+        $t->same(3, SQLiteHeader::parse($plan->pageImages[1])->freelistPageCount);
+        $t->same(0, unpack('N', substr($plan->pageImages[3], 0, 4))[1]);
+        $t->same(2, unpack('N', substr($plan->pageImages[3], 4, 4))[1]);
+        $t->same([5, 6], SQLiteFreelistTrunkPage::parse(3, $plan->pageImages[3], $pageSize, $pageSize)->leafPageNumbers);
+        $t->same(str_repeat("\0", $pageSize), $postDatabase->page(5));
+        $t->same(str_repeat("\0", $pageSize), $postDatabase->page(6));
+        $t->same(['action' => 'table-leaf-empty-leaf-free', 'leaf_page' => 3, 'leaf_page_type' => 'table-leaf', 'deleted_rowids' => [12], 'deleted_record_values' => [], 'obsolete_overflow_pages' => [5, 6], 'freed_pages' => [3, 5, 6], 'freelist_page_count' => 3, 'first_freelist_trunk_page' => 3, 'updated_page_numbers' => [1, 2, 3, 5, 6], 'updated_pointer_map_page_numbers' => [2], 'secure_delete_cleared_pages' => [5, 6]], $plan->toArray());
+    },
+    'plans sqlite empty index leaf delete release into an existing freelist trunk' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $emptyPage = str_repeat("\0", $pageSize);
+        $firstPage = $makeFirstPage($pageSize, 5);
+        $firstPage = substr_replace($firstPage, pack('N', 4), 32, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 2), 36, 4);
+        $indexPage = SQLiteIndexLeafPage::assemble([
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['autoload', 'no', 2])),
+            SQLiteIndexCell::encode(SQLiteRecord::encode(['transient', 'yes', 7])),
+        ], $pageSize);
+        $delete = SQLiteIndexLeafPage::deleteCellsByRecordValuesWithOverflowRelease($indexPage, [['autoload', 'no', 2], ['transient', 'yes', 7]], static fn (int $_firstOverflowPage, int $_byteCount): array => [], secureDelete: true);
+        $database = SQLiteDatabase::fromBytes($firstPage . $emptyPage . $indexPage . SQLiteFreelistTrunkPage::assemble(null, [5], $pageSize) . $emptyPage);
+
+        $plan = SQLiteBTreeEmptyLeafFreePlan::indexLeafFromDeleteResult($database, 3, $delete, true);
+        $postPages = [1 => $database->page(1), 2 => $database->page(2), 3 => $database->page(3), 4 => $database->page(4), 5 => $database->page(5)];
+        foreach ($plan->pageImages as $pageNumber => $page) {
+            $postPages[$pageNumber] = $page;
+        }
+        $postDatabase = SQLiteDatabase::fromBytes(implode('', $postPages));
+
+        $t->same('index-leaf-empty-leaf-free', $plan->toArray()['action']);
+        $t->same(3, $plan->leafPageNumber);
+        $t->same('index-leaf', $plan->leafPageType);
+        $t->same([], $plan->deletedRowIds);
+        $t->same([['autoload', 'no', 2], ['transient', 'yes', 7]], $plan->deletedRecordValues);
+        $t->same([], $plan->obsoleteOverflowPageNumbers);
+        $t->same([3], $plan->freedPageNumbers);
+        $t->same([1, 3, 4], array_keys($plan->pageImages));
+        $t->same([], array_keys($plan->freePlan->updatedPointerMapPages));
+        $t->same([3], $plan->freePlan->leafPageNumbers);
+        $t->same([], $plan->freePlan->newTrunkPageNumbers);
+        $t->same([4, 5, 3], $postDatabase->freelistPageNumbers());
+        $t->same([5, 3], SQLiteFreelistTrunkPage::parse(4, $plan->pageImages[4], $pageSize, $pageSize)->leafPageNumbers);
+        $t->same([5, 3, 4], $postDatabase->freelistAllocationOrder());
+        $t->same(4, SQLiteHeader::parse($plan->pageImages[1])->firstFreelistTrunkPage);
+        $t->same(3, SQLiteHeader::parse($plan->pageImages[1])->freelistPageCount);
+        $t->same(['action' => 'index-leaf-empty-leaf-free', 'leaf_page' => 3, 'leaf_page_type' => 'index-leaf', 'deleted_rowids' => [], 'deleted_record_values' => [['autoload', 'no', 2], ['transient', 'yes', 7]], 'obsolete_overflow_pages' => [], 'freed_pages' => [3], 'freelist_page_count' => 3, 'first_freelist_trunk_page' => 4, 'updated_page_numbers' => [1, 3, 4], 'updated_pointer_map_page_numbers' => [], 'secure_delete_cleared_pages' => [3]], $plan->toArray());
+    },
+    'rejects sqlite empty leaf free plans for non-empty or mismatched delete results' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 3);
+        $tablePage = SQLiteTableLeafPage::assemble([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'home', 'https://example.test/blog', 'yes'])),
+        ], $pageSize);
+        $indexPage = SQLiteIndexLeafPage::assemble([SQLiteIndexCell::encode(SQLiteRecord::encode(['siteurl', 1]))], $pageSize);
+        $database = SQLiteDatabase::fromBytes($firstPage . $tablePage . $indexPage);
+        $partialDelete = SQLiteTableLeafPage::deleteCellByRowIdWithOverflowRelease($tablePage, 1, static fn (int $_firstOverflowPage, int $_byteCount): array => []);
+        $emptyDelete = SQLiteTableLeafPage::deleteCellsByRowIdsWithOverflowRelease($tablePage, [1, 2], static fn (int $_firstOverflowPage, int $_byteCount): array => []);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::tableLeafFromDeleteResult($database, 2, $partialDelete));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::tableLeafFromDeleteResult($database, 1, $emptyDelete));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::tableLeafFromDeleteResult($database, 2, ['page' => $emptyDelete['page']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::indexLeafFromDeleteResult($database, 3, $emptyDelete));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::indexLeafFromDeleteResult($database, 3, ['page' => $indexPage, 'record_values' => ['siteurl', 1], 'obsolete_overflow_page_numbers' => []]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteBTreeEmptyLeafFreePlan::tableLeafFromDeleteResult($database, 2, ['page' => $emptyDelete['page'], 'rowids' => [1], 'obsolete_overflow_page_numbers' => ['bad']]));
     },
 ];

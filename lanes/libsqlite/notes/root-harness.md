@@ -1913,3 +1913,33 @@ Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with
 pages `[7, 8, 21, 22]`, pointer-map entries rewritten to `free-page`, and next
 freelist allocation order `[8, 22, 21, 7]`. Root verification is required by
 clean integration before acceptance.
+
+## B-tree Empty Leaf Freelist Release Slice
+
+Focused lane verification for the B-tree empty-leaf freelist release slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteBTreeEmptyLeafFreePlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-btree-empty-leaf-free.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-btree-empty-leaf-free.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; focused `SQLiteHeaderTest.php` passed with
+7881 assertions and 0 failures, adding 50 focused assertions over the accepted
+7831-assertion B-tree root-collapse baseline. The WordPress smoke reported a
+copied `wp_options` transient delete where the final non-root leaf cell is
+removed, the empty leaf and obsolete overflow pages are released into the
+freelist, released leaf pages are secure-deleted, and auto-vacuum pointer-map
+entries are rewritten to `free-page`. Root verification was not run because
+this was an isolated micro-slice.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local B-tree leaf delete helpers, freelist planner, overflow page
+diagnostics, and pointer-map mutation machinery. Follow-up should broaden
+B-tree delete/rebalance materialization without repeating accepted root
+collapse, page relocation, index-interior merge, overflow freelist release,
+bulk overflow freeblocks, or this empty-leaf release path.

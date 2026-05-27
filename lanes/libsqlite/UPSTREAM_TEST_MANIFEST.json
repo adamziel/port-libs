@@ -939,7 +939,8 @@
         "focusedVfsHotRollbackJournalApply": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS rollback-journal evidence row for applying accepted hot rollback-journal recovery through native PHP file handles, including database page restoration, truncation, durable sync, rollback-journal deletion, directory sync, and copied wp_options recovery diagnostics without claiming fresh upstream execution.",
         "focusedWalPagerCheckpointTransaction": "The 2026-05-27 clean-integrated WAL pager checkpoint transaction slice maps one additional focused checkpoint durability evidence row for composing SQLite lock acquisition, busy-reader/writer blockers, accepted WAL checkpoint write plans, restart/truncate sidecar decisions, and copied wp_options checkpoint transaction diagnostics without claiming fresh upstream execution. Native focused coverage reached 6596 assertions after replay on current 9b6b4b6a source.",
         "focusedBtreeIndexInteriorMergeApplicationPlan": "The 2026-05-27 clean-integrated B-tree index-interior merge apply slice maps one additional focused B-tree delete/rebalance evidence row for materializing index-interior sibling merge plans, freeing the obsolete sibling page, updating freelist header/trunk state, and rewriting auto-vacuum pointer-map child ownership without claiming a fresh upstream run. Native focused coverage reached 6863 assertions after replay on current 1fce4904 source.",
-        "focusedVfsSyncPlanApplyScripts": "The 2026-05-27 isolated dependency/VFS sync-apply slice maps one additional focused VFS sync evidence row for applying SQLite xSync plans through native PHP file handles without claiming a fresh upstream run."
+        "focusedVfsSyncPlanApplyScripts": "The 2026-05-27 isolated dependency/VFS sync-apply slice maps one additional focused VFS sync evidence row for applying SQLite xSync plans through native PHP file handles without claiming a fresh upstream run.",
+        "mapped": 444
     },
     "nativePortScope": {
         "focusedCoreDateTimeScalarFunction": "The 2026-05-26 isolated dependency-suite date/time scalar slice adds bounded UTC date(), time(), datetime(), julianday(), unixepoch(), and strftime() dispatch for copied wp_options timestamp diagnostics, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers explicit ISO date/time values, unixepoch modifier input, Julian day output, start-of-day and signed day/hour/minute/second modifiers, NULL propagation, strict unsupported modifier/value errors, and WordPress timestamp preview diagnostics without requiring ext/sqlite or a shared date support component.",
@@ -1010,7 +1011,18 @@
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-savepoint-page-image-wal-truncation-and-vfs-evidence"
         },
         "focusedJsonTableVisibleConstraintPushdown": "The 2026-05-27 clean-integrated JSON table slice maps one additional focused JSON table planner evidence row for visible key/type/atom/fullkey/id/path constraint pushdown over copied wp_options settings. Native smoke covers advertised planner inputs, residual filtering, row estimates, rowid/path preservation, and exact SQLite row semantics without requiring ext/sqlite.",
-        "focusedSelectSqlSubqueryExecution": "The 2026-05-27 isolated SQL execution/planner subquery-text slice maps one additional focused SELECT execution row for parser-level correlated EXISTS/NOT EXISTS and single-column IN/NOT IN subqueries over copied wp_options metadata, preserving SQL NULL NOT IN behavior without claiming fresh upstream execution."
+        "focusedSelectSqlSubqueryExecution": "The 2026-05-27 isolated SQL execution/planner subquery-text slice maps one additional focused SELECT execution row for parser-level correlated EXISTS/NOT EXISTS and single-column IN/NOT IN subqueries over copied wp_options metadata, preserving SQL NULL NOT IN behavior without claiming fresh upstream execution.",
+        "focusedBtreeEmptyLeafFreelistRelease": {
+            "status": "mapped-native-focused",
+            "upstreamScope": "SQLite B-tree non-root table/index empty-leaf deletion and freelist release represented as bounded PHP page-image materialization.",
+            "nativeEvidence": "SQLiteBTreeEmptyLeafFreePlan focused PHP coverage plus copied wp_options empty-leaf free smoke.",
+            "phpAssertions": 50,
+            "wordpressSmoke": "lanes/libsqlite/examples/wordpress-btree-empty-leaf-free.php",
+            "tests": [
+                "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+            ],
+            "upstreamRun": "not-run-isolated-slice-reuses-accepted-btree-delete-freelist-overflow-and-pointer-map-evidence"
+        }
     },
     "notes": {
         "focusedFullFreelistTrunkFreePlan": "The 2026-05-26 isolated B-tree delete/rebalance slice adds bounded freePage2-style planning for freeing pages when the first freelist trunk is compatibility-full, reusing accepted B-tree/freelist evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers new trunk promotion, secure-delete leaf clearing, auto-vacuum pointer-map updates, freelist allocation order, and WordPress maintenance diagnostics without requiring ext/sqlite.",
@@ -1356,7 +1368,8 @@
         },
         "focusedSuperJournalCommitApply": "The 2026-05-27 isolated WAL/rollback slice maps one additional focused VFS/pager evidence row for SQLite super-journal/master-journal commit application across attached databases. Native focused coverage adds 83 selected assertions and a copied WordPress multisite-style super-journal smoke without claiming fresh upstream execution.",
         "focusedSelectSqlScalarOperators": "The 2026-05-27 bounded SQL execution/planner slice maps one additional focused SELECT expression evidence row for arithmetic, modulo, division, concatenation, NULL propagation, hidden ORDER BY expressions, and grouped HAVING rewrites over copied wp_options rows. Native focused coverage adds 67 assertions and a copied WordPress scalar-operator smoke without claiming fresh upstream execution.",
-        "focusedBtreeRootCollapsePlan": "The 2026-05-27 bounded B-tree root-collapse slice maps one additional focused b-tree delete/rebalance application row for copying an empty interior root's only child page into the root, freeing the obsolete child page, and rewriting auto-vacuum pointer-map ownership for copied wp_options repair previews. Native focused coverage adds 73 assertions and a copied WordPress root-collapse smoke without claiming fresh upstream execution."
+        "focusedBtreeRootCollapsePlan": "The 2026-05-27 bounded B-tree root-collapse slice maps one additional focused b-tree delete/rebalance application row for copying an empty interior root's only child page into the root, freeing the obsolete child page, and rewriting auto-vacuum pointer-map ownership for copied wp_options repair previews. Native focused coverage adds 73 assertions and a copied WordPress root-collapse smoke without claiming fresh upstream execution.",
+        "focusedBtreeEmptyLeafFreelistRelease": "The 2026-05-27 bounded B-tree empty-leaf freelist release slice maps one additional focused B-tree delete/rebalance evidence row for releasing emptied non-root table/index leaf pages into the freelist after delete, co-releasing obsolete overflow pages, secure-delete clearing released pages, and rewriting auto-vacuum pointer-map entries without claiming fresh upstream execution."
     },
     "inventory": {
         "focusedWalSavepointPageImageRollbackScripts": 1,
@@ -1392,6 +1405,7 @@
         },
         "focusedStaticInventory": {
             "focusedVfsSyncPlanApplyScripts": 1
-        }
+        },
+        "mappedFocusedCoverage": 444
     }
 }

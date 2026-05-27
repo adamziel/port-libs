@@ -4511,3 +4511,29 @@ WordPress option row fixtures. Follow-up should broaden B-tree delete/rebalance
 materialization without repeating accepted page relocation, index-interior
 merge, overflow freelist release, bulk overflow freeblocks, or this
 root-collapse path.
+
+## B-tree Empty Leaf Freelist Release Scenario
+
+Copied WordPress `wp_options` maintenance tooling can now materialize the
+SQLite delete/rebalance path where a non-root table or index leaf becomes empty
+after deletion. The smoke `examples/wordpress-btree-empty-leaf-free.php`
+reports the emptied leaf page and obsolete overflow pages released into the
+freelist, secure-delete clearing for released leaf pages, next allocation
+order, and auto-vacuum pointer-map entries rewritten to `free-page` without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree slice: added
+`SQLiteBTreeEmptyLeafFreePlan` for bounded table/index empty-leaf release
+after delete, obsolete overflow page co-release, secure-delete page clearing,
+and auto-vacuum pointer-map free-page rewrites. Focused `SQLiteHeaderTest.php`
+passes at 7881 assertions with 0 failures; this slice adds 50 focused
+assertions over the accepted 7831-assertion B-tree root-collapse baseline.
+Lane `phpPass` moves from 789 to 790 and mapped coverage moves from 442 to
+443.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local B-tree leaf delete helpers, freelist planning, overflow page
+diagnostics, and pointer-map mutation machinery. Follow-up should broaden
+B-tree delete/rebalance materialization without repeating accepted root
+collapse, page relocation, index-interior merge, overflow freelist release,
+bulk overflow freeblocks, or this empty-leaf release path.

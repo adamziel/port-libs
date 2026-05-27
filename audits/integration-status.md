@@ -119603,3 +119603,45 @@ Candidate evidence:
 - Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T073941Z` still contains the accepted lane changes, so it is preserved as cleanup debt rather than removed.
 
 Decision: accepted this single source-moving libsqlite marker after focused checks, smoke, `git diff --check`, serialized root, and final ref publication gates remained clean. Dashboard publication should run next after the source move.
+## Integration accepted - libsqlite B-tree empty-leaf freelist release - 2026-05-27T07:59:01Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T074507Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before replay was `2a969f8b7de9f67da7ef94023a6c02fab71bfbdd` (`Integrate libsqlite VFS sync apply`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `2a969f8b7de9f67da7ef94023a6c02fab71bfbdd`, `generated` `2026-05-27 07:53:19 UTC`, and `dashboardCommit` `3e7b6ae7f13f0554862af06eead4785527ee0206`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- The marker was based on stale `920647e34c1b89994935892dbc81469924a09406`, but replay was bounded on clean current source `2a969f8b7de9f67da7ef94023a6c02fab71bfbdd`.
+- Implementation, test, example, and notes hunks applied cleanly; only `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` counters were stale and were reconciled from current source evidence.
+- A newer dependency-suite marker for durable VFS sync application was not selected because it overlaps the accepted `2a969f8b` VFS sync-apply cluster. The inspected VFS xAccess marker had focused-test and status/manifest conflicts, so this stronger storage behavior replay was selected instead.
+
+Focused verification:
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteBTreeEmptyLeafFreePlan.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/examples/wordpress-btree-empty-leaf-free.php` passed.
+- Manifest/status JSON decode passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 7951 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-btree-empty-leaf-free.php` passed and emitted valid JSON.
+- `git diff --check -- lanes/libsqlite audits/integration-status.md` passed before root verification.
+
+Runtime gate evidence before focused verification:
+- `df -Pk /` reported `85718860` KiB available, above the temporary `85000000` KiB floor.
+- `/proc/loadavg` one-minute load was `0.80`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\\.php$'` returned no exact no-argument root harness rows.
+
+Root verification:
+- Serialized no-argument root run under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR=$candidate/.tmp-root` passed: `215 test files, 33116 assertions, 0 failures`.
+
+Expected dashboard movement:
+- `SQLiteHeaderTest.php` focused assertions move from `7901` at `2a969f8b` to `7951`.
+- Committed libsqlite `phpPass` moves from `790` to `791`.
+- Mapped focused coverage moves from `443 / 1589` to `444 / 1589`.
+
+Decision: accepted after root passed; commit exactly this bounded B-tree empty-leaf freelist release slice, consume the accepted marker artifacts, and then stop for dashboard publication of the new source.
+
+Cleanup:
+- Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T074507Z` still contains modified lane files from the handed-off patch, so it was preserved and left registered as cleanup debt rather than removed.
