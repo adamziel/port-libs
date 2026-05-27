@@ -924,6 +924,158 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function upstreamRunnerHydrationGate(int $jobs = 1, ?string $repoRoot = null): array
+    {
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite upstream runner hydration jobs must be at least 1');
+        }
+
+        $denominator = $this->manifest['benchmarkDenominator'] ?? [];
+        $runner = is_array($denominator) && is_array($denominator['runnerStatus'] ?? null)
+            ? $denominator['runnerStatus']
+            : [];
+        $buildDirectory = is_string($runner['buildDirectory'] ?? null)
+            ? $runner['buildDirectory']
+            : '.upstream-cache/libsqlite-build-port-libsqlite';
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $sourceDirectory = $root . '/.upstream-cache/libsqlite';
+        $testDirectory = $sourceDirectory . '/test';
+        $buildPath = $root . '/' . $buildDirectory;
+        $testfixture = $buildPath . '/testfixture';
+        $testrunner = $testDirectory . '/testrunner.tcl';
+        $permutations = $testDirectory . '/permutations.test';
+        $makefile = $buildPath . '/Makefile';
+        $mptest = $sourceDirectory . '/mptest';
+
+        $inputs = [
+            'source_cache' => [
+                'path' => '.upstream-cache/libsqlite',
+                'ready' => is_dir($sourceDirectory),
+                'required_for' => ['focused', 'release-all', 'permutation-suites', 'make-test', 'mptest'],
+            ],
+            'test_directory' => [
+                'path' => '.upstream-cache/libsqlite/test',
+                'ready' => is_dir($testDirectory),
+                'required_for' => ['focused', 'release-all', 'permutation-suites'],
+            ],
+            'testrunner' => [
+                'path' => '.upstream-cache/libsqlite/test/testrunner.tcl',
+                'ready' => is_file($testrunner),
+                'required_for' => ['focused', 'release-all', 'permutation-suites'],
+            ],
+            'build_directory' => [
+                'path' => $buildDirectory,
+                'ready' => is_dir($buildPath),
+                'required_for' => ['focused', 'release-all', 'permutation-suites', 'make-test', 'mptest'],
+            ],
+            'testfixture' => [
+                'path' => $buildDirectory . '/testfixture',
+                'ready' => is_file($testfixture),
+                'executable' => is_file($testfixture) && is_executable($testfixture),
+                'required_for' => ['focused', 'release-all', 'permutation-suites'],
+            ],
+            'makefile' => [
+                'path' => $buildDirectory . '/Makefile',
+                'ready' => is_file($makefile),
+                'required_for' => ['make-test', 'mptest'],
+            ],
+            'permutation_source' => [
+                'path' => '.upstream-cache/libsqlite/test/permutations.test',
+                'ready' => is_file($permutations),
+                'required_for' => ['permutation-suites'],
+            ],
+            'mptest_directory' => [
+                'path' => '.upstream-cache/libsqlite/mptest',
+                'ready' => is_dir($mptest),
+                'required_for' => ['mptest'],
+            ],
+        ];
+
+        $missing = [];
+        foreach ($inputs as $id => $input) {
+            if (($input['ready'] ?? false) !== true) {
+                $missing[] = $input['path'];
+            }
+        }
+        if (($inputs['testfixture']['ready'] ?? false) === true && ($inputs['testfixture']['executable'] ?? false) !== true) {
+            $missing[] = $buildDirectory . '/testfixture executable bit';
+        }
+
+        $focusedReady = ($inputs['test_directory']['ready'] ?? false)
+            && ($inputs['testrunner']['ready'] ?? false)
+            && ($inputs['build_directory']['ready'] ?? false)
+            && ($inputs['testfixture']['ready'] ?? false)
+            && ($inputs['testfixture']['executable'] ?? false);
+        $releaseReady = $focusedReady;
+        $permutationReady = $releaseReady && ($inputs['permutation_source']['ready'] ?? false);
+        $makeReady = ($inputs['build_directory']['ready'] ?? false) && ($inputs['makefile']['ready'] ?? false);
+        $mptestReady = $makeReady && ($inputs['mptest_directory']['ready'] ?? false);
+
+        $commands = [
+            [
+                'id' => 'focused-veryquick-subset',
+                'runnable' => $focusedReady,
+                'command' => 'cd ' . $buildDirectory . ' && ./testfixture ../libsqlite/test/testrunner.tcl --jobs ' . $jobs . ' --stop-on-error veryquick <patterns>',
+                'missing' => $this->missingHydrationGatePaths($inputs, ['test_directory', 'testrunner', 'build_directory', 'testfixture']),
+            ],
+            [
+                'id' => 'release-all',
+                'runnable' => $releaseReady,
+                'command' => 'cd ' . $buildDirectory . ' && ./testfixture ../libsqlite/test/testrunner.tcl --jobs ' . $jobs . ' --stop-on-error all',
+                'missing' => $this->missingHydrationGatePaths($inputs, ['test_directory', 'testrunner', 'build_directory', 'testfixture']),
+            ],
+            [
+                'id' => 'permutation-suites',
+                'runnable' => $permutationReady,
+                'command' => $permutationReady ? 'parse permutations.test and run each declared suite with --jobs ' . $jobs : null,
+                'missing' => $this->missingHydrationGatePaths($inputs, ['test_directory', 'testrunner', 'build_directory', 'testfixture', 'permutation_source']),
+            ],
+            [
+                'id' => 'make-test',
+                'runnable' => $makeReady,
+                'command' => 'make -C ' . $buildDirectory . ' test',
+                'missing' => $this->missingHydrationGatePaths($inputs, ['build_directory', 'makefile']),
+            ],
+            [
+                'id' => 'mptest',
+                'runnable' => $mptestReady,
+                'command' => 'make -C ' . $buildDirectory . ' mptest',
+                'missing' => $this->missingHydrationGatePaths($inputs, ['build_directory', 'makefile', 'mptest_directory']),
+            ],
+        ];
+
+        $runnable = 0;
+        foreach ($commands as $command) {
+            if (($command['runnable'] ?? false) === true) {
+                $runnable++;
+            }
+        }
+
+        return [
+            'status' => $missing === [] ? 'hydrated' : ($runnable > 0 ? 'partially-hydrated' : 'blocked-missing-hydration'),
+            'jobs' => $jobs,
+            'root' => $root,
+            'build_directory' => $buildDirectory,
+            'input_count' => count($inputs),
+            'ready_input_count' => count($inputs) - count(array_filter($inputs, static fn (array $input): bool => ($input['ready'] ?? false) !== true)),
+            'missing_count' => count($missing),
+            'missing' => array_values(array_unique($missing)),
+            'inputs' => $inputs,
+            'command_count' => count($commands),
+            'runnable_command_count' => $runnable,
+            'blocked_command_count' => count($commands) - $runnable,
+            'commands' => $commands,
+            'next_gate' => $missing === []
+                ? 'bounded runner commands are hydrated; launch only through supervisor-approved duplicate-runner gates and count resulting artifacts by provenance'
+                : 'hydrate the missing upstream source/build inputs before claiming release/all runner readiness',
+            'dependency_closure' => 'no new support component needed; hydration gate uses only filesystem readiness for the existing SQLite checkout, build tree, testfixture, and harness files',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function broadSuiteLaunchGate(
         string $processSnapshot,
         bool $supervisorApproved = false,
@@ -3064,6 +3216,30 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return $missing;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $inputs
+     * @param list<string> $ids
+     * @return list<string>
+     */
+    private function missingHydrationGatePaths(array $inputs, array $ids): array
+    {
+        $missing = [];
+        foreach ($ids as $id) {
+            $input = $inputs[$id] ?? null;
+            if (!is_array($input)) {
+                continue;
+            }
+            if (($input['ready'] ?? false) !== true && is_string($input['path'] ?? null)) {
+                $missing[] = $input['path'];
+            }
+            if ($id === 'testfixture' && ($input['ready'] ?? false) === true && ($input['executable'] ?? false) !== true) {
+                $missing[] = (is_string($input['path'] ?? null) ? $input['path'] : 'testfixture') . ' executable bit';
+            }
+        }
+
+        return array_values(array_unique($missing));
     }
 
     private function extractMarkdownHeadingLabel(string $text): ?string
