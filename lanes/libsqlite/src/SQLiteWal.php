@@ -1149,6 +1149,60 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{mode:string,status:string,current_reader_end_frame:int|null,next_reader_end_frame:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,current_reader_kept_snapshot:bool,next_reader_uses_database:bool,next_reader_uses_restarted_wal:bool,transition:array<string,mixed>,dependencies:list<string>}
+     */
+    public function restartReadMarkReaderMapTransition(string $databaseBytes, SQLiteShmIndex $shm, array $pageNumbers, string $mode = 'restart'): array
+    {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL restart reader map requires at least one page number');
+        }
+
+        $transition = $this->restartReadMarkTransition($databaseBytes, $shm, $mode);
+        $nextWal = null;
+        if ($transition['checkpoint']['wal_bytes'] !== '') {
+            $nextWal = self::parse($transition['checkpoint']['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+        }
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL restart reader map pages must be integers');
+            }
+
+            $current[] = $transition['current_reader_end_frame'] === null
+                ? self::databasePageVisibilityOrError($databaseBytes, $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($this, $databaseBytes, $pageNumber, $transition['current_reader_end_frame']);
+            $next[] = $nextWal === null || $transition['next_wal_frame_count'] === 0
+                ? self::databasePageVisibilityOrError($transition['checkpoint']['database_bytes'], $this->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($nextWal, $transition['checkpoint']['database_bytes'], $pageNumber, $transition['next_wal_frame_count']);
+        }
+
+        return [
+            'mode' => $transition['mode'],
+            'status' => $transition['status'],
+            'current_reader_end_frame' => $transition['current_reader_end_frame'],
+            'next_reader_end_frame' => $transition['next_wal_frame_count'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => array_map(static fn (array $entry): string => (string) ($entry['source'] ?? 'error'), $current),
+            'next_reader_sources' => array_map(static fn (array $entry): string => (string) ($entry['source'] ?? 'error'), $next),
+            'current_reader_frame_indexes' => array_map(static fn (array $entry): ?int => $entry['frame_index'] ?? null, $current),
+            'next_reader_frame_indexes' => array_map(static fn (array $entry): ?int => $entry['frame_index'] ?? null, $next),
+            'current_reader_errors' => array_values(array_map(static fn (array $entry): string => (string) $entry['error'], array_filter($current, static fn (array $entry): bool => isset($entry['error'])))),
+            'next_reader_errors' => array_values(array_map(static fn (array $entry): string => (string) $entry['error'], array_filter($next, static fn (array $entry): bool => isset($entry['error'])))),
+            'current_reader_kept_snapshot' => $transition['current_reader_kept_snapshot'],
+            'next_reader_uses_database' => $transition['next_reader_uses_database'],
+            'next_reader_uses_restarted_wal' => $transition['next_reader_uses_restarted_wal'],
+            'transition' => $transition,
+            'dependencies' => array_values(array_unique(array_merge($transition['dependencies'], [
+                'wal-checkpoint-restart-reader-map-current-next37',
+            ]))),
+        ];
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string}
      */
     public function readerPageImage(string $databaseBytes, int $pageNumber): array

@@ -11808,6 +11808,11 @@ final class SQLiteDatabase
         return $this->overflowPageNumbers($firstOverflowPage, $byteCount);
     }
 
+    public function readOverflowPayloadForBtreePlan(int $firstOverflowPage, int $byteCount): string
+    {
+        return $this->readOverflowPayload($firstOverflowPage, $byteCount);
+    }
+
     /**
      * @return list<int>
      */

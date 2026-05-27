@@ -59,6 +59,7 @@ final class SQLiteBTreeRootCollapsePlan
         }
 
         $collapsedRootPage = self::copyBtreePageToRoot(
+            $database,
             $childPage,
             $childHeader,
             $rootPage,
@@ -67,7 +68,13 @@ final class SQLiteBTreeRootCollapsePlan
             $usableSize,
         );
         $collapsedHeader = SQLiteBTreePageHeader::parsePage($collapsedRootPage, $pageSize, $rootHeaderOffset);
-        $childPageNumbers = self::childPointers($collapsedRootPage, $collapsedHeader, $usableSize);
+        $childPageNumbers = self::childPointers($database, $collapsedRootPage, $collapsedHeader, $usableSize);
+        $firstOverflowPageNumbers = self::firstOverflowPointers(
+            $database,
+            $collapsedRootPage,
+            $collapsedHeader,
+            $usableSize,
+        );
 
         $freePlan = $database->planPageFree($childPageNumber, $secureDelete);
         $pageImages = $freePlan->pageImages();
@@ -77,6 +84,15 @@ final class SQLiteBTreeRootCollapsePlan
         foreach ($childPageNumbers as $grandchildPageNumber) {
             $pointerMapUpdates[$grandchildPageNumber] = [
                 'type' => SQLitePointerMapEntry::BTREE_PAGE,
+                'parent_page_number' => $rootPageNumber,
+            ];
+        }
+        foreach ($firstOverflowPageNumbers as $firstOverflowPageNumber) {
+            if ($database->pointerMapPageFor($firstOverflowPageNumber) === null) {
+                continue;
+            }
+            $pointerMapUpdates[$firstOverflowPageNumber] = [
+                'type' => SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE,
                 'parent_page_number' => $rootPageNumber,
             ];
         }
@@ -157,6 +173,7 @@ final class SQLiteBTreeRootCollapsePlan
     }
 
     private static function copyBtreePageToRoot(
+        SQLiteDatabase $database,
         string $sourcePage,
         SQLiteBTreePageHeader $sourceHeader,
         string $rootBasePage,
@@ -164,7 +181,7 @@ final class SQLiteBTreeRootCollapsePlan
         int $pageSize,
         int $usableSize,
     ): string {
-        $cells = self::rawCells($sourcePage, $sourceHeader, $usableSize);
+        $cells = self::rawCells($database, $sourcePage, $sourceHeader, $usableSize);
 
         return match ($sourceHeader->pageType) {
             'table-leaf' => SQLiteTableLeafPage::assemble($cells, $pageSize, $rootHeaderOffset, $rootBasePage, $usableSize),
@@ -192,12 +209,14 @@ final class SQLiteBTreeRootCollapsePlan
     /**
      * @return list<string>
      */
-    private static function rawCells(string $page, SQLiteBTreePageHeader $header, int $usableSize): array
+    private static function rawCells(SQLiteDatabase $database, string $page, SQLiteBTreePageHeader $header, int $usableSize): array
     {
+        $overflowReader = static fn (int $firstOverflowPage, int $byteCount): string => $database->readOverflowPayloadForBtreePlan($firstOverflowPage, $byteCount);
+
         return match ($header->pageType) {
             'table-leaf' => array_map(
                 static fn (SQLiteTableLeafCell $cell): string => substr($page, $cell->offset, $cell->bytesRead),
-                SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize),
+                SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader),
             ),
             'table-interior' => array_map(
                 static fn (SQLiteTableInteriorCell $cell): string => substr($page, $cell->offset, $cell->bytesRead),
@@ -205,7 +224,7 @@ final class SQLiteBTreeRootCollapsePlan
             ),
             'index-leaf', 'index-interior' => array_map(
                 static fn (SQLiteIndexCell $cell): string => substr($page, $cell->offset, $cell->bytesRead),
-                SQLiteIndexCell::parsePageCells($page, $header, $usableSize),
+                SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader),
             ),
             default => throw new \InvalidArgumentException('SQLite b-tree root collapse cannot read cells for this page type'),
         };
@@ -214,7 +233,7 @@ final class SQLiteBTreeRootCollapsePlan
     /**
      * @return list<int>
      */
-    private static function childPointers(string $page, SQLiteBTreePageHeader $header, int $usableSize): array
+    private static function childPointers(SQLiteDatabase $database, string $page, SQLiteBTreePageHeader $header, int $usableSize): array
     {
         if ($header->pageType === 'table-interior') {
             $children = array_map(
@@ -227,8 +246,9 @@ final class SQLiteBTreeRootCollapsePlan
         }
 
         if ($header->pageType === 'index-interior') {
+            $overflowReader = static fn (int $firstOverflowPage, int $byteCount): string => $database->readOverflowPayloadForBtreePlan($firstOverflowPage, $byteCount);
             $children = [];
-            foreach (SQLiteIndexCell::parsePageCells($page, $header, $usableSize) as $cell) {
+            foreach (SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader) as $cell) {
                 if ($cell->leftChildPage === null) {
                     throw new \InvalidArgumentException('SQLite b-tree root collapse found an index interior cell without a child pointer');
                 }
@@ -240,6 +260,35 @@ final class SQLiteBTreeRootCollapsePlan
         }
 
         return [];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private static function firstOverflowPointers(
+        SQLiteDatabase $database,
+        string $page,
+        SQLiteBTreePageHeader $header,
+        int $usableSize,
+    ): array {
+        $overflowReader = static fn (int $firstOverflowPage, int $byteCount): string => $database->readOverflowPayloadForBtreePlan($firstOverflowPage, $byteCount);
+        $firstOverflowPages = [];
+
+        if ($header->pageType === 'table-leaf') {
+            foreach (SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader) as $cell) {
+                if ($cell->firstOverflowPage !== null) {
+                    $firstOverflowPages[] = $cell->firstOverflowPage;
+                }
+            }
+        } elseif ($header->pageType === 'index-leaf' || $header->pageType === 'index-interior') {
+            foreach (SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader) as $cell) {
+                if ($cell->firstOverflowPage !== null) {
+                    $firstOverflowPages[] = $cell->firstOverflowPage;
+                }
+            }
+        }
+
+        return array_values(array_unique($firstOverflowPages));
     }
 
     private static function requireRightMostPointer(SQLiteBTreePageHeader $header): int

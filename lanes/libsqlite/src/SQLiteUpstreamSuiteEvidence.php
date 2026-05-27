@@ -4447,6 +4447,169 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<string, list<string>> $focusedGroups
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerUpstreamGapProofCurrentNext37(
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        string $artifactDirectory,
+        array $focusedGroups,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?string $repoRoot = null,
+        string $processSnapshot = '',
+        int $jobs = 2
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite release-runner upstream gap proof requires current and next accepted HEAD values');
+        }
+        if ($artifactDirectory === '') {
+            throw new \InvalidArgumentException('SQLite release-runner upstream gap proof requires an artifact directory');
+        }
+        if ($focusedGroups === []) {
+            throw new \InvalidArgumentException('SQLite release-runner upstream gap proof requires at least one focused subset group');
+        }
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite release-runner upstream gap proof jobs must be at least 1');
+        }
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $current = $this->acceptedHeadArtifactProvenanceDirectoryRecord(
+            $artifactDirectory,
+            $currentAcceptedHead,
+            $processSnapshot
+        );
+        $next = $this->acceptedHeadArtifactProvenanceDirectoryRecord(
+            $artifactDirectory,
+            $nextAcceptedHead,
+            $processSnapshot
+        );
+        $subsets = $this->focusedSubsetMatrix($focusedGroups, $jobs, $root);
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $runnableGroups = [];
+        $blockedGroups = [];
+        $scriptNames = [];
+        foreach ($subsets as $name => $subset) {
+            $missingScripts = [];
+            foreach (is_array($subset['scripts'] ?? null) ? $subset['scripts'] : [] as $script) {
+                if (is_string($script)) {
+                    $scriptNames[$script] = true;
+                    if (!is_file($root . '/.upstream-cache/libsqlite/test/' . $script)) {
+                        $missingScripts[] = $script;
+                    }
+                }
+            }
+
+            if (($subset['runnable'] ?? false) === true && $missingScripts === []) {
+                $runnableGroups[] = $name;
+            } else {
+                $blockedGroups[] = $name;
+            }
+            if ($missingScripts !== []) {
+                $subsets[$name]['runnable'] = false;
+                $subsets[$name]['status'] = 'skipped';
+                $subsets[$name]['skip_reason'] = 'focused subset scripts missing from hydrated test directory: ' . implode(', ', $missingScripts);
+                $subsets[$name]['missing_scripts'] = $missingScripts;
+            }
+        }
+        sort($runnableGroups);
+        sort($blockedGroups);
+        $scriptNames = array_keys($scriptNames);
+        sort($scriptNames);
+
+        $currentCount = (int) ($current['current_accepted_count'] ?? 0);
+        $nextCount = (int) ($next['current_accepted_count'] ?? 0);
+        $blockers = [];
+        if ($currentCount < 1) {
+            $blockers[] = [
+                'id' => 'current-accepted-artifact-missing',
+                'evidence' => 'no countable zero-error bounded runner artifact matches the current accepted source',
+            ];
+        }
+        if ($nextCount > 0) {
+            $blockers[] = [
+                'id' => 'next-source-artifact-already-countable',
+                'evidence' => 'a countable bounded runner artifact already matches the next accepted source; do not launch a duplicate',
+            ];
+        }
+        if ($blockedGroups !== []) {
+            $blockers[] = [
+                'id' => 'focused-subset-hydration-blocked',
+                'evidence' => 'one or more explicit focused upstream subsets cannot be launched from the hydrated runner tree',
+                'blocked_groups' => $blockedGroups,
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockers[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+                'active_tiers' => $active['active_tiers'] ?? [],
+            ];
+        }
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+
+        $status = $blockers === []
+            ? 'current-artifact-gap-proof-next-ready'
+            : ($currentCount > 0 && $nextCount === 0 ? 'current-artifact-preserved-next-blocked' : 'blocked');
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'artifact_directory' => $artifactDirectory,
+            'root' => $root,
+            'jobs' => $jobs,
+            'current_artifact_count' => (int) ($current['artifact_count'] ?? 0),
+            'current_accepted_artifact_count' => $currentCount,
+            'current_blocked_count' => (int) ($current['blocked_count'] ?? 0),
+            'next_artifact_count' => (int) ($next['artifact_count'] ?? 0),
+            'next_accepted_artifact_count' => $nextCount,
+            'next_blocked_count' => (int) ($next['blocked_count'] ?? 0),
+            'focused_group_count' => count($subsets),
+            'focused_runnable_group_count' => count($runnableGroups),
+            'focused_blocked_group_count' => count($blockedGroups),
+            'focused_runnable_groups' => $runnableGroups,
+            'focused_blocked_groups' => $blockedGroups,
+            'focused_script_count' => count($scriptNames),
+            'focused_scripts' => $scriptNames,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'counts_current_artifact_only' => $currentCount > 0 && $nextCount === 0,
+            'ready_to_launch_next_guarded_runner' => $status === 'current-artifact-gap-proof-next-ready',
+            'counts_next_artifact' => false,
+            'current' => $current,
+            'next' => $next,
+            'focused_subsets' => $subsets,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'next_gate' => match ($status) {
+                'current-artifact-gap-proof-next-ready' => 'launch at most one guarded next-source runner for these explicit focused subsets, then count only zero-error artifacts with matching next-source provenance',
+                'current-artifact-preserved-next-blocked' => 'preserve current accepted artifact evidence while repairing focused subset hydration, duplicate-runner, next-artifact, or PHP admission blockers',
+                default => 'repair current artifact provenance before proving the next-source upstream runner gap',
+            },
+            'dependency_closure' => 'no new support component needed; current-next37 gap proof composes accepted-HEAD artifact provenance, explicit focused subset hydration, duplicate-runner gates, and focused PHP PASS admission only',
+        ];
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRecords
      * @return array<string, mixed>
      */
