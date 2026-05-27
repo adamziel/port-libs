@@ -4224,3 +4224,24 @@ filtering, grouped aggregate execution, and JSON row materialization. Follow-up
 should broaden virtual-table planner/VDBE cursor integration without repeating
 accepted JSON cursor, literal function-source SELECT wiring, host joins,
 LIMIT/OFFSET, window ranking, or duplicate hidden-constraint planning.
+
+## B-tree Index-Interior Merge Apply Scenario
+
+Copied WordPress repair tooling can now apply an index-interior sibling merge
+directly after delete underflow. The smoke
+`examples/wordpress-index-interior-merge-apply.php` reports merged
+`wp_options` autoload-index parent cells, obsolete sibling freelist release,
+and auto-vacuum pointer-map ownership rewrites for children that moved from
+the freed sibling into the merged parent without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree slice: extended
+`SQLiteBTreeInteriorMergePlan` with index-interior sibling merge
+materialization and reused `SQLiteBTreeInteriorMergeApplicationPlan` for
+freelist and pointer-map application. Focused `SQLiteHeaderTest.php` passed at
+6863 assertions, +70 over the current accepted 6793 assertion baseline.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local index interior cell/page assembly, freelist page-free planning, and
+auto-vacuum pointer-map mutation. Follow-up should target B-tree freeblock,
+freelist, or delete/rebalance apply behavior that is not covered by accepted
+page moves, table-interior merge, or this index-interior merge application.

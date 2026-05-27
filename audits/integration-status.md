@@ -119190,3 +119190,31 @@ Final gate:
 Cleanup:
 - Removed accepted ready marker, patch, and metadata files for `port-dev-libsqlite-sql-exec-20260527T044558Z` after commit reached `refs/heads/main`.
 - Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T044558Z` because it still contains modified and added accepted files; cleanup debt remains for a later non-destructive prune after the worker state is safe.
+## Integration accepted - libsqlite B-tree index-interior merge apply - 2026-05-27T05:03:27Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-btree-20260527T045343Z.ready`.
+
+Decision: accepted for serialized root verification and commit from a detached clean worktree at current `refs/heads/main` `1fce4904a47d45302fd0050934a58b08f7c2c1d9` after bounded replay.
+
+Dashboard guard evidence:
+- Cache-busted live Pages reported `sourceCommit` `1fce4904a47d45302fd0050934a58b08f7c2c1d9`, generated `2026-05-27 04:58:54 UTC`, matching local `refs/heads/main`.
+- No Pages-outage integration exception was used.
+
+Candidate evidence:
+- Whole patch was older-base and failed only on `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`; implementation, test, example, and notes hunks applied cleanly in the detached candidate.
+- Adds `SQLiteBTreeInteriorMergePlan::indexInterior()` behavior for index-interior sibling merge application after delete underflow.
+- Adds copied WordPress smoke `lanes/libsqlite/examples/wordpress-index-interior-merge-apply.php`.
+- Reconciles current-source status/manifest evidence to mapped coverage `432 / 1589`; `phpPass` remains `775`.
+
+Verification before root:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 6863 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-index-interior-merge-apply.php` passed.
+- `php -l` passed for `SQLiteBTreeInteriorMergePlan.php`, `SQLiteHeaderTest.php`, and `wordpress-index-interior-merge-apply.php`.
+- `git diff --check` passed.
+
+Serialized root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 32028 assertions, 0 failures`.
+
+Cleanup:
+- Removed accepted ready marker, patch, and metadata files after `34a367be8a498e3352c1f2486ee88cbf45755497` was safely on `refs/heads/main`.
+- Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T045343Z` because it still reports modified/added libsqlite files matching the accepted handoff; no forced cleanup was used.
