@@ -24712,6 +24712,98 @@ SQL;
         $t->same(null, $divideByZeroRows[0]['div_zero']);
         $t->same(null, $divideByZeroRows[0]['mod_zero']);
 
+        $parameterRows = SQLiteSelectSql::execute(
+            'SELECT option_id, option_name || :suffix AS label, bytes + ? AS bumped FROM wp_options WHERE autoload = :autoload AND bytes BETWEEN ?2 AND @max_bytes ORDER BY bumped DESC, label LIMIT $limit',
+            ['wp_options' => $options],
+            [
+                0 => 1,
+                1 => 9,
+                ':suffix' => ':bound',
+                '@max_bytes' => 24,
+                '$limit' => 3,
+                'autoload' => 'yes',
+            ],
+        );
+        $t->same(3, count($parameterRows));
+        $t->same([2, 1, 3], array_column($parameterRows, 'option_id'));
+        $t->same(['home:bound', 'siteurl:bound', 'blogname:bound'], array_column($parameterRows, 'label'));
+        $t->same([25, 25, 10], array_column($parameterRows, 'bumped'));
+        $t->same(['option_id', 'label', 'bumped'], array_keys($parameterRows[0]));
+        $t->same('home:bound', $parameterRows[0]['label']);
+        $t->same(25, $parameterRows[0]['bumped']);
+        $t->same('siteurl:bound', $parameterRows[1]['label']);
+        $t->same('blogname:bound', $parameterRows[2]['label']);
+
+        $parameterPlan = SQLiteSelectSql::plan(
+            'SELECT option_name AS name, ?1 AS first_value, ? AS next_value, :named AS named_value, @flag AS bool_value, $missing AS null_value, ?3 AS blob_value FROM wp_options WHERE option_id = ?4',
+            ['wp_options' => $options],
+            [
+                1 => 'first',
+                2 => 'second',
+                3 => new SQLiteBlobValue('AB'),
+                4 => 1,
+                'named' => "Bob's option",
+                '@flag' => true,
+                '$missing' => null,
+            ],
+        );
+        $t->same(['from', 'select', 'where'], array_keys($parameterPlan));
+        $t->same('first', $parameterPlan['select'][1]['value']);
+        $t->same('second', $parameterPlan['select'][2]['value']);
+        $t->same("Bob's option", $parameterPlan['select'][3]['value']);
+        $t->same(1, $parameterPlan['select'][4]['value']);
+        $t->same(null, $parameterPlan['select'][5]['value']);
+        $t->same(SQLiteBlobValue::class, get_class($parameterPlan['select'][6]['value']));
+        $t->same('AB', $parameterPlan['select'][6]['value']->bytes);
+        $t->same(1, $parameterPlan['where']['right']['value']);
+        $parameterPlanRows = SQLiteSelectQuery::execute($parameterPlan);
+        $t->same(1, count($parameterPlanRows));
+        $t->same('siteurl', $parameterPlanRows[0]['name']);
+        $t->same('first', $parameterPlanRows[0]['first_value']);
+        $t->same('second', $parameterPlanRows[0]['next_value']);
+        $t->same("Bob's option", $parameterPlanRows[0]['named_value']);
+        $t->same(1, $parameterPlanRows[0]['bool_value']);
+        $t->same(null, $parameterPlanRows[0]['null_value']);
+        $t->same('AB', $parameterPlanRows[0]['blob_value']->bytes);
+
+        $quotedParameterRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name, ':not_bound' AS literal_token FROM wp_options WHERE option_name = ?",
+            ['wp_options' => $options],
+            ['siteurl'],
+        );
+        $t->same(1, count($quotedParameterRows));
+        $t->same('siteurl', $quotedParameterRows[0]['name']);
+        $t->same(':not_bound', $quotedParameterRows[0]['literal_token']);
+
+        $parameterSubqueryRows = SQLiteSelectSql::execute(
+            'SELECT option_id, option_name AS name FROM wp_options WHERE EXISTS (SELECT meta_key FROM option_meta WHERE meta_option_id = option_id AND meta_key = :meta_key) ORDER BY option_id LIMIT ?',
+            ['wp_options' => $options, 'option_meta' => [['meta_option_id' => 1, 'meta_key' => 'public'], ['meta_option_id' => 3, 'meta_key' => 'public'], ['meta_option_id' => 5, 'meta_key' => 'plugin']]],
+            [':meta_key' => 'public', 0 => 2],
+        );
+        $t->same(2, count($parameterSubqueryRows));
+        $t->same([1, 3], array_column($parameterSubqueryRows, 'option_id'));
+        $t->same(['siteurl', 'blogname'], array_column($parameterSubqueryRows, 'name'));
+
+        $parameterJsonRows = SQLiteSelectSql::execute(
+            'SELECT key, atom FROM json_tree(:settings, @root) WHERE type = $type ORDER BY key LIMIT ?',
+            [],
+            [
+                ':settings' => '{"plugin":{"enabled":true,"priority":7,"name":"cache"}}',
+                '@root' => '$.plugin',
+                '$type' => 'integer',
+                0 => 1,
+            ],
+        );
+        $t->same(1, count($parameterJsonRows));
+        $t->same('priority', $parameterJsonRows[0]['key']);
+        $t->same(7, $parameterJsonRows[0]['atom']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT ? FROM wp_options', ['wp_options' => $options], []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT :missing FROM wp_options', ['wp_options' => $options], ['other' => 1]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT ?0 FROM wp_options', ['wp_options' => $options], [0 => 1]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT ? FROM wp_options', ['wp_options' => $options], [0 => []]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT ':unterminated FROM wp_options WHERE option_id = ?", ['wp_options' => $options], [1]));
+
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each()', []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT key FROM json_each('[1]', '$', '$.extra')", []));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT key FROM json_each(7)', []));

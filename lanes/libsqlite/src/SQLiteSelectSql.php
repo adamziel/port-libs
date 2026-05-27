@@ -10,9 +10,9 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return list<array<string,mixed>>
      */
-    public static function execute(string $sql, array $tables): array
+    public static function execute(string $sql, array $tables, array $parameters = []): array
     {
-        $plan = self::plan($sql, $tables);
+        $plan = self::plan($sql, $tables, $parameters);
         if (isset($plan['compound']) && is_array($plan['compound'])) {
             return self::executeCompoundPlan($plan);
         }
@@ -26,9 +26,12 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,mixed>
      */
-    public static function plan(string $sql, array $tables): array
+    public static function plan(string $sql, array $tables, array $parameters = []): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
+        if ($parameters !== []) {
+            $sql = self::bindParameters($sql, $parameters);
+        }
         if (preg_match('/^with\s+/i', $sql) === 1) {
             [$tables, $sql, $cteNames] = self::materializeWithTables($sql, $tables);
         } else {
@@ -110,6 +113,126 @@ final class SQLiteSelectSql
         }
 
         return $plan;
+    }
+
+    /**
+     * @param array<int|string,mixed> $parameters
+     */
+    private static function bindParameters(string $sql, array $parameters): string
+    {
+        $result = '';
+        $length = strlen($sql);
+        $quote = false;
+        $positionalIndex = 1;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $result .= $char;
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $result .= "'";
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                $result .= $char;
+                continue;
+            }
+
+            if ($char === '?') {
+                $start = $i + 1;
+                while ($start < $length && ctype_digit($sql[$start])) {
+                    $start++;
+                }
+                $token = substr($sql, $i, $start - $i);
+                if ($token === '?') {
+                    $index = $positionalIndex++;
+                    $explicit = false;
+                } else {
+                    $index = (int) substr($token, 1);
+                    $positionalIndex = max($positionalIndex, $index + 1);
+                    $explicit = true;
+                }
+                if ($index < 1) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL positional bind parameter index must be positive');
+                }
+                $result .= self::parameterLiteral(self::parameterValue($parameters, $index, $token, $explicit));
+                $i = $start - 1;
+                continue;
+            }
+
+            if (($char === ':' || $char === '@' || $char === '$') && preg_match('/[A-Za-z_]/', $sql[$i + 1] ?? '') === 1) {
+                $start = $i + 2;
+                while ($start < $length && preg_match('/[A-Za-z0-9_]/', $sql[$start]) === 1) {
+                    $start++;
+                }
+                $token = substr($sql, $i, $start - $i);
+                $result .= self::parameterLiteral(self::parameterValue($parameters, substr($token, 1), $token));
+                $i = $start - 1;
+                continue;
+            }
+
+            $result .= $char;
+        }
+        if ($quote) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL has unterminated string literal');
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<int|string,mixed> $parameters
+     */
+    private static function parameterValue(array $parameters, int|string $key, string $token, bool $explicit = false): mixed
+    {
+        if (is_int($key)) {
+            $zeroBased = $key - 1;
+            if (!$explicit && $key === 1 && array_key_exists($zeroBased, $parameters)) {
+                return $parameters[$zeroBased];
+            }
+            if (array_key_exists($key, $parameters)) {
+                return $parameters[$key];
+            }
+            if (array_key_exists($zeroBased, $parameters)) {
+                return $parameters[$zeroBased];
+            }
+        } else {
+            foreach ([$key, ':' . $key, '@' . $key, '$' . $key] as $candidate) {
+                if (array_key_exists($candidate, $parameters)) {
+                    return $parameters[$candidate];
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException("SQLite SELECT SQL bind parameter {$token} is missing");
+    }
+
+    private static function parameterLiteral(mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return "X'" . bin2hex($value->bytes) . "'";
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value) || is_float($value)) {
+            if (!is_finite((float) $value)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL bind parameter must be finite');
+            }
+
+            return (string) $value;
+        }
+        if (is_string($value)) {
+            return "'" . str_replace("'", "''", $value) . "'";
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT SQL bind parameters must be scalar, BLOB, or NULL');
     }
 
     /**
