@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 19:50:53 UTC",
-    "sourceCommit": "2526c99030a288ad50fc53257065420d1dcd6b85",
-    "sourceCommitShort": "2526c99030a2",
+    "generated": "2026-05-27 20:00:13 UTC",
+    "sourceCommit": "28488284c6b42b08db024e7e34c788f71b24a201",
+    "sourceCommitShort": "28488284c6b4",
     "sourceBranch": "main",
-    "dashboardCommit": "102330d42710ea3f932a577654c6d86b042f6329",
-    "dashboardCommitShort": "102330d42710",
+    "dashboardCommit": "9dc32284a429a32090cb8a4b7444abaf73c2aba7",
+    "dashboardCommitShort": "9dc32284a429",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "458",
-            "coverage": "458 / 1589",
-            "php": "8166 pass / 0 fail",
+            "mapped": "461",
+            "coverage": "461 / 1589",
+            "php": "8739 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch21 clean subset accepted in implemen...",
-            "currentWork": "Accepted batch21 closure over SELECT window aggregate FILTER execution, nested JSON table...",
-            "nextTarget": "Publish batch21 dashboard status, consume the accepted handoffs, keep 10-11 libsqlite wor...",
-            "blocker": "No blocker for the accepted batch21 subset: focused, full libsqlite, and...",
-            "commit": "508ffa0"
+            "audit": "Batch23 clean subset accepted in implemen...",
+            "currentWork": "Accepted batch23 closure over ATTACH temp/VFS open planning, upstream expression evidence...",
+            "nextTarget": "Publish batch23 dashboard status, consume accepted handoffs, keep 10-11 libsqlite workers...",
+            "blocker": "No blocker for the accepted batch23 subset: focused, full libsqlite, and...",
+            "commit": "d1c45b1"
         },
         {
             "library": "LightningCSS",
