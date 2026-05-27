@@ -19916,6 +19916,107 @@ SQL;
         $t->same(null, $plannedRows[0]['missing_value']);
         $t->same('_transient_feed', $plannedRows[1]['name']);
 
+        $expressionOrderRows = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name AS name, autoload FROM wp_options ORDER BY coalesce(autoload, 'zz') ASC, length(option_name) DESC, lower(option_name) ASC LIMIT 5",
+            ['wp_options' => $options],
+        );
+        $t->same(5, count($expressionOrderRows));
+        $t->same([5, 4, 3, 1, 2], array_column($expressionOrderRows, 'option_id'));
+        $t->same(['_site_transient_update_plugins', '_transient_feed', 'blogname', 'siteurl', 'home'], array_column($expressionOrderRows, 'name'));
+        $t->same(['no', 'no', 'yes', 'yes', 'yes'], array_column($expressionOrderRows, 'autoload'));
+        $t->same(['option_id', 'name', 'autoload'], array_keys($expressionOrderRows[0]));
+        $t->same(5, $expressionOrderRows[0]['option_id']);
+        $t->same('_site_transient_update_plugins', $expressionOrderRows[0]['name']);
+        $t->same('no', $expressionOrderRows[0]['autoload']);
+        $t->same(4, $expressionOrderRows[1]['option_id']);
+        $t->same('_transient_feed', $expressionOrderRows[1]['name']);
+        $t->same('no', $expressionOrderRows[1]['autoload']);
+        $t->same(3, $expressionOrderRows[2]['option_id']);
+        $t->same('blogname', $expressionOrderRows[2]['name']);
+        $t->same('yes', $expressionOrderRows[2]['autoload']);
+        $t->same(1, $expressionOrderRows[3]['option_id']);
+        $t->same('siteurl', $expressionOrderRows[3]['name']);
+        $t->same('yes', $expressionOrderRows[3]['autoload']);
+        $t->same(2, $expressionOrderRows[4]['option_id']);
+        $t->same('home', $expressionOrderRows[4]['name']);
+        $t->same('yes', $expressionOrderRows[4]['autoload']);
+        $t->same(false, array_key_exists('__sqlite_order_expr_0', $expressionOrderRows[0]));
+        $t->same(false, array_key_exists('__sqlite_order_expr_1', $expressionOrderRows[0]));
+        $t->same(false, array_key_exists('__sqlite_order_expr_2', $expressionOrderRows[0]));
+
+        $literalOrderRows = SQLiteSelectSql::execute(
+            "SELECT option_name AS name FROM wp_options ORDER BY 1 ASC, lower(option_name) DESC LIMIT 3",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($literalOrderRows));
+        $t->same(['siteurl', 'orphaned', 'home'], array_column($literalOrderRows, 'name'));
+        $t->same(['name'], array_keys($literalOrderRows[0]));
+        $t->same('siteurl', $literalOrderRows[0]['name']);
+        $t->same('orphaned', $literalOrderRows[1]['name']);
+        $t->same('home', $literalOrderRows[2]['name']);
+        $t->same(false, array_key_exists('__sqlite_order_expr_0', $literalOrderRows[0]));
+        $t->same(false, array_key_exists('__sqlite_order_expr_1', $literalOrderRows[0]));
+
+        $expressionOrderPlan = SQLiteSelectSql::plan(
+            "SELECT option_name AS name FROM wp_options ORDER BY length(option_name) DESC, lower(option_name)",
+            ['wp_options' => $options],
+        );
+        $t->same(['from', 'select', 'orderBy'], array_keys($expressionOrderPlan));
+        $t->same(3, count($expressionOrderPlan['select']));
+        $t->same('option_name', $expressionOrderPlan['select'][0]['name']);
+        $t->same('name', $expressionOrderPlan['select'][0]['alias']);
+        $t->same('function', $expressionOrderPlan['select'][1]['type']);
+        $t->same('length', $expressionOrderPlan['select'][1]['name']);
+        $t->same('__sqlite_order_expr_0', $expressionOrderPlan['select'][1]['alias']);
+        $t->true($expressionOrderPlan['select'][1]['hiddenOrderColumn']);
+        $t->same('option_name', $expressionOrderPlan['select'][1]['arguments'][0]['name']);
+        $t->same('function', $expressionOrderPlan['select'][2]['type']);
+        $t->same('lower', $expressionOrderPlan['select'][2]['name']);
+        $t->same('__sqlite_order_expr_1', $expressionOrderPlan['select'][2]['alias']);
+        $t->true($expressionOrderPlan['select'][2]['hiddenOrderColumn']);
+        $t->same([
+            ['column' => '__sqlite_order_expr_0', 'direction' => 'DESC'],
+            ['column' => '__sqlite_order_expr_1'],
+        ], $expressionOrderPlan['orderBy']);
+        $expressionPlannedRows = SQLiteSelectQuery::execute($expressionOrderPlan);
+        $t->same(6, count($expressionPlannedRows));
+        $t->same('_site_transient_update_plugins', $expressionPlannedRows[0]['name']);
+        $t->same(30, $expressionPlannedRows[0]['__sqlite_order_expr_0']);
+        $t->same('_site_transient_update_plugins', $expressionPlannedRows[0]['__sqlite_order_expr_1']);
+        $t->same('_transient_feed', $expressionPlannedRows[1]['name']);
+        $t->same(15, $expressionPlannedRows[1]['__sqlite_order_expr_0']);
+        $t->same('blogname', $expressionPlannedRows[2]['name']);
+        $t->same(8, $expressionPlannedRows[2]['__sqlite_order_expr_0']);
+        $t->same('orphaned', $expressionPlannedRows[3]['name']);
+        $t->same(8, $expressionPlannedRows[3]['__sqlite_order_expr_0']);
+
+        $aggregateExpressionOrderRows = SQLiteSelectSql::execute(
+            "SELECT autoload, count(*) AS rows, sum(bytes) AS byte_sum FROM wp_options GROUP BY autoload ORDER BY sum(bytes) DESC, count(*) ASC LIMIT 2",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($aggregateExpressionOrderRows));
+        $t->same(['no', 'yes'], array_column($aggregateExpressionOrderRows, 'autoload'));
+        $t->same([2, 3], array_column($aggregateExpressionOrderRows, 'rows'));
+        $t->same([122, 57], array_column($aggregateExpressionOrderRows, 'byte_sum'));
+        $t->same(['autoload', 'rows', 'byte_sum'], array_keys($aggregateExpressionOrderRows[0]));
+        $t->same(false, array_key_exists('__sqlite_order_expr_0', $aggregateExpressionOrderRows[0]));
+        $t->same(false, array_key_exists('__sqlite_order_expr_1', $aggregateExpressionOrderRows[0]));
+
+        $aggregateExpressionOrderPlan = SQLiteSelectSql::plan(
+            "SELECT autoload, count(*) AS rows, sum(bytes) AS byte_sum FROM wp_options GROUP BY autoload ORDER BY sum(bytes) DESC, count(*) ASC",
+            ['wp_options' => $options],
+        );
+        $t->same('sum', $aggregateExpressionOrderPlan['select'][3]['name']);
+        $t->same('__sqlite_order_expr_0', $aggregateExpressionOrderPlan['select'][3]['alias']);
+        $t->true($aggregateExpressionOrderPlan['select'][3]['hiddenOrderColumn']);
+        $t->same('countAll', $aggregateExpressionOrderPlan['select'][4]['name']);
+        $t->same('__sqlite_order_expr_1', $aggregateExpressionOrderPlan['select'][4]['alias']);
+        $t->true($aggregateExpressionOrderPlan['select'][4]['hiddenOrderColumn']);
+        $t->same([
+            ['column' => '__sqlite_order_expr_0', 'direction' => 'DESC'],
+            ['column' => '__sqlite_order_expr_1', 'direction' => 'ASC'],
+        ], $aggregateExpressionOrderPlan['orderBy']);
+
         $quoted = SQLiteSelectSql::execute(
             "SELECT option_name AS name FROM wp_options WHERE option_value = 'Bob''s Site'",
             ['wp_options' => [['option_name' => 'blogname', 'option_value' => "Bob's Site"]]],
@@ -20286,6 +20387,8 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name AS 1bad FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name, FROM wp_options', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options ORDER BY option_name SIDEWAYS', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options ORDER BY missing_function(option_name)', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes) FROM wp_options GROUP BY autoload ORDER BY max(option_id)', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options LIMIT one', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name BETWEEN 1 AND 2', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name MATCH "site"', ['wp_options' => $options]));

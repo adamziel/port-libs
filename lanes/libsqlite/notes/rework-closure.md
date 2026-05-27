@@ -1,5 +1,39 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 SELECT SQL Expression ORDER BY Dispatch
+
+Current-base SQL-exec slice on accepted `f34a1a06` adds bounded parser-level
+`ORDER BY` expression support without repeating accepted single-table SELECT
+text, JOIN text, JSON table source, GROUP BY/HAVING, or standalone result
+ordering helpers. `SQLiteSelectSql` now parses scalar expression ORDER terms
+such as `coalesce(autoload, 'zz')`, `length(option_name)`, `lower(option_name)`,
+and aggregate ORDER terms such as `sum(bytes)` / `count(*)` in grouped SELECT
+text. Expression sort keys are lowered into hidden projection columns so the
+accepted `SQLiteSelectQuery` and `SQLiteSelectResult` ordering path can reuse
+the same row-array comparator, and `SQLiteSelectSql::execute()` strips hidden
+sort keys before returning WordPress-facing rows.
+
+Focused assertions added: 71. `SQLiteHeaderTest.php` now covers scalar
+expression ordering, literal expression ordering, hidden order-key plan shape,
+hidden-column stripping, aggregate expression ORDER BY over grouped rows, and
+malformed/unsupported expression guards. WordPress smoke:
+`examples/wordpress-select-sql-order-expression.php`.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-order-expression.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-order-expression.php
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed; this reuses the
+accepted bounded SELECT parser/query-plan/result helpers and scalar function
+dispatcher.
+
 ## 2026-05-27 SELECT SQL Text GROUP BY/HAVING Dispatch
 
 This isolated SQL execution/planner slice does not reuse stale May 25 rework

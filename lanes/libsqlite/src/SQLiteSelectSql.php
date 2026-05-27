@@ -12,7 +12,10 @@ final class SQLiteSelectSql
      */
     public static function execute(string $sql, array $tables): array
     {
-        return SQLiteSelectQuery::execute(self::plan($sql, $tables));
+        $plan = self::plan($sql, $tables);
+        $rows = SQLiteSelectQuery::execute($plan);
+
+        return self::stripHiddenOrderColumns($rows, $plan);
     }
 
     /**
@@ -76,7 +79,11 @@ final class SQLiteSelectSql
             $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn']);
         }
         if (isset($clauseOffsets['ORDER BY'])) {
-            $plan['orderBy'] = self::orderBy(self::clauseText($tail, $clauseOffsets, 'ORDER BY'));
+            $plan['orderBy'] = self::orderBy(
+                self::clauseText($tail, $clauseOffsets, 'ORDER BY'),
+                $plan['select'],
+                isset($plan['groupBy']) ? $plan['groupBy']['valueColumn'] : null,
+            );
         }
         if (isset($clauseOffsets['LIMIT'])) {
             [$limit, $offset] = self::limitOffset(self::clauseText($tail, $clauseOffsets, 'LIMIT'));
@@ -740,32 +747,82 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @param list<array<string,mixed>> $select
      * @return list<array{column:string,direction?:string}>
      */
-    private static function orderBy(string $sql): array
+    private static function orderBy(string $sql, array &$select, ?string $aggregateValueColumn): array
     {
         $terms = [];
-        foreach (self::splitTopLevel($sql, ',') as $term) {
-            $parts = preg_split('/\s+/', trim($term));
-            if ($parts === false || $parts === [] || $parts[0] === '') {
+        foreach (self::splitTopLevel($sql, ',') as $index => $term) {
+            [$expressionSql, $direction] = self::orderByExpressionDirection($term);
+            if ($expressionSql === '') {
                 throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY term cannot be empty');
             }
-            self::assertIdentifier($parts[0], 'SQLite SELECT SQL ORDER BY column');
-            $order = ['column' => $parts[0]];
-            if (isset($parts[1])) {
-                $direction = strtoupper($parts[1]);
-                if ($direction !== 'ASC' && $direction !== 'DESC') {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY direction must be ASC or DESC');
+
+            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $expressionSql) === 1) {
+                $order = ['column' => $expressionSql];
+            } else {
+                $expression = self::valueExpression($expressionSql);
+                if ($aggregateValueColumn !== null) {
+                    $expression = self::rewriteAggregateExpression($expression, $aggregateValueColumn);
                 }
-                $order['direction'] = $direction;
+                $alias = '__sqlite_order_expr_' . $index;
+                $expression['alias'] = $alias;
+                $expression['hiddenOrderColumn'] = true;
+                $select[] = $expression;
+                $order = ['column' => $alias];
             }
-            if (isset($parts[2])) {
-                throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY supports one direction token');
+
+            if ($direction !== null) {
+                $order['direction'] = $direction;
             }
             $terms[] = $order;
         }
 
         return $terms;
+    }
+
+    /**
+     * @return array{0:string,1:?string}
+     */
+    private static function orderByExpressionDirection(string $term): array
+    {
+        $term = trim($term);
+        foreach (['ASC', 'DESC'] as $direction) {
+            $suffix = ' ' . $direction;
+            if (strlen($term) > strlen($suffix) && strcasecmp(substr($term, -strlen($suffix)), $suffix) === 0) {
+                return [trim(substr($term, 0, -strlen($suffix))), $direction];
+            }
+        }
+
+        return [$term, null];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $plan
+     * @return list<array<string,mixed>>
+     */
+    private static function stripHiddenOrderColumns(array $rows, array $plan): array
+    {
+        $hidden = [];
+        foreach ($plan['select'] ?? [] as $expression) {
+            if (is_array($expression) && ($expression['hiddenOrderColumn'] ?? false) === true && isset($expression['alias']) && is_string($expression['alias'])) {
+                $hidden[] = $expression['alias'];
+            }
+        }
+        if ($hidden === []) {
+            return $rows;
+        }
+
+        foreach ($rows as &$row) {
+            foreach ($hidden as $column) {
+                unset($row[$column]);
+            }
+        }
+        unset($row);
+
+        return $rows;
     }
 
     /**

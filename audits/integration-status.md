@@ -119160,3 +119160,33 @@ Cleanup debt:
 - Accepted marker artifacts were removed after commit publication to local `main`.
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T043959Z` still contains modified accepted lane files, so it was preserved and left registered; no forced worktree removal or destructive cleanup was used.
 - Clean candidate worktree `/home/claude/port-libs/.tmux-team/tmp/clean-candidates/libsqlite-json-hidden-20260527T044834Z` contains repo-local `.tmp-root` output from focused/root verification and is left as cleanup debt rather than force-removed.
+## Integration accepted - libsqlite SELECT SQL expression ORDER BY - 2026-05-27T04:58:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T044558Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate worktree creation was `f11f810f91468dc974019afcf8993935952f7a14` (`Integrate libsqlite JSON hidden constraints`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact `sourceCommit` `f11f810f91468dc974019afcf8993935952f7a14`, generated `2026-05-27 04:52:12 UTC`, dashboard commit `20e90d792272ee652049d0de09cfbb74e1c59ad8`.
+- The dashboard guard was therefore open for exactly one source-moving libsqlite marker.
+
+Selection evidence:
+- Recent high-yield sample included expression ORDER BY, range-cost planner, WAL apply, B-tree repair, and VFS capability write-apply markers.
+- The selected SQL-exec marker added parser-level scalar and aggregate `ORDER BY` expression handling for `SQLiteSelectSql`, with focused worker evidence `+71` assertions, `phpPass` movement, mapped coverage movement, and a passing WordPress smoke.
+- Direct apply was stale only in `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`; implementation, test, example, and rework-note hunks applied cleanly on a detached clean worktree from current `f11f810f`.
+- Status and manifest counters were reconciled from current accepted source evidence to `phpPass` `775` and mapped coverage `431 / 1589`.
+
+Focused verification:
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteSelectSql.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/examples/wordpress-select-sql-order-expression.php` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 6793 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-order-expression.php` passed and returned copied `wp_options` rows ordered by scalar and aggregate expressions while omitting hidden sort columns.
+
+Final gate:
+- `git diff --check` passed.
+- Serialized no-argument root harness passed under `.tmux-team/tmp/clean-integrator-run.lock` with repo-local `TMPDIR`: `215 test files, 31958 assertions, 0 failures`.
+Cleanup:
+- Removed accepted ready marker, patch, and metadata files for `port-dev-libsqlite-sql-exec-20260527T044558Z` after commit reached `refs/heads/main`.
+- Preserved originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T044558Z` because it still contains modified and added accepted files; cleanup debt remains for a later non-destructive prune after the worker state is safe.
