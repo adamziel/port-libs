@@ -163,6 +163,54 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<array{0:mixed,1:mixed}> $pairs
+     */
+    public static function jsonGroupObjectDistinctSqlFunction(string $function, iterable $pairs): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupObjectDistinct($pairs);
+        if (strcasecmp($function, 'json_group_object') === 0) {
+            return $json;
+        }
+        if (strcasecmp($function, 'jsonb_group_object') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_object or jsonb_group_object');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     */
+    public static function jsonGroupObjectOrderBySqlFunction(string $function, iterable $rows): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupObjectOrderBy($rows);
+        if (strcasecmp($function, 'json_group_object') === 0) {
+            return $json;
+        }
+        if (strcasecmp($function, 'jsonb_group_object') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_object or jsonb_group_object');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     */
+    public static function jsonGroupObjectDistinctOrderBySqlFunction(string $function, iterable $rows): string|SQLiteBlobValue
+    {
+        $json = self::jsonGroupObjectDistinctOrderBy($rows);
+        if (strcasecmp($function, 'json_group_object') === 0) {
+            return $json;
+        }
+        if (strcasecmp($function, 'jsonb_group_object') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_object or jsonb_group_object');
+        }
+
+        return new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($json)));
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
      */
     public static function jsonGroupObjectFilterSqlFunction(string $function, iterable $rows): string|SQLiteBlobValue
@@ -179,11 +227,63 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<array{0:mixed,1:mixed}> $pairs
+     * @return list<string|SQLiteBlobValue>
+     */
+    public static function jsonGroupObjectWindowSqlFunction(string $function, iterable $pairs, int $preceding, int $following = 0): array
+    {
+        $frames = self::jsonGroupObjectWindow($pairs, $preceding, $following);
+        if (strcasecmp($function, 'json_group_object') === 0) {
+            return $frames;
+        }
+        if (strcasecmp($function, 'jsonb_group_object') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_object or jsonb_group_object');
+        }
+
+        $jsonbFrames = [];
+        foreach ($frames as $frame) {
+            $jsonbFrames[] = new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($frame)));
+        }
+
+        return $jsonbFrames;
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     * @return list<string|SQLiteBlobValue>
+     */
+    public static function jsonGroupObjectOrderByWindowSqlFunction(string $function, iterable $rows, int $preceding, int $following = 0): array
+    {
+        $frames = self::jsonGroupObjectOrderByWindow($rows, $preceding, $following);
+        if (strcasecmp($function, 'json_group_object') === 0) {
+            return $frames;
+        }
+        if (strcasecmp($function, 'jsonb_group_object') !== 0) {
+            throw new \InvalidArgumentException('SQLite JSON aggregate function must be json_group_object or jsonb_group_object');
+        }
+
+        $jsonbFrames = [];
+        foreach ($frames as $frame) {
+            $jsonbFrames[] = new SQLiteBlobValue(SQLiteJsonB::encode(self::decodeAggregateJson($frame)));
+        }
+
+        return $jsonbFrames;
+    }
+
+    /**
      * @param list<array{0:mixed,1:mixed}> $arguments
      */
     public static function jsonGroupObjectSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue
     {
         return self::jsonGroupObjectSqlFunction($function, $arguments);
+    }
+
+    /**
+     * @param list<array{0:mixed,1:mixed}> $arguments
+     */
+    public static function jsonGroupObjectDistinctSqlFunctionArguments(string $function, array $arguments): string|SQLiteBlobValue
+    {
+        return self::jsonGroupObjectDistinctSqlFunction($function, $arguments);
     }
 
     /**
@@ -391,6 +491,63 @@ final class SQLiteJsonAggregate
     }
 
     /**
+     * @param iterable<array{0:mixed,1:mixed}> $pairs
+     */
+    public static function jsonGroupObjectDistinct(iterable $pairs): string
+    {
+        $members = [];
+        $seen = [];
+        foreach ($pairs as $pair) {
+            if (!is_array($pair) || !array_key_exists(0, $pair) || !array_key_exists(1, $pair)) {
+                throw new \InvalidArgumentException('json_group_object() DISTINCT rows must be [label, value] pairs');
+            }
+            $key = self::distinctObjectKey($pair[0], $pair[1]);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $members[] = SQLiteJsonConstructor::jsonObjectLabel($pair[0]) . ':' . SQLiteJsonConstructor::jsonValue($pair[1]);
+        }
+
+        return '{' . implode(',', $members) . '}';
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     */
+    public static function jsonGroupObjectOrderBy(iterable $rows): string
+    {
+        $ordered = self::orderedObjectRows($rows, 'json_group_object() ORDER BY rows must be [label, value, orderKey] triples');
+
+        return self::jsonGroupObject(array_map(
+            static fn (array $row): array => [$row['label'], $row['value']],
+            $ordered,
+        ));
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     */
+    public static function jsonGroupObjectDistinctOrderBy(iterable $rows): string
+    {
+        $ordered = self::orderedObjectRows($rows, 'json_group_object() DISTINCT ORDER BY rows must be [label, value, orderKey] triples');
+        $pairs = [];
+        $seen = [];
+        foreach ($ordered as $row) {
+            $key = self::distinctObjectKey($row['label'], $row['value']);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $seen[$key] = true;
+            $pairs[] = [$row['label'], $row['value']];
+        }
+
+        return self::jsonGroupObject($pairs);
+    }
+
+    /**
      * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
      */
     public static function jsonGroupObjectFilter(iterable $rows): string
@@ -408,6 +565,47 @@ final class SQLiteJsonAggregate
         }
 
         return self::jsonGroupObject($pairs);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed}> $pairs
+     * @return list<string>
+     */
+    public static function jsonGroupObjectWindow(iterable $pairs, int $preceding, int $following = 0): array
+    {
+        self::assertWindowBounds($preceding, $following);
+
+        $rows = array_values(is_array($pairs) ? $pairs : iterator_to_array($pairs, false));
+        foreach ($rows as $row) {
+            if (!is_array($row) || !array_key_exists(0, $row) || !array_key_exists(1, $row)) {
+                throw new \InvalidArgumentException('json_group_object() window rows must be [label, value] pairs');
+            }
+        }
+
+        $frames = [];
+        $lastIndex = count($rows) - 1;
+        foreach ($rows as $position => $_row) {
+            $start = max(0, $position - $preceding);
+            $end = min($lastIndex, $position + $following);
+            $frames[] = self::jsonGroupObject(array_slice($rows, $start, $end - $start + 1));
+        }
+
+        return $frames;
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     * @return list<string>
+     */
+    public static function jsonGroupObjectOrderByWindow(iterable $rows, int $preceding, int $following = 0): array
+    {
+        self::assertWindowBounds($preceding, $following);
+        $ordered = self::orderedObjectRows($rows, 'json_group_object() ORDER BY window rows must be [label, value, orderKey] triples');
+
+        return self::jsonGroupObjectWindow(array_map(
+            static fn (array $row): array => [$row['label'], $row['value']],
+            $ordered,
+        ), $preceding, $following);
     }
 
     private static function decodeAggregateJson(string $json): mixed
@@ -446,6 +644,43 @@ final class SQLiteJsonAggregate
         }
 
         return 'json-value:' . SQLiteJsonConstructor::jsonValue($value);
+    }
+
+    private static function distinctObjectKey(mixed $label, mixed $value): string
+    {
+        return SQLiteJsonConstructor::jsonObjectLabel($label) . "\0" . self::distinctKey($value);
+    }
+
+    /**
+     * @param iterable<array{0:mixed,1:mixed,2:mixed}> $rows
+     * @return list<array{label:mixed,value:mixed,orderKey:mixed,position:int}>
+     */
+    private static function orderedObjectRows(iterable $rows, string $error): array
+    {
+        $ordered = [];
+        $position = 0;
+        foreach ($rows as $row) {
+            if (!is_array($row) || !array_key_exists(0, $row) || !array_key_exists(1, $row) || !array_key_exists(2, $row)) {
+                throw new \InvalidArgumentException($error);
+            }
+            $ordered[] = [
+                'label' => $row[0],
+                'value' => $row[1],
+                'orderKey' => $row[2],
+                'position' => $position++,
+            ];
+        }
+
+        usort($ordered, static function (array $left, array $right): int {
+            $comparison = self::compareOrderKeys($left['orderKey'], $right['orderKey']);
+            if ($comparison === 0) {
+                return $left['position'] <=> $right['position'];
+            }
+
+            return $comparison;
+        });
+
+        return $ordered;
     }
 
     private static function compareOrderKeys(mixed $left, mixed $right): int

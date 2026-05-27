@@ -118008,3 +118008,43 @@ Acceptance status:
 - Accepted marker artifacts were removed after `refs/heads/main` advanced.
 - Cleanup debt: originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T000437Z` still contains the exported lane modifications, so it was preserved rather than removed.
 - The accepted source-moving guard is now closed until the dashboard publishes the accepted hot rollback-journal recovery source.
+
+## Integration accepted - libsqlite JSON object aggregate windows - 2026-05-27T00:20:00Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T000538Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence before acceptance:
+- Current `refs/heads/main` was `0ce4d2ef75516600c4b47e70d52f5f1fa46c695b` (`Integrate libsqlite hot rollback journal recovery`).
+- Cache-busted live `porting-summary.json` reported exact matching `sourceCommit` `0ce4d2ef75516600c4b47e70d52f5f1fa46c695b`, generated `2026-05-27 00:17:13 UTC`, dashboard commit `b39373abc4a32757ebbb8ec5708cdbeb0712acec`, public libsqlite `740 pass / 0 fail`, and coverage `403 / 1589`.
+- The source-moving guard was open for exactly one high-yield libsqlite marker.
+
+Candidate decision:
+- Recent libsqlite sample had no current-base `0ce4d2ef` markers. The selected marker was based on `afb46ebfa261b8de114b543a9cf34b8a0389057b`; direct apply failed only on stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` contexts.
+- Source, test, and example hunks replayed cleanly over a detached clean `0ce4d2ef` worktree after excluding stale manifest/status/notes files.
+- Chosen over lower-yield or duplicate candidates because it adds native JSON object aggregate/window behavior, a WordPress smoke update, and focused assertion growth without overlapping accepted WAL/open/lock/query-plan work.
+
+Runtime gate evidence before focused checks:
+- `df -Pk /` reported `133356012` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.83`, below the `25` limit.
+- `pgrep -af '^php tools/run-tests\.php$'` returned no exact no-argument root harness rows.
+- Focused checks used candidate-local `TMPDIR=.tmp-root`.
+
+Focused verification:
+- `php -l lanes/libsqlite/src/SQLiteJsonAggregate.php` passed.
+- `php -l lanes/libsqlite/src/SQLiteJsonAggregateState.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 4560 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-json-aggregate-option-summary.php` passed.
+- Manifest/status JSON decode passed.
+- `git diff --check` passed.
+
+Serialized root verification:
+- `php tools/run-tests.php` passed under `.tmux-team/tmp/clean-integrator-run.lock` with candidate-local `TMPDIR=.tmp-root`: `215 test files, 29694 assertions, 0 failures`.
+
+Publication:
+- Accepted commit: `Integrate libsqlite JSON object aggregate windows` (final hash reported in completion output).
+- Accepted marker artifacts removed after `refs/heads/main` advanced.
+- Cleanup debt: originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T000538Z` still contains exported lane modifications, so it was preserved rather than removed.
+- The source-moving guard will close after commit until the dashboard publishes the new source.
