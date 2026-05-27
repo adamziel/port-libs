@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 05:32:00 UTC",
-    "sourceCommit": "1f26605ddbc3d622ca8d98722c5e1fa0d1e824fc",
-    "sourceCommitShort": "1f26605ddbc3",
+    "generated": "2026-05-27 05:39:21 UTC",
+    "sourceCommit": "5edeb12d201253acfce49339e03be1d5e30c7aa4",
+    "sourceCommitShort": "5edeb12d2012",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "1c62d3f66cd9bcb76588534468841cc69bd12a40",
-    "dashboardCommitShort": "1c62d3f66cd9",
+    "dashboardCommit": "ebe4fc278e7890356a9654cd98344b3b2035c146",
+    "dashboardCommitShort": "ebe4fc278e78",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "434",
-            "coverage": "434 / 1589",
-            "php": "778 pass / 0 fail",
+            "mapped": "435",
+            "coverage": "435 / 1589",
+            "php": "779 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded replayed VFS locked-writer slice...",
-            "currentWork": "SQLiteVfsLockedFileWriter now composes accepted process file locks with the native VFS fi...",
-            "nextTarget": "Next VFS/pager gap: wire locked file-write application into broader pager transaction or...",
+            "audit": "bounded replayed B-tree bulk overflow del...",
+            "currentWork": "SQLiteTableLeafPage and SQLiteIndexLeafPage can now bulk-delete overflow-backed rows/reco...",
+            "nextTarget": "Connect returned obsolete overflow pages from bulk delete into full freelist and auto-vac...",
             "blocker": "Full release/all parity remains blocked on accepted broad-suite countabil...",
-            "commit": "e053593"
+            "commit": "1f26605"
         },
         {
             "library": "LightningCSS",
