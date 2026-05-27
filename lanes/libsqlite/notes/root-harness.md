@@ -1674,3 +1674,30 @@ was an isolated micro-slice.
 Dependency closure: no new support component is needed. This reuses the
 lane-local SELECT projection helper, existing core scalar dispatch, BLOB value
 wrappers, and pure PHP result ordering.
+
+## Dependency/Open Lock Coordination Slice
+
+Focused lane verification for the dependency/open lock-coordination slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteLockCoordinator.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["coordinates sqlite file locks for open admission without a vfs dependency"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; the selected focused `SQLiteHeaderTest.php`
+lock-coordination test passed with 53 assertions and 0 failures. The WordPress
+smoke reported copied database read/write open plans through shared, reserved,
+pending, and exclusive lock states, including busy-handler waits and exclusive
+readiness after reader drain. Manifest/status JSON decoded successfully; lane
+diff check passed. The root harness was not run because this was an isolated
+micro-slice.
+
+Dependency closure: no new shared support component is needed. This is a
+lane-local bounded VFS/open admission helper that reuses existing file URI,
+open-plan, and busy-handler behavior while recording the remaining activation
+gate for a future real process/file-lock VFS.

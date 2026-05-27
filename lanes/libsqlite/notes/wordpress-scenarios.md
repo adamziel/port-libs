@@ -3663,3 +3663,24 @@ assertions, up from the accepted 4201-assertion lane-status baseline.
 Dependency closure: no new support component is needed; this reuses lane-local
 CREATE INDEX expression parsing, partial-index predicate metadata, scalar
 values, and BLOB wrappers.
+
+## SQLite Lock Coordination Preflight Scenario
+
+Copied WordPress database tools can now explain bounded SQLite lock admission
+without requiring the SQLite extension or a shared VFS component. The smoke
+`examples/wordpress-lock-coordination-preflight.php` reports read-only copied
+database opens acquiring shared locks, write opens blocked by existing reserved
+writers, new readers blocked by pending writers, busy-handler wait summaries,
+and exclusive lock readiness after reader drain.
+
+Status delta 2026-05-26 isolated dependency/open slice: added
+`SQLiteLockCoordinator` with 53 focused assertions covering shared reader
+coexistence, reserved writer exclusion, pending-writer reader blocking,
+exclusive lock drain requirements, open-admission composition, holder release,
+busy-handler integration, dependency tags, and strict malformed connection or
+lock-level guards. Focused selected `SQLiteHeaderTest.php` passed with 53
+assertions and 0 failures.
+
+Dependency closure: no new shared support component is needed. This is a
+lane-local VFS/open admission helper; a future real VFS/process-lock component
+remains gated on durable cross-process byte-range locking evidence.

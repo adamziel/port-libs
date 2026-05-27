@@ -117939,3 +117939,35 @@ Acceptance status:
 - Accepted marker artifacts were removed after `refs/heads/main` advanced.
 - Cleanup debt: originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260526T235136Z` still contains the exported lane modifications, so it was preserved rather than removed.
 - The accepted source-moving guard is now closed until the dashboard publishes the accepted SELECT query-plan source.
+
+## Integration acceptance in progress - libsqlite lock coordination evidence - 2026-05-27T00:08:00Z
+
+Candidate marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260526T235613Z.ready`.
+
+Decision: accepting one bounded libsqlite dependency/open evidence slice from a clean detached worktree after replaying only implementation-adjacent evidence hunks over current source `afb46ebfa261b8de114b543a9cf34b8a0389057b`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before focused checks was `afb46ebfa261b8de114b543a9cf34b8a0389057b` (`Integrate libsqlite SELECT query plans`).
+- Cache-busted live `porting-summary.json` reported source `afb46ebfa261b8de114b543a9cf34b8a0389057b`, generated `2026-05-27 00:04:22 UTC`, so the source-moving guard was open.
+
+Replay evidence:
+- Marker base was older (`638ced0c497ed3ee4504eed991812e8f7b8fd0d4`), but `git apply --check` failed only on moving `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`.
+- Replayed hunks excluding those JSON files applied cleanly.
+- `SQLiteLockCoordinator.php` and `wordpress-lock-coordination-preflight.php` were already present on current `main`; this acceptance adds the focused assertions, manifest/status evidence, and lane notes for that behavior.
+
+Runtime gate evidence:
+- `df -Pk /` reported `135153792` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.55`, below the `25` limit.
+- Focused checks used candidate-local `TMPDIR=.tmp-root`.
+
+Focused verification:
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php` passed.
+- `php -l lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php` passed.
+- `php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 4461 assertions, 0 failures`.
+- `php lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php` passed and emitted valid JSON.
+- `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json` decoded as JSON after bounded status reconciliation.
+- `git diff --check` passed.
+
+Acceptance status:
+- Serialized no-argument root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` with candidate-local `TMPDIR=.tmp-root`: `215 test files, 29595 assertions, 0 failures`.
+- If `refs/heads/main` still matches `afb46ebfa261b8de114b543a9cf34b8a0389057b`, publish one small commit for this marker and remove only accepted marker artifacts.

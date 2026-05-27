@@ -10463,3 +10463,38 @@ expression-index dispatch without requiring ext/sqlite.
 Dependency closure: no new support component is needed. This is lane-local
 planner dispatch and reuses existing CREATE INDEX expression parsing,
 partial-index predicate metadata, and scalar/BLOB value wrappers.
+
+## Focused Native Mapping: SQLite Lock Coordination
+
+Date: 2026-05-26
+
+This isolated dependency/open micro-slice maps one additional focused behavior
+row for bounded SQLite lock admission. The new `SQLiteLockCoordinator` models
+shared, reserved, pending, and exclusive lock compatibility, composes blocked
+lock attempts with the existing busy-handler planner, and combines lock
+planning with file URI/open admission for copied WordPress database preflights.
+
+Focused upstream denominator impact: `UPSTREAM_TEST_MANIFEST.json` mapped count
+moves from 402 to 403 by adding
+`focusedWordPressLockCoordinationScripts=1`. No fresh upstream `testfixture`,
+`make test`, `mptest`, `all`, or `release` run was launched from this isolated
+worktree.
+
+Focused verification:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteLockCoordinator.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["coordinates sqlite file locks for open admission without a vfs dependency"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php lanes/libsqlite/examples/wordpress-lock-coordination-preflight.php
+```
+
+Result: focused selected PHP passed with 53 assertions and 0 failures. The
+WordPress lock-coordination smoke passed and reports copied database open
+diagnostics without requiring ext/sqlite.
+
+Dependency closure: no new support component is needed for this bounded slice.
+It reuses lane-local file URI parsing, open planning, and busy-handler
+diagnostics. A real shared VFS/process-lock implementation remains a future
+activation gate requiring cross-process lock evidence.

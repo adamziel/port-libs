@@ -47,6 +47,7 @@ use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteNumericAggregate;
 use PortLibs\LibSqlite\SQLiteNumericAggregateState;
+use PortLibs\LibSqlite\SQLiteLockCoordinator;
 use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteOpenPlan;
 use PortLibs\LibSqlite\SQLitePageCache;
@@ -14718,6 +14719,92 @@ SQL;
         foreach ([$validPath, $oversizedPath, $incompletePath, $shortPath, $invalidPath] as $path) {
             @unlink($path);
         }
+    },
+    'coordinates sqlite file locks for open admission without a vfs dependency' => static function (TestRunner $t): void {
+        $coordinator = new SQLiteLockCoordinator([
+            'reader-a' => 'shared',
+            'writer-a' => 'reserved',
+        ]);
+
+        $t->same([
+            ['connection' => 'reader-a', 'level' => 'shared'],
+            ['connection' => 'writer-a', 'level' => 'reserved'],
+        ], $coordinator->holders());
+
+        $reader = $coordinator->plan('reader-b', 'shared');
+        $t->same('ready', $reader['status']);
+        $t->same(true, $reader['can_acquire']);
+        $t->same('reader-b', $reader['connection']);
+        $t->same('shared', $reader['requested']);
+        $t->same('none', $reader['current']);
+        $t->same([], $reader['blocking']);
+        $t->same(['sqlite-lock-coordinator'], $reader['dependencies']);
+        $t->same(null, $reader['reason']);
+        $t->same(null, $reader['busy']);
+
+        $reserved = $coordinator->plan('writer-b', 'reserved', SQLiteBusyHandler::withDelays(6, [2, 2, 2]));
+        $t->same('busy-timeout', $reserved['status']);
+        $t->same(false, $reserved['can_acquire']);
+        $t->same('writer-b', $reserved['connection']);
+        $t->same('reserved', $reserved['requested']);
+        $t->same('writer is blocked by an existing writer lock', $reserved['reason']);
+        $t->same([['connection' => 'writer-a', 'level' => 'reserved', 'reason' => 'writer lock already held']], $reserved['blocking']);
+        $t->same(['sqlite-lock-coordinator', 'busy-handler'], $reserved['dependencies']);
+        $t->same(6, $reserved['busy']['total_sleep_ms']);
+        $t->same(3, $reserved['busy']['retry_count']);
+
+        $exclusive = $coordinator->plan('writer-a', 'exclusive', SQLiteBusyHandler::withDelays(4, [1, 3]));
+        $t->same('busy-timeout', $exclusive['status']);
+        $t->same(false, $exclusive['can_acquire']);
+        $t->same('reserved', $exclusive['current']);
+        $t->same('exclusive writer is blocked until readers and writers drain', $exclusive['reason']);
+        $t->same([['connection' => 'reader-a', 'level' => 'shared', 'reason' => 'shared reader must drain before exclusive lock']], $exclusive['blocking']);
+        $t->same(4, $exclusive['busy']['total_sleep_ms']);
+
+        $coordinator->set('writer-a', 'pending');
+        $blockedReader = $coordinator->plan('reader-b', 'shared', SQLiteBusyHandler::timeout(0));
+        $t->same('busy-cancelled', $blockedReader['status']);
+        $t->same(false, $blockedReader['can_acquire']);
+        $t->same('new reader is blocked by pending or exclusive writer lock', $blockedReader['reason']);
+        $t->same([['connection' => 'writer-a', 'level' => 'pending', 'reason' => 'pending lock blocks new shared readers']], $blockedReader['blocking']);
+        $t->same(0, $blockedReader['busy']['total_sleep_ms']);
+
+        $coordinator->release('reader-a');
+        $exclusiveReady = $coordinator->plan('writer-a', 'exclusive');
+        $t->same('ready', $exclusiveReady['status']);
+        $t->same(true, $exclusiveReady['can_acquire']);
+        $t->same('pending', $exclusiveReady['current']);
+        $t->same([], $exclusiveReady['blocking']);
+
+        $openRead = $coordinator->openPlan('file:/srv/wp/site.db?mode=ro&immutable=1&vfs=unix-none', 'reader-b', true, false);
+        $t->same('busy-cancelled', $openRead['status']);
+        $t->same(false, $openRead['can_open']);
+        $t->same(true, $openRead['read_only']);
+        $t->same('shared', $openRead['lock']['requested']);
+        $t->same(['file-uri-parser', 'vfs-admission', 'immutable-readonly-open', 'sqlite-lock-coordinator', 'busy-handler'], $openRead['dependencies']);
+
+        $coordinator->set('writer-a', 'none');
+        $writeOpen = $coordinator->openPlan('file:/srv/wp/site.db?mode=rw&cache=shared', 'writer-b', true, false, true);
+        $t->same('ready', $writeOpen['status']);
+        $t->same(true, $writeOpen['can_open']);
+        $t->same(false, $writeOpen['read_only']);
+        $t->same('reserved', $writeOpen['lock']['requested']);
+        $t->same('shared', $writeOpen['open']['cache']);
+        $t->same(['file-uri-parser', 'shared-cache-coordination', 'sqlite-lock-coordinator'], $writeOpen['dependencies']);
+
+        $missing = $coordinator->openPlan('file:/srv/wp/missing.db?mode=ro', 'reader-c', false, false);
+        $t->same('missing', $missing['status']);
+        $t->same(false, $missing['can_open']);
+        $t->same('open admission failed', $missing['lock']['reason']);
+        $t->same('database file does not exist', $missing['reason']);
+
+        $coordinator->set('reader-z', 'shared');
+        $coordinator->release('reader-z');
+        $t->same([], $coordinator->holders());
+
+        $t->throws(InvalidArgumentException::class, static fn () => new SQLiteLockCoordinator([' ' => 'shared']));
+        $t->throws(InvalidArgumentException::class, static fn () => $coordinator->plan('reader', 'hot'));
+        $t->throws(InvalidArgumentException::class, static fn () => $coordinator->set('reader', ''));
     },
     'dispatches sqlite numeric aggregate semantics' => static function (TestRunner $t): void {
         $values = [10, null, '20bytes', ' 3.5ms', 'not numeric', true, new SQLiteBlobValue('7z')];
