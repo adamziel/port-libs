@@ -925,6 +925,11 @@ final class SQLiteSelectSql
      */
     private static function tableReference(string $sql, array $tables, array $jsonConstraints = []): array
     {
+        $valuesTable = self::valuesTableReference($sql);
+        if ($valuesTable !== null) {
+            return $valuesTable;
+        }
+
         $jsonTable = self::jsonTableReference($sql);
         if ($jsonTable !== null) {
             return $jsonTable;
@@ -973,6 +978,46 @@ final class SQLiteSelectSql
         }
 
         return ['name' => $name, 'alias' => $alias, 'rows' => $tables[$name]];
+    }
+
+    /**
+     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
+     */
+    private static function valuesTableReference(string $sql): ?array
+    {
+        $sql = trim($sql);
+        if (!str_starts_with($sql, '(')) {
+            return null;
+        }
+
+        [$body, $offset] = self::consumeParenthesized($sql, 0);
+        if (preg_match('/^values\s+/i', trim($body)) !== 1) {
+            return null;
+        }
+
+        $aliasSql = trim(substr($sql, $offset));
+        $alias = 'values';
+        if ($aliasSql !== '') {
+            $parts = preg_split('/\s+/', $aliasSql);
+            if ($parts === false || $parts === [] || count($parts) > 2) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
+            }
+            if (count($parts) === 2) {
+                if (strcasecmp($parts[0], 'AS') !== 0) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL VALUES source alias is malformed');
+                }
+                $alias = $parts[1];
+            } else {
+                $alias = $parts[0];
+            }
+            self::assertBareIdentifier($alias, 'SQLite SELECT SQL VALUES source alias');
+        }
+
+        return [
+            'name' => 'values',
+            'alias' => $alias,
+            'rows' => self::executeValuesClause(trim($body)),
+        ];
     }
 
     /**
@@ -1028,11 +1073,11 @@ final class SQLiteSelectSql
                     }
 
                     $plan = SQLiteJsonTablePlan::validatedPlan($function, $constraints);
-                    if (!$plan['runnable']) {
+                    if (!$plan['runnable'] && ($plan['jsonInputKind'] === 'jsonb' || $plan['jsonInputKind'] === 'sql-null')) {
                         return [];
                     }
 
-                    return self::qualifiedRows(self::jsonTableRowsForSql($function, $constraints), $alias);
+                    return self::qualifiedJsonRows(self::jsonTableRowsForSql($function, $constraints), $alias);
                 },
             ];
         }
@@ -1067,6 +1112,25 @@ final class SQLiteSelectSql
         }
 
         return SQLiteJsonTablePlan::visibleRows($function, $constraints);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function qualifiedJsonRows(array $rows, string $prefix): array
+    {
+        $qualified = self::qualifiedRows($rows, $prefix);
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('id', $row)) {
+                continue;
+            }
+            $qualified[$index][$prefix . '.rowid'] = $row['id'];
+            $qualified[$index][$prefix . '._rowid_'] = $row['id'];
+            $qualified[$index][$prefix . '.oid'] = $row['id'];
+        }
+
+        return $qualified;
     }
 
     private static function literalExpressionValue(array $expression, string $context): mixed
@@ -1283,7 +1347,9 @@ final class SQLiteSelectSql
             $tableSql = $nextJoin === null ? $rest : trim(substr($rest, 0, $nextJoin));
             $remaining = $nextJoin === null ? '' : trim(substr($rest, $nextJoin));
             $table = self::tableReference($tableSql, $tables);
-            $rightRows = self::qualifiedRows($table['rows'], $table['alias']);
+            $rightRows = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
+                ? self::qualifiedJsonRows($table['rows'], $table['alias'])
+                : self::qualifiedRows($table['rows'], $table['alias']);
             if ($natural) {
                 $columns = self::naturalJoinColumns($leftRows, $rightRows);
                 $join = [
@@ -1319,7 +1385,9 @@ final class SQLiteSelectSql
 
         $join = [
             'type' => $type,
-            'rows' => self::qualifiedRows($table['rows'], $table['alias']),
+            'rows' => ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
+                ? self::qualifiedJsonRows($table['rows'], $table['alias'])
+                : self::qualifiedRows($table['rows'], $table['alias']),
         ];
         if (isset($table['dynamicRows']) && is_callable($table['dynamicRows'])) {
             $join['dynamicRows'] = $table['dynamicRows'];

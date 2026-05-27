@@ -166,12 +166,11 @@ $tests['comma json_tree join raises malformed dynamic root paths'] = static func
     ));
 };
 
-$tests['comma json_tree join treats malformed dynamic json text as empty rows'] = static function (TestRunner $t): void {
-    $rows = SQLiteSelectSql::execute(
+$tests['comma json_tree join raises malformed dynamic json text'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
         "SELECT jt.key FROM cfg, json_tree(cfg.payload) AS jt",
         ['cfg' => [['payload' => '{bad']]],
-    );
-    $t->same([], $rows);
+    ));
 };
 
 $tests['comma json_each join treats malformed jsonb dynamic rows as empty'] = static function (TestRunner $t): void {

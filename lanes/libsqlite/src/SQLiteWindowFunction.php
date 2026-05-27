@@ -215,8 +215,8 @@ final class SQLiteWindowFunction
     public static function aggregateRows(
         iterable $values,
         iterable $orderKeys,
-        int $preceding,
-        int $following,
+        int|float $preceding,
+        int|float $following,
         string $exclude = 'NO OTHERS',
         ?iterable $filters = null,
     ): array {
@@ -233,8 +233,8 @@ final class SQLiteWindowFunction
         iterable $values,
         iterable $orderKeys,
         string $frameUnit,
-        int $preceding,
-        int $following,
+        int|float $preceding,
+        int|float $following,
         string $exclude = 'NO OTHERS',
         ?iterable $filters = null,
     ): array {
@@ -314,7 +314,7 @@ final class SQLiteWindowFunction
      * @param list<mixed> $orderKeys
      * @return list<int>
      */
-    private static function frameIndexes(array $orderKeys, int $currentIndex, int $preceding, int $following, string $unit): array
+    private static function frameIndexes(array $orderKeys, int $currentIndex, int|float $preceding, int|float $following, string $unit): array
     {
         $count = count($orderKeys);
         if ($count === 0) {
@@ -322,8 +322,13 @@ final class SQLiteWindowFunction
         }
 
         if ($unit === 'ROWS') {
-            $start = max(0, $currentIndex - $preceding);
-            $end = min($count - 1, $currentIndex + $following);
+            if (!self::isIntegerOffset($preceding) || !self::isIntegerOffset($following)) {
+                throw new \InvalidArgumentException('SQLite ROWS frame offsets must be integers');
+            }
+            $precedingRows = (int) $preceding;
+            $followingRows = (int) $following;
+            $start = max(0, $currentIndex - $precedingRows);
+            $end = min($count - 1, $currentIndex + $followingRows);
 
             return range($start, $end);
         }
@@ -335,13 +340,19 @@ final class SQLiteWindowFunction
             $indexes = [];
             foreach ($orderKeys as $index => $key) {
                 $value = (float) $key;
-                if ($value >= $lower && $value <= $upper) {
+                if ($value >= $lower - 1.0e-12 && $value <= $upper + 1.0e-12) {
                     $indexes[] = $index;
                 }
             }
 
             return $indexes;
         }
+
+        if (!self::isIntegerOffset($preceding) || !self::isIntegerOffset($following)) {
+            throw new \InvalidArgumentException('SQLite GROUPS frame offsets must be integers');
+        }
+        $precedingGroups = (int) $preceding;
+        $followingGroups = (int) $following;
 
         $groups = self::peerGroups($orderKeys);
         $groupByIndex = [];
@@ -352,14 +363,19 @@ final class SQLiteWindowFunction
         }
 
         $currentGroup = $groupByIndex[$currentIndex];
-        $startGroup = max(0, $currentGroup - $preceding);
-        $endGroup = min(count($groups) - 1, $currentGroup + $following);
+        $startGroup = max(0, $currentGroup - $precedingGroups);
+        $endGroup = min(count($groups) - 1, $currentGroup + $followingGroups);
         $indexes = [];
         for ($groupIndex = $startGroup; $groupIndex <= $endGroup; $groupIndex++) {
             array_push($indexes, ...$groups[$groupIndex]);
         }
 
         return $indexes;
+    }
+
+    private static function isIntegerOffset(int|float $offset): bool
+    {
+        return is_int($offset) || floor($offset) === $offset;
     }
 
     /**

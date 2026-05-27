@@ -58,6 +58,7 @@ final class SQLitePragmaSchemaCatalog
                 'index_list' => $this->indexList($parsed['target']),
                 'index_info' => $this->indexInfo($parsed['target']),
                 'index_xinfo' => $this->indexXInfo($parsed['target']),
+                'foreign_key_list' => $this->foreignKeyList($parsed['target']),
             },
         ];
     }
@@ -202,13 +203,60 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo', schema: string|null, target: string}
+     * @return list<array{id: int, seq: int, table: string, from: string, to: string|null, on_update: string, on_delete: string, match: string}>
+     */
+    public function foreignKeyList(string $tableName): array
+    {
+        $record = $this->tables[strtolower($tableName)] ?? null;
+        if ($record === null || $record->sql === null) {
+            return [];
+        }
+
+        $body = self::parenthesizedBody($record->sql);
+        if ($body === null) {
+            return [];
+        }
+
+        $rows = [];
+        $id = 0;
+        foreach (self::splitTopLevel($body, ',') as $definition) {
+            $definition = trim($definition);
+            if ($definition === '') {
+                continue;
+            }
+
+            $constraint = self::stripLeadingConstraint($definition);
+            if (self::startsWithKeyword($constraint, 'FOREIGN')) {
+                $foreignKey = self::foreignKeyFromTableConstraint($constraint, $id);
+                if ($foreignKey !== []) {
+                    array_push($rows, ...$foreignKey);
+                    $id++;
+                }
+                continue;
+            }
+
+            $identifier = self::readIdentifier($definition, 0);
+            if ($identifier === null) {
+                continue;
+            }
+            $columnForeignKey = self::foreignKeyFromColumnConstraint($identifier['identifier'], substr($definition, $identifier['end']), $id);
+            if ($columnForeignKey !== null) {
+                $rows[] = $columnForeignKey;
+                $id++;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list', schema: string|null, target: string}
      */
     public static function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo)\s*(?:\(\s*(?<paren>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))$/i', $trimmed, $matches)) {
-            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, and index_xinfo are supported');
+        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)\s*(?:\(\s*(?<paren>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))$/i', $trimmed, $matches)) {
+            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, index_xinfo, and foreign_key_list are supported');
         }
 
         return [
@@ -278,6 +326,136 @@ final class SQLitePragmaSchemaCatalog
         }
 
         return $columns;
+    }
+
+    /**
+     * @return list<array{id: int, seq: int, table: string, from: string, to: string|null, on_update: string, on_delete: string, match: string}>
+     */
+    private static function foreignKeyFromTableConstraint(string $definition, int $id): array
+    {
+        $foreignOffset = self::findTopLevelKeyword($definition, 'FOREIGN KEY');
+        if ($foreignOffset === null) {
+            return [];
+        }
+        $localOpen = strpos($definition, '(', $foreignOffset);
+        if ($localOpen === false) {
+            return [];
+        }
+        $localClose = self::matchingParen($definition, $localOpen);
+        if ($localClose === null) {
+            return [];
+        }
+        $reference = self::referenceClause(substr($definition, $localClose + 1));
+        if ($reference === null) {
+            return [];
+        }
+
+        $locals = self::identifierList(substr($definition, $localOpen + 1, $localClose - $localOpen - 1));
+        $foreigns = $reference['columns'];
+        $rows = [];
+        foreach ($locals as $seq => $from) {
+            $rows[] = [
+                'id' => $id,
+                'seq' => $seq,
+                'table' => $reference['table'],
+                'from' => $from,
+                'to' => $foreigns[$seq] ?? null,
+                'on_update' => $reference['onUpdate'],
+                'on_delete' => $reference['onDelete'],
+                'match' => $reference['match'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{id: int, seq: int, table: string, from: string, to: string|null, on_update: string, on_delete: string, match: string}|null
+     */
+    private static function foreignKeyFromColumnConstraint(string $columnName, string $tail, int $id): ?array
+    {
+        $reference = self::referenceClause($tail);
+        if ($reference === null) {
+            return null;
+        }
+
+        return [
+            'id' => $id,
+            'seq' => 0,
+            'table' => $reference['table'],
+            'from' => $columnName,
+            'to' => $reference['columns'][0] ?? null,
+            'on_update' => $reference['onUpdate'],
+            'on_delete' => $reference['onDelete'],
+            'match' => $reference['match'],
+        ];
+    }
+
+    /**
+     * @return array{table: string, columns: list<string>, onUpdate: string, onDelete: string, match: string}|null
+     */
+    private static function referenceClause(string $tail): ?array
+    {
+        $offset = self::findTopLevelKeyword($tail, 'REFERENCES');
+        if ($offset === null) {
+            return null;
+        }
+        $identifier = self::readIdentifier($tail, $offset + strlen('REFERENCES'));
+        if ($identifier === null) {
+            return null;
+        }
+
+        $remainder = ltrim(substr($tail, $identifier['end']));
+        $columns = [];
+        if ($remainder !== '' && $remainder[0] === '(') {
+            $close = self::matchingParen($remainder, 0);
+            if ($close !== null) {
+                $columns = self::identifierList(substr($remainder, 1, $close - 1));
+                $remainder = substr($remainder, $close + 1);
+            }
+        }
+
+        return [
+            'table' => $identifier['identifier'],
+            'columns' => $columns,
+            'onUpdate' => self::foreignKeyAction($remainder, 'UPDATE'),
+            'onDelete' => self::foreignKeyAction($remainder, 'DELETE'),
+            'match' => self::foreignKeyMatch($remainder),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function identifierList(string $list): array
+    {
+        $columns = [];
+        foreach (self::splitTopLevel($list, ',') as $part) {
+            $identifier = self::readIdentifier(trim($part), 0);
+            if ($identifier !== null) {
+                $columns[] = $identifier['identifier'];
+            }
+        }
+
+        return $columns;
+    }
+
+    private static function foreignKeyAction(string $clause, string $kind): string
+    {
+        if (!preg_match('/\bON\s+' . $kind . '\s+(?<action>SET\s+NULL|SET\s+DEFAULT|CASCADE|RESTRICT|NO\s+ACTION)\b/i', $clause, $matches)) {
+            return 'NO ACTION';
+        }
+
+        return strtoupper(preg_replace('/\s+/', ' ', $matches['action']));
+    }
+
+    private static function foreignKeyMatch(string $clause): string
+    {
+        if (!preg_match('/\bMATCH\s+(?<match>[A-Za-z_][A-Za-z0-9_]*)\b/i', $clause, $matches)) {
+            return 'NONE';
+        }
+
+        return strtoupper($matches['match']);
     }
 
     /**

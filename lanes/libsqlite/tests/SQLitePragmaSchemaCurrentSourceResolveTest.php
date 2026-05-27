@@ -104,8 +104,13 @@ $tests['pragma schema current-source resolve explicit missing schema raises'] = 
     $t->throws(InvalidArgumentException::class, static fn () => $makeCatalog()->executeSchemaPragma('PRAGMA missing.table_info(wp_options)'));
 };
 
-$tests['pragma schema current-source resolve unsupported pragma still raises'] = static function (TestRunner $t) use ($makeCatalog): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $makeCatalog()->executeSchemaPragma('PRAGMA foreign_key_list(wp_options)'));
+$tests['pragma schema current-source resolve foreign key list returns current-source empty rows'] = static function (TestRunner $t) use ($makeCatalog): void {
+    $result = $makeCatalog()->executeSchemaPragma('PRAGMA foreign_key_list(wp_options)');
+    $t->same('ok', $result['status']);
+    $t->same('foreign_key_list', $result['pragma']);
+    $t->same('temp', $result['schema']);
+    $t->same('wp_options', $result['target']);
+    $t->same([], $result['rows']);
 };
 
 $tests['pragma schema current-source resolve malformed sql still raises'] = static function (TestRunner $t) use ($makeCatalog): void {
