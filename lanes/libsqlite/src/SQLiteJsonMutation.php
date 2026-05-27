@@ -9,7 +9,7 @@ final class SQLiteJsonMutation
     public static function mutateSqlFunction(
         string $function,
         string|int|float|bool|SQLiteBlobValue|null $value,
-        string $path,
+        ?string $path,
         mixed $replacement,
         mixed ...$pathValuePairs,
     ): string|SQLiteBlobValue|null {
@@ -25,6 +25,9 @@ final class SQLiteJsonMutation
         $normalizedPairs = [];
         for ($offset = 0; $offset < count($pathValuePairs); $offset += 2) {
             $nextPath = $pathValuePairs[$offset];
+            if ($nextPath === null) {
+                continue;
+            }
             if (!is_string($nextPath)) {
                 throw new \InvalidArgumentException('SQLite JSON mutation path must be a string');
             }
@@ -34,11 +37,21 @@ final class SQLiteJsonMutation
         }
 
         $jsonb = self::jsonbBytes($value);
-        $mutated = match ($operation) {
-            'insert' => SQLiteJsonB::insert($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
-            'set' => SQLiteJsonB::set($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
-            'replace' => SQLiteJsonB::replace($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
-        };
+        if ($path === null) {
+            $mutated = $normalizedPairs === []
+                ? $jsonb
+                : match ($operation) {
+                    'insert' => SQLiteJsonB::insert($jsonb, $normalizedPairs[0], $normalizedPairs[1], ...array_slice($normalizedPairs, 2)),
+                    'set' => SQLiteJsonB::set($jsonb, $normalizedPairs[0], $normalizedPairs[1], ...array_slice($normalizedPairs, 2)),
+                    'replace' => SQLiteJsonB::replace($jsonb, $normalizedPairs[0], $normalizedPairs[1], ...array_slice($normalizedPairs, 2)),
+                };
+        } else {
+            $mutated = match ($operation) {
+                'insert' => SQLiteJsonB::insert($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
+                'set' => SQLiteJsonB::set($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
+                'replace' => SQLiteJsonB::replace($jsonb, $path, self::jsonMutationValue($replacement), ...$normalizedPairs),
+            };
+        }
 
         if (str_starts_with(strtolower($function), 'jsonb_')) {
             return new SQLiteBlobValue($mutated);
@@ -62,7 +75,7 @@ final class SQLiteJsonMutation
         }
 
         $path = array_shift($arguments);
-        if (!is_string($path)) {
+        if ($path !== null && !is_string($path)) {
             throw new \InvalidArgumentException('SQLite JSON mutation path must be a string');
         }
 

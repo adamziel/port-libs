@@ -38,6 +38,59 @@ final class SQLiteVdbeSorterCursor
         }
     }
 
+    /**
+     * Returns the current row and then advances the cursor, matching the
+     * VDBE sorter loop shape where OP_SorterData is followed by OP_SorterNext.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function nextRow(): ?array
+    {
+        $row = $this->current();
+        $this->next();
+
+        return $row;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return list<mixed>|null
+     */
+    public function currentRecord(array $columns): ?array
+    {
+        if ($this->eof()) {
+            return null;
+        }
+        if ($columns === [] || !array_is_list($columns)) {
+            throw new \InvalidArgumentException('SQLite VDBE sorter current record columns must be a non-empty list');
+        }
+
+        $row = $this->current();
+        $record = [];
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite VDBE sorter current row is missing column {$column}");
+            }
+            $record[] = $row[$column];
+        }
+
+        return $record;
+    }
+
+    public function currentValue(string $column): mixed
+    {
+        if ($this->eof()) {
+            return null;
+        }
+
+        $row = $this->current();
+        if (!array_key_exists($column, $row)) {
+            throw new \InvalidArgumentException("SQLite VDBE sorter current row is missing column {$column}");
+        }
+
+        return $row[$column];
+    }
+
     public function position(): int
     {
         return $this->position;

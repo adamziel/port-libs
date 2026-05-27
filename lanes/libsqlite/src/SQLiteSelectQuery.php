@@ -130,12 +130,13 @@ final class SQLiteSelectQuery
         $arguments = self::expressionList($expression['arguments'] ?? [], 'window arguments');
         $partitionBy = self::expressionList($expression['partitionBy'] ?? [], 'window partition expressions');
         $orderBy = self::windowOrderList($expression['orderBy'] ?? []);
+        $frame = self::windowFrame($expression['frame'] ?? null);
 
         $result = array_fill(0, count($rows), null);
         foreach (self::windowPartitions($rows, $partitionBy) as $partitionIndexes) {
             $orderedIndexes = self::orderWindowPartition($rows, $partitionIndexes, $orderBy);
             $orderedRows = array_map(static fn (int $rowIndex): array => $rows[$rowIndex], $orderedIndexes);
-            $orderedValues = self::windowPartitionValues($function, $arguments, $orderedRows, $orderBy);
+            $orderedValues = self::windowPartitionValues($function, $arguments, $orderedRows, $orderBy, $frame);
             foreach ($orderedIndexes as $offset => $rowIndex) {
                 $result[$rowIndex] = $orderedValues[$offset];
             }
@@ -204,20 +205,44 @@ final class SQLiteSelectQuery
      * @param list<array<string,mixed>> $arguments
      * @param list<array<string,mixed>> $orderedRows
      * @param list<array{expression:array<string,mixed>,direction:string}> $orderBy
+     * @param array{unit:string,preceding:int|float,following:int|float,exclude:string}|null $frame
      * @return list<mixed>
      */
-    private static function windowPartitionValues(string $function, array $arguments, array $orderedRows, array $orderBy): array
+    private static function windowPartitionValues(string $function, array $arguments, array $orderedRows, array $orderBy, ?array $frame): array
     {
         $orderKeys = array_keys($orderedRows);
         $peerKeys = $orderBy === []
             ? $orderKeys
             : array_map(static fn (array $row): mixed => SQLiteSelectExpression::evaluate($row, $orderBy[0]['expression']), $orderedRows);
-        $values = $arguments !== []
+        $values = $arguments !== [] && (($arguments[0]['type'] ?? null) !== 'wildcard')
             ? array_map(static fn (array $row): mixed => SQLiteSelectExpression::evaluate($row, $arguments[0]), $orderedRows)
             : $peerKeys;
 
         if (in_array($function, ['lag', 'lead', 'first_value', 'last_value', 'nth_value'], true) && $arguments === []) {
             throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs a value argument");
+        }
+        if ($frame !== null && in_array($function, ['count', 'sum', 'group_concat'], true)) {
+            if ($orderBy === []) {
+                throw new \InvalidArgumentException('SQLite SELECT query aggregate window frame needs ORDER BY');
+            }
+            if ($function === 'count' && (($arguments[0]['type'] ?? null) === 'wildcard')) {
+                $values = array_fill(0, count($orderedRows), 1);
+            } elseif ($arguments === []) {
+                throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs a value argument");
+            }
+
+            return SQLiteWindowFunction::aggregateFrameValues(
+                $function,
+                $values,
+                $peerKeys,
+                $frame['unit'],
+                $frame['preceding'],
+                $frame['following'],
+                $frame['exclude'],
+            );
+        }
+        if ($frame !== null) {
+            throw new \InvalidArgumentException("SQLite SELECT query window frame is not supported for {$function}");
         }
 
         return match ($function) {
@@ -302,6 +327,34 @@ final class SQLiteSelectQuery
         }
 
         return $value;
+    }
+
+    /**
+     * @return array{unit:string,preceding:int|float,following:int|float,exclude:string}|null
+     */
+    private static function windowFrame(mixed $value): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('SQLite SELECT query window frame must be an array');
+        }
+        foreach (['unit', 'preceding', 'following', 'exclude'] as $key) {
+            if (!array_key_exists($key, $value)) {
+                throw new \InvalidArgumentException('SQLite SELECT query window frame is malformed');
+            }
+        }
+        if (!is_string($value['unit']) || !is_string($value['exclude']) || (!is_int($value['preceding']) && !is_float($value['preceding'])) || (!is_int($value['following']) && !is_float($value['following']))) {
+            throw new \InvalidArgumentException('SQLite SELECT query window frame is malformed');
+        }
+
+        return [
+            'unit' => $value['unit'],
+            'preceding' => $value['preceding'],
+            'following' => $value['following'],
+            'exclude' => $value['exclude'],
+        ];
     }
 
     private static function compareSqlValues(mixed $left, mixed $right): int

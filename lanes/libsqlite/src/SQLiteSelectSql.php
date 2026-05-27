@@ -1749,7 +1749,7 @@ final class SQLiteSelectSql
         }
         $plan['from'] = $expanded;
 
-        return SQLiteSelectQuery::execute($plan);
+        return self::stripHiddenOrderColumns(SQLiteSelectQuery::execute($plan), $plan);
     }
 
     /**
@@ -1783,6 +1783,11 @@ final class SQLiteSelectSql
             }
 
             return self::valueExpression($unwrapped, $tables);
+        }
+
+        $case = self::caseExpression($sql, $tables);
+        if ($case !== null) {
+            return $case;
         }
 
         if (preg_match('/^(.+)\s+COLLATE\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $sql, $match) === 1) {
@@ -1878,6 +1883,158 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,mixed>|null
      */
+    private static function caseExpression(string $sql, array $tables): ?array
+    {
+        if (preg_match('/^case(?:\s|$)/i', $sql) !== 1) {
+            return null;
+        }
+
+        $tokens = self::caseKeywordTokens($sql);
+        if ($tokens === [] || strtoupper($tokens[array_key_last($tokens)]['keyword']) !== 'END') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression must end with END');
+        }
+        if (trim(substr($sql, $tokens[array_key_last($tokens)]['offset'] + 3)) !== '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression has trailing content after END');
+        }
+
+        $firstWhen = null;
+        foreach ($tokens as $index => $token) {
+            if ($token['keyword'] === 'WHEN') {
+                $firstWhen = $index;
+                break;
+            }
+        }
+        if ($firstWhen === null) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression needs WHEN branches');
+        }
+
+        $baseSql = trim(substr($sql, 4, $tokens[$firstWhen]['offset'] - 4));
+        $case = [
+            'type' => 'case',
+            'branches' => [],
+        ];
+        if ($baseSql !== '') {
+            $case['base'] = self::valueExpression($baseSql, $tables);
+        }
+
+        $index = $firstWhen;
+        while ($index < count($tokens)) {
+            $when = $tokens[$index];
+            if ($when['keyword'] === 'ELSE' || $when['keyword'] === 'END') {
+                break;
+            }
+            if ($when['keyword'] !== 'WHEN') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression expected WHEN');
+            }
+
+            $then = $tokens[$index + 1] ?? null;
+            if ($then === null || $then['keyword'] !== 'THEN') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression WHEN needs THEN');
+            }
+            $next = $tokens[$index + 2] ?? null;
+            if ($next === null || !in_array($next['keyword'], ['WHEN', 'ELSE', 'END'], true)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression THEN needs a terminator');
+            }
+
+            $whenSql = trim(substr($sql, $when['offset'] + 4, $then['offset'] - ($when['offset'] + 4)));
+            $thenSql = trim(substr($sql, $then['offset'] + 4, $next['offset'] - ($then['offset'] + 4)));
+            if ($whenSql === '' || $thenSql === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression WHEN and THEN cannot be empty');
+            }
+
+            $case['branches'][] = [
+                'when' => self::valueExpression($whenSql, $tables),
+                'then' => self::valueExpression($thenSql, $tables),
+            ];
+            $index += 2;
+        }
+
+        $else = $tokens[$index] ?? null;
+        if ($else !== null && $else['keyword'] === 'ELSE') {
+            $end = $tokens[$index + 1] ?? null;
+            if ($end === null || $end['keyword'] !== 'END') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression ELSE must be followed by END');
+            }
+            $elseSql = trim(substr($sql, $else['offset'] + 4, $end['offset'] - ($else['offset'] + 4)));
+            if ($elseSql === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression ELSE cannot be empty');
+            }
+            $case['else'] = self::valueExpression($elseSql, $tables);
+            $index++;
+        }
+
+        if (($tokens[$index] ?? null)['keyword'] !== 'END') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression must terminate with END');
+        }
+
+        return $case;
+    }
+
+    /**
+     * @return list<array{keyword:string,offset:int}>
+     */
+    private static function caseKeywordTokens(string $sql): array
+    {
+        $tokens = [];
+        $depth = 0;
+        $caseDepth = 0;
+        $quote = false;
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($depth !== 0) {
+                continue;
+            }
+
+            foreach (['CASE', 'WHEN', 'THEN', 'ELSE', 'END'] as $keyword) {
+                if (strncasecmp(substr($sql, $i), $keyword, strlen($keyword)) !== 0 || !self::keywordBounded($sql, $i, strlen($keyword))) {
+                    continue;
+                }
+                if ($keyword === 'CASE') {
+                    $caseDepth++;
+                    $i += strlen($keyword) - 1;
+                    continue 2;
+                }
+                if ($caseDepth === 1) {
+                    $tokens[] = ['keyword' => $keyword, 'offset' => $i];
+                }
+                if ($keyword === 'END') {
+                    $caseDepth--;
+                }
+                $i += strlen($keyword) - 1;
+                continue 2;
+            }
+        }
+        if ($quote || $caseDepth !== 0) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression is unterminated');
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,mixed>|null
+     */
     private static function windowExpression(string $sql, array $tables): ?array
     {
         $overOffset = self::keywordOffset($sql, 'OVER');
@@ -1898,16 +2055,28 @@ final class SQLiteSelectSql
 
         $name = strtolower($match[1]);
         $argumentSql = trim($match[2]);
-        $arguments = $argumentSql === ''
-            ? []
-            : array_map(static fn (string $argument): array => self::valueExpression($argument, $tables), self::splitTopLevel($argumentSql, ','));
+        $arguments = [];
+        if ($argumentSql !== '') {
+            foreach (self::splitTopLevel($argumentSql, ',') as $argument) {
+                $arguments[] = trim($argument) === '*'
+                    ? ['type' => 'wildcard']
+                    : self::valueExpression($argument, $tables);
+            }
+        }
 
         $partitionBy = [];
         $orderBy = [];
+        $frame = null;
         $partitionOffset = self::keywordOffset($windowSql, 'PARTITION BY');
         $orderOffset = self::keywordOffset($windowSql, 'ORDER BY');
+        $frameOffset = self::windowFrameOffset($windowSql);
         if ($partitionOffset !== null) {
-            $partitionEnd = $orderOffset !== null && $orderOffset > $partitionOffset ? $orderOffset : strlen($windowSql);
+            $partitionEnd = strlen($windowSql);
+            foreach ([$orderOffset, $frameOffset] as $offset) {
+                if ($offset !== null && $offset > $partitionOffset && $offset < $partitionEnd) {
+                    $partitionEnd = $offset;
+                }
+            }
             $partitionSql = trim(substr($windowSql, $partitionOffset + strlen('PARTITION BY'), $partitionEnd - ($partitionOffset + strlen('PARTITION BY'))));
             if ($partitionSql === '') {
                 throw new \InvalidArgumentException('SQLite SELECT SQL window PARTITION BY needs expressions');
@@ -1915,7 +2084,8 @@ final class SQLiteSelectSql
             $partitionBy = array_map(static fn (string $term): array => self::valueExpression($term, $tables), self::splitTopLevel($partitionSql, ','));
         }
         if ($orderOffset !== null) {
-            $orderSql = trim(substr($windowSql, $orderOffset + strlen('ORDER BY')));
+            $orderEnd = $frameOffset !== null && $frameOffset > $orderOffset ? $frameOffset : strlen($windowSql);
+            $orderSql = trim(substr($windowSql, $orderOffset + strlen('ORDER BY'), $orderEnd - ($orderOffset + strlen('ORDER BY'))));
             if ($orderSql === '') {
                 throw new \InvalidArgumentException('SQLite SELECT SQL window ORDER BY needs expressions');
             }
@@ -1924,19 +2094,89 @@ final class SQLiteSelectSql
                 $orderBy[] = ['expression' => $expression, 'direction' => $direction];
             }
         }
+        if ($frameOffset !== null) {
+            $frame = self::windowFrameClause(trim(substr($windowSql, $frameOffset)));
+        }
 
-        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value'];
+        $supported = ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist', 'ntile', 'lag', 'lead', 'first_value', 'last_value', 'nth_value', 'count', 'sum', 'group_concat'];
         if (!in_array($name, $supported, true)) {
             throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} is not supported");
         }
 
-        return [
+        $expression = [
             'type' => 'window',
             'function' => $name,
             'arguments' => $arguments,
             'partitionBy' => $partitionBy,
             'orderBy' => $orderBy,
         ];
+        if ($frame !== null) {
+            $expression['frame'] = $frame;
+        }
+
+        return $expression;
+    }
+
+    private static function windowFrameOffset(string $sql): ?int
+    {
+        $offsets = [];
+        foreach (['ROWS', 'RANGE', 'GROUPS'] as $keyword) {
+            $offset = self::keywordOffset($sql, $keyword);
+            if ($offset !== null) {
+                $offsets[] = $offset;
+            }
+        }
+        if ($offsets === []) {
+            return null;
+        }
+
+        return min($offsets);
+    }
+
+    /**
+     * @return array{unit:string,preceding:int|float,following:int|float,exclude:string}
+     */
+    private static function windowFrameClause(string $sql): array
+    {
+        $exclude = 'NO OTHERS';
+        $excludeOffset = self::keywordOffset($sql, 'EXCLUDE');
+        if ($excludeOffset !== null) {
+            $excludeSql = trim(substr($sql, $excludeOffset + strlen('EXCLUDE')));
+            $sql = trim(substr($sql, 0, $excludeOffset));
+            $exclude = match (strtoupper(preg_replace('/\s+/', ' ', $excludeSql))) {
+                'NO OTHERS' => 'NO OTHERS',
+                'CURRENT ROW' => 'CURRENT ROW',
+                'GROUP' => 'GROUP',
+                'TIES' => 'TIES',
+                default => throw new \InvalidArgumentException('SQLite SELECT SQL window EXCLUDE mode is not supported'),
+            };
+        }
+
+        if (preg_match('/^(ROWS|RANGE|GROUPS)\s+BETWEEN\s+CURRENT\s+ROW\s+AND\s+(.+?)\s+FOLLOWING$/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL window frame supports BETWEEN CURRENT ROW AND N FOLLOWING');
+        }
+
+        return [
+            'unit' => strtoupper($match[1]),
+            'preceding' => 0,
+            'following' => self::windowFrameOffsetValue(trim($match[2])),
+            'exclude' => $exclude,
+        ];
+    }
+
+    private static function windowFrameOffsetValue(string $sql): int|float
+    {
+        if (strcasecmp($sql, 'CURRENT ROW') === 0) {
+            return 0;
+        }
+        if (preg_match('/^[+]?[0-9]+$/', $sql) === 1) {
+            return (int) $sql;
+        }
+        if (preg_match('/^[+]?(?:[0-9]+\.[0-9]*|\.[0-9]+)$/', $sql) === 1) {
+            return (float) $sql;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT SQL window frame offset must be numeric');
     }
 
     /**

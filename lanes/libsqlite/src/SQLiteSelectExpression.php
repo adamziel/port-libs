@@ -24,7 +24,8 @@ final class SQLiteSelectExpression
             'binary' => self::binaryValue($row, $expression),
             'row' => self::rowValue($row, $expression),
             'subquery' => self::subqueryValue($row, $expression),
-            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, collate, function, cast, unary, binary, row, or subquery'),
+            'case' => self::caseValue($row, $expression),
+            default => throw new \InvalidArgumentException('SQLite SELECT expression type must be column, literal, collate, function, cast, unary, binary, row, subquery, or case'),
         };
     }
 
@@ -94,6 +95,100 @@ final class SQLiteSelectExpression
         }
 
         return $first[$columns[0]];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function caseValue(array $row, array $expression): mixed
+    {
+        $base = null;
+        $hasBase = array_key_exists('base', $expression);
+        if ($hasBase) {
+            $baseExpression = $expression['base'];
+            if (!is_array($baseExpression)) {
+                throw new \InvalidArgumentException('SQLite SELECT CASE expression base must be an expression');
+            }
+            $base = self::evaluate($row, $baseExpression);
+        }
+
+        $branches = $expression['branches'] ?? null;
+        if (!is_array($branches) || !array_is_list($branches) || $branches === []) {
+            throw new \InvalidArgumentException('SQLite SELECT CASE expression needs non-empty branches');
+        }
+
+        foreach ($branches as $branch) {
+            if (!is_array($branch) || !array_key_exists('when', $branch) || !array_key_exists('then', $branch)) {
+                throw new \InvalidArgumentException('SQLite SELECT CASE expression branches need when and then expressions');
+            }
+            if (!is_array($branch['when']) || !is_array($branch['then'])) {
+                throw new \InvalidArgumentException('SQLite SELECT CASE expression branches must contain expressions');
+            }
+
+            $when = self::evaluate($row, $branch['when']);
+            $matched = $hasBase ? self::caseBaseMatches($base, $when) : self::isSqlTrue($when);
+            if ($matched) {
+                return self::evaluate($row, $branch['then']);
+            }
+        }
+
+        if (!array_key_exists('else', $expression)) {
+            return null;
+        }
+        if (!is_array($expression['else'])) {
+            throw new \InvalidArgumentException('SQLite SELECT CASE expression ELSE must be an expression');
+        }
+
+        return self::evaluate($row, $expression['else']);
+    }
+
+    private static function caseBaseMatches(mixed $base, mixed $when): bool
+    {
+        if ($base === null || $when === null) {
+            return false;
+        }
+
+        return self::valueKey($base) === self::valueKey($when);
+    }
+
+    private static function isSqlTrue(mixed $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return self::numericPrefix($value->bytes) != 0;
+        }
+        if (is_bool($value) || is_int($value) || is_float($value)) {
+            return (float) $value !== 0.0;
+        }
+        if (is_string($value)) {
+            return self::numericPrefix($value) != 0;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT CASE expression values must be scalar, BLOB, or NULL');
+    }
+
+    private static function valueKey(mixed $value): string
+    {
+        if ($value === null) {
+            return 'null:';
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return 'blob:' . $value->bytes;
+        }
+        if (is_bool($value) || is_int($value)) {
+            return 'integer:' . (int) $value;
+        }
+        if (is_float($value)) {
+            return 'real:' . sprintf('%.17G', $value);
+        }
+        if (is_string($value)) {
+            return 'text:' . $value;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT CASE expression values must be scalar, BLOB, or NULL');
     }
 
     /**
