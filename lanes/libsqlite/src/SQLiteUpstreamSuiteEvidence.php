@@ -4716,6 +4716,213 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int|string, array<string, mixed>> $suiteRows
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerSuiteProgressMapCurrentNext48(
+        array $suiteRows,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('SQLite suite progress map requires current and next accepted HEAD values');
+        }
+        if ($suiteRows === []) {
+            throw new \InvalidArgumentException('SQLite suite progress map requires at least one suite row');
+        }
+
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+
+        $entries = [];
+        $blocked = [];
+        $currentCountable = 0;
+        $nextCountable = 0;
+        $currentTests = 0;
+        $nextTests = 0;
+        $advanced = [];
+        $preserved = [];
+        $regressed = [];
+        $open = [];
+        $tiers = [];
+
+        foreach ($suiteRows as $label => $row) {
+            if (!is_array($row)) {
+                $blocked[] = [
+                    'id' => 'suite-row-invalid',
+                    'evidence' => 'suite progress row is not an array',
+                    'label' => is_string($label) ? $label : 'row-' . (string) count($entries),
+                ];
+                continue;
+            }
+
+            $id = is_string($row['id'] ?? null) && $row['id'] !== ''
+                ? $row['id']
+                : (is_string($label) ? $label : 'row-' . (string) count($entries));
+            $tier = is_string($row['tier'] ?? null) && $row['tier'] !== '' ? $row['tier'] : 'unclassified';
+            $currentStatus = is_string($row['current_status'] ?? null) ? $row['current_status'] : 'missing';
+            $nextStatus = is_string($row['next_status'] ?? null) ? $row['next_status'] : 'missing';
+            $currentRowCountable = (bool) ($row['current_countable'] ?? ($currentStatus === 'passed'));
+            $nextRowCountable = (bool) ($row['next_countable'] ?? ($nextStatus === 'passed'));
+            $currentRowTests = max(0, (int) ($row['current_tests'] ?? 0));
+            $nextRowTests = max(0, (int) ($row['next_tests'] ?? 0));
+            $rowBlockers = [];
+            if (is_array($row['blockers'] ?? null)) {
+                foreach ($row['blockers'] as $blocker) {
+                    if (is_string($blocker) && $blocker !== '') {
+                        $rowBlockers[] = $blocker;
+                    }
+                }
+            }
+            if (is_string($row['blocker'] ?? null) && $row['blocker'] !== '') {
+                $rowBlockers[] = $row['blocker'];
+            }
+
+            if ($currentRowCountable) {
+                $currentCountable++;
+                $currentTests += $currentRowTests;
+            }
+            if ($nextRowCountable) {
+                $nextCountable++;
+                $nextTests += $nextRowTests;
+            }
+
+            $movement = 'open';
+            if ($nextRowCountable && !$currentRowCountable) {
+                $movement = 'advanced';
+                $advanced[] = $id;
+            } elseif ($nextRowCountable && $currentRowCountable) {
+                $movement = $nextRowTests >= $currentRowTests ? 'preserved' : 'regressed';
+                if ($movement === 'preserved') {
+                    $preserved[] = $id;
+                } else {
+                    $regressed[] = $id;
+                    $rowBlockers[] = 'next-test-count-regressed';
+                }
+            } elseif (!$nextRowCountable && $currentRowCountable) {
+                $movement = 'regressed';
+                $regressed[] = $id;
+                $rowBlockers[] = 'next-countability-regressed';
+            } else {
+                $open[] = $id;
+            }
+
+            if ($rowBlockers !== []) {
+                $blocked[] = [
+                    'id' => 'suite-row-blocked',
+                    'suite_id' => $id,
+                    'evidence' => implode('; ', array_values(array_unique($rowBlockers))),
+                ];
+            }
+
+            if (!isset($tiers[$tier])) {
+                $tiers[$tier] = [
+                    'tier' => $tier,
+                    'rows' => 0,
+                    'current_countable' => 0,
+                    'next_countable' => 0,
+                    'advanced' => 0,
+                    'preserved' => 0,
+                    'regressed' => 0,
+                    'open' => 0,
+                    'current_tests' => 0,
+                    'next_tests' => 0,
+                ];
+            }
+            $tiers[$tier]['rows']++;
+            $tiers[$tier]['current_countable'] += $currentRowCountable ? 1 : 0;
+            $tiers[$tier]['next_countable'] += $nextRowCountable ? 1 : 0;
+            $tiers[$tier][$movement]++;
+            $tiers[$tier]['current_tests'] += $currentRowCountable ? $currentRowTests : 0;
+            $tiers[$tier]['next_tests'] += $nextRowCountable ? $nextRowTests : 0;
+
+            $entries[] = [
+                'id' => $id,
+                'tier' => $tier,
+                'current_status' => $currentStatus,
+                'next_status' => $nextStatus,
+                'current_countable' => $currentRowCountable,
+                'next_countable' => $nextRowCountable,
+                'current_tests' => $currentRowTests,
+                'next_tests' => $nextRowTests,
+                'movement' => $movement,
+                'blockers' => array_values(array_unique($rowBlockers)),
+            ];
+        }
+
+        ksort($tiers);
+        $tierRows = array_values($tiers);
+        sort($advanced);
+        sort($preserved);
+        sort($regressed);
+        sort($open);
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blocked[] = [
+                'id' => 'focused-php-pass-admission-blocked',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused PHP output did not satisfy admission gates',
+            ];
+        }
+
+        $countableDelta = $nextCountable - $currentCountable;
+        $testsDelta = $nextTests - $currentTests;
+        $status = 'blocked';
+        if ($blocked === [] && $countableDelta > 0) {
+            $status = 'next48-suite-progress-advanced';
+        } elseif ($blocked === [] && $countableDelta === 0 && $regressed === []) {
+            $status = 'next48-suite-progress-preserved';
+        } elseif ($currentCountable > 0 && $regressed === []) {
+            $status = 'current-suite-progress-preserved-with-open-gaps';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'row_count' => count($entries),
+            'tier_count' => count($tierRows),
+            'current_countable_count' => $currentCountable,
+            'next_countable_count' => $nextCountable,
+            'countable_delta' => $countableDelta,
+            'current_tests_total' => $currentTests,
+            'next_tests_total' => $nextTests,
+            'tests_total_delta' => $testsDelta,
+            'advanced_count' => count($advanced),
+            'preserved_count' => count($preserved),
+            'regressed_count' => count($regressed),
+            'open_count' => count($open),
+            'advanced_ids' => $advanced,
+            'preserved_ids' => $preserved,
+            'regressed_ids' => $regressed,
+            'open_ids' => $open,
+            'tiers' => $tierRows,
+            'entries' => $entries,
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'blocker_count' => count($blocked),
+            'blockers' => $blocked,
+            'counts_next_suite_progress' => $status === 'next48-suite-progress-advanced',
+            'preserves_current_suite_progress' => in_array($status, ['next48-suite-progress-preserved', 'current-suite-progress-preserved-with-open-gaps'], true),
+            'next_gate' => match ($status) {
+                'next48-suite-progress-advanced' => 'publish only the advanced current/next48 suite progress rows and keep remaining release/all gaps explicit',
+                'next48-suite-progress-preserved' => 'record that current/next48 preserves suite progress without claiming release/all parity movement',
+                'current-suite-progress-preserved-with-open-gaps' => 'preserve current countable suite rows and resolve open next-source blockers before counting more progress',
+                default => 'repair regressed, blocked, or unfocused suite progress evidence before counting current/next48 movement',
+            },
+            'dependency_closure' => 'no new support component needed; current-next48 suite progress map composes lane-local suite row metadata and focused PHP TestRunner admission only',
+        ];
+    }
+
+    /**
      * @param array<int|string, array<string, mixed>> $artifactRecords
      * @return array<string, mixed>
      */

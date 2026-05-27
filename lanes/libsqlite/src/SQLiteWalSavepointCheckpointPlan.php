@@ -251,6 +251,152 @@ final class SQLiteWalSavepointCheckpointPlan
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{status:string,savepoint:string,mode:string,original_reader_end_frame:int,current_reader_end_frame:int,next_reader_end_frame:int,wal_action:string,checkpoint_busy:bool,checkpoint_reason:string,retained_frame_count:int,discarded_frame_count:int,stages:list<array{stage:string,reader:string,end_frame:int,wal_bytes_length:int,wal_action:string|null,sources:list<string>,frame_indexes:list<int|null>,page_numbers:list<int>,images:list<string>}>,before_reader:list<array<string,mixed>>,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,before_reader_sources:list<string>,current_reader_sources:list<string>,next_reader_sources:list<string>,before_reader_frame_indexes:list<int|null>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,before_to_current_images_match:bool,current_to_next_images_match:bool,rolled_back_frame_indexes:list<int>,rolled_back_page_numbers:list<int>,yield_count:int,dependencies:list<string>}
+     */
+    public static function yieldReaderSavepointCurrentNext(
+        SQLiteSavepointStack $savepoints,
+        string $savepoint,
+        SQLiteWal $wal,
+        string $walBytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        string $mode = 'truncate',
+        ?int $originalReaderEndFrame = null,
+        ?int $nextReaderEndFrame = null
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint yield requires at least one page number');
+        }
+
+        $originalReaderEndFrame ??= $wal->frameCount();
+        if ($originalReaderEndFrame < 0) {
+            throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint yield reader frame must be non-negative');
+        }
+
+        $rollback = $savepoints->walRollbackToByteTruncationPlan($savepoint, $wal, $walBytes);
+        $currentWalBytes = $savepoints->walRollbackToWalBytes($savepoint, $wal, $walBytes);
+        $currentWal = SQLiteWal::parse($currentWalBytes, $wal->header->pageSize, true);
+        $currentReaderEndFrame = min($originalReaderEndFrame, $currentWal->frameCount());
+        $durable = $currentWal->durableCheckpointResult($databaseBytes, $mode, $currentReaderEndFrame);
+        $nextWal = $durable['wal_bytes'] === ''
+            ? null
+            : SQLiteWal::parse($durable['wal_bytes'], $wal->header->pageSize, true);
+        $nextReaderEndFrame ??= $nextWal?->frameCount() ?? 0;
+
+        $before = [];
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL savepoint checkpoint yield pages must be integers');
+            }
+
+            $before[] = $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $originalReaderEndFrame);
+            $current[] = $currentWal->readerSnapshotPageImage($databaseBytes, $pageNumber, $currentReaderEndFrame);
+            $next[] = $nextWal === null
+                ? self::databasePageVisibility($durable['database_bytes'], $wal->header->pageSize, $pageNumber)
+                : $nextWal->readerSnapshotPageImage($durable['database_bytes'], $pageNumber, $nextReaderEndFrame);
+        }
+
+        $beforeSources = self::visibilityColumn($before, 'source');
+        $currentSources = self::visibilityColumn($current, 'source');
+        $nextSources = self::visibilityColumn($next, 'source');
+        $beforeFrames = self::visibilityColumn($before, 'frame_index');
+        $currentFrames = self::visibilityColumn($current, 'frame_index');
+        $nextFrames = self::visibilityColumn($next, 'frame_index');
+        $beforeImages = self::visibilityColumn($before, 'image');
+        $currentImages = self::visibilityColumn($current, 'image');
+        $nextImages = self::visibilityColumn($next, 'image');
+        $pageNumbersOut = self::visibilityColumn($current, 'page_number');
+
+        return [
+            'status' => $durable['busy'] ? 'busy' : 'ready',
+            'savepoint' => $savepoint,
+            'mode' => $durable['mode'],
+            'original_reader_end_frame' => $originalReaderEndFrame,
+            'current_reader_end_frame' => $currentReaderEndFrame,
+            'next_reader_end_frame' => $nextReaderEndFrame,
+            'wal_action' => $durable['wal_action'],
+            'checkpoint_busy' => $durable['busy'],
+            'checkpoint_reason' => $durable['reason'],
+            'retained_frame_count' => $rollback['retained_frame_count'],
+            'discarded_frame_count' => $rollback['discarded_frame_count'],
+            'stages' => [
+                self::yieldStage('before_rollback', 'current_reader_original_savepoint', $originalReaderEndFrame, strlen($walBytes), null, $pageNumbersOut, $beforeSources, $beforeFrames, $beforeImages),
+                self::yieldStage('after_rollback', 'current_reader_after_rollback_to', $currentReaderEndFrame, strlen($currentWalBytes), 'truncate_to_savepoint_prefix', $pageNumbersOut, $currentSources, $currentFrames, $currentImages),
+                self::yieldStage('after_checkpoint', 'next_reader_after_checkpoint', $nextReaderEndFrame, strlen($durable['wal_bytes']), $durable['wal_action'], $pageNumbersOut, $nextSources, $nextFrames, $nextImages),
+            ],
+            'before_reader' => $before,
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'before_reader_sources' => $beforeSources,
+            'current_reader_sources' => $currentSources,
+            'next_reader_sources' => $nextSources,
+            'before_reader_frame_indexes' => $beforeFrames,
+            'current_reader_frame_indexes' => $currentFrames,
+            'next_reader_frame_indexes' => $nextFrames,
+            'before_to_current_images_match' => $beforeImages === $currentImages,
+            'current_to_next_images_match' => $currentImages === $nextImages,
+            'rolled_back_frame_indexes' => array_map(static fn (array $frame): int => $frame['frame_index'], $rollback['discarded_wal_frames']),
+            'rolled_back_page_numbers' => self::discardedPageNumbers($rollback['discarded_wal_frames']),
+            'yield_count' => 3 * count($pageNumbers),
+            'dependencies' => array_values(array_unique(array_merge(
+                $durable['dependencies'],
+                ['sqlite-wal-savepoint-checkpoint-yield-current-next', 'wordpress-import-yield-savepoint-current-next']
+            ))),
+        ];
+    }
+
+    /**
+     * @param list<int> $pageNumbers
+     * @param list<string> $sources
+     * @param list<int|null> $frameIndexes
+     * @param list<string> $images
+     * @return array{stage:string,reader:string,end_frame:int,wal_bytes_length:int,wal_action:string|null,sources:list<string>,frame_indexes:list<int|null>,page_numbers:list<int>,images:list<string>}
+     */
+    private static function yieldStage(
+        string $stage,
+        string $reader,
+        int $endFrame,
+        int $walBytesLength,
+        ?string $walAction,
+        array $pageNumbers,
+        array $sources,
+        array $frameIndexes,
+        array $images
+    ): array {
+        return [
+            'stage' => $stage,
+            'reader' => $reader,
+            'end_frame' => $endFrame,
+            'wal_bytes_length' => $walBytesLength,
+            'wal_action' => $walAction,
+            'sources' => $sources,
+            'frame_indexes' => $frameIndexes,
+            'page_numbers' => $pageNumbers,
+            'images' => $images,
+        ];
+    }
+
+    /**
+     * @param list<array{frame_index:int,page_number:int,commit_frame:bool,frame_name:string}> $discardedFrames
+     * @return list<int>
+     */
+    private static function discardedPageNumbers(array $discardedFrames): array
+    {
+        $pages = [];
+        foreach ($discardedFrames as $frame) {
+            $pages[$frame['page_number']] = true;
+        }
+
+        $pageNumbers = array_keys($pages);
+        sort($pageNumbers, SORT_NUMERIC);
+
+        return $pageNumbers;
+    }
+
+    /**
      * @return array{page_number:int,source:string,frame_index:int|null,database_offset:int,image:string,snapshot_end_frame:int,snapshot_commit_frame:int|null,database_page_count:int}
      */
     private static function databasePageVisibility(string $databaseBytes, int $pageSize, int $pageNumber): array

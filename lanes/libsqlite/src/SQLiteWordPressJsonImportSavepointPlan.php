@@ -8,7 +8,7 @@ final class SQLiteWordPressJsonImportSavepointPlan
 {
     /**
      * @param list<array{option_id:int,option_name:string,option_value:mixed,autoload?:string,page_number?:int}> $currentRows
-     * @param list<array{option_name:string,function?:string,path:string,value:mixed,page_number?:int,wal_frame_index?:int,statement?:string}> $mutations
+     * @param list<array{option_name:string,function?:string,path:string,value:mixed,page_number?:int,wal_frame_index?:int,statement?:string,on_missing?:string,insert_option_id?:int,insert_autoload?:string,initial_value?:mixed}> $mutations
      * @param array{database_bytes?:string,page_size?:int,savepoint?:string,transaction?:string} $options
      * @return array<string,mixed>
      */
@@ -29,6 +29,7 @@ final class SQLiteWordPressJsonImportSavepointPlan
         $rowsById = [];
         $pageImages = [];
         $maxPage = 1;
+        $maxOptionId = 0;
         foreach ($currentRows as $row) {
             $normalized = self::normalizeRow($row);
             if (isset($rowsByName[$normalized['option_name']])) {
@@ -40,6 +41,7 @@ final class SQLiteWordPressJsonImportSavepointPlan
 
             $rowsByName[$normalized['option_name']] = $normalized;
             $rowsById[$normalized['option_id']] = $normalized;
+            $maxOptionId = max($maxOptionId, $normalized['option_id']);
             $page = $normalized['page_number'];
             $maxPage = max($maxPage, $page);
             $pageImages[$page] ??= self::pageImage($pageSize, $page, $normalized['option_name'] . ':before');
@@ -59,22 +61,29 @@ final class SQLiteWordPressJsonImportSavepointPlan
         $statementPlans = [];
         $nextWalFrame = 1;
         $workingRows = $rowsByName;
+        $workingIds = $rowsById;
         $workingDatabase = $databaseBytes;
 
         foreach ($mutations as $index => $mutation) {
             $statementName = self::statementName($mutation, $index);
             $savepoints->beginStatementJournal($statementName);
+            $insertedOptionName = null;
 
             try {
                 $optionName = self::mutationOptionName($mutation);
                 if (!isset($workingRows[$optionName])) {
-                    throw new \InvalidArgumentException("SQLite WordPress JSON import option does not exist: {$optionName}");
+                    $row = self::insertMissingRow($mutation, $optionName, $workingIds, $maxOptionId);
+                    $workingRows[$optionName] = $row;
+                    $workingIds[$row['option_id']] = $row;
+                    $maxOptionId = max($maxOptionId, $row['option_id']);
+                    $insertedOptionName = $optionName;
+                } else {
+                    $row = $workingRows[$optionName];
                 }
 
-                $row = $workingRows[$optionName];
                 $pageNumber = self::mutationPageNumber($mutation, $row);
                 $beforeImage = self::pageFromDatabase($workingDatabase, $pageSize, $pageNumber)
-                    ?? self::pageImage($pageSize, $pageNumber, $optionName . ':before');
+                    ?? str_repeat("\0", $pageSize);
 
                 $walFrame = self::mutationWalFrame($mutation, $nextWalFrame);
                 $function = strtolower((string) ($mutation['function'] ?? 'json_set'));
@@ -108,11 +117,16 @@ final class SQLiteWordPressJsonImportSavepointPlan
                     'wal_frame_index' => $walFrame,
                     'json_function' => $function,
                     'json_path' => $mutation['path'],
+                    'inserted_option' => $insertedOptionName === $optionName,
                     'option_value' => $mutatedValue,
                 ];
             } catch (\Throwable $exception) {
                 $workingDatabase = $savepoints->rollbackStatementDatabaseImage($statementName, $workingDatabase, $pageSize);
                 $rollback = $savepoints->rollbackStatementOnErrorWithPlan($statementName, $pageSize);
+                if ($insertedOptionName !== null && isset($workingRows[$insertedOptionName])) {
+                    unset($workingIds[$workingRows[$insertedOptionName]['option_id']]);
+                    unset($workingRows[$insertedOptionName]);
+                }
                 $failed[] = [
                     'statement' => $statementName,
                     'option_name' => isset($mutation['option_name']) && is_string($mutation['option_name']) ? $mutation['option_name'] : null,
@@ -147,6 +161,7 @@ final class SQLiteWordPressJsonImportSavepointPlan
                 'sqlite-json-mutation-current',
                 'sqlite-savepoint-statement-journal-current',
                 'sqlite-wordpress-json-import-savepoint-current',
+                'sqlite-wordpress-json-import-savepoint-insert-current-next48',
             ],
         ];
     }
@@ -214,6 +229,45 @@ final class SQLiteWordPressJsonImportSavepointPlan
         }
 
         return $optionName;
+    }
+
+    /**
+     * @param array<string,mixed> $mutation
+     * @param array<int,array{option_id:int,option_name:string,option_value:mixed,autoload:string,page_number:int}> $rowsById
+     * @return array{option_id:int,option_name:string,option_value:mixed,autoload:string,page_number:int}
+     */
+    private static function insertMissingRow(array $mutation, string $optionName, array $rowsById, int $maxOptionId): array
+    {
+        $mode = $mutation['on_missing'] ?? null;
+        if ($mode !== 'insert') {
+            throw new \InvalidArgumentException("SQLite WordPress JSON import option does not exist: {$optionName}");
+        }
+
+        $id = $mutation['insert_option_id'] ?? ($maxOptionId + 1);
+        if (!is_int($id) || $id <= 0) {
+            throw new \InvalidArgumentException('SQLite WordPress JSON import inserted option_id must be positive');
+        }
+        if (isset($rowsById[$id])) {
+            throw new \InvalidArgumentException("SQLite WordPress JSON import inserted option_id already exists: {$id}");
+        }
+
+        $autoload = $mutation['insert_autoload'] ?? 'no';
+        if (!is_string($autoload)) {
+            throw new \InvalidArgumentException('SQLite WordPress JSON import inserted autoload must be text');
+        }
+
+        $page = $mutation['page_number'] ?? (2 + intdiv($id - 1, 64));
+        if (!is_int($page) || $page < 1) {
+            throw new \InvalidArgumentException('SQLite WordPress JSON import inserted page number must be one-based');
+        }
+
+        return [
+            'option_id' => $id,
+            'option_name' => $optionName,
+            'option_value' => $mutation['initial_value'] ?? '{}',
+            'autoload' => $autoload,
+            'page_number' => $page,
+        ];
     }
 
     /**

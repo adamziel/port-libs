@@ -296,6 +296,31 @@ final class SQLiteVdbeWindowAggregateCursor
         return SQLiteTextAggregate::groupConcat($this->currentValues(), $separator);
     }
 
+    public function firstValue(bool $applyFilter = true): mixed
+    {
+        $values = $this->currentValues($applyFilter);
+
+        return $values[0] ?? null;
+    }
+
+    public function lastValue(bool $applyFilter = true): mixed
+    {
+        $values = $this->currentValues($applyFilter);
+
+        return $values[count($values) - 1] ?? null;
+    }
+
+    public function nthValue(int $nth, bool $applyFilter = true): mixed
+    {
+        if ($nth <= 0) {
+            throw new \InvalidArgumentException('SQLite VDBE window nth_value() index must be positive');
+        }
+
+        $values = $this->currentValues($applyFilter);
+
+        return $values[$nth - 1] ?? null;
+    }
+
     /**
      * @return array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool}
      */
@@ -320,7 +345,7 @@ final class SQLiteVdbeWindowAggregateCursor
     }
 
     /**
-     * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,value:mixed,total:float,groupConcat:?string}>
+     * @return list<array{position:int,partitionKey:list<mixed>,orderKey:list<mixed>,frameStart:int|null,frameEnd:int|null,frameRows:int,filteredRows:int,currentFilterPassed:bool,nextPartitionKey:list<mixed>|null,nextOrderKey:list<mixed>|null,eof:bool,value:mixed,total:float,groupConcat:?string,firstValue:mixed,lastValue:mixed,nthValue:mixed}>
      */
     public function drainSummaries(mixed $separator = ','): array
     {
@@ -330,6 +355,9 @@ final class SQLiteVdbeWindowAggregateCursor
             $summary['value'] = $this->requireCurrentRow()[$this->valueColumn];
             $summary['total'] = $this->total();
             $summary['groupConcat'] = $this->groupConcat($separator);
+            $summary['firstValue'] = $this->firstValue();
+            $summary['lastValue'] = $this->lastValue();
+            $summary['nthValue'] = $this->nthValue(2);
             $summaries[] = $summary;
             $this->next();
         }
