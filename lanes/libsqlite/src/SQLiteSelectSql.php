@@ -830,6 +830,20 @@ final class SQLiteSelectSql
      */
     private static function limitOffset(string $sql): array
     {
+        $commaParts = self::splitTopLevel($sql, ',');
+        if (count($commaParts) === 2) {
+            foreach ($commaParts as $part) {
+                if (preg_match('/^[+-]?[0-9]+$/', trim($part)) !== 1) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT comma form must be integer offset and limit');
+                }
+            }
+
+            return [(int) trim($commaParts[1]), (int) trim($commaParts[0])];
+        }
+        if (count($commaParts) > 2) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT comma form must have offset and limit');
+        }
+
         if (preg_match('/^([+-]?[0-9]+)(?:\s+offset\s+([+-]?[0-9]+))?$/i', trim($sql), $match) !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT must be integer with optional OFFSET');
         }

@@ -21443,6 +21443,70 @@ SQL;
             ['column' => '__sqlite_order_expr_1', 'direction' => 'ASC'],
         ], $aggregateExpressionOrderPlan['orderBy']);
 
+        $commaLimitRows = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name AS name, bytes FROM wp_options WHERE autoload IS NOT NULL ORDER BY bytes DESC, option_id ASC LIMIT 1, 3",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($commaLimitRows));
+        $t->same([1, 2, 4], array_column($commaLimitRows, 'option_id'));
+        $t->same(['siteurl', 'home', '_transient_feed'], array_column($commaLimitRows, 'name'));
+        $t->same([24, 24, 12], array_column($commaLimitRows, 'bytes'));
+        $t->same(['option_id', 'name', 'bytes'], array_keys($commaLimitRows[0]));
+        $t->same(1, $commaLimitRows[0]['option_id']);
+        $t->same('siteurl', $commaLimitRows[0]['name']);
+        $t->same(24, $commaLimitRows[0]['bytes']);
+        $t->same(2, $commaLimitRows[1]['option_id']);
+        $t->same('home', $commaLimitRows[1]['name']);
+        $t->same(24, $commaLimitRows[1]['bytes']);
+        $t->same(4, $commaLimitRows[2]['option_id']);
+        $t->same('_transient_feed', $commaLimitRows[2]['name']);
+        $t->same(12, $commaLimitRows[2]['bytes']);
+
+        $commaOffsetRows = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name AS name FROM wp_options ORDER BY option_id LIMIT 2 OFFSET 1",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($commaOffsetRows));
+        $t->same($commaOffsetRows, SQLiteSelectSql::execute(
+            "SELECT option_id, option_name AS name FROM wp_options ORDER BY option_id LIMIT 1, 2",
+            ['wp_options' => $options],
+        ));
+
+        $commaNoLimitRows = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name AS name FROM wp_options ORDER BY option_id LIMIT 3, -1",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($commaNoLimitRows));
+        $t->same([4, 5, 6], array_column($commaNoLimitRows, 'option_id'));
+        $t->same(['_transient_feed', '_site_transient_update_plugins', 'orphaned'], array_column($commaNoLimitRows, 'name'));
+
+        $commaLimitPlan = SQLiteSelectSql::plan(
+            "SELECT option_id, option_name AS name FROM wp_options ORDER BY option_id LIMIT 2, 3",
+            ['wp_options' => $options],
+        );
+        $t->same(['from', 'select', 'orderBy', 'limit', 'offset'], array_keys($commaLimitPlan));
+        $t->same(3, $commaLimitPlan['limit']);
+        $t->same(2, $commaLimitPlan['offset']);
+        $t->same([['column' => 'option_id']], $commaLimitPlan['orderBy']);
+        $commaPlanRows = SQLiteSelectQuery::execute($commaLimitPlan);
+        $t->same(3, count($commaPlanRows));
+        $t->same([3, 4, 5], array_column($commaPlanRows, 'option_id'));
+        $t->same(['blogname', '_transient_feed', '_site_transient_update_plugins'], array_column($commaPlanRows, 'name'));
+
+        $groupCommaLimitRows = SQLiteSelectSql::execute(
+            "SELECT autoload, count(*) AS rows, sum(bytes) AS byte_sum FROM wp_options GROUP BY autoload HAVING count(*) >= 1 ORDER BY byte_sum DESC LIMIT 1, 2",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($groupCommaLimitRows));
+        $t->same(['yes', null], array_column($groupCommaLimitRows, 'autoload'));
+        $t->same([3, 1], array_column($groupCommaLimitRows, 'rows'));
+        $t->same([57, 3], array_column($groupCommaLimitRows, 'byte_sum'));
+        $t->same(['autoload', 'rows', 'byte_sum'], array_keys($groupCommaLimitRows[0]));
+        $t->same('yes', $groupCommaLimitRows[0]['autoload']);
+        $t->same(3, $groupCommaLimitRows[0]['rows']);
+        $t->same(null, $groupCommaLimitRows[1]['autoload']);
+        $t->same(3, $groupCommaLimitRows[1]['byte_sum']);
+
         $quoted = SQLiteSelectSql::execute(
             "SELECT option_name AS name FROM wp_options WHERE option_value = 'Bob''s Site'",
             ['wp_options' => [['option_name' => 'blogname', 'option_value' => "Bob's Site"]]],
@@ -21481,6 +21545,22 @@ SQL;
         $t->same('home', $innerJoin[2]['name']);
         $t->same('core', $innerJoin[2]['source']);
         $t->same(20, $innerJoin[2]['priority']);
+
+        $joinCommaLimit = SQLiteSelectSql::execute(
+            "SELECT wp_options.option_name AS name, m.source AS source, m.priority AS priority FROM wp_options JOIN option_meta AS m ON wp_options.option_id = m.option_id ORDER BY priority DESC LIMIT 1, 2",
+            ['wp_options' => $options, 'option_meta' => $meta],
+        );
+        $t->same(2, count($joinCommaLimit));
+        $t->same(['blogname', 'home'], array_column($joinCommaLimit, 'name'));
+        $t->same(['theme', 'core'], array_column($joinCommaLimit, 'source'));
+        $t->same([30, 20], array_column($joinCommaLimit, 'priority'));
+        $t->same(['name', 'source', 'priority'], array_keys($joinCommaLimit[0]));
+        $t->same('blogname', $joinCommaLimit[0]['name']);
+        $t->same('theme', $joinCommaLimit[0]['source']);
+        $t->same(30, $joinCommaLimit[0]['priority']);
+        $t->same('home', $joinCommaLimit[1]['name']);
+        $t->same('core', $joinCommaLimit[1]['source']);
+        $t->same(20, $joinCommaLimit[1]['priority']);
 
         $leftJoin = SQLiteSelectSql::execute(
             "SELECT wp_options.option_id AS id, wp_options.option_name AS name, m.source AS source, coalesce(m.priority, 0) AS priority FROM wp_options LEFT JOIN option_meta m ON wp_options.option_id = m.option_id WHERE wp_options.option_id >= 4 ORDER BY id ASC",
@@ -21641,6 +21721,20 @@ SQL;
         $t->same('$.plugin.rules[1].priority', $jsonRows[0]['fullkey']);
         $t->same(4, $jsonRows[1]['priority']);
         $t->same('$.plugin.rules[2].priority', $jsonRows[1]['fullkey']);
+
+        $jsonCommaLimitRows = SQLiteSelectSql::execute(
+            "SELECT key, atom AS priority, fullkey FROM json_tree('{$settingsJson}', '$.plugin.rules') WHERE type = 'integer' ORDER BY priority DESC LIMIT 1, 2",
+            [],
+        );
+        $t->same(2, count($jsonCommaLimitRows));
+        $t->same(['priority', 'priority'], array_column($jsonCommaLimitRows, 'key'));
+        $t->same([4, 2], array_column($jsonCommaLimitRows, 'priority'));
+        $t->same(['$.plugin.rules[2].priority', '$.plugin.rules[0].priority'], array_column($jsonCommaLimitRows, 'fullkey'));
+        $t->same(['key', 'priority', 'fullkey'], array_keys($jsonCommaLimitRows[0]));
+        $t->same(4, $jsonCommaLimitRows[0]['priority']);
+        $t->same('$.plugin.rules[2].priority', $jsonCommaLimitRows[0]['fullkey']);
+        $t->same(2, $jsonCommaLimitRows[1]['priority']);
+        $t->same('$.plugin.rules[0].priority', $jsonCommaLimitRows[1]['fullkey']);
 
         $eachRows = SQLiteSelectSql::execute(
             "SELECT key, value, atom, type FROM json_each('[''alpha'',''beta'',''gamma'']') WHERE atom NOT IN ('beta') ORDER BY key DESC",
@@ -21816,6 +21910,8 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options ORDER BY missing_function(option_name)', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT autoload, sum(bytes) FROM wp_options GROUP BY autoload ORDER BY max(option_id)', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options LIMIT one', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options LIMIT 1, two', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options LIMIT 1, 2, 3', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name BETWEEN 1 AND 2', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name MATCH "site"', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN meta', ['wp_options' => $options]));

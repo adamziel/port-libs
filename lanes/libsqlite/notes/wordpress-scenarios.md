@@ -2,6 +2,26 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## SELECT SQL Comma LIMIT Scenario
+
+Copied WordPress option previews can now execute bounded SQLite SELECT text that
+uses `LIMIT offset,count`, preserving SQLite's comma-form operand order where
+the first value is the offset and the second value is the row count. The smoke
+`examples/wordpress-select-sql-limit-comma.php` reports plain `wp_options`
+rows and grouped autoload buckets selected through the comma form without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated SQL-exec slice: updated
+`SQLiteSelectSql::limitOffset()` to parse the comma LIMIT form and reuse the
+accepted row-array limit/offset executor. Focused assertions cover direct rows,
+`LIMIT ... OFFSET` equivalence, negative count no-limit behavior, query-plan
+shape, grouped aggregates, joins, JSON table rows, and malformed comma LIMIT
+guards. Focused `SQLiteHeaderTest.php` passed at 7393 assertions and 0
+failures from the current accepted source. Lane `phpPass` moves from 783 to
+784 and mapped coverage moves from 438 to 439. Dependency closure: no new
+support component is needed; this reuses lane-local SELECT SQL parsing,
+query-plan execution, join/group/JSON table rows, and pure PHP result limiting.
+
 ## Unicode GLOB Range Scenario
 
 Copied WordPress option diagnostics can now match plugin option names through

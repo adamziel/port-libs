@@ -119428,3 +119428,19 @@ Root verification: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `
 Commit: `3f02a4b4f829d3a28f63a250c36e40197a9742be` (`Integrate libsqlite rollback journal commit apply`).
 
 Cleanup: accepted ready marker, patch, and metadata files removed after the commit was safely published to `refs/heads/main`. Originating worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T060403Z` was preserved because it still contains modified/staged lane files; cleanup debt remains for the worker owner. Clean candidate worktree `.tmux-team/tmp/clean-candidates/libsqlite-deps-20260527T060403Z-current` is preserved with the accepted commit checked out.
+
+## Integration accepted - libsqlite SELECT SQL comma LIMIT - 2026-05-27T06:22:00Z
+
+Marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T060955Z.ready`.
+
+Base/guard evidence: local `refs/heads/main` and cache-busted live Pages both reported `95f6fff8eb9de09377c86eb3b8a221d5999c7141` before processing. Runtime gates were open: `df -Pk /` reported `86077800` KiB available, `/proc/loadavg` one-minute load was `1.23`, and no exact no-argument root harness was running.
+
+Decision: accepted by bounded replay in detached clean worktree `.tmux-team/tmp/clean-integration-candidates/libsqlite-sql-limit-comma-20260527T062203` from current `main`. The marker was based on older `7e509304f07e091c14a36b05796ada444a68feb6`; full `git apply --check` failed only in stale `UPSTREAM_TEST_MANIFEST.json` and `lane-status.json`. Implementation, test, example, and notes hunks applied cleanly after excluding stale status/manifest files, then manifest/status were reconciled from current `95f6fff8` evidence.
+
+Delta: adds parser-level SQLite `LIMIT offset,count` support in `SQLiteSelectSql`, preserving SQLite comma-form operand order across plain rows, grouped aggregates, joins, query-plan rows, and JSON table-valued rows. Adds `wordpress-select-sql-limit-comma.php`, focused assertions, and reconciled status records for `phpPass` `785` and mapped coverage `440 / 1589`.
+
+Focused verification before root: syntax checks passed; `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 7485 assertions, 0 failures`; `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-limit-comma.php` emitted valid JSON with selected option IDs `[1,2,4]` and grouped autoload buckets `["yes",null]`; manifest/status JSON decoded; `git diff --check -- lanes/libsqlite` passed.
+
+Root verification: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 32650 assertions, 0 failures`.
+
+Cleanup: accepted ready marker, patch, and metadata files removed after the commit was safely published to `refs/heads/main`. Originating worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T060955Z` was preserved because it still contains modified/staged lane files; cleanup debt remains for the worker owner. Clean candidate worktree `.tmux-team/tmp/clean-integration-candidates/libsqlite-sql-limit-comma-20260527T062203` is preserved with repo-local `.tmp-root` root-run scratch.

@@ -1,5 +1,37 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 SELECT SQL Comma LIMIT Dispatch
+
+Current-base SQL-exec slice on accepted `7e509304` adds parser-level SQLite
+`LIMIT offset,count` support without repeating queued `BETWEEN`, accepted
+expression `ORDER BY`, grouped SELECT text, JOIN text, JSON table source/cursor,
+or standalone result LIMIT/OFFSET helpers. `SQLiteSelectSql::limitOffset()` now
+recognizes the comma form and stores the second operand as the row limit and
+the first operand as the offset, matching SQLite's documented reversed operand
+order for that syntax. The existing `SQLiteSelectQuery` and `SQLiteSelectResult`
+pipeline then applies the parsed limit/offset to plain rows, joined rows,
+grouped aggregate rows, and JSON table rows.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 7393 assertions,
+up from the current focused baseline of 7276 assertions (`+117`). The
+WordPress smoke is `examples/wordpress-select-sql-limit-comma.php`.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSelectSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-select-sql-limit-comma.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-select-sql-limit-comma.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local SELECT SQL parser, query-plan executor, row-array result limiter,
+join execution, grouped aggregate summaries, and JSON table rows.
+
 ## 2026-05-27 VFS Process File-Lock Application
 
 Current-base dependency/open slice adds `SQLiteVfsFileLock` without repeating
