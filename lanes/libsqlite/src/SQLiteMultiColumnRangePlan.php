@@ -314,7 +314,7 @@ final class SQLiteMultiColumnRangePlan
      * @param list<SQLiteIndexColumn> $columns
      * @param array<string,list<array{column:string,operator:string,values:mixed}>> $constraints
      * @param array{distinctValues?:array<string,int>} $index
-     * @return array{count:int,usedColumns:list<string>,equalityPrefix:int,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,residualRangeColumns:list<string>,residualConstraints:list<array{column:string,operator:string,values:mixed}>,usesSkipScan:bool,skippedColumns:list<string>,skipScanLoops:int,skipScanPenalty:int,currentIndexColumnOffset:int}
+     * @return array{count:int,usedColumns:list<string>,equalityPrefix:int,equalityConstraints:list<array{column:string,operator:string,values:mixed}>,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,residualRangeColumns:list<string>,residualConstraints:list<array{column:string,operator:string,values:mixed}>,usesSkipScan:bool,skippedColumns:list<string>,skipScanLoops:int,skipScanPenalty:int,currentIndexColumnOffset:int}
      */
     private static function usableSkipScanPrefix(array $columns, array $constraints, array $index): array
     {
@@ -322,6 +322,7 @@ final class SQLiteMultiColumnRangePlan
             'count' => 0,
             'usedColumns' => [],
             'equalityPrefix' => 0,
+            'equalityConstraints' => [],
             'rangeColumn' => null,
             'rangeConstraint' => null,
             'residualRangeColumns' => [],
@@ -344,6 +345,7 @@ final class SQLiteMultiColumnRangePlan
             }
 
             $used = [];
+            $equalityConstraints = [];
             $equalityPrefix = 0;
             $rangeColumn = null;
             $rangeConstraint = null;
@@ -361,6 +363,7 @@ final class SQLiteMultiColumnRangePlan
                 $equality = self::firstConstraint($matches, ['point', 'IN']);
                 if ($equality !== null && self::hasNonNullValue($equality['values'])) {
                     $used[] = $column->columnName;
+                    $equalityConstraints[] = $equality;
                     $equalityPrefix++;
                     continue;
                 }
@@ -392,6 +395,7 @@ final class SQLiteMultiColumnRangePlan
                 'count' => count($used),
                 'usedColumns' => $used,
                 'equalityPrefix' => $equalityPrefix,
+                'equalityConstraints' => $equalityConstraints,
                 'rangeColumn' => $rangeColumn,
                 'rangeConstraint' => $rangeConstraint,
                 'residualRangeColumns' => array_values($residualRangeColumns),

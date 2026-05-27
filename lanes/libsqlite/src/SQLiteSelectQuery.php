@@ -259,6 +259,22 @@ final class SQLiteSelectQuery
         if ($filter !== null) {
             throw new \InvalidArgumentException("SQLite SELECT query FILTER is not supported for {$function}");
         }
+        if ($frame !== null && in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
+            if ($orderBy === []) {
+                throw new \InvalidArgumentException('SQLite SELECT query value window frame needs ORDER BY');
+            }
+
+            return SQLiteWindowFunction::valueFrameValues(
+                $function,
+                $values,
+                $peerKeys,
+                $frame['unit'],
+                $frame['preceding'],
+                $frame['following'],
+                $frame['exclude'],
+                $function === 'nth_value' ? self::windowIntegerArgument($arguments, $orderedRows, 1, 'nth_value') : null,
+            );
+        }
         if ($frame !== null) {
             throw new \InvalidArgumentException("SQLite SELECT query window frame is not supported for {$function}");
         }

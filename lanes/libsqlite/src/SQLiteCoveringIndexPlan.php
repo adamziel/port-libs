@@ -75,7 +75,9 @@ final class SQLiteCoveringIndexPlan
 
             $covering = self::coversNeededColumns($columns, self::unqualifiedNeededColumns($neededColumns, $targetAlias));
             $orderBySatisfied = self::orderBySatisfied($columns, self::unqualifiedOrderBy($orderBy, $targetAlias), $prefix['equalityPrefix']);
-            $estimatedRows = self::estimatedRows($index, $prefix);
+            $estimatedRowsBeforeStat4 = self::estimatedRows($index, $prefix);
+            $stat4 = self::stat4EstimateRows($index, $prefix, $constraints, $estimatedRowsBeforeStat4);
+            $estimatedRows = $stat4['estimatedRows'];
             $cost = self::estimatedCost($estimatedRows, $prefix, $covering, $orderBySatisfied, $columns[0]->partial);
             $dependencies = self::outerDependenciesForColumns($prefix['usedColumns'], $constraints);
 
@@ -91,6 +93,9 @@ final class SQLiteCoveringIndexPlan
                 'orderBySatisfied' => $orderBySatisfied,
                 'partial' => $columns[0]->partial,
                 'estimatedRows' => $estimatedRows,
+                'estimatedRowsBeforeStat4' => $estimatedRowsBeforeStat4,
+                'stat4Used' => $stat4['used'],
+                'stat4MatchedSamples' => $stat4['matchedSamples'],
                 'estimatedCost' => $cost,
                 'residualPredicateRequired' => true,
                 'joinLoop' => 'current-next',
@@ -142,7 +147,9 @@ final class SQLiteCoveringIndexPlan
 
             $covering = self::coversNeededColumns($columns, $neededColumns);
             $orderBySatisfied = self::orderBySatisfied($columns, $orderBy, $prefix['equalityPrefix']);
-            $estimatedRows = self::estimatedRows($index, $prefix);
+            $estimatedRowsBeforeStat4 = self::estimatedRows($index, $prefix);
+            $stat4 = self::stat4EstimateRows($index, $prefix, $constraints, $estimatedRowsBeforeStat4);
+            $estimatedRows = $stat4['estimatedRows'];
             $cost = self::estimatedCost($estimatedRows, $prefix, $covering, $orderBySatisfied, $columns[0]->partial);
 
             $plans[] = [
@@ -157,6 +164,9 @@ final class SQLiteCoveringIndexPlan
                 'orderBySatisfied' => $orderBySatisfied,
                 'partial' => $columns[0]->partial,
                 'estimatedRows' => $estimatedRows,
+                'estimatedRowsBeforeStat4' => $estimatedRowsBeforeStat4,
+                'stat4Used' => $stat4['used'],
+                'stat4MatchedSamples' => $stat4['matchedSamples'],
                 'estimatedCost' => $cost,
                 'residualPredicateRequired' => true,
             ];
@@ -570,6 +580,184 @@ final class SQLiteCoveringIndexPlan
         }
 
         return max(1, min($baseRows, (int) ceil($baseRows * $selectivity)));
+    }
+
+    /**
+     * @param array<string,mixed> $index
+     * @param array{count:int,usedColumns:list<string>,rangeColumn:string|null,equalityPrefix:int} $prefix
+     * @param array<string,list<array{column:string,operator:string,values:mixed}>> $constraints
+     * @return array{estimatedRows:int,used:bool,matchedSamples:int}
+     */
+    private static function stat4EstimateRows(array $index, array $prefix, array $constraints, int $fallbackRows): array
+    {
+        $samples = $index['stat4Samples'] ?? [];
+        if ($samples === null || $samples === []) {
+            return ['estimatedRows' => $fallbackRows, 'used' => false, 'matchedSamples' => 0];
+        }
+        if (!is_array($samples) || !array_is_list($samples)) {
+            throw new \InvalidArgumentException('SQLite covering-index stat4Samples must be a list');
+        }
+        if ($prefix['usedColumns'] === []) {
+            return ['estimatedRows' => $fallbackRows, 'used' => false, 'matchedSamples' => 0];
+        }
+
+        $matchedRows = 0;
+        $matchedSamples = 0;
+        foreach ($samples as $sample) {
+            if (!is_array($sample)) {
+                throw new \InvalidArgumentException('SQLite covering-index stat4 sample must be an array');
+            }
+            $rows = $sample['rows'] ?? null;
+            if (!is_int($rows) || $rows < 1) {
+                throw new \InvalidArgumentException('SQLite covering-index stat4 sample rows must be a positive integer');
+            }
+            $values = $sample['values'] ?? null;
+            if (!is_array($values)) {
+                throw new \InvalidArgumentException('SQLite covering-index stat4 sample values must be a column map');
+            }
+            if (self::stat4SampleMatchesPrefix($values, $prefix['usedColumns'], $constraints)) {
+                $matchedRows += $rows;
+                $matchedSamples++;
+            }
+        }
+
+        if ($matchedSamples === 0) {
+            return ['estimatedRows' => $fallbackRows, 'used' => false, 'matchedSamples' => 0];
+        }
+
+        return ['estimatedRows' => max(1, min($fallbackRows, $matchedRows)), 'used' => true, 'matchedSamples' => $matchedSamples];
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     * @param list<string> $usedColumns
+     * @param array<string,list<array{column:string,operator:string,values:mixed}>> $constraints
+     */
+    private static function stat4SampleMatchesPrefix(array $values, array $usedColumns, array $constraints): bool
+    {
+        foreach ($usedColumns as $column) {
+            $sampleValue = self::stat4SampleValue($values, $column);
+            if (!array_key_exists(strtolower($column), $constraints)) {
+                return false;
+            }
+            if (!self::stat4ValueMatchesConstraints($sampleValue, $constraints[strtolower($column)])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string,mixed> $values
+     */
+    private static function stat4SampleValue(array $values, string $column): mixed
+    {
+        foreach ($values as $name => $value) {
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('SQLite covering-index stat4 sample column names must be strings');
+            }
+            if (strcasecmp($name, $column) === 0) {
+                return self::literalValue($value);
+            }
+        }
+
+        throw new \InvalidArgumentException("SQLite covering-index stat4 sample missing {$column}");
+    }
+
+    /**
+     * @param list<array{column:string,operator:string,values:mixed}> $constraints
+     */
+    private static function stat4ValueMatchesConstraints(mixed $sampleValue, array $constraints): bool
+    {
+        foreach ($constraints as $constraint) {
+            if (!self::stat4ValueMatchesConstraint($sampleValue, $constraint)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{column:string,operator:string,values:mixed} $constraint
+     */
+    private static function stat4ValueMatchesConstraint(mixed $sampleValue, array $constraint): bool
+    {
+        return match ($constraint['operator']) {
+            'point' => self::compareSqlValues($sampleValue, $constraint['values']) === 0,
+            'IN' => is_array($constraint['values']) && self::stat4ValueInList($sampleValue, $constraint['values']),
+            'BETWEEN' => is_array($constraint['values'])
+                && self::stat4CompareNullable($sampleValue, $constraint['values']['lower'] ?? null) >= 0
+                && self::stat4CompareNullable($sampleValue, $constraint['values']['upper'] ?? null) <= 0,
+            'range->' => self::stat4CompareNullable($sampleValue, $constraint['values']) > 0,
+            'range->=' => self::stat4CompareNullable($sampleValue, $constraint['values']) >= 0,
+            'range-<' => self::stat4CompareNullable($sampleValue, $constraint['values']) < 0,
+            'range-<=' => self::stat4CompareNullable($sampleValue, $constraint['values']) <= 0,
+            'is-not-null' => $sampleValue !== null,
+            default => false,
+        };
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function stat4ValueInList(mixed $sampleValue, array $values): bool
+    {
+        foreach ($values as $value) {
+            if (self::compareSqlValues($sampleValue, $value) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function stat4CompareNullable(mixed $left, mixed $right): int
+    {
+        if ($left === null || $right === null) {
+            return -1;
+        }
+
+        return self::compareSqlValues($left, $right);
+    }
+
+    private static function compareSqlValues(mixed $left, mixed $right): int
+    {
+        $leftRank = self::sortRank($left);
+        $rightRank = self::sortRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
+        }
+        if ($left === null || $right === null) {
+            return 0;
+        }
+        if ($left instanceof SQLiteBlobValue && $right instanceof SQLiteBlobValue) {
+            return strcmp($left->bytes, $right->bytes);
+        }
+        if ((is_int($left) || is_float($left) || is_bool($left)) && (is_int($right) || is_float($right) || is_bool($right))) {
+            return ((float) $left) <=> ((float) $right);
+        }
+
+        return strcmp((string) $left, (string) $right);
+    }
+
+    private static function sortRank(mixed $value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+        if (is_int($value) || is_float($value) || is_bool($value)) {
+            return 1;
+        }
+        if (is_string($value)) {
+            return 2;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return 3;
+        }
+
+        return 4;
     }
 
     /**

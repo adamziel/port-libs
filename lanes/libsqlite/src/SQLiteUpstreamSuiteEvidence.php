@@ -2911,6 +2911,112 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @param array<int, array<string, mixed>> $currentFailedArtifacts
+     * @param array<int, array<string, mixed>> $nextFailedArtifacts
+     * @param array<string, mixed> $focusedReproGate
+     * @return array<string, mixed>
+     */
+    public function releaseRunnerFailureLedgerCurrentNext38(
+        array $currentFailedArtifacts,
+        array $nextFailedArtifacts,
+        array $focusedReproGate,
+        string $currentAcceptedHead,
+        string $nextAcceptedHead
+    ): array {
+        $current = $this->releaseFailureLedgerEntries($currentFailedArtifacts, $currentAcceptedHead);
+        $next = $this->releaseFailureLedgerEntries($nextFailedArtifacts, $nextAcceptedHead);
+        $focusedScript = is_string($focusedReproGate['script'] ?? null) ? $focusedReproGate['script'] : null;
+        $focusedCase = is_string($focusedReproGate['case'] ?? null) ? $focusedReproGate['case'] : null;
+
+        $currentKeys = [];
+        foreach ($current['entries'] as $entry) {
+            if (($entry['countable'] ?? false) === true) {
+                $currentKeys[$entry['failure_key']] = true;
+            }
+        }
+
+        $nextKeys = [];
+        $matchingFocusedFailures = 0;
+        foreach ($next['entries'] as $entry) {
+            if (($entry['countable'] ?? false) !== true) {
+                continue;
+            }
+            $nextKeys[$entry['failure_key']] = true;
+            if (($entry['script'] ?? null) === $focusedScript && ($focusedCase === null || ($entry['case'] ?? null) === $focusedCase)) {
+                $matchingFocusedFailures++;
+            }
+        }
+
+        $preserved = array_values(array_intersect(array_keys($currentKeys), array_keys($nextKeys)));
+        sort($preserved);
+        $resolved = array_values(array_diff(array_keys($currentKeys), array_keys($nextKeys)));
+        sort($resolved);
+        $new = array_values(array_diff(array_keys($nextKeys), array_keys($currentKeys)));
+        sort($new);
+
+        $blockers = array_merge($current['blockers'], $next['blockers']);
+        if (($focusedReproGate['status'] ?? null) !== 'focused-repro-passed') {
+            $blockers[] = [
+                'id' => 'focused-repro-not-passed',
+                'evidence' => 'current/next failure ledger requires an exact focused repro with zero errors before preserving a release failure as countable blocker evidence',
+                'focused_status' => $focusedReproGate['status'] ?? 'unknown',
+            ];
+        }
+        if ($matchingFocusedFailures === 0 && $next['countable_count'] > 0) {
+            $blockers[] = [
+                'id' => 'next-failure-not-covered-by-focused-repro',
+                'evidence' => 'next failed release artifacts did not include the focused failed script/case',
+                'focused_script' => $focusedScript,
+                'focused_case' => $focusedCase,
+            ];
+        }
+
+        $status = 'blocked';
+        if ($blockers === []) {
+            if ($next['countable_count'] === 0) {
+                $status = 'next-failure-resolved';
+            } elseif ($new !== []) {
+                $status = 'next-failure-ledger-expanded';
+            } elseif ($preserved !== []) {
+                $status = 'next-failure-preserved';
+            } else {
+                $status = 'next-failure-ledger-empty';
+            }
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'current_artifact_count' => count($currentFailedArtifacts),
+            'next_artifact_count' => count($nextFailedArtifacts),
+            'current_countable_failure_count' => $current['countable_count'],
+            'next_countable_failure_count' => $next['countable_count'],
+            'preserved_failure_count' => count($preserved),
+            'resolved_failure_count' => count($resolved),
+            'new_failure_count' => count($new),
+            'preserved_failure_keys' => $preserved,
+            'resolved_failure_keys' => $resolved,
+            'new_failure_keys' => $new,
+            'focused_script' => $focusedScript,
+            'focused_case' => $focusedCase,
+            'matching_focused_next_failure_count' => $matchingFocusedFailures,
+            'current_entries' => $current['entries'],
+            'next_entries' => $next['entries'],
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'counts_as_release_parity' => false,
+            'counts_as_blocker_evidence' => $blockers === [] && $next['countable_count'] > 0,
+            'next_gate' => $status === 'next-failure-resolved'
+                ? 'replace current failed-runner blocker state with the next zero-failure artifact before counting release/all parity'
+                : ($blockers === []
+                    ? 'preserve the next failed release ledger as blocker evidence only; release/all parity remains uncounted until a zero-error release artifact passes provenance gates'
+                    : 'repair failed-runner provenance, head matching, or focused repro evidence before counting current/next release failure state'),
+            'dependency_closure' => 'no new support component needed; current/next failure ledger composes parsed bounded-runner artifacts and focused repro evidence only',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $persistentBlockerGate
      * @return array<string, mixed>
      */
@@ -5282,6 +5388,111 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return $blockers;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $artifacts
+     * @return array{entries:list<array<string, mixed>>,countable_count:int,blockers:list<array<string, mixed>>}
+     */
+    private function releaseFailureLedgerEntries(array $artifacts, string $acceptedHead): array
+    {
+        $expectedManifestUuid = is_string($this->manifest['upstream']['officialManifestUuid'] ?? null)
+            ? $this->manifest['upstream']['officialManifestUuid']
+            : null;
+
+        $entries = [];
+        $blockers = [];
+        $countable = 0;
+        foreach ($artifacts as $index => $artifact) {
+            if (!is_array($artifact)) {
+                $blockers[] = [
+                    'id' => 'release-artifact-invalid',
+                    'index' => $index,
+                    'evidence' => 'failed release artifact entry is not an object',
+                ];
+                continue;
+            }
+
+            $results = is_array($artifact['results'] ?? null) ? $artifact['results'] : [];
+            $requested = is_array($artifact['requested'] ?? null) ? $artifact['requested'] : [];
+            $failureBlockers = is_array($results['failure_blockers'] ?? null) ? $results['failure_blockers'] : [];
+            $testset = is_string($requested['testset'] ?? null) ? $requested['testset'] : null;
+            $manifestUuid = is_string($artifact['sqlite_manifest_uuid'] ?? null) ? $artifact['sqlite_manifest_uuid'] : null;
+            $repositoryHead = is_string($artifact['repository_head'] ?? null) ? $artifact['repository_head'] : null;
+
+            $entryBlockers = [];
+            if (($artifact['status'] ?? null) !== 'failed') {
+                $entryBlockers[] = 'release-artifact-not-failed';
+            }
+            if (!in_array($testset, ['all', 'release'], true)) {
+                $entryBlockers[] = 'release-artifact-not-release-tier';
+            }
+            if ($repositoryHead !== $acceptedHead) {
+                $entryBlockers[] = 'repository-head-mismatch';
+            }
+            if ($expectedManifestUuid === null || $manifestUuid !== $expectedManifestUuid) {
+                $entryBlockers[] = 'sqlite-manifest-uuid-mismatch';
+            }
+
+            $primary = null;
+            foreach ($failureBlockers as $failureBlocker) {
+                if (!is_array($failureBlocker)) {
+                    continue;
+                }
+                if (($failureBlocker['category'] ?? null) === 'upstream-runtime-environment') {
+                    $primary = $failureBlocker;
+                    break;
+                }
+                if ($primary === null) {
+                    $primary = $failureBlocker;
+                }
+            }
+            if ($primary === null) {
+                $entryBlockers[] = 'release-artifact-missing-failure-blocker';
+            }
+
+            $script = is_array($primary) && is_string($primary['script'] ?? null) ? $primary['script'] : null;
+            $case = is_array($primary) && is_string($primary['case'] ?? null) ? $primary['case'] : null;
+            $category = is_array($primary) && is_string($primary['category'] ?? null) ? $primary['category'] : null;
+            $failureKey = implode('#', array_filter([$script, $case, $category], static fn (?string $part): bool => $part !== null && $part !== ''));
+            if ($failureKey === '') {
+                $failureKey = 'artifact-' . $index;
+            }
+
+            $isCountable = $entryBlockers === [];
+            if ($isCountable) {
+                $countable++;
+            } else {
+                $blockers[] = [
+                    'id' => 'release-failure-entry-blocked',
+                    'index' => $index,
+                    'label' => $artifact['label'] ?? null,
+                    'blocker_ids' => $entryBlockers,
+                ];
+            }
+
+            $entries[] = [
+                'index' => $index,
+                'label' => $artifact['label'] ?? null,
+                'countable' => $isCountable,
+                'blocker_ids' => $entryBlockers,
+                'failure_key' => $failureKey,
+                'script' => $script,
+                'case' => $case,
+                'category' => $category,
+                'repository_head' => $repositoryHead,
+                'testset' => $testset,
+                'tests' => $results['tests'] ?? null,
+                'errors' => $results['errors'] ?? null,
+                'exit' => $results['exit'] ?? null,
+            ];
+        }
+
+        return [
+            'entries' => $entries,
+            'countable_count' => $countable,
+            'blockers' => $blockers,
+        ];
     }
 
     /**

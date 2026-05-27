@@ -276,13 +276,94 @@ final class SQLitePragmaIntegrityCheck
 
                 match ($header->pageType) {
                     'table-leaf' => SQLiteTableLeafCell::parsePageCells($page, $header, $usableSize, $overflowReader),
-                    'index-leaf', 'index-interior' => SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader),
-                    'table-interior' => SQLiteTableInteriorCell::parsePageCells($page, $header),
+                    'index-leaf' => SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader),
+                    'index-interior' => self::appendIndexInteriorChildErrors($database, $pageNumber, $page, $header, $usableSize, $overflowReader, $errors, $limit),
+                    'table-interior' => self::appendTableInteriorChildErrors($database, $pageNumber, $page, $header, $errors, $limit),
                     default => null,
                 };
             } catch (\InvalidArgumentException $exception) {
                 self::append($errors, $limit, "btree page {$pageNumber}: " . self::formatError($exception));
             }
+        }
+    }
+
+    /**
+     * @param callable(int, int): string $overflowReader
+     * @param list<string> $errors
+     */
+    private static function appendIndexInteriorChildErrors(
+        SQLiteDatabase $database,
+        int $pageNumber,
+        string $page,
+        SQLiteBTreePageHeader $header,
+        int $usableSize,
+        callable $overflowReader,
+        array &$errors,
+        int $limit,
+    ): void {
+        foreach (SQLiteIndexCell::parsePageCells($page, $header, $usableSize, $overflowReader) as $cell) {
+            if ($cell->leftChildPage !== null) {
+                self::appendInteriorChildPointerMapError($database, $pageNumber, $cell->leftChildPage, 'left child', $errors, $limit);
+            }
+        }
+
+        if ($header->rightMostPointer !== null) {
+            self::appendInteriorChildPointerMapError($database, $pageNumber, $header->rightMostPointer, 'right-most child', $errors, $limit);
+        }
+    }
+
+    /**
+     * @param list<string> $errors
+     */
+    private static function appendTableInteriorChildErrors(
+        SQLiteDatabase $database,
+        int $pageNumber,
+        string $page,
+        SQLiteBTreePageHeader $header,
+        array &$errors,
+        int $limit,
+    ): void {
+        foreach (SQLiteTableInteriorCell::parsePageCells($page, $header) as $cell) {
+            self::appendInteriorChildPointerMapError($database, $pageNumber, $cell->leftChildPage, 'left child', $errors, $limit);
+        }
+
+        if ($header->rightMostPointer !== null) {
+            self::appendInteriorChildPointerMapError($database, $pageNumber, $header->rightMostPointer, 'right-most child', $errors, $limit);
+        }
+    }
+
+    /**
+     * @param list<string> $errors
+     */
+    private static function appendInteriorChildPointerMapError(
+        SQLiteDatabase $database,
+        int $parentPageNumber,
+        int $childPageNumber,
+        string $role,
+        array &$errors,
+        int $limit,
+    ): void {
+        if (!$database->isAutoVacuum() || $childPageNumber === 1 || $database->isPointerMapPage($childPageNumber)) {
+            return;
+        }
+        if ($childPageNumber > $database->pageCount()) {
+            self::append($errors, $limit, "btree page {$parentPageNumber} {$role} page {$childPageNumber} is beyond the database image");
+            return;
+        }
+
+        try {
+            $entry = $database->pointerMapEntryForPage($childPageNumber);
+        } catch (\InvalidArgumentException $exception) {
+            self::append($errors, $limit, self::formatError($exception));
+            return;
+        }
+
+        if ($entry->type !== SQLitePointerMapEntry::BTREE_PAGE) {
+            self::append($errors, $limit, "btree page {$parentPageNumber} {$role} page {$childPageNumber} pointer-map type {$entry->typeName()} does not match expected btree-page");
+            return;
+        }
+        if ($entry->parentPageNumber !== $parentPageNumber) {
+            self::append($errors, $limit, "btree page {$parentPageNumber} {$role} page {$childPageNumber} pointer-map parent {$entry->parentPageNumber} does not match expected parent {$parentPageNumber}");
         }
     }
 

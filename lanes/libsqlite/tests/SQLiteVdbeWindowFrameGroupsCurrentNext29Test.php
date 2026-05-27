@@ -124,8 +124,10 @@ $tests['vdbe window frame groups current next29 plan records filter with composi
     $t->same('=', $plan['select'][0]['filter']['operator']);
 };
 
-$tests['vdbe window frame groups current next29 rejects framed value function with composite order'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT first_value(option_name) OVER (ORDER BY bytes, option_name GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS v FROM wp_options', $tables));
+$tests['vdbe window frame groups current next29 supports framed value function with composite order'] = static function (TestRunner $t) use ($tables): void {
+    $rows = SQLiteSelectSql::execute('SELECT first_value(option_name) OVER (ORDER BY bytes, option_name GROUPS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS v FROM wp_options ORDER BY option_id', $tables);
+
+    $t->same(['alpha_cache', 'alpha_cache', 'beta_cache', 'cron_lock', 'cron_lock', 'plugin_rules', 'theme_mods', 'theme_mods'], array_column($rows, 'v'));
 };
 
 $tests['vdbe window frame groups current next29 rejects fractional groups offset'] = static function (TestRunner $t) use ($tables): void {
