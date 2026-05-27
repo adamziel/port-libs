@@ -23,6 +23,94 @@ final class SQLiteCoveringIndexPlan
     /**
      * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int}> $indexDefinitions
      * @param array<string,mixed> $predicate
+     * @param list<string> $outerColumns
+     * @param list<string> $neededColumns
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return null|array<string,mixed>
+     */
+    public static function chooseJoin(array $indexDefinitions, array $predicate, string $targetAlias, array $outerColumns, array $neededColumns, array $orderBy = []): ?array
+    {
+        $plans = self::rankedJoinPlans($indexDefinitions, $predicate, $targetAlias, $outerColumns, $neededColumns, $orderBy);
+
+        return $plans[0] ?? null;
+    }
+
+    /**
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int}> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<string> $outerColumns
+     * @param list<string> $neededColumns
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return list<array<string,mixed>>
+     */
+    public static function rankedJoinPlans(array $indexDefinitions, array $predicate, string $targetAlias, array $outerColumns, array $neededColumns, array $orderBy = []): array
+    {
+        if ($targetAlias === '') {
+            throw new \InvalidArgumentException('SQLite covering-index join planner needs a target alias');
+        }
+
+        $outerColumnSet = self::outerColumnSet($outerColumns);
+        $terms = self::flattenAndTerms($predicate);
+        $constraints = self::joinConstraintsByColumn($terms, $targetAlias, $outerColumnSet);
+        $plans = [];
+
+        foreach ($indexDefinitions as $index) {
+            $sql = $index['sql'] ?? null;
+            if (!is_string($sql) || $sql === '') {
+                throw new \InvalidArgumentException('SQLite covering-index planner needs CREATE INDEX SQL text');
+            }
+
+            $columns = SQLiteCreateIndex::columns($sql);
+            if ($columns === null) {
+                continue;
+            }
+            if (!self::partialPredicateIsImpliedByJoin($columns[0]->partialPredicate, $terms, $targetAlias, $outerColumnSet)) {
+                continue;
+            }
+
+            $prefix = self::usablePrefix($columns, $constraints);
+            if ($prefix['count'] === 0) {
+                continue;
+            }
+
+            $covering = self::coversNeededColumns($columns, self::unqualifiedNeededColumns($neededColumns, $targetAlias));
+            $orderBySatisfied = self::orderBySatisfied($columns, self::unqualifiedOrderBy($orderBy, $targetAlias), $prefix['equalityPrefix']);
+            $estimatedRows = self::estimatedRows($index, $prefix);
+            $cost = self::estimatedCost($estimatedRows, $prefix, $covering, $orderBySatisfied, $columns[0]->partial);
+            $dependencies = self::outerDependenciesForColumns($prefix['usedColumns'], $constraints);
+
+            $plans[] = [
+                'usable' => true,
+                'name' => $index['name'] ?? self::indexName($sql),
+                'rootPage' => $index['rootPage'] ?? null,
+                'columns' => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $columns),
+                'usedColumns' => $prefix['usedColumns'],
+                'rangeColumn' => $prefix['rangeColumn'],
+                'equalityPrefix' => $prefix['equalityPrefix'],
+                'covering' => $covering,
+                'orderBySatisfied' => $orderBySatisfied,
+                'partial' => $columns[0]->partial,
+                'estimatedRows' => $estimatedRows,
+                'estimatedCost' => $cost,
+                'residualPredicateRequired' => true,
+                'joinLoop' => 'current-next',
+                'targetAlias' => $targetAlias,
+                'outerDependencies' => $dependencies,
+                'deferredEqualityColumns' => array_keys($dependencies),
+            ];
+        }
+
+        usort($plans, static function (array $left, array $right): int {
+            return [$left['estimatedCost'], $left['estimatedRows'], (string) $left['name']]
+                <=> [$right['estimatedCost'], $right['estimatedRows'], (string) $right['name']];
+        });
+
+        return $plans;
+    }
+
+    /**
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int}> $indexDefinitions
+     * @param array<string,mixed> $predicate
      * @param list<string> $neededColumns
      * @param list<array{column:string,direction?:string}> $orderBy
      * @return list<array<string,mixed>>
@@ -127,6 +215,25 @@ final class SQLiteCoveringIndexPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $terms
+     * @param array<string,true> $outerColumnSet
+     * @return array<string,list<array{column:string,operator:string,values:mixed,outerColumn?:string}>>
+     */
+    private static function joinConstraintsByColumn(array $terms, string $targetAlias, array $outerColumnSet): array
+    {
+        $constraints = [];
+        foreach ($terms as $term) {
+            $constraint = self::joinConstraintFromPredicate($term, $targetAlias, $outerColumnSet);
+            if ($constraint === null) {
+                continue;
+            }
+            $constraints[strtolower($constraint['column'])][] = $constraint;
+        }
+
+        return $constraints;
+    }
+
+    /**
      * @return null|array{column:string,operator:string,values:mixed}
      */
     private static function ordinaryConstraintFromPredicate(array $predicate): ?array
@@ -168,6 +275,98 @@ final class SQLiteCoveringIndexPlan
     }
 
     /**
+     * @param array<string,true> $outerColumnSet
+     * @return null|array{column:string,operator:string,values:mixed,outerColumn?:string}
+     */
+    private static function joinConstraintFromPredicate(array $predicate, string $targetAlias, array $outerColumnSet): ?array
+    {
+        $operator = strtoupper(self::requiredString($predicate, 'operator'));
+        if ($operator === '=' || $operator === '==') {
+            return self::joinBinaryConstraint($predicate, $targetAlias, $outerColumnSet);
+        }
+        if (in_array($operator, ['<', '<=', '>', '>='], true)) {
+            return self::joinRangeConstraint($predicate, $targetAlias);
+        }
+        if ($operator === 'IN') {
+            $column = self::targetColumnOperand($predicate['left'] ?? null, $targetAlias);
+            $values = $predicate['values'] ?? null;
+            if ($column === null || !is_array($values) || !array_is_list($values)) {
+                return null;
+            }
+
+            return ['column' => $column, 'operator' => 'IN', 'values' => self::literalList($values)];
+        }
+        if ($operator === 'BETWEEN') {
+            $column = self::targetColumnOperand($predicate['left'] ?? null, $targetAlias);
+            if ($column === null || !array_key_exists('lower', $predicate) || !array_key_exists('upper', $predicate)) {
+                return null;
+            }
+
+            return ['column' => $column, 'operator' => 'BETWEEN', 'values' => [
+                'lower' => self::literalValue($predicate['lower']),
+                'upper' => self::literalValue($predicate['upper']),
+            ]];
+        }
+        if ($operator === 'IS NOT NULL') {
+            $column = self::targetColumnOperand($predicate['left'] ?? null, $targetAlias);
+
+            return $column === null ? null : ['column' => $column, 'operator' => 'is-not-null', 'values' => true];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,true> $outerColumnSet
+     * @return null|array{column:string,operator:string,values:mixed,outerColumn?:string}
+     */
+    private static function joinBinaryConstraint(array $predicate, string $targetAlias, array $outerColumnSet): ?array
+    {
+        $leftTarget = self::targetColumnOperand($predicate['left'] ?? null, $targetAlias);
+        $rightTarget = self::targetColumnOperand($predicate['right'] ?? null, $targetAlias);
+        $leftOuter = self::outerColumnOperand($predicate['left'] ?? null, $targetAlias, $outerColumnSet);
+        $rightOuter = self::outerColumnOperand($predicate['right'] ?? null, $targetAlias, $outerColumnSet);
+
+        if ($leftTarget !== null && $rightOuter !== null) {
+            return ['column' => $leftTarget, 'operator' => 'point', 'values' => ['outerColumn' => $rightOuter], 'outerColumn' => $rightOuter];
+        }
+        if ($rightTarget !== null && $leftOuter !== null) {
+            return ['column' => $rightTarget, 'operator' => 'point', 'values' => ['outerColumn' => $leftOuter], 'outerColumn' => $leftOuter];
+        }
+        if (($leftTarget !== null && self::columnOperand($predicate['right'] ?? null) !== null)
+            || ($rightTarget !== null && self::columnOperand($predicate['left'] ?? null) !== null)
+        ) {
+            return null;
+        }
+        if ($leftTarget !== null && $rightTarget === null && array_key_exists('right', $predicate)) {
+            return ['column' => $leftTarget, 'operator' => 'point', 'values' => self::literalValue($predicate['right'])];
+        }
+        if ($rightTarget !== null && $leftTarget === null && array_key_exists('left', $predicate)) {
+            return ['column' => $rightTarget, 'operator' => 'point', 'values' => self::literalValue($predicate['left'])];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{column:string,operator:string,values:mixed}
+     */
+    private static function joinRangeConstraint(array $predicate, string $targetAlias): ?array
+    {
+        $operator = 'range-' . strtoupper(self::requiredString($predicate, 'operator'));
+        $left = self::targetColumnOperand($predicate['left'] ?? null, $targetAlias);
+        $right = self::targetColumnOperand($predicate['right'] ?? null, $targetAlias);
+        if ($left !== null && $right === null && array_key_exists('right', $predicate)) {
+            return ['column' => $left, 'operator' => $operator, 'values' => self::literalValue($predicate['right'])];
+        }
+        if ($right !== null && $left === null && array_key_exists('left', $predicate)) {
+            return ['column' => $right, 'operator' => self::reverseRangeOperator($operator), 'values' => self::literalValue($predicate['left'])];
+        }
+
+        return null;
+    }
+
+    /**
      * @return null|array{column:string,operator:string,values:mixed}
      */
     private static function binaryConstraint(array $predicate, string $operator): ?array
@@ -192,6 +391,44 @@ final class SQLiteCoveringIndexPlan
         $column = $operand['column'] ?? null;
 
         return is_string($column) && $column !== '' ? $column : null;
+    }
+
+    private static function targetColumnOperand(mixed $operand, string $targetAlias): ?string
+    {
+        if (!is_array($operand) || array_key_exists('function', $operand)) {
+            return null;
+        }
+        $column = $operand['column'] ?? null;
+        if (!is_string($column) || $column === '') {
+            return null;
+        }
+        $table = $operand['table'] ?? $operand['alias'] ?? null;
+        if ($table === null) {
+            return $column;
+        }
+
+        return is_string($table) && strcasecmp($table, $targetAlias) === 0 ? $column : null;
+    }
+
+    /**
+     * @param array<string,true> $outerColumnSet
+     */
+    private static function outerColumnOperand(mixed $operand, string $targetAlias, array $outerColumnSet): ?string
+    {
+        if (!is_array($operand) || array_key_exists('function', $operand)) {
+            return null;
+        }
+        $column = $operand['column'] ?? null;
+        if (!is_string($column) || $column === '') {
+            return null;
+        }
+        $table = $operand['table'] ?? $operand['alias'] ?? null;
+        $qualified = is_string($table) && $table !== '' ? $table . '.' . $column : $column;
+        if (is_string($table) && strcasecmp($table, $targetAlias) === 0) {
+            return null;
+        }
+
+        return isset($outerColumnSet[strtolower($qualified)]) || isset($outerColumnSet[strtolower($column)]) ? $qualified : null;
     }
 
     /**
@@ -417,6 +654,72 @@ final class SQLiteCoveringIndexPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $terms
+     * @param array<string,true> $outerColumnSet
+     */
+    private static function partialPredicateIsImpliedByJoin(?SQLiteIndexPredicate $predicate, array $terms, string $targetAlias, array $outerColumnSet): bool
+    {
+        if ($predicate === null) {
+            return true;
+        }
+        if ($predicate->operator === SQLiteIndexPredicate::AND && is_array($predicate->value)) {
+            foreach ($predicate->value as $subPredicate) {
+                if (!$subPredicate instanceof SQLiteIndexPredicate || !self::partialPredicateIsImpliedByJoin($subPredicate, $terms, $targetAlias, $outerColumnSet)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        if ($predicate->operator === SQLiteIndexPredicate::OR && is_array($predicate->value)) {
+            foreach ($predicate->value as $subPredicate) {
+                if ($subPredicate instanceof SQLiteIndexPredicate && self::partialPredicateIsImpliedByJoin($subPredicate, $terms, $targetAlias, $outerColumnSet)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        foreach ($terms as $term) {
+            $constraint = self::joinConstraintFromPredicate($term, $targetAlias, $outerColumnSet);
+            if ($constraint === null) {
+                continue;
+            }
+            if (isset($constraint['outerColumn'])) {
+                if ($predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL && strcasecmp($predicate->columnName, $constraint['column']) === 0) {
+                    return true;
+                }
+                continue;
+            }
+            if ($constraint['operator'] === 'point' && $predicate->isImpliedByPointLookup($constraint['column'], $constraint['values'])) {
+                return true;
+            }
+            if ($constraint['operator'] === 'IN' && is_array($constraint['values']) && $predicate->isImpliedByInListLookup($constraint['column'], $constraint['values'])) {
+                return true;
+            }
+            if ($constraint['operator'] === 'is-not-null'
+                && $predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL
+                && strcasecmp($predicate->columnName, $constraint['column']) === 0
+            ) {
+                return true;
+            }
+            if ($constraint['operator'] === 'BETWEEN' && is_array($constraint['values']) && $predicate->isImpliedByRangeLookup(
+                $constraint['column'],
+                $constraint['values']['lower'] ?? null,
+                $constraint['values']['upper'] ?? null,
+                true
+            )) {
+                return true;
+            }
+            if (str_starts_with($constraint['operator'], 'range-') && self::rangeConstraintImpliesPartialPredicate($predicate, $constraint)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array{column:string,operator:string,values:mixed} $constraint
      */
     private static function rangeConstraintImpliesPartialPredicate(SQLiteIndexPredicate $predicate, array $constraint): bool
@@ -432,6 +735,9 @@ final class SQLiteCoveringIndexPlan
 
     private static function hasNonNullValue(mixed $value): bool
     {
+        if (is_array($value) && isset($value['outerColumn']) && is_string($value['outerColumn'])) {
+            return true;
+        }
         if (is_array($value)) {
             foreach ($value as $item) {
                 if (self::hasNonNullValue($item)) {
@@ -461,6 +767,81 @@ final class SQLiteCoveringIndexPlan
         }
 
         throw new \InvalidArgumentException('SQLite covering-index constraints need scalar, BLOB, or NULL values');
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return array<string,true>
+     */
+    private static function outerColumnSet(array $columns): array
+    {
+        $set = [];
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite covering-index join outer columns must be column names');
+            }
+            $set[strtolower($column)] = true;
+        }
+
+        return $set;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return list<string>
+     */
+    private static function unqualifiedNeededColumns(array $columns, string $targetAlias): array
+    {
+        return array_map(static fn (string $column): string => self::unqualifyColumnName($column, $targetAlias), $columns);
+    }
+
+    /**
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @return list<array{column:string,direction?:string}>
+     */
+    private static function unqualifiedOrderBy(array $orderBy, string $targetAlias): array
+    {
+        $normalized = [];
+        foreach ($orderBy as $order) {
+            $column = $order['column'] ?? null;
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite covering-index ORDER BY column must be a column name');
+            }
+            $order['column'] = self::unqualifyColumnName($column, $targetAlias);
+            $normalized[] = $order;
+        }
+
+        return $normalized;
+    }
+
+    private static function unqualifyColumnName(string $column, string $targetAlias): string
+    {
+        $prefix = $targetAlias . '.';
+        if (strncasecmp($column, $prefix, strlen($prefix)) === 0) {
+            return substr($column, strlen($prefix));
+        }
+
+        return $column;
+    }
+
+    /**
+     * @param list<string> $usedColumns
+     * @param array<string,list<array{column:string,operator:string,values:mixed,outerColumn?:string}>> $constraints
+     * @return array<string,string>
+     */
+    private static function outerDependenciesForColumns(array $usedColumns, array $constraints): array
+    {
+        $dependencies = [];
+        foreach ($usedColumns as $column) {
+            foreach ($constraints[strtolower($column)] ?? [] as $constraint) {
+                if (($constraint['operator'] ?? null) === 'point' && isset($constraint['outerColumn']) && is_string($constraint['outerColumn'])) {
+                    $dependencies[$column] = $constraint['outerColumn'];
+                    break;
+                }
+            }
+        }
+
+        return $dependencies;
     }
 
     private static function reverseRangeOperator(string $operator): string

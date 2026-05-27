@@ -3469,6 +3469,131 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function releaseRunnerUpstreamMapCurrentNext26(
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        ?string $repoRoot = null,
+        ?string $artifactDirectory = null,
+        string $processSnapshot = '',
+        int $jobs = 2
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('Current and next accepted repository HEAD values are required');
+        }
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite release-runner upstream map jobs must be at least 1');
+        }
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $artifactRoot = $artifactDirectory ?? $root . '/.tmux-team/tmp/sqlite-runner-artifacts';
+        $current = $this->acceptedHeadArtifactProvenanceDirectoryRecord(
+            $artifactRoot,
+            $currentAcceptedHead,
+            $processSnapshot
+        );
+        $next = $this->acceptedHeadArtifactProvenanceDirectoryRecord(
+            $artifactRoot,
+            $nextAcceptedHead,
+            $processSnapshot
+        );
+        $hydration = $this->upstreamRunnerHydrationGate($jobs, $root);
+        $commandManifest = $this->fullSuiteCommandManifest($jobs, $root);
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $currentCount = (int) ($current['current_accepted_count'] ?? 0);
+        $nextCount = (int) ($next['current_accepted_count'] ?? 0);
+        $blocked = [];
+        if ($currentCount < 1) {
+            $blocked[] = [
+                'id' => 'current-accepted-artifact-missing',
+                'evidence' => 'no zero-error bounded runner artifact matches the current accepted source',
+            ];
+        }
+        if ($nextCount > 0) {
+            $blocked[] = [
+                'id' => 'next-source-artifact-already-present',
+                'evidence' => 'a bounded runner artifact already matches the next accepted source; do not launch a duplicate',
+            ];
+        }
+        if (($hydration['status'] ?? null) !== 'hydrated') {
+            $blocked[] = [
+                'id' => 'runner-hydration-incomplete',
+                'evidence' => (string) ($hydration['missing_count'] ?? 0) . ' runner inputs are missing',
+            ];
+        }
+        if (($commandManifest['status'] ?? null) !== 'ready') {
+            $blocked[] = [
+                'id' => 'command-manifest-blocked',
+                'evidence' => (string) ($commandManifest['blocked_command_count'] ?? 0) . ' release/upstream commands are blocked',
+            ];
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blocked[] = [
+                'id' => 'duplicate-broad-runner-active',
+                'evidence' => (string) ($active['active_count'] ?? 0) . ' active broad runner process(es) detected',
+            ];
+        }
+
+        $status = 'blocked';
+        if ($currentCount > 0 && $nextCount === 0 && ($hydration['status'] ?? null) === 'hydrated' && ($commandManifest['status'] ?? null) === 'ready' && ($active['status'] ?? null) === 'clear') {
+            $status = 'ready-map-current-to-next-runner';
+        } elseif ($currentCount > 0 && $nextCount > 0) {
+            $status = 'next-artifact-already-countable';
+        } elseif ($currentCount > 0) {
+            $status = 'current-artifact-preserved-next-blocked';
+        }
+
+        $runnableIds = [];
+        $blockedIds = [];
+        foreach ($commandManifest['commands'] ?? [] as $command) {
+            if (!is_array($command) || !is_string($command['id'] ?? null)) {
+                continue;
+            }
+
+            if (($command['runnable'] ?? false) === true) {
+                $runnableIds[] = $command['id'];
+            } else {
+                $blockedIds[] = $command['id'];
+            }
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'artifact_directory' => $artifactRoot,
+            'jobs' => $jobs,
+            'current_artifact_count' => $currentCount,
+            'next_artifact_count' => $nextCount,
+            'current_artifact_status' => $current['status'] ?? 'unknown',
+            'next_artifact_status' => $next['status'] ?? 'unknown',
+            'hydration_status' => $hydration['status'] ?? 'unknown',
+            'hydration_missing_count' => (int) ($hydration['missing_count'] ?? 0),
+            'command_manifest_status' => $commandManifest['status'] ?? 'unknown',
+            'command_count' => (int) ($commandManifest['command_count'] ?? 0),
+            'runnable_command_count' => (int) ($commandManifest['runnable_command_count'] ?? 0),
+            'blocked_command_count' => (int) ($commandManifest['blocked_command_count'] ?? 0),
+            'runnable_command_ids' => $runnableIds,
+            'blocked_command_ids' => $blockedIds,
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'blocker_count' => count($blocked),
+            'blockers' => $blocked,
+            'counts_current_artifact_only' => $currentCount > 0 && $nextCount === 0,
+            'ready_to_launch_next_guarded_runner' => $status === 'ready-map-current-to-next-runner',
+            'next_gate' => match ($status) {
+                'ready-map-current-to-next-runner' => 'launch at most one guarded runner for the next accepted source, then count only a zero-error artifact with matching provenance',
+                'next-artifact-already-countable' => 'record the next accepted artifact and suppress duplicate broad runner launch',
+                'current-artifact-preserved-next-blocked' => 'preserve current accepted artifact evidence and resolve hydration, command, or duplicate-runner blockers before the next launch',
+                default => 'do not count release/all movement until current accepted artifact provenance and next-source launch gates are explicit',
+            },
+            'dependency_closure' => 'no new support component needed; current-next26 upstream map composes existing artifact provenance, runner hydration, command manifest, and duplicate-runner gates only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();

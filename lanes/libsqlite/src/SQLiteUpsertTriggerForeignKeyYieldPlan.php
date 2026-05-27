@@ -14,6 +14,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
      * @param array<string,callable(array<string,mixed>,array<string,mixed>):mixed> $assignments
      * @param array{parent_key:string,child_key:string,deferred?:bool} $foreignKey
      * @param list<array<string,mixed>> $triggers
+     * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string):mixed>|null $returning
      * @return array{parent:list<array<string,mixed>>,child:list<array<string,mixed>>,inserted:list<array<string,mixed>>,updated:list<array<string,mixed>>,skipped:list<array<string,mixed>>,yielded:list<array<string,mixed>>,foreign_key_violations:list<array<string,mixed>>,trigger_effects:list<array<string,mixed>>,changes:int}
      */
     public static function execute(
@@ -25,6 +26,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
         array $foreignKey,
         array $triggers,
         ?callable $where = null,
+        ?array $returning = null,
     ): array {
         $parents = array_values($parentRows);
         $children = array_values($childRows);
@@ -44,7 +46,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
 
             if ($old !== null && $where !== null && !$where($old, $incoming)) {
                 $skipped[] = $incoming;
-                $yielded[] = self::yieldRow($ordinal, 'skipped', $event, $old, $incoming, [], []);
+                $yielded[] = self::yieldRow($ordinal, 'skipped', $event, $old, $incoming, $incoming, [], [], $returning);
                 continue;
             }
 
@@ -58,6 +60,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
 
             $before = self::fireTriggers('before', $event, $old, $new, $children, $triggers, $spec);
             $new = $before['row'];
+            $returningImage = $new;
             $children = $before['child'];
             $effects = array_merge($effects, $before['effects']);
 
@@ -93,7 +96,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
                 throw new \InvalidArgumentException('SQLite UPSERT trigger foreign key immediate constraint failed after trigger');
             }
             $violations = array_merge($violations, self::tagViolations($afterViolations, $ordinal, 'after-trigger'));
-            $yielded[] = self::yieldRow($ordinal, 'changed', $event, $old, $new, $rowViolations, $afterViolations);
+            $yielded[] = self::yieldRow($ordinal, 'changed', $event, $old, $returningImage, $incoming, $rowViolations, $afterViolations, $returning);
         }
 
         return [
@@ -213,7 +216,7 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
      * @param list<array<string,mixed>> $after
      * @return array<string,mixed>
      */
-    private static function yieldRow(int $ordinal, string $status, string $event, ?array $old, array $new, array $before, array $after): array
+    private static function yieldRow(int $ordinal, string $status, string $event, ?array $old, array $new, array $incoming, array $before, array $after, ?array $returning): array
     {
         return [
             'ordinal' => $ordinal,
@@ -223,7 +226,69 @@ final class SQLiteUpsertTriggerForeignKeyYieldPlan
             'new_key' => $new['option_id'] ?? null,
             'violations_before_after_triggers' => count($before),
             'violations_after_triggers' => count($after),
+            'returning' => $status === 'changed' ? self::returningRow($returning, $old, $new, $incoming, $event) : null,
         ];
+    }
+
+    /**
+     * @param list<string|array{expr:string,as?:string}|callable(array<string,mixed>,?array<string,mixed>,array<string,mixed>,string):mixed>|null $projection
+     * @return array<string,mixed>
+     */
+    private static function returningRow(?array $projection, ?array $old, array $new, array $incoming, string $event): array
+    {
+        if ($projection === null) {
+            return $new;
+        }
+
+        $row = [];
+        foreach ($projection as $index => $entry) {
+            if (is_string($entry)) {
+                if ($entry === '*') {
+                    $row['*'] = self::returningValue($entry, $old, $new, $incoming);
+                    continue;
+                }
+                $alias = str_contains($entry, '.') ? substr($entry, (int) strrpos($entry, '.') + 1) : $entry;
+                $row[self::identifier($alias, 'RETURNING alias')] = self::returningValue($entry, $old, $new, $incoming);
+                continue;
+            }
+            if (is_array($entry)) {
+                $expr = (string) ($entry['expr'] ?? '');
+                $alias = (string) ($entry['as'] ?? (str_contains($expr, '.') ? substr($expr, (int) strrpos($expr, '.') + 1) : $expr));
+                $row[self::identifier($alias, 'RETURNING alias')] = self::returningValue($expr, $old, $new, $incoming);
+                continue;
+            }
+            if (is_callable($entry)) {
+                $row['expr' . $index] = $entry($new, $old, $incoming, $event);
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite UPSERT trigger/FK RETURNING projection is malformed');
+        }
+
+        return $row;
+    }
+
+    private static function returningValue(string $expr, ?array $old, array $new, array $incoming): mixed
+    {
+        $expr = trim($expr);
+        if ($expr === '*') {
+            return $new;
+        }
+        if (str_starts_with($expr, 'new.')) {
+            return self::rowValue($new, substr($expr, 4), 'RETURNING NEW row');
+        }
+        if (str_starts_with($expr, 'excluded.')) {
+            return self::rowValue($incoming, substr($expr, 9), 'RETURNING excluded row');
+        }
+        if (str_starts_with($expr, 'old.')) {
+            if ($old === null) {
+                throw new \InvalidArgumentException('SQLite UPSERT trigger/FK RETURNING OLD row is unavailable for INSERT');
+            }
+
+            return self::rowValue($old, substr($expr, 4), 'RETURNING OLD row');
+        }
+
+        return self::rowValue($new, $expr, 'RETURNING row');
     }
 
     /**
