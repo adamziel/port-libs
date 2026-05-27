@@ -2129,6 +2129,38 @@ apply, or pager checkpoint atomic apply.
 Dependency closure: no new shared support component is needed; the slice reuses
 lane-local open-plan, file-control state, and native PHP file-handle support.
 
+## UPDATE FROM Current Conflict Slice
+
+Focused lane verification for the update-from conflict-current slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpdateFromSql.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-update-from-conflict-current.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-update-from-conflict-current.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); echo "lane json ok\n";'
+git diff --check -- lanes/libsqlite
+```
+
+Result: syntax checks passed; full focused `SQLiteHeaderTest.php` passed with
+9701 assertions and 0 failures, adding 41 focused assertions over the
+9660-assertion base run. The WordPress smoke reported copied `wp_options`
+staging rows using SQLite current UPDATE FROM duplicate-source last-match
+behavior and `UPDATE OR REPLACE` current UNIQUE `option_name` conflict deletion
+without requiring ext/sqlite. Supervisor integration also verified those core
+semantics against a local `sqlite3` oracle and then ran the root harness:
+`215 test files, 34981 assertions, 0 failures`.
+
+Non-overlap note: this slice does not repeat accepted INSERT OR REPLACE
+conflict delete-before-insert planning, UPDATE/DELETE ORDER BY LIMIT row
+selection, SELECT SQL text/JOIN/subquery/GROUP/ORDER expression execution, or
+storage VFS/B-tree/WAL clusters. It adds parser-level UPDATE FROM row-array
+execution and current conflict behavior for copied staging rows.
+
+Dependency closure: no new shared support component is needed; the slice reuses
+lane-local SELECT SQL execution and copied WordPress option fixtures.
+
 ## Temp-store Sorter B-tree Slice
 
 Focused lane verification for the temp-store sorter B-tree slice:

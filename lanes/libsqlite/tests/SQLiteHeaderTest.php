@@ -101,6 +101,7 @@ use PortLibs\LibSqlite\SQLiteTextAggregate;
 use PortLibs\LibSqlite\SQLiteTextAggregateState;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteUpdateDeleteLimitPlan;
+use PortLibs\LibSqlite\SQLiteUpdateFromSql;
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
 use PortLibs\LibSqlite\SQLiteVfsFileControlState;
 use PortLibs\LibSqlite\SQLiteVfsFileHandle;
@@ -25138,6 +25139,86 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (option_id) VALUES (1)', ['archived_options' => $archive]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options SELECT option_id FROM wp_options WHERE option_name = "missing"', ['wp_options' => $options, 'archived_options' => []]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteInsertSelectSql::execute('INSERT INTO archived_options (option_id, option_name) SELECT option_id FROM wp_options', ['wp_options' => $options, 'archived_options' => $archive]));
+    },
+    'executes bounded sqlite update from current conflict sql text' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'Example Site', 'autoload' => 'yes', 'bytes' => 9],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'option_value' => 'cached', 'autoload' => 'no', 'bytes' => 12],
+            ['option_id' => 5, 'option_name' => 'legacy_name', 'option_value' => 'legacy', 'autoload' => 'no', 'bytes' => 6],
+        ];
+        $staging = [
+            ['option_id' => 2, 'new_name' => 'home_preview', 'new_value' => 'draft-home', 'seq' => 1],
+            ['option_id' => 2, 'new_name' => 'home_current', 'new_value' => 'current-home', 'seq' => 2],
+            ['option_id' => 3, 'new_name' => 'legacy_name', 'new_value' => 'current-blog', 'seq' => 3],
+            ['option_id' => 99, 'new_name' => 'missing', 'new_value' => 'ignored', 'seq' => 4],
+        ];
+
+        $plan = SQLiteUpdateFromSql::plan(
+            "UPDATE wp_options SET option_name = staged_options.new_name, option_value = staged_options.new_value, autoload = 'no', bytes = length(staged_options.new_value) FROM staged_options WHERE staged_options.option_id = wp_options.option_id",
+            ['wp_options' => $options, 'staged_options' => $staging],
+        );
+        $t->same('wp_options', $plan['target']);
+        $t->same('abort', $plan['conflict_action']);
+        $t->same(['option_name' => 'staged_options.new_name', 'option_value' => 'staged_options.new_value', 'autoload' => "'no'", 'bytes' => 'length(staged_options.new_value)'], $plan['assignments']);
+        $t->same(3, count($plan['matched_rows']));
+        $t->same(2, count($plan['updates']));
+        $t->same([1, 2], array_column($plan['updates'], '__sqlite_update_index'));
+        $t->same(['home_current', 'legacy_name'], array_column($plan['updates'], 'option_name'));
+        $t->same(['current-home', 'current-blog'], array_column($plan['updates'], 'option_value'));
+        $t->same([12, 12], array_column($plan['updates'], 'bytes'));
+        $t->contains('SELECT wp_options.__sqlite_update_index AS __sqlite_update_index, staged_options.new_name AS option_name', $plan['select_sql']);
+
+        $replace = SQLiteUpdateFromSql::execute(
+            "UPDATE OR REPLACE wp_options SET option_name = staged_options.new_name, option_value = staged_options.new_value, autoload = 'no', bytes = length(staged_options.new_value) FROM staged_options WHERE staged_options.option_id = wp_options.option_id",
+            ['wp_options' => $options, 'staged_options' => $staging],
+            [],
+            [['option_name']],
+        );
+        $t->same('replace', $replace['conflict_action']);
+        $t->same(2, $replace['changes']);
+        $t->same(5, count($replace['before']));
+        $t->same(4, count($replace['after']));
+        $t->same(2, count($replace['updated_rows']));
+        $t->same(1, count($replace['deleted_rows']));
+        $t->same(['legacy_name'], array_column($replace['deleted_rows'], 'option_name'));
+        $t->same([5], array_column($replace['deleted_rows'], 'option_id'));
+        $t->same([1, 2, 3, 4], array_column($replace['after'], 'option_id'));
+        $t->same(['siteurl', 'home_current', 'legacy_name', '_transient_feed'], array_column($replace['after'], 'option_name'));
+        $t->same(['https://example.test', 'current-home', 'current-blog', 'cached'], array_column($replace['after'], 'option_value'));
+        $t->same(['yes', 'no', 'no', 'no'], array_column($replace['after'], 'autoload'));
+        $t->same([24, 12, 12, 12], array_column($replace['after'], 'bytes'));
+
+        $parameterized = SQLiteUpdateFromSql::execute(
+            'UPDATE wp_options SET option_value = staged_options.new_value || :suffix, bytes = wp_options.bytes + ? FROM staged_options WHERE staged_options.option_id = wp_options.option_id AND staged_options.seq = :seq',
+            ['wp_options' => $options, 'staged_options' => $staging],
+            [':suffix' => ':published', 0 => 10, ':seq' => 1],
+        );
+        $t->same(1, $parameterized['changes']);
+        $t->same('draft-home:published', $parameterized['updated_rows'][0]['option_value']);
+        $t->same(34, $parameterized['updated_rows'][0]['bytes']);
+        $t->same('draft-home:published', $parameterized['after'][1]['option_value']);
+        $t->same('Example Site', $parameterized['after'][2]['option_value']);
+
+        $empty = SQLiteUpdateFromSql::execute(
+            "UPDATE wp_options SET option_value = staged_options.new_value FROM staged_options WHERE staged_options.option_id = wp_options.option_id AND staged_options.seq = 99",
+            ['wp_options' => $options, 'staged_options' => $staging],
+        );
+        $t->same(0, $empty['changes']);
+        $t->same([], $empty['updated_rows']);
+        $t->same($options, $empty['after']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute('SELECT * FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute('UPDATE missing SET option_value = staged_options.new_value FROM staged_options', ['wp_options' => $options, 'staged_options' => $staging]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute('UPDATE OR IGNORE wp_options SET option_value = staged_options.new_value FROM staged_options', ['wp_options' => $options, 'staged_options' => $staging]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute('UPDATE wp_options SET option_value FROM staged_options', ['wp_options' => $options, 'staged_options' => $staging]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute('UPDATE wp_options SET 1bad = new_value FROM staged_options', ['wp_options' => $options, 'staged_options' => $staging]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute('UPDATE wp_options SET option_value = FROM staged_options', ['wp_options' => $options, 'staged_options' => $staging]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute("UPDATE wp_options SET option_name = staged_options.new_name FROM staged_options WHERE staged_options.option_id = wp_options.option_id", ['wp_options' => $options, 'staged_options' => $staging], [], [['option_name']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute("UPDATE OR REPLACE wp_options SET option_name = staged_options.new_name FROM staged_options WHERE staged_options.option_id = wp_options.option_id", ['wp_options' => $options, 'staged_options' => $staging], [], [[]]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute("UPDATE OR REPLACE wp_options SET option_name = staged_options.new_name FROM staged_options WHERE staged_options.option_id = wp_options.option_id", ['wp_options' => $options, 'staged_options' => $staging], [], [['missing']]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateFromSql::execute("UPDATE wp_options SET option_value = staged_options.new_value FROM staged_options WHERE staged_options.option_id = wp_options.option_id", ['wp_options' => [['option_id' => 1, '__sqlite_update_index' => 0]], 'staged_options' => $staging]));
     },
     'executes bounded sqlite compound select sql text' => static function (TestRunner $t): void {
         $options = [

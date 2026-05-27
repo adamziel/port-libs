@@ -5004,3 +5004,27 @@ lane-local SELECT SQL parser/executor and copied WordPress option fixtures.
 Follow-up should wire this row-array insert-select preview into lower-level
 table/index page write planning without repeating accepted insert-or-replace,
 SELECT SQL text, subquery, bind-parameter, or storage VFS clusters.
+
+## UPDATE FROM Current Conflict Scenario
+
+Copied WordPress `wp_options` staging diagnostics now expose bounded SQLite
+`UPDATE ... FROM ...` current behavior. The smoke
+`examples/wordpress-update-from-conflict-current.php` reports duplicate staged
+rows updating a target option once using the current SQLite last-match source
+row, while `UPDATE OR REPLACE` deletes a current UNIQUE `option_name` conflict
+before keeping the updated row, without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated `update-from-conflict-current` slice:
+`SQLiteUpdateFromSql` parses bounded `UPDATE [OR REPLACE] target SET ... FROM
+source WHERE ...` row-array SQL, delegates joined target/source expression
+evaluation to the accepted SELECT SQL executor, collapses duplicate source
+matches to one update per target, and optionally applies current unique-column
+conflict deletion. Focused `SQLiteHeaderTest.php` passed at 9701 assertions,
+adding 41 assertions over the 9660-assertion base focused run.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local SELECT SQL parser/executor and copied WordPress option fixtures.
+Follow-up should wire this row-array update preview into lower-level table/index
+page write planning without repeating accepted INSERT OR REPLACE conflict
+planning, UPDATE/DELETE LIMIT row selection, or this parser-level UPDATE FROM
+current-conflict behavior.
