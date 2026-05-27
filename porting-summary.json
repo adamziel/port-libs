@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 22:02:46 UTC",
-    "sourceCommit": "f2102bba40d4268d194bd75c857eec139c04faec",
-    "sourceCommitShort": "f2102bba40d4",
+    "generated": "2026-05-27 22:13:41 UTC",
+    "sourceCommit": "8d05d882ec82e4f149044b64142d8aa88010a66e",
+    "sourceCommitShort": "8d05d882ec82",
     "sourceBranch": "main",
-    "dashboardCommit": "e3c45a694fcf81d5bd31a065cdd1f9659197f4fb",
-    "dashboardCommitShort": "e3c45a694fcf",
+    "dashboardCommit": "7ae88ad762d038d1ede7fcf76ddfbdaa56c24c28",
+    "dashboardCommitShort": "7ae88ad762d0",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "462",
             "coverage": "462 / 1589",
-            "php": "15880 pass / 0 fail",
+            "php": "16685 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "bounded parser-level SELECT SQL predicate semantics for...",
-            "audit": "Batch35 clean subset accepted in implemen...",
-            "currentWork": "Accepted batch35 closure over attach temp/main shadow cache snapshots, B-tree interior sp...",
-            "nextTarget": "Publish batch35 dashboard status, consume accepted batch35 handoffs, keep 10-11 libsqlite...",
-            "blocker": "No blocker for the accepted batch35 subset: focused, full libsqlite, and...",
-            "commit": "94cc0ac"
+            "audit": "Batch36 clean subset accepted in implemen...",
+            "currentWork": "Accepted batch36 closure over ATTACH VACUUM temp/schema plans, B-tree cell payload split...",
+            "nextTarget": "Publish batch36 dashboard status, consume accepted batch36 handoffs, keep 10-11 libsqlite...",
+            "blocker": "No blocker for the accepted batch36 subset: focused, full libsqlite, and...",
+            "commit": "dad4a37"
         },
         {
             "library": "LightningCSS",
