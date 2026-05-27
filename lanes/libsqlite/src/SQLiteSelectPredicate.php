@@ -629,10 +629,18 @@ final class SQLiteSelectPredicate
 
     private static function assertValue(mixed $value): void
     {
-        if ($value instanceof SQLiteBlobValue || $value === null || is_bool($value) || is_int($value) || is_float($value) || is_string($value)) {
+        if (
+            $value instanceof SQLiteBlobValue
+            || $value instanceof SQLiteJsonSubtypeValue
+            || $value === null
+            || is_bool($value)
+            || is_int($value)
+            || is_float($value)
+            || is_string($value)
+        ) {
             return;
         }
 
-        throw new \InvalidArgumentException('SQLite SELECT predicate values must be scalar, BLOB, or NULL');
+        throw new \InvalidArgumentException('SQLite SELECT predicate values must be scalar, BLOB, JSON subtype, or NULL');
     }
 }

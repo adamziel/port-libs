@@ -80,6 +80,60 @@ final class SQLiteOverflowFreelistReleasePlan
     }
 
     /**
+     * @param list<array{source?:string,first_page:int,overflow_payload_bytes:int,rowids?:list<int>,record_values?:list<list<mixed>>}> $chains
+     */
+    public static function fromOverflowChains(
+        SQLiteDatabase $database,
+        array $chains,
+        bool $secureDelete = false,
+    ): self {
+        if ($chains === []) {
+            throw new \InvalidArgumentException('SQLite overflow freelist release requires at least one overflow chain');
+        }
+
+        $deleteResults = [];
+        foreach (array_values($chains) as $index => $chain) {
+            if (!is_array($chain)) {
+                throw new \InvalidArgumentException('SQLite overflow freelist release chains must be arrays');
+            }
+
+            $firstPage = $chain['first_page'] ?? null;
+            if (!is_int($firstPage)) {
+                throw new \InvalidArgumentException('SQLite overflow freelist release chain is missing a first overflow page');
+            }
+
+            $overflowPayloadBytes = $chain['overflow_payload_bytes'] ?? null;
+            if (!is_int($overflowPayloadBytes)) {
+                throw new \InvalidArgumentException('SQLite overflow freelist release chain is missing an overflow payload byte count');
+            }
+
+            $source = $chain['source'] ?? "overflow-chain-{$index}";
+            if (!is_string($source) || $source === '') {
+                throw new \InvalidArgumentException('SQLite overflow freelist release source labels must be non-empty strings');
+            }
+
+            $deleteResult = [
+                'source' => $source,
+                'obsolete_overflow_page_numbers' => SQLiteOverflowPage::pageNumbersFromDatabase(
+                    $database,
+                    $firstPage,
+                    $overflowPayloadBytes,
+                ),
+            ];
+            if (array_key_exists('rowids', $chain)) {
+                $deleteResult['rowids'] = $chain['rowids'];
+            }
+            if (array_key_exists('record_values', $chain)) {
+                $deleteResult['record_values'] = $chain['record_values'];
+            }
+
+            $deleteResults[] = $deleteResult;
+        }
+
+        return self::fromDeleteResults($database, $deleteResults, $secureDelete);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function toArray(): array

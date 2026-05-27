@@ -252,6 +252,10 @@ final class SQLiteSelectExpression
             return SQLiteJsonQuote::jsonQuoteSqlFunctionArguments($normalized, $evaluated);
         }
         if ($normalized === 'json_valid') {
+            $value = $evaluated[0] ?? null;
+            if ($value !== null && !is_string($value) && !$value instanceof SQLiteBlobValue && !$value instanceof SQLiteJsonSubtypeValue) {
+                throw new \InvalidArgumentException('SQLite SELECT expression json_valid() argument must be text, JSONB, JSON subtype, or NULL');
+            }
             $valid = SQLiteJsonValidity::jsonValidSqlFunctionArguments($normalized, $evaluated);
 
             return $valid === null ? null : ($valid ? 1 : 0);

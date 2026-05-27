@@ -2635,7 +2635,9 @@ final class SQLiteSelectSql
                 throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY term cannot be empty');
             }
 
-            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $expressionSql) === 1) {
+            if (preg_match('/^[0-9]+$/', $expressionSql) === 1) {
+                $order = ['column' => self::orderByOrdinalColumn($select, (int) $expressionSql)];
+            } elseif (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $expressionSql) === 1) {
                 if (self::selectProvidesColumn($select, $expressionSql)) {
                     $order = ['column' => $expressionSql];
                 } else {
@@ -2673,6 +2675,30 @@ final class SQLiteSelectSql
         }
 
         return $terms;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     */
+    private static function orderByOrdinalColumn(array $select, int $ordinal): string
+    {
+        $index = $ordinal - 1;
+        if (!isset($select[$index])) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY ordinal is out of range');
+        }
+
+        $term = $select[$index];
+        if (($term['type'] ?? null) === 'wildcard') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal is not supported');
+        }
+        if (isset($term['alias']) && is_string($term['alias']) && $term['alias'] !== '') {
+            return $term['alias'];
+        }
+        if (($term['type'] ?? null) === 'column' && isset($term['name']) && is_string($term['name']) && $term['name'] !== '') {
+            return $term['name'];
+        }
+
+        return 'expr' . $ordinal;
     }
 
     /**
