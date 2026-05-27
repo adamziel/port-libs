@@ -118591,7 +118591,8 @@ Focused verification in detached candidate `.tmux-team/tmp/clean-integrator-cand
 - `php lanes/libsqlite/examples/wordpress-json-table-window-ranking.php`: passed and emitted valid JSON.
 - `git diff --check -- lanes/libsqlite`: passed.
 
-Root verification: pending serialized no-argument root run from this exact candidate snapshot.
+Root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `.tmux-team/tmp/clean-integrator-run.lock`: `215 test files, 31220 assertions, 0 failures`.
 
 Expected dashboard movement after commit: libsqlite `phpPass` becomes `753`, mapped coverage becomes `416 / 1589`, and focused assertions grow by `+60` over the marker baseline while current root grows from the prior accepted `30314` plus later scalar/JSON accepted deltas to the measured post-root total below.
 - Serialized no-argument root verification with repo-local `TMPDIR`: `215 test files, 30458 assertions, 0 failures`.
@@ -118833,3 +118834,28 @@ Cleanup:
 - Removed accepted ready marker, patch, and metadata files after the commit was safely published.
 - Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T032212Z` because it still contains modified lane files.
 - Preserved clean candidate worktree `.tmux-team/tmp/clean-candidates/libsqlite-wal-20260527T032212Z-076e640c` because the required repo-local `.tmp-root` contains root-run artifacts; no forced worktree removal or recursive deletion was used.
+## Integration accepted - libsqlite VFS file writer application - 2026-05-27T03:40:59Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-deps-20260527T032610Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence before processing: local `refs/heads/main` and cache-busted live Pages both reported exact source `8cfee60141c60e378d4f5583dcd1943c1ca61bf9`, so the source-moving guard was open.
+
+Candidate evidence:
+- Marker metadata contained lane, patch, and metadata fields; patch sha256 matched `de6ec3afba7dddc0d5d77ab4851cbf9f47a2a1307b7e9cfee4d490ac16fd0b72`.
+- Whole-patch `git apply --check` failed only on stale `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` counters from base `a708c39b`.
+- Implementation, test, example, and notes hunks applied cleanly in detached clean worktree `.tmux-team/clean-candidates/libsqlite-deps-20260527T032610Z-8cfee601`; status and manifest were reconciled minimally from current `8cfee601`.
+- Non-overlap check: this accepts bounded native `SQLiteVfsFileWriter` file-handle application and does not repeat accepted WAL savepoint byte truncation, WAL file-write planning, VFS lock byte ranges, SELECT SQL text, JSON host joins, or table-interior merge materialization.
+- Originating worker worktree still contains modified/new lane files matching the accepted handoff and is preserved as cleanup debt; no forced worktree cleanup was performed.
+
+Focused verification before root:
+- `php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php`: passed.
+- `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`: passed.
+- `php -l lanes/libsqlite/examples/wordpress-vfs-file-writer-apply.php`: passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php`: `1 test files, 6055 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-file-writer-apply.php`: passed and emitted valid JSON.
+
+Root verification: pending serialized no-argument root run from this exact candidate snapshot.
+
+Dashboard publication should run next after commit because this is one source-moving libsqlite acceptance.

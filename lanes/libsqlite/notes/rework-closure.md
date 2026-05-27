@@ -415,6 +415,42 @@ reuses accepted WAL, open, sidecar, page-cache, and lock-coordination evidence.
 Next dependency/open work should connect this to WAL-open/checkpoint
 persistence or a bounded native file-control/locking adapter.
 
+## 2026-05-27 Dependency/Open VFS File-Handle Write Application
+
+This isolated dependency-suite slice does not repeat accepted VFS sidecar
+planning, VFS capability/file-control planning, lock byte-range planning, WAL
+durable checkpoint byte planning, or WAL file-write preview planning. It adds
+the missing bounded native application layer:
+`SQLiteVfsFileWriter` applies accepted write/sync/truncate/directory-sync
+operations to local PHP file handles and exposes an `applyWalCheckpoint()`
+adapter that materializes WAL checkpoint database bytes plus WAL restart or
+truncate sidecar bytes.
+
+Focused assertion delta: the selected `SQLiteHeaderTest.php` test adds 62
+passing assertions for database image writes, WAL restart header writes, WAL
+truncate application, operation ordering, sync/directory-sync accounting,
+sparse writes, byte-count validation, missing payloads, unsupported operations,
+root/path guards, read-only/immutable writer guards, and missing sync targets.
+The lane status moves `phpPass` from 761 to 762 and mapped coverage from 423
+to 424.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-file-writer-apply.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite vfs wal checkpoint file writes to local handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-file-writer-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This is a
+lane-local native PHP VFS file-handle writer that reuses accepted WAL
+checkpoint, VFS sidecar, VFS capability, and lock evidence.
+
 ## 2026-05-27 JSON Table Window Ranking
 
 This isolated JSON table/window slice does not repeat accepted JSON projection,

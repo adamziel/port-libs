@@ -3937,6 +3937,31 @@ boundary diagnostics, and copied WordPress import smokes. Follow-up should
 apply these page-image rollback previews through bounded native VFS/file
 handles or connect them to durable pager write/truncate operations.
 
+## VFS File-Writer Apply Scenario
+
+Copied WordPress SQLite repair tooling can now apply accepted WAL checkpoint
+write plans through bounded native PHP file handles instead of stopping at a
+preview plan. The smoke `examples/wordpress-vfs-file-writer-apply.php` reports
+database image writes, WAL restart/truncate sidecar writes, sync markers,
+directory persistence diagnostics, and writable-handle guards for copied
+`wp_options` imports without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated dependency/open slice: added
+`SQLiteVfsFileWriter` with 62 focused assertions over the accepted 5842
+assertion baseline. Focused coverage applies WAL checkpoint database bytes,
+restarted WAL headers, WAL truncation, sparse writes, sync and directory-sync
+operations, path-root guards, missing payload guards, byte-count mismatch
+guards, unsupported operation guards, read-only/immutable guards, and missing
+sync-target diagnostics. `lane-status.json` moves `phpPass` from 761 to 762
+and mapped coverage from 423 to 424.
+
+Dependency closure: no new shared support component is needed. This is the
+smallest lane-local native PHP support component for the current dependency
+gap and reuses accepted WAL checkpoint write plans, VFS sidecar/capability
+planning, and lock-byte-range evidence. Follow-up should connect this writer
+to pager transaction application with byte-range lock acquisition and platform
+fsync/file-control policy.
+
 ## SELECT SQL Text Preview Scenario
 
 Copied WordPress database diagnostics can now execute a bounded single-table

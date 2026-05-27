@@ -919,7 +919,8 @@
                 "focusedBtreeInteriorMergeApplicationPlan": "The 2026-05-27 clean-integrated B-tree table-interior merge slice maps one additional focused B-tree delete/rebalance evidence row for materializing table-interior sibling merge plans, freeing the obsolete sibling page, updating freelist header/trunk state, and rewriting auto-vacuum pointer-map child ownership without claiming a fresh upstream run."
             }
         },
-        "focusedSelectSqlJoinTextExecution": "The 2026-05-27 clean-integrated SQL execution/planner slice maps one additional focused SELECT execution row for bounded SELECT SQL JOIN text dispatch over copied wp_options metadata previews, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table aliases, table-qualified ON predicates, table-star projection, ORDER BY, and LIMIT. Native focused coverage reached 5918 assertions and no fresh upstream testfixture/all/release run was launched."
+        "focusedSelectSqlJoinTextExecution": "The 2026-05-27 clean-integrated SQL execution/planner slice maps one additional focused SELECT execution row for bounded SELECT SQL JOIN text dispatch over copied wp_options metadata previews, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table aliases, table-qualified ON predicates, table-star projection, ORDER BY, and LIMIT. Native focused coverage reached 5918 assertions and no fresh upstream testfixture/all/release run was launched.",
+        "focusedVfsFileWriterApply": "The 2026-05-27 clean-integrated dependency/storage slice maps one additional focused VFS evidence row for applying accepted WAL checkpoint write plans through bounded native PHP file handles. Native focused coverage reached 6055 assertions and no fresh upstream testfixture/all/release run was launched."
     },
     "nativePortScope": {
         "focusedCoreDateTimeScalarFunction": "The 2026-05-26 isolated dependency-suite date/time scalar slice adds bounded UTC date(), time(), datetime(), julianday(), unixepoch(), and strftime() dispatch for copied wp_options timestamp diagnostics, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers explicit ISO date/time values, unixepoch modifier input, Julian day output, start-of-day and signed day/hour/minute/second modifiers, NULL propagation, strict unsupported modifier/value errors, and WordPress timestamp preview diagnostics without requiring ext/sqlite or a shared date support component.",
@@ -1093,7 +1094,8 @@
         "focusedSelectSqlTextExecution": "The SELECT SQL preview smoke reports copied wp_options rows executed from bounded SQL text through native query-plan dispatch, including projection aliases, scalar functions, WHERE predicates, ORDER BY, and LIMIT without requiring ext/sqlite.",
         "focusedJsonTableHostJoinRows": "The JSON table host-join smoke reports copied wp_options rows expanded through json_each/json_tree joins with hidden json/root constraints, residual predicates, JSONB/subtype inputs, rowid aliases, INNER/LEFT join handling, and NULL/malformed payload diagnostics without requiring ext/sqlite.",
         "focusedSelectSqlJoinTextExecution": "The SELECT SQL JOIN preview smoke reports copied wp_options rows joined to bounded option metadata from SQLite SELECT text through native query-plan dispatch, including INNER JOIN, LEFT JOIN null-extension, CROSS JOIN, chained joins, table-qualified predicates, aliases, ORDER BY, and LIMIT without requiring ext/sqlite.",
-        "focusedWalSavepointByteTruncation": "The savepoint import diagnostics smoke now reports copied wp_options nested import savepoints with concrete WAL sidecar byte truncation for ROLLBACK TO, including retained/discarded frame counts, truncated WAL byte size, nested savepoint frame removal, and commit-frame discard diagnostics without requiring ext/sqlite."
+        "focusedWalSavepointByteTruncation": "The savepoint import diagnostics smoke now reports copied wp_options nested import savepoints with concrete WAL sidecar byte truncation for ROLLBACK TO, including retained/discarded frame counts, truncated WAL byte size, nested savepoint frame removal, and commit-frame discard diagnostics without requiring ext/sqlite.",
+        "focusedVfsFileWriterApply": "The VFS file-writer smoke applies accepted WAL checkpoint write plans through bounded native PHP file handles for copied wp_options repair previews, including database page writes, WAL restart/truncate sidecar writes, sync markers, and directory persistence diagnostics without requiring ext/sqlite."
     },
     "nativeCoverage": {
         "focusedFileHeaderLoader": "The 2026-05-26 clean-integrated dependency/open slice adds bounded SQLite file-header loading after open admission for copied WordPress database preflight diagnostics, reusing accepted file URI, busy-handler, open-plan, and header parsing evidence without claiming a fresh upstream run.",
@@ -1108,7 +1110,8 @@
         "focusedSelectGroupedAggregateQuery": "SQLiteSelectQuery now composes accepted grouped aggregate summaries into the SELECT pipeline after FROM/JOIN/WHERE and before projection/result clauses, including HAVING predicates, aggregate ORDER BY/LIMIT/OFFSET, scalar projection, DISTINCT, and final ORDER BY over copied WordPress option diagnostics.",
         "focusedVfsLockByteRangePlan": "SQLiteLockByteRangePlan composes accepted open-admission decisions with SQLite pending/reserved/shared lock byte offsets, shared-slot bounds, nolock suppression, and failed-open propagation for copied WordPress database lock diagnostics.",
         "focusedSelectSqlJoinTextExecution": "SQLiteSelectSql composes bounded SQL text JOIN clauses into accepted SQLiteSelectQuery row production, preserving aliases, table-qualified predicates, table-star projection, LEFT null-extension, CROSS joins, chained joins, ORDER BY, and LIMIT over copied WordPress option diagnostics.",
-        "focusedWalSavepointByteTruncation": "SQLiteSavepointStack materializes accepted WAL savepoint frame rollback plans into concrete WAL byte truncation boundaries for copied WordPress option import diagnostics, reusing accepted WAL parsing/checksum and savepoint bookkeeping evidence without claiming a fresh upstream run."
+        "focusedWalSavepointByteTruncation": "SQLiteSavepointStack materializes accepted WAL savepoint frame rollback plans into concrete WAL byte truncation boundaries for copied WordPress option import diagnostics, reusing accepted WAL parsing/checksum and savepoint bookkeeping evidence without claiming a fresh upstream run.",
+        "focusedVfsFileWriterApply": "SQLiteVfsFileWriter applies accepted WAL checkpoint file-write plans through bounded native PHP file handles, materializing database writes, WAL restart/truncate sidecar writes, sync markers, and directory persistence diagnostics for copied WordPress repair previews."
     },
     "mappedNativeTests": {
         "focusedVfsSidecarPlan": {
@@ -1154,6 +1157,17 @@
                 "lanes/libsqlite/tests/SQLiteHeaderTest.php"
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-select-planner-evidence"
+        },
+        "focusedVfsFileWriterApply": {
+            "status": "mapped-native-focused",
+            "upstreamScope": "SQLite VFS and pager checkpoint write application for database page writes, WAL restart/truncate sidecar writes, sync markers, and directory persistence represented as bounded PHP file-handle execution rather than a full process-level VFS.",
+            "nativeEvidence": "SQLiteVfsFileWriter focused PHP coverage plus copied WordPress VFS file-writer smoke.",
+            "phpAssertions": 62,
+            "wordpressSmoke": "lanes/libsqlite/examples/wordpress-vfs-file-writer-apply.php",
+            "tests": [
+                "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+            ],
+            "upstreamRun": "not-run-isolated-slice-reuses-accepted-wal-checkpoint-and-vfs-evidence"
         },
         "focusedWalSavepointByteTruncation": {
             "status": "mapped-native-focused",

@@ -84,6 +84,7 @@ use PortLibs\LibSqlite\SQLiteTextAggregate;
 use PortLibs\LibSqlite\SQLiteTextAggregateState;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
+use PortLibs\LibSqlite\SQLiteVfsFileWriter;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalFrame;
 use PortLibs\LibSqlite\SQLiteWalFileWritePlan;
@@ -14113,6 +14114,109 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, substr($baseDatabase, 1), '/tmp/wp.sqlite'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/tmp/wp.sqlite', 'bogus'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteWalFileWritePlan::checkpoint($committedWal, $baseDatabase, '/tmp/wp.sqlite', 'passive', -1));
+    },
+    'applies sqlite vfs wal checkpoint file writes to local handles' => static function (TestRunner $t) use ($makeFirstPage): void {
+        $pageSize = 512;
+        $salt1 = 0x61616161;
+        $salt2 = 0x72727272;
+        $walHeaderPrefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 44, $salt1, $salt2);
+        $checksumSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $walHeader = $walHeaderPrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]);
+        $appendFrame = static function (string $walBytes, array &$seed, int $pageNumber, int $commit, string $pageImage) use ($salt1, $salt2): string {
+            $framePrefix = pack('N*', $pageNumber, $commit, $salt1, $salt2);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $pageImage, false, $seed[0], $seed[1]);
+
+            return $walBytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
+        };
+
+        $root = sys_get_temp_dir() . '/port-libsqlite-vfs-writer-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $localDatabasePath = $root . '/srv/www/wp-content/database/.ht.sqlite';
+        $localWalPath = $localDatabasePath . '-wal';
+        $baseDatabase = $makeFirstPage($pageSize, 3) . str_repeat('b', $pageSize) . str_repeat('c', $pageSize);
+        $pageTwo = str_repeat('2', $pageSize);
+        $pageThree = str_repeat('3', $pageSize);
+        $committedSeed = SQLiteWal::checksumPair($walHeaderPrefix, false);
+        $committedBytes = $appendFrame($walHeader, $committedSeed, 2, 0, $pageTwo);
+        $committedBytes = $appendFrame($committedBytes, $committedSeed, 3, 3, $pageThree);
+        $committedWal = SQLiteWal::parse($committedBytes, null, true);
+        $writer = new SQLiteVfsFileWriter($root);
+
+        $restart = $writer->applyWalCheckpoint($committedWal, $baseDatabase, $databasePath, 'restart');
+        $t->same('applied', $restart['status']);
+        $t->same($root, $restart['root']);
+        $t->same(5, $restart['applied']);
+        $t->same(1568, $restart['bytes_written']);
+        $t->same(0, $restart['bytes_truncated']);
+        $t->same(2, $restart['durable_syncs']);
+        $t->same(1, $restart['directory_syncs']);
+        $t->same(['sqlite-wal-checkpoint', 'durable-sidecar-write', 'vfs-file-write-coordination', 'vfs-file-handle-write-application'], $restart['dependencies']);
+        $t->same('write', $restart['operations'][0]['op']);
+        $t->same($databasePath, $restart['operations'][0]['path']);
+        $t->same($localDatabasePath, $restart['operations'][0]['local_path']);
+        $t->same(1536, $restart['operations'][0]['bytes']);
+        $t->same(false, $restart['operations'][0]['durable']);
+        $t->same('checkpoint_database_pages', $restart['operations'][0]['reason']);
+        $t->same('sync', $restart['operations'][1]['op']);
+        $t->same(true, $restart['operations'][1]['durable']);
+        $t->same('write', $restart['operations'][2]['op']);
+        $t->same($databasePath . '-wal', $restart['operations'][2]['path']);
+        $t->same($localWalPath, $restart['operations'][2]['local_path']);
+        $t->same(32, $restart['operations'][2]['bytes']);
+        $t->same('write_restarted_wal_header', $restart['operations'][2]['reason']);
+        $t->same('sync', $restart['operations'][3]['op']);
+        $t->same('sync_directory', $restart['operations'][4]['op']);
+        $t->same($root . '/srv/www/wp-content/database', $restart['operations'][4]['local_path']);
+        $t->same(1536, filesize($localDatabasePath));
+        $t->same(32, filesize($localWalPath));
+        $t->contains(str_repeat('2', 32), file_get_contents($localDatabasePath));
+        $t->contains(str_repeat('3', 32), file_get_contents($localDatabasePath));
+        $t->same(substr($committedWal->durableCheckpointResult($baseDatabase, 'restart')['wal_bytes'], 0, 32), file_get_contents($localWalPath));
+
+        file_put_contents($localWalPath, 'stale-wal-bytes');
+        $truncate = $writer->applyWalCheckpoint($committedWal, $baseDatabase, $databasePath, 'truncate');
+        $t->same('applied', $truncate['status']);
+        $t->same(4, $truncate['applied']);
+        $t->same(1536, $truncate['bytes_written']);
+        $t->same(0, $truncate['bytes_truncated']);
+        $t->same(1, $truncate['durable_syncs']);
+        $t->same(1, $truncate['directory_syncs']);
+        $t->same('truncate', $truncate['operations'][2]['op']);
+        $t->same($databasePath . '-wal', $truncate['operations'][2]['path']);
+        $t->same(0, $truncate['operations'][2]['bytes']);
+        $t->same('truncate_reset_wal', $truncate['operations'][2]['reason']);
+        $t->same(0, filesize($localWalPath));
+        $t->same(1536, filesize($localDatabasePath));
+        $t->contains(str_repeat('2', 32), file_get_contents($localDatabasePath));
+
+        $manual = $writer->applyOperations([
+            ['op' => 'write', 'path' => '/tmp/manual.sqlite', 'offset' => 4, 'bytes' => 3, 'reason' => 'sparse_write'],
+            ['op' => 'sync', 'path' => '/tmp/manual.sqlite', 'durable' => true, 'reason' => 'manual_sync'],
+            ['op' => 'truncate', 'path' => '/tmp/manual.sqlite', 'bytes' => 5, 'reason' => 'manual_truncate'],
+        ], ['/tmp/manual.sqlite' => 'abc'], ['manual-plan']);
+        $t->same('applied', $manual['status']);
+        $t->same(3, $manual['applied']);
+        $t->same(3, $manual['bytes_written']);
+        $t->same(5, $manual['bytes_truncated']);
+        $t->same(1, $manual['durable_syncs']);
+        $t->same(0, $manual['directory_syncs']);
+        $t->same(['manual-plan', 'vfs-file-handle-write-application'], $manual['dependencies']);
+        $t->same(5, filesize($root . '/tmp/manual.sqlite'));
+        $t->same("\0\0\0\0a", file_get_contents($root . '/tmp/manual.sqlite'));
+
+        $readOnly = new SQLiteVfsFileWriter($root, true);
+        $immutable = new SQLiteVfsFileWriter($root, false, true);
+        $t->throws(LogicException::class, static fn () => $readOnly->applyOperations([]));
+        $t->throws(LogicException::class, static fn () => $immutable->applyWalCheckpoint($committedWal, $baseDatabase, $databasePath));
+        $t->throws(InvalidArgumentException::class, static fn () => new SQLiteVfsFileWriter(''));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyOperations([['op' => 'write', 'path' => '/tmp/missing.sqlite', 'offset' => 0, 'bytes' => 1]]));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyOperations([['op' => 'write', 'path' => '/tmp/mismatch.sqlite', 'offset' => 0, 'bytes' => 2]], ['/tmp/mismatch.sqlite' => 'x']));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyOperations([['op' => 'bogus', 'path' => '/tmp/bogus.sqlite']]));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyOperations([['op' => 'write', 'path' => '../escape.sqlite', 'offset' => 0, 'bytes' => 1]], ['../escape.sqlite' => 'x']));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyOperations([['op' => 'write', 'path' => "/tmp/bad\0name.sqlite", 'offset' => 0, 'bytes' => 1]], ["/tmp/bad\0name.sqlite" => 'x']));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applyOperations([['op' => 'write', 'path' => '/tmp/negative.sqlite', 'offset' => -1, 'bytes' => 1]], ['/tmp/negative.sqlite' => 'x']));
+        $t->throws(RuntimeException::class, static fn () => $writer->applyOperations([['op' => 'sync', 'path' => '/tmp/does-not-exist.sqlite']]));
+        $t->throws(RuntimeException::class, static fn () => $writer->applyOperations([['op' => 'sync_directory', 'path' => '/tmp/does-not-exist-directory']]));
     },
     'resolves sqlite wal reader page images through the last committed frame' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
