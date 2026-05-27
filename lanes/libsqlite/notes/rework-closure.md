@@ -1164,3 +1164,37 @@ git diff --check -- lanes/libsqlite
 Dependency closure: no new shared support component is needed. This reuses the
 lane-local JSONB validator, JSON table planner, SELECT SQL executor, and
 dynamic join callback path.
+
+## 2026-05-27 Pager Journal Open Closure
+
+This isolated pager slice does not repeat accepted rollback-journal commit,
+hot rollback-journal recovery/application, VFS sync application, savepoint
+rollback, WAL checkpoint transaction, or VFS locked-writer behavior. It adds a
+bounded rollback-journal transaction open/no-dirty-close primitive that writes
+a zeroed non-hot journal header, closes unused transactions under DELETE,
+TRUNCATE, and PERSIST journal modes, and blocks write-transaction open when a
+hot rollback journal must be recovered first.
+
+Focused assertion delta: `SQLiteHeaderTest.php` adds 71 assertions over this
+worktree baseline. The assertions cover pager open/close operation ordering,
+payload sizes, journal-mode closure actions, hot-journal admission blocking,
+reserved-lock non-hot handling, invalid stale-journal handling, VFS file-handle
+application, and read-only/immutable guards.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLitePagerJournalOpenPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-pager-journal-open-closure.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-pager-journal-open-closure.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local rollback-journal parser/hot-journal classifier and native VFS
+file-handle operation applier. Follow-up should wire this primitive into
+broader pager transaction-state dirty-page journaling without repeating the
+accepted rollback commit/recovery, sync, savepoint, or lock clusters.

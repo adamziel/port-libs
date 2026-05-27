@@ -66,6 +66,7 @@ use PortLibs\LibSqlite\SQLiteOverflowPage;
 use PortLibs\LibSqlite\SQLiteOpenPlan;
 use PortLibs\LibSqlite\SQLiteOverflowFreelistReleasePlan;
 use PortLibs\LibSqlite\SQLitePageCache;
+use PortLibs\LibSqlite\SQLitePagerJournalOpenPlan;
 use PortLibs\LibSqlite\SQLitePagerCheckpointTransactionPlan;
 use PortLibs\LibSqlite\SQLitePointerMapEntry;
 use PortLibs\LibSqlite\SQLitePragmaSnapshot;
@@ -16056,6 +16057,121 @@ SQL;
         $t->throws(LogicException::class, static fn () => $immutable->applyHotRollbackJournal($journal, $dirtyDatabase, $journalBytes, $databasePath));
         $t->throws(InvalidArgumentException::class, static fn () => $writer->applyHotRollbackJournal($journal, substr($dirtyDatabase, 1), $journalBytes, $databasePath));
         $t->throws(InvalidArgumentException::class, static fn () => $writer->applyHotRollbackJournal($journal, $dirtyDatabase, $journalBytes, ''));
+    },
+    'plans sqlite pager rollback journal open and no-write closure' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+
+        $delete = SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, $pageSize, 'delete');
+        $t->same('planned', $delete['status']);
+        $t->same($databasePath, $delete['database_path']);
+        $t->same($databasePath . '-journal', $delete['journal_path']);
+        $t->same($pageSize, $delete['page_size']);
+        $t->same('delete', $delete['journal_mode']);
+        $t->same(null, $delete['reason']);
+        $t->same('planned', $delete['open']['status']);
+        $t->same('planned', $delete['close']['status']);
+        $t->same(['write', 'delete', 'sync_directory'], array_column($delete['operations'], 'op'));
+        $t->same(['open_zeroed_rollback_journal_header', 'delete_unused_rollback_journal_on_transaction_close', 'persist_rollback_journal_open_close_sidecar'], array_column($delete['operations'], 'reason'));
+        $t->same([$databasePath . '-journal#zero-header'], array_keys($delete['payloads']));
+        $t->same(28, strlen($delete['payloads'][$databasePath . '-journal#zero-header']));
+        $t->same(str_repeat("\0", 28), $delete['payloads'][$databasePath . '-journal#zero-header']);
+        $t->same(['sqlite-pager-rollback-journal-open', 'vfs-file-handle-write-application', 'sqlite-pager-rollback-journal-close', 'sqlite-pager-transaction-journal-open-closure'], $delete['dependencies']);
+
+        $truncate = SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, $pageSize, 'truncate');
+        $t->same('truncate', $truncate['journal_mode']);
+        $t->same(['write', 'truncate', 'sync_directory'], array_column($truncate['operations'], 'op'));
+        $t->same(0, $truncate['operations'][1]['bytes']);
+        $t->same('truncate_unused_rollback_journal_on_transaction_close', $truncate['operations'][1]['reason']);
+
+        $persist = SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, $pageSize, 'persist');
+        $t->same('persist', $persist['journal_mode']);
+        $t->same(['write', 'write', 'sync_directory'], array_column($persist['operations'], 'op'));
+        $t->same([$databasePath . '-journal#zero-header', $databasePath . '-journal#persist-zero-header'], array_keys($persist['payloads']));
+        $t->same(28, $persist['operations'][1]['bytes']);
+        $t->same('preserve_unused_journal_with_zeroed_header', $persist['operations'][1]['reason']);
+
+        $readOnly = SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, $pageSize, 'delete', readOnly: true);
+        $t->same('blocked', $readOnly['status']);
+        $t->same('read_only_database_handle', $readOnly['reason']);
+        $t->same([], $readOnly['operations']);
+
+        $immutable = SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, $pageSize, 'delete', immutable: true);
+        $t->same('blocked', $immutable['status']);
+        $t->same('immutable_database_handle', $immutable['reason']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages('', $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, 500));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, $pageSize, 'wal'));
+    },
+    'blocks sqlite pager journal open on hot rollback journals before write transactions' => static function (TestRunner $t): void {
+        $pageSize = 512;
+        $sectorSize = 512;
+        $nonce = 0x01020304;
+        $page = str_pad('clean wp_options page before failed transaction', $pageSize, "\0");
+        $journalBytes = str_pad(SQLiteRollbackJournalHeader::MAGIC . pack('N*', 1, $nonce, 1, $sectorSize, $pageSize), $sectorSize, "\0")
+            . pack('N', 1) . $page . pack('N', SQLiteRollbackJournal::pageChecksum($page, $nonce));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+
+        $blocked = SQLitePagerJournalOpenPlan::open($databasePath, $pageSize, 'delete', $journalBytes);
+        $t->same('recovery-required', $blocked['status']);
+        $t->same('hot_rollback_journal_must_be_recovered_before_write_transaction', $blocked['reason']);
+        $t->same([], $blocked['operations']);
+        $t->same([], $blocked['payloads']);
+        $t->same(true, $blocked['hot_journal']['hot']);
+        $t->same('hot_journal_recovery_required', $blocked['hot_journal']['reason']);
+        $t->same(strlen($journalBytes), $blocked['hot_journal']['journal_bytes']);
+        $t->same(1, $blocked['hot_journal']['page_count']);
+        $t->same(1, $blocked['hot_journal']['initial_database_page_count']);
+        $t->same(['sqlite-pager-rollback-journal-open', 'hot-journal-before-write-transaction'], $blocked['dependencies']);
+
+        $reservedLock = SQLitePagerJournalOpenPlan::open($databasePath, $pageSize, 'delete', $journalBytes, databaseReservedLock: true);
+        $t->same('planned', $reservedLock['status']);
+        $t->same(false, $reservedLock['hot_journal']['hot']);
+        $t->same('database_has_reserved_lock', $reservedLock['hot_journal']['reason']);
+        $t->same(['write'], array_column($reservedLock['operations'], 'op'));
+
+        $invalidHeader = SQLitePagerJournalOpenPlan::open($databasePath, $pageSize, 'delete', str_repeat('x', 520));
+        $t->same('planned', $invalidHeader['status']);
+        $t->same(false, $invalidHeader['hot_journal']['hot']);
+        $t->same('invalid_journal_header', $invalidHeader['hot_journal']['reason']);
+    },
+    'applies sqlite pager journal open and closure operations to local vfs handles' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-pager-journal-open-' . bin2hex(random_bytes(4));
+        $databasePath = '/srv/www/wp-content/database/.ht.sqlite';
+        $localDatabaseDirectory = $root . dirname($databasePath);
+        if (!is_dir($localDatabaseDirectory) && !mkdir($localDatabaseDirectory, 0777, true) && !is_dir($localDatabaseDirectory)) {
+            throw new RuntimeException('Unable to create pager journal test directory');
+        }
+
+        $writer = new SQLiteVfsFileWriter($root);
+        $delete = SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, 512, 'delete');
+        $deleteApplied = $writer->applyOperations($delete['operations'], $delete['payloads'], $delete['dependencies']);
+        $t->same('applied', $deleteApplied['status']);
+        $t->same(3, $deleteApplied['applied']);
+        $t->same(28, $deleteApplied['bytes_written']);
+        $t->same(1, $deleteApplied['files_deleted']);
+        $t->same(1, $deleteApplied['directory_syncs']);
+        $t->same(false, is_file($root . $databasePath . '-journal'));
+        $t->same(['write', 'delete', 'sync_directory'], array_column($deleteApplied['operations'], 'op'));
+
+        $truncate = SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, 512, 'truncate');
+        $truncateApplied = $writer->applyOperations($truncate['operations'], $truncate['payloads'], $truncate['dependencies']);
+        $t->same(3, $truncateApplied['applied']);
+        $t->same(28, $truncateApplied['bytes_written']);
+        $t->same(0, filesize($root . $databasePath . '-journal'));
+        $t->same(0, $truncateApplied['bytes_truncated']);
+
+        $persist = SQLitePagerJournalOpenPlan::openAndCloseWithoutDirtyPages($databasePath, 512, 'persist');
+        $persistApplied = $writer->applyOperations($persist['operations'], $persist['payloads'], $persist['dependencies']);
+        $t->same(3, $persistApplied['applied']);
+        $t->same(56, $persistApplied['bytes_written']);
+        $t->same(28, filesize($root . $databasePath . '-journal'));
+        $t->same(str_repeat("\0", 28), file_get_contents($root . $databasePath . '-journal'));
+        $t->same(['sqlite-pager-rollback-journal-open', 'vfs-file-handle-write-application', 'sqlite-pager-rollback-journal-close', 'sqlite-pager-transaction-journal-open-closure'], $persistApplied['dependencies']);
+
+        $readOnlyWriter = new SQLiteVfsFileWriter($root, readOnly: true);
+        $t->throws(LogicException::class, static fn () => $readOnlyWriter->applyOperations($persist['operations'], $persist['payloads'], $persist['dependencies']));
     },
     'resolves sqlite wal reader page images through the last committed frame' => static function (TestRunner $t) use ($makeFirstPage): void {
         $pageSize = 512;
