@@ -864,6 +864,69 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @param list<int|null> $readMarks
+     * @return array{mode:string,checkpoint_reason:string,checkpoint_busy:bool,wal_action:string,read_mark_plan:array<string,mixed>,current_reader_end_frame:int|null,next_reader_end_frame:int,current_before:list<array<string,mixed>>,current_after:list<array<string,mixed>>,next_after:list<array<string,mixed>>,current_sources:list<string>,next_sources:list<string>,current_frame_indexes:list<int|null>,next_frame_indexes:list<int|null>,current_stable:bool,next_matches_latest_snapshot:bool,pin_blocks_reset:bool,dependencies:list<string>}
+     */
+    public function checkpointReaderPinCurrentNext(string $databaseBytes, array $pageNumbers, array $readMarks, string $mode = 'restart'): array
+    {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL checkpoint reader pin current/next requires at least one page number');
+        }
+
+        $readMarkPlan = $this->readMarkPlan($readMarks);
+        $currentEndFrame = $readMarkPlan['checkpoint_pinned_frame'] ?? $readMarkPlan['recommended_reader_frame'];
+        $checkpoint = $this->durableCheckpointResult($databaseBytes, $mode, $readMarkPlan['checkpoint_pinned_frame']);
+        $afterWal = $checkpoint['wal_bytes'] === ''
+            ? null
+            : self::parse($checkpoint['wal_bytes'], $this->header->pageSize, $this->checksumsValidated);
+        $nextEndFrame = $afterWal?->frameCount() ?? 0;
+
+        $currentBefore = [];
+        $currentAfter = [];
+        $nextAfter = [];
+        $latestBefore = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL checkpoint reader pin pages must be integers');
+            }
+
+            $currentBefore[] = $this->readerSnapshotPageImage($databaseBytes, $pageNumber, $currentEndFrame);
+            $latestBefore[] = $this->readerSnapshotPageImage($databaseBytes, $pageNumber);
+            if ($afterWal === null) {
+                $currentAfter[] = self::databasePageVisibility($checkpoint['database_bytes'], $this->header->pageSize, $pageNumber);
+                $nextAfter[] = self::databasePageVisibility($checkpoint['database_bytes'], $this->header->pageSize, $pageNumber);
+                continue;
+            }
+
+            $afterCurrentEndFrame = $currentEndFrame === null ? $afterWal->frameCount() : min($currentEndFrame, $afterWal->frameCount());
+            $currentAfter[] = $afterWal->readerSnapshotPageImage($checkpoint['database_bytes'], $pageNumber, $afterCurrentEndFrame);
+            $nextAfter[] = $afterWal->readerSnapshotPageImage($checkpoint['database_bytes'], $pageNumber);
+        }
+
+        return [
+            'mode' => $checkpoint['mode'],
+            'checkpoint_reason' => $checkpoint['reason'],
+            'checkpoint_busy' => $checkpoint['busy'],
+            'wal_action' => $checkpoint['wal_action'],
+            'read_mark_plan' => $readMarkPlan,
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextEndFrame,
+            'current_before' => $currentBefore,
+            'current_after' => $currentAfter,
+            'next_after' => $nextAfter,
+            'current_sources' => self::visibilityColumn($currentAfter, 'source'),
+            'next_sources' => self::visibilityColumn($nextAfter, 'source'),
+            'current_frame_indexes' => self::visibilityColumn($currentAfter, 'frame_index'),
+            'next_frame_indexes' => self::visibilityColumn($nextAfter, 'frame_index'),
+            'current_stable' => self::visibilityImages($currentBefore) === self::visibilityImages($currentAfter),
+            'next_matches_latest_snapshot' => self::visibilityImages($latestBefore) === self::visibilityImages($nextAfter),
+            'pin_blocks_reset' => $readMarkPlan['checkpoint_pinned_frame'] !== null && $checkpoint['wal_action'] === 'preserve_wal',
+            'dependencies' => ['sqlite-wal-checkpoint', 'wal-reader-current-next-pin', 'wal-index-read-marks', 'durable-sidecar-write'],
+        ];
+    }
+
+    /**
      * @param list<int|null> $readMarks
      * @return array{mx_frame:int,last_commit_frame:int|null,checkpoint_pinned_frame:int|null,checkpoint_can_finish:bool,reset_blocked:bool,read_marks:list<array{slot:int,frame:int|null,active:bool,valid:bool,stale:bool,pins_checkpoint:bool,reason:string}>,reusable_slots:list<int>,recommended_reader_slot:int|null,recommended_reader_frame:int|null}
      */

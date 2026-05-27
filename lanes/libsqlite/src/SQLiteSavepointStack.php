@@ -12,7 +12,7 @@ final class SQLiteSavepointStack
     private array $frames = [];
     private int $maxWalFrame = 0;
     /**
-     * @var array<string,array{name:string,frame_index:int,savepoint_name:string,wal_start_frame:int,page_images:array<int,string>,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}>
+     * @var array<string,array{name:string,frame_index:int,savepoint_name:string,wal_start_frame:int,prior_pages:array<int,true>,prior_page_images:array<int,string>,page_images:array<int,string>,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}>
      */
     private array $statementJournals = [];
 
@@ -570,6 +570,8 @@ final class SQLiteSavepointStack
             'frame_index' => $frameIndex,
             'savepoint_name' => $this->frames[$frameIndex]['name'],
             'wal_start_frame' => $this->maxWalFrame,
+            'prior_pages' => $this->frames[$frameIndex]['pages'],
+            'prior_page_images' => $this->frames[$frameIndex]['page_images'],
             'page_images' => [],
             'wal_frames' => [],
         ];
@@ -693,6 +695,10 @@ final class SQLiteSavepointStack
                     unset($this->frames[$frameIndex]['wal_frames'][$walFrameIndex]);
                 }
             }
+        }
+        if (isset($this->frames[$journal['frame_index']])) {
+            $this->frames[$journal['frame_index']]['pages'] = $journal['prior_pages'];
+            $this->frames[$journal['frame_index']]['page_images'] = $journal['prior_page_images'];
         }
         $this->maxWalFrame = $journal['wal_start_frame'];
         unset($this->statementJournals[$statementName]);
@@ -883,7 +889,7 @@ final class SQLiteSavepointStack
     }
 
     /**
-     * @return array{name:string,frame_index:int,savepoint_name:string,wal_start_frame:int,page_images:array<int,string>,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}
+     * @return array{name:string,frame_index:int,savepoint_name:string,wal_start_frame:int,prior_pages:array<int,true>,prior_page_images:array<int,string>,page_images:array<int,string>,wal_frames:array<int,array{page_number:int,commit_frame:bool}>}
      */
     private function statementJournal(string $statementName): array
     {

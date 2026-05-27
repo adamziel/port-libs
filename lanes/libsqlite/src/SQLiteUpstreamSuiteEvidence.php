@@ -3681,6 +3681,186 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function releaseRunnerGapLedgerCurrentNext31(
+        string $currentAcceptedHead,
+        string $nextAcceptedHead,
+        ?string $repoRoot = null,
+        ?string $artifactDirectory = null,
+        string $processSnapshot = '',
+        int $jobs = 2
+    ): array {
+        if ($currentAcceptedHead === '' || $nextAcceptedHead === '') {
+            throw new \InvalidArgumentException('Current and next accepted repository HEAD values are required for release-runner gap ledger evidence');
+        }
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite release-runner gap ledger jobs must be at least 1');
+        }
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $artifactRoot = $artifactDirectory ?? $root . '/.tmux-team/tmp/sqlite-runner-artifacts';
+        $current = $this->acceptedHeadArtifactProvenanceDirectoryRecord(
+            $artifactRoot,
+            $currentAcceptedHead,
+            $processSnapshot
+        );
+        $next = $this->acceptedHeadArtifactProvenanceDirectoryRecord(
+            $artifactRoot,
+            $nextAcceptedHead,
+            $processSnapshot
+        );
+        $hydration = $this->upstreamRunnerHydrationGate($jobs, $root);
+        $commandManifest = $this->fullSuiteCommandManifest($jobs, $root);
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+        $wildcards = $this->wildcardExpansionPlan($root);
+        $permutations = $this->permutationSuiteMap($root);
+
+        $currentCount = (int) ($current['current_accepted_count'] ?? 0);
+        $nextCount = (int) ($next['current_accepted_count'] ?? 0);
+
+        $ledger = [];
+        $ledger[] = [
+            'id' => 'current-accepted-artifact',
+            'status' => $currentCount > 0 ? 'satisfied' : 'open',
+            'severity' => $currentCount > 0 ? 'evidence' : 'blocking',
+            'evidence' => [
+                'artifact_count' => (int) ($current['artifact_count'] ?? 0),
+                'countable_current_artifacts' => $currentCount,
+                'blocked_artifacts' => (int) ($current['blocked_count'] ?? 0),
+                'missing_log_count' => (int) ($current['missing_log_count'] ?? 0),
+            ],
+            'next_gate' => $currentCount > 0
+                ? 'preserve current accepted artifact provenance while evaluating whether next-source evidence is already present'
+                : 'produce or locate a zero-error bounded runner artifact for the current accepted source before counting release/all movement',
+        ];
+        $ledger[] = [
+            'id' => 'next-accepted-artifact',
+            'status' => $nextCount > 0 ? 'satisfied' : 'open',
+            'severity' => $nextCount > 0 ? 'evidence' : 'blocking',
+            'evidence' => [
+                'artifact_count' => (int) ($next['artifact_count'] ?? 0),
+                'countable_next_artifacts' => $nextCount,
+                'blocked_artifacts' => (int) ($next['blocked_count'] ?? 0),
+                'missing_log_count' => (int) ($next['missing_log_count'] ?? 0),
+            ],
+            'next_gate' => $nextCount > 0
+                ? 'record next accepted artifact and suppress duplicate broad runner launch'
+                : 'launch only after hydration, command, and duplicate-runner gates are clear, then count a matching next-source artifact',
+        ];
+        $ledger[] = [
+            'id' => 'runner-hydration',
+            'status' => ($hydration['status'] ?? null) === 'hydrated' ? 'satisfied' : 'open',
+            'severity' => 'blocking',
+            'evidence' => [
+                'status' => $hydration['status'] ?? 'unknown',
+                'missing_count' => (int) ($hydration['missing_count'] ?? 0),
+                'runnable_command_count' => (int) ($hydration['runnable_command_count'] ?? 0),
+                'missing' => is_array($hydration['missing'] ?? null) ? $hydration['missing'] : [],
+            ],
+            'next_gate' => 'hydrate the SQLite source/build/testfixture inputs before any next-source release/all runner launch',
+        ];
+        $ledger[] = [
+            'id' => 'command-manifest',
+            'status' => ($commandManifest['status'] ?? null) === 'ready' ? 'satisfied' : 'open',
+            'severity' => 'blocking',
+            'evidence' => [
+                'status' => $commandManifest['status'] ?? 'unknown',
+                'command_count' => (int) ($commandManifest['command_count'] ?? 0),
+                'runnable_command_count' => (int) ($commandManifest['runnable_command_count'] ?? 0),
+                'blocked_command_count' => (int) ($commandManifest['blocked_command_count'] ?? 0),
+            ],
+            'next_gate' => 'keep release, permutation, make, wildcard, and suite-command manifest rows explicit before running',
+        ];
+        $ledger[] = [
+            'id' => 'duplicate-runner',
+            'status' => ($active['status'] ?? null) === 'clear' ? 'satisfied' : 'open',
+            'severity' => 'blocking',
+            'evidence' => [
+                'status' => $active['status'] ?? 'unknown',
+                'active_count' => (int) ($active['active_count'] ?? 0),
+                'active_tiers' => is_array($active['active_tiers'] ?? null) ? $active['active_tiers'] : [],
+            ],
+            'next_gate' => 'do not launch a duplicate broad SQLite runner while all/release/mptest evidence is active',
+        ];
+        $ledger[] = [
+            'id' => 'wildcard-expansion',
+            'status' => in_array($wildcards['status'] ?? null, ['ready', 'complete-no-wildcards'], true) ? 'satisfied' : 'open',
+            'severity' => 'audit-gap',
+            'evidence' => [
+                'status' => $wildcards['status'] ?? 'unknown',
+                'pattern_count' => (int) ($wildcards['pattern_count'] ?? 0),
+                'expanded_script_count' => (int) ($wildcards['expanded_script_count'] ?? 0),
+                'missing_patterns' => is_array($wildcards['missing_patterns'] ?? null) ? $wildcards['missing_patterns'] : [],
+            ],
+            'next_gate' => 'expand wildcard .test selections against the hydrated upstream test directory before claiming exact focused coverage',
+        ];
+        $ledger[] = [
+            'id' => 'permutation-suite-map',
+            'status' => ($permutations['status'] ?? null) === 'ready' ? 'satisfied' : 'open',
+            'severity' => 'audit-gap',
+            'evidence' => [
+                'status' => $permutations['status'] ?? 'unknown',
+                'declared_suite_count' => (int) ($permutations['declared_suite_count'] ?? 0),
+                'mapped_suite_count' => (int) ($permutations['mapped_suite_count'] ?? 0),
+                'unmapped_suite_count' => (int) ($permutations['unmapped_suite_count'] ?? 0),
+            ],
+            'next_gate' => 'map every declared permutation suite into concrete testfixture commands before counting all-suite closure',
+        ];
+
+        $open = [];
+        $satisfied = [];
+        foreach ($ledger as $entry) {
+            if (($entry['status'] ?? null) === 'satisfied') {
+                $satisfied[] = $entry['id'];
+            } else {
+                $open[] = $entry['id'];
+            }
+        }
+
+        $readyToLaunch = $currentCount > 0
+            && $nextCount === 0
+            && ($hydration['status'] ?? null) === 'hydrated'
+            && ($commandManifest['status'] ?? null) === 'ready'
+            && ($active['status'] ?? null) === 'clear';
+
+        $status = 'blocked';
+        if ($nextCount > 0) {
+            $status = 'next-artifact-countable';
+        } elseif ($readyToLaunch) {
+            $status = 'ready-for-next-guarded-runner';
+        } elseif ($currentCount > 0) {
+            $status = 'current-artifact-preserved-with-open-gaps';
+        }
+
+        return [
+            'status' => $status,
+            'current_accepted_head' => $currentAcceptedHead,
+            'next_accepted_head' => $nextAcceptedHead,
+            'artifact_directory' => $artifactRoot,
+            'jobs' => $jobs,
+            'ledger_count' => count($ledger),
+            'open_gap_count' => count($open),
+            'satisfied_gap_count' => count($satisfied),
+            'open_gap_ids' => $open,
+            'satisfied_gap_ids' => $satisfied,
+            'current_artifact_count' => $currentCount,
+            'next_artifact_count' => $nextCount,
+            'ready_to_launch_next_guarded_runner' => $readyToLaunch,
+            'counts_as_release_parity' => $nextCount > 0,
+            'counts_current_artifact_only' => $currentCount > 0 && $nextCount === 0,
+            'ledger' => $ledger,
+            'next_gate' => match ($status) {
+                'next-artifact-countable' => 'route the next-source artifact through release admission; do not launch another broad runner',
+                'ready-for-next-guarded-runner' => 'launch at most one supervisor-approved guarded runner for the next accepted source, then parse the audit/log artifact',
+                'current-artifact-preserved-with-open-gaps' => 'preserve current artifact evidence and close the listed open gaps before next-source launch or parity counting',
+                default => 'do not count release/all movement until current artifact provenance, hydration, command, and duplicate-runner gaps are closed',
+            },
+            'dependency_closure' => 'no new support component needed; current-next31 gap ledger composes existing runner artifact provenance, hydration, command-manifest, wildcard, permutation, and active-runner gates only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function releaseRunnerHydrationClusterRecord(
         string $acceptedRepositoryHead,
         ?string $repoRoot = null,
