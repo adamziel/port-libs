@@ -146,6 +146,97 @@ final class SQLiteIndexSkipScanPlan
         ];
     }
 
+    /**
+     * @param list<array<string, mixed>> $rows
+     * @param list<array<string,mixed>> $queryTerms
+     * @return array{
+     *     indexName:string,
+     *     partial:bool,
+     *     partialPredicateImplied:bool,
+     *     skippedPartialRows:int,
+     *     skippedColumn:string,
+     *     rangeColumn:string,
+     *     lowerInclusive:mixed,
+     *     upperBound:mixed,
+     *     upperInclusive:bool,
+     *     loops:list<array{prefix:mixed, examined:int, matched:int, rowids:list<int>}>,
+     *     rows:list<array<string, mixed>>,
+     *     rowids:list<int>,
+     *     omittedNullRangeRows:int,
+     *     estimatedSeeks:int,
+     *     usesSkipScan:bool,
+     *     status:string,
+     *     reason:string|null
+     * }
+     */
+    public static function betweenPartialRows(
+        array $rows,
+        string $indexName,
+        string $skippedColumn,
+        string $rangeColumn,
+        mixed $lowerInclusive,
+        mixed $upperBound,
+        SQLiteIndexPredicate $partialPredicate,
+        array $queryTerms,
+        bool $upperInclusive = true,
+        ?int $limit = null,
+        int $offset = 0,
+        string $collation = 'BINARY',
+    ): array {
+        if (!self::partialPredicateIsImplied($partialPredicate, $queryTerms, $collation)) {
+            return [
+                'indexName' => $indexName,
+                'partial' => true,
+                'partialPredicateImplied' => false,
+                'skippedPartialRows' => 0,
+                'skippedColumn' => $skippedColumn,
+                'rangeColumn' => $rangeColumn,
+                'lowerInclusive' => $lowerInclusive,
+                'upperBound' => $upperBound,
+                'upperInclusive' => $upperInclusive,
+                'loops' => [],
+                'rows' => [],
+                'rowids' => [],
+                'omittedNullRangeRows' => 0,
+                'estimatedSeeks' => 0,
+                'usesSkipScan' => false,
+                'status' => 'unusable',
+                'reason' => 'query constraints do not imply partial-index WHERE predicate',
+            ];
+        }
+
+        $indexedRows = [];
+        $skippedPartialRows = 0;
+        foreach ($rows as $row) {
+            if (self::rowSatisfiesPartialPredicate($row, $partialPredicate, $collation)) {
+                $indexedRows[] = $row;
+                continue;
+            }
+            $skippedPartialRows++;
+        }
+
+        $plan = self::betweenRows(
+            $indexedRows,
+            $indexName,
+            $skippedColumn,
+            $rangeColumn,
+            $lowerInclusive,
+            $upperBound,
+            $upperInclusive,
+            $limit,
+            $offset,
+            $collation,
+        );
+
+        return $plan + [
+            'partial' => true,
+            'partialPredicateImplied' => true,
+            'skippedPartialRows' => $skippedPartialRows,
+            'status' => 'usable',
+            'reason' => null,
+        ];
+    }
+
     private static function inBetweenRange(
         mixed $value,
         mixed $lowerInclusive,
@@ -186,6 +277,228 @@ final class SQLiteIndexSkipScanPlan
         }
 
         return strcmp($leftText, $rightText) <=> 0;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $terms
+     */
+    private static function partialPredicateIsImplied(SQLiteIndexPredicate $predicate, array $terms, string $collation): bool
+    {
+        if ($predicate->operator === SQLiteIndexPredicate::AND && is_array($predicate->value)) {
+            foreach ($predicate->value as $subPredicate) {
+                if (!$subPredicate instanceof SQLiteIndexPredicate || !self::partialPredicateIsImplied($subPredicate, $terms, $collation)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if ($predicate->operator === SQLiteIndexPredicate::OR && is_array($predicate->value)) {
+            foreach ($predicate->value as $subPredicate) {
+                if ($subPredicate instanceof SQLiteIndexPredicate && self::partialPredicateIsImplied($subPredicate, $terms, $collation)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        foreach ($terms as $term) {
+            $constraint = self::constraintFromPredicate($term);
+            if ($constraint === null) {
+                continue;
+            }
+            if ($constraint['operator'] === 'point'
+                && $predicate->isImpliedByPointLookup($constraint['column'], $constraint['values'], $collation)
+            ) {
+                return true;
+            }
+            if ($constraint['operator'] === 'IN'
+                && is_array($constraint['values'])
+                && $predicate->isImpliedByInListLookup($constraint['column'], $constraint['values'], $collation)
+            ) {
+                return true;
+            }
+            if ($constraint['operator'] === 'BETWEEN'
+                && is_array($constraint['values'])
+                && $predicate->isImpliedByRangeLookup(
+                    $constraint['column'],
+                    $constraint['values']['lower'] ?? null,
+                    $constraint['values']['upper'] ?? null,
+                    true,
+                    $collation,
+                )
+            ) {
+                return true;
+            }
+            if (str_starts_with($constraint['operator'], 'range-')
+                && self::rangeConstraintImpliesPartialPredicate($predicate, $constraint, $collation)
+            ) {
+                return true;
+            }
+            if ($constraint['operator'] === 'is-not-null'
+                && $predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL
+                && strcasecmp($predicate->columnName, $constraint['column']) === 0
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return null|array{column:string,operator:string,values:mixed}
+     */
+    private static function constraintFromPredicate(array $predicate): ?array
+    {
+        $operator = strtoupper((string) ($predicate['operator'] ?? ''));
+        if ($operator === '=' || $operator === '==') {
+            return self::binaryConstraint($predicate, 'point');
+        }
+        if (in_array($operator, ['<', '<=', '>', '>='], true)) {
+            return self::binaryConstraint($predicate, 'range-' . $operator);
+        }
+        if ($operator === 'IN') {
+            $column = self::columnOperand($predicate['left'] ?? null);
+            $values = $predicate['values'] ?? null;
+            if ($column === null || !is_array($values) || !array_is_list($values)) {
+                return null;
+            }
+
+            return ['column' => $column, 'operator' => 'IN', 'values' => $values];
+        }
+        if ($operator === 'BETWEEN') {
+            $column = self::columnOperand($predicate['left'] ?? null);
+            if ($column === null || !array_key_exists('lower', $predicate) || !array_key_exists('upper', $predicate)) {
+                return null;
+            }
+
+            return ['column' => $column, 'operator' => 'BETWEEN', 'values' => [
+                'lower' => $predicate['lower'],
+                'upper' => $predicate['upper'],
+            ]];
+        }
+        if ($operator === 'IS NOT NULL') {
+            $column = self::columnOperand($predicate['left'] ?? null);
+
+            return $column === null ? null : ['column' => $column, 'operator' => 'is-not-null', 'values' => true];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{column:string,operator:string,values:mixed}
+     */
+    private static function binaryConstraint(array $predicate, string $operator): ?array
+    {
+        $left = self::columnOperand($predicate['left'] ?? null);
+        $right = self::columnOperand($predicate['right'] ?? null);
+        if ($left !== null && $right === null && array_key_exists('right', $predicate)) {
+            return ['column' => $left, 'operator' => $operator, 'values' => $predicate['right']];
+        }
+        if ($right !== null && $left === null && array_key_exists('left', $predicate)) {
+            return ['column' => $right, 'operator' => self::reverseRangeOperator($operator), 'values' => $predicate['left']];
+        }
+
+        return null;
+    }
+
+    private static function columnOperand(mixed $operand): ?string
+    {
+        if (!is_array($operand)) {
+            return null;
+        }
+        $column = $operand['column'] ?? null;
+
+        return is_string($column) && $column !== '' ? $column : null;
+    }
+
+    /**
+     * @param array{column:string,operator:string,values:mixed} $constraint
+     */
+    private static function rangeConstraintImpliesPartialPredicate(
+        SQLiteIndexPredicate $predicate,
+        array $constraint,
+        string $collation,
+    ): bool {
+        return match ($constraint['operator']) {
+            'range->' => $predicate->isImpliedByRangeLookup($constraint['column'], $constraint['values'], null, false, $collation),
+            'range->=' => $predicate->isImpliedByRangeLookup($constraint['column'], $constraint['values'], null, true, $collation),
+            'range-<' => $predicate->isImpliedByRangeLookup($constraint['column'], null, $constraint['values'], false, $collation),
+            'range-<=' => $predicate->isImpliedByRangeLookup($constraint['column'], null, $constraint['values'], true, $collation),
+            default => false,
+        };
+    }
+
+    private static function rowSatisfiesPartialPredicate(array $row, SQLiteIndexPredicate $predicate, string $collation): bool
+    {
+        if ($predicate->operator === SQLiteIndexPredicate::AND && is_array($predicate->value)) {
+            foreach ($predicate->value as $subPredicate) {
+                if (!$subPredicate instanceof SQLiteIndexPredicate || !self::rowSatisfiesPartialPredicate($row, $subPredicate, $collation)) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        if ($predicate->operator === SQLiteIndexPredicate::OR && is_array($predicate->value)) {
+            foreach ($predicate->value as $subPredicate) {
+                if ($subPredicate instanceof SQLiteIndexPredicate && self::rowSatisfiesPartialPredicate($row, $subPredicate, $collation)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        $value = $row[$predicate->columnName] ?? null;
+
+        return match ($predicate->operator) {
+            SQLiteIndexPredicate::IS_NOT_NULL => $value !== null,
+            SQLiteIndexPredicate::EQUALS => self::compare($value, $predicate->value, $collation) === 0,
+            SQLiteIndexPredicate::NOT_EQUALS => $value !== null && self::compare($value, $predicate->value, $collation) !== 0,
+            SQLiteIndexPredicate::LESS_THAN => $value !== null && self::compare($value, $predicate->value, $collation) < 0,
+            SQLiteIndexPredicate::LESS_THAN_OR_EQUAL => $value !== null && self::compare($value, $predicate->value, $collation) <= 0,
+            SQLiteIndexPredicate::GREATER_THAN => $value !== null && self::compare($value, $predicate->value, $collation) > 0,
+            SQLiteIndexPredicate::GREATER_THAN_OR_EQUAL => $value !== null && self::compare($value, $predicate->value, $collation) >= 0,
+            SQLiteIndexPredicate::BETWEEN => is_array($predicate->value)
+                && array_key_exists('lower', $predicate->value)
+                && array_key_exists('upper', $predicate->value)
+                && $value !== null
+                && self::compare($value, $predicate->value['lower'], $collation) >= 0
+                && self::compare($value, $predicate->value['upper'], $collation) <= 0,
+            SQLiteIndexPredicate::IN_LIST => is_array($predicate->value) && self::valueInList($value, $predicate->value, $collation),
+            default => false,
+        };
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function valueInList(mixed $value, array $values, string $collation): bool
+    {
+        foreach ($values as $candidate) {
+            if (self::compare($value, $candidate, $collation) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function reverseRangeOperator(string $operator): string
+    {
+        return match ($operator) {
+            'range-<' => 'range->',
+            'range-<=' => 'range->=',
+            'range->' => 'range-<',
+            'range->=' => 'range-<=',
+            default => $operator,
+        };
     }
 
     private static function asciiLower(string $value): string

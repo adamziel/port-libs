@@ -204,10 +204,21 @@ final class SQLiteAttachedSchemaCatalog
         $parsed = SQLitePragmaSchemaCatalog::parsePragma($sql);
         $schemaName = $parsed['schema'];
 
+        if ($parsed['pragma'] === 'table_list' && $schemaName === null) {
+            return [
+                'status' => 'ok',
+                'pragma' => 'table_list',
+                'schema' => 'main',
+                'target' => $parsed['target'],
+                'rows' => $this->tableList($parsed['target'] === '' ? null : $parsed['target']),
+            ];
+        }
+
         if ($schemaName === null) {
             $resolved = match ($parsed['pragma']) {
                 'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
+                'table_list' => ['schema' => 'main'],
                 'function_list', 'module_list', 'collation_list' => ['schema' => 'main'],
             };
             $schemaName = $resolved['schema'] ?? 'main';
@@ -232,23 +243,47 @@ final class SQLiteAttachedSchemaCatalog
      */
     public function executeTableValuedPragma(string $sql): array
     {
+        if (preg_match('/^pragma_database_list\s*\(\s*\)\s*;?$/i', trim($sql)) === 1) {
+            return [
+                'status' => 'ok',
+                'pragma' => 'database_list',
+                'schema' => 'main',
+                'target' => '',
+                'rows' => $this->databaseList(),
+            ];
+        }
+
         $parsed = SQLitePragmaSchemaCatalog::parseTableValuedPragma($sql);
         $schemaName = $parsed['schema'];
+
+        if ($parsed['pragma'] === 'table_list' && $schemaName === null) {
+            return [
+                'status' => 'ok',
+                'pragma' => 'table_list',
+                'schema' => 'main',
+                'target' => $parsed['target'],
+                'rows' => $this->tableList($parsed['target'] === '' ? null : $parsed['target']),
+            ];
+        }
 
         if ($schemaName === null) {
             $resolved = match ($parsed['pragma']) {
                 'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
+                'table_list' => ['schema' => 'main'],
                 'function_list', 'module_list', 'collation_list' => ['schema' => 'main'],
             };
             $schemaName = $resolved['schema'] ?? 'main';
         }
 
-        $result = $this->pragmaCatalog($schemaName)->executeTableValuedPragma(
-            $parsed['target'] === ''
-                ? 'pragma_' . $parsed['pragma'] . '()'
-                : 'pragma_' . $parsed['pragma'] . '(' . self::pragmaArgumentLiteral($parsed['target']) . ')',
-        );
+        $pragmaSql = $parsed['target'] === '' && $parsed['pragma'] !== 'table_list'
+            ? 'pragma_' . $parsed['pragma'] . '()'
+            : 'pragma_' . $parsed['pragma'] . '(' . self::pragmaArgumentLiteral($parsed['target']) . ')';
+        if ($parsed['pragma'] === 'table_list') {
+            $pragmaSql = 'pragma_table_list(' . self::pragmaArgumentLiteral($parsed['target']) . ', ' . self::pragmaArgumentLiteral($schemaName) . ')';
+        }
+
+        $result = $this->pragmaCatalog($schemaName)->executeTableValuedPragma($pragmaSql);
         $result['schema'] = $schemaName;
 
         return $result;
@@ -265,6 +300,20 @@ final class SQLiteAttachedSchemaCatalog
     public function searchOrder(): array
     {
         return array_merge(['temp', 'main'], $this->attachedOrder);
+    }
+
+    /**
+     * @return list<array{schema: string, name: string, type: string, ncol: int, wr: int, strict: int}>
+     */
+    public function tableList(?string $target = null): array
+    {
+        $rows = [];
+        foreach ($this->searchOrder() as $schemaName) {
+            $schemaRows = $this->pragmaCatalog($schemaName)->tableList($schemaName, $target);
+            array_push($rows, ...$schemaRows);
+        }
+
+        return $rows;
     }
 
     /**

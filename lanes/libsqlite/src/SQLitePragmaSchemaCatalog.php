@@ -99,6 +99,7 @@ final class SQLitePragmaSchemaCatalog
                 'index_info' => $this->indexInfo($parsed['target']),
                 'index_xinfo' => $this->indexXInfo($parsed['target']),
                 'foreign_key_list' => $this->foreignKeyList($parsed['target']),
+                'table_list' => $this->tableList($parsed['schema'] ?? 'main', $parsed['target'] === '' ? null : $parsed['target']),
                 'function_list' => $this->functionList(),
                 'module_list' => $this->moduleList(),
                 'collation_list' => $this->collationList(),
@@ -130,6 +131,7 @@ final class SQLitePragmaSchemaCatalog
                 'index_info' => $this->indexInfo($parsed['target']),
                 'index_xinfo' => $this->indexXInfo($parsed['target']),
                 'foreign_key_list' => $this->foreignKeyList($parsed['target']),
+                'table_list' => $this->tableList($parsed['schema'] ?? 'main', $parsed['target'] === '' ? null : $parsed['target']),
                 'function_list' => $this->functionList(),
                 'module_list' => $this->moduleList(),
                 'collation_list' => $this->collationList(),
@@ -324,6 +326,34 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
+     * @return list<array{schema: string, name: string, type: string, ncol: int, wr: int, strict: int}>
+     */
+    public function tableList(string $schemaName = 'main', ?string $target = null): array
+    {
+        $rows = [];
+        foreach ($this->records as $record) {
+            if ($record->type !== 'table' && $record->type !== 'view') {
+                continue;
+            }
+            if ($target !== null && strcasecmp($record->name, $target) !== 0) {
+                continue;
+            }
+
+            $sql = $record->sql ?? '';
+            $rows[] = [
+                'schema' => $schemaName,
+                'name' => $record->name,
+                'type' => $record->type,
+                'ncol' => $record->type === 'table' ? count($this->tableInfo($record->name, true)) : count(self::columnsFromCreateTable($sql)),
+                'wr' => self::isWithoutRowidSql($sql) ? 1 : 0,
+                'strict' => self::isStrictTableSql($sql) ? 1 : 0,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{name: string, builtin: int, type: string, enc: string, narg: int, flags: int}>
      */
     public function functionList(): array
@@ -405,15 +435,15 @@ final class SQLitePragmaSchemaCatalog
     public static function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>function_list|module_list|collation_list)$/i', $trimmed, $matches) === 1) {
+        if (preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>function_list|module_list|collation_list|table_list)(?:\s*(?:\(\s*(?<target>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))?\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))?)?$/i', $trimmed, $matches) === 1) {
             return [
                 'pragma' => strtolower($matches['pragma']),
                 'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower($matches['schema']) : null,
-                'target' => '',
+                'target' => self::unquoteIdentifier(($matches['target'] ?? '') !== '' ? $matches['target'] : ($matches['equals'] ?? '')),
             ];
         }
         if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)\s*(?:\(\s*(?<paren>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*))\s*\)|=\s*(?<equals>(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)))$/i', $trimmed, $matches)) {
-            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, index_xinfo, foreign_key_list, function_list, module_list, and collation_list are supported');
+            throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, index_xinfo, foreign_key_list, table_list, function_list, module_list, and collation_list are supported');
         }
 
         return [
@@ -436,12 +466,19 @@ final class SQLitePragmaSchemaCatalog
                 'target' => '',
             ];
         }
-        if (!preg_match('/^pragma_(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)\s*\((?<args>.*)\)$/i', $trimmed, $matches)) {
+        if (!preg_match('/^pragma_(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list|table_list)\s*\((?<args>.*)\)$/i', $trimmed, $matches)) {
             throw new InvalidArgumentException('Only table-valued PRAGMA schema functions are supported');
         }
 
         $pragma = strtolower($matches['pragma']);
         $args = array_map('trim', self::splitTopLevel($matches['args'], ','));
+        if ($pragma === 'table_list' && count($args) === 1 && $args[0] === '') {
+            return [
+                'pragma' => $pragma,
+                'schema' => null,
+                'target' => '',
+            ];
+        }
         if (count($args) < 1 || count($args) > 2 || $args[0] === '') {
             throw new InvalidArgumentException("pragma_{$pragma} needs a target argument");
         }
@@ -824,7 +861,19 @@ final class SQLitePragmaSchemaCatalog
     {
         $sql = $this->tables[strtolower($tableName)]->sql ?? '';
 
-        return preg_match('/\)\s*WITHOUT\s+ROWID\b/i', $sql) === 1;
+        return self::isWithoutRowidSql($sql);
+    }
+
+    private static function isWithoutRowidSql(string $sql): bool
+    {
+        return preg_match('/\)\s*(?:STRICT\s*,\s*)?WITHOUT\s+ROWID\b/i', $sql) === 1
+            || preg_match('/\)\s*WITHOUT\s+ROWID\s*,\s*STRICT\b/i', $sql) === 1;
+    }
+
+    private static function isStrictTableSql(string $sql): bool
+    {
+        return preg_match('/\)\s*(?:WITHOUT\s+ROWID\s*,\s*)?STRICT\b/i', $sql) === 1
+            || preg_match('/\)\s*STRICT\s*,\s*WITHOUT\s+ROWID\b/i', $sql) === 1;
     }
 
     /**

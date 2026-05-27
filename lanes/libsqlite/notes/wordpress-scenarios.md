@@ -5249,3 +5249,24 @@ JSONB codec, JSON5 parser, merge-patch helper, JSON path validator, and
 lane-local planner metadata. Non-overlap: this does not repeat JSON table
 cursor/source/hidden/visible constraints, generic JSON scalar patch dispatch,
 expression ORDER BY, expression-index range-cost, B-tree, WAL, or VFS clusters.
+
+## Planner Skip-Scan Partial Current Next28
+
+Copied `wp_options` plugin-option recovery scans can now use a partial
+composite index such as `wp_options(autoload, option_name) WHERE kind='plugin'
+AND option_name >= 'plugin_'` through skip-scan current/next loops. The planner
+admits the partial index only when query terms imply the partial predicate,
+filters the native PHP index image to rows that satisfy the predicate, and then
+loops over each distinct unconstrained `autoload` prefix for the requested
+`option_name` range. Unsafe broad predicates return an unusable plan so callers
+can fall back to a table scan instead of reading an incomplete partial index.
+
+Status delta 2026-05-27 isolated
+`yield-sqlite-planner-skipscan-partial-current-next28` slice: added
+`SQLiteIndexSkipScanPlan::betweenPartialRows()` plus
+`SQLitePlannerSkipScanPartialCurrentNext28Test.php` with 54 focused PASS cases
+and a WordPress smoke. No mapped denominator change is claimed.
+
+Dependency closure: no new shared support component is needed. This reuses
+lane-local `SQLiteIndexPredicate` proof logic and the existing skip-scan
+current/next row materializer.

@@ -167,7 +167,7 @@ $tests['pragma index table valued current next21 rejects malformed shapes'] = st
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_index_info('wp_options_name_main', '')"));
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_index_info('wp_options_name_main','missing')"));
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("index_info('wp_options_name_main')"));
-    $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma('pragma_database_list()'));
+    $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma('pragma_unknown_list()'));
 };
 
 return $tests;
