@@ -338,6 +338,7 @@ final class SQLiteDatabase
         $updatedFreelistPages = [];
         $allocatedPageNumbers = [];
         $appendedPageNumbers = [];
+        $allocationSteps = [];
 
         for ($i = 0; $i < $count; $i++) {
             if ($freelistPageCount > 0) {
@@ -356,6 +357,14 @@ final class SQLiteDatabase
                 $freelistPageCount--;
                 if ($trunkPage->leafPageNumbers === []) {
                     $allocatedPageNumbers[] = $trunkPage->pageNumber;
+                    $allocationSteps[] = [
+                        'source' => 'freelist-trunk',
+                        'allocated_page' => $trunkPage->pageNumber,
+                        'trunk_page' => $trunkPage->pageNumber,
+                        'next_trunk_page_before' => $trunkPage->nextTrunkPage,
+                        'next_trunk_page_after' => $trunkPage->nextTrunkPage,
+                        'freelist_page_count_after' => $freelistPageCount,
+                    ];
                     unset($updatedFreelistPages[$trunkPage->pageNumber]);
                     $firstTrunkPage = $trunkPage->nextTrunkPage ?? 0;
                     continue;
@@ -364,6 +373,16 @@ final class SQLiteDatabase
                 $leafPageNumbers = $trunkPage->leafPageNumbers;
                 $allocatedPageNumbers[] = $leafPageNumbers[0];
                 $leafCount = count($leafPageNumbers);
+                $allocationSteps[] = [
+                    'source' => 'freelist-leaf',
+                    'allocated_page' => $leafPageNumbers[0],
+                    'trunk_page' => $trunkPage->pageNumber,
+                    'next_trunk_page_before' => $trunkPage->nextTrunkPage,
+                    'next_trunk_page_after' => $trunkPage->nextTrunkPage,
+                    'leaf_count_before' => $leafCount,
+                    'leaf_count_after' => $leafCount - 1,
+                    'freelist_page_count_after' => $freelistPageCount,
+                ];
                 if ($leafCount > 1) {
                     $trunkPageBytes = substr_replace($trunkPageBytes, pack('N', $leafPageNumbers[$leafCount - 1]), 8, 4);
                 }
@@ -379,6 +398,14 @@ final class SQLiteDatabase
             $databasePageCount = $this->nextAppendPageNumber($databasePageCount);
             $allocatedPageNumbers[] = $databasePageCount;
             $appendedPageNumbers[] = $databasePageCount;
+            $allocationSteps[] = [
+                'source' => 'append',
+                'allocated_page' => $databasePageCount,
+                'trunk_page' => null,
+                'next_trunk_page_before' => null,
+                'next_trunk_page_after' => null,
+                'freelist_page_count_after' => $freelistPageCount,
+            ];
         }
 
         if ($freelistPageCount === 0) {
@@ -397,6 +424,7 @@ final class SQLiteDatabase
             $databasePageCount,
             $firstTrunkPage,
             $freelistPageCount,
+            allocationSteps: $allocationSteps,
         );
     }
 
@@ -441,6 +469,7 @@ final class SQLiteDatabase
             $allocationPlan->firstFreelistTrunkPage,
             $allocationPlan->freelistPageCount,
             $updatedPointerMapPages,
+            $allocationPlan->allocationSteps,
         );
     }
 

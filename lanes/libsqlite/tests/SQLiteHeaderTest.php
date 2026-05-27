@@ -19688,7 +19688,7 @@ SQL;
         $t->same(5, count($simpleRows));
         $t->same('integer-one', $simpleRows[0]['simple']);
         $t->same('integer-one', $simpleRows[1]['simple']);
-        $t->same('real-one', $simpleRows[2]['simple']);
+        $t->same('integer-one', $simpleRows[2]['simple']);
         $t->same('text-one', $simpleRows[3]['simple']);
         $t->same('blob-one', $simpleRows[4]['simple']);
 
@@ -24488,6 +24488,9 @@ SQL;
             'j.parent',
             'j.fullkey',
             'j.path',
+            'j.rowid',
+            'j._rowid_',
+            'j.oid',
         ], $dynamicMalformedPlan['joins'][0]['rightColumns']);
         $validDynamicRows = ($dynamicMalformedPlan['joins'][0]['dynamicRows'])($dynamicMalformedPlan['from'][0]);
         $malformedDynamicRows = ($dynamicMalformedPlan['joins'][0]['dynamicRows'])($dynamicMalformedPlan['from'][1]);
@@ -24586,6 +24589,9 @@ SQL;
             'j.parent',
             'j.fullkey',
             'j.path',
+            'j.rowid',
+            'j._rowid_',
+            'j.oid',
         ], $dynamicPlan['joins'][0]['rightColumns']);
         $dynamicRightRows = ($dynamicPlan['joins'][0]['dynamicRows'])($dynamicPlan['from'][0]);
         $t->same(9, count($dynamicRightRows));

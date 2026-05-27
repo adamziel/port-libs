@@ -222,7 +222,7 @@ final class SQLiteAttachedSchemaCatalog
      * Execute SQLite's table-valued PRAGMA function form against the same
      * current-source catalog resolution used by direct schema PRAGMAs.
      *
-     * @return array{status: string, pragma: 'foreign_key_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
+     * @return array{status: string, pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list', schema: string, target: string, rows: list<array<string, int|string|null>>}
      */
     public function executeTableValuedPragma(string $sql): array
     {
@@ -230,16 +230,24 @@ final class SQLiteAttachedSchemaCatalog
         $schemaName = $parsed['schema'];
 
         if ($schemaName === null) {
-            $resolved = $this->resolveTable($parsed['target']);
+            $resolved = match ($parsed['pragma']) {
+                'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
+                'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
+            };
             $schemaName = $resolved['schema'] ?? 'main';
         }
 
         $result = $this->pragmaCatalog($schemaName)->executeTableValuedPragma(
-            'pragma_foreign_key_list(' . self::pragmaArgumentLiteral($parsed['target']) . ')',
+            'pragma_' . $parsed['pragma'] . '(' . self::pragmaArgumentLiteral($parsed['target']) . ')',
         );
         $result['schema'] = $schemaName;
 
         return $result;
+    }
+
+    public function executeTableValuedPragmaCursor(string $sql): SQLitePragmaRowCursor
+    {
+        return new SQLitePragmaRowCursor($this->executeTableValuedPragma($sql));
     }
 
     /**

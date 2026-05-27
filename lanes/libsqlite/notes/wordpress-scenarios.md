@@ -2,6 +2,24 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Expression Collation/Affinity CASE Scenario
+
+Copied `wp_options` diagnostics can now classify option names through simple
+`CASE` expressions that carry explicit SQLite collations. A CASE base or WHEN
+arm using `COLLATE NOCASE` matches mixed-case option names such as `siteurl`
+and `SiteURL`, `COLLATE RTRIM` preserves SQLite trailing-space comparison
+behavior, and NUMERIC/TEXT/BLOB casts keep storage-class comparison semantics
+for branch selection. The smoke in
+`examples/wordpress-expression-collation-affinity-current-next21.php` reports
+case-folded option buckets and NUMERIC CAST branch buckets without requiring
+ext/sqlite.
+
+Status delta 2026-05-27 isolated expression/collation slice: added
+`SQLiteExpressionCollationAffinityCurrentNext21Test.php` with 30 focused PASS
+lines and updated CASE projection dispatch to reuse the expression evaluator.
+Dependency closure: no new support component is needed; this reuses lane-local
+SELECT parsing, built-in collation comparison, and CAST affinity handling.
+
 ## UPSERT RETURNING Multi-Conflict Scenario
 
 Copied WordPress import staging can now preview multiple SQLite UPSERT conflict

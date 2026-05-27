@@ -122,34 +122,147 @@ final class SQLiteSelectExpression
             if (!is_array($branch) || !array_key_exists('when', $branch) || !array_key_exists('then', $branch)) {
                 throw new \InvalidArgumentException('SQLite SELECT CASE expression branches need when and then expressions');
             }
-            if (!is_array($branch['when']) || !is_array($branch['then'])) {
-                throw new \InvalidArgumentException('SQLite SELECT CASE expression branches must contain expressions');
-            }
 
-            $when = self::evaluate($row, $branch['when']);
-            $matched = $hasBase ? self::caseBaseMatches($base, $when) : self::isSqlTrue($when);
+            $when = self::caseExpressionValue($row, $branch['when'], 'branch WHEN');
+            $matched = $hasBase ? self::caseBaseMatches($base, $when, self::caseBranchCollation($expression['base'] ?? null, $branch['when'])) : self::isSqlTrue($when);
             if ($matched) {
-                return self::evaluate($row, $branch['then']);
+                return self::caseExpressionValue($row, $branch['then'], 'branch THEN');
             }
         }
 
         if (!array_key_exists('else', $expression)) {
             return null;
         }
-        if (!is_array($expression['else'])) {
-            throw new \InvalidArgumentException('SQLite SELECT CASE expression ELSE must be an expression');
-        }
 
-        return self::evaluate($row, $expression['else']);
+        return self::caseExpressionValue($row, $expression['else'], 'ELSE');
     }
 
-    private static function caseBaseMatches(mixed $base, mixed $when): bool
+    private static function caseExpressionValue(array $row, mixed $expression, string $context): mixed
+    {
+        if (is_array($expression)) {
+            if (array_key_exists('type', $expression)) {
+                return self::evaluate($row, $expression);
+            }
+
+            throw new \InvalidArgumentException("SQLite SELECT CASE expression {$context} must be an expression or scalar value");
+        }
+
+        if ($expression === null || $expression instanceof SQLiteBlobValue || is_bool($expression) || is_int($expression) || is_float($expression) || is_string($expression)) {
+            return $expression;
+        }
+
+        throw new \InvalidArgumentException("SQLite SELECT CASE expression {$context} must be scalar, BLOB, or NULL");
+    }
+
+    private static function caseBaseMatches(mixed $base, mixed $when, ?string $collation): bool
     {
         if ($base === null || $when === null) {
             return false;
         }
 
-        return self::valueKey($base) === self::valueKey($when);
+        return self::compareCaseValues($base, $when, $collation) === 0;
+    }
+
+    private static function caseBranchCollation(mixed $base, mixed $when): ?string
+    {
+        return self::expressionCollation($base) ?? self::expressionCollation($when);
+    }
+
+    private static function expressionCollation(mixed $expression): ?string
+    {
+        if (!is_array($expression)) {
+            return null;
+        }
+        if (($expression['type'] ?? null) === 'collate') {
+            $collation = $expression['collation'] ?? null;
+            if (!is_string($collation) || $collation === '') {
+                throw new \InvalidArgumentException('SQLite SELECT COLLATE expression needs a collation');
+            }
+
+            return strtoupper($collation);
+        }
+
+        return null;
+    }
+
+    private static function compareCaseValues(mixed $left, mixed $right, ?string $collation): int
+    {
+        self::assertCaseValue($left);
+        self::assertCaseValue($right);
+        $leftRank = self::caseSortRank($left);
+        $rightRank = self::caseSortRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
+        }
+        if ($leftRank === 1) {
+            return self::compareNumericCaseValues($left, $right);
+        }
+        if ($leftRank === 3) {
+            return strcmp($left->bytes, $right->bytes);
+        }
+
+        return self::compareCaseText((string) $left, (string) $right, $collation ?? 'BINARY');
+    }
+
+    private static function assertCaseValue(mixed $value): void
+    {
+        if ($value instanceof SQLiteBlobValue || is_bool($value) || is_int($value) || is_float($value) || is_string($value)) {
+            return;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT CASE expression values must be scalar, BLOB, or NULL');
+    }
+
+    private static function caseSortRank(mixed $value): int
+    {
+        if (is_bool($value) || is_int($value) || is_float($value)) {
+            return 1;
+        }
+        if (is_string($value)) {
+            return 2;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return 3;
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT CASE expression values must be scalar, BLOB, or NULL');
+    }
+
+    private static function compareNumericCaseValues(bool|int|float $left, bool|int|float $right): int
+    {
+        if (is_int($left) && is_float($right)) {
+            if ($right >= 9223372036854775808.0) {
+                return -1;
+            }
+            if ($right < -9223372036854775808.0) {
+                return 1;
+            }
+        }
+        if (is_float($left) && is_int($right)) {
+            if ($left >= 9223372036854775808.0) {
+                return 1;
+            }
+            if ($left < -9223372036854775808.0) {
+                return -1;
+            }
+        }
+
+        return ((float) $left) <=> ((float) $right);
+    }
+
+    private static function compareCaseText(string $left, string $right, string $collation): int
+    {
+        return match (strtoupper($collation)) {
+            'BINARY' => strcmp($left, $right),
+            'NOCASE' => strcmp(self::asciiLower($left), self::asciiLower($right)),
+            'RTRIM' => strcmp(rtrim($left, " \t\r\n"), rtrim($right, " \t\r\n")),
+            default => throw new \InvalidArgumentException("Unsupported SQLite SELECT CASE collation: {$collation}"),
+        };
+    }
+
+    private static function asciiLower(string $value): string
+    {
+        return strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');
     }
 
     private static function isSqlTrue(mixed $value): bool

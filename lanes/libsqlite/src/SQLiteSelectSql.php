@@ -1722,7 +1722,7 @@ final class SQLiteSelectSql
     {
         return array_map(
             static fn (string $column): string => $alias . '.' . $column,
-            ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path'],
+            ['key', 'value', 'type', 'atom', 'id', 'parent', 'fullkey', 'path', 'rowid', '_rowid_', 'oid'],
         );
     }
 
@@ -2216,6 +2216,20 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL window OVER clause must be parenthesized');
         }
         $windowSql = self::unwrapParenthesizedExpression($overSql);
+        $filter = null;
+        $filterOffset = self::keywordOffset($functionSql, 'FILTER');
+        if ($filterOffset !== null) {
+            $filterSql = trim(substr($functionSql, $filterOffset + strlen('FILTER')));
+            $functionSql = trim(substr($functionSql, 0, $filterOffset));
+            if (!str_starts_with($filterSql, '(') || !str_ends_with($filterSql, ')')) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL window FILTER clause must be parenthesized');
+            }
+            $filterBody = self::unwrapParenthesizedExpression($filterSql);
+            if (preg_match('/^WHERE\s+(.+)$/is', $filterBody, $filterMatch) !== 1) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL window FILTER clause needs WHERE');
+            }
+            $filter = self::predicate(trim($filterMatch[1]), $tables);
+        }
 
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\((.*)\)$/', $functionSql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL window expression needs a function call');
@@ -2280,6 +2294,9 @@ final class SQLiteSelectSql
         ];
         if ($frame !== null) {
             $expression['frame'] = $frame;
+        }
+        if ($filter !== null) {
+            $expression['filter'] = $filter;
         }
 
         return $expression;

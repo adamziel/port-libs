@@ -244,6 +244,72 @@ final class SQLiteWal
     }
 
     /**
+     * @param list<int> $pageNumbers
+     * @return array{status:string,reason:string,valid_frame_count:int,committed_frame_count:int,total_frame_slots:int,first_invalid_frame:int|null,current_reader_end_frame:int,next_reader_end_frame:int,committed_end_offset:int,recovery_end_offset:int,current_reader:list<array<string,mixed>>,next_reader:list<array<string,mixed>>,current_reader_sources:list<string>,next_reader_sources:list<string>,current_reader_frame_indexes:list<int|null>,next_reader_frame_indexes:list<int|null>,current_reader_errors:list<string>,next_reader_errors:list<string>,images_match:bool,next_uses_checkpoint_database:bool,discarded_valid_tail_frame_count:int,discarded_corrupt_tail_frame_count:int,dependencies:list<string>}
+     */
+    public static function corruptRecoveryCurrentNextBoundary(
+        string $bytes,
+        string $databaseBytes,
+        array $pageNumbers,
+        ?int $databasePageSize = null
+    ): array {
+        if ($pageNumbers === []) {
+            throw new \InvalidArgumentException('SQLite WAL corrupt recovery current/next boundary requires at least one page number');
+        }
+
+        $boundary = self::transactionRecoveryBoundary($bytes, $databaseBytes, $databasePageSize);
+        $currentWal = $boundary['wal'];
+        $nextWal = $boundary['committed_wal'];
+        $nextDatabaseBytes = $boundary['checkpoint_database_bytes'] ?? $databaseBytes;
+        $currentEndFrame = $boundary['valid_frame_count'];
+        $nextEndFrame = $boundary['committed_frame_count'];
+
+        $current = [];
+        $next = [];
+        foreach ($pageNumbers as $pageNumber) {
+            if (!is_int($pageNumber)) {
+                throw new \InvalidArgumentException('SQLite WAL corrupt recovery current/next pages must be integers');
+            }
+            $current[] = self::safeReaderVisibility($currentWal, $databaseBytes, $pageNumber, $currentEndFrame);
+            $next[] = $nextEndFrame === 0
+                ? self::databasePageVisibilityOrError($nextDatabaseBytes, $currentWal->header->pageSize, $pageNumber)
+                : self::safeReaderVisibility($nextWal, $nextDatabaseBytes, $pageNumber, $nextEndFrame);
+        }
+
+        $currentImages = self::visibilityImages($current);
+        $nextImages = self::visibilityImages($next);
+
+        return [
+            'status' => $boundary['status'],
+            'reason' => $boundary['reason'],
+            'valid_frame_count' => $boundary['valid_frame_count'],
+            'committed_frame_count' => $boundary['committed_frame_count'],
+            'total_frame_slots' => $boundary['total_frame_slots'],
+            'first_invalid_frame' => $boundary['first_invalid_frame'],
+            'current_reader_end_frame' => $currentEndFrame,
+            'next_reader_end_frame' => $nextEndFrame,
+            'committed_end_offset' => $boundary['committed_end_offset'],
+            'recovery_end_offset' => $boundary['recovery_end_offset'],
+            'current_reader' => $current,
+            'next_reader' => $next,
+            'current_reader_sources' => self::visibilityColumn($current, 'source'),
+            'next_reader_sources' => self::visibilityColumn($next, 'source'),
+            'current_reader_frame_indexes' => self::visibilityColumn($current, 'frame_index'),
+            'next_reader_frame_indexes' => self::visibilityColumn($next, 'frame_index'),
+            'current_reader_errors' => self::visibilityErrors($current),
+            'next_reader_errors' => self::visibilityErrors($next),
+            'images_match' => $currentImages === $nextImages,
+            'next_uses_checkpoint_database' => $boundary['checkpoint_database_bytes'] !== null,
+            'discarded_valid_tail_frame_count' => $boundary['discarded_valid_tail_frame_count'],
+            'discarded_corrupt_tail_frame_count' => $boundary['discarded_corrupt_tail_frame_count'],
+            'dependencies' => array_values(array_unique(array_merge(
+                $boundary['dependencies'],
+                ['sqlite-wal-corrupt-recovery-current-next-boundary']
+            ))),
+        ];
+    }
+
+    /**
      * @return array{0:int,1:int}
      */
     public static function checksumPair(string $bytes, bool $littleEndian, int $seed1 = 0, int $seed2 = 0): array
@@ -993,12 +1059,83 @@ final class SQLiteWal
     }
 
     /**
-     * @param list<array{image:string}> $rows
+     * @return array<string,mixed>
+     */
+    private static function safeReaderVisibility(self $wal, string $databaseBytes, int $pageNumber, ?int $snapshotEndFrame): array
+    {
+        try {
+            return $wal->readerSnapshotPageImage($databaseBytes, $pageNumber, $snapshotEndFrame);
+        } catch (\OutOfBoundsException $e) {
+            return [
+                'page_number' => $pageNumber,
+                'source' => 'missing',
+                'frame_index' => null,
+                'database_offset' => null,
+                'image' => null,
+                'snapshot_end_frame' => $snapshotEndFrame ?? $wal->frameCount(),
+                'snapshot_commit_frame' => $wal->lastCommitFrameAtOrBefore($snapshotEndFrame ?? $wal->frameCount())?->index,
+                'database_page_count' => $wal->readerSnapshot($databaseBytes, $snapshotEndFrame)['database_page_count'],
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function databasePageVisibilityOrError(string $databaseBytes, int $walPageSize, int $pageNumber): array
+    {
+        try {
+            return self::databasePageVisibility($databaseBytes, $walPageSize, $pageNumber);
+        } catch (\OutOfBoundsException $e) {
+            $pageSize = $walPageSize === 0 ? SQLiteHeader::parse($databaseBytes)->pageSize : $walPageSize;
+
+            return [
+                'page_number' => $pageNumber,
+                'source' => 'missing',
+                'frame_index' => null,
+                'database_offset' => null,
+                'image' => null,
+                'snapshot_end_frame' => 0,
+                'snapshot_commit_frame' => null,
+                'database_page_count' => intdiv(strlen($databaseBytes), $pageSize),
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<mixed>
+     */
+    private static function visibilityColumn(array $rows, string $column): array
+    {
+        return array_map(static fn (array $row): mixed => $row[$column] ?? null, $rows);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
      * @return list<string>
+     */
+    private static function visibilityErrors(array $rows): array
+    {
+        $errors = [];
+        foreach ($rows as $row) {
+            if (isset($row['error']) && is_string($row['error'])) {
+                $errors[] = $row['error'];
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string|null>
      */
     private static function visibilityImages(array $rows): array
     {
-        return array_map(static fn (array $row): string => $row['image'], $rows);
+        return array_map(static fn (array $row): ?string => is_string($row['image'] ?? null) ? $row['image'] : null, $rows);
     }
 
     /**
