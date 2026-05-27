@@ -36,6 +36,7 @@ final class SQLiteSelectPredicate
             'AND' => self::andValue($row, $predicate['terms'] ?? null),
             'OR' => self::orValue($row, $predicate['terms'] ?? null),
             'NOT' => self::notValue($row, $predicate['term'] ?? null),
+            'TRUTH' => self::truthValue($row, $predicate),
             'EXISTS' => self::exists($row, $predicate, false),
             'NOT EXISTS' => self::exists($row, $predicate, true),
             'IS DISTINCT FROM' => self::distinctFrom($row, $predicate, true),
@@ -117,6 +118,24 @@ final class SQLiteSelectPredicate
         }
 
         return !self::isTrue($value);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $predicate
+     */
+    private static function truthValue(array $row, array $predicate): ?bool
+    {
+        if (!array_key_exists('value', $predicate)) {
+            throw new \InvalidArgumentException('SQLite SELECT truth predicate needs a value expression');
+        }
+
+        $value = self::valueExpression($row, $predicate['value']);
+        if ($value === null) {
+            return null;
+        }
+
+        return self::isTrue($value);
     }
 
     /**
@@ -577,13 +596,32 @@ final class SQLiteSelectPredicate
         if (is_int($value) || is_float($value)) {
             return (float) $value !== 0.0;
         }
+        if ($value instanceof SQLiteBlobValue) {
+            return self::numericPrefix($value->bytes) != 0;
+        }
+        if (is_string($value)) {
+            return self::numericPrefix($value) != 0;
+        }
 
-        throw new \InvalidArgumentException('SQLite SELECT predicate truth values must be boolean, numeric, or NULL');
+        throw new \InvalidArgumentException('SQLite SELECT predicate truth values must be scalar, BLOB, or NULL');
     }
 
     private static function isFalse(mixed $value): bool
     {
         return $value !== null && !self::isTrue($value);
+    }
+
+    private static function numericPrefix(string $value): int|float
+    {
+        $trimmed = ltrim($value);
+        if (preg_match('/^[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?/', $trimmed, $match) !== 1) {
+            return 0;
+        }
+        if (preg_match('/^[+-]?[0-9]+$/', $match[0]) === 1) {
+            return (int) $match[0];
+        }
+
+        return (float) $match[0];
     }
 
     /**

@@ -3970,6 +3970,14 @@ Dependency closure: no new shared support component is needed; this reuses
 lane-local header parsing, page counting, freelist counters, and auto-vacuum
 diagnostics.
 
+## ATTACH Open URI Current Next24
+
+`examples/wordpress-attach-open-uri-current-next24.php` demonstrates attaching
+a copied WordPress SQLite database from a `file:` URI. The SQL-form `ATTACH`
+path percent-decodes the filename for `PRAGMA database_list` and attached
+schema loading while preserving mode/cache/immutable open metadata without
+requiring the SQLite extension.
+
 ## File URI Open Preflight
 
 `examples/wordpress-file-uri-open-preflight.php` decodes and validates SQLite

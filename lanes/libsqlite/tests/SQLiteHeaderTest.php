@@ -2644,6 +2644,8 @@ return [
             'action' => 'replace-parent-divider',
             'old_separator_key' => 200,
             'new_separator_key' => 300,
+            'old_separator_values' => [200],
+            'new_separator_values' => [300],
         ], $summary['updated_parent_divider']);
         $t->same([6, 7, 8, 9, 10], $summary['pointer_map_update_pages']);
         $t->same([$action], $summary['actions']);
@@ -25059,7 +25061,7 @@ SQL;
         $t->same(['siteurl', 'home', 'blogname', '_site_transient_update_plugins', null], array_column($rightJoinRows, 'option_name'));
         $usingJoinRows = SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta USING (option_id)', ['wp_options' => $options, 'option_meta' => $meta]);
         $t->same(['siteurl', 'home', 'blogname', '_site_transient_update_plugins'], array_column($usingJoinRows, 'option_name'));
-        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta ON wp_options.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta ON wp_options.option_id =', ['wp_options' => $options, 'option_meta' => $meta]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN missing ON wp_options.option_id = missing.option_id', ['wp_options' => $options]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN option_meta AS 1bad ON wp_options.option_id = 1bad.option_id', ['wp_options' => $options, 'option_meta' => $meta]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options CROSS JOIN option_meta ON wp_options.option_id = option_meta.option_id', ['wp_options' => $options, 'option_meta' => $meta]));

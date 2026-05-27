@@ -1016,14 +1016,14 @@ final class SQLiteSelectSql
      */
     private static function tableReference(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = []): array
     {
-        $valuesTable = self::valuesTableReference($sql);
-        if ($valuesTable !== null) {
-            return $valuesTable;
-        }
-
         $derivedTable = self::derivedTableReference($sql, $tables);
         if ($derivedTable !== null) {
             return $derivedTable;
+        }
+
+        $valuesTable = self::valuesTableReference($sql);
+        if ($valuesTable !== null) {
+            return $valuesTable;
         }
 
         $jsonTable = self::jsonTableReference($sql, $jsonErrorBoundaryColumns);
@@ -1077,6 +1077,95 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
+     */
+    private static function derivedTableReference(string $sql, array $tables): ?array
+    {
+        $sql = trim($sql);
+        if (!str_starts_with($sql, '(')) {
+            return null;
+        }
+
+        [$body, $offset] = self::consumeParenthesized($sql, 0);
+        $body = trim($body);
+        if (preg_match('/^(?:select|with)\s+/i', $body) !== 1) {
+            return null;
+        }
+
+        [$alias, $columns] = self::derivedTableAlias(trim(substr($sql, $offset)));
+        $rows = self::execute($body, $tables);
+        if ($columns !== []) {
+            $rows = self::renameDerivedTableColumns($rows, $columns, $alias);
+        }
+
+        return [
+            'name' => 'subquery',
+            'alias' => $alias,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
+     * @return array{0:string,1:list<string>}
+     */
+    private static function derivedTableAlias(string $sql): array
+    {
+        if ($sql === '') {
+            return ['subquery', []];
+        }
+
+        if (preg_match('/^(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)(.*)$/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
+        }
+
+        $alias = $match[1];
+        self::assertBareIdentifier($alias, 'SQLite SELECT SQL derived table alias');
+        $tail = trim($match[2]);
+        if ($tail === '') {
+            return [$alias, []];
+        }
+        if (!str_starts_with($tail, '(')) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
+        }
+
+        [$columnSql, $offset] = self::consumeParenthesized($tail, 0);
+        if (trim(substr($tail, $offset)) !== '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
+        }
+
+        $columns = [];
+        foreach (self::splitTopLevel($columnSql, ',') as $column) {
+            $column = trim($column);
+            self::assertBareIdentifier($column, 'SQLite SELECT SQL derived table column alias');
+            $columns[] = $column;
+        }
+        if ($columns === []) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL derived table column list cannot be empty');
+        }
+
+        return [$alias, $columns];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     * @return list<array<string,mixed>>
+     */
+    private static function renameDerivedTableColumns(array $rows, array $columns, string $alias): array
+    {
+        $renamed = [];
+        foreach ($rows as $row) {
+            if (count($row) !== count($columns)) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL derived table {$alias} column list does not match SELECT width");
+            }
+            $renamed[] = array_combine($columns, array_values($row));
+        }
+
+        return $renamed;
+    }
+
+    /**
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
      */
     private static function valuesTableReference(string $sql): ?array
@@ -1113,53 +1202,6 @@ final class SQLiteSelectSql
             'name' => 'values',
             'alias' => $alias,
             'rows' => self::executeValuesClause(trim($body)),
-        ];
-    }
-
-    /**
-     * @param array<string,list<array<string,mixed>>> $tables
-     * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
-     */
-    private static function derivedTableReference(string $sql, array $tables): ?array
-    {
-        $sql = trim($sql);
-        if (!str_starts_with($sql, '(')) {
-            return null;
-        }
-
-        [$body, $offset] = self::consumeParenthesized($sql, 0);
-        $body = trim($body);
-        if (preg_match('/^select\s+/i', $body) !== 1 && preg_match('/^with\s+/i', $body) !== 1) {
-            return null;
-        }
-
-        $aliasSql = trim(substr($sql, $offset));
-        if ($aliasSql === '') {
-            $alias = 'derived';
-        } else {
-            $parts = preg_split('/\s+/', $aliasSql);
-            if ($parts === false || $parts === []) {
-                throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
-            }
-
-            if (strcasecmp($parts[0], 'AS') === 0) {
-                if (count($parts) !== 2) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
-                }
-                $alias = $parts[1];
-            } else {
-                if (count($parts) !== 1) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL derived table alias is malformed');
-                }
-                $alias = $parts[0];
-            }
-            self::assertBareIdentifier($alias, 'SQLite SELECT SQL derived table alias');
-        }
-
-        return [
-            'name' => 'derived',
-            'alias' => $alias,
-            'rows' => self::execute($body, $tables),
         ];
     }
 
@@ -1835,6 +1877,12 @@ final class SQLiteSelectSql
      */
     private static function predicate(string $sql, array $tables = []): array
     {
+        $sql = trim($sql);
+        $unwrapped = self::unwrapParenthesizedExpression($sql);
+        if ($unwrapped !== $sql) {
+            return self::predicate($unwrapped, $tables);
+        }
+
         $orTerms = self::splitKeyword($sql, 'OR');
         if (count($orTerms) > 1) {
             return ['operator' => 'OR', 'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $orTerms)];
@@ -1845,7 +1893,13 @@ final class SQLiteSelectSql
             return ['operator' => 'AND', 'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $andTerms)];
         }
 
-        $sql = trim($sql);
+        if (preg_match('/^not\s+(.+)$/is', $sql, $match) === 1) {
+            return [
+                'operator' => 'NOT',
+                'term' => self::predicate(trim($match[1]), $tables),
+            ];
+        }
+
         if (preg_match('/^(not\s+)?exists\s*\((select\s+.+)\)$/is', $sql, $match) === 1) {
             $subquerySql = trim($match[2]);
 
@@ -1943,7 +1997,10 @@ final class SQLiteSelectSql
             ];
         }
 
-        throw new \InvalidArgumentException('SQLite SELECT SQL predicate is not supported');
+        return [
+            'operator' => 'TRUTH',
+            'value' => self::valueExpression($sql, $tables),
+        ];
     }
 
     /**
@@ -2020,6 +2077,14 @@ final class SQLiteSelectSql
                 'type' => 'collate',
                 'operand' => self::valueExpression($match[1], $tables),
                 'collation' => $collation,
+            ];
+        }
+
+        if (preg_match('/^not\s+(.+)$/is', $sql, $match) === 1) {
+            return [
+                'type' => 'unary',
+                'operator' => 'NOT',
+                'operand' => self::valueExpression($match[1], $tables),
             ];
         }
 

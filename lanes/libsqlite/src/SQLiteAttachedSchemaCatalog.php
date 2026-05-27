@@ -81,7 +81,7 @@ final class SQLiteAttachedSchemaCatalog
      * schema name and returns the schema records for that attached database.
      *
      * @param callable(string, string): list<SQLiteSchemaRecord>|null $recordLoader
-     * @return array{status: string, operation: string, schema: string, file: string|null, database_list: list<array{seq: int, name: string, file: string|null}>}
+     * @return array{status: string, operation: string, schema: string, file: string|null, database_list: list<array{seq: int, name: string, file: string|null}>, uri: array<string, mixed>|null, open_plan: array<string, mixed>|null}
      */
     public function executeAttachDetachSql(string $sql, ?callable $recordLoader = null): array
     {
@@ -89,7 +89,8 @@ final class SQLiteAttachedSchemaCatalog
         $trimmed = rtrim($trimmed, " \t\r\n;");
 
         if (preg_match('/^attach(?:\s+database)?\s+(.+?)\s+as\s+(.+)$/is', $trimmed, $matches) === 1) {
-            $fileName = self::parseAttachFileExpression($matches[1]);
+            $attachment = self::parseAttachFileExpression($matches[1]);
+            $fileName = $attachment['file'];
             $schemaName = self::normalizeSchemaName($matches[2]);
             $records = $recordLoader !== null ? $recordLoader($fileName, $schemaName) : [];
             $this->attach($schemaName, $fileName, $records);
@@ -100,6 +101,8 @@ final class SQLiteAttachedSchemaCatalog
                 'schema' => $schemaName,
                 'file' => $fileName,
                 'database_list' => $this->databaseList(),
+                'uri' => $attachment['uri'],
+                'open_plan' => $attachment['open_plan'],
             ];
         }
 
@@ -113,6 +116,8 @@ final class SQLiteAttachedSchemaCatalog
                 'schema' => $schemaName,
                 'file' => null,
                 'database_list' => $this->databaseList(),
+                'uri' => null,
+                'open_plan' => null,
             ];
         }
 
@@ -353,13 +358,17 @@ final class SQLiteAttachedSchemaCatalog
         return $normalized;
     }
 
-    private static function parseAttachFileExpression(string $expression): string
+    /**
+     * @return array{file: string, uri: array<string, mixed>, open_plan: array<string, mixed>}
+     */
+    private static function parseAttachFileExpression(string $expression): array
     {
         $expression = trim($expression);
         if ($expression === '') {
             throw new \InvalidArgumentException('SQLite ATTACH file name cannot be empty');
         }
 
+        $fileName = null;
         $quote = $expression[0];
         if (($quote === "'" || $quote === '"') && substr($expression, -1) === $quote) {
             $body = substr($expression, 1, -1);
@@ -367,14 +376,24 @@ final class SQLiteAttachedSchemaCatalog
                 throw new \InvalidArgumentException('SQLite ATTACH file name cannot be empty');
             }
 
-            return str_replace($quote . $quote, $quote, $body);
+            $fileName = str_replace($quote . $quote, $quote, $body);
+        } elseif (preg_match('/^[A-Za-z0-9_\/.\-:?&=%]+$/', $expression) === 1) {
+            $fileName = $expression;
+        } else {
+            throw new \InvalidArgumentException('SQLite ATTACH file name must be a bounded string literal or path token');
         }
 
-        if (preg_match('/^[A-Za-z0-9_\/.\-:]+$/', $expression) === 1) {
-            return $expression;
+        $uri = SQLiteFileUri::parse($fileName);
+        $normalizedFile = (string) $uri['path'];
+        if ($normalizedFile === '') {
+            throw new \InvalidArgumentException('SQLite ATTACH file name cannot be empty');
         }
 
-        throw new \InvalidArgumentException('SQLite ATTACH file name must be a bounded string literal or path token');
+        return [
+            'file' => $normalizedFile,
+            'uri' => $uri,
+            'open_plan' => SQLiteOpenPlan::forFilename($fileName, true, true, true),
+        ];
     }
 
     private static function unquoteIdentifier(string $identifier): string

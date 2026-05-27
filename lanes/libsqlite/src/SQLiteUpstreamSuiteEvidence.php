@@ -3247,6 +3247,112 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function releaseRunnerHydrationClusterRecord(
+        string $acceptedRepositoryHead,
+        ?string $repoRoot = null,
+        ?string $artifactDirectory = null,
+        string $processSnapshot = '',
+        int $jobs = 2
+    ): array {
+        if ($acceptedRepositoryHead === '') {
+            throw new \InvalidArgumentException('Accepted repository HEAD is required for release-runner hydration evidence');
+        }
+        if ($jobs < 1) {
+            throw new \InvalidArgumentException('SQLite release-runner hydration jobs must be at least 1');
+        }
+
+        $root = $repoRoot ?? dirname(__DIR__, 3);
+        $artifactRoot = $artifactDirectory ?? $root . '/.tmux-team/tmp/sqlite-runner-artifacts';
+        $hydration = $this->upstreamRunnerHydrationGate($jobs, $root);
+        $tiers = $this->releaseTierMatrix($jobs, $root);
+        $scripts = $this->selectedScriptInventory($root);
+        $active = $this->activeFullSuiteRunnerGate($processSnapshot);
+        $artifacts = $this->acceptedHeadArtifactProvenanceDirectoryRecord(
+            $artifactRoot,
+            $acceptedRepositoryHead,
+            $processSnapshot
+        );
+
+        $runnableCommandIds = [];
+        foreach ($hydration['commands'] ?? [] as $command) {
+            if (is_array($command) && ($command['runnable'] ?? false) === true && is_string($command['id'] ?? null)) {
+                $runnableCommandIds[] = $command['id'];
+            }
+        }
+
+        $blockedReasons = [];
+        if (($hydration['status'] ?? null) !== 'hydrated') {
+            $blockedReasons[] = 'runner-hydration-incomplete';
+        }
+        if (($tiers['status'] ?? null) !== 'ready') {
+            $blockedReasons[] = 'release-tier-matrix-blocked';
+        }
+        if (($scripts['status'] ?? null) !== 'ready') {
+            $blockedReasons[] = 'selected-script-inventory-blocked';
+        }
+        if (($active['status'] ?? null) !== 'clear') {
+            $blockedReasons[] = 'duplicate-broad-runner-active';
+        }
+        if (($artifacts['current_accepted_count'] ?? 0) < 1) {
+            $blockedReasons[] = 'no-current-accepted-artifact';
+        }
+        if (($artifacts['blocked_count'] ?? 0) > 0) {
+            $blockedReasons[] = 'artifact-provenance-blocked';
+        }
+
+        $readyToLaunch = $blockedReasons === ['no-current-accepted-artifact']
+            && ($hydration['status'] ?? null) === 'hydrated'
+            && ($tiers['status'] ?? null) === 'ready'
+            && ($scripts['status'] ?? null) === 'ready'
+            && ($active['status'] ?? null) === 'clear';
+        $currentArtifactReady = ($artifacts['current_accepted_count'] ?? 0) > 0
+            && ($artifacts['blocked_count'] ?? 0) === 0;
+
+        $status = 'blocked';
+        if ($currentArtifactReady) {
+            $status = 'current-accepted-artifact-ready';
+        } elseif ($readyToLaunch) {
+            $status = 'ready-for-guarded-runner';
+        }
+
+        return [
+            'status' => $status,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'root' => $root,
+            'artifact_directory' => $artifactRoot,
+            'jobs' => $jobs,
+            'hydration_status' => $hydration['status'] ?? 'unknown',
+            'hydration_missing_count' => (int) ($hydration['missing_count'] ?? 0),
+            'hydration_runnable_command_count' => (int) ($hydration['runnable_command_count'] ?? 0),
+            'hydration_runnable_command_ids' => $runnableCommandIds,
+            'release_tier_status' => $tiers['status'] ?? 'unknown',
+            'release_ready_tiers' => (int) ($tiers['ready_tiers'] ?? 0),
+            'release_blocked_tiers' => (int) ($tiers['blocked_tiers'] ?? 0),
+            'selected_script_status' => $scripts['status'] ?? 'unknown',
+            'selected_script_resolved_count' => (int) ($scripts['resolved_script_count'] ?? 0),
+            'selected_script_missing_count' => (int) ($scripts['missing_script_count'] ?? 0),
+            'active_runner_status' => $active['status'] ?? 'unknown',
+            'active_runner_count' => (int) ($active['active_count'] ?? 0),
+            'artifact_status' => $artifacts['status'] ?? 'unknown',
+            'artifact_count' => (int) ($artifacts['artifact_count'] ?? 0),
+            'current_accepted_artifact_count' => (int) ($artifacts['current_accepted_count'] ?? 0),
+            'artifact_blocked_count' => (int) ($artifacts['blocked_count'] ?? 0),
+            'missing_log_count' => (int) ($artifacts['missing_log_count'] ?? 0),
+            'blocked_reasons' => $blockedReasons,
+            'ready_to_launch_guarded_runner' => $readyToLaunch,
+            'counts_current_accepted_artifact' => $currentArtifactReady,
+            'next_gate' => match ($status) {
+                'current-accepted-artifact-ready' => 'record current accepted-HEAD runner artifact evidence and do not launch a duplicate broad runner',
+                'ready-for-guarded-runner' => 'launch at most one guarded bounded runner, then write audit/log artifacts back to this artifact directory',
+                default => 'hydrate missing runner inputs, resolve selected scripts, clear duplicate runners, and repair artifact provenance before counting release/all evidence',
+            },
+            'dependency_closure' => 'no new support component needed; release-runner hydration cluster composes lane-local manifest, hydrated upstream cache probes, supplied process snapshots, and guarded audit/log artifact provenance only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function wildcardExpansionPlan(?string $repoRoot = null): array
     {
         $coverage = $this->runnerCoverageAudit();

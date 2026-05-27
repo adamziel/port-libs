@@ -327,6 +327,84 @@ final class SQLiteSelectExpressionIndexPlan
                 return true;
             }
         }
+        if (self::combinedOrdinaryConstraintsImplyPartialPredicate($predicate, $terms)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * SQLite may use a partial index when multiple AND-connected WHERE terms
+     * jointly prove the partial-index predicate. The bounded planner mostly
+     * reasons term-by-term, so collect ordinary column lower/upper bounds here
+     * for partial predicates like "WHERE option_name BETWEEN 'a' AND 'm'".
+     *
+     * @param list<array<string,mixed>> $terms
+     */
+    private static function combinedOrdinaryConstraintsImplyPartialPredicate(SQLiteIndexPredicate $predicate, array $terms): bool
+    {
+        $boundsByColumn = [];
+        foreach ($terms as $term) {
+            $constraint = self::ordinaryConstraintFromPredicate($term);
+            if ($constraint === null) {
+                continue;
+            }
+
+            $columnKey = strtolower($constraint['column']);
+            $boundsByColumn[$columnKey]['column'] = $constraint['column'];
+            if ($constraint['operator'] === 'BETWEEN' && is_array($constraint['values'])) {
+                $boundsByColumn[$columnKey]['lower'][] = $constraint['values']['lower'] ?? null;
+                $boundsByColumn[$columnKey]['upper'][] = [
+                    'value' => $constraint['values']['upper'] ?? null,
+                    'inclusive' => true,
+                ];
+                continue;
+            }
+            if ($constraint['operator'] === 'point') {
+                $boundsByColumn[$columnKey]['lower'][] = $constraint['values'];
+                $boundsByColumn[$columnKey]['upper'][] = [
+                    'value' => $constraint['values'],
+                    'inclusive' => true,
+                ];
+                continue;
+            }
+            if ($constraint['operator'] === 'range->' || $constraint['operator'] === 'range->=') {
+                $boundsByColumn[$columnKey]['lower'][] = $constraint['values'];
+                continue;
+            }
+            if ($constraint['operator'] === 'range-<' || $constraint['operator'] === 'range-<=') {
+                $boundsByColumn[$columnKey]['upper'][] = [
+                    'value' => $constraint['values'],
+                    'inclusive' => $constraint['operator'] === 'range-<=',
+                ];
+            }
+        }
+
+        foreach ($boundsByColumn as $bounds) {
+            $column = $bounds['column'] ?? null;
+            if (!is_string($column)) {
+                continue;
+            }
+            $lowerBounds = $bounds['lower'] ?? [];
+            $upperBounds = $bounds['upper'] ?? [];
+            if (!is_array($lowerBounds) || !is_array($upperBounds)) {
+                continue;
+            }
+
+            foreach ($lowerBounds as $lowerBound) {
+                foreach ($upperBounds as $upperBound) {
+                    if (
+                        is_array($upperBound)
+                        && array_key_exists('value', $upperBound)
+                        && is_bool($upperBound['inclusive'])
+                        && $predicate->isImpliedByRangeLookup($column, $lowerBound, $upperBound['value'], $upperBound['inclusive'])
+                    ) {
+                        return true;
+                    }
+                }
+            }
+        }
 
         return false;
     }

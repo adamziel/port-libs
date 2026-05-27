@@ -7,20 +7,22 @@ namespace PortLibs\LibSqlite;
 final class SQLiteBTreeInteriorRedistributionPlan
 {
     /**
-     * @param list<int> $leftKeys
-     * @param list<int> $rightKeys
+     * @param list<int|string> $leftKeys
+     * @param list<int|string> $rightKeys
      * @param list<int> $leftChildPageNumbers
      * @param list<int> $rightChildPageNumbers
      * @param list<int> $movedChildPageNumbers
      * @param array<int, array{type:int,parent_page_number:int}> $pointerMapUpdates
+     * @param list<mixed> $oldDividerValues
+     * @param list<mixed> $newDividerValues
      */
     private function __construct(
         public readonly string $pageType,
         public readonly int $leftPageNumber,
         public readonly int $rightPageNumber,
         public readonly int $parentPageNumber,
-        public readonly int $oldDividerKey,
-        public readonly int $newDividerKey,
+        public readonly int|string $oldDividerKey,
+        public readonly int|string $newDividerKey,
         public readonly int $pageSize,
         public readonly int $usableSize,
         public readonly string $leftPage,
@@ -37,6 +39,8 @@ final class SQLiteBTreeInteriorRedistributionPlan
         public readonly int $afterLeftFreeSpaceBytes,
         public readonly int $afterRightFreeSpaceBytes,
         public readonly array $pointerMapUpdates,
+        public readonly array $oldDividerValues = [],
+        public readonly array $newDividerValues = [],
     ) {
     }
 
@@ -147,6 +151,123 @@ final class SQLiteBTreeInteriorRedistributionPlan
             $newLeftHeader->freeSpaceBytes($newLeftPage, $usableSize),
             $newRightHeader->freeSpaceBytes($newRightPage, $usableSize),
             $pointerMapUpdates,
+            [$dividerKey],
+            [$newDividerKey],
+        );
+    }
+
+    public static function indexInterior(
+        string $leftPage,
+        string $rightPage,
+        int $leftPageNumber,
+        int $rightPageNumber,
+        int $parentPageNumber,
+        string $dividerPayload,
+        int $pageSize = 512,
+        ?int $usableSize = null,
+        int $leftHeaderOffset = 0,
+        int $rightHeaderOffset = 0,
+    ): self {
+        $usableSize ??= $pageSize;
+        self::assertPageNumbers($leftPageNumber, $rightPageNumber, $parentPageNumber);
+        self::assertPages($leftPage, $rightPage, $pageSize, $usableSize);
+        if ($dividerPayload === '') {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution requires a divider payload');
+        }
+
+        $leftHeader = SQLiteBTreePageHeader::parsePage($leftPage, $pageSize, $leftHeaderOffset);
+        $rightHeader = SQLiteBTreePageHeader::parsePage($rightPage, $pageSize, $rightHeaderOffset);
+        if ($leftHeader->pageType !== 'index-interior' || $rightHeader->pageType !== 'index-interior') {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution requires two index interior pages');
+        }
+        if ($leftHeader->rightMostPointer === null || $rightHeader->rightMostPointer === null) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution requires right-most child pointers');
+        }
+
+        $leftCells = SQLiteIndexCell::parsePageCells($leftPage, $leftHeader, $usableSize);
+        $rightCells = SQLiteIndexCell::parsePageCells($rightPage, $rightHeader, $usableSize);
+        $leftChildren = array_map(static fn (SQLiteIndexCell $cell): int => self::requireIndexChildPage($cell), $leftCells);
+        $leftChildren[] = $leftHeader->rightMostPointer;
+        $rightChildren = array_map(static fn (SQLiteIndexCell $cell): int => self::requireIndexChildPage($cell), $rightCells);
+        $rightChildren[] = $rightHeader->rightMostPointer;
+
+        $combinedPayloads = array_merge(
+            array_map(static fn (SQLiteIndexCell $cell): string => $cell->payload, $leftCells),
+            [$dividerPayload],
+            array_map(static fn (SQLiteIndexCell $cell): string => $cell->payload, $rightCells),
+        );
+        $combinedChildren = array_merge($leftChildren, $rightChildren);
+        if (count($combinedChildren) !== count($combinedPayloads) + 1) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution found an invalid child/key shape');
+        }
+        if (count($combinedPayloads) < 3) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution requires at least three separator payloads');
+        }
+
+        $newLeftPayloadCount = intdiv(count($combinedPayloads), 2);
+        if ($newLeftPayloadCount < 1 || $newLeftPayloadCount >= count($combinedPayloads)) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution cannot split separator payloads');
+        }
+
+        $newLeftPayloads = array_slice($combinedPayloads, 0, $newLeftPayloadCount);
+        $newDividerPayload = $combinedPayloads[$newLeftPayloadCount];
+        $newRightPayloads = array_slice($combinedPayloads, $newLeftPayloadCount + 1);
+        $newLeftChildren = array_slice($combinedChildren, 0, $newLeftPayloadCount + 1);
+        $newRightChildren = array_slice($combinedChildren, $newLeftPayloadCount + 1);
+
+        $newLeftPage = self::assembleIndexInteriorPage($newLeftPayloads, $newLeftChildren, $pageSize, $leftHeaderOffset, $leftPage, $usableSize);
+        $newRightPage = self::assembleIndexInteriorPage($newRightPayloads, $newRightChildren, $pageSize, $rightHeaderOffset, $rightPage, $usableSize);
+        $newLeftHeader = SQLiteBTreePageHeader::parsePage($newLeftPage, $pageSize, $leftHeaderOffset);
+        $newRightHeader = SQLiteBTreePageHeader::parsePage($newRightPage, $pageSize, $rightHeaderOffset);
+
+        $oldLeftChildren = array_flip($leftChildren);
+        $movedChildPageNumbers = [];
+        foreach ($newLeftChildren as $childPageNumber) {
+            if (!isset($oldLeftChildren[$childPageNumber])) {
+                $movedChildPageNumbers[] = $childPageNumber;
+            }
+        }
+
+        $pointerMapUpdates = [];
+        foreach ($newLeftChildren as $childPageNumber) {
+            $pointerMapUpdates[$childPageNumber] = [
+                'type' => SQLitePointerMapEntry::BTREE_PAGE,
+                'parent_page_number' => $leftPageNumber,
+            ];
+        }
+        foreach ($newRightChildren as $childPageNumber) {
+            $pointerMapUpdates[$childPageNumber] = [
+                'type' => SQLitePointerMapEntry::BTREE_PAGE,
+                'parent_page_number' => $rightPageNumber,
+            ];
+        }
+        ksort($pointerMapUpdates);
+
+        return new self(
+            'index-interior',
+            $leftPageNumber,
+            $rightPageNumber,
+            $parentPageNumber,
+            strlen($dividerPayload),
+            strlen($newDividerPayload),
+            $pageSize,
+            $usableSize,
+            $newLeftPage,
+            $newRightPage,
+            $newLeftPayloads,
+            $newRightPayloads,
+            $newLeftChildren,
+            $newRightChildren,
+            $movedChildPageNumbers,
+            $leftHeader->cellCount,
+            $rightHeader->cellCount,
+            $leftHeader->freeSpaceBytes($leftPage, $usableSize),
+            $rightHeader->freeSpaceBytes($rightPage, $usableSize),
+            $newLeftHeader->freeSpaceBytes($newLeftPage, $usableSize),
+            $newRightHeader->freeSpaceBytes($newRightPage, $usableSize),
+            $pointerMapUpdates,
+            SQLiteRecord::parse($dividerPayload)->values,
+            SQLiteRecord::parse($newDividerPayload)->values,
         );
     }
 
@@ -215,6 +336,8 @@ final class SQLiteBTreeInteriorRedistributionPlan
                 'action' => 'replace-parent-divider',
                 'old_separator_key' => $this->oldDividerKey,
                 'new_separator_key' => $this->newDividerKey,
+                'old_separator_values' => $this->oldDividerValues,
+                'new_separator_values' => $this->newDividerValues,
             ],
             'pointer_map_update_pages' => array_keys($this->pointerMapUpdates),
             'actions' => [$this->rebalanceAction()],
@@ -251,6 +374,47 @@ final class SQLiteBTreeInteriorRedistributionPlan
         }
 
         return SQLiteTableInteriorPage::assemble($cells, $rightMostPointer, $pageSize, $headerOffset, $basePage, $usableSize);
+    }
+
+    /**
+     * @param list<string> $payloads
+     * @param list<int> $children
+     */
+    private static function assembleIndexInteriorPage(
+        array $payloads,
+        array $children,
+        int $pageSize,
+        int $headerOffset,
+        string $basePage,
+        int $usableSize,
+    ): string {
+        if (count($children) !== count($payloads) + 1) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution cannot assemble an invalid child/key shape');
+        }
+        $rightMostPointer = array_pop($children);
+        if (!is_int($rightMostPointer)) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution lost the right-most child pointer');
+        }
+
+        $cells = [];
+        foreach ($payloads as $index => $payload) {
+            $leftChildPage = $children[$index] ?? null;
+            if (!is_int($leftChildPage)) {
+                throw new \InvalidArgumentException('SQLite b-tree index interior redistribution lost a left child pointer');
+            }
+            $cells[] = SQLiteIndexCell::encode($payload, $usableSize, null, $leftChildPage);
+        }
+
+        return SQLiteIndexInteriorPage::assemble($cells, $rightMostPointer, $pageSize, $headerOffset, $basePage, $usableSize);
+    }
+
+    private static function requireIndexChildPage(SQLiteIndexCell $cell): int
+    {
+        if ($cell->leftChildPage === null) {
+            throw new \InvalidArgumentException('SQLite b-tree index interior redistribution requires index interior child pointers');
+        }
+
+        return $cell->leftChildPage;
     }
 
     private static function assertPageNumbers(int $leftPageNumber, int $rightPageNumber, int $parentPageNumber): void

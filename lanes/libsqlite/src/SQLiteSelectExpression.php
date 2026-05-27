@@ -325,8 +325,18 @@ final class SQLiteSelectExpression
             '+' => self::numericOperand($operand),
             '-' => -self::numericOperand($operand),
             '~' => ~self::integerOperand($operand),
+            'NOT' => self::notValue($operand),
             default => throw new \InvalidArgumentException("SQLite SELECT unary expression operator {$operator} is not supported"),
         };
+    }
+
+    private static function notValue(mixed $operand): ?int
+    {
+        if ($operand === null) {
+            return null;
+        }
+
+        return self::isSqlTrue($operand) ? 0 : 1;
     }
 
     /**
