@@ -119444,3 +119444,35 @@ Focused verification before root: syntax checks passed; `TMPDIR=$candidate/.tmp-
 Root verification: `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` under `/home/claude/port-libs/.tmux-team/tmp/clean-integrator-run.lock` passed with `215 test files, 32650 assertions, 0 failures`.
 
 Cleanup: accepted ready marker, patch, and metadata files removed after the commit was safely published to `refs/heads/main`. Originating worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T060955Z` was preserved because it still contains modified/staged lane files; cleanup debt remains for the worker owner. Clean candidate worktree `.tmux-team/tmp/clean-integration-candidates/libsqlite-sql-limit-comma-20260527T062203` is preserved with repo-local `.tmp-root` root-run scratch.
+## Integration accepted - libsqlite super-journal commit apply - 2026-05-27T06:42:14Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-wal-20260527T062957Z.ready`
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate verification was `953f9e3cd32415ebdd368085b69d266f327fe2f5` (`Integrate libsqlite SELECT SQL comma LIMIT`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported exact matching `sourceCommit` `953f9e3cd32415ebdd368085b69d266f327fe2f5`, `generated` `2026-05-27 06:28:19 UTC`, and `dashboardCommit` `f29ca091a87f7f06c94a21837f61c84a30b01d93`.
+- Runtime gates before focused verification were open: `df -Pk /` reported `89884820` KiB available, one-minute load was `1.58`, and no exact no-argument root harness was active.
+
+Candidate evidence:
+- Selected the WAL marker because it was the strongest sampled current-base non-overlapping behavior delta: SQLite super-journal commit application across attached database handles, focused `SQLiteHeaderTest.php` growth from `7485` to `7568` assertions (`+83`), and a copied WordPress super-journal commit smoke.
+- The marker was current-base on `953f9e3cd32415ebdd368085b69d266f327fe2f5` and applied cleanly in detached worktree `.tmux-team/tmp/clean-integrator-wal-super-journal-20260527T062957Z-20260527T064140Z`.
+- It does not repeat accepted rollback-journal commit, hot rollback recovery/application, savepoint rollback, WAL byte truncation, locked writer, process-lock, grouped SELECT, comma LIMIT, Unicode GLOB, B-tree overflow release, or JSON table work.
+- Other sampled current-base behavior markers were lower yield for this pass: scalar binary SELECT expressions (`+68`), VFS temp file opens (`+66`), SQL subquery execution (`+53`), empty leaf delete (`+43`), and affinity/collation predicates (`+38`).
+
+Focused verification:
+- `php -l` passed for `SQLiteSuperJournalCommitPlan.php`, `SQLiteVfsFileWriter.php`, `SQLiteHeaderTest.php`, and `wordpress-vfs-super-journal-commit.php`.
+- JSON decode passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed: `1 test files, 7568 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-vfs-super-journal-commit.php` passed and reported valid JSON.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Root verification:
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php` ran under `.tmux-team/tmp/clean-integrator-run.lock` and passed: `215 test files, 32733 assertions, 0 failures`.
+
+Decision: accepted. Commit this candidate as `Integrate libsqlite super-journal commits`, remove only the accepted marker artifacts after the commit is safely on `main`, preserve dirty worker worktrees, and require dashboard publication for the new source before another source-moving marker.
+
+Cleanup:
+- Removed accepted ready/patch/metadata files for `port-dev-libsqlite-wal-20260527T062957Z` after commit publication.
+- Preserved originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-wal-20260527T062957Z` because it still contains modified/added lane files from the worker handoff. This is cleanup debt for a later non-forced worktree cleanup pass.

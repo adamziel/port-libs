@@ -84,6 +84,7 @@ use PortLibs\LibSqlite\SQLiteTableInteriorCell;
 use PortLibs\LibSqlite\SQLiteTableInteriorPage;
 use PortLibs\LibSqlite\SQLiteTableLeafCell;
 use PortLibs\LibSqlite\SQLiteTableLeafPage;
+use PortLibs\LibSqlite\SQLiteSuperJournalCommitPlan;
 use PortLibs\LibSqlite\SQLiteTableRow;
 use PortLibs\LibSqlite\SQLiteTextAggregate;
 use PortLibs\LibSqlite\SQLiteTextAggregateState;
@@ -19523,6 +19524,137 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, $journalBytes, [1 => $pageOne], $pageSize, 'bad'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteRollbackJournalCommitPlan::commit($databasePath, $journalBytes, [1 => $pageOne], $pageSize, 'full', 'bad'));
         $t->throws(InvalidArgumentException::class, static fn () => $writer->applyRollbackJournalCommit('../escape.sqlite', $journalBytes, [1 => $pageOne], $pageSize));
+    },
+    'applies sqlite super-journal commits across attached database handles' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-super-journal-commit-' . bin2hex(random_bytes(4));
+        $mainPath = '/srv/www/wp-content/database/main.sqlite';
+        $metaPath = '/srv/www/wp-content/database/site-meta.sqlite';
+        $superPath = '/srv/www/wp-content/database/main.sqlite-mjA1B2';
+        $localMain = $root . $mainPath;
+        $localMeta = $root . $metaPath;
+        $localSuper = $root . $superPath;
+        $pageSize = 512;
+        $mainJournal = str_pad('main rollback journal with wp_options preimages', $pageSize, "\0");
+        $metaJournal = str_pad('metadata rollback journal with wp_sitemeta preimages', $pageSize, "\0");
+        $mainPageOne = str_pad('main schema after attached commit', $pageSize, "\0");
+        $mainPageTwo = str_pad('wp_options plugin row after attached commit', $pageSize, "\0");
+        $metaPageOne = str_pad('site-meta schema after attached commit', $pageSize, "\0");
+        $metaPageThree = str_pad('wp_sitemeta transient row after attached commit', $pageSize, "\0");
+        $commits = [
+            [
+                'database_path' => $mainPath,
+                'journal_bytes' => $mainJournal,
+                'database_pages' => [2 => $mainPageTwo, 1 => $mainPageOne],
+            ],
+            [
+                'database_path' => $metaPath,
+                'journal_bytes' => $metaJournal,
+                'database_pages' => [3 => $metaPageThree, 1 => $metaPageOne],
+            ],
+        ];
+
+        $plan = SQLiteSuperJournalCommitPlan::commit($superPath, $commits, $pageSize, 'full', 'delete');
+        $t->same($superPath, $plan['super_journal_path']);
+        $t->same($pageSize, $plan['page_size']);
+        $t->same('full', $plan['sync_mode']);
+        $t->same('delete', $plan['journal_mode']);
+        $t->same(2, $plan['database_count']);
+        $t->same([$mainPath . '-journal', $metaPath . '-journal'], $plan['journal_paths']);
+        $t->same([1, 2], $plan['database_pages'][$mainPath]);
+        $t->same([1, 3], $plan['database_pages'][$metaPath]);
+        $t->same(strlen($mainPath . "-journal\n" . $metaPath . "-journal\n"), $plan['super_journal_bytes']);
+        $t->same(16, count($plan['operations']));
+        $t->same('write', $plan['operations'][0]['op']);
+        $t->same('write_super_journal_attached_journal_list', $plan['operations'][0]['reason']);
+        $t->same('sync', $plan['operations'][1]['op']);
+        $t->same('sync_super_journal', $plan['operations'][1]['reason']);
+        $t->same('write_attached_rollback_journal_before_database_pages', $plan['operations'][2]['reason']);
+        $t->same('sync_attached_rollback_journal', $plan['operations'][3]['reason']);
+        $t->same($mainPath . '#page:1', $plan['operations'][4]['payload_key']);
+        $t->same(0, $plan['operations'][4]['offset']);
+        $t->same($mainPath . '#page:2', $plan['operations'][5]['payload_key']);
+        $t->same(512, $plan['operations'][5]['offset']);
+        $t->same('sync_attached_database_pages', $plan['operations'][6]['reason']);
+        $t->same($metaPath . '#page:1', $plan['operations'][9]['payload_key']);
+        $t->same($metaPath . '#page:3', $plan['operations'][10]['payload_key']);
+        $t->same(1024, $plan['operations'][10]['offset']);
+        $t->same('delete_super_journal_to_commit_attached_databases', $plan['operations'][12]['reason']);
+        $t->same('delete_attached_rollback_journal_after_super_commit', $plan['operations'][13]['reason']);
+        $t->same('persist_super_journal_commit_sidecars', $plan['operations'][15]['reason']);
+        $t->same(['sqlite-super-journal-commit', 'attached-database-atomic-commit', 'vfs-file-write-coordination'], $plan['dependencies']);
+
+        $payloads = SQLiteSuperJournalCommitPlan::payloads($superPath, $commits);
+        $t->same($mainPath . "-journal\n" . $metaPath . "-journal\n", $payloads[$superPath]);
+        $t->same($mainJournal, $payloads[$mainPath . '-journal']);
+        $t->same($mainPageTwo, $payloads[$mainPath . '#page:2']);
+        $t->same($metaPageThree, $payloads[$metaPath . '#page:3']);
+
+        $writer = new SQLiteVfsFileWriter($root);
+        $applied = $writer->applySuperJournalCommit($superPath, $commits, $pageSize, 'full', 'delete');
+        $t->same('applied', $applied['status']);
+        $t->same($root, $applied['root']);
+        $t->same(16, $applied['applied']);
+        $t->same($plan['super_journal_bytes'] + ($pageSize * 6), $applied['bytes_written']);
+        $t->same(0, $applied['bytes_truncated']);
+        $t->same(3, $applied['files_deleted']);
+        $t->same(5, $applied['durable_syncs']);
+        $t->same(1, $applied['directory_syncs']);
+        $t->same(true, in_array('sqlite-super-journal-commit', $applied['dependencies'], true));
+        $t->same(true, in_array('attached-database-atomic-commit', $applied['dependencies'], true));
+        $t->same(true, in_array('vfs-file-handle-write-application', $applied['dependencies'], true));
+        $t->same(false, is_file($localSuper));
+        $t->same(false, is_file($localMain . '-journal'));
+        $t->same(false, is_file($localMeta . '-journal'));
+        $mainBytes = file_get_contents($localMain);
+        $metaBytes = file_get_contents($localMeta);
+        $t->same($pageSize * 2, strlen($mainBytes));
+        $t->same($mainPageOne, substr($mainBytes, 0, $pageSize));
+        $t->same($mainPageTwo, substr($mainBytes, $pageSize, $pageSize));
+        $t->same($pageSize * 3, strlen($metaBytes));
+        $t->same($metaPageOne, substr($metaBytes, 0, $pageSize));
+        $t->same(str_repeat("\0", $pageSize), substr($metaBytes, $pageSize, $pageSize));
+        $t->same($metaPageThree, substr($metaBytes, $pageSize * 2, $pageSize));
+        $t->same(2, $applied['commit']['database_count']);
+
+        $truncateRoot = sys_get_temp_dir() . '/port-libsqlite-super-journal-truncate-' . bin2hex(random_bytes(4));
+        $truncate = (new SQLiteVfsFileWriter($truncateRoot))->applySuperJournalCommit($superPath, $commits, $pageSize, 'normal', 'truncate');
+        $t->same('applied', $truncate['status']);
+        $t->same(16, $truncate['applied']);
+        $t->same(5, $truncate['durable_syncs']);
+        $t->same(1, $truncate['directory_syncs']);
+        $t->same(0, $truncate['bytes_truncated']);
+        $t->same(0, filesize($truncateRoot . $mainPath . '-journal'));
+        $t->same('truncate_attached_rollback_journal_after_super_commit', $truncate['operations'][13]['reason']);
+
+        $persistRoot = sys_get_temp_dir() . '/port-libsqlite-super-journal-persist-' . bin2hex(random_bytes(4));
+        $persist = (new SQLiteVfsFileWriter($persistRoot))->applySuperJournalCommit($superPath, $commits, $pageSize, 'extra', 'persist');
+        $t->same('sync_super_journal_fullfsync', $persist['operations'][1]['reason']);
+        $t->same('sync_attached_rollback_journal_fullfsync', $persist['operations'][3]['reason']);
+        $t->same('zero_attached_rollback_journal_header_after_super_commit', $persist['operations'][13]['reason']);
+        $t->same(str_repeat("\0", 28), substr(file_get_contents($persistRoot . $mainPath . '-journal'), 0, 28));
+        $t->same(str_repeat("\0", 28), substr(file_get_contents($persistRoot . $metaPath . '-journal'), 0, 28));
+
+        $off = (new SQLiteVfsFileWriter(sys_get_temp_dir() . '/port-libsqlite-super-journal-off-' . bin2hex(random_bytes(4))))
+            ->applySuperJournalCommit($superPath, $commits, $pageSize, 'off', 'delete');
+        $t->same(10, $off['applied']);
+        $t->same(0, $off['durable_syncs']);
+        $t->same(0, $off['directory_syncs']);
+        $t->same(['write', 'write', 'write', 'write', 'write', 'write', 'write', 'delete', 'delete', 'delete'], array_column($off['operations'], 'op'));
+
+        $readOnly = new SQLiteVfsFileWriter($root, true);
+        $t->throws(LogicException::class, static fn () => $readOnly->applySuperJournalCommit($superPath, $commits, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit('', $commits, $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, [], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, $commits, 500));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, [['database_path' => '', 'journal_bytes' => $mainJournal, 'database_pages' => [1 => $mainPageOne]]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, [['database_path' => $mainPath, 'journal_bytes' => '', 'database_pages' => [1 => $mainPageOne]]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, [['database_path' => $mainPath, 'journal_bytes' => $mainJournal, 'database_pages' => []]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, [['database_path' => $mainPath, 'journal_bytes' => $mainJournal, 'database_pages' => [0 => $mainPageOne]]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, [['database_path' => $mainPath, 'journal_bytes' => $mainJournal, 'database_pages' => [1 => substr($mainPageOne, 1)]]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, [$commits[0], $commits[0]], $pageSize));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, $commits, $pageSize, 'bad'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSuperJournalCommitPlan::commit($superPath, $commits, $pageSize, 'full', 'bad'));
+        $t->throws(InvalidArgumentException::class, static fn () => $writer->applySuperJournalCommit('../escape-mj', $commits, $pageSize));
     },
     'applies sqlite vfs savepoint rollback images and wal truncation to local handles' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/port-libsqlite-vfs-savepoint-' . bin2hex(random_bytes(4));

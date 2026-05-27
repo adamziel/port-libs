@@ -4416,3 +4416,25 @@ Follow-up should broaden pager/VFS transaction application and durable sync
 policy without repeating accepted hot rollback-journal recovery, VFS file
 writer, locked writer, process locks, savepoint rollback, WAL byte truncation,
 or this rollback-journal commit path.
+
+## VFS Super-Journal Commit Scenario
+
+Copied WordPress multisite-style import tooling can now apply SQLite
+super-journal commit ordering for attached databases through native PHP file
+handles. The smoke `examples/wordpress-vfs-super-journal-commit.php` reports a
+master journal listing the main and site-meta rollback journals, durable syncs
+for the super-journal, attached rollback journals, and database pages, then
+super-journal deletion as the atomic commit point without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated WAL/rollback slice: added
+`SQLiteSuperJournalCommitPlan` and
+`SQLiteVfsFileWriter::applySuperJournalCommit()` for bounded attached-database
+rollback-journal commit ordering. The selected focused test passed with 83
+assertions and 0 failures.
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local VFS file-handle writer and rollback-journal durability evidence.
+Follow-up should broaden pager/VFS atomic transaction and durable fsync
+behavior without repeating accepted rollback-journal commit, hot rollback
+recovery, savepoint rollback, WAL byte truncation, locked writer, process
+locks, or this super-journal commit path.

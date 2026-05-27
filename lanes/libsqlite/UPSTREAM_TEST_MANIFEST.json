@@ -1296,6 +1296,17 @@
                 "lanes/libsqlite/tests/SQLiteHeaderTest.php",
                 "lanes/libsqlite/examples/wordpress-bulk-delete-overflow-freeblocks.php"
             ]
+        },
+        "focusedSuperJournalCommitApply": {
+            "status": "mapped-native-focused",
+            "upstreamScope": "SQLite rollback-journal super-journal/master-journal atomic commit behavior for attached databases represented as bounded PHP VFS file-handle application rather than full pager execution.",
+            "nativeEvidence": "SQLiteSuperJournalCommitPlan and SQLiteVfsFileWriter::applySuperJournalCommit focused PHP coverage plus copied WordPress multisite-style super-journal smoke.",
+            "phpAssertions": 83,
+            "wordpressSmoke": "lanes/libsqlite/examples/wordpress-vfs-super-journal-commit.php",
+            "tests": [
+                "lanes/libsqlite/tests/SQLiteHeaderTest.php"
+            ],
+            "upstreamRun": "not-run-isolated-slice-reuses-accepted-rollback-journal-and-vfs-writer-evidence"
         }
     },
     "wordpress": {
@@ -1303,7 +1314,8 @@
             "focusedWalDurableCheckpointWrite": "The WAL frame diagnostics smoke reports copied wp_options durable checkpoint write previews, including preserve/restart/truncate sidecar outcomes, restarted WAL header regeneration, reader-blocked reset preservation, and empty-WAL truncation without requiring ext/sqlite.",
             "focusedSelectCompositeGroupedAggregateQuery": "The SELECT grouped aggregate preview smoke now reports copied wp_options rows grouped by autoload plus option kind, preserving projected grouping columns, aggregate summaries, ORDER BY/LIMIT, and validation diagnostics without requiring ext/sqlite.",
             "focusedBtreeIndexInteriorMergeApplicationPlan": "The index-interior merge apply smoke reports copied wp_options autoload-index parent merging after delete underflow, obsolete sibling freelist release, merged child record order, and auto-vacuum pointer-map ownership rewrites without requiring ext/sqlite.",
-            "focusedVfsSavepointRollbackApply": "The VFS savepoint rollback smoke reports copied wp_options failed plugin-setting imports applied through native file handles, restoring savepoint database page images, truncating discarded WAL frames, syncing database/WAL handles, and persisting sidecar directory state without requiring ext/sqlite."
+            "focusedVfsSavepointRollbackApply": "The VFS savepoint rollback smoke reports copied wp_options failed plugin-setting imports applied through native file handles, restoring savepoint database page images, truncating discarded WAL frames, syncing database/WAL handles, and persisting sidecar directory state without requiring ext/sqlite.",
+            "focusedSuperJournalCommitApply": "The super-journal commit smoke reports copied WordPress multisite-style attached database imports committed through a SQLite master journal that lists each rollback journal, syncs attached journals and database pages, deletes the super-journal as the atomic commit point, and cleans sidecars without requiring ext/sqlite."
         },
         "focusedBtreeInteriorRedistributionPlan": "The table-interior redistribution smoke reports copied wp_options table b-tree delete rebalancing where an underfilled interior parent borrows a child pointer from its right sibling, replaces the parent divider key, and rewrites auto-vacuum pointer-map ownership without requiring ext/sqlite."
     },
@@ -1322,11 +1334,13 @@
                 "lanes/libsqlite/tests/SQLiteHeaderTest.php"
             ],
             "upstreamRun": "not-run-isolated-slice-reuses-accepted-json-table-planner-and-cursor-evidence"
-        }
+        },
+        "focusedSuperJournalCommitApply": "The 2026-05-27 isolated WAL/rollback slice maps one additional focused VFS/pager evidence row for SQLite super-journal/master-journal commit application across attached databases. Native focused coverage adds 83 selected assertions and a copied WordPress multisite-style super-journal smoke without claiming fresh upstream execution."
     },
     "inventory": {
         "focusedWalSavepointPageImageRollbackScripts": 1,
-        "focusedVfsSavepointRollbackApplyScripts": 1
+        "focusedVfsSavepointRollbackApplyScripts": 1,
+        "focusedSuperJournalCommitApplyScripts": 1
     },
     "focusedVfsProcessFileLock": "The 2026-05-27 clean-integrated dependency/open slice maps one additional focused VFS locking evidence row for process-backed sidecar file locks over accepted SQLite lock byte-range plans. Native smoke covers shared reader concurrency, reserved writer exclusion, pending-reader blocking, exclusive promotion after reader drain, nolock and failed-open blockers, and copied WordPress database lock diagnostics without requiring ext/sqlite."
 }

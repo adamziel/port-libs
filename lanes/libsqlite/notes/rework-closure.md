@@ -858,3 +858,42 @@ Follow-up should broaden pager/VFS transaction application and durable sync
 policy without repeating accepted hot rollback-journal recovery, VFS file
 writer, locked writer, process locks, savepoint rollback, WAL byte truncation,
 or this rollback-journal commit path.
+
+## 2026-05-27 VFS Super-Journal Commit Apply
+
+This isolated WAL/rollback slice does not repeat accepted rollback-journal
+commit, hot rollback-journal recovery, VFS file writer checkpoint application,
+locked writer, process locks, savepoint rollback, WAL byte truncation, or the
+queued WAL transaction commit append path. It adds the attached-database
+super-journal commit path: write a master journal listing each rollback
+journal, sync it, write and sync attached rollback journals and dirty database
+pages, delete the super-journal as the atomic commit point, then clean attached
+rollback journals.
+
+Focused assertion delta: the selected focused test passed with 83 assertions
+and 0 failures. The new assertions cover super-journal payloads, operation
+ordering, attached database page offsets, FULL/NORMAL/EXTRA/OFF sync modes,
+DELETE/TRUNCATE/PERSIST journal cleanup, actual local file bytes for two
+attached databases, dependency tags, read-only and malformed input guards, and
+copied WordPress multisite-style commit smoke behavior.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteSuperJournalCommitPlan.php
+php -l lanes/libsqlite/src/SQLiteVfsFileWriter.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-vfs-super-journal-commit.php
+php -r 'require "tools/bootstrap.php"; require "tools/TestRunner.php"; $tests=require "lanes/libsqlite/tests/SQLiteHeaderTest.php"; $names=["applies sqlite super-journal commits across attached database handles"]; $selected=array_intersect_key($tests,array_flip($names)); $r=new TestRunner(); $r->runTests($selected,"lanes/libsqlite/tests/SQLiteHeaderTest.php"); fwrite(STDOUT,"\nfocused assertions=".$r->assertions()." failures=".$r->failures()."\n"); exit($r->failures()===0?0:1);'
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-vfs-super-journal-commit.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new shared support component is needed. This reuses the
+lane-local VFS file-handle writer and rollback-journal durability evidence.
+Follow-up should broaden pager/VFS atomic transaction and durable fsync
+behavior without repeating accepted rollback-journal commit, hot rollback
+recovery, savepoint rollback, WAL byte truncation, locked writer, process
+locks, or this super-journal commit path.

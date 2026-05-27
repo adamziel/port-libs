@@ -149,6 +149,37 @@ final class SQLiteVfsFileWriter
     }
 
     /**
+     * @param list<array{database_path:string,journal_bytes:string,database_pages:array<int,string>}> $databaseCommits
+     * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,commit:array<string, mixed>}
+     */
+    public function applySuperJournalCommit(
+        string $superJournalPath,
+        array $databaseCommits,
+        int $pageSize,
+        string $syncMode = 'full',
+        string $journalMode = 'delete',
+    ): array {
+        $plan = SQLiteSuperJournalCommitPlan::commit(
+            $superJournalPath,
+            $databaseCommits,
+            $pageSize,
+            $syncMode,
+            $journalMode,
+            $this->readOnly,
+            $this->immutable
+        );
+
+        $applied = $this->applyOperations(
+            $plan['operations'],
+            SQLiteSuperJournalCommitPlan::payloads($superJournalPath, $databaseCommits),
+            $plan['dependencies']
+        );
+        $applied['commit'] = $plan;
+
+        return $applied;
+    }
+
+    /**
      * @return array{status:string,root:string,applied:int,bytes_written:int,bytes_truncated:int,files_deleted:int,durable_syncs:int,directory_syncs:int,operations:list<array<string, mixed>>,dependencies:list<string>,savepoint:string,database_image:array<string, mixed>,wal_truncation:array<string, mixed>|null}
      */
     public function applySavepointRollback(
