@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteHeader;
 use PortLibs\LibSqlite\SQLiteAutoincrementState;
+use PortLibs\LibSqlite\SQLiteAutoVacuumPointerMapApplyPlan;
 use PortLibs\LibSqlite\SQLiteBTreeFreeblock;
 use PortLibs\LibSqlite\SQLiteBTreeInteriorMergeApplicationPlan;
 use PortLibs\LibSqlite\SQLiteBTreeInteriorMergePlan;
@@ -585,6 +586,148 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $database->planPointerMapUpdates([
             4 => ['type' => 99, 'parent_page_number' => 0],
         ]));
+    },
+    'applies sqlite auto-vacuum pointer-map updates into database page images' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $overflowPage): void {
+        $pageSize = 512;
+        $firstPage = $makeFirstPage($pageSize, 107);
+        $firstPage = substr_replace($firstPage, pack('N', 3), 52, 4);
+        $firstPage = substr_replace($firstPage, pack('N', 1), 64, 4);
+        $schemaPage = SQLiteTableLeafPage::assemble([
+            $schemaCell([
+                'table',
+                'wp_options',
+                'wp_options',
+                3,
+                'CREATE TABLE wp_options(option_id integer primary key, option_name text, option_value text, autoload text)',
+            ], 1),
+        ], $pageSize, 100, $firstPage);
+
+        $pointerMapPageTwo = str_repeat("\0", $pageSize);
+        foreach ([
+            3 => [SQLitePointerMapEntry::ROOT_PAGE, 0],
+            4 => [SQLitePointerMapEntry::BTREE_PAGE, 3],
+            5 => [SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 4],
+            6 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 5],
+            7 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPageTwo = substr_replace(
+                $pointerMapPageTwo,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 3),
+                5,
+            );
+        }
+        $pointerMapPageOneHundredFive = str_repeat("\0", $pageSize);
+        foreach ([
+            106 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+            107 => [SQLitePointerMapEntry::FREE_PAGE, 0],
+        ] as $pageNumber => [$type, $parentPageNumber]) {
+            $pointerMapPageOneHundredFive = substr_replace(
+                $pointerMapPageOneHundredFive,
+                chr($type) . pack('N', $parentPageNumber),
+                5 * ($pageNumber - 106),
+                5,
+            );
+        }
+
+        $pages = array_fill(1, 107, str_repeat("\0", $pageSize));
+        $pages[1] = $schemaPage;
+        $pages[2] = $pointerMapPageTwo;
+        $pages[3] = $tableLeafPage([
+            SQLiteTableLeafCell::encode(1, SQLiteRecord::encode([null, 'siteurl', 'https://example.test', 'yes'])),
+        ], $pageSize);
+        $pages[4] = $tableLeafPage([
+            SQLiteTableLeafCell::encode(2, SQLiteRecord::encode([null, 'blogname', 'Ported SQLite', 'yes'])),
+        ], $pageSize);
+        $pages[5] = $overflowPage('autoload payload chunk', 6, $pageSize);
+        $pages[6] = $overflowPage('tail', 0, $pageSize);
+        $pages[105] = $pointerMapPageOneHundredFive;
+        $database = SQLiteDatabase::fromBytes(implode('', $pages));
+
+        $replacementLeaf = $tableLeafPage([
+            SQLiteTableLeafCell::encode(3, SQLiteRecord::encode([null, 'active_plugins', 'a:0:{}', 'yes'])),
+        ], $pageSize);
+        $apply = SQLiteAutoVacuumPointerMapApplyPlan::apply(
+            $database,
+            [
+                4 => ['type' => SQLitePointerMapEntry::FREE_PAGE, 'parent_page_number' => 0],
+                5 => [SQLitePointerMapEntry::OVERFLOW_PAGE, 106],
+                6 => new SQLitePointerMapEntry(6, 2, 15, SQLitePointerMapEntry::FREE_PAGE, 0),
+                106 => ['type' => SQLitePointerMapEntry::BTREE_PAGE, 'parent_page_number' => 3],
+                107 => ['type' => SQLitePointerMapEntry::FIRST_OVERFLOW_PAGE, 'parent_page_number' => 106],
+            ],
+            [106 => $replacementLeaf],
+        );
+        $summary = $apply->toArray();
+        $postDatabase = $apply->database;
+
+        $t->same(SQLiteAutoVacuumPointerMapApplyPlan::class, get_class($apply));
+        $t->same('auto-vacuum-pointer-map-apply', $summary['action']);
+        $t->same(107, $apply->databasePageCount);
+        $t->same(107 * $pageSize, strlen($apply->databaseBytes));
+        $t->same([2, 105], $apply->updatedPointerMapPageNumbers());
+        $t->same([2, 105, 106], $apply->updatedPageNumbers());
+        $t->same([2, 105], $summary['updated_pointer_map_page_numbers']);
+        $t->same([2, 105, 106], $summary['updated_page_numbers']);
+        $t->same([2, 105], array_keys($apply->pointerMapPageImages));
+        $t->same([106], array_keys($apply->basePageImages));
+        $t->same(5, count($apply->appliedEntries));
+        $t->same(5, count($summary['applied_entries']));
+        $t->same('free-page', $summary['applied_entries'][0]['type_name']);
+        $t->same(4, $summary['applied_entries'][0]['page_number']);
+        $t->same('overflow-page', $summary['applied_entries'][1]['type_name']);
+        $t->same(106, $summary['applied_entries'][1]['parent_page_number']);
+        $t->same('free-page', $summary['applied_entries'][2]['type_name']);
+        $t->same('btree-page', $summary['applied_entries'][3]['type_name']);
+        $t->same(3, $summary['applied_entries'][3]['parent_page_number']);
+        $t->same('first-overflow-page', $summary['applied_entries'][4]['type_name']);
+        $t->same(106, $summary['applied_entries'][4]['parent_page_number']);
+        $t->same($replacementLeaf, $postDatabase->page(106));
+        $t->same($database->page(3), $postDatabase->page(3));
+        $t->same($database->page(104), $postDatabase->page(104));
+        $t->true($postDatabase->isPointerMapPage(2));
+        $t->true($postDatabase->isPointerMapPage(105));
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(4)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(4)->parentPageNumber);
+        $t->same('overflow-page', $postDatabase->pointerMapEntryForPage(5)->typeName());
+        $t->same(106, $postDatabase->pointerMapEntryForPage(5)->parentPageNumber);
+        $t->same('free-page', $postDatabase->pointerMapEntryForPage(6)->typeName());
+        $t->same(0, $postDatabase->pointerMapEntryForPage(6)->parentPageNumber);
+        $t->same('btree-page', $postDatabase->pointerMapEntryForPage(106)->typeName());
+        $t->same(3, $postDatabase->pointerMapEntryForPage(106)->parentPageNumber);
+        $t->same('first-overflow-page', $postDatabase->pointerMapEntryForPage(107)->typeName());
+        $t->same(106, $postDatabase->pointerMapEntryForPage(107)->parentPageNumber);
+        $t->same(2, $postDatabase->pointerMapEntryForPage(4)->pointerMapPageNumber);
+        $t->same(105, $postDatabase->pointerMapEntryForPage(106)->pointerMapPageNumber);
+        $t->same(0, $postDatabase->pointerMapEntryForPage(106)->offset);
+        $t->same(5, $postDatabase->pointerMapEntryForPage(107)->offset);
+        $t->same([], $postDatabase->planPointerMapUpdates($apply->updatesByPage));
+        $t->same(['siteurl'], array_map(static fn (SQLiteWordPressOption $option): string => $option->optionName, $postDatabase->wordpressOptions()));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteAutoVacuumPointerMapApplyPlan::apply($database, []));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteAutoVacuumPointerMapApplyPlan::apply(
+            SQLiteDatabase::fromBytes($makeFirstPage($pageSize, 1)),
+            [3 => ['type' => SQLitePointerMapEntry::BTREE_PAGE, 'parent_page_number' => 1]],
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteAutoVacuumPointerMapApplyPlan::apply(
+            $database,
+            [4 => ['type' => SQLitePointerMapEntry::FREE_PAGE, 'parent_page_number' => 0]],
+            [4 => str_repeat("\0", $pageSize - 1)],
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteAutoVacuumPointerMapApplyPlan::apply(
+            $database,
+            [2 => ['type' => SQLitePointerMapEntry::FREE_PAGE, 'parent_page_number' => 0]],
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteAutoVacuumPointerMapApplyPlan::apply(
+            $database,
+            [108 => ['type' => SQLitePointerMapEntry::FREE_PAGE, 'parent_page_number' => 0]],
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteAutoVacuumPointerMapApplyPlan::apply(
+            $database,
+            [4 => ['type' => SQLitePointerMapEntry::FREE_PAGE, 'parent_page_number' => 0]],
+            [],
+            106,
+        ));
     },
     'plans auto-vacuum freePage2 pointer-map mutation and skips pointer-map append pages' => static function (TestRunner $t) use ($makeFirstPage, $schemaCell, $tableLeafPage, $overflowPage): void {
         $pageSize = 512;

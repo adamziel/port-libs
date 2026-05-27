@@ -1,5 +1,39 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 Auto-vacuum Pointer-map Apply
+
+This isolated B-tree pointer-map slice adds
+`SQLiteAutoVacuumPointerMapApplyPlan`, a bounded apply step that merges
+auto-vacuum pointer-map page updates and optional B-tree page images into a
+complete database image. It avoids accepted table/index page relocation,
+root-collapse, index-interior merge, overflow freelist release, bulk overflow
+freeblock materialization, freeblock/freelist rebalance, and VFS/WAL storage
+apply clusters.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 8909 assertions,
+up from the current focused baseline of 8861 assertions (`+48`). The new
+assertions cover multi-pointer-map-page application, pointer-map page skip
+math at page 105/106, applied-entry summaries, complete database byte
+materialization, base page-image preservation, copied `wp_options` readability
+after apply, and malformed apply guards. WordPress smoke:
+`examples/wordpress-autovacuum-pointer-map-apply.php`.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteAutoVacuumPointerMapApplyPlan.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-autovacuum-pointer-map-apply.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-autovacuum-pointer-map-apply.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses the
+lane-local pointer-map planner, B-tree/page-image fixtures, SQLite database
+reader, and pure PHP WordPress option rows.
+
 ## 2026-05-27 B-tree Overflow Cell Reuse Delete Apply
 
 This isolated B-tree slice adds `SQLiteBTreeOverflowCellReuseDeleteApplyPlan`
@@ -33,7 +67,6 @@ free-page.
 Dependency closure: no new support component is needed; this reuses lane-local
 table/index leaf delete helpers, freeblock insertion, overflow page traversal,
 freelist planning, and pointer-map mutation.
-
 ## 2026-05-27 B-tree Freeblock/Freelist Rebalance
 
 This isolated B-tree slice adds `SQLiteBTreeFreeblockFreelistRebalancePlan`

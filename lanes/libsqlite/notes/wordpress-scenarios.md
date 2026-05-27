@@ -2,6 +2,29 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## Auto-vacuum Pointer-map Apply Scenario
+
+Copied WordPress repair/import flows can now apply auto-vacuum pointer-map
+updates directly into complete database page images after a B-tree page is
+materialized or moved. The smoke
+`examples/wordpress-autovacuum-pointer-map-apply.php` reports changed
+pointer-map pages, freed-page entries, retargeted overflow ownership, and a
+new B-tree owner page across the first and second pointer-map pages without
+requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated B-tree slice: added
+`SQLiteAutoVacuumPointerMapApplyPlan` with focused assertions for complete
+database-byte materialization, base page-image merging, multiple pointer-map
+page updates, applied-entry summaries, post-apply database inspection, pointer
+map page skip math, WordPress option readability after apply, and malformed
+apply guards. Focused `SQLiteHeaderTest.php` passes at 8909 assertions and
+0 failures in this worktree, up from the current focused baseline of 8861
+assertions (`+48`).
+
+Dependency closure: no new support component is needed. This reuses lane-local
+auto-vacuum pointer-map planning, B-tree page images, SQLite database page
+readers, and pure PHP WordPress option fixtures.
+
 ## B-tree Freeblock/Freelist Rebalance Scenario
 
 Copied WordPress transient cleanup can now keep a non-empty table or
