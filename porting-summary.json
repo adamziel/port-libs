@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-27 07:17:26 UTC",
-    "sourceCommit": "efe07e337989225186424be613fb9480ffaca345",
-    "sourceCommitShort": "efe07e337989",
+    "generated": "2026-05-27 07:33:48 UTC",
+    "sourceCommit": "920647e34c1b89994935892dbc81469924a09406",
+    "sourceCommitShort": "920647e34c1b",
     "sourceBranch": "dashboard-publish",
-    "dashboardCommit": "35c00772c4b8ae11ab3aed681e74a5dc3f8a1619",
-    "dashboardCommitShort": "35c00772c4b8",
+    "dashboardCommit": "e99cd10e45ef32e2e1edb19206cc8264becd5911",
+    "dashboardCommitShort": "e99cd10e45ef",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -81,16 +81,16 @@
             "suite": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "benchmark": "cloned-static-inventory-plus-upstream-veryquick-runner",
             "denominator": "1589",
-            "mapped": "441",
-            "coverage": "441 / 1589",
-            "php": "788 pass / 0 fail",
+            "mapped": "442",
+            "coverage": "442 / 1589",
+            "php": "789 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "upstream veryquick runner parity plus accepted native J...",
-            "audit": "bounded SELECT SQL subquery slice replaye...",
-            "currentWork": "Clean-integrating parser-level SELECT SQL correlated EXISTS, NOT EXISTS, IN, and NOT IN s...",
-            "nextTarget": "Broaden SQL executor/planner correctness without repeating accepted scalar operators, com...",
+            "audit": "bounded B-tree root-collapse slice replay...",
+            "currentWork": "Clean-integrating bounded B-tree root-collapse materialization after delete underflow, in...",
+            "nextTarget": "Broaden B-tree delete/rebalance application without repeating accepted page relocation, i...",
             "blocker": "Full SQLite release/all-suite parity remains gated by bounded runner coun...",
-            "commit": "2b38154"
+            "commit": "efe07e3"
         },
         {
             "library": "LightningCSS",
