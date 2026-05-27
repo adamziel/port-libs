@@ -98,6 +98,7 @@ use PortLibs\LibSqlite\SQLiteTableRow;
 use PortLibs\LibSqlite\SQLiteTextAggregate;
 use PortLibs\LibSqlite\SQLiteTextAggregateState;
 use PortLibs\LibSqlite\SQLiteTrimIndexExpression;
+use PortLibs\LibSqlite\SQLiteUpdateDeleteLimitPlan;
 use PortLibs\LibSqlite\SQLiteVfsCapabilityPlan;
 use PortLibs\LibSqlite\SQLiteVfsFileControlState;
 use PortLibs\LibSqlite\SQLiteVfsFileHandle;
@@ -25798,5 +25799,173 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, [['column' => 'option_name', 'collation' => 'UNICODE']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, [['column' => 'option_name']], memoryThresholdBytes: 0));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTempStoreSorterBTreePlan::forRows($rows, [['column' => 'option_name']], firstTempPageNumber: 1));
+    },
+    'selects sqlite delete rows through order by limit offset without changing source order' => static function (TestRunner $t): void {
+        $rows = [
+            ['rowid' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 24],
+            ['rowid' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'bytes' => 24],
+            ['rowid' => 3, 'option_name' => '_transient_feed', 'autoload' => 'no', 'bytes' => 12],
+            ['rowid' => 4, 'option_name' => '_transient_big', 'autoload' => 'no', 'bytes' => 110],
+            ['rowid' => 5, 'option_name' => '_transient_small', 'autoload' => 'no', 'bytes' => 7],
+            ['rowid' => 6, 'option_name' => 'blogname', 'autoload' => 'yes', 'bytes' => 9],
+        ];
+
+        $plan = SQLiteUpdateDeleteLimitPlan::delete(
+            $rows,
+            static fn (array $row): ?bool => $row['autoload'] === 'no' ? true : null,
+            [
+                ['column' => 'bytes', 'direction' => 'DESC'],
+                ['column' => 'option_name'],
+            ],
+            limit: 2,
+            offset: 1,
+        );
+        $negativeLimit = SQLiteUpdateDeleteLimitPlan::delete(
+            $rows,
+            static fn (array $row): bool => $row['autoload'] === 'no',
+            [['column' => 'bytes', 'direction' => 'DESC']],
+            limit: -1,
+            offset: 1,
+        );
+        $noOrder = SQLiteUpdateDeleteLimitPlan::delete(
+            $rows,
+            static fn (array $row): bool => str_starts_with($row['option_name'], '_transient_'),
+            [],
+            limit: 1,
+        );
+        $empty = SQLiteUpdateDeleteLimitPlan::delete(
+            $rows,
+            static fn (array $row): bool => $row['autoload'] === 'missing',
+            [['column' => 'bytes']],
+            limit: 3,
+        );
+        $summary = $plan->toArray();
+
+        $t->same(SQLiteUpdateDeleteLimitPlan::class, get_class($plan));
+        $t->same('delete', $plan->action);
+        $t->same(6, count($plan->inputRows));
+        $t->same(3, count($plan->qualifiedRows));
+        $t->same(2, count($plan->selectedRows));
+        $t->same(4, count($plan->resultRows));
+        $t->same([3, 5], $plan->selectedIds);
+        $t->same([3, 5], $plan->mutationIds);
+        $t->same(['_transient_feed', '_transient_small'], array_column($plan->selectedRows, 'option_name'));
+        $t->same([1, 2, 4, 6], array_column($plan->resultRows, 'rowid'));
+        $t->same([3, 4, 5], array_column($plan->qualifiedRows, 'rowid'));
+        $t->same([['column' => 'bytes', 'direction' => 'DESC'], ['column' => 'option_name']], $plan->orderBy);
+        $t->same(2, $plan->limit);
+        $t->same(1, $plan->offset);
+        $t->same('rowid', $plan->rowIdColumn);
+        $t->same('delete', $summary['action']);
+        $t->same(6, $summary['input_rows']);
+        $t->same(3, $summary['qualified_rows']);
+        $t->same(2, $summary['selected_rows']);
+        $t->same(4, $summary['result_rows']);
+        $t->same([3, 5], $summary['selected_ids']);
+        $t->same([3, 5], $summary['mutation_ids']);
+        $t->same(2, $summary['limit']);
+        $t->same(1, $summary['offset']);
+        $t->same('rowid', $summary['rowid_column']);
+        $t->same([], $summary['assignments']);
+        $t->same([3, 5], $negativeLimit->selectedIds);
+        $t->same([1, 2, 4, 6], array_column($negativeLimit->resultRows, 'rowid'));
+        $t->same([3], $noOrder->selectedIds);
+        $t->same([1, 2, 4, 5, 6], array_column($noOrder->resultRows, 'rowid'));
+        $t->same([], $empty->selectedIds);
+        $t->same([1, 2, 3, 4, 5, 6], array_column($empty->resultRows, 'rowid'));
+    },
+    'updates sqlite limited rows chosen by order by while mutating in source row order' => static function (TestRunner $t): void {
+        $rows = [
+            ['option_id' => 10, 'option_name' => '_transient_oldest', 'autoload' => 'no', 'expires' => 100, 'status' => 'keep'],
+            ['option_id' => 11, 'option_name' => '_transient_large', 'autoload' => 'no', 'expires' => 300, 'status' => 'keep'],
+            ['option_id' => 12, 'option_name' => 'siteurl', 'autoload' => 'yes', 'expires' => null, 'status' => 'keep'],
+            ['option_id' => 13, 'option_name' => '_transient_middle', 'autoload' => 'no', 'expires' => 200, 'status' => 'keep'],
+            ['option_id' => 14, 'option_name' => '_transient_newest', 'autoload' => 'no', 'expires' => 400, 'status' => 'keep'],
+        ];
+
+        $plan = SQLiteUpdateDeleteLimitPlan::update(
+            $rows,
+            static fn (array $row): bool => $row['autoload'] === 'no',
+            [
+                'status' => 'expired',
+                'expires' => static fn (array $row): int => (int) $row['expires'] + 1,
+                'touched_name' => static fn (array $row): string => strtoupper($row['option_name']),
+            ],
+            [
+                ['column' => 'expires'],
+                ['column' => 'option_id', 'direction' => 'DESC'],
+            ],
+            limit: 2,
+            rowIdColumn: 'option_id',
+        );
+        $skipped = SQLiteUpdateDeleteLimitPlan::update(
+            $rows,
+            static fn (array $row): bool => $row['autoload'] === 'no',
+            ['status' => 'expired'],
+            [['column' => 'expires']],
+            limit: 1,
+            offset: 2,
+            rowIdColumn: 'option_id',
+        );
+        $negativeLimit = SQLiteUpdateDeleteLimitPlan::update(
+            $rows,
+            static fn (array $row): bool => $row['autoload'] === 'no',
+            ['status' => 'expired'],
+            [['column' => 'expires']],
+            limit: -1,
+            rowIdColumn: 'option_id',
+        );
+        $summary = $plan->toArray();
+
+        $t->same('update', $plan->action);
+        $t->same(5, count($plan->inputRows));
+        $t->same(4, count($plan->qualifiedRows));
+        $t->same(2, count($plan->selectedRows));
+        $t->same(5, count($plan->resultRows));
+        $t->same([10, 13], $plan->selectedIds);
+        $t->same([10, 13], $plan->mutationIds);
+        $t->same(['_transient_oldest', '_transient_middle'], array_column($plan->selectedRows, 'option_name'));
+        $t->same([10, 11, 12, 13, 14], array_column($plan->resultRows, 'option_id'));
+        $t->same(['expired', 'keep', 'keep', 'expired', 'keep'], array_column($plan->resultRows, 'status'));
+        $t->same([101, 300, null, 201, 400], array_column($plan->resultRows, 'expires'));
+        $t->same('_TRANSIENT_OLDEST', $plan->resultRows[0]['touched_name']);
+        $t->same('_TRANSIENT_MIDDLE', $plan->resultRows[3]['touched_name']);
+        $t->true(!array_key_exists('touched_name', $plan->resultRows[1]));
+        $t->true(!array_key_exists('touched_name', $plan->resultRows[2]));
+        $t->true(!array_key_exists('touched_name', $plan->resultRows[4]));
+        $t->same('update', $summary['action']);
+        $t->same(4, $summary['qualified_rows']);
+        $t->same(2, $summary['selected_rows']);
+        $t->same(5, $summary['result_rows']);
+        $t->same([10, 13], $summary['selected_ids']);
+        $t->same([10, 13], $summary['mutation_ids']);
+        $t->same('option_id', $summary['rowid_column']);
+        $t->same(['status' => 'expired', 'expires' => 'callable', 'touched_name' => 'callable'], $summary['assignments']);
+        $t->same([11], $skipped->selectedIds);
+        $t->same(['keep', 'expired', 'keep', 'keep', 'keep'], array_column($skipped->resultRows, 'status'));
+        $t->same([10, 13, 11, 14], $negativeLimit->selectedIds);
+        $t->same([10, 11, 13, 14], $negativeLimit->mutationIds);
+        $t->same(['expired', 'expired', 'keep', 'expired', 'expired'], array_column($negativeLimit->resultRows, 'status'));
+    },
+    'rejects malformed sqlite update delete limit plans' => static function (TestRunner $t): void {
+        $rows = [
+            ['rowid' => 1, 'option_name' => 'siteurl', 'bytes' => 10],
+            ['rowid' => 2, 'option_name' => 'home', 'bytes' => 20],
+        ];
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete($rows, static fn (array $_row): bool => true, [], null, 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete($rows, static fn (array $_row): bool => true, [], 1, -1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete($rows, static fn (array $_row): bool => true, [['column' => 'missing']], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete($rows, static fn (array $_row): bool => true, [['column' => 'bytes', 'direction' => 'SIDEWAYS']], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete([['option_name' => 'missing rowid']], static fn (array $_row): bool => true, [], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete([['rowid' => null]], static fn (array $_row): bool => true, [], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete([['rowid' => 1, '__sqlite_udl_index' => 99]], static fn (array $_row): bool => true, [], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete($rows, static fn (array $_row): string => 'yes', [], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete($rows, static fn (array $_row): bool => true, [], 1, 0, ''));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::delete($rows, static fn (array $_row): bool => true, [], 1, 0, '__sqlite_udl_index'));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::update($rows, static fn (array $_row): bool => true, [], [], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::update($rows, static fn (array $_row): bool => true, ['' => 'bad'], [], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::update($rows, static fn (array $_row): bool => true, ['__sqlite_udl_index' => 'bad'], [], 1));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteUpdateDeleteLimitPlan::update($rows, static fn (array $_row): bool => true, ['status' => ['bad']], [], 1));
     },
 ];

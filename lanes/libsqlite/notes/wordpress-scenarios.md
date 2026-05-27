@@ -2,6 +2,29 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## UPDATE/DELETE ORDER BY LIMIT Scenario
+
+Copied WordPress option cleanup previews can now model SQLite builds that
+enable `ORDER BY` and `LIMIT` on `UPDATE` and `DELETE`. The smoke
+`examples/wordpress-update-delete-limit-order.php` reports transient option
+rows selected by sorted metadata, DELETE remaining rows, UPDATE selected rows,
+and UPDATE mutation IDs in source row order without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated SQL-exec slice: added
+`SQLiteUpdateDeleteLimitPlan` for bounded decoded row arrays. Focused
+assertions cover WHERE qualification, ORDER BY row selection, LIMIT/OFFSET,
+negative LIMIT, source-order DELETE/UPDATE result materialization, callable
+UPDATE assignments, custom rowid columns, summary output, and malformed plan
+guards. Selected focused checks passed at 75 assertions and full focused
+`SQLiteHeaderTest.php` passed at 9452 assertions, up from the prior
+lane-status focused count of 9377 assertions (`+75`).
+
+Dependency closure: no new support component is needed. This reuses
+lane-local row-array sorting, LIMIT/OFFSET semantics, and pure PHP WordPress
+option fixtures. Non-overlap: this avoids accepted SELECT `ORDER BY`/`LIMIT`,
+expression `ORDER BY`, comma `LIMIT`, scalar subquery, VFS, WAL, JSON, and
+B-tree clusters by covering UPDATE/DELETE limited row selection instead.
+
 ## SELECT SQL Scalar Subquery Scenario
 
 Copied WordPress option previews can now use correlated scalar SELECT
