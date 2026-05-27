@@ -71,7 +71,17 @@ final class SQLiteUpdateFromSql
     public static function plan(string $sql, array $tables, array $parameters = []): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
-        if (preg_match('/^update\s+(?:or\s+(abort|fail|ignore|rollback|replace)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s+set\s+/i', $sql, $match) !== 1) {
+        $withSql = '';
+        if (preg_match('/^with\b/i', $sql) === 1) {
+            $updateOffset = self::keywordOffset($sql, 'UPDATE');
+            if ($updateOffset === null) {
+                throw new \InvalidArgumentException('SQLite UPDATE FROM SQL with CTE must contain UPDATE');
+            }
+            $withSql = trim(substr($sql, 0, $updateOffset));
+            $sql = trim(substr($sql, $updateOffset));
+        }
+
+        if (preg_match('/^update\s+(?:or\s+(abort|fail|ignore|rollback|replace)\s+)?([A-Za-z_][A-Za-z0-9_]*)(?:\s+(?:as\s+)?([A-Za-z_][A-Za-z0-9_]*))?\s+set\s+/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE FROM SQL must start with UPDATE target SET');
         }
 
@@ -83,6 +93,11 @@ final class SQLiteUpdateFromSql
         if (!array_key_exists($target, $tables)) {
             throw new \InvalidArgumentException("SQLite UPDATE FROM target table {$target} is missing");
         }
+        $targetAlias = $match[3] ?? null;
+        if ($targetAlias !== null && strcasecmp($targetAlias, 'set') === 0) {
+            $targetAlias = null;
+        }
+        $targetSource = $targetAlias ?? $target;
 
         $setOffset = strlen($match[0]);
         $fromOffset = self::keywordOffset($sql, 'FROM', $setOffset);
@@ -105,11 +120,12 @@ final class SQLiteUpdateFromSql
         $assignments = self::assignments($setSql);
         $workingTables = $tables;
         $workingTables[$target] = self::indexedRows($tables[$target]);
-        $projection = ["{$target}.__sqlite_update_index AS __sqlite_update_index"];
+        $projection = ["{$targetSource}.__sqlite_update_index AS __sqlite_update_index"];
         foreach ($assignments as $column => $expression) {
             $projection[] = "{$expression} AS {$column}";
         }
-        $selectSql = 'SELECT ' . implode(', ', $projection) . " FROM {$target} CROSS JOIN {$fromSql}";
+        $targetFromSql = $targetAlias === null ? $target : "{$target} AS {$targetAlias}";
+        $selectSql = ($withSql === '' ? '' : $withSql . ' ') . 'SELECT ' . implode(', ', $projection) . " FROM {$targetFromSql} CROSS JOIN {$fromSql}";
         if ($whereSql !== null && $whereSql !== '') {
             $selectSql .= " WHERE {$whereSql}";
         }

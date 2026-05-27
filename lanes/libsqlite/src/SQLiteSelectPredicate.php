@@ -33,10 +33,14 @@ final class SQLiteSelectPredicate
         $operator = strtoupper(self::requiredString($predicate, 'operator', 'SQLite SELECT predicate'));
 
         return match ($operator) {
+            'TRUTH' => self::truth($row, $predicate),
             'AND' => self::andValue($row, $predicate['terms'] ?? null),
             'OR' => self::orValue($row, $predicate['terms'] ?? null),
             'NOT' => self::notValue($row, $predicate['term'] ?? null),
-            'TRUTH' => self::truthValue($row, $predicate),
+            'IS TRUE' => self::isTruthValue($row, $predicate, true, false),
+            'IS NOT TRUE' => self::isTruthValue($row, $predicate, true, true),
+            'IS FALSE' => self::isTruthValue($row, $predicate, false, false),
+            'IS NOT FALSE' => self::isTruthValue($row, $predicate, false, true),
             'EXISTS' => self::exists($row, $predicate, false),
             'NOT EXISTS' => self::exists($row, $predicate, true),
             'IS DISTINCT FROM' => self::distinctFrom($row, $predicate, true),
@@ -59,6 +63,15 @@ final class SQLiteSelectPredicate
             'IS NOT NULL' => self::operand($row, $predicate, 'left') !== null,
             default => throw new \InvalidArgumentException("SQLite SELECT predicate operator {$operator} is not supported"),
         };
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $predicate
+     */
+    private static function truth(array $row, array $predicate): ?bool
+    {
+        return self::truthValue(self::operand($row, $predicate, 'left'));
     }
 
     /**
@@ -124,18 +137,12 @@ final class SQLiteSelectPredicate
      * @param array<string,mixed> $row
      * @param array<string,mixed> $predicate
      */
-    private static function truthValue(array $row, array $predicate): ?bool
+    private static function isTruthValue(array $row, array $predicate, bool $expected, bool $negate): bool
     {
-        if (!array_key_exists('value', $predicate)) {
-            throw new \InvalidArgumentException('SQLite SELECT truth predicate needs a value expression');
-        }
+        $truth = self::truthValue(self::operand($row, $predicate, 'left'));
+        $matched = $truth !== null && $truth === $expected;
 
-        $value = self::valueExpression($row, $predicate['value']);
-        if ($value === null) {
-            return null;
-        }
-
-        return self::isTrue($value);
+        return $negate ? !$matched : $matched;
     }
 
     /**
@@ -587,8 +594,18 @@ final class SQLiteSelectPredicate
 
     private static function isTrue(mixed $value): bool
     {
-        if ($value === null) {
+        $truth = self::truthValue($value);
+        if ($truth === null) {
             return false;
+        }
+
+        return $truth;
+    }
+
+    private static function truthValue(mixed $value): ?bool
+    {
+        if ($value === null) {
+            return null;
         }
         if (is_bool($value)) {
             return $value;
@@ -599,16 +616,14 @@ final class SQLiteSelectPredicate
         if ($value instanceof SQLiteBlobValue) {
             return self::numericPrefix($value->bytes) != 0;
         }
+        if ($value instanceof SQLiteJsonSubtypeValue) {
+            return self::numericPrefix($value->json) != 0;
+        }
         if (is_string($value)) {
             return self::numericPrefix($value) != 0;
         }
 
-        throw new \InvalidArgumentException('SQLite SELECT predicate truth values must be scalar, BLOB, or NULL');
-    }
-
-    private static function isFalse(mixed $value): bool
-    {
-        return $value !== null && !self::isTrue($value);
+        throw new \InvalidArgumentException('SQLite SELECT predicate truth values must be scalar, JSON subtype, BLOB, or NULL');
     }
 
     private static function numericPrefix(string $value): int|float
@@ -618,10 +633,32 @@ final class SQLiteSelectPredicate
             return 0;
         }
         if (preg_match('/^[+-]?[0-9]+$/', $match[0]) === 1) {
-            return (int) $match[0];
+            return self::integerTextWithinInt64($match[0]) ? (int) $match[0] : (float) $match[0];
         }
 
         return (float) $match[0];
+    }
+
+    private static function integerTextWithinInt64(string $value): bool
+    {
+        $negative = str_starts_with($value, '-');
+        if ($value[0] === '-' || $value[0] === '+') {
+            $value = substr($value, 1);
+        }
+
+        $digits = ltrim($value, '0');
+        if ($digits === '') {
+            return true;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+
+        return strlen($digits) < strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) <= 0);
+    }
+
+    private static function isFalse(mixed $value): bool
+    {
+        return $value !== null && !self::isTrue($value);
     }
 
     /**

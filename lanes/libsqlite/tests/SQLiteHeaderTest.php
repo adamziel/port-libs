@@ -983,6 +983,24 @@ return [
             'freelist_page_count' => 1,
             'updated_freelist_page_numbers' => [5],
             'updated_pointer_map_page_numbers' => [2],
+            'allocated_pointer_map_entries' => [
+                [
+                    'page_number' => 6,
+                    'pointer_map_page' => 2,
+                    'offset' => 15,
+                    'type' => 5,
+                    'type_name' => 'btree-page',
+                    'parent_page_number' => 3,
+                ],
+                [
+                    'page_number' => 7,
+                    'pointer_map_page' => 2,
+                    'offset' => 20,
+                    'type' => 5,
+                    'type_name' => 'btree-page',
+                    'parent_page_number' => 3,
+                ],
+            ],
         ], $btreeAllocation->toArray());
         $t->same([], $plainAllocation->updatedPointerMapPages);
         $t->same([1, 5], array_keys($plainAllocation->pageImages()));

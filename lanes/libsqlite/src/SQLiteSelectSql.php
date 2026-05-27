@@ -26,7 +26,7 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,mixed>
      */
-    public static function plan(string $sql, array $tables, array $parameters = []): array
+    public static function plan(string $sql, array $tables, array $parameters = [], ?array $outerRow = null): array
     {
         $sql = trim(rtrim(trim($sql), ';'));
         if ($parameters !== []) {
@@ -71,7 +71,7 @@ final class SQLiteSelectSql
             ? self::predicate(self::clauseText($tail, $clauseOffsets, 'WHERE'), $tables)
             : null;
         $jsonConstraints = self::jsonTableHiddenConstraints($fromSql, $where);
-        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints, self::jsonTableErrorBoundaryColumns($where));
+        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints, self::jsonTableErrorBoundaryColumns($where), $outerRow);
 
         $groupBySql = isset($clauseOffsets['GROUP BY'])
             ? self::clauseText($tail, $clauseOffsets, 'GROUP BY')
@@ -81,6 +81,9 @@ final class SQLiteSelectSql
             'from' => $source['from'],
             'select' => $select,
         ];
+        if (isset($source['sourceAlias']) && is_string($source['sourceAlias']) && $source['sourceAlias'] !== '') {
+            $plan['sourceAlias'] = $source['sourceAlias'];
+        }
         if ($distinct) {
             $plan['distinct'] = true;
         }
@@ -970,7 +973,7 @@ final class SQLiteSelectSql
      * @param list<string> $jsonErrorBoundaryColumns
      * @return array{from:list<array<string,mixed>>,joins:list<array<string,mixed>>}
      */
-    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = []): array
+    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): array
     {
         $commaSources = self::splitTopLevel($sql, ',');
         if (count($commaSources) > 1) {
@@ -982,30 +985,40 @@ final class SQLiteSelectSql
 
         $joinOffset = self::firstJoinOffset($sql);
         $baseSql = $joinOffset === null ? $sql : trim(substr($sql, 0, $joinOffset));
-        $base = self::tableReference($baseSql, $tables, $jsonConstraints, $jsonErrorBoundaryColumns);
+        $base = self::tableReference($baseSql, $tables, $jsonConstraints, $jsonErrorBoundaryColumns, $outerRow);
         $joins = [];
 
         if ($joinOffset !== null) {
             $joinSql = trim(substr($sql, $joinOffset));
             $currentRows = self::qualifiedRows($base['rows'], $base['alias']);
             while ($joinSql !== '') {
-                [$join, $joinSql] = self::consumeJoin($joinSql, $tables, $currentRows, $jsonErrorBoundaryColumns);
+                [$join, $joinSql] = self::consumeJoin($joinSql, $tables, $currentRows, $jsonErrorBoundaryColumns, $outerRow);
                 $joins[] = $join;
                 $currentRows = [array_fill_keys(array_merge(self::collectColumns($currentRows), self::collectColumns($join['rows'])), null)];
             }
         }
 
         if ($joins === [] && isset($base['dynamicRows']) && is_callable($base['dynamicRows'])) {
-            return [
+            $source = [
                 'from' => self::unqualifiedRows($base['dynamicRows']([]), $base['alias']),
                 'joins' => [],
             ];
+            if ($outerRow !== null || ($base['name'] ?? null) === 'subquery') {
+                $source['sourceAlias'] = $base['alias'];
+            }
+
+            return $source;
         }
 
-        return [
+        $source = [
             'from' => $joins === [] ? $base['rows'] : self::qualifiedRows($base['rows'], $base['alias']),
             'joins' => $joins,
         ];
+        if ($outerRow !== null || ($base['name'] ?? null) === 'subquery') {
+            $source['sourceAlias'] = $base['alias'];
+        }
+
+        return $source;
     }
 
     /**
@@ -1014,16 +1027,16 @@ final class SQLiteSelectSql
      * @param list<string> $jsonErrorBoundaryColumns
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}
      */
-    private static function tableReference(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = []): array
+    private static function tableReference(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): array
     {
-        $derivedTable = self::derivedTableReference($sql, $tables);
-        if ($derivedTable !== null) {
-            return $derivedTable;
-        }
-
         $valuesTable = self::valuesTableReference($sql);
         if ($valuesTable !== null) {
             return $valuesTable;
+        }
+
+        $derivedTable = self::derivedTableReference($sql, $tables, $outerRow);
+        if ($derivedTable !== null) {
+            return $derivedTable;
         }
 
         $jsonTable = self::jsonTableReference($sql, $jsonErrorBoundaryColumns);
@@ -1080,7 +1093,7 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{name:string,alias:string,rows:list<array<string,mixed>>}|null
      */
-    private static function derivedTableReference(string $sql, array $tables): ?array
+    private static function derivedTableReference(string $sql, array $tables, ?array $outerRow = null): ?array
     {
         $sql = trim($sql);
         if (!str_starts_with($sql, '(')) {
@@ -1094,7 +1107,9 @@ final class SQLiteSelectSql
         }
 
         [$alias, $columns] = self::derivedTableAlias(trim(substr($sql, $offset)));
-        $rows = self::execute($body, $tables);
+        $rows = $outerRow === null || self::splitCompoundSql($body) !== null
+            ? self::execute($body, $tables)
+            : self::correlatedSubqueryRows($body, $tables, $outerRow);
         if ($columns !== []) {
             $rows = self::renameDerivedTableColumns($rows, $columns, $alias);
         }
@@ -1576,7 +1591,7 @@ final class SQLiteSelectSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @return array{0:array<string,mixed>,1:string}
      */
-    private static function consumeJoin(string $sql, array $tables, array $leftRows = [], array $jsonErrorBoundaryColumns = []): array
+    private static function consumeJoin(string $sql, array $tables, array $leftRows = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null): array
     {
         if (preg_match('/^((?:natural\s+)?(?:(?:left|right|full)(?:\s+outer)?\s+join|inner\s+join|cross\s+join|join))\s+/i', $sql, $match) !== 1) {
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN clause is not supported');
@@ -1608,7 +1623,7 @@ final class SQLiteSelectSql
             $nextJoin = self::firstJoinOffset($rest);
             $tableSql = $nextJoin === null ? $rest : trim(substr($rest, 0, $nextJoin));
             $remaining = $nextJoin === null ? '' : trim(substr($rest, $nextJoin));
-            $table = self::tableReference($tableSql, $tables, [], $jsonErrorBoundaryColumns);
+            $table = self::tableReference($tableSql, $tables, [], $jsonErrorBoundaryColumns, $outerRow);
             $rightRows = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
                 ? self::qualifiedJsonRows($table['rows'], $table['alias'])
                 : self::qualifiedRows($table['rows'], $table['alias']);
@@ -1639,7 +1654,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN needs ON or USING');
         }
 
-        $table = self::tableReference(trim(substr($rest, 0, $boundary)), $tables, [], $jsonErrorBoundaryColumns);
+        $table = self::tableReference(trim(substr($rest, 0, $boundary)), $tables, [], $jsonErrorBoundaryColumns, $outerRow);
         $conditionSql = trim(substr($rest, $boundary));
         $nextJoin = self::nextJoinAfterCondition($conditionSql);
         $condition = $nextJoin === null ? $conditionSql : trim(substr($conditionSql, 0, $nextJoin));
@@ -1908,6 +1923,20 @@ final class SQLiteSelectSql
                 'subquery' => static fn (array $row): array => self::correlatedSubqueryRows($subquerySql, $tables, $row),
             ];
         }
+        if (preg_match('/^not\s+(.+)$/is', $sql, $match) === 1) {
+            return [
+                'operator' => 'NOT',
+                'term' => self::predicate($match[1], $tables),
+            ];
+        }
+        if (preg_match('/^(.+?)\s+is\s+(not\s+)?(true|false)$/is', $sql, $match) === 1) {
+            $expected = strtoupper($match[3]);
+
+            return [
+                'operator' => 'IS ' . (isset($match[2]) && trim($match[2]) !== '' ? 'NOT ' : '') . $expected,
+                'left' => self::valueExpression(trim($match[1]), $tables),
+            ];
+        }
 
         if (preg_match('/^(.+?)\s+(not\s+)?between\s+(.+)$/is', $sql, $match) === 1) {
             $bounds = self::splitTopLevelByKeyword(trim($match[3]), 'AND');
@@ -1999,7 +2028,7 @@ final class SQLiteSelectSql
 
         return [
             'operator' => 'TRUTH',
-            'value' => self::valueExpression($sql, $tables),
+            'left' => self::valueExpression($sql, $tables),
         ];
     }
 
@@ -2010,23 +2039,61 @@ final class SQLiteSelectSql
      */
     private static function correlatedSubqueryRows(string $sql, array $tables, array $outerRow): array
     {
-        $plan = self::plan($sql, $tables);
+        $plan = self::plan($sql, $tables, [], $outerRow);
 
         $rows = $plan['from'] ?? null;
         if (!is_array($rows) || !array_is_list($rows)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL subquery needs source rows');
         }
 
+        $outerRow = self::qualifyOuterRowForCorrelation($outerRow, $tables);
+        $sourceAlias = isset($plan['sourceAlias']) && is_string($plan['sourceAlias']) && $plan['sourceAlias'] !== ''
+            ? $plan['sourceAlias']
+            : null;
         $expanded = [];
         foreach ($rows as $row) {
             if (!is_array($row)) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL subquery source rows must be arrays');
             }
-            $expanded[] = array_merge($outerRow, $row);
+            $qualifiedRow = $sourceAlias === null ? [] : self::qualifiedRows([$row], $sourceAlias)[0];
+            $expanded[] = array_merge($outerRow, $qualifiedRow, $row);
         }
         $plan['from'] = $expanded;
 
         return self::stripHiddenOrderColumns(SQLiteSelectQuery::execute($plan), $plan);
+    }
+
+    /**
+     * @param array<string,mixed> $outerRow
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return array<string,mixed>
+     */
+    private static function qualifyOuterRowForCorrelation(array $outerRow, array $tables): array
+    {
+        $qualified = $outerRow;
+        foreach ($tables as $table => $rows) {
+            if (!is_string($table) || $table === '' || !is_array($rows) || $rows === []) {
+                continue;
+            }
+            $columns = [];
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue 2;
+                }
+                foreach ($row as $column => $unused) {
+                    if (is_string($column) && $column !== '') {
+                        $columns[$column] = true;
+                    }
+                }
+            }
+            foreach ($columns as $column => $unused) {
+                if (array_key_exists($column, $outerRow) && !array_key_exists($table . '.' . $column, $qualified)) {
+                    $qualified[$table . '.' . $column] = $outerRow[$column];
+                }
+            }
+        }
+
+        return $qualified;
     }
 
     /**
@@ -2141,6 +2208,12 @@ final class SQLiteSelectSql
         }
         if (strcasecmp($sql, 'NULL') === 0) {
             return ['type' => 'literal', 'value' => null];
+        }
+        if (strcasecmp($sql, 'TRUE') === 0) {
+            return ['type' => 'literal', 'value' => 1];
+        }
+        if (strcasecmp($sql, 'FALSE') === 0) {
+            return ['type' => 'literal', 'value' => 0];
         }
         if (preg_match("/^[xX]'([0-9A-Fa-f]*)'$/", $sql, $match) === 1) {
             if (strlen($match[1]) % 2 !== 0) {

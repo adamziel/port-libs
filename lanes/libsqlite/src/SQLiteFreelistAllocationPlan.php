@@ -12,6 +12,7 @@ final class SQLiteFreelistAllocationPlan
      * @param array<int, string> $updatedFreelistPages
      * @param array<int, string> $updatedPointerMapPages
      * @param list<array<string, int|string|null>> $allocationSteps
+     * @param list<array{page_number:int,pointer_map_page:int,offset:int,type:int,type_name:string,parent_page_number:int}> $allocatedPointerMapEntries
      */
     public function __construct(
         public readonly array $allocatedPageNumbers,
@@ -23,6 +24,7 @@ final class SQLiteFreelistAllocationPlan
         public readonly int $freelistPageCount,
         public readonly array $updatedPointerMapPages = [],
         public readonly array $allocationSteps = [],
+        public readonly array $allocatedPointerMapEntries = [],
     ) {
     }
 
@@ -32,6 +34,14 @@ final class SQLiteFreelistAllocationPlan
     public function allocationSteps(): array
     {
         return $this->allocationSteps;
+    }
+
+    /**
+     * @return list<array{page_number:int,pointer_map_page:int,offset:int,type:int,type_name:string,parent_page_number:int}>
+     */
+    public function allocatedPointerMapEntries(): array
+    {
+        return $this->allocatedPointerMapEntries;
     }
 
     /**
@@ -65,6 +75,9 @@ final class SQLiteFreelistAllocationPlan
         ];
         if ($this->updatedPointerMapPages !== []) {
             $summary['updated_pointer_map_page_numbers'] = array_keys($this->updatedPointerMapPages);
+        }
+        if ($this->allocatedPointerMapEntries !== []) {
+            $summary['allocated_pointer_map_entries'] = $this->allocatedPointerMapEntries;
         }
 
         return $summary;

@@ -439,6 +439,7 @@ final class SQLiteDatabase
 
         $allocationPlan = $this->planPageAllocation($count, $allowAppend);
         $updatedPointerMapPages = [];
+        $allocatedPointerMapEntries = [];
         if ($this->isAutoVacuum() && $allocationPlan->allocatedPageNumbers !== []) {
             $updates = [];
             foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
@@ -458,6 +459,23 @@ final class SQLiteDatabase
             foreach (array_keys($allocationPlan->updatedFreelistPages) as $freelistPageNumber) {
                 unset($updatedPointerMapPages[$freelistPageNumber]);
             }
+            $postPointerMapImages = $allocationPlan->pageImages();
+            foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
+                if ($pageNumber > $this->pageCount()) {
+                    $postPointerMapImages[$pageNumber] = str_repeat("\0", $this->header->pageSize);
+                }
+            }
+            foreach ($updatedPointerMapPages as $pageNumber => $page) {
+                $postPointerMapImages[$pageNumber] = $page;
+            }
+            $postPointerMapDatabase = $this->withPageImages($postPointerMapImages);
+            foreach ($allocationPlan->allocatedPageNumbers as $pageNumber) {
+                if ($postPointerMapDatabase->isPointerMapPage($pageNumber)) {
+                    continue;
+                }
+
+                $allocatedPointerMapEntries[] = $postPointerMapDatabase->pointerMapEntryForPage($pageNumber)->toArray();
+            }
         }
 
         return new SQLiteFreelistAllocationPlan(
@@ -470,6 +488,7 @@ final class SQLiteDatabase
             $allocationPlan->freelistPageCount,
             $updatedPointerMapPages,
             $allocationPlan->allocationSteps,
+            $allocatedPointerMapEntries,
         );
     }
 

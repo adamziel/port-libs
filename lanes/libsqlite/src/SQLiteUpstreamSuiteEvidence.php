@@ -1901,6 +1901,122 @@ final class SQLiteUpstreamSuiteEvidence
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function boundedRunnerArtifactDirectoryHydration(
+        string $artifactDirectory,
+        string $acceptedRepositoryHead,
+        string $processSnapshot = ''
+    ): array {
+        if (!is_dir($artifactDirectory)) {
+            return [
+                'status' => 'blocked-missing-artifact-directory',
+                'artifact_directory' => $artifactDirectory,
+                'accepted_repository_head' => $acceptedRepositoryHead,
+                'artifact_count' => 0,
+                'countable_count' => 0,
+                'blocked_count' => 0,
+                'audit_file_count' => 0,
+                'stdout_file_count' => 0,
+                'artifacts' => [],
+                'set' => null,
+                'missing' => [$artifactDirectory],
+                'next_gate' => 'wait for the guarded bounded-runner artifact directory to exist, then hydrate audit/log pairs before counting release/all evidence',
+                'dependency_closure' => 'no new support component needed; directory hydration scans lane-local bounded-runner audit/log artifacts only',
+            ];
+        }
+
+        $files = scandir($artifactDirectory);
+        if ($files === false) {
+            throw new \RuntimeException("Unable to scan SQLite bounded runner artifact directory: {$artifactDirectory}");
+        }
+
+        $audits = [];
+        foreach ($files as $file) {
+            if ($file === '.' || $file === '..') {
+                continue;
+            }
+            $path = $artifactDirectory . '/' . $file;
+            if (!is_file($path) || !preg_match('/\.(?:md|audit)$/i', $file)) {
+                continue;
+            }
+
+            $audits[] = $path;
+        }
+        sort($audits, SORT_STRING);
+
+        $artifacts = [];
+        $stdoutCount = 0;
+        $artifactRows = [];
+        foreach ($audits as $auditPath) {
+            $auditText = file_get_contents($auditPath);
+            if ($auditText === false) {
+                throw new \RuntimeException("Unable to read SQLite bounded runner audit artifact: {$auditPath}");
+            }
+
+            $stdoutPath = $this->pairedRunnerLogPath($auditText, $auditPath, $artifactDirectory);
+            if ($stdoutPath !== null) {
+                $stdoutCount++;
+            }
+
+            $label = $this->extractMarkdownHeadingLabel($auditText);
+            if ($label === null || $label === '') {
+                $label = pathinfo($auditPath, PATHINFO_FILENAME);
+            }
+
+            $artifacts[$label] = [
+                'audit' => $auditPath,
+                'stdout' => $stdoutPath,
+                'process_snapshot' => $processSnapshot,
+            ];
+            $artifactRows[] = [
+                'label' => $label,
+                'audit' => $auditPath,
+                'stdout' => $stdoutPath,
+                'stdout_ready' => $stdoutPath !== null,
+            ];
+        }
+
+        if ($artifacts === []) {
+            return [
+                'status' => 'blocked-empty-artifact-directory',
+                'artifact_directory' => $artifactDirectory,
+                'accepted_repository_head' => $acceptedRepositoryHead,
+                'artifact_count' => 0,
+                'countable_count' => 0,
+                'blocked_count' => 0,
+                'audit_file_count' => 0,
+                'stdout_file_count' => 0,
+                'artifacts' => [],
+                'set' => null,
+                'missing' => ['bounded-runner audit artifacts (*.md or *.audit)'],
+                'next_gate' => 'write guarded bounded-runner audit artifacts into this directory before counting release/all evidence',
+                'dependency_closure' => 'no new support component needed; directory hydration scans lane-local bounded-runner audit/log artifacts only',
+            ];
+        }
+
+        $set = $this->boundedRunnerArtifactSetRecord($artifacts, $acceptedRepositoryHead);
+
+        return [
+            'status' => $set['status'] ?? 'blocked',
+            'artifact_directory' => $artifactDirectory,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'artifact_count' => count($artifactRows),
+            'countable_count' => (int) ($set['countable_count'] ?? 0),
+            'blocked_count' => (int) ($set['blocked_count'] ?? 0),
+            'audit_file_count' => count($audits),
+            'stdout_file_count' => $stdoutCount,
+            'artifacts' => $artifactRows,
+            'set' => $set,
+            'missing' => [],
+            'next_gate' => ((int) ($set['countable_count'] ?? 0)) > 0
+                ? 'publish only countable hydrated bounded-runner artifacts, preserving blocked directory entries as explicit follow-up evidence'
+                : 'do not count this hydrated artifact directory until at least one audit/log pair has zero-error results, accepted HEAD provenance, matching SQLite manifest UUID, and no active runner',
+            'dependency_closure' => 'no new support component needed; directory hydration composes existing bounded-runner file/countability gates only',
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $artifactRecord
      * @return array<string, mixed>
      */
