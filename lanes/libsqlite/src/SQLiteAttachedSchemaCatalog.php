@@ -227,6 +227,101 @@ final class SQLiteAttachedSchemaCatalog
     }
 
     /**
+     * Capture the current unqualified/qualified table and index winners for a
+     * prepared statement. SQLite invalidates this style of cached lookup after
+     * ATTACH/DETACH because TEMP, main, and attached schemas can shadow each
+     * other without the SQL text changing.
+     *
+     * @param list<string> $tables
+     * @param list<string> $indexes
+     * @return array{generation: int, source: string, search_order: list<string>, database_list: list<array{seq: int, name: string, file: string|null}>, tables: array<string, array{schema: string|null, name: string, rootpage: int|null, type: string|null}>, indexes: array<string, array{schema: string|null, name: string, rootpage: int|null, type: string|null}>}
+     */
+    public function schemaCacheResolutionSnapshot(array $tables = [], array $indexes = [], string $sourceSchema = 'main'): array
+    {
+        $source = self::normalizeSchemaName($sourceSchema);
+        if (!isset($this->schemas[$source])) {
+            throw new \InvalidArgumentException("SQLite schema {$source} is not attached");
+        }
+
+        $tableSnapshots = [];
+        foreach ($tables as $table) {
+            $name = trim($table);
+            $tableSnapshots[$name] = $this->resolutionCacheEntry($this->resolveTableForCache($name));
+        }
+
+        $indexSnapshots = [];
+        foreach ($indexes as $index) {
+            $name = trim($index);
+            $indexSnapshots[$name] = $this->resolutionCacheEntry($this->resolveIndexForCache($name));
+        }
+
+        return [
+            'generation' => $this->schemaGeneration,
+            'source' => $source,
+            'search_order' => $this->searchOrder(),
+            'database_list' => $this->databaseList(),
+            'tables' => $tableSnapshots,
+            'indexes' => $indexSnapshots,
+        ];
+    }
+
+    /**
+     * @param array{generation?: int, search_order?: list<string>, database_list?: list<array{seq: int, name: string, file: string|null}>, tables?: array<string, array{schema?: string|null, name?: string|null, rootpage?: int|null, type?: string|null}>, indexes?: array<string, array{schema?: string|null, name?: string|null, rootpage?: int|null, type?: string|null}>} $snapshot
+     * @return array{current: bool, before_generation: int|null, after_generation: int, before_search_order: list<string>, after_search_order: list<string>, before_database_count: int, after_database_count: int, invalidated_schemas: list<string>, added_schemas: list<string>, removed_schemas: list<string>, sequence_changed: bool, table_changes: array<string, array{before: array{schema: string|null, name: string|null, rootpage: int|null, type: string|null}, after: array{schema: string|null, name: string|null, rootpage: int|null, type: string|null}, changed: bool}>, index_changes: array<string, array{before: array{schema: string|null, name: string|null, rootpage: int|null, type: string|null}, after: array{schema: string|null, name: string|null, rootpage: int|null, type: string|null}, changed: bool}>, changed_tables: list<string>, changed_indexes: list<string>, unchanged_tables: list<string>, unchanged_indexes: list<string>, stale: bool}
+     */
+    public function schemaCacheResolutionInvalidation(array $snapshot): array
+    {
+        $base = $this->schemaCacheInvalidation($snapshot);
+        $tableChanges = [];
+        $changedTables = [];
+        $unchangedTables = [];
+        foreach ($snapshot['tables'] ?? [] as $name => $before) {
+            $after = $this->resolutionCacheEntry($this->resolveTableForCache((string) $name));
+            $beforeEntry = self::normalizeResolutionCacheEntry($before);
+            $changed = $beforeEntry !== $after;
+            $tableChanges[(string) $name] = [
+                'before' => $beforeEntry,
+                'after' => $after,
+                'changed' => $changed,
+            ];
+            if ($changed) {
+                $changedTables[] = (string) $name;
+            } else {
+                $unchangedTables[] = (string) $name;
+            }
+        }
+
+        $indexChanges = [];
+        $changedIndexes = [];
+        $unchangedIndexes = [];
+        foreach ($snapshot['indexes'] ?? [] as $name => $before) {
+            $after = $this->resolutionCacheEntry($this->resolveIndexForCache((string) $name));
+            $beforeEntry = self::normalizeResolutionCacheEntry($before);
+            $changed = $beforeEntry !== $after;
+            $indexChanges[(string) $name] = [
+                'before' => $beforeEntry,
+                'after' => $after,
+                'changed' => $changed,
+            ];
+            if ($changed) {
+                $changedIndexes[] = (string) $name;
+            } else {
+                $unchangedIndexes[] = (string) $name;
+            }
+        }
+
+        return $base + [
+            'table_changes' => $tableChanges,
+            'index_changes' => $indexChanges,
+            'changed_tables' => $changedTables,
+            'changed_indexes' => $changedIndexes,
+            'unchanged_tables' => $unchangedTables,
+            'unchanged_indexes' => $unchangedIndexes,
+            'stale' => !$base['current'] || $changedTables !== [] || $changedIndexes !== [],
+        ];
+    }
+
+    /**
      * @return array{schema: string, record: SQLiteSchemaRecord}|null
      */
     public function resolveTable(string $name): ?array
@@ -537,6 +632,70 @@ final class SQLiteAttachedSchemaCatalog
             'CREATE TABLE sqlite_schema(type text,name text,tbl_name text,rootpage int,sql text)',
             1,
         );
+    }
+
+    /**
+     * @param array{schema: string, record: SQLiteSchemaRecord}|null $resolved
+     * @return array{schema: string|null, name: string|null, rootpage: int|null, type: string|null}
+     */
+    private function resolutionCacheEntry(?array $resolved): array
+    {
+        if ($resolved === null) {
+            return ['schema' => null, 'name' => null, 'rootpage' => null, 'type' => null];
+        }
+
+        return [
+            'schema' => $resolved['schema'],
+            'name' => $resolved['record']->name,
+            'rootpage' => $resolved['record']->rootPage,
+            'type' => $resolved['record']->type,
+        ];
+    }
+
+    /**
+     * @return array{schema: string, record: SQLiteSchemaRecord}|null
+     */
+    private function resolveTableForCache(string $name): ?array
+    {
+        try {
+            return $this->resolveTable($name);
+        } catch (\InvalidArgumentException $exception) {
+            if (str_contains($exception->getMessage(), ' is not attached')) {
+                return null;
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @return array{schema: string, record: SQLiteSchemaRecord}|null
+     */
+    private function resolveIndexForCache(string $name): ?array
+    {
+        try {
+            return $this->resolveIndex($name);
+        } catch (\InvalidArgumentException $exception) {
+            if (str_contains($exception->getMessage(), ' is not attached')) {
+                return null;
+            }
+
+            throw $exception;
+        }
+    }
+
+    /**
+     * @param array{schema?: string|null, name?: string|null, rootpage?: int|null, type?: string|null} $entry
+     * @return array{schema: string|null, name: string|null, rootpage: int|null, type: string|null}
+     */
+    private static function normalizeResolutionCacheEntry(array $entry): array
+    {
+        return [
+            'schema' => array_key_exists('schema', $entry) && $entry['schema'] !== null ? (string) $entry['schema'] : null,
+            'name' => array_key_exists('name', $entry) && $entry['name'] !== null ? (string) $entry['name'] : null,
+            'rootpage' => array_key_exists('rootpage', $entry) && $entry['rootpage'] !== null ? (int) $entry['rootpage'] : null,
+            'type' => array_key_exists('type', $entry) && $entry['type'] !== null ? (string) $entry['type'] : null,
+        ];
     }
 
     private static function normalizeSchemaName(string $name): string

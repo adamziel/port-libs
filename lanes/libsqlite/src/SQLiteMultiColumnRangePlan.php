@@ -25,6 +25,42 @@ final class SQLiteMultiColumnRangePlan
      * @param array<string,mixed> $predicate
      * @param list<array{column:string,direction?:string}> $orderBy
      * @param list<string> $neededColumns
+     * @return null|array<string,mixed>
+     */
+    public static function chooseOrRange(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = []): ?array
+    {
+        $operator = strtoupper(self::requiredString($predicate, 'operator'));
+        if ($operator !== 'OR') {
+            $plan = self::choose($indexDefinitions, $predicate, $orderBy, $neededColumns);
+
+            return $plan === null ? null : self::orRangeSummary([$plan]);
+        }
+
+        $terms = $predicate['terms'] ?? null;
+        if (!is_array($terms) || !array_is_list($terms) || $terms === []) {
+            throw new \InvalidArgumentException('SQLite multicolumn range OR predicate needs a non-empty term list');
+        }
+
+        $arms = [];
+        foreach ($terms as $term) {
+            if (!is_array($term)) {
+                throw new \InvalidArgumentException('SQLite multicolumn range OR terms must be predicates');
+            }
+            $plan = self::choose($indexDefinitions, $term, $orderBy, $neededColumns);
+            if ($plan === null) {
+                return null;
+            }
+            $arms[] = $plan;
+        }
+
+        return self::orRangeSummary($arms);
+    }
+
+    /**
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int}> $indexDefinitions
+     * @param array<string,mixed> $predicate
+     * @param list<array{column:string,direction?:string}> $orderBy
+     * @param list<string> $neededColumns
      * @return list<array<string,mixed>>
      */
     public static function rankedPlans(array $indexDefinitions, array $predicate, array $orderBy = [], array $neededColumns = []): array
@@ -77,6 +113,7 @@ final class SQLiteMultiColumnRangePlan
                 'columns' => array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $columns),
                 'usedColumns' => $prefix['usedColumns'],
                 'equalityPrefix' => $prefix['equalityPrefix'],
+                'equalityConstraints' => $prefix['equalityConstraints'],
                 'rangeColumn' => $prefix['rangeColumn'],
                 'rangeConstraint' => $prefix['rangeConstraint'],
                 'residualRangeColumns' => $prefix['residualRangeColumns'],
@@ -212,11 +249,12 @@ final class SQLiteMultiColumnRangePlan
     /**
      * @param list<SQLiteIndexColumn> $columns
      * @param array<string,list<array{column:string,operator:string,values:mixed}>> $constraints
-     * @return array{count:int,usedColumns:list<string>,equalityPrefix:int,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,residualRangeColumns:list<string>,residualConstraints:list<array{column:string,operator:string,values:mixed}>,usesSkipScan:bool,skippedColumns:list<string>,skipScanLoops:int,skipScanPenalty:int,currentIndexColumnOffset:int}
+     * @return array{count:int,usedColumns:list<string>,equalityPrefix:int,equalityConstraints:list<array{column:string,operator:string,values:mixed}>,rangeColumn:string|null,rangeConstraint:array{column:string,operator:string,values:mixed}|null,residualRangeColumns:list<string>,residualConstraints:list<array{column:string,operator:string,values:mixed}>,usesSkipScan:bool,skippedColumns:list<string>,skipScanLoops:int,skipScanPenalty:int,currentIndexColumnOffset:int}
      */
     private static function usablePrefix(array $columns, array $constraints): array
     {
         $used = [];
+        $equalityConstraints = [];
         $equalityPrefix = 0;
         $rangeColumn = null;
         $rangeConstraint = null;
@@ -233,6 +271,7 @@ final class SQLiteMultiColumnRangePlan
             $equality = self::firstConstraint($matches, ['point', 'IN']);
             if ($equality !== null && self::hasNonNullValue($equality['values'])) {
                 $used[] = $column->columnName;
+                $equalityConstraints[] = $equality;
                 $equalityPrefix++;
                 continue;
             }
@@ -258,6 +297,7 @@ final class SQLiteMultiColumnRangePlan
             'count' => count($used),
             'usedColumns' => $used,
             'equalityPrefix' => $equalityPrefix,
+            'equalityConstraints' => $equalityConstraints,
             'rangeColumn' => $rangeColumn,
             'rangeConstraint' => $rangeConstraint,
             'residualRangeColumns' => array_values($residualRangeColumns),
@@ -461,6 +501,76 @@ final class SQLiteMultiColumnRangePlan
         }
 
         return true;
+    }
+
+    /**
+     * @param non-empty-list<array<string,mixed>> $arms
+     * @return array<string,mixed>
+     */
+    private static function orRangeSummary(array $arms): array
+    {
+        $indexNames = array_values(array_unique(array_map(
+            static fn (array $arm): ?string => isset($arm['name']) ? (string) $arm['name'] : null,
+            $arms
+        )));
+        $rootPages = array_values(array_unique(array_map(
+            static fn (array $arm): mixed => $arm['rootPage'] ?? null,
+            $arms
+        ), SORT_REGULAR));
+        $rangeColumns = array_values(array_unique(array_map(
+            static fn (array $arm): ?string => isset($arm['rangeColumn']) ? (string) $arm['rangeColumn'] : null,
+            $arms
+        )));
+
+        $estimatedRows = 0;
+        $estimatedCost = 18;
+        $currentNextLoops = 0;
+        $residualPredicateRequired = false;
+        foreach ($arms as $arm) {
+            $estimatedRows += (int) ($arm['estimatedRows'] ?? 0);
+            $estimatedCost += (int) ($arm['estimatedCost'] ?? 0);
+            $currentNextLoops += self::currentNextLoopsForPlan($arm);
+            $residualPredicateRequired = $residualPredicateRequired || (($arm['residualPredicateRequired'] ?? false) === true);
+        }
+
+        return [
+            'usable' => true,
+            'strategy' => count($indexNames) === 1 ? 'single-index-or' : 'multi-index-or',
+            'rowidUnionRequired' => count($arms) > 1,
+            'armCount' => count($arms),
+            'arms' => $arms,
+            'indexNames' => $indexNames,
+            'rootPages' => $rootPages,
+            'rangeColumns' => $rangeColumns,
+            'currentNextLoops' => $currentNextLoops,
+            'estimatedRows' => max(1, $estimatedRows),
+            'estimatedCost' => max(1, $estimatedCost),
+            'residualPredicateRequired' => $residualPredicateRequired,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     */
+    private static function currentNextLoopsForPlan(array $plan): int
+    {
+        $loops = 1;
+        $equalityConstraints = $plan['equalityConstraints'] ?? [];
+        if (is_array($equalityConstraints)) {
+            foreach ($equalityConstraints as $constraint) {
+                if (!is_array($constraint) || ($constraint['operator'] ?? null) !== 'IN') {
+                    continue;
+                }
+                $values = $constraint['values'] ?? [];
+                if (!is_array($values)) {
+                    continue;
+                }
+                $nonNullValues = array_values(array_filter($values, static fn (mixed $value): bool => $value !== null));
+                $loops *= max(1, count(array_unique($nonNullValues, SORT_REGULAR)));
+            }
+        }
+
+        return $loops;
     }
 
     /**

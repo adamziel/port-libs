@@ -3447,6 +3447,106 @@ final class SQLiteUpstreamSuiteEvidence
     /**
      * @return array<string, mixed>
      */
+    public function releaseRunnerSuiteLedgerCurrentNext35(
+        string $currentArtifactDirectory,
+        string $nextArtifactDirectory,
+        string $acceptedRepositoryHead,
+        int $currentPhpPass,
+        string $focusedPath,
+        string $focusedTestOutput,
+        string $nonOverlapNote,
+        ?string $nextRepositoryHead = null,
+        string $processSnapshot = ''
+    ): array {
+        $count = $this->releaseRunnerCurrentNextCountRecord(
+            $currentArtifactDirectory,
+            $nextArtifactDirectory,
+            $acceptedRepositoryHead,
+            $nextRepositoryHead,
+            $processSnapshot
+        );
+        $phpAdmission = $this->focusedPhpPassAdmission(
+            $currentPhpPass,
+            $focusedPath,
+            $focusedTestOutput,
+            $nonOverlapNote
+        );
+        $activeGate = $this->activeFullSuiteRunnerGate($processSnapshot);
+
+        $blockers = [];
+        foreach (is_array($count['blockers'] ?? null) ? $count['blockers'] : [] as $blocker) {
+            if (!is_array($blocker)) {
+                continue;
+            }
+
+            $blockers[] = [
+                'id' => 'count-' . (string) ($blocker['id'] ?? 'unknown'),
+                'evidence' => $blocker['evidence'] ?? null,
+                'source' => 'release-runner-current-next-count',
+            ];
+        }
+
+        if (($phpAdmission['status'] ?? null) !== 'admitted') {
+            $blockers[] = [
+                'id' => 'focused-php-pass-not-admitted',
+                'evidence' => $phpAdmission['blocker'] ?? 'focused TestRunner output did not satisfy phpPass admission',
+                'source' => 'focused-php-pass-admission',
+            ];
+        }
+
+        if (($activeGate['status'] ?? null) === 'blocked-active-runner') {
+            $blockers[] = [
+                'id' => 'active-broad-runner-present',
+                'evidence' => 'supplied process snapshot already contains a broad SQLite runner; do not publish next suite-ledger count movement until its artifact is available',
+                'source' => 'active-full-suite-runner-gate',
+                'active_tiers' => $activeGate['active_tiers'] ?? [],
+            ];
+        }
+
+        $countStatus = is_string($count['status'] ?? null) ? $count['status'] : 'blocked';
+        $status = 'blocked';
+        if ($blockers === []) {
+            $status = $countStatus === 'next-count-increased'
+                ? 'next35-suite-ledger-countable'
+                : 'next35-suite-ledger-preserved';
+        }
+
+        return [
+            'status' => $status,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'next_repository_head' => $nextRepositoryHead ?? $acceptedRepositoryHead,
+            'current_artifact_directory' => $currentArtifactDirectory,
+            'next_artifact_directory' => $nextArtifactDirectory,
+            'current_countable_count' => (int) ($count['current_countable_count'] ?? 0),
+            'next_countable_count' => (int) ($count['next_countable_count'] ?? 0),
+            'countable_delta' => (int) ($count['countable_delta'] ?? 0),
+            'current_tests_total' => (int) ($count['current_tests_total'] ?? 0),
+            'next_tests_total' => (int) ($count['next_tests_total'] ?? 0),
+            'tests_total_delta' => (int) ($count['tests_total_delta'] ?? 0),
+            'new_countable_labels' => is_array($count['new_countable_labels'] ?? null) ? $count['new_countable_labels'] : [],
+            'lost_countable_labels' => is_array($count['lost_countable_labels'] ?? null) ? $count['lost_countable_labels'] : [],
+            'php_pass_admission' => $phpAdmission,
+            'php_pass_delta' => (int) ($phpAdmission['assertion_delta'] ?? 0),
+            'next_php_pass' => (int) ($phpAdmission['next_php_pass'] ?? $currentPhpPass),
+            'active_gate' => $activeGate,
+            'counts_next_suite_ledger' => $status === 'next35-suite-ledger-countable',
+            'preserves_current_suite_ledger' => $status === 'next35-suite-ledger-preserved',
+            'release_parity_claimed' => false,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'count_record' => $count,
+            'next_gate' => match ($status) {
+                'next35-suite-ledger-countable' => 'publish the current/next35 suite-ledger artifact increase with focused phpPass evidence; do not claim broad release parity from focused artifacts',
+                'next35-suite-ledger-preserved' => 'record that next35 preserves current suite-ledger countability and wait for a distinct new artifact before moving counts',
+                default => 'repair current/next artifact provenance, focused phpPass admission, or active-runner state before counting next35 suite-ledger movement',
+            },
+            'dependency_closure' => 'no new support component needed; next35 suite ledger composes existing bounded runner artifact hydration, current/next countability, active-runner, and focused PHP TestRunner gates',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function boundedRunnerArtifactDirectoryRecord(
         string $artifactDirectory,
         string $acceptedRepositoryHead,

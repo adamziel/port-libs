@@ -124,6 +124,51 @@ final class SQLiteVdbeIndexCursor
     }
 
     /**
+     * @param list<int>|null $columns
+     * @return list<mixed>|null
+     */
+    public function currentRecord(?array $columns = null): ?array
+    {
+        return $this->recordAt($this->position, $columns, 'current');
+    }
+
+    /**
+     * @param list<int>|null $columns
+     * @return list<mixed>|null
+     */
+    public function nextRecord(?array $columns = null): ?array
+    {
+        return $this->recordAt($this->position + 1, $columns, 'next');
+    }
+
+    /**
+     * @param list<int>|null $columns
+     * @param list<string>|string|null $affinities
+     * @param list<string>|null $collations
+     * @param list<bool>|null $descending
+     */
+    public function compareCurrentToNext(
+        ?array $columns = null,
+        array|string|null $affinities = null,
+        ?array $collations = null,
+        ?array $descending = null
+    ): ?int {
+        $current = $this->currentRecord($columns);
+        $next = $this->nextRecord($columns);
+        if ($current === null || $next === null) {
+            return null;
+        }
+
+        return SQLiteVdbeSortCompare::compareRecords(
+            $current,
+            $next,
+            $affinities ?? $this->affinities,
+            $collations ?? $this->collations,
+            $descending ?? $this->descending
+        );
+    }
+
+    /**
      * @param list<mixed> $probe
      */
     public function seekGreaterOrEqual(array $probe): bool
@@ -195,5 +240,37 @@ final class SQLiteVdbeIndexCursor
             $this->collations,
             $this->descending
         );
+    }
+
+    /**
+     * @param list<int>|null $columns
+     * @return list<mixed>|null
+     */
+    private function recordAt(int $position, ?array $columns, string $label): ?array
+    {
+        $entry = $this->entries[$position] ?? null;
+        if ($entry === null) {
+            return null;
+        }
+
+        if ($columns === null) {
+            return $entry['key'];
+        }
+        if ($columns === [] || !array_is_list($columns)) {
+            throw new \InvalidArgumentException("SQLite VDBE index cursor {$label} record columns must be a non-empty list");
+        }
+
+        $record = [];
+        foreach ($columns as $column) {
+            if (!is_int($column) || $column < 0) {
+                throw new \InvalidArgumentException("SQLite VDBE index cursor {$label} record columns must be non-negative integers");
+            }
+            if (!array_key_exists($column, $entry['key'])) {
+                throw new \OutOfBoundsException("SQLite VDBE index cursor {$label} record missing key column {$column}");
+            }
+            $record[] = $entry['key'][$column];
+        }
+
+        return $record;
     }
 }
