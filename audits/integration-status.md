@@ -118696,3 +118696,18 @@ Final gates:
 - Originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-deps-20260527T024737Z` still contains modified lane files, so it was preserved as cleanup debt instead of removed.
 
 Dashboard publication should run next because `refs/heads/main` moved from live source `5d93c28fa517426356ac39875148b2a9f91f1824` to accepted source `79448901682f37871c7a8fa3e89bf3cd70b3e522`.
+## Integration accepted pending commit - libsqlite SELECT SQL text executor - 2026-05-27T03:03:00Z
+
+Marker selected: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-sql-exec-20260527T025059Z.ready`.
+
+Selection evidence: dashboard guard was open because cache-busted live Pages reported exact current source `cf60d66e5b99acdf4652d3acfe26cd830a5ac6c5`, generated `2026-05-27 02:58:42 UTC`, while local `refs/heads/main` also pointed at `cf60d66e5b99acdf4652d3acfe26cd830a5ac6c5` (`Integrate libsqlite VFS lock byte ranges`). Recent libsqlite candidates were sampled from a clean detached `cf60d66e` worktree. The chosen SQL execution marker had non-status implementation/test/example hunks that applied cleanly; only `lanes/libsqlite/lane-status.json` was stale and was reconciled from current accepted evidence. Newer B-tree, scalar, WAL, encoding, and VFS/deps candidates were not accepted in this pass because the SQL text executor had the strongest non-overlapping parser/VDBE movement among the sampled current-source behavior candidates and this pass is bounded to one accepted marker.
+
+Focused evidence from the clean candidate: `php -l lanes/libsqlite/src/SQLiteSelectSql.php`, `php -l lanes/libsqlite/tests/SQLiteHeaderTest.php`, and `php -l lanes/libsqlite/examples/wordpress-select-sql-preview.php` passed; `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 5685 assertions, 0 failures`; `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-select-sql-preview.php` passed and selected copied `wp_options` IDs `[2, 1, 3]`; JSON validation passed for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json`.
+
+Accepted delta: adds `SQLiteSelectSql` for bounded single-table SQLite `SELECT` text parsing into native query plans, adds the copied WordPress SELECT SQL preview smoke, extends `SQLiteHeaderTest.php`, updates mapped manifest coverage, and reconciles libsqlite status to `759 pass / 0 fail` and mapped coverage `421 / 1589`.
+
+Root, diff-check, final commit, marker cleanup, and dashboard-next evidence are recorded in the follow-up entry for the committed source.
+
+Final commit evidence: committed as `Integrate libsqlite SELECT SQL text executor` from the clean detached candidate. Serialized root verification passed under the clean-integrator lock with repo-local `TMPDIR=$candidate/.tmp-root`: `215 test files, 30850 assertions, 0 failures`. Final pre-publication checks confirmed `git diff --check` passed, local `refs/heads/main` and live Pages both still reported source `cf60d66e5b99acdf4652d3acfe26cd830a5ac6c5`, and the dashboard should publish the accepted SELECT SQL text executor source next.
+
+Cleanup evidence: removed the accepted ready marker, patch, and metadata files after `refs/heads/main` moved to the verified commit. The originating worker worktree `/home/claude/port-libs/.tmux-team/worktrees/port-dev-libsqlite-sql-exec-20260527T025059Z` still has the accepted lane files modified/added relative to its detached base, so it was preserved and left registered as cleanup debt rather than force-removed.

@@ -3936,3 +3936,26 @@ lane-local savepoint state, rollback journal page-image conventions, WAL frame
 boundary diagnostics, and copied WordPress import smokes. Follow-up should
 apply these page-image rollback previews through bounded native VFS/file
 handles or connect them to durable pager write/truncate operations.
+
+## SELECT SQL Text Preview Scenario
+
+Copied WordPress database diagnostics can now execute a bounded single-table
+SELECT text subset through the native query-plan executor instead of requiring
+callers to prebuild row-array plans. The smoke
+`examples/wordpress-select-sql-preview.php` reports copied `wp_options` rows
+selected by SQL text with projection aliases, scalar function expressions,
+WHERE predicates, ORDER BY, and LIMIT without requiring ext/sqlite.
+
+Status delta 2026-05-27 isolated SQL execution/planner slice: added
+`SQLiteSelectSql` with 88 focused assertion growth over the latest accepted
+5530-assertion baseline. Focused `SQLiteHeaderTest.php` passed at 5618
+assertions, covering SELECT list parsing, wildcard/table-star projection,
+string/integer/NULL literals, scalar functions, comparison/LIKE/IN/IS NULL
+predicates, AND/OR composition, ORDER BY, LIMIT/OFFSET, strict unsupported SQL
+guards, and direct plan inspection.
+
+Dependency closure: no new support component is needed. This reuses lane-local
+`SQLiteSelectQuery`, `SQLiteSelectProjection`, `SQLiteSelectPredicate`,
+`SQLiteSelectResult`, and scalar function dispatch. Follow-up should broaden
+parser/VDBE execution to JOIN clauses, GROUP BY SQL text, expression ORDER BY,
+or range-cost planner decisions.

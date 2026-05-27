@@ -70,6 +70,7 @@ use PortLibs\LibSqlite\SQLiteSelectPredicate;
 use PortLibs\LibSqlite\SQLiteSelectProjection;
 use PortLibs\LibSqlite\SQLiteSelectQuery;
 use PortLibs\LibSqlite\SQLiteSelectResult;
+use PortLibs\LibSqlite\SQLiteSelectSql;
 use PortLibs\LibSqlite\SQLiteSequenceRecord;
 use PortLibs\LibSqlite\SQLiteSchemaRecord;
 use PortLibs\LibSqlite\SQLiteTableInteriorCell;
@@ -18228,5 +18229,154 @@ SQL;
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectQuery::execute(['from' => $options, 'groupBy' => ['columns' => ['autoload', 'missing'], 'valueColumn' => 'bytes']]));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::summarize($options, [], 'bytes'));
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteGroupedAggregate::summarize($options, ['autoload', 1], 'bytes'));
+    },
+    'executes bounded sqlite select sql text through query plans' => static function (TestRunner $t): void {
+        $options = [
+            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://example.test', 'autoload' => 'yes', 'bytes' => 24],
+            ['option_id' => 3, 'option_name' => 'blogname', 'option_value' => 'Example Site', 'autoload' => 'yes', 'bytes' => 9],
+            ['option_id' => 4, 'option_name' => '_transient_feed', 'option_value' => 'cached', 'autoload' => 'no', 'bytes' => 12],
+            ['option_id' => 5, 'option_name' => '_site_transient_update_plugins', 'option_value' => 'plugins', 'autoload' => 'no', 'bytes' => 110],
+            ['option_id' => 6, 'option_name' => 'orphaned', 'option_value' => null, 'autoload' => null, 'bytes' => 3],
+        ];
+
+        $rows = SQLiteSelectSql::execute(
+            "SELECT option_id, lower(option_name) AS normalized_name, coalesce(autoload, 'missing') AS autoload_key, bytes FROM wp_options WHERE autoload = 'yes' AND bytes >= 9 ORDER BY bytes DESC, normalized_name ASC LIMIT 3",
+            ['wp_options' => $options],
+        );
+        $t->same(3, count($rows));
+        $t->same([2, 1, 3], array_column($rows, 'option_id'));
+        $t->same(['home', 'siteurl', 'blogname'], array_column($rows, 'normalized_name'));
+        $t->same(['yes', 'yes', 'yes'], array_column($rows, 'autoload_key'));
+        $t->same([24, 24, 9], array_column($rows, 'bytes'));
+        $t->same(['option_id', 'normalized_name', 'autoload_key', 'bytes'], array_keys($rows[0]));
+        $t->same(2, $rows[0]['option_id']);
+        $t->same('home', $rows[0]['normalized_name']);
+        $t->same('yes', $rows[0]['autoload_key']);
+        $t->same(24, $rows[0]['bytes']);
+        $t->same(1, $rows[1]['option_id']);
+        $t->same('siteurl', $rows[1]['normalized_name']);
+        $t->same(3, $rows[2]['option_id']);
+        $t->same('blogname', $rows[2]['normalized_name']);
+
+        $likeRows = SQLiteSelectSql::execute(
+            "SELECT option_id, option_name AS name, length(option_value) AS value_length FROM wp_options WHERE option_name LIKE '_%transient%' OR option_value IS NULL ORDER BY option_id DESC LIMIT 2 OFFSET 0",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($likeRows));
+        $t->same([6, 5], array_column($likeRows, 'option_id'));
+        $t->same(['orphaned', '_site_transient_update_plugins'], array_column($likeRows, 'name'));
+        $t->same([null, 7], array_column($likeRows, 'value_length'));
+        $t->same(['option_id', 'name', 'value_length'], array_keys($likeRows[0]));
+        $t->same(6, $likeRows[0]['option_id']);
+        $t->same('orphaned', $likeRows[0]['name']);
+        $t->same(null, $likeRows[0]['value_length']);
+        $t->same(5, $likeRows[1]['option_id']);
+        $t->same('_site_transient_update_plugins', $likeRows[1]['name']);
+        $t->same(7, $likeRows[1]['value_length']);
+
+        $inRows = SQLiteSelectSql::execute(
+            "SELECT option_name, autoload FROM wp_options WHERE option_name IN ('siteurl', 'blogname', 'missing') ORDER BY option_name",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($inRows));
+        $t->same(['blogname', 'siteurl'], array_column($inRows, 'option_name'));
+        $t->same(['yes', 'yes'], array_column($inRows, 'autoload'));
+        $t->same('blogname', $inRows[0]['option_name']);
+        $t->same('siteurl', $inRows[1]['option_name']);
+
+        $notInRows = SQLiteSelectSql::execute(
+            "SELECT option_name, autoload FROM wp_options WHERE autoload NOT IN ('yes', NULL) ORDER BY option_id",
+            ['wp_options' => $options],
+        );
+        $t->same([], $notInRows);
+
+        $notLikeRows = SQLiteSelectSql::execute(
+            "SELECT option_name, bytes FROM wp_options WHERE autoload IS NOT NULL AND option_name NOT LIKE '_transient%' ORDER BY bytes DESC LIMIT 2 OFFSET 1",
+            ['wp_options' => $options],
+        );
+        $t->same(2, count($notLikeRows));
+        $t->same(['siteurl', 'home'], array_column($notLikeRows, 'option_name'));
+        $t->same([24, 24], array_column($notLikeRows, 'bytes'));
+        $t->same('siteurl', $notLikeRows[0]['option_name']);
+        $t->same(24, $notLikeRows[0]['bytes']);
+        $t->same('home', $notLikeRows[1]['option_name']);
+        $t->same(24, $notLikeRows[1]['bytes']);
+
+        $starRows = SQLiteSelectSql::execute(
+            "SELECT * FROM wp_options WHERE option_id = 1",
+            ['wp_options' => $options],
+        );
+        $t->same(1, count($starRows));
+        $t->same(['option_id', 'option_name', 'option_value', 'autoload', 'bytes'], array_keys($starRows[0]));
+        $t->same(1, $starRows[0]['option_id']);
+        $t->same('siteurl', $starRows[0]['option_name']);
+        $t->same('https://example.test', $starRows[0]['option_value']);
+        $t->same('yes', $starRows[0]['autoload']);
+        $t->same(24, $starRows[0]['bytes']);
+
+        $qualified = SQLiteSelectSql::execute(
+            "SELECT wp_options.* FROM wp_options WHERE wp_options.option_id <= 2 ORDER BY option_id DESC",
+            ['wp_options' => [
+                ['wp_options.option_id' => 1, 'wp_options.option_name' => 'siteurl'],
+                ['wp_options.option_id' => 2, 'wp_options.option_name' => 'home'],
+            ]],
+        );
+        $t->same(2, count($qualified));
+        $t->same([2, 1], array_column($qualified, 'option_id'));
+        $t->same(['home', 'siteurl'], array_column($qualified, 'option_name'));
+        $t->same(['option_id', 'option_name'], array_keys($qualified[0]));
+        $t->same(2, $qualified[0]['option_id']);
+        $t->same('home', $qualified[0]['option_name']);
+        $t->same(1, $qualified[1]['option_id']);
+        $t->same('siteurl', $qualified[1]['option_name']);
+
+        $plan = SQLiteSelectSql::plan(
+            "SELECT option_name AS name, 1 AS constant, NULL AS missing_value FROM wp_options WHERE bytes > 10 ORDER BY name DESC LIMIT 2 OFFSET 1",
+            ['wp_options' => $options],
+        );
+        $t->same(['from', 'select', 'where', 'orderBy', 'limit', 'offset'], array_keys($plan));
+        $t->same($options, $plan['from']);
+        $t->same(3, count($plan['select']));
+        $t->same('option_name', $plan['select'][0]['name']);
+        $t->same('name', $plan['select'][0]['alias']);
+        $t->same(1, $plan['select'][1]['value']);
+        $t->same('constant', $plan['select'][1]['alias']);
+        $t->same(null, $plan['select'][2]['value']);
+        $t->same('missing_value', $plan['select'][2]['alias']);
+        $t->same('>', $plan['where']['operator']);
+        $t->same('bytes', $plan['where']['left']['name']);
+        $t->same(10, $plan['where']['right']['value']);
+        $t->same([['column' => 'name', 'direction' => 'DESC']], $plan['orderBy']);
+        $t->same(2, $plan['limit']);
+        $t->same(1, $plan['offset']);
+
+        $plannedRows = SQLiteSelectQuery::execute($plan);
+        $t->same(2, count($plannedRows));
+        $t->same(['home', '_transient_feed'], array_column($plannedRows, 'name'));
+        $t->same([1, 1], array_column($plannedRows, 'constant'));
+        $t->same([null, null], array_column($plannedRows, 'missing_value'));
+        $t->same('home', $plannedRows[0]['name']);
+        $t->same(1, $plannedRows[0]['constant']);
+        $t->same(null, $plannedRows[0]['missing_value']);
+        $t->same('_transient_feed', $plannedRows[1]['name']);
+
+        $quoted = SQLiteSelectSql::execute(
+            "SELECT option_name AS name FROM wp_options WHERE option_value = 'Bob''s Site'",
+            ['wp_options' => [['option_name' => 'blogname', 'option_value' => "Bob's Site"]]],
+        );
+        $t->same(1, count($quoted));
+        $t->same('blogname', $quoted[0]['name']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('DELETE FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM missing', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name AS 1bad FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name, FROM wp_options', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options ORDER BY option_name SIDEWAYS', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options LIMIT one', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name BETWEEN 1 AND 2', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options WHERE option_name MATCH "site"', ['wp_options' => $options]));
+        $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT option_name FROM wp_options JOIN meta', ['wp_options' => $options]));
     },
 ];
