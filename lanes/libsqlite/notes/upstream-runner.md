@@ -1,5 +1,36 @@
 # libsqlite Upstream Runner Evidence
 
+## Focused Native Mapping: Focused Tcl Artifact Admission
+
+Date: 2026-05-27
+
+This isolated upstream-suite micro-slice adds
+`SQLiteUpstreamSuiteEvidence::focusedRunnerArtifactAdmission()`. The helper
+composes existing bounded-runner artifact parsing and provenance gates, then
+admits only zero-error Tcl artifacts that have explicit selected `.test`
+patterns. Broad release/all artifacts without patterns are routed back to the
+release countability gates, and every focused admission keeps
+`counts_as_release_parity` false.
+
+No broad upstream `testfixture`, `make test`, `mptest`, `all`, or `release`
+run was started by this slice. The change removes a countability ambiguity for
+hydrated focused subset artifacts: integrators can count a selected-script
+artifact as focused evidence without accidentally closing release/all parity.
+
+Verification run for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php
+php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This composes
+lane-local guarded-runner audit parsing, selected-pattern checks, and existing
+accepted-HEAD/manifest provenance gates only.
+
 ## Focused Native Mapping: SELECT Query Plan Wiring
 
 Date: 2026-05-26

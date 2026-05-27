@@ -990,7 +990,7 @@ final class SQLiteUpstreamSuiteEvidence
         $scratch = $this->extractBacktickField($auditText, 'Scratch');
         $log = $this->extractBacktickField($auditText, 'Log');
         $testset = $this->extractBacktickField($auditText, 'Testset');
-        $patterns = $this->extractBacktickField($auditText, 'Patterns');
+        $patterns = $this->extractBacktickListField($auditText, 'Patterns');
         $exit = $this->extractIntegerBacktickField($auditText, 'Exit');
         $elapsed = $this->extractIntegerBacktickField($auditText, 'Elapsed seconds');
         $errors = $this->extractIntegerBacktickField($auditText, 'Parsed errors');
@@ -1039,9 +1039,9 @@ final class SQLiteUpstreamSuiteEvidence
                 'testset' => $testset,
                 'jobs' => $jobs,
                 'timeout_seconds' => $timeout,
-                'patterns' => $patterns === null || strtolower($patterns) === 'none'
+                'patterns' => $patterns === [] || in_array('none', array_map('strtolower', $patterns), true)
                     ? []
-                    : array_values(array_filter(preg_split('/\s+/', $patterns) ?: [], 'strlen')),
+                    : $patterns,
             ],
             'results' => [
                 'exit' => $exit,
@@ -1328,6 +1328,66 @@ final class SQLiteUpstreamSuiteEvidence
                 ? 'publish only the countable zero-error bounded runner artifacts, and keep blocked artifacts as explicit follow-up evidence'
                 : 'do not count this artifact set until at least one guarded runner artifact has zero-error results, accepted HEAD provenance, matching SQLite manifest UUID, and no active runner',
             'dependency_closure' => 'no new support component needed; artifact-set records compose existing bounded runner file/countability gates only',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $artifactRecord
+     * @return array<string, mixed>
+     */
+    public function focusedRunnerArtifactAdmission(array $artifactRecord, string $acceptedRepositoryHead): array
+    {
+        $acceptance = $this->boundedRunnerAcceptanceGate($artifactRecord, $acceptedRepositoryHead);
+        $requested = is_array($artifactRecord['requested'] ?? null) ? $artifactRecord['requested'] : [];
+        $results = is_array($artifactRecord['results'] ?? null) ? $artifactRecord['results'] : [];
+        $activeGate = is_array($artifactRecord['active_gate'] ?? null) ? $artifactRecord['active_gate'] : [];
+        $patterns = is_array($requested['patterns'] ?? null) ? $requested['patterns'] : [];
+        $testset = is_string($requested['testset'] ?? null) ? $requested['testset'] : null;
+
+        $blockers = is_array($acceptance['blockers'] ?? null) ? $acceptance['blockers'] : [];
+        if (($activeGate['status'] ?? null) === 'blocked-active-runner') {
+            array_unshift($blockers, [
+                'id' => 'active-runner-still-running',
+                'evidence' => 'supplied process snapshot still contains a broad SQLite runner',
+                'active_tiers' => $activeGate['active_tiers'] ?? [],
+            ]);
+        }
+        if ($patterns === []) {
+            $blockers[] = [
+                'id' => 'focused-patterns-missing',
+                'evidence' => 'focused runner admission requires explicit .test pattern selections; broad all/release artifacts use the release countability gate',
+            ];
+        }
+        if (!in_array($testset, ['veryquick', 'all', 'release'], true)) {
+            $blockers[] = [
+                'id' => 'unsupported-focused-testset',
+                'evidence' => 'focused runner admission only accepts SQLite testrunner artifacts for veryquick, all, or release with explicit patterns',
+                'testset' => $testset,
+            ];
+        }
+
+        $countable = ($acceptance['status'] ?? null) === 'accepted-for-lane-evidence' && $blockers === [];
+
+        return [
+            'status' => $countable ? 'focused-evidence-countable' : 'blocked',
+            'countable' => $countable,
+            'counts_as_release_parity' => false,
+            'artifact_status' => $artifactRecord['status'] ?? 'unknown',
+            'repository_head' => $acceptance['repository_head'] ?? null,
+            'accepted_repository_head' => $acceptedRepositoryHead,
+            'sqlite_manifest_uuid' => $acceptance['sqlite_manifest_uuid'] ?? null,
+            'testset' => $testset,
+            'patterns' => array_values(array_filter($patterns, 'is_string')),
+            'pattern_count' => count($patterns),
+            'tests' => is_int($results['tests'] ?? null) ? $results['tests'] : null,
+            'errors' => is_int($results['errors'] ?? null) ? $results['errors'] : null,
+            'blocker_count' => count($blockers),
+            'blockers' => $blockers,
+            'acceptance' => $acceptance,
+            'next_gate' => $countable
+                ? 'record this zero-error focused Tcl artifact as focused upstream evidence only; it does not close release/all parity'
+                : 'do not count this focused runner artifact until it has explicit selected patterns, zero-error parsed results, no active runner, accepted HEAD provenance, and matching SQLite manifest UUID',
+            'dependency_closure' => 'no new support component needed; focused runner admission composes bounded audit parsing and provenance gates only',
         ];
     }
 
@@ -2464,6 +2524,24 @@ final class SQLiteUpstreamSuiteEvidence
         }
 
         return $matches[1];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractBacktickListField(string $text, string $field): array
+    {
+        $quotedField = preg_quote($field, '/');
+        if (preg_match('/-\s+' . $quotedField . ':\s+([^\r\n]+)/i', $text, $matches) !== 1) {
+            return [];
+        }
+
+        if (preg_match_all('/`([^`]*)`/', $matches[1], $values) < 1) {
+            $raw = trim($matches[1]);
+            return $raw === '' ? [] : [$raw];
+        }
+
+        return array_values(array_filter($values[1], 'strlen'));
     }
 
     private function extractIntegerBacktickField(string $text, string $field): ?int

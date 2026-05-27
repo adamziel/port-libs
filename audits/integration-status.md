@@ -118380,3 +118380,51 @@ Serialized root verification in the same detached clean worktree with repo-local
 - `php tools/run-tests.php`: passed, `215 test files, 30291 assertions, 0 failures`.
 
 Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-upstream-runner-20260527T014535Z` still has modified libsqlite files after the accepted commit, so it was preserved and left registered. Accepted ready/patch/metadata artifacts were removed after publication to `refs/heads/main`.
+## Integration accepted - libsqlite focused upstream artifact admission - 2026-05-27T01:58:57Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-upstream-runner-20260527T015256Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate application was `c95b62870cd274ce252aec0e250dcfbbf63e2ba5` (`Integrate libsqlite upstream runner pgrep gate`).
+- Cache-busted live Pages reported exact matching `sourceCommit` `c95b62870cd274ce252aec0e250dcfbbf63e2ba5`, generated `2026-05-27 01:54:31 UTC`, dashboard commit `73cf4e42620351575a78e681163cb0375910d5f7`.
+- Dashboard guard was open for one source-moving libsqlite marker.
+
+Candidate evidence:
+- Marker base was current accepted HEAD `c95b62870cd274ce252aec0e250dcfbbf63e2ba5`.
+- Patch applied cleanly in detached worktree `.tmux-team/tmp/clean-integrator-candidates/libsqlite-upstream-runner-20260527T015256Z`.
+- Slice adds focused Tcl runner artifact admission in `SQLiteUpstreamSuiteEvidence`, preserving selected `.test` patterns, requiring zero parsed errors plus accepted-HEAD/manifest provenance, and explicitly keeping focused artifacts out of release/all parity credit.
+- This is a distinct upstream-suite countability blocker slice, not a duplicate of the accepted pgrep duplicate-runner gate.
+- Mapped coverage moves `413 -> 414`; focused `SQLiteUpstreamSuiteEvidenceTest.php` moves `729 -> 745` assertions.
+
+Focused verification:
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/src/SQLiteUpstreamSuiteEvidence.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -l lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed.
+- `TMPDIR=$candidate/.tmp-root php -r` JSON validation for `lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json` and `lanes/libsqlite/lane-status.json` passed.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php` passed: `1 test files, 745 assertions, 0 failures`.
+- `git diff --check -- lanes/libsqlite` passed.
+
+Runtime gate evidence before serialized root:
+- `/` had `117807580` KiB available, above the `86000000` KiB floor.
+- `/proc/loadavg` one-minute load was `1.24`, below the `25` limit.
+- No exact no-argument `php tools/run-tests.php` process was active.
+
+Ready queue evidence at decision time:
+- Remaining ready-marker count before acceptance cleanup: `7039` total ready markers, including `3348` `port-dev-libsqlite-*` markers.
+- Recent group-integrator notes remain stale storage-data hints and did not override the current libsqlite-only intake priority.
+- No non-libsqlite or Dolt marker was considered.
+
+Serialized root verification:
+- `flock .tmux-team/tmp/clean-integrator-run.lock env TMPDIR=$candidate/.tmp-root php tools/run-tests.php` passed: `215 test files, 30314 assertions, 0 failures`.
+
+Commit:
+- Accepted as the commit containing this audit note (`Integrate libsqlite focused runner admission`).
+- `refs/heads/main` advanced atomically from `c95b62870cd274ce252aec0e250dcfbbf63e2ba5` to the final amended integration commit.
+
+Cleanup:
+- Originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-upstream-runner-20260527T015256Z` still had modified lane files after acceptance, so it was preserved as cleanup debt rather than removed.
+- Clean integrator candidate worktree `.tmux-team/tmp/clean-integrator-candidates/libsqlite-upstream-runner-20260527T015256Z` contains repo-local `.tmp-root` root-run output and was preserved rather than forcibly removed.
+- Accepted marker artifacts were removed after the commit was safely on `main`.
+
+Decision: accepted. Dashboard publication should run next for the final amended integration source.

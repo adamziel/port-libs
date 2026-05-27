@@ -2066,6 +2066,61 @@ MD);
             @rmdir($root);
         }
     },
+    'admits zero-error focused runner artifacts without release parity credit' => static function (TestRunner $t): void {
+        $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
+        $focused = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-focused-encoding-20260527T020000Z
+
+- Repository HEAD: `focused-head`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `veryquick`
+- Patterns: `enc.test` `collate1.test` `like.test`
+- Exit: `0`
+- Parsed summary: `0 errors out of 4321 tests`
+- Parsed errors: `0`
+- Parsed tests: `4321`
+MD);
+
+        $admission = $evidence->focusedRunnerArtifactAdmission($focused, 'focused-head');
+
+        $t->same('focused-evidence-countable', $admission['status']);
+        $t->same(true, $admission['countable']);
+        $t->same(false, $admission['counts_as_release_parity']);
+        $t->same('passed', $admission['artifact_status']);
+        $t->same('focused-head', $admission['repository_head']);
+        $t->same('veryquick', $admission['testset']);
+        $t->same(['enc.test', 'collate1.test', 'like.test'], $admission['patterns']);
+        $t->same(3, $admission['pattern_count']);
+        $t->same(4321, $admission['tests']);
+        $t->same(0, $admission['errors']);
+        $t->same(0, $admission['blocker_count']);
+        $t->contains('focused upstream evidence only', $admission['next_gate']);
+        $t->contains('no new support component needed', $admission['dependency_closure']);
+
+        $broad = $evidence->boundedRunnerArtifactRecord(<<<'MD'
+# SQLite Tcl Bounded Runner Evidence - libsqlite-release-20260527T020100Z
+
+- Repository HEAD: `focused-head`
+- SQLite manifest UUID: `9ac4a33a2932d353c4871fd8e09c10addf827f1fc3fc9380037d738cf2cd0353`
+- Testset: `release`
+- Exit: `0`
+- Parsed errors: `0`
+- Parsed tests: `22000`
+MD);
+        $broadAdmission = $evidence->focusedRunnerArtifactAdmission($broad, 'focused-head');
+        $t->same('blocked', $broadAdmission['status']);
+        $t->same(false, $broadAdmission['countable']);
+        $t->same(false, $broadAdmission['counts_as_release_parity']);
+        $t->same(['focused-patterns-missing'], array_column($broadAdmission['blockers'], 'id'));
+        $t->contains('broad all/release artifacts use the release countability gate', $broadAdmission['blockers'][0]['evidence']);
+
+        $mismatch = $evidence->focusedRunnerArtifactAdmission($focused, 'different-head');
+        $t->same('blocked', $mismatch['status']);
+        $t->same(false, $mismatch['countable']);
+        $t->same(['repository-head-mismatch'], array_column($mismatch['blockers'], 'id'));
+        $t->same('different-head', $mismatch['blockers'][0]['expected']);
+        $t->same('focused-head', $mismatch['blockers'][0]['actual']);
+    },
     'composes artifact-set and exclusion gates into a release blocker closure record' => static function (TestRunner $t): void {
         $evidence = SQLiteUpstreamSuiteEvidence::fromManifestPath(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json');
         $root = sys_get_temp_dir() . '/libsqlite-release-blocker-closure-' . bin2hex(random_bytes(4));
