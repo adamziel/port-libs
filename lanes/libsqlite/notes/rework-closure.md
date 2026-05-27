@@ -1,5 +1,36 @@
 # Libsqlite Rework Closure Notes
 
+## 2026-05-27 JSON Table Reverse-Root Metadata
+
+This isolated JSON table/window slice does not reuse the stale May 25 rework
+markers and does not repeat accepted JSON projection, duplicate hidden
+constraints, malformed JSONB planning, residual LIKE/ESCAPE, or JSON object
+aggregate/window behavior. It adds one bounded table-valued behavior cluster:
+`json_tree()` selected-root rows now preserve the resolved array index for
+reverse roots such as `$.plugin.rules[#-1]`.
+
+Focused assertion delta: `SQLiteHeaderTest.php` now passes at 4721 assertions,
+up from the lane-status recorded 4629 baseline (`+92`). The new assertions
+cover selected-root `key`, `parent`, `path`, `root`, value, rowid projection,
+residual filtering, JSONB parity for `[#-2]`, and `json_each()` comparison
+behavior over copied WordPress settings payloads.
+
+Focused verification for this slice:
+
+```sh
+php -l lanes/libsqlite/src/SQLiteJsonTree.php
+php -l lanes/libsqlite/tests/SQLiteHeaderTest.php
+php -l lanes/libsqlite/examples/wordpress-json-table-reverse-root.php
+php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php
+php lanes/libsqlite/examples/wordpress-json-table-reverse-root.php
+php -r 'json_decode(file_get_contents("lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json"), true, 512, JSON_THROW_ON_ERROR); json_decode(file_get_contents("lanes/libsqlite/lane-status.json"), true, 512, JSON_THROW_ON_ERROR);'
+git diff --check -- lanes/libsqlite
+```
+
+Dependency closure: no new support component is needed. This reuses lane-local
+JSON path parsing, JSONB decoding, JSON table planning, projection, and
+residual predicate helpers.
+
 ## 2026-05-26 JSON Dispatch Rework Markers
 
 This isolated closure slice checked the outstanding handoff rework markers:

@@ -57,7 +57,7 @@ final class SQLiteJsonTree
 
         $rows = [];
         $nextId = 0;
-        $rootLocation = self::rootLocation($path);
+        $rootLocation = self::rootLocation($value, $path);
         self::appendRows($rows, $nextId, $rootLocation['key'], $located['value'], $path, $rootLocation['path'], $value, $path);
 
         return $rows;
@@ -179,7 +179,7 @@ final class SQLiteJsonTree
     /**
      * @return array{key:int|string|null,path:string}
      */
-    private static function rootLocation(string $path): array
+    private static function rootLocation(string|SQLiteBlobValue $json, string $path): array
     {
         if ($path === '$') {
             return ['key' => null, 'path' => '$'];
@@ -193,8 +193,21 @@ final class SQLiteJsonTree
         $last = $segments[count($segments) - 1];
         $parentPath = count($segments) === 1 ? '$' : substr($path, 0, $last['offset']);
 
-        if ($last['type'] === 'index' && ctype_digit($last['token'])) {
-            return ['key' => (int) $last['token'], 'path' => $parentPath];
+        if ($last['type'] === 'index') {
+            if (ctype_digit($last['token'])) {
+                return ['key' => (int) $last['token'], 'path' => $parentPath];
+            }
+
+            if (preg_match('/^#-(\d+)$/', $last['token'], $matches) === 1) {
+                $parent = SQLiteJsonInspection::locatePath($json, $parentPath);
+                if (!$parent['found'] || !is_array($parent['value']) || !array_is_list($parent['value'])) {
+                    return ['key' => null, 'path' => $parentPath];
+                }
+
+                return ['key' => count($parent['value']) - (int) $matches[1], 'path' => $parentPath];
+            }
+
+            return ['key' => null, 'path' => $parentPath];
         }
 
         if ($last['type'] !== 'member') {

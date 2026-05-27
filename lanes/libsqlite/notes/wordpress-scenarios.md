@@ -2,6 +2,27 @@
 
 SQLite fallback/read-write tooling for WordPress hosts where the SQLite extension is unavailable.
 
+## JSON Table Reverse-Root Scenario
+
+Copied WordPress option settings can now expand the last JSON array item through
+`json_tree()` with a reverse array root such as `$.plugin.rules[#-1]` without
+losing the selected root row metadata. The smoke
+`examples/wordpress-json-table-reverse-root.php` reports the resolved selected
+root key, parent, path, rowid, and leaf atom for a copied `wp_options` plugin
+settings payload without requiring the SQLite extension.
+
+Status delta 2026-05-27 isolated JSON table/window slice: updated
+`SQLiteJsonTree` so selected-root metadata resolves reverse array indexes
+against the parent array for text JSON and JSONB inputs. Focused assertions
+cover root `key`, `parent`, `path`, `root`, rowid projection, residual
+filtering, `json_each` comparison behavior, JSONB parity, and WordPress smoke
+output. The focused lane test count moves from the current lane-status
+baseline of 4629 assertions to 4721 assertions, +92. Lane `phpPass` moves from
+742 to 743 and mapped coverage moves from 405 to 406. Dependency closure: no
+new support component is needed; this reuses lane-local JSON path parsing,
+JSONB decoding, JSON table planning, projection, and residual predicate
+helpers.
+
 ## Hot Rollback-Journal Recovery Scenario
 
 Copied WordPress database repair/import previews can now apply a hot SQLite

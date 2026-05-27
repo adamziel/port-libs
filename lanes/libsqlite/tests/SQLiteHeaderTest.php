@@ -6012,6 +6012,58 @@ return [
         $t->same(['true', 'array'], array_column($matchingDuplicateJsonRows, 'type'));
         $t->same(['$.plugin', '$.plugin'], array_column($matchingDuplicateJsonRows, 'root'));
 
+        $reverseRootRows = SQLiteJsonTablePlan::rows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[#-1]'],
+        ]);
+        $t->same([1, 'name'], array_column($reverseRootRows, 'key'));
+        $t->same([null, 0], array_column($reverseRootRows, 'parent'));
+        $t->same(['object', 'text'], array_column($reverseRootRows, 'type'));
+        $t->same(['$.plugin.rules[#-1]', '$.plugin.rules[#-1].name'], array_column($reverseRootRows, 'fullkey'));
+        $t->same(['$.plugin.rules', '$.plugin.rules[#-1]'], array_column($reverseRootRows, 'path'));
+        $t->same(['$.plugin.rules[#-1]', '$.plugin.rules[#-1]'], array_column($reverseRootRows, 'root'));
+        $t->same(['{"name":"cache"}', 'cache'], array_column($reverseRootRows, 'value'));
+
+        $reverseRootProjectedRows = SQLiteJsonTablePlan::projectedRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[#-1]'],
+            ['column' => 'type', 'operator' => 'IN', 'value' => ['object', 'text']],
+        ], ['rowid', 'key', 'parent', 'type', 'atom', 'path', 'root']);
+        $t->same(['rowid', 'key', 'parent', 'type', 'atom', 'path', 'root'], array_keys($reverseRootProjectedRows[0]));
+        $t->same([0, 1], array_column($reverseRootProjectedRows, 'rowid'));
+        $t->same([1, 'name'], array_column($reverseRootProjectedRows, 'key'));
+        $t->same([null, 0], array_column($reverseRootProjectedRows, 'parent'));
+        $t->same(['object', 'text'], array_column($reverseRootProjectedRows, 'type'));
+        $t->same([null, 'cache'], array_column($reverseRootProjectedRows, 'atom'));
+        $t->same(['$.plugin.rules', '$.plugin.rules[#-1]'], array_column($reverseRootProjectedRows, 'path'));
+        $t->same(['$.plugin.rules[#-1]', '$.plugin.rules[#-1]'], array_column($reverseRootProjectedRows, 'root'));
+
+        $reverseRootFilteredRows = SQLiteJsonTablePlan::filteredRows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[#-1]'],
+            ['column' => 'key', 'operator' => '=', 'value' => 1],
+            ['column' => 'parent', 'operator' => 'IS NULL'],
+        ]);
+        $t->same([1], array_column($reverseRootFilteredRows, 'key'));
+        $t->same(['object'], array_column($reverseRootFilteredRows, 'type'));
+
+        $reverseRootJsonbRows = SQLiteJsonTablePlan::rows('json_tree', [
+            ['column' => 'json', 'operator' => '=', 'value' => new SQLiteBlobValue(SQLiteJsonB::encode(['plugin' => ['rules' => [['name' => 'seo'], ['name' => 'cache'], ['name' => 'forms']]]]))],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[#-2]'],
+        ]);
+        $t->same([1, 'name'], array_column($reverseRootJsonbRows, 'key'));
+        $t->same(['$.plugin.rules', '$.plugin.rules[#-2]'], array_column($reverseRootJsonbRows, 'path'));
+        $t->same(['$.plugin.rules[#-2]', '$.plugin.rules[#-2]'], array_column($reverseRootJsonbRows, 'root'));
+        $t->same(['{"name":"cache"}', 'cache'], array_column($reverseRootJsonbRows, 'value'));
+
+        $reverseRootEachRows = SQLiteJsonTablePlan::rows('json_each', [
+            ['column' => 'json', 'operator' => '=', 'value' => $settings],
+            ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules[#-1]'],
+        ]);
+        $t->same(['name'], array_column($reverseRootEachRows, 'key'));
+        $t->same(['cache'], array_column($reverseRootEachRows, 'atom'));
+        $t->same(['$.plugin.rules[#-1]'], array_column($reverseRootEachRows, 'path'));
+
         $orderedDuplicateRootRows = SQLiteJsonTablePlan::orderedRows('json_tree', [
             ['column' => 'json', 'operator' => '=', 'value' => $settings],
             ['column' => 'root', 'operator' => '=', 'value' => '$.plugin.rules'],

@@ -118125,3 +118125,37 @@ Scope:
 - Adds `wordpress-btree-leaf-merge-apply.php` smoke and minimal libsqlite manifest/status reconciliation.
 - Does not accept duplicate leaf merge planning already present in `a391c8eb`; this slice applies the plan to page images and freelist/pointer-map updates.
 - Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-btree-20260527T003322Z` still contains modified tracked files matching the handoff, so it was preserved and left registered rather than removed.
+
+## Integration accepted - libsqlite JSON table reverse-root selected roots - 2026-05-27T00:49:10Z
+
+Accepted marker: `.tmux-team/tmp/handoff-candidates/port-dev-libsqlite-json-table-20260527T004120Z.ready`.
+
+Priority lane: `libsqlite`.
+
+Dashboard guard evidence:
+- Current `refs/heads/main` before candidate apply was `a17fb234ab6d3eb2619a7936fa4b955066e30246` (`Integrate libsqlite B-tree leaf merge application`).
+- Cache-busted live `https://adamziel.github.io/port-libs/porting-summary.json` reported matching `sourceCommit` `a17fb234ab6d3eb2619a7936fa4b955066e30246`, `generated` `2026-05-27 00:44:14 UTC`, and `dashboardCommit` `27f31d1c51c7cc0762b60cd43f0a09aad0bbf0f4`.
+- The dashboard guard was open for exactly one source-moving libsqlite marker.
+
+Candidate evidence:
+- Marker lane was `libsqlite`; patch and metadata were present.
+- The marker base was older (`4c14eb89dfb9ea9032321f07859a3d1d11e6279a`), but implementation/test/manifest/note hunks applied cleanly to current `a17fb234` after excluding stale `lanes/libsqlite/lane-status.json`.
+- The stale `lane-status.json` hunk was reconciled from current accepted source, keeping `phpPass` `743`, fixing `latestCommit` to start with exact accepted source `a17fb234ab6d3eb2619a7936fa4b955066e30246`, and recording the JSON table reverse-root work as the current behavior slice.
+- The accepted behavior updates `SQLiteJsonTree::rootLocation()` so `json_tree`/`json_each` selected roots using reverse array indexes resolve the parent array key/path metadata for text JSON and JSONB inputs.
+
+Focused verification:
+- Runtime gates before focused checks: `/` had `129343940` KiB available, load average was `1.77`, and no exact no-argument root harness was running.
+- `TMPDIR=$candidate/.tmp-root php tools/run-tests.php lanes/libsqlite/tests/SQLiteHeaderTest.php` passed with `1 test files, 4776 assertions, 0 failures`.
+- `TMPDIR=$candidate/.tmp-root php lanes/libsqlite/examples/wordpress-json-table-reverse-root.php` passed and reported `rootKey` `1`, `rootPath` `$.plugin.rules`, and `leafAtom` `cache`.
+
+Serialized verification:
+- `git diff --check` and `git diff --check -- lanes/libsqlite audits/integration-status.md` passed before root verification.
+- Runtime gates before root: `/` had `129169248` KiB available, load average was `2.54`, and no exact no-argument root harness was running.
+- Serialized no-argument root verification passed under `.tmux-team/tmp/clean-integrator-run.lock` with candidate-local `TMPDIR=.tmp-root`: `215 test files, 29910 assertions, 0 failures`.
+
+Scope:
+- Adds selected-root reverse array index key/path metadata for `SQLiteJsonTree`.
+- Adds focused assertions for `json_tree`/`json_each` selected roots, rowid projection, residual filtering, and JSONB parity.
+- Updates the libsqlite upstream manifest, lane status, and notes for the accepted behavior slice.
+- Does not repeat accepted JSON projection, duplicate hidden constraints, malformed JSONB diagnostics, LIKE/ESCAPE residuals, JSON object aggregate/window behavior, or B-tree/VFS work.
+- Cleanup debt: originating worker worktree `.tmux-team/worktrees/port-dev-libsqlite-json-table-20260527T004120Z` still contains modified tracked files matching the handoff, so it was preserved and left registered rather than removed.
